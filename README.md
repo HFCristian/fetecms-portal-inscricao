@@ -35,19 +35,27 @@ Ou abra diretamente `view/cadastro1.html` para o fluxo do orientador, ou `view/c
 ├── css/cadastro-fetecms.css
 ├── js/fetec-layout.js   → menu lateral / mobile
 ├── js/cadastro-masks.js → máscaras CPF, telefone, CEP
-├── js/video-preview.js  → pré-visualização do vídeo do projeto
+├── js/video-preview.js       → pré-visualização do link de vídeo
+├── js/file-upload-preview.js → pré-visualização de PDF/DOCX
 ├── img/logo2022.png
 └── view/                → telas HTML
 ```
 
-## Pré-visualização de vídeo (cadastro do projeto)
+## Pré-visualizações no cadastro do projeto (`cadastro4.html`)
 
-No campo **Link do Vídeo/Apresentação** (`cadastro4.html`), ao colar o link o protótipo:
+### Link do vídeo (`video-preview.js`)
 
 - Aceita **YouTube**, **Vimeo** e **Google Drive** (link público)
 - Valida disponibilidade via **oEmbed** (YouTube/Vimeo)
-- Exibe **player embutido** para o orientador confirmar que o vídeo está público
-- Mostra feedback visual no campo (verde = OK, vermelho = link inválido ou vídeo privado)
+- Exibe **player embutido** para confirmar que o vídeo está público
+- Feedback visual no campo (verde = OK, vermelho = inválido ou privado)
+
+### Upload de arquivos (`file-upload-preview.js`)
+
+- Aceita **PDF** e **DOCX** (máx. 10 MB por arquivo), com clique ou arrastar
+- **PDF:** visualização inline no navegador
+- **DOCX:** confirma nome, tamanho e link para baixar cópia local
+- Lista de arquivos com chips; clique para alternar a pré-visualização; remover individualmente
 
 ## Fluxo do protótipo
 

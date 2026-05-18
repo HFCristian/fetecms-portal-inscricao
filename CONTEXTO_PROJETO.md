@@ -53,7 +53,8 @@ fetecms-portal-inscricao/
 ├── js/
 │   ├── fetec-layout.js        # shell wizard + área autenticada
 │   ├── cadastro-masks.js      # máscaras CPF, telefone, CEP
-│   └── video-preview.js       # pré-visualização link vídeo (cadastro4)
+│   ├── video-preview.js       # pré-visualização link vídeo (cadastro4)
+│   └── file-upload-preview.js # pré-visualização upload PDF/DOCX (cadastro4)
 ├── img/
 │   └── logo2022.png           # logo XVI FETECMS
 └── view/
@@ -165,7 +166,24 @@ Pré-visualização do campo **Link do Vídeo/Apresentação** em `cadastro4.htm
 <script src="../js/video-preview.js"></script>
 ```
 
-### 5.4 `css/cadastro-fetecms.css`
+### 5.4 `js/file-upload-preview.js`
+
+Pré-visualização do **Upload de Arquivos (PDF ou DOCX)** em `cadastro4.html`.
+
+**Comportamento:**
+- Input `#upload-arquivos` (multiple), dropzone `#fetec-file-dropzone` (clique, drag-and-drop, teclado)
+- Valida extensão (`.pdf`, `.docx`) e tamanho (máx. 10 MB)
+- **PDF:** iframe com `URL.createObjectURL` para preview inline
+- **DOCX:** painel com ícone, nome, tamanho e link de download (sem render de páginas no browser)
+- Chips em `#fetec-file-list` — clique para preview; botão remover revoga blob URL
+- Borda da dropzone: verde (ok), vermelha (erro), roxa (drag)
+
+**Inclusão na página:**
+```html
+<script src="../js/file-upload-preview.js"></script>
+```
+
+### 5.5 `css/cadastro-fetecms.css`
 
 Principais blocos:
 
@@ -180,6 +198,7 @@ Principais blocos:
 | `.fetec-member-card`, `.fetec-resumo-grid` | Cards de integrantes (cadastro7) |
 | `.fetec-quick-action`, `.fetec-status-pill` | Atalhos e badges no resumo |
 | `.fetec-video-preview`, `.fetec-video-preview__banner` | Preview do vídeo do projeto |
+| `.fetec-file-preview`, `.fetec-file-chip` | Preview de upload PDF/DOCX |
 | `body.fetec-auth-shell` | `overflow-x: hidden`; padding-bottom para nav mobile |
 
 **Regra importante:** conteúdo autenticado **não usa `mx-auto`** — fica alinhado à esquerda após o menu (`margin-left: 0; margin-right: auto`) para evitar vão grande entre sidebar e formulário em telas largas.
@@ -206,7 +225,8 @@ Principais blocos:
 
 ### cadastro4 — Projeto
 - Formulário extenso: título, instituição, categoria, área, resumo, toggles (continuação, feira afiliada, ODS)
-- **Link do Vídeo/Apresentação** (`#link-video`, `name="link_video"`) com pré-visualização em tempo real (`video-preview.js`)
+- **Link do Vídeo/Apresentação** (`#link-video`) — `video-preview.js`
+- **Upload de Arquivos** (`#upload-arquivos`, PDF/DOCX) — `file-upload-preview.js`
 - Banner status “Rascunho”
 - Atalhos: Incluir aluno → `cadastro5`, Incluir coorientador → `cadastro6`
 - **Submeter** → link para `cadastro7.html` (não submit PHP)
@@ -368,7 +388,8 @@ Layout autenticado: só #fetec-auth-shell + fetec-layout.js (sem nav duplicada n
 6. **Espaçamento** — alinhamento conteúdo à esquerda após sidebar.
 7. **cadastro7** — resumo de integrantes + atalhos de edição + fluxo submeter → confirmar.
 8. **Repositório separado** — `HFCristian/fetecms-portal-inscricao`, arquivos removidos do legado.
-9. **Preview de vídeo** — validação oEmbed + player embutido no cadastro do projeto (`video-preview.js`).
+9. **Preview de vídeo** — validação oEmbed + player embutido (`video-preview.js`).
+10. **Preview de arquivos** — PDF inline + DOCX com validação (`file-upload-preview.js`).
 
 ---
 
@@ -384,4 +405,4 @@ Layout autenticado: só #fetec-auth-shell + fetec-layout.js (sem nav duplicada n
 
 ---
 
-*Última atualização: maio/2026 (incl. pré-visualização de vídeo no cadastro4) — gerado para recuperação de contexto em assistentes de IA.*
+*Última atualização: maio/2026 (preview de vídeo e upload PDF/DOCX no cadastro4) — gerado para recuperação de contexto em assistentes de IA.*
