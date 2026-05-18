@@ -11,7 +11,7 @@ Protótipo HTML/CSS/JS das telas de inscrição da **XVI FETECMS**, separado do 
 | `view/cadastro1.html` | Cadastro do orientador — etapa 1 (dados básicos) |
 | `view/cadastro2.html` | Cadastro do orientador — etapa 2 (info. acadêmicas) |
 | `view/cadastro3.html` | Cadastro do orientador — etapa 3 (endereço) |
-| `view/cadastro4.html` | Cadastro / edição do projeto |
+| `view/cadastro4.html` | Cadastro / edição do projeto (com pré-visualização do link de vídeo) |
 | `view/cadastro5.html` | Cadastro de aluno no projeto |
 | `view/cadastro6.html` | Cadastro de coorientador |
 | `view/cadastro7.html` | Resumo da inscrição e confirmação de submissão |
@@ -33,11 +33,21 @@ Ou abra diretamente `view/cadastro1.html` para o fluxo do orientador, ou `view/c
 ```
 ├── index.html          → redireciona para cadastro1
 ├── css/cadastro-fetecms.css
-├── js/fetec-layout.js  → menu lateral / mobile
-├── js/cadastro-masks.js
+├── js/fetec-layout.js   → menu lateral / mobile
+├── js/cadastro-masks.js → máscaras CPF, telefone, CEP
+├── js/video-preview.js  → pré-visualização do vídeo do projeto
 ├── img/logo2022.png
-└── view/               → telas HTML
+└── view/                → telas HTML
 ```
+
+## Pré-visualização de vídeo (cadastro do projeto)
+
+No campo **Link do Vídeo/Apresentação** (`cadastro4.html`), ao colar o link o protótipo:
+
+- Aceita **YouTube**, **Vimeo** e **Google Drive** (link público)
+- Valida disponibilidade via **oEmbed** (YouTube/Vimeo)
+- Exibe **player embutido** para o orientador confirmar que o vídeo está público
+- Mostra feedback visual no campo (verde = OK, vermelho = link inválido ou vídeo privado)
 
 ## Fluxo do protótipo
 
