@@ -71,7 +71,7 @@
 
     <!-- Painel lateral (igual cadastro orientador) -->
     <aside class="hidden lg:flex lg:w-5/12 bg-surface-container-low flex-col justify-between p-10 relative overflow-hidden border-r border-outline-variant/30">
-        <motion class="absolute -top-32 -left-32 w-96 h-96 bg-primary-fixed rounded-full mix-blend-multiply filter blur-[80px] opacity-70"></motion>
+        <div class="absolute -top-32 -left-32 w-96 h-96 bg-primary-fixed rounded-full mix-blend-multiply filter blur-[80px] opacity-70"></div>
         <div class="absolute -bottom-32 -right-32 w-96 h-96 bg-secondary-fixed rounded-full mix-blend-multiply filter blur-[80px] opacity-50"></div>
         <div class="relative z-10 flex flex-col gap-2">
             <span class="font-label-md text-label-md text-primary-container tracking-wider uppercase">XVI FETECMS</span>
@@ -87,7 +87,7 @@
             <p class="text-sm text-on-surface-variant mt-3 max-w-[90%]">
                 Acesse sua conta para gerenciar projetos, integrantes e inscrições.
             </p>
-        </motion>
+        </div>
     </aside>
 
     <!-- Formulário de login -->
@@ -98,21 +98,21 @@
             <div class="flex items-center gap-2 mb-2">
                 <img alt="XVI FETECMS" class="h-10 w-auto" src="../img/logo2022.png"/>
                 <span class="text-xs font-semibold text-primary-container tracking-wider uppercase">XVI FETECMS</span>
-            </motion>
+            </div>
             <h1 class="text-[28px] font-semibold text-on-surface font-orbitron-override">Entrar</h1>
-        </motion>
+        </div>
 
         <div class="flex-grow flex flex-col justify-center px-6 sm:px-10 py-8 lg:py-10 w-full max-w-md mx-auto">
 
             <div class="hidden lg:block mb-8">
                 <h2 class="text-2xl font-semibold text-on-surface font-orbitron-override mb-1">Bem-vindo de volta</h2>
                 <p class="text-sm text-on-surface-variant">Informe seu e-mail e senha para acessar o portal.</p>
-            </motion>
+            </div>
 
             <div id="login-alert" class="fetec-login-alert fetec-login-alert--error" role="alert" aria-live="polite">
                 <span class="material-symbols-outlined text-[20px] shrink-0">error</span>
                 <span id="login-alert-text">E-mail ou senha incorretos. Tente novamente.</span>
-            </motion>
+            </div>
 
             <form id="form-login" class="space-y-5" novalidate>
                 <div class="flex flex-col gap-1">
@@ -128,12 +128,12 @@
                             autocomplete="email"
                             required
                         />
-                    </motion>
-                </motion>
+                    </div>
+                </div>
 
                 <div class="flex flex-col gap-1">
                     <label class="text-sm font-semibold text-on-surface" for="senha">Senha</label>
-                    <motion class="fetec-input-icon-wrap">
+                    <div class="fetec-input-icon-wrap">
                         <span class="material-symbols-outlined">lock</span>
                         <input
                             type="password"
@@ -147,8 +147,8 @@
                         <button type="button" id="toggle-senha" class="fetec-toggle-password text-on-surface-variant hover:text-primary-container p-1 bg-transparent border-0 cursor-pointer" aria-label="Mostrar senha">
                             <span class="material-symbols-outlined text-[22px]" id="icon-senha">visibility</span>
                         </button>
-                    </motion>
-                </motion>
+                    </div>
+                </div>
 
                 <div class="flex flex-wrap items-center justify-between gap-2 text-sm">
                     <label class="inline-flex items-center gap-2 cursor-pointer text-on-surface-variant">
@@ -156,7 +156,7 @@
                         Lembrar de mim
                     </label>
                     <a href="recuperar-senha.html" class="font-semibold text-primary-container hover:underline">Esqueceu a senha?</a>
-                </motion>
+                </div>
 
                 <button type="submit" class="fetec-btn fetec-btn-primary w-full justify-center py-3 text-base" id="btn-entrar">
                     <span class="material-symbols-outlined text-[20px]">login</span>
@@ -168,7 +168,7 @@
                 Novo por aqui?
                 <a href="cadastro1.html" class="font-semibold text-primary-container hover:underline">Criar conta de orientador</a>
             </p>
-        </motion>
+        </div>
     </section>
 </main>
 
