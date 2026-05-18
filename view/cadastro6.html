@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Cadastro de Coorientador - XVI FETECMS</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&amp;family=Space+Grotesk:wght@600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-variant": "#e1e3e4",
+                        "primary-fixed": "#eddcff",
+                        "primary-container": "#43157a",
+                        "on-secondary-fixed": "#002205",
+                        "surface-container-low": "#f3f4f5",
+                        "on-secondary": "#ffffff",
+                        "outline-variant": "#cdc3d3",
+                        "on-primary-fixed-variant": "#592f91",
+                        "primary": "#2a0058",
+                        "tertiary": "#27005c",
+                        "tertiary-container": "#400091",
+                        "surface-bright": "#f8f9fa",
+                        "on-surface": "#191c1d",
+                        "secondary": "#006e1f",
+                        "surface-container": "#edeeef",
+                        "on-secondary-container": "#007522",
+                        "error-container": "#ffdad6",
+                        "on-tertiary-fixed": "#250059",
+                        "inverse-on-surface": "#f0f1f2",
+                        "error": "#ba1a1a",
+                        "on-tertiary-fixed-variant": "#581bb5",
+                        "on-primary-fixed": "#290055",
+                        "inverse-surface": "#2e3132",
+                        "on-background": "#191c1d",
+                        "surface-tint": "#7249aa",
+                        "on-tertiary": "#ffffff",
+                        "tertiary-fixed": "#eaddff",
+                        "inverse-primary": "#d8baff",
+                        "on-error-container": "#93000a",
+                        "secondary-fixed-dim": "#76dd78",
+                        "background": "#f8f9fa",
+                        "surface-container-lowest": "#ffffff",
+                        "on-error": "#ffffff",
+                        "tertiary-fixed-dim": "#d3bbff",
+                        "surface-dim": "#d9dadb",
+                        "on-primary-container": "#b085eb",
+                        "on-secondary-fixed-variant": "#005315",
+                        "on-primary": "#ffffff",
+                        "surface-container-high": "#e7e8e9",
+                        "surface": "#f8f9fa",
+                        "outline": "#7c7482",
+                        "surface-container-highest": "#e1e3e4",
+                        "secondary-container": "#92fa91",
+                        "on-surface-variant": "#4a4451",
+                        "secondary-fixed": "#92fa91",
+                        "on-tertiary-container": "#ac82ff",
+                        "primary-fixed-dim": "#d8baff",
+                        "success": "#007B24",
+                        "success-hover": "#0F9E3A",
+                        "primary-hover": "#5A1EB7",
+                        "gray-border": "#D1D5DB",
+                        "gray-placeholder": "#9CA3AF"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "base": "8px",
+                        "gutter": "24px",
+                        "sm": "12px",
+                        "xl": "64px",
+                        "lg": "40px",
+                        "md": "24px",
+                        "xs": "4px",
+                        "container-max": "1200px"
+                    },
+                    "fontFamily": {
+                        "headline-lg-mobile": ["Space Grotesk"],
+                        "body-lg": ["Inter"],
+                        "label-md": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "headline-sm": ["Space Grotesk"],
+                        "body-md": ["Inter"],
+                        "headline-lg": ["Space Grotesk"],
+                        "headline-md": ["Space Grotesk"],
+                        "body-sm": ["Inter"],
+                        "headline-xl": ["Space Grotesk"]
+                    },
+                    "fontSize": {
+                        "headline-lg-mobile": ["28px", { "lineHeight": "34px", "fontWeight": "600" }],
+                        "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
+                        "label-md": ["14px", { "lineHeight": "16px", "fontWeight": "600" }],
+                        "label-sm": ["12px", { "lineHeight": "16px", "fontWeight": "600" }],
+                        "headline-sm": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "headline-lg": ["32px", { "lineHeight": "40px", "fontWeight": "600" }],
+                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
+                        "body-sm": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "headline-xl": ["48px", { "lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700" }]
+                    },
+                    "boxShadow": {
+                        'science': '0 4px 24px rgba(67, 21, 122, 0.12)',
+                        'science-hover': '0 4px 24px rgba(67, 21, 122, 0.20)',
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-family: 'Material Symbols Outlined';
+            font-weight: normal;
+            font-style: normal;
+            font-size: 24px;
+            line-height: 1;
+            letter-spacing: normal;
+            text-transform: none;
+            display: inline-block;
+            white-space: nowrap;
+            word-wrap: normal;
+            direction: ltr;
+            -webkit-font-feature-settings: 'liga';
+            -webkit-font-smoothing: antialiased;
+        }
+        
+        /* Custom Input Styles */
+        .fetec-input {
+            border: 1px solid #D1D5DB;
+            border-radius: 0.5rem;
+            padding: 0.75rem 1rem;
+            width: 100%;
+            transition: all 0.2s ease-in-out;
+            font-family: 'Inter', sans-serif;
+            font-size: 16px;
+        }
+        .fetec-input:focus {
+            outline: none;
+            border-color: #43157A;
+            box-shadow: 0 0 0 2px rgba(67, 21, 122, 0.2);
+        }
+        .fetec-input::placeholder {
+            color: #9CA3AF;
+        }
+        .fetec-label {
+            display: block;
+            margin-bottom: 0.25rem;
+            font-family: 'Inter', sans-serif;
+            font-weight: 700;
+            font-size: 14px;
+            color: #191c1d;
+        }
+    </style>
+    <link href="../css/cadastro-fetecms.css" rel="stylesheet" />
+</head>
+<body class="fetec-auth-shell fetec-has-bottom-nav bg-background text-on-background antialiased" data-fetec-auth data-fetec-auth-active="projetos">
+<div id="fetec-auth-shell"></div>
+
+<main class="fetec-main-offset fetec-auth-main">
+    <div class="fetec-auth-content py-4 md:py-5">
+        <header class="mb-6">
+            <a class="inline-flex items-center gap-1 text-on-surface-variant hover:text-primary transition-colors font-label-sm text-label-sm mb-3" href="cadastro4.html">
+                <span class="material-symbols-outlined text-[18px]">arrow_back</span>
+                Voltar para o projeto
+            </a>
+            <h1 class="font-headline-lg-mobile text-headline-lg-mobile md:font-headline-lg md:text-headline-lg text-primary mb-1">
+                Adicionar Coorientador
+            </h1>
+            <p class="font-body-md text-body-md text-on-surface-variant">
+                Projeto: Desenvolvimento de Bioplástico a partir de Casca de Mandioca
+            </p>
+        </header>
+
+        <div class="bg-surface-container-low border border-outline-variant rounded-lg p-4 md:p-5 mb-6 flex items-start gap-3" role="alert">
+            <span class="material-symbols-outlined text-primary shrink-0 mt-0.5" style="font-variation-settings: 'FILL' 1">info</span>
+            <div>
+                <h3 class="font-label-md text-label-md text-on-background mb-1">Limite de Coorientadores</h3>
+                <p class="font-body-sm text-body-sm text-on-surface-variant">
+                    Cada projeto pode ter no máximo 1 coorientador cadastrado. Certifique-se de que a vaga está disponível.
+                </p>
+            </div>
+        </div>
+
+        <div class="bg-surface rounded-xl fetec-card-shadow border border-outline-variant/30 p-4 md:p-6 lg:p-8">
+<form action="#" class="flex flex-col gap-6" method="POST">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-md">
+<!-- Nome -->
+<div class="col-span-1 md:col-span-2">
+<label class="fetec-label" for="nome">Nome Completo</label>
+<input class="fetec-input" id="nome" name="nome" placeholder="Ex: Maria Clara Silva" required="" type="text"/>
+</div>
+<!-- Email -->
+<div>
+<label class="fetec-label" for="email">E-mail</label>
+<input class="fetec-input" id="email" name="email" placeholder="maria@exemplo.com" required="" type="email"/>
+</div>
+<!-- Telefone -->
+<div>
+<label class="fetec-label" for="telefone">Telefone (WhatsApp)</label>
+<input class="fetec-input" id="telefone" name="telefone" placeholder="(67) 99999-9999" required="" type="tel"/>
+</div>
+<!-- CPF -->
+<div>
+<label class="fetec-label" for="cpf">CPF</label>
+<input class="fetec-input" id="cpf" name="cpf" placeholder="000.000.000-00" required="" type="text"/>
+</div>
+<!-- Data de Nascimento -->
+<div>
+<label class="fetec-label" for="nascimento">Data de Nascimento</label>
+<input class="fetec-input" id="nascimento" name="nascimento" required="" type="date"/>
+</div>
+<!-- Gênero -->
+<div>
+<label class="fetec-label" for="genero">Gênero</label>
+<select class="fetec-input bg-white" id="genero" name="genero" required="">
+<option disabled="" selected="" value="">Selecione...</option>
+<option value="F">Feminino</option>
+<option value="M">Masculino</option>
+<option value="NB">Não-binário</option>
+<option value="O">Outro</option>
+<option value="P">Prefiro não informar</option>
+</select>
+</div>
+<!-- Tamanho da Camiseta -->
+<div>
+<label class="fetec-label" for="camiseta">Tamanho da Camiseta</label>
+<select class="fetec-input bg-white" id="camiseta" name="camiseta" required="">
+<option disabled="" selected="" value="">Selecione...</option>
+<option value="PP">PP</option>
+<option value="P">P</option>
+<option value="M">M</option>
+<option value="G">G</option>
+<option value="GG">GG</option>
+<option value="EXG">EXG</option>
+</select>
+<p class="font-body-sm text-[12px] text-on-surface-variant mt-1">Para uso durante o evento presencial.</p>
+</div>
+</div>
+
+            <div class="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-4 mt-2 border-t border-outline-variant/30">
+                <a class="fetec-btn fetec-btn-outline w-full sm:w-auto justify-center" href="cadastro4.html">CANCELAR</a>
+                <button class="fetec-btn fetec-btn-success w-full sm:w-auto justify-center" type="submit">
+                    <span class="material-symbols-outlined text-[20px]">person_add</span>
+                    CADASTRAR COORIENTADOR
+                </button>
+            </div>
+        </form>
+        </div>
+    </div>
+</main>
+
+<script src="../js/cadastro-masks.js"></script>
+<script src="../js/fetec-layout.js"></script>
+</body>
+</html>

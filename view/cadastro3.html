@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="utf-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <title>Cadastro do Orientador - Etapa 3 (Endereço)</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&amp;family=Space+Grotesk&family=Orbitron:wght@600;700:wght@600;700&amp;display=swap"
+        rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet">
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-error": "#ffffff",
+                        "outline": "#7c7482",
+                        "primary": "#2a0058",
+                        "on-secondary-container": "#007522",
+                        "on-primary-fixed": "#290055",
+                        "secondary-fixed": "#92fa91",
+                        "primary-fixed-dim": "#d8baff",
+                        "primary-container": "#43157a",
+                        "on-tertiary-fixed-variant": "#581bb5",
+                        "secondary-fixed-dim": "#76dd78",
+                        "on-tertiary-container": "#ac82ff",
+                        "on-surface-variant": "#4a4451",
+                        "on-primary": "#ffffff",
+                        "on-tertiary-fixed": "#250059",
+                        "error-container": "#ffdad6",
+                        "on-surface": "#191c1d",
+                        "surface": "#f8f9fa",
+                        "inverse-surface": "#2e3132",
+                        "background": "#f8f9fa",
+                        "secondary-container": "#92fa91",
+                        "surface-bright": "#f8f9fa",
+                        "surface-container-highest": "#e1e3e4",
+                        "surface-container": "#edeeef",
+                        "outline-variant": "#cdc3d3",
+                        "inverse-primary": "#d8baff",
+                        "secondary": "#006e1f",
+                        "on-secondary": "#ffffff",
+                        "inverse-on-surface": "#f0f1f2",
+                        "surface-tint": "#7249aa",
+                        "on-background": "#191c1d",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container-low": "#f3f4f5",
+                        "on-primary-fixed-variant": "#592f91",
+                        "surface-variant": "#e1e3e4",
+                        "on-secondary-fixed": "#002205",
+                        "surface-dim": "#d9dadb",
+                        "on-tertiary": "#ffffff",
+                        "error": "#ba1a1a",
+                        "surface-container-high": "#e7e8e9",
+                        "tertiary-container": "#400091",
+                        "tertiary-fixed": "#eaddff",
+                        "on-error-container": "#93000a",
+                        "on-secondary-fixed-variant": "#005315",
+                        "tertiary": "#27005c",
+                        "tertiary-fixed-dim": "#d3bbff",
+                        "on-primary-container": "#b085eb",
+                        "primary-fixed": "#eddcff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "xl": "64px",
+                        "xs": "4px",
+                        "sm": "12px",
+                        "gutter": "24px",
+                        "md": "24px",
+                        "lg": "40px",
+                        "container-max": "1200px",
+                        "base": "8px"
+                    },
+                    "fontFamily": {
+                        "label-md": ["Inter"],
+                        "headline-lg-mobile": ["Space Grotesk"],
+                        "headline-md": ["Space Grotesk"],
+                        "headline-lg": ["Space Grotesk"],
+                        "label-sm": ["Inter"],
+                        "headline-xl": ["Space Grotesk"],
+                        "headline-sm": ["Space Grotesk"],
+                        "body-lg": ["Inter"],
+                        "body-md": ["Inter"],
+                        "body-sm": ["Inter"]
+                    },
+                    "fontSize": {
+                        "label-md": ["14px", { "lineHeight": "16px", "fontWeight": "600" }],
+                        "headline-lg-mobile": ["28px", { "lineHeight": "34px", "fontWeight": "600" }],
+                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
+                        "headline-lg": ["32px", { "lineHeight": "40px", "fontWeight": "600" }],
+                        "label-sm": ["12px", { "lineHeight": "16px", "fontWeight": "600" }],
+                        "headline-xl": ["48px", { "lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "headline-sm": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "body-sm": ["14px", { "lineHeight": "20px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .custom-gradient {
+            background: linear-gradient(135deg, #43157A 0%, #007B24 100%);
+        }
+
+        .form-input-focus:focus {
+            border-color: #43157A;
+            box-shadow: 0 0 0 2px rgba(67, 21, 122, 0.2);
+            outline: none;
+        }
+    </style>
+    <link href="../css/cadastro-fetecms.css" rel="stylesheet" />
+</head>
+
+<body class="fetec-gradient-bg min-h-screen flex items-center justify-center p-4 sm:p-6 md:p-10 antialiased" data-fetec-wizard="3">
+    <div class="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+        <div class="absolute top-[10%] right-[10%] w-[40vw] h-[40vw] bg-secondary-container rounded-full mix-blend-overlay filter blur-[120px] opacity-20"></div>
+        <div class="absolute bottom-[10%] left-[5%] w-[50vw] h-[50vw] bg-tertiary-container rounded-full mix-blend-overlay filter blur-[150px] opacity-30"></div>
+    </div>
+    <main class="fetec-wizard-card w-full max-w-container-max bg-surface-container-lowest rounded-xl fetec-card-shadow overflow-hidden flex flex-col lg:flex-row relative z-10">
+        <aside id="fetec-wizard-aside"></aside>
+        <section class="w-full lg:w-7/12 flex flex-col bg-surface-container-lowest min-h-0">
+            <div id="fetec-wizard-mobile-header"></div>
+            <div id="fetec-wizard-progress" class="px-gutter lg:px-lg pt-gutter lg:pt-lg pb-md w-full border-b border-outline-variant/20"></div>
+            <div class="fetec-wizard-form-area flex-grow p-gutter lg:p-lg overflow-y-auto custom-scrollbar">
+                <div class="mb-md">
+                    <h2 class="font-headline-md text-headline-md text-on-surface font-orbitron-override">Endereço</h2>
+                    <p class="font-body-sm text-body-sm text-on-surface-variant mt-xs">Complete seu endereço para finalizar o cadastro.</p>
+                </div>
+                <form class="flex flex-col gap-md"><div class="flex flex-col gap-xs">
+                    <label class="font-label-md text-label-md text-on-surface" for="cep">CEP</label>
+                    <input
+                        class="w-full px-sm py-[10px] bg-surface border border-outline-variant rounded-lg font-body-md text-body-md text-on-surface placeholder:text-[#9CA3AF] form-input-focus transition-all duration-200"
+                        id="cep" placeholder="00000-000" type="text">
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-md">
+                    <div class="flex flex-col gap-xs">
+                        <label class="font-label-md text-label-md text-on-surface" for="pais">País</label>
+                        <select
+                            class="w-full px-sm py-[10px] bg-surface border border-outline-variant rounded-lg font-body-md text-body-md text-on-surface form-input-focus transition-all duration-200"
+                            id="pais">
+                            <option value="br">Brasil</option>
+                            <option value="outros">Outros</option>
+                        </select>
+                    </div>
+                    <div class="flex flex-col gap-xs">
+                        <label class="font-label-md text-label-md text-on-surface" for="estado">Estado</label>
+                        <select
+                            class="w-full px-sm py-[10px] bg-surface border border-outline-variant rounded-lg font-body-md text-body-md text-on-surface form-input-focus transition-all duration-200"
+                            id="estado">
+                            <option value="">Selecione...</option>
+                            <option value="ms">Mato Grosso do Sul</option>
+                            <option value="sp">São Paulo</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="flex flex-col gap-xs">
+                    <label class="font-label-md text-label-md text-on-surface" for="cidade">Cidade</label>
+                    <select
+                        class="w-full px-sm py-[10px] bg-surface border border-outline-variant rounded-lg font-body-md text-body-md text-on-surface form-input-focus transition-all duration-200"
+                        id="cidade" required>
+                        <option value="">Selecione...</option>
+                        <option value="cg">Campo Grande</option>
+                        <option value="dourados">Dourados</option>
+                        <option value="tres-lagoas">Três Lagoas</option>
+                    </select>
+                </div>
+                <div class="flex flex-col gap-xs">
+                    <label class="font-label-md text-label-md text-on-surface" for="logradouro">Logradouro</label>
+                    <input
+                        class="w-full px-sm py-[10px] bg-surface border border-outline-variant rounded-lg font-body-md text-body-md text-on-surface placeholder:text-[#9CA3AF] form-input-focus transition-all duration-200"
+                        id="logradouro" placeholder="Rua, Avenida, etc." type="text">
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-md">
+                    <div class="flex flex-col gap-xs">
+                        <label class="font-label-md text-label-md text-on-surface" for="numero">Número</label>
+                        <input
+                            class="w-full px-sm py-[10px] bg-surface border border-outline-variant rounded-lg font-body-md text-body-md text-on-surface placeholder:text-[#9CA3AF] form-input-focus transition-all duration-200"
+                            id="numero" placeholder="Ex: 123" type="text">
+                    </div>
+                    <div class="flex flex-col gap-xs">
+                        <label class="font-label-md text-label-md text-on-surface" for="bairro">Bairro</label>
+                        <input
+                            class="w-full px-sm py-[10px] bg-surface border border-outline-variant rounded-lg font-body-md text-body-md text-on-surface placeholder:text-[#9CA3AF] form-input-focus transition-all duration-200"
+                            id="bairro" placeholder="Seu bairro" type="text">
+                    </div>
+                </div>
+                <div class="flex flex-col gap-xs">
+                    <label class="font-label-md text-label-md text-on-surface" for="complemento">Complemento <span
+                            class="text-on-surface-variant font-normal">(Opcional)</span></label>
+                    <input
+                        class="w-full px-sm py-[10px] bg-surface border border-outline-variant rounded-lg font-body-md text-body-md text-on-surface placeholder:text-[#9CA3AF] form-input-focus transition-all duration-200"
+                        id="complemento" placeholder="Apto, Bloco, etc." type="text">
+                </div>
+                </form>
+            </div>
+            <div class="p-gutter lg:p-lg border-t border-outline-variant/20 bg-surface-bright flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 mt-auto">
+                <a class="fetec-btn fetec-btn-outline w-full sm:w-auto justify-center" href="cadastro2.html">
+                    <span class="material-symbols-outlined text-[20px]">arrow_back</span> VOLTAR
+                </a>
+                
+                <a class="fetec-btn fetec-btn-success w-full sm:w-auto justify-center" href="cadastro4.html">
+                    CRIAR CONTA
+                    
+                </a>
+            </div>
+        </section>
+    </main>
+    <script src="../js/cadastro-masks.js"></script>
+    <script src="../js/fetec-layout.js"></script>
+</body>
+
+</html>

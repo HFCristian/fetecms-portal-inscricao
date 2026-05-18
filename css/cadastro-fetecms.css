@@ -1,0 +1,422 @@
+/* XVI FETECMS — estilos compartilhados (telas de cadastro) */
+
+:root {
+  --fetec-roxo: #43157A;
+  --fetec-roxo-hover: #5A1EB7;
+  --fetec-verde: #007B24;
+  --fetec-verde-hover: #0F9E3A;
+  --fetec-sombra: 0 4px 24px rgba(67, 21, 122, 0.12);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body.fetec-auth-shell {
+  overflow-x: hidden;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+body.fetec-auth-shell.fetec-has-bottom-nav {
+  padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0));
+}
+
+@media (min-width: 768px) {
+  body.fetec-auth-shell.fetec-has-bottom-nav {
+    padding-bottom: 0;
+  }
+}
+
+.fetec-gradient-bg {
+  background: linear-gradient(135deg, var(--fetec-roxo) 0%, var(--fetec-verde) 100%);
+}
+
+.fetec-card-shadow {
+  box-shadow: var(--fetec-sombra);
+}
+
+/* Scrollbar formulários */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f3f4f5;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #cdc3d3;
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #7c7482;
+}
+
+/* Inputs / selects */
+.fetec-input,
+.form-input-styled {
+  border: 1px solid #D1D5DB;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  width: 100%;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  font-size: 16px; /* evita zoom no iOS */
+}
+.fetec-input:focus,
+.form-input-styled:focus,
+.input-focus-ring:focus,
+.form-input-focus:focus {
+  outline: none;
+  border-color: var(--fetec-roxo);
+  box-shadow: 0 0 0 2px rgba(67, 21, 122, 0.2);
+}
+
+.form-label-styled,
+.fetec-label {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-weight: 600;
+  font-size: 14px;
+  color: #191c1d;
+}
+
+select.fetec-input,
+select.form-input-styled {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%237c7482' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 1.2em;
+  padding-right: 2.5rem;
+}
+
+/* Botões como links */
+.fetec-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1;
+  text-decoration: none;
+  transition: background-color 0.2s, color 0.2s, box-shadow 0.2s, transform 0.15s;
+  cursor: pointer;
+  border: 2px solid transparent;
+  white-space: nowrap;
+}
+.fetec-btn:active {
+  transform: scale(0.98);
+}
+.fetec-btn-primary {
+  background: var(--fetec-roxo);
+  color: #fff;
+}
+.fetec-btn-primary:hover {
+  background: var(--fetec-roxo-hover);
+  box-shadow: var(--fetec-sombra);
+}
+.fetec-btn-success {
+  background: var(--fetec-verde);
+  color: #fff;
+}
+.fetec-btn-success:hover {
+  background: var(--fetec-verde-hover);
+}
+.fetec-btn-outline {
+  background: transparent;
+  border-color: var(--fetec-roxo);
+  color: var(--fetec-roxo);
+}
+.fetec-btn-outline:hover {
+  background: rgba(67, 21, 122, 0.06);
+}
+.fetec-btn-block {
+  width: 100%;
+}
+@media (min-width: 640px) {
+  .fetec-btn-block-sm {
+    width: auto;
+  }
+}
+
+/* Shell autenticado */
+#fetec-auth-shell {
+  flex-shrink: 0;
+}
+
+.fetec-auth-main {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.fetec-main-offset {
+  margin-left: 0;
+  padding-top: 4rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.fetec-auth-content {
+  width: 100%;
+  max-width: 1200px;
+  margin-left: 0;
+  margin-right: auto;
+  box-sizing: border-box;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+@media (min-width: 640px) {
+  .fetec-auth-content {
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .fetec-main-offset {
+    margin-left: 16rem;
+    padding-top: 0.5rem;
+    padding-bottom: 1.5rem;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  /* Conteúdo colado ao menu — não centralizar na área restante */
+  .fetec-main-offset .max-w-container-max,
+  .fetec-main-offset .fetec-auth-content {
+    margin-left: 0;
+    margin-right: auto;
+  }
+
+  .fetec-auth-content {
+    padding-left: 1.25rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (max-width: 767px) {
+  .fetec-main-offset {
+    padding-top: 4rem;
+    padding-bottom: 1rem;
+  }
+}
+.fetec-page-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--fetec-surface, #fff);
+}
+
+/* Wizard — card único em todas as etapas */
+.fetec-wizard-card {
+  min-height: min(680px, calc(100vh - 2rem));
+}
+@media (max-width: 1023px) {
+  .fetec-wizard-card {
+    min-height: auto;
+  }
+}
+.fetec-mobile-header {
+  height: 4.5rem;
+}
+.fetec-bottom-nav {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+}
+
+/* Wizard — etapas clicáveis quando concluídas */
+.fetec-wizard-step a {
+  text-decoration: none;
+  color: inherit;
+}
+.fetec-wizard-step--done:hover .fetec-wizard-dot {
+  transform: scale(1.05);
+}
+
+/* Card principal responsivo */
+.fetec-wizard-card {
+  min-height: min(700px, calc(100vh - 3rem));
+  max-height: calc(100vh - 2rem);
+}
+@media (max-width: 1023px) {
+  .fetec-wizard-card {
+    min-height: auto;
+    max-height: none;
+  }
+  .fetec-wizard-form-area {
+    max-height: none;
+  }
+}
+
+/* Área de formulário com scroll interno em desktop */
+@media (min-width: 1024px) {
+  .fetec-wizard-form-area {
+    max-height: calc(100vh - 14rem);
+    overflow-y: auto;
+  }
+}
+
+/* Evita scroll horizontal em grids */
+.fetec-auth-content .grid {
+  width: 100%;
+}
+
+/* Resumo — integrantes do projeto */
+.fetec-resumo-grid {
+  display: grid;
+  gap: 1rem;
+}
+@media (min-width: 768px) {
+  .fetec-resumo-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.fetec-member-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: #fff;
+  border: 1px solid rgba(205, 195, 211, 0.5);
+  border-radius: 0.75rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.fetec-member-card:hover {
+  border-color: rgba(67, 21, 122, 0.35);
+  box-shadow: 0 2px 12px rgba(67, 21, 122, 0.08);
+}
+.fetec-member-card--empty {
+  border-style: dashed;
+  background: #f3f4f5;
+}
+.fetec-member-card--empty:hover {
+  box-shadow: none;
+}
+
+.fetec-member-avatar {
+  flex-shrink: 0;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+.fetec-member-avatar--orientador {
+  background: #eddcff;
+  color: #43157a;
+}
+.fetec-member-avatar--aluno {
+  background: #eaddff;
+  color: #400091;
+}
+.fetec-member-avatar--coorientador {
+  background: #d8f5d9;
+  color: #006e1f;
+}
+
+.fetec-member-body {
+  flex: 1;
+  min-width: 0;
+}
+.fetec-member-role {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #7c7482;
+  margin-bottom: 0.125rem;
+}
+.fetec-member-name {
+  font-weight: 600;
+  font-size: 15px;
+  color: #191c1d;
+  line-height: 1.3;
+  word-break: break-word;
+}
+.fetec-member-meta {
+  font-size: 13px;
+  color: #4a4451;
+  margin-top: 0.25rem;
+  line-height: 1.4;
+}
+
+.fetec-member-edit {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.375rem 0.625rem;
+  font-size: 12px;
+  font-weight: 600;
+  color: #43157a;
+  text-decoration: none;
+  border-radius: 0.375rem;
+  transition: background 0.15s;
+}
+.fetec-member-edit:hover {
+  background: rgba(67, 21, 122, 0.08);
+}
+
+.fetec-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.fetec-status-pill--ok {
+  background: #d8f5d9;
+  color: #006e1f;
+}
+.fetec-status-pill--warn {
+  background: #fff3cd;
+  color: #856404;
+}
+.fetec-status-pill--optional {
+  background: #edeeef;
+  color: #4a4451;
+}
+
+.fetec-quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.fetec-quick-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.5rem 0.875rem;
+  font-size: 13px;
+  font-weight: 600;
+  color: #43157a;
+  background: #fff;
+  border: 1px solid rgba(67, 21, 122, 0.25);
+  border-radius: 0.5rem;
+  text-decoration: none;
+  transition: background 0.15s, border-color 0.15s;
+}
+.fetec-quick-action:hover {
+  background: rgba(67, 21, 122, 0.06);
+  border-color: #43157a;
+}
+
+/* Utilitários */
+.font-orbitron-override {
+  font-family: 'Orbitron', 'Space Grotesk', sans-serif !important;
+}
+
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  vertical-align: middle;
+}
