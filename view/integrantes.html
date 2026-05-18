@@ -1,13 +1,18 @@
 <!DOCTYPE html>
 <html class="light" lang="pt-BR">
-<head>
-    <meta charset="utf-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Integrantes do Projeto - XVI FETECMS</title>
-    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=Space+Grotesk:wght@600;700&amp;display=swap" rel="stylesheet"/>
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-    <script id="tailwind-config">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Integrantes do Projeto - XVI FETECMS</title>
+        <script
+            src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=Space+Grotesk:wght@600;700&amp;display=swap"
+            rel="stylesheet" />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+            rel="stylesheet" />
+        <script id="tailwind-config">
         tailwind.config = {
             theme: {
                 extend: {
@@ -26,102 +31,144 @@
             }
         };
     </script>
-    <link href="../css/cadastro-fetecms.css" rel="stylesheet"/>
-</head>
-<body class="fetec-auth-shell fetec-has-bottom-nav bg-background text-on-background antialiased" data-fetec-auth data-fetec-auth-active="projetos">
-<div id="fetec-auth-shell"></div>
+        <link href="../css/cadastro-fetecms.css" rel="stylesheet" />
+    </head>
+    <body
+        class="fetec-auth-shell fetec-has-bottom-nav bg-background text-on-background antialiased"
+        data-fetec-auth data-fetec-auth-active="projetos">
+        <div id="fetec-auth-shell"></div>
 
-<main class="fetec-main-offset fetec-auth-main">
-    <div class="fetec-auth-content py-4 md:py-5">
+        <main class="fetec-main-offset fetec-auth-main">
+            <div class="fetec-auth-content py-4 md:py-5">
 
-        <nav class="text-sm text-on-surface-variant mb-4 flex flex-wrap items-center gap-1">
-            <a href="projetos.html" class="hover:text-primary">Meus Projetos</a>
-            <span class="material-symbols-outlined text-[14px]">chevron_right</span>
-            <span class="text-primary font-semibold truncate max-w-[200px] sm:max-w-md" id="breadcrumb-titulo">Integrantes</span>
-        </nav>
+                <nav
+                    class="text-sm text-on-surface-variant mb-4 flex flex-wrap items-center gap-1">
+                    <a href="projetos.html" class="hover:text-primary">Meus
+                        Projetos</a>
+                    <span
+                        class="material-symbols-outlined text-[14px]">chevron_right</span>
+                    <span
+                        class="text-primary font-semibold truncate max-w-[200px] sm:max-w-md"
+                        id="breadcrumb-titulo">Integrantes</span>
+                </nav>
 
-        <header class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
-            <div>
-                <h1 class="font-headline-lg-mobile text-[28px] md:text-[32px] font-semibold text-primary mb-1" id="page-titulo">
-                    Integrantes do Projeto
-                </h1>
-                <p class="text-base text-on-surface-variant" id="page-subtitulo">Carregando…</p>
-            </div>
-            <div class="flex flex-wrap gap-2 shrink-0">
-                <a class="fetec-btn fetec-btn-outline text-sm py-2 px-3" href="projetos.html">
-                    <span class="material-symbols-outlined text-[16px]">arrow_back</span> Voltar
-                </a>
-                <a class="fetec-btn fetec-btn-primary text-sm py-2 px-3" href="cadastro5.html" id="btn-add-aluno">
-                    <span class="material-symbols-outlined text-[16px]">person_add</span> Aluno
-                </a>
-                <a class="fetec-btn fetec-btn-outline text-sm py-2 px-3" href="cadastro6.html" id="btn-coorientador">
-                    <span class="material-symbols-outlined text-[16px]">group_add</span> Coorientador
-                </a>
-            </div>
-        </header>
+                <header
+                    class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
+                    <div>
+                        <h1
+                            class="font-headline-lg-mobile text-[28px] md:text-[32px] font-semibold text-primary mb-1"
+                            id="page-titulo">
+                            Integrantes do Projeto
+                        </h1>
+                        <p class="text-base text-on-surface-variant"
+                            id="page-subtitulo">Carregando…</p>
+                    </div>
+                    <div class="flex flex-wrap gap-2 shrink-0">
+                        <a class="fetec-btn fetec-btn-outline text-sm py-2 px-3"
+                            href="projetos.html">
+                            <span
+                                class="material-symbols-outlined text-[16px]">arrow_back</span>
+                            Voltar
+                        </a>
+                        <a class="fetec-btn fetec-btn-primary text-sm py-2 px-3"
+                            href="cadastro5.html" id="btn-add-aluno">
+                            <span
+                                class="material-symbols-outlined text-[16px]">person_add</span>
+                            Aluno
+                        </a>
+                        <a class="fetec-btn fetec-btn-outline text-sm py-2 px-3"
+                            href="cadastro6.html" id="btn-coorientador">
+                            <span
+                                class="material-symbols-outlined text-[16px]">group_add</span>
+                            Coorientador
+                        </a>
+                    </div>
+                </header>
 
-        <!-- Orientador (fixo — logado) -->
-        <section class="mb-8">
-            <h2 class="text-sm font-semibold uppercase tracking-wide text-on-surface-variant mb-3">Orientador responsável</h2>
-            <article class="fetec-member-card max-w-2xl">
-                <div class="fetec-member-avatar fetec-member-avatar--orientador" aria-hidden="true">JS</div>
-                <div class="fetec-member-body">
-                    <p class="fetec-member-role">Orientador</p>
-                    <p class="fetec-member-name">João da Silva Santos</p>
-                    <p class="fetec-member-meta">joao.santos@escola.ms.gov.br · (67) 99999-1234</p>
+                <!-- Orientador (fixo — logado) -->
+                <section class="mb-8">
+                    <h2
+                        class="text-sm font-semibold uppercase tracking-wide text-on-surface-variant mb-3">Orientador
+                        responsável</h2>
+                    <article class="fetec-member-card max-w-2xl">
+                        <div
+                            class="fetec-member-avatar fetec-member-avatar--orientador"
+                            aria-hidden="true">JS</div>
+                        <div class="fetec-member-body">
+                            <p class="fetec-member-role">Orientador</p>
+                            <p class="fetec-member-name">João da Silva
+                                Santos</p>
+                            <p
+                                class="fetec-member-meta">joao.santos@escola.ms.gov.br
+                                · (67) 99999-1234</p>
+                        </div>
+                        <a class="fetec-member-edit" href="perfil.html">Editar
+                            perfil</a>
+                    </article>
+                </section>
+
+                <!-- Alunos — tabela + cards mobile -->
+                <section class="mb-8">
+                    <div class="flex items-center justify-between gap-2 mb-3">
+                        <h2
+                            class="text-sm font-semibold uppercase tracking-wide text-on-surface-variant">
+                            Alunos <span id="alunos-contagem"
+                                class="text-primary-container normal-case">(0/3)</span>
+                        </h2>
+                        <a class="fetec-member-edit" href="cadastro5.html"
+                            id="link-add-aluno">Adicionar aluno</a>
+                    </div>
+
+                    <div
+                        class="fetec-integrantes-table-wrap hidden md:block bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden">
+                        <table class="fetec-integrantes-table w-full text-left">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Nome</th>
+                                    <th>E-mail</th>
+                                    <th>CPF</th>
+                                    <th>Camiseta</th>
+                                    <th class="text-right">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="alunos-tbody"></tbody>
+                        </table>
+                    </div>
+
+                    <div class="md:hidden space-y-3" id="alunos-cards"></div>
+                    <p class="text-sm text-on-surface-variant mt-3 hidden"
+                        id="alunos-vazio">Nenhum aluno cadastrado. <a
+                            href="cadastro5.html"
+                            class="text-primary-container font-semibold">Incluir
+                            primeiro aluno</a></p>
+                </section>
+
+                <!-- Coorientador -->
+                <section class="mb-6">
+                    <div class="flex items-center justify-between gap-2 mb-3">
+                        <h2
+                            class="text-sm font-semibold uppercase tracking-wide text-on-surface-variant">
+                            Coorientador <span
+                                class="fetec-status-pill fetec-status-pill--optional ml-1 normal-case">Opcional
+                                · máx. 1</span>
+                        </h2>
+                    </div>
+                    <div id="coorientador-slot"></div>
+                </section>
+
+                <div
+                    class="flex flex-wrap gap-3 pt-4 border-t border-outline-variant/30">
+                    <a class="fetec-btn fetec-btn-outline" href="cadastro4.html"
+                        id="link-editar-projeto">Editar dados do projeto</a>
+                    <a class="fetec-btn fetec-btn-success" href="cadastro7.html"
+                        id="link-resumo">Ver resumo / submeter</a>
                 </div>
-                <a class="fetec-member-edit" href="perfil.html">Editar perfil</a>
-            </article>
-        </section>
 
-        <!-- Alunos — tabela + cards mobile -->
-        <section class="mb-8">
-            <div class="flex items-center justify-between gap-2 mb-3">
-                <h2 class="text-sm font-semibold uppercase tracking-wide text-on-surface-variant">
-                    Alunos <span id="alunos-contagem" class="text-primary-container normal-case">(0/3)</span>
-                </h2>
-                <a class="fetec-member-edit" href="cadastro5.html" id="link-add-aluno">Adicionar aluno</a>
             </div>
+        </main>
 
-            <div class="fetec-integrantes-table-wrap hidden md:block bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden">
-                <table class="fetec-integrantes-table w-full text-left">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Nome</th>
-                            <th>E-mail</th>
-                            <th>CPF</th>
-                            <th>Camiseta</th>
-                            <th class="text-right">Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody id="alunos-tbody"></tbody>
-                </table>
-            </div>
-
-            <div class="md:hidden space-y-3" id="alunos-cards"></div>
-            <p class="text-sm text-on-surface-variant mt-3 hidden" id="alunos-vazio">Nenhum aluno cadastrado. <a href="cadastro5.html" class="text-primary-container font-semibold">Incluir primeiro aluno</a></p>
-        </section>
-
-        <!-- Coorientador -->
-        <section class="mb-6">
-            <div class="flex items-center justify-between gap-2 mb-3">
-                <h2 class="text-sm font-semibold uppercase tracking-wide text-on-surface-variant">
-                    Coorientador <span class="fetec-status-pill fetec-status-pill--optional ml-1 normal-case">Opcional · máx. 1</span>
-                </h2>
-            </div>
-            <div id="coorientador-slot"></div>
-        </section>
-
-        <div class="flex flex-wrap gap-3 pt-4 border-t border-outline-variant/30">
-            <a class="fetec-btn fetec-btn-outline" href="cadastro4.html" id="link-editar-projeto">Editar dados do projeto</a>
-            <a class="fetec-btn fetec-btn-success" href="cadastro7.html" id="link-resumo">Ver resumo / submeter</a>
-        </div>
-
-    </div>
-</main>
-
-<script src="../js/fetec-layout.js"></script>
-<script src="../js/integrantes-lista.js"></script>
-</body>
+        <script src="../js/fetec-layout.js"></script>
+        <script src="../js/integrantes-lista.js"></script>
+    </body>
 </html>

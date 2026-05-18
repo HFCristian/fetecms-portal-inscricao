@@ -53,6 +53,7 @@
         html += '<span class="material-symbols-outlined text-[16px]" style="font-variation-settings:\'FILL\' 1">check</span></div>';
         html += '<span class="font-label-sm text-label-sm text-secondary hidden sm:block">' + s.label + '</span></a>';
       } else {
+        html += '<a href="' + s.href + '" class="fetec-wizard-step flex flex-col items-center gap-xs bg-surface-container-lowest px-sm relative z-10">';
         html += '<div class="flex flex-col items-center gap-xs bg-surface-container-lowest px-sm relative z-10">';
         html += '<div class="w-8 h-8 rounded-full ' + (active ? 'bg-primary-container text-on-primary shadow-md ring-4 ring-surface-container-lowest' : 'bg-surface-variant text-on-surface-variant ring-4 ring-surface-container-lowest') + ' flex items-center justify-center font-label-md">' + s.n + '</div>';
         html += '<span class="font-label-sm text-label-sm ' + (active ? 'text-primary-container font-bold' : 'text-on-surface-variant') + ' hidden sm:block">' + s.label + '</span></div>';
@@ -92,7 +93,7 @@
       '<div class="flex items-center gap-2 min-w-0"><img alt="' + LOGO_ALT + '" class="h-9 w-auto" src="' + LOGO + '"/>',
       '<span class="font-headline-sm text-headline-sm text-primary truncate">Portal do Orientador</span></div>',
       '<a href="login.html" class="p-2 text-on-surface-variant"><span class="material-symbols-outlined">logout</span></a></header>',
-      '<nav class="hidden md:flex fixed left-0 top-0 h-full w-64 z-40 flex-col p-md bg-surface-container-low border-r border-outline-variant/30">',
+      '<nav class="hidden md:flex fixed left-0 top-0 h-full w-64 z-40 p-2 flex-col bg-surface-container-low border-r border-outline-variant/30">',
       '<div class="mb-lg pb-md border-b border-outline-variant/30"><img alt="' + LOGO_ALT + '" class="h-14 w-auto mb-sm" src="' + LOGO + '"/>',
       '<h1 class="font-headline-sm text-headline-sm text-primary">Portal do Orientador</h1>',
       '<p class="font-body-sm text-body-sm text-on-surface-variant">XVI FETECMS</p></div>',
@@ -101,7 +102,7 @@
       '<a class="' + (active === 'perfil' ? on : off) + '" href="perfil.html"><span class="material-symbols-outlined">account_circle</span>Perfil</a>',
       '<a class="' + off + ' mt-auto" href="login.html"><span class="material-symbols-outlined">logout</span>Sair</a></div>',
       '<a href="cadastro4.html" class="fetec-btn fetec-btn-primary w-full justify-center mt-md"><span class="material-symbols-outlined text-[18px]">add</span>Nova Inscrição</a></nav>',
-      '<nav class="md:hidden fixed bottom-0 w-full bg-surface-container-low border-t border-outline-variant z-40 flex justify-around py-2 fetec-bottom-nav">',
+      '<nav class="md:hidden fixed bottom-0 w-full bg-surface-container-low border-t border-outline-variant z-40 flex justify-around fetec-bottom-nav">',
       '<a class="flex flex-col items-center p-2 ' + (active === 'projetos' ? 'text-primary-container' : 'text-on-surface-variant') + '" href="projetos.html">',
       '<span class="material-symbols-outlined" style="font-variation-settings:\'FILL\' 1">folder_shared</span><span class="text-[10px] font-semibold">Projetos</span></a>',
       '<a class="flex flex-col items-center p-2 text-on-surface-variant" href="perfil.html">',

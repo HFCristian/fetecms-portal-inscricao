@@ -1,21 +1,28 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 
-<head>
-    <meta charset="utf-8">
-    <meta content="width=device-width, initial-scale=1.0" name="viewport">
-    <title>Cadastro do Orientador - Etapa 3 (Endereço)</title>
-    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&amp;family=Space+Grotesk&family=Orbitron:wght@600;700:wght@600;700&amp;display=swap"
-        rel="stylesheet">
-    <link
-        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
-        rel="stylesheet">
-    <link
-        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
-        rel="stylesheet">
-    <script id="tailwind-config">
+    <head>
+        <meta charset="utf-8">
+        <meta content="width=device-width, initial-scale=1.0" name="viewport">
+        <title>Cadastro do Orientador - Etapa 3 (Endereço)</title>
+        <script
+            src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=Space+Grotesk:wght@600;700&amp;family=Orbitron:wght@600;700&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+            rel="stylesheet" />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+            rel="stylesheet" />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&amp;family=Space+Grotesk&family=Orbitron:wght@600;700:wght@600;700&amp;display=swap"
+            rel="stylesheet">
+        <link
+            href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+            rel="stylesheet">
+        <link
+            href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+            rel="stylesheet">
+        <script id="tailwind-config">
         tailwind.config = {
             darkMode: "class",
             theme: {
@@ -113,7 +120,7 @@
             }
         }
     </script>
-    <style>
+        <style>
         .custom-gradient {
             background: linear-gradient(135deg, #43157A 0%, #007B24 100%);
         }
@@ -124,105 +131,150 @@
             outline: none;
         }
     </style>
-    <link href="../css/cadastro-fetecms.css" rel="stylesheet" />
-</head>
+        <link href="../css/cadastro-fetecms.css" rel="stylesheet" />
+    </head>
 
-<body class="fetec-gradient-bg min-h-screen flex items-center justify-center p-4 sm:p-6 md:p-10 antialiased" data-fetec-wizard="3">
-    <div class="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-        <div class="absolute top-[10%] right-[10%] w-[40vw] h-[40vw] bg-secondary-container rounded-full mix-blend-overlay filter blur-[120px] opacity-20"></div>
-        <div class="absolute bottom-[10%] left-[5%] w-[50vw] h-[50vw] bg-tertiary-container rounded-full mix-blend-overlay filter blur-[150px] opacity-30"></div>
-    </div>
-    <main class="fetec-wizard-card w-full max-w-container-max bg-surface-container-lowest rounded-xl fetec-card-shadow overflow-hidden flex flex-col lg:flex-row relative z-10">
-        <aside id="fetec-wizard-aside"></aside>
-        <section class="w-full lg:w-7/12 flex flex-col bg-surface-container-lowest min-h-0">
-            <div id="fetec-wizard-mobile-header"></div>
-            <div id="fetec-wizard-progress" class="px-gutter lg:px-lg pt-gutter lg:pt-lg pb-md w-full border-b border-outline-variant/20"></div>
-            <div class="fetec-wizard-form-area flex-grow p-gutter lg:p-lg overflow-y-auto custom-scrollbar">
-                <div class="mb-md">
-                    <h2 class="font-headline-md text-headline-md text-on-surface font-orbitron-override">Endereço</h2>
-                    <p class="font-body-sm text-body-sm text-on-surface-variant mt-xs">Complete seu endereço para finalizar o cadastro.</p>
-                </div>
-                <form class="flex flex-col gap-md"><div class="flex flex-col gap-xs">
-                    <label class="font-label-md text-label-md text-on-surface" for="cep">CEP</label>
-                    <input
-                        class="w-full px-sm py-[10px] bg-surface border border-outline-variant rounded-lg font-body-md text-body-md text-on-surface placeholder:text-[#9CA3AF] form-input-focus transition-all duration-200"
-                        id="cep" placeholder="00000-000" type="text">
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-md">
-                    <div class="flex flex-col gap-xs">
-                        <label class="font-label-md text-label-md text-on-surface" for="pais">País</label>
-                        <select
-                            class="w-full px-sm py-[10px] bg-surface border border-outline-variant rounded-lg font-body-md text-body-md text-on-surface form-input-focus transition-all duration-200"
-                            id="pais">
-                            <option value="br">Brasil</option>
-                            <option value="outros">Outros</option>
-                        </select>
+    <body
+        class="fetec-gradient-bg min-h-screen flex items-center justify-center p-4 sm:p-6 md:p-10 antialiased"
+        data-fetec-wizard="3">
+        <div class="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+            <div
+                class="absolute top-[10%] right-[10%] w-[40vw] h-[40vw] bg-secondary-container rounded-full mix-blend-overlay filter blur-[120px] opacity-20"></div>
+            <div
+                class="absolute bottom-[10%] left-[5%] w-[50vw] h-[50vw] bg-tertiary-container rounded-full mix-blend-overlay filter blur-[150px] opacity-30"></div>
+        </div>
+        <main
+            class="fetec-wizard-card w-full max-w-container-max bg-surface-container-lowest rounded-xl fetec-card-shadow overflow-hidden flex flex-col lg:flex-row relative z-10">
+            <aside id="fetec-wizard-aside"></aside>
+            <section
+                class="w-full lg:w-7/12 flex flex-col bg-surface-container-lowest min-h-0">
+                <div id="fetec-wizard-mobile-header"></div>
+                <div id="fetec-wizard-progress"
+                    class="px-gutter lg:px-lg pt-gutter lg:pt-lg pb-md w-full border-b border-outline-variant/20"></div>
+                <div
+                    class="fetec-wizard-form-area flex-grow p-gutter lg:p-lg overflow-y-auto custom-scrollbar">
+                    <div class="mb-md">
+                        <h2
+                            class="font-headline-md text-headline-md text-on-surface font-orbitron-override">Endereço</h2>
+                        <p
+                            class="font-body-sm text-body-sm text-on-surface-variant mt-xs">Complete
+                            seu endereço para finalizar o cadastro.</p>
                     </div>
-                    <div class="flex flex-col gap-xs">
-                        <label class="font-label-md text-label-md text-on-surface" for="estado">Estado</label>
-                        <select
-                            class="w-full px-sm py-[10px] bg-surface border border-outline-variant rounded-lg font-body-md text-body-md text-on-surface form-input-focus transition-all duration-200"
-                            id="estado">
-                            <option value="">Selecione...</option>
-                            <option value="ms">Mato Grosso do Sul</option>
-                            <option value="sp">São Paulo</option>
-                        </select>
-                    </div>
+                    <form class="flex flex-col gap-md"><div
+                            class="flex flex-col gap-xs">
+                            <label
+                                class="font-label-md text-label-md text-on-surface"
+                                for="cep">CEP</label>
+                            <input
+                                class="w-full px-sm py-[10px] bg-surface border border-outline-variant rounded-lg font-body-md text-body-md text-on-surface placeholder:text-[#9CA3AF] form-input-focus transition-all duration-200"
+                                id="cep" placeholder="00000-000" type="text">
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-md">
+                            <div class="flex flex-col gap-xs">
+                                <label
+                                    class="font-label-md text-label-md text-on-surface"
+                                    for="pais">País</label>
+                                <select
+                                    class="w-full px-sm py-[10px] bg-surface border border-outline-variant rounded-lg font-body-md text-body-md text-on-surface form-input-focus transition-all duration-200"
+                                    id="pais">
+                                    <option value="br">Brasil</option>
+                                    <option value="outros">Outros</option>
+                                </select>
+                            </div>
+                            <div class="flex flex-col gap-xs">
+                                <label
+                                    class="font-label-md text-label-md text-on-surface"
+                                    for="estado">Estado</label>
+                                <select
+                                    class="w-full px-sm py-[10px] bg-surface border border-outline-variant rounded-lg font-body-md text-body-md text-on-surface form-input-focus transition-all duration-200"
+                                    id="estado">
+                                    <option value>Selecione...</option>
+                                    <option value="ms">Mato Grosso do
+                                        Sul</option>
+                                    <option value="sp">São Paulo</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="flex flex-col gap-xs">
+                            <label
+                                class="font-label-md text-label-md text-on-surface"
+                                for="cidade">Cidade</label>
+                            <select
+                                class="w-full px-sm py-[10px] bg-surface border border-outline-variant rounded-lg font-body-md text-body-md text-on-surface form-input-focus transition-all duration-200"
+                                id="cidade" required>
+                                <option value>Selecione...</option>
+                                <option value="cg">Campo Grande</option>
+                                <option value="dourados">Dourados</option>
+                                <option value="tres-lagoas">Três Lagoas</option>
+                            </select>
+                        </div>
+                        <div class="flex flex-col gap-xs">
+                            <label
+                                class="font-label-md text-label-md text-on-surface"
+                                for="logradouro">Logradouro</label>
+                            <input
+                                class="w-full px-sm py-[10px] bg-surface border border-outline-variant rounded-lg font-body-md text-body-md text-on-surface placeholder:text-[#9CA3AF] form-input-focus transition-all duration-200"
+                                id="logradouro" placeholder="Rua, Avenida, etc."
+                                type="text">
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-md">
+                            <div class="flex flex-col gap-xs">
+                                <label
+                                    class="font-label-md text-label-md text-on-surface"
+                                    for="numero">Número</label>
+                                <input
+                                    class="w-full px-sm py-[10px] bg-surface border border-outline-variant rounded-lg font-body-md text-body-md text-on-surface placeholder:text-[#9CA3AF] form-input-focus transition-all duration-200"
+                                    id="numero" placeholder="Ex: 123"
+                                    type="text">
+                            </div>
+                            <div class="flex flex-col gap-xs">
+                                <label
+                                    class="font-label-md text-label-md text-on-surface"
+                                    for="bairro">Bairro</label>
+                                <input
+                                    class="w-full px-sm py-[10px] bg-surface border border-outline-variant rounded-lg font-body-md text-body-md text-on-surface placeholder:text-[#9CA3AF] form-input-focus transition-all duration-200"
+                                    id="bairro" placeholder="Seu bairro"
+                                    type="text">
+                            </div>
+                        </div>
+                        <div class="flex flex-col gap-xs">
+                            <label
+                                class="font-label-md text-label-md text-on-surface"
+                                for="complemento">Complemento <span
+                                    class="text-on-surface-variant font-normal">(Opcional)</span></label>
+                            <input
+                                class="w-full px-sm py-[10px] bg-surface border border-outline-variant rounded-lg font-body-md text-body-md text-on-surface placeholder:text-[#9CA3AF] form-input-focus transition-all duration-200"
+                                id="complemento" placeholder="Apto, Bloco, etc."
+                                type="text">
+                        </div>
+                    </form>
                 </div>
-                <div class="flex flex-col gap-xs">
-                    <label class="font-label-md text-label-md text-on-surface" for="cidade">Cidade</label>
-                    <select
-                        class="w-full px-sm py-[10px] bg-surface border border-outline-variant rounded-lg font-body-md text-body-md text-on-surface form-input-focus transition-all duration-200"
-                        id="cidade" required>
-                        <option value="">Selecione...</option>
-                        <option value="cg">Campo Grande</option>
-                        <option value="dourados">Dourados</option>
-                        <option value="tres-lagoas">Três Lagoas</option>
-                    </select>
+                <!-- Footer Actions -->
+                <div
+                    class="p-gutter lg:p-lg border-t border-outline-variant/20 bg-surface-bright flex flex-col sm:flex-row justify-end items-stretch sm:items-center gap-8 mt-auto">
+                    <a
+                        class="fetec-btn fetec-btn-outline w-full sm:w-auto justify-center"
+                        href="cadastro2.html">
+                        <span
+                            class="material-symbols-outlined text-[20px]">arrow_back</span>
+                        VOLTAR
+                    </a>
+                    <p
+                        class="w-full text-right font-body-sm text-body-sm text-on-surface-variant order-2">
+                        Já tem conta? <a
+                            class="text-primary-container font-semibold hover:underline"
+                            href="login.html">Entrar</a>
+                    </p>
+                    <a
+                        class="fetec-btn fetec-btn-success w-full sm:w-auto justify-center order-1 sm:order-2"
+                        href="cadastro4.html">
+                        CRIAR CONTA
+                    </a>
                 </div>
-                <div class="flex flex-col gap-xs">
-                    <label class="font-label-md text-label-md text-on-surface" for="logradouro">Logradouro</label>
-                    <input
-                        class="w-full px-sm py-[10px] bg-surface border border-outline-variant rounded-lg font-body-md text-body-md text-on-surface placeholder:text-[#9CA3AF] form-input-focus transition-all duration-200"
-                        id="logradouro" placeholder="Rua, Avenida, etc." type="text">
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-md">
-                    <div class="flex flex-col gap-xs">
-                        <label class="font-label-md text-label-md text-on-surface" for="numero">Número</label>
-                        <input
-                            class="w-full px-sm py-[10px] bg-surface border border-outline-variant rounded-lg font-body-md text-body-md text-on-surface placeholder:text-[#9CA3AF] form-input-focus transition-all duration-200"
-                            id="numero" placeholder="Ex: 123" type="text">
-                    </div>
-                    <div class="flex flex-col gap-xs">
-                        <label class="font-label-md text-label-md text-on-surface" for="bairro">Bairro</label>
-                        <input
-                            class="w-full px-sm py-[10px] bg-surface border border-outline-variant rounded-lg font-body-md text-body-md text-on-surface placeholder:text-[#9CA3AF] form-input-focus transition-all duration-200"
-                            id="bairro" placeholder="Seu bairro" type="text">
-                    </div>
-                </div>
-                <div class="flex flex-col gap-xs">
-                    <label class="font-label-md text-label-md text-on-surface" for="complemento">Complemento <span
-                            class="text-on-surface-variant font-normal">(Opcional)</span></label>
-                    <input
-                        class="w-full px-sm py-[10px] bg-surface border border-outline-variant rounded-lg font-body-md text-body-md text-on-surface placeholder:text-[#9CA3AF] form-input-focus transition-all duration-200"
-                        id="complemento" placeholder="Apto, Bloco, etc." type="text">
-                </div>
-                </form>
-            </div>
-            <div class="p-gutter lg:p-lg border-t border-outline-variant/20 bg-surface-bright flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 mt-auto">
-                <a class="fetec-btn fetec-btn-outline w-full sm:w-auto justify-center" href="cadastro2.html">
-                    <span class="material-symbols-outlined text-[20px]">arrow_back</span> VOLTAR
-                </a>
-                
-                <a class="fetec-btn fetec-btn-success w-full sm:w-auto justify-center" href="cadastro4.html">
-                    CRIAR CONTA
-                    
-                </a>
-            </div>
-        </section>
-    </main>
-    <script src="../js/cadastro-masks.js"></script>
-    <script src="../js/fetec-layout.js"></script>
-</body>
+            </section>
+        </main>
+        <script src="../js/cadastro-masks.js"></script>
+        <script src="../js/fetec-layout.js"></script>
+    </body>
 
 </html>

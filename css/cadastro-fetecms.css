@@ -47,7 +47,7 @@ body.fetec-auth-shell.fetec-has-bottom-nav {
 }
 .fetec-input-icon-wrap .fetec-toggle-password {
   position: absolute;
-  right: 0.5rem;
+  right: 2.5rem;
   top: 50%;
   transform: translateY(-50%);
   z-index: 1;
@@ -58,7 +58,6 @@ body.fetec-auth-shell.fetec-has-bottom-nav {
   top: 50%;
   transform: translateY(-50%);
   font-size: 1.25rem;
-  color: #7c7482;
   pointer-events: none;
 }
 .fetec-input-icon-wrap .fetec-input,

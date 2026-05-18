@@ -2,27 +2,31 @@
 
 <html lang="pt-BR">
 
-<head>
-    <meta charset="utf-8" />
-    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
-    <title>Cadastro do Orientador - Etapa 2</title>
-    <!-- Google Fonts: Space Grotesk (Headlines) & Inter (Body/Labels) -->
-    <link href="https://fonts.googleapis.com" rel="preconnect" />
-    <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect" />
-    <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=Space+Grotesk&family=Orbitron:wght@600;700:wght@600;700&amp;display=swap"
-        rel="stylesheet" />
-    <!-- Material Symbols -->
-    <link
-        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
-        rel="stylesheet" />
-    <link
-        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
-        rel="stylesheet" />
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-    <!-- Tailwind Configuration -->
-    <script id="tailwind-config">
+    <head>
+        <meta charset="utf-8" />
+        <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+        <title>Cadastro do Orientador - Etapa 2</title>
+        <!-- Google Fonts: Space Grotesk (Headlines) & Inter (Body/Labels) -->
+        <link href="https://fonts.googleapis.com" rel="preconnect" />
+        <link crossorigin href="https://fonts.gstatic.com" rel="preconnect" />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=Space+Grotesk:wght@600;700&amp;family=Orbitron:wght@600;700&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+            rel="stylesheet" />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+            rel="stylesheet" />
+        <!-- Material Symbols -->
+        <link
+            href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+            rel="stylesheet" />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+            rel="stylesheet" />
+        <!-- Tailwind CSS -->
+        <script
+            src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+        <!-- Tailwind Configuration -->
+        <script id="tailwind-config">
         tailwind.config = {
             darkMode: "class",
             theme: {
@@ -120,7 +124,7 @@
             }
         }
     </script>
-    <style>
+        <style>
         /* Custom Focus Ring for Inputs */
         .input-focus-ring:focus {
             box-shadow: 0 0 0 2px rgba(67, 21, 122, 0.2);
@@ -139,208 +143,367 @@
             background-size: 24px 24px;
         }
     </style>
-    <link href="../css/cadastro-fetecms.css" rel="stylesheet" />
-</head>
+        <link href="../css/cadastro-fetecms.css" rel="stylesheet" />
+    </head>
 
-<body class="fetec-gradient-bg min-h-screen flex items-center justify-center p-4 sm:p-6 md:p-10 antialiased" data-fetec-wizard="2">
-    <div class="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-        <div class="absolute top-[10%] right-[10%] w-[40vw] h-[40vw] bg-secondary-container rounded-full mix-blend-overlay filter blur-[120px] opacity-20"></div>
-        <div class="absolute bottom-[10%] left-[5%] w-[50vw] h-[50vw] bg-tertiary-container rounded-full mix-blend-overlay filter blur-[150px] opacity-30"></div>
-    </div>
-    <main class="fetec-wizard-card w-full max-w-container-max bg-surface-container-lowest rounded-xl fetec-card-shadow overflow-hidden flex flex-col lg:flex-row relative z-10">
-        <aside id="fetec-wizard-aside"></aside>
-        <section class="w-full lg:w-7/12 flex flex-col bg-surface-container-lowest min-h-0">
-            <div id="fetec-wizard-mobile-header"></div>
-            <div id="fetec-wizard-progress" class="px-gutter lg:px-lg pt-gutter lg:pt-lg pb-md w-full border-b border-outline-variant/20"></div>
-            <div class="fetec-wizard-form-area flex-grow p-gutter lg:p-lg overflow-y-auto custom-scrollbar">
-                <div class="mb-md">
-                    <h2 class="font-headline-md text-headline-md text-on-surface font-orbitron-override">Informações Acadêmicas</h2>
-                    <p class="font-body-sm text-body-sm text-on-surface-variant mt-xs">Informe sua formação e vínculo com a instituição de ensino.</p>
-                </div>
-                <form class="flex flex-col gap-md"><!-- Institution Group -->
-                <div class="flex flex-col gap-xs w-full">
-                    <label class="font-label-md text-label-md text-on-surface">Instituição de Ensino *</label>
-                    <div class="flex flex-col sm:flex-row gap-sm items-stretch sm:items-center">
-                        <div class="relative flex-1">
-                            <select
-                                class="w-full appearance-none bg-surface border border-outline-variant rounded-lg px-sm py-sm pr-10 font-body-md text-body-md text-on-surface input-focus-ring cursor-pointer transition-colors"
-                                required="">
-                                <option disabled="" selected="" value="">Selecione a instituição onde atua...</option>
-                                <option value="ufms">Universidade Federal de Mato Grosso do Sul (UFMS)</option>
-                                <option value="uems">Universidade Estadual de Mato Grosso do Sul (UEMS)</option>
-                                <option value="ifms">Instituto Federal de Mato Grosso do Sul (IFMS)</option>
-                                <option value="ucdb">Universidade Católica Dom Bosco (UCDB)</option>
-                            </select>
-                            <span
-                                class="material-symbols-outlined absolute right-sm top-1/2 -translate-y-1/2 text-outline pointer-events-none">expand_more</span>
-                        </div>
-                        <button
-                            class="shrink-0 flex items-center justify-center gap-xs border-2 border-primary-container text-primary-container px-md py-sm rounded-lg font-label-md text-label-md hover:bg-primary-container/5 transition-colors"
-                            type="button">
-                            <span class="material-symbols-outlined text-[18px]">add</span>
-                            Nova instituição
-                        </button>
+    <body
+        class="fetec-gradient-bg min-h-screen flex items-center justify-center p-4 sm:p-6 md:p-10 antialiased"
+        data-fetec-wizard="2">
+        <div class="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+            <div
+                class="absolute top-[10%] right-[10%] w-[40vw] h-[40vw] bg-secondary-container rounded-full mix-blend-overlay filter blur-[120px] opacity-20"></div>
+            <div
+                class="absolute bottom-[10%] left-[5%] w-[50vw] h-[50vw] bg-tertiary-container rounded-full mix-blend-overlay filter blur-[150px] opacity-30"></div>
+        </div>
+        <main
+            class="fetec-wizard-card w-full max-w-container-max bg-surface-container-lowest rounded-xl fetec-card-shadow overflow-hidden flex flex-col lg:flex-row relative z-10">
+            <aside id="fetec-wizard-aside"></aside>
+            <section
+                class="w-full lg:w-7/12 flex flex-col bg-surface-container-lowest min-h-0">
+                <div id="fetec-wizard-mobile-header"></div>
+                <div id="fetec-wizard-progress"
+                    class="px-gutter lg:px-lg pt-gutter lg:pt-lg pb-md w-full border-b border-outline-variant/20"></div>
+                <div
+                    class="fetec-wizard-form-area flex-grow p-gutter lg:p-lg overflow-y-auto custom-scrollbar">
+                    <div class="mb-md">
+                        <h2
+                            class="font-headline-md text-headline-md text-on-surface font-orbitron-override">Informações
+                            Acadêmicas</h2>
+                        <p
+                            class="font-body-sm text-body-sm text-on-surface-variant mt-xs">Informe
+                            sua formação e vínculo com a instituição de
+                            ensino.</p>
                     </div>
-                </div>
-                <!-- Type & Link Grid -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-md">
-                    <div class="flex flex-col gap-xs">
-                        <label class="font-label-md text-label-md text-on-surface">Tipo de Instituição *</label>
-                        <div class="relative">
-                            <select
-                                class="w-full appearance-none bg-surface border border-outline-variant rounded-lg px-sm py-sm pr-10 font-body-md text-body-md text-on-surface input-focus-ring cursor-pointer transition-colors"
-                                required="">
-                                <option disabled="" selected="" value="">Ex: Pública Federal</option>
-                                <option value="publica_federal">Pública Federal</option>
-                                <option value="publica_estadual">Pública Estadual</option>
-                                <option value="publica_municipal">Pública Municipal</option>
-                                <option value="privada">Privada</option>
-                            </select>
-                            <span
-                                class="material-symbols-outlined absolute right-sm top-1/2 -translate-y-1/2 text-outline pointer-events-none">expand_more</span>
+                    <form
+                        class="flex flex-col gap-md"><!-- Institution Group -->
+                        <div class="flex flex-col gap-xs w-full">
+                            <label
+                                class="font-label-md text-label-md text-on-surface">Instituição
+                                de Ensino *</label>
+                            <div
+                                class="flex flex-col sm:flex-row gap-sm items-stretch sm:items-center">
+                                <div class="relative flex-1">
+                                    <select
+                                        class="w-full appearance-none bg-surface border border-outline-variant rounded-lg px-sm py-sm pr-10 font-body-md text-body-md text-on-surface input-focus-ring cursor-pointer transition-colors"
+                                        required>
+                                        <option disabled selected
+                                            value>Selecione a instituição onde
+                                            atua...</option>
+                                        <option value="ufms">Universidade
+                                            Federal de Mato Grosso do Sul
+                                            (UFMS)</option>
+                                        <option value="uems">Universidade
+                                            Estadual de Mato Grosso do Sul
+                                            (UEMS)</option>
+                                        <option value="ifms">Instituto Federal
+                                            de Mato Grosso do Sul
+                                            (IFMS)</option>
+                                        <option value="ucdb">Universidade
+                                            Católica Dom Bosco (UCDB)</option>
+                                    </select>
+                                    <span
+                                        class="material-symbols-outlined absolute right-sm top-1/2 -translate-y-1/2 text-outline pointer-events-none">expand_more</span>
+                                </div>
+                                <button
+                                    class="shrink-0 flex items-center justify-center gap-xs border-2 border-primary-container text-primary-container px-md py-sm rounded-lg font-label-md text-label-md hover:bg-primary-container/5 transition-colors"
+                                    type="button">
+                                    <span
+                                        class="material-symbols-outlined text-[18px]">add</span>
+                                    Nova instituição
+                                </button>
+                            </div>
                         </div>
-                    </div>
-                    <div class="flex flex-col gap-xs">
-                        <label class="font-label-md text-label-md text-on-surface">Vínculo Institucional *</label>
-                        <div class="relative">
-                            <select
-                                class="w-full appearance-none bg-surface border border-outline-variant rounded-lg px-sm py-sm pr-10 font-body-md text-body-md text-on-surface input-focus-ring cursor-pointer transition-colors"
-                                required="">
-                                <option disabled="" selected="" value="">Ex: Professor Efetivo</option>
-                                <option value="efetivo">Professor Efetivo</option>
-                                <option value="substituto">Professor Substituto</option>
-                                <option value="tecnico">Técnico Administrativo</option>
-                                <option value="pesquisador">Pesquisador</option>
-                            </select>
-                            <span
-                                class="material-symbols-outlined absolute right-sm top-1/2 -translate-y-1/2 text-outline pointer-events-none">expand_more</span>
+                        <!-- Type & Link Grid -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-md">
+                            <div class="flex flex-col gap-xs">
+                                <label
+                                    class="font-label-md text-label-md text-on-surface">Tipo
+                                    de Instituição *</label>
+                                <div class="relative">
+                                    <select
+                                        class="w-full appearance-none bg-surface border border-outline-variant rounded-lg px-sm py-sm pr-10 font-body-md text-body-md text-on-surface input-focus-ring cursor-pointer transition-colors"
+                                        required>
+                                        <option disabled selected value>Ex:
+                                            Pública Federal</option>
+                                        <option value="publica_federal">Pública
+                                            Federal</option>
+                                        <option value="publica_estadual">Pública
+                                            Estadual</option>
+                                        <option
+                                            value="publica_municipal">Pública
+                                            Municipal</option>
+                                        <option value="privada">Privada</option>
+                                    </select>
+                                    <span
+                                        class="material-symbols-outlined absolute right-sm top-1/2 -translate-y-1/2 text-outline pointer-events-none">expand_more</span>
+                                </div>
+                            </div>
+                            <div class="flex flex-col gap-xs">
+                                <label
+                                    class="font-label-md text-label-md text-on-surface">Vínculo
+                                    Institucional *</label>
+                                <div class="relative">
+                                    <select
+                                        class="w-full appearance-none bg-surface border border-outline-variant rounded-lg px-sm py-sm pr-10 font-body-md text-body-md text-on-surface input-focus-ring cursor-pointer transition-colors"
+                                        required>
+                                        <option disabled selected value>Ex:
+                                            Professor Efetivo</option>
+                                        <option value="efetivo">Professor
+                                            Efetivo</option>
+                                        <option value="substituto">Professor
+                                            Substituto</option>
+                                        <option value="tecnico">Técnico
+                                            Administrativo</option>
+                                        <option
+                                            value="pesquisador">Pesquisador</option>
+                                    </select>
+                                    <span
+                                        class="material-symbols-outlined absolute right-sm top-1/2 -translate-y-1/2 text-outline pointer-events-none">expand_more</span>
+                                </div>
+                            </div>
                         </div>
-                    </div>
+                        <!-- Proof of Link -->
+                        <div class="flex flex-col gap-xs w-full">
+                            <label
+                                class="font-label-md text-label-md text-on-surface">Atestado
+                                de Vínculo Institucional
+                                *</label>
+                            <div class="relative">
+                                <select
+                                    class="w-full appearance-none bg-surface border border-outline-variant rounded-lg px-sm py-sm pr-10 font-body-md text-body-md text-on-surface input-focus-ring cursor-pointer transition-colors"
+                                    required>
+                                    <option disabled selected value>Selecione o
+                                        tipo de documento comprobatório...
+                                    </option>
+                                    <option value="holerite">Contracheque /
+                                        Holerite (últimos 3 meses)</option>
+                                    <option value="declaracao">Declaração da
+                                        Chefia Imediata</option>
+                                    <option value="contrato">Cópia do Contrato
+                                        de Trabalho</option>
+                                    <option value="portaria">Portaria de
+                                        Nomeação</option>
+                                </select>
+                                <span
+                                    class="material-symbols-outlined absolute right-sm top-1/2 -translate-y-1/2 text-outline pointer-events-none">expand_more</span>
+                            </div>
+                            <p
+                                class="font-body-sm text-body-sm text-outline mt-1 flex items-center gap-xs">
+                                <span
+                                    class="material-symbols-outlined text-[16px]">info</span>
+                                O upload do arquivo será solicitado na revisão
+                                final do cadastro.
+                            </p>
+                        </div>
+                        <!-- Degree & Course Grid -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-md">
+                            <div class="flex flex-col gap-xs">
+                                <label
+                                    class="font-label-md text-label-md text-on-surface">Formação
+                                    / Titulação *</label>
+                                <div class="relative">
+                                    <select
+                                        class="w-full appearance-none bg-surface border border-outline-variant rounded-lg px-sm py-sm pr-10 font-body-md text-body-md text-on-surface input-focus-ring cursor-pointer transition-colors"
+                                        required>
+                                        <option disabled selected value>Ex:
+                                            Doutorado</option>
+                                        <option value="graduacao">Graduação
+                                            Completa</option>
+                                        <option
+                                            value="especializacao">Especialização</option>
+                                        <option
+                                            value="mestrado">Mestrado</option>
+                                        <option
+                                            value="doutorado">Doutorado</option>
+                                        <option
+                                            value="pos_doutorado">Pós-Doutorado</option>
+                                    </select>
+                                    <span
+                                        class="material-symbols-outlined absolute right-sm top-1/2 -translate-y-1/2 text-outline pointer-events-none">expand_more</span>
+                                </div>
+                            </div>
+                            <div class="flex flex-col gap-xs">
+                                <label
+                                    class="font-label-md text-label-md text-on-surface">Curso
+                                    de Formação *</label>
+                                <div class="relative">
+                                    <select
+                                        class="w-full appearance-none bg-surface border border-outline-variant rounded-lg px-sm py-sm pr-10 font-body-md text-body-md text-on-surface input-focus-ring cursor-pointer transition-colors"
+                                        required>
+                                        <option disabled selected
+                                            value>Selecione o curso...</option>
+                                        <option value="biologia">Ciências
+                                            Biológicas</option>
+                                        <option value="quimica">Química</option>
+                                        <option value="fisica">Física</option>
+                                        <option
+                                            value="matematica">Matemática</option>
+                                        <option
+                                            value="pedagogia">Pedagogia</option>
+                                        <option value="outro">Outro</option>
+                                    </select>
+                                    <span
+                                        class="material-symbols-outlined absolute right-sm top-1/2 -translate-y-1/2 text-outline pointer-events-none">expand_more</span>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Knowledge Area Grid -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-md">
+                            <div class="flex flex-col gap-xs">
+                                <label
+                                    class="font-label-md text-label-md text-on-surface">Área
+                                    do Conhecimento (CNPq) *</label>
+                                <div class="relative">
+                                    <select
+                                        class="w-full appearance-none bg-surface border border-outline-variant rounded-lg px-sm py-sm pr-10 font-body-md text-body-md text-on-surface input-focus-ring cursor-pointer transition-colors"
+                                        required>
+                                        <option disabled selected
+                                            value>Selecione a grande
+                                            área...</option>
+                                        <option value="exatas">Ciências Exatas e
+                                            da Terra</option>
+                                        <option value="biologicas">Ciências
+                                            Biológicas</option>
+                                        <option
+                                            value="engenharias">Engenharias</option>
+                                        <option value="saude">Ciências da
+                                            Saúde</option>
+                                        <option value="agrarias">Ciências
+                                            Agrárias</option>
+                                        <option value="sociais">Ciências Sociais
+                                            Aplicadas</option>
+                                        <option value="humanas">Ciências
+                                            Humanas</option>
+                                        <option value="letras">Linguística,
+                                            Letras e Artes</option>
+                                    </select>
+                                    <span
+                                        class="material-symbols-outlined absolute right-sm top-1/2 -translate-y-1/2 text-outline pointer-events-none">expand_more</span>
+                                </div>
+                            </div>
+                            <div class="flex flex-col gap-xs">
+                                <label
+                                    class="font-label-md text-label-md text-on-surface">Sub-área
+                                    de Atuação *</label>
+                                <input
+                                    class="w-full bg-surface border border-outline-variant rounded-lg px-sm py-sm font-body-md text-body-md text-on-surface placeholder:text-outline input-focus-ring transition-colors"
+                                    placeholder="Ex: Genética Molecular"
+                                    required type="text" />
+                            </div>
+                        </div>
+                        <!-- Advising Time -->
+                        <div id="tempo-orientacao-wrapper"
+                            class="flex flex-col gap-xs w-full">
+                            <label
+                                class="font-label-md text-label-md text-on-surface">Tempo
+                                de Experiência com Orientação
+                                *</label>
+                            <div class="relative">
+                                <select id="tempo-orientacao"
+                                    class="w-full appearance-none bg-surface border border-outline-variant rounded-lg px-sm py-sm pr-10 font-body-md text-body-md text-on-surface input-focus-ring cursor-pointer transition-colors"
+                                    required>
+                                    <option disabled selected value>Selecione o
+                                        tempo aproximado...</option>
+                                    <option value="iniciante">Menos de 1 ano
+                                        (Primeira vez orientando)</option>
+                                    <option value="1a3">De 1 a 3 anos</option>
+                                    <option value="3a5">De 3 a 5 anos</option>
+                                    <option value="5a10">De 5 a 10 anos</option>
+                                    <option value="mais10">Mais de 10
+                                        anos</option>
+                                </select>
+                                <span
+                                    class="material-symbols-outlined absolute right-sm top-1/2 -translate-y-1/2 text-outline pointer-events-none">expand_more</span>
+                            </div>
+                        </div>
+                        <!-- Fetec Time -->
+                        <div id="fetec-time-wrapper"
+                            class="flex flex-col gap-xs w-full">
+                            <label
+                                class="font-label-md text-label-md text-on-surface">Quantas
+                                vezes você já participou da FETEC como
+                                orientador?
+                                *</label>
+                            <div class="relative">
+                                <select
+                                    class="w-full appearance-none bg-surface border border-outline-variant rounded-lg px-sm py-sm pr-10 font-body-md text-body-md text-on-surface input-focus-ring cursor-pointer transition-colors"
+                                    required>
+                                    <option disabled selected value>Selecione o
+                                        tempo aproximado...</option>
+                                    <option value="1a3">De 1 a 3 vezes</option>
+                                    <option value="3a5">De 3 a 5 vezes</option>
+                                    <option value="5a10">De 5 a 10
+                                        vezes</option>
+                                    <option value="mais10">Mais de 10
+                                        vezes</option>
+                                </select>
+                                <span
+                                    class="material-symbols-outlined absolute right-sm top-1/2 -translate-y-1/2 text-outline pointer-events-none">expand_more</span>
+                            </div>
+                        </div>
+                        <!-- Fetec Student -->
+                        <div class="flex flex-col gap-xs w-full">
+                            <label
+                                class="flex items-start gap-sm cursor-pointer group">
+                                <input
+                                    class="mt-1 rounded text-primary-container focus:ring-primary-container/20 border-outline-variant w-5 h-5 transition-all"
+                                    type="checkbox" />
+                                <div>
+                                    <span
+                                        class="font-label-md text-label-md text-on-surface block group-hover:text-primary transition-colors">Ex-aluno Fetec</span>
+                                    <span
+                                        class="font-body-sm text-body-sm text-on-surface-variant">Já
+                                        esteve na FETEC como aluno?</span>
+                                </div>
+                            </label>
+                        </div>
+                    </form>
                 </div>
-                <!-- Proof of Link -->
-                <div class="flex flex-col gap-xs w-full">
-                    <label class="font-label-md text-label-md text-on-surface">Atestado de Vínculo Institucional
-                        *</label>
-                    <div class="relative">
-                        <select
-                            class="w-full appearance-none bg-surface border border-outline-variant rounded-lg px-sm py-sm pr-10 font-body-md text-body-md text-on-surface input-focus-ring cursor-pointer transition-colors"
-                            required="">
-                            <option disabled="" selected="" value="">Selecione o tipo de documento comprobatório...
-                            </option>
-                            <option value="holerite">Contracheque / Holerite (últimos 3 meses)</option>
-                            <option value="declaracao">Declaração da Chefia Imediata</option>
-                            <option value="contrato">Cópia do Contrato de Trabalho</option>
-                            <option value="portaria">Portaria de Nomeação</option>
-                        </select>
+                <!-- Footer Actions -->
+                <div
+                    class="p-gutter lg:p-lg border-t border-outline-variant/20 bg-surface-bright flex flex-col sm:flex-row justify-end items-stretch sm:items-center gap-8 mt-auto">
+                    <a
+                        class="fetec-btn fetec-btn-outline w-full sm:w-auto justify-center"
+                        href="cadastro1.html">
                         <span
-                            class="material-symbols-outlined absolute right-sm top-1/2 -translate-y-1/2 text-outline pointer-events-none">expand_more</span>
-                    </div>
-                    <p class="font-body-sm text-body-sm text-outline mt-1 flex items-center gap-xs">
-                        <span class="material-symbols-outlined text-[16px]">info</span>
-                        O upload do arquivo será solicitado na revisão final do cadastro.
+                            class="material-symbols-outlined text-[20px]">arrow_back</span>
+                        VOLTAR
+                    </a>
+                    <p
+                        class="w-full text-right font-body-sm text-body-sm text-on-surface-variant order-2">
+                        Já tem conta? <a
+                            class="text-primary-container font-semibold hover:underline"
+                            href="login.html">Entrar</a>
                     </p>
-                </div>
-                <!-- Degree & Course Grid -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-md">
-                    <div class="flex flex-col gap-xs">
-                        <label class="font-label-md text-label-md text-on-surface">Formação / Titulação *</label>
-                        <div class="relative">
-                            <select
-                                class="w-full appearance-none bg-surface border border-outline-variant rounded-lg px-sm py-sm pr-10 font-body-md text-body-md text-on-surface input-focus-ring cursor-pointer transition-colors"
-                                required="">
-                                <option disabled="" selected="" value="">Ex: Doutorado</option>
-                                <option value="graduacao">Graduação Completa</option>
-                                <option value="especializacao">Especialização</option>
-                                <option value="mestrado">Mestrado</option>
-                                <option value="doutorado">Doutorado</option>
-                                <option value="pos_doutorado">Pós-Doutorado</option>
-                            </select>
-                            <span
-                                class="material-symbols-outlined absolute right-sm top-1/2 -translate-y-1/2 text-outline pointer-events-none">expand_more</span>
-                        </div>
-                    </div>
-                    <div class="flex flex-col gap-xs">
-                        <label class="font-label-md text-label-md text-on-surface">Curso de Formação *</label>
-                        <div class="relative">
-                            <select
-                                class="w-full appearance-none bg-surface border border-outline-variant rounded-lg px-sm py-sm pr-10 font-body-md text-body-md text-on-surface input-focus-ring cursor-pointer transition-colors"
-                                required="">
-                                <option disabled="" selected="" value="">Selecione o curso...</option>
-                                <option value="biologia">Ciências Biológicas</option>
-                                <option value="quimica">Química</option>
-                                <option value="fisica">Física</option>
-                                <option value="matematica">Matemática</option>
-                                <option value="pedagogia">Pedagogia</option>
-                                <option value="outro">Outro</option>
-                            </select>
-                            <span class="material-symbols-outlined absolute right-sm top-1/2 -translate-y-1/2 text-outline pointer-events-none">expand_more</span>
-                        </div>
-                    </div>
-                </div>
-                <!-- Knowledge Area Grid -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-md">
-                    <div class="flex flex-col gap-xs">
-                        <label class="font-label-md text-label-md text-on-surface">Área do Conhecimento (CNPq) *</label>
-                        <div class="relative">
-                            <select
-                                class="w-full appearance-none bg-surface border border-outline-variant rounded-lg px-sm py-sm pr-10 font-body-md text-body-md text-on-surface input-focus-ring cursor-pointer transition-colors"
-                                required="">
-                                <option disabled="" selected="" value="">Selecione a grande área...</option>
-                                <option value="exatas">Ciências Exatas e da Terra</option>
-                                <option value="biologicas">Ciências Biológicas</option>
-                                <option value="engenharias">Engenharias</option>
-                                <option value="saude">Ciências da Saúde</option>
-                                <option value="agrarias">Ciências Agrárias</option>
-                                <option value="sociais">Ciências Sociais Aplicadas</option>
-                                <option value="humanas">Ciências Humanas</option>
-                                <option value="letras">Linguística, Letras e Artes</option>
-                            </select>
-                            <span
-                                class="material-symbols-outlined absolute right-sm top-1/2 -translate-y-1/2 text-outline pointer-events-none">expand_more</span>
-                        </div>
-                    </div>
-                    <div class="flex flex-col gap-xs">
-                        <label class="font-label-md text-label-md text-on-surface">Sub-área de Atuação *</label>
-                        <input
-                            class="w-full bg-surface border border-outline-variant rounded-lg px-sm py-sm font-body-md text-body-md text-on-surface placeholder:text-outline input-focus-ring transition-colors"
-                            placeholder="Ex: Genética Molecular" required="" type="text" />
-                    </div>
-                </div>
-                <!-- Advising Time -->
-                <div class="flex flex-col gap-xs w-full">
-                    <label class="font-label-md text-label-md text-on-surface">Tempo de Experiência com Orientação
-                        *</label>
-                    <div class="relative">
-                        <select
-                            class="w-full appearance-none bg-surface border border-outline-variant rounded-lg px-sm py-sm pr-10 font-body-md text-body-md text-on-surface input-focus-ring cursor-pointer transition-colors"
-                            required="">
-                            <option disabled="" selected="" value="">Selecione o tempo aproximado...</option>
-                            <option value="iniciante">Menos de 1 ano (Primeira vez orientando)</option>
-                            <option value="1a3">De 1 a 3 anos</option>
-                            <option value="3a5">De 3 a 5 anos</option>
-                            <option value="5a10">De 5 a 10 anos</option>
-                            <option value="mais10">Mais de 10 anos</option>
-                        </select>
+                    <a
+                        class="fetec-btn fetec-btn-primary w-full sm:w-auto justify-center order-1 sm:order-2"
+                        href="cadastro3.html">
+                        PRÓXIMO
                         <span
-                            class="material-symbols-outlined absolute right-sm top-1/2 -translate-y-1/2 text-outline pointer-events-none">expand_more</span>
-                    </div>
+                            class="material-symbols-outlined text-[20px]">arrow_forward</span>
+                    </a>
                 </div>
-                </form>
-            </div>
-            <div class="p-gutter lg:p-lg border-t border-outline-variant/20 bg-surface-bright flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 mt-auto">
-                <a class="fetec-btn fetec-btn-outline w-full sm:w-auto justify-center" href="cadastro1.html">
-                    <span class="material-symbols-outlined text-[20px]">arrow_back</span> VOLTAR
-                </a>
-                
-                <a class="fetec-btn fetec-btn-primary w-full sm:w-auto justify-center" href="cadastro3.html">
-                    PRÓXIMO
-                    <span class="material-symbols-outlined text-[20px]">arrow_forward</span>
-                </a>
-            </div>
-        </section>
-    </main>
-    <script src="../js/cadastro-masks.js"></script>
-    <script src="../js/fetec-layout.js"></script>
-</body>
+            </section>
+        </main>
+        <script src="../js/cadastro-masks.js"></script>
+        <script src="../js/fetec-layout.js"></script>
+        <script>
+            (function () {
+                const adv = document.getElementById('tempo-orientacao');
+                const fetec = document.getElementById('fetec-time-wrapper');
+                if (!adv || !fetec) return;
+                function toggleFetec() {
+                    if (adv.value === 'iniciante' || adv.value === '') {
+                        fetec.classList.add('hidden');
+                    } else {
+                        fetec.classList.remove('hidden');
+                    }
+                }
+                adv.addEventListener('change', toggleFetec);
+                // initialize on load
+                toggleFetec();
+            })();
+        </script>
+    </body>
 
 </html>
