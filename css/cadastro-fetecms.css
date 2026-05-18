@@ -32,6 +32,58 @@ body.fetec-auth-shell.fetec-has-bottom-nav {
   background: linear-gradient(135deg, var(--fetec-roxo) 0%, var(--fetec-verde) 100%);
 }
 
+/* Telas públicas: login / recuperar senha */
+.fetec-auth-card {
+  min-height: min(560px, calc(100vh - 2rem));
+  max-width: 56rem;
+}
+.fetec-auth-form-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.fetec-input-icon-wrap {
+  position: relative;
+}
+.fetec-input-icon-wrap .fetec-toggle-password {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1;
+}
+.fetec-input-icon-wrap .material-symbols-outlined {
+  position: absolute;
+  left: 0.875rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 1.25rem;
+  color: #7c7482;
+  pointer-events: none;
+}
+.fetec-input-icon-wrap .fetec-input,
+.fetec-input-icon-wrap input {
+  padding-left: 2.75rem;
+}
+.fetec-login-alert {
+  display: none;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  font-size: 14px;
+  margin-bottom: 1rem;
+}
+.fetec-login-alert--error {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  background: #ffdad6;
+  color: #93000a;
+  border: 1px solid rgba(186, 26, 26, 0.2);
+}
+.fetec-login-alert--show {
+  display: flex;
+}
+
 .fetec-card-shadow {
   box-shadow: var(--fetec-sombra);
 }

@@ -19,7 +19,8 @@ Protótipo HTML/CSS/JS das telas de inscrição da **XVI FETECMS**, separado do 
 | `view/cadastro5.html` | Cadastro de aluno no projeto |
 | `view/cadastro6.html` | Cadastro de coorientador |
 | `view/cadastro7.html` | Resumo da inscrição e confirmação de submissão |
-| `view/login.html` | Login (placeholder) |
+| `view/login.html` | Login (layout igual ao cadastro orientador) |
+| `view/recuperar-senha.html` | Recuperar senha (protótipo) |
 | `view/perfil.html` | Perfil do orientador (placeholder) |
 
 ## Como rodar

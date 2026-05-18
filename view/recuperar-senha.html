@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Recuperar senha — XVI FETECMS</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=Space+Grotesk:wght@600;700&amp;display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+    <link href="../css/cadastro-fetecms.css" rel="stylesheet"/>
+</head>
+<body class="fetec-gradient-bg min-h-screen flex items-center justify-center p-4 antialiased">
+    <main class="fetec-auth-card w-full max-w-md bg-white rounded-xl fetec-card-shadow p-8">
+        <a href="login.html" class="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary-container mb-6">
+            <span class="material-symbols-outlined text-[18px]">arrow_back</span> Voltar ao login
+        </a>
+        <h1 class="text-2xl font-semibold text-primary mb-2" style="color:#43157a">Recuperar senha</h1>
+        <p class="text-sm text-on-surface-variant mb-6" style="color:#4a4451">
+            Informe seu e-mail cadastrado. Enviaremos instruções para redefinir sua senha (protótipo — integrar com API).
+        </p>
+        <form class="space-y-4" id="form-recuperar">
+            <div >
+                <label class="block text-sm font-semibold mb-1" for="email" style="color:#191c1d">E-mail</label>
+                <input type="email" id="email" class="fetec-input" placeholder="seu@email.com" required autocomplete="email"/>
+            </div>
+            <button type="submit" class="fetec-btn fetec-btn-primary w-full justify-center">ENVIAR LINK</button>
+        </form>
+    </main>
+    <script>
+    document.getElementById('form-recuperar').addEventListener('submit', function (e) {
+        e.preventDefault();
+        alert('Se o e-mail estiver cadastrado, você receberá as instruções. (protótipo)');
+        window.location.href = 'login.html';
+    });
+    </script>
+</body>
+</html>
