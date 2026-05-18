@@ -394,7 +394,14 @@ Layout autenticado: só #fetec-auth-shell + fetec-layout.js (sem nav duplicada n
 
 ---
 
-## 13. Pendências / próximos passos sugeridos
+## 13. Backend Laravel
+
+- Issues: [`BACKLOG_LARAVEL.md`](BACKLOG_LARAVEL.md)
+- Especificação API (CRUDs, padronização, BD novo, app): [`docs/ESPECIFICACAO_LARAVEL.md`](docs/ESPECIFICACAO_LARAVEL.md)
+
+---
+
+## 14. Pendências / próximos passos sugeridos
 
 - [ ] Integrar telas ao PHP do `SistemaInscricao`
 - [ ] Substituir placeholders `login.html` e `perfil.html`

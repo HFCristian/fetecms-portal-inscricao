@@ -1,10 +1,25 @@
 # Backlog — Backend Laravel XVI FETECMS
 
-> Issues/tasks para implementar a API e regras de negócio que substituem o `SistemaInscricao` (PHP legado) e alimentam o protótipo UI em [`fetecms-portal-inscricao`](https://github.com/HFCristian/fetecms-portal-inscricao).
+> Issues/tasks para implementar a API e regras de negócio que substituem o `SistemaInscricao` (PHP legado) e alimentam o protótipo UI + **app mobile**.
 
 **Legenda de prioridade:** `P0` bloqueante · `P1` essencial MVP · `P2` importante pós-MVP · `P3` futuro
 
 **Status sugerido:** `todo` | `in_progress` | `review` | `done`
+
+---
+
+## Documentação técnica (leia antes de implementar)
+
+| Documento | Conteúdo |
+|-----------|----------|
+| **[`docs/ESPECIFICACAO_LARAVEL.md`](docs/ESPECIFICACAO_LARAVEL.md)** | Padronização API (web + app), modelo de dados **novo**, CRUDs detalhados (request/response/validação), Policies, Services, checklist de submissão |
+| [`CONTEXTO_PROJETO.md`](CONTEXTO_PROJETO.md) | Protótipo front e fluxos de tela |
+
+**Decisões principais:**
+- API REST versionada: `/api/v1/...`
+- Laravel Sanctum — mesmo backend para **portal** e **app**
+- Banco **redesenhado** (não obrigatório copiar schema legado) — ver mapeamento em `ESPECIFICACAO_LARAVEL.md` §6
+- Padrão de código: `FormRequest` → `Controller` → `Service` → `Model` + `Policy` + `Resource`
 
 ---
 

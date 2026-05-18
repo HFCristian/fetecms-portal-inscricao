@@ -4,7 +4,7 @@ Protótipo HTML/CSS/JS das telas de inscrição da **XVI FETECMS**, separado do 
 
 > **Contexto completo para IA:** leia [`CONTEXTO_PROJETO.md`](CONTEXTO_PROJETO.md) — histórico, arquitetura, fluxos, correções e convenções.
 
-> **Backend Laravel:** backlog de issues/tasks em [`BACKLOG_LARAVEL.md`](BACKLOG_LARAVEL.md).
+> **Backend Laravel:** [`BACKLOG_LARAVEL.md`](BACKLOG_LARAVEL.md) (issues) · [`docs/ESPECIFICACAO_LARAVEL.md`](docs/ESPECIFICACAO_LARAVEL.md) (API, CRUDs, modelo de dados, app mobile).
 
 ## Telas
 
