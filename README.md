@@ -2,6 +2,8 @@
 
 Protótipo HTML/CSS/JS das telas de inscrição da **XVI FETECMS**, separado do sistema legado PHP (`SistemaInscricao`).
 
+> **Contexto completo para IA:** leia [`CONTEXTO_PROJETO.md`](CONTEXTO_PROJETO.md) — histórico, arquitetura, fluxos, correções e convenções.
+
 ## Telas
 
 | Arquivo | Descrição |
