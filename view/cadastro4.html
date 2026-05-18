@@ -273,23 +273,20 @@ Incluir coorientador
 <input class="w-full bg-transparent border-none focus:ring-0 px-sm py-2 font-body-md text-body-md text-on-surface" min="1" placeholder="Ex: 6" type="number"/>
 </div>
 </div>
-<div>
-<label class="block font-label-md text-label-md text-on-surface mb-xs">Upload de Arquivos (PDF ou DOCX) *</label>
-<div class="border-2 border-dashed border-outline-variant rounded-lg p-lg text-center hover:bg-surface-container-low transition-colors cursor-pointer bg-surface-bright">
-<span class="material-symbols-outlined text-primary text-[48px] mb-sm">cloud_upload</span>
+<div class="fetec-file-field" data-fetec-file-field>
+<label class="block font-label-md text-label-md text-on-surface mb-xs" for="upload-arquivos">Upload de Arquivos (PDF ou DOCX) *</label>
+<div class="fetec-file-dropzone border-2 border-dashed border-outline-variant rounded-lg p-lg text-center hover:bg-surface-container-low transition-colors cursor-pointer bg-surface-bright" id="fetec-file-dropzone" role="button" tabindex="0" aria-label="Selecionar arquivos PDF ou DOCX">
+<input type="file" id="upload-arquivos" name="arquivos[]" class="sr-only" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple/>
+<span class="material-symbols-outlined text-primary text-[48px] mb-sm block">cloud_upload</span>
 <p class="font-label-md text-label-md text-primary mb-xs">Clique para fazer upload ou arraste os arquivos aqui</p>
 <p class="font-body-sm text-body-sm text-on-surface-variant">Plano de Pesquisa, Relatório, etc. Máx 10MB por arquivo.</p>
 </div>
-<!-- Example of an uploaded file tag -->
-<div class="mt-sm flex flex-wrap gap-sm">
-<div class="bg-surface-container-high rounded-full px-sm py-1 flex items-center gap-xs">
-<span class="material-symbols-outlined text-[16px] text-on-surface-variant">description</span>
-<span class="font-body-sm text-body-sm text-on-surface">relatorio_final.pdf</span>
-<button class="text-error hover:text-on-error-container ml-xs flex items-center" type="button">
-<span class="material-symbols-outlined text-[16px]">close</span>
-</button>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-xs">A pré-visualização abaixo confirma o arquivo selecionado antes de submeter.</p>
+<div class="fetec-file-preview mt-md hidden" id="fetec-file-preview" aria-live="polite">
+<div class="fetec-file-preview__status" id="fetec-file-status"></div>
+<div class="fetec-file-preview__viewer hidden" id="fetec-file-viewer"></div>
 </div>
-</div>
+<div class="mt-sm flex flex-wrap gap-sm" id="fetec-file-list"></div>
 </div>
 </div>
 </section>
@@ -381,5 +378,6 @@ Incluir coorientador
         }
     </script>
     <script src="../js/video-preview.js"></script>
+    <script src="../js/file-upload-preview.js"></script>
     <script src="../js/fetec-layout.js"></script>
 </body></html>
