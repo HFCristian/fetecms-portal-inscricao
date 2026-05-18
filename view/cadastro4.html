@@ -244,13 +244,19 @@ Incluir coorientador
 <h3 class="font-headline-sm text-headline-sm text-primary">3. Conteúdo e Arquivos</h3>
 </div>
 <div class="space-y-md">
-<div>
-<label class="block font-label-md text-label-md text-on-surface mb-xs">Link do Vídeo/Apresentação</label>
-<div class="input-focus rounded-lg border border-outline-variant overflow-hidden bg-surface-bright flex items-center">
+<div class="fetec-video-field" data-fetec-video-field>
+<label class="block font-label-md text-label-md text-on-surface mb-xs" for="link-video">Link do Vídeo/Apresentação</label>
+<div class="input-focus rounded-lg border border-outline-variant overflow-hidden bg-surface-bright flex items-center fetec-video-input-wrap">
 <span class="material-symbols-outlined text-on-surface-variant pl-sm">link</span>
-<input class="w-full bg-transparent border-none focus:ring-0 px-sm py-2 font-body-md text-body-md text-on-surface" placeholder="https://youtube.com/..." type="url"/>
+<input class="w-full bg-transparent border-none focus:ring-0 px-sm py-2 font-body-md text-body-md text-on-surface" id="link-video" name="link_video" placeholder="https://youtube.com/... ou https://vimeo.com/..." type="url" autocomplete="url"/>
 </div>
-<p class="font-body-sm text-body-sm text-on-surface-variant mt-xs">Insira o link para o vídeo de apresentação do projeto (YouTube, Vimeo, etc).</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-xs">Cole o link público do vídeo. A pré-visualização abaixo confirma se o vídeo pode ser assistido.</p>
+<div class="fetec-video-preview mt-md hidden" id="fetec-video-preview" aria-live="polite">
+<div class="fetec-video-preview__status" id="fetec-video-status"></div>
+<div class="fetec-video-preview__player-wrap hidden" id="fetec-video-player-wrap">
+<iframe class="fetec-video-preview__iframe" id="fetec-video-iframe" title="Pré-visualização do vídeo" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen loading="lazy"></iframe>
+</div>
+</div>
 </div>
 <div>
 <div class="flex justify-between items-end mb-xs">
@@ -374,5 +380,6 @@ Incluir coorientador
             });
         }
     </script>
+    <script src="../js/video-preview.js"></script>
     <script src="../js/fetec-layout.js"></script>
 </body></html>
