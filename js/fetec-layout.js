@@ -2,7 +2,8 @@
  * Layout compartilhado XVI FETECMS
  */
 (function () {
-  var LOGO = '../img/logo2022.png';
+  var LOGO_S = '../img/logo2026slogan.png';
+  var LOGO_P = '../img/logo2026.png';
   var LOGO_ALT = 'Logo XVI FETECMS';
 
   function wizardAsideHtml() {
@@ -14,7 +15,7 @@
       '<h1 class="font-headline-xl text-headline-xl text-on-surface font-orbitron-override leading-tight">Portal do<br/>Orientador</h1>' +
       '</div>' +
       '<div class="relative z-10 flex-grow flex items-center justify-center w-full my-lg">' +
-      '<img alt="' + LOGO_ALT + '" class="w-full max-w-[240px] h-auto object-contain drop-shadow-md" src="' + LOGO + '"/>' +
+      '<img alt="' + LOGO_ALT + '" class="w-full max-w-[512px] h-auto object-contain drop-shadow-md" src="' + LOGO_S + '"/>' +
       '</div>' +
       '<div class="relative z-10 mt-auto">' +
       '<p class="font-headline-sm text-headline-sm text-primary-container font-orbitron-override border-l-4 border-secondary pl-md py-xs">A CIÊNCIA É A PONTE PARA O FUTURO.</p>' +
@@ -26,7 +27,7 @@
   function wizardMobileHeaderHtml() {
     return (
       '<div class="flex items-center gap-sm">' +
-      '<img alt="' + LOGO_ALT + '" class="h-10 w-auto object-contain" src="' + LOGO + '"/>' +
+      '<img alt="' + LOGO_ALT + '" class="h-10 w-auto object-contain" src="' + LOGO_S + '"/>' +
       '<span class="font-label-sm text-label-sm text-primary-container tracking-wider uppercase">XVI FETECMS</span>' +
       '</div>' +
       '<h1 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface font-orbitron-override">Cadastro do Orientador</h1>' +
@@ -90,11 +91,11 @@
     var off = 'flex items-center gap-base text-on-surface-variant px-4 py-3 hover:bg-surface-variant rounded-lg font-label-md text-label-md transition-colors';
     return [
       '<header class="md:hidden fixed top-0 left-0 w-full bg-surface border-b border-outline-variant/30 shadow-sm z-50 px-4 h-16 flex items-center justify-between">',
-      '<div class="flex items-center gap-2 min-w-0"><img alt="' + LOGO_ALT + '" class="h-9 w-auto" src="' + LOGO + '"/>',
+      '<div class="flex items-center gap-2 min-w-0"><img alt="' + LOGO_ALT + '" class="h-9 w-auto" src="' + LOGO_P + '"/>',
       '<span class="font-headline-sm text-headline-sm text-primary truncate">Portal do Orientador</span></div>',
       '<a href="login.html" class="p-2 text-on-surface-variant"><span class="material-symbols-outlined">logout</span></a></header>',
       '<nav class="hidden md:flex fixed left-0 top-0 h-full w-64 z-40 p-2 flex-col bg-surface-container-low border-r border-outline-variant/30">',
-      '<div class="mb-lg pb-md border-b border-outline-variant/30"><img alt="' + LOGO_ALT + '" class="h-14 w-auto mb-sm" src="' + LOGO + '"/>',
+      '<div class="mb-lg pb-md border-b border-outline-variant/30"><img alt="' + LOGO_ALT + '" class="h-14 w-auto mb-sm" src="' + LOGO_P + '"/>',
       '<h1 class="font-headline-sm text-headline-sm text-primary">Portal do Orientador</h1>',
       '<p class="font-body-sm text-body-sm text-on-surface-variant">XVI FETECMS</p></div>',
       '<div class="flex-1 flex flex-col gap-xs">',
