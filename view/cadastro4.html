@@ -204,7 +204,7 @@
                                     <input
                                         class="w-full bg-transparent border-none focus:ring-0 px-sm py-2 font-body-md text-body-md text-on-surface"
                                         placeholder="Insira o título completo do projeto"
-                                        type="text" />
+                                        required type="text" />
                                 </div>
                             </div>
                             <div class="col-span-1 md:col-span-2">
@@ -216,7 +216,7 @@
                                     <input
                                         class="w-full bg-transparent border-none focus:ring-0 px-sm py-2 font-body-md text-body-md text-on-surface"
                                         placeholder="Nome da escola ou instituto"
-                                        type="text" />
+                                        required type="text" />
                                 </div>
                             </div>
                             <div>
@@ -226,7 +226,8 @@
                                 <div
                                     class="input-focus rounded-lg border border-outline-variant overflow-hidden bg-surface-bright relative">
                                     <select
-                                        class="w-full bg-transparent border-none focus:ring-0 px-sm py-2 appearance-none font-body-md text-body-md text-on-surface">
+                                        class="w-full bg-transparent border-none focus:ring-0 px-sm py-2 appearance-none font-body-md text-body-md text-on-surface"
+                                        required>
                                         <option disabled selected
                                             value>Selecione a categoria</option>
                                         <option>FETEC Jr</option>
@@ -244,7 +245,8 @@
                                 <div
                                     class="input-focus rounded-lg border border-outline-variant overflow-hidden bg-surface-bright relative">
                                     <select
-                                        class="w-full bg-transparent border-none focus:ring-0 px-sm py-2 appearance-none font-body-md text-body-md text-on-surface">
+                                        class="w-full bg-transparent border-none focus:ring-0 px-sm py-2 appearance-none font-body-md text-body-md text-on-surface"
+                                        required>
                                         <option disabled selected
                                             value>Selecione a área
                                             principal</option>
@@ -268,6 +270,7 @@
                                     <input
                                         class="w-full bg-transparent border-none focus:ring-0 px-sm py-2 font-body-md text-body-md text-on-surface"
                                         placeholder="Especifique a subárea (opcional)"
+                                        data-optional
                                         type="text" />
                                 </div>
                             </div>
@@ -292,7 +295,8 @@
                                 <div
                                     class="input-focus rounded-lg border border-outline-variant overflow-hidden bg-surface-bright relative">
                                     <select
-                                        class="w-full bg-transparent border-none focus:ring-0 px-sm py-2 appearance-none font-body-md text-body-md text-on-surface">
+                                        class="w-full bg-transparent border-none focus:ring-0 px-sm py-2 appearance-none font-body-md text-body-md text-on-surface"
+                                        required>
                                         <option selected
                                             value="br">Brasil</option>
                                         <option value="other">Outro</option>
@@ -308,7 +312,8 @@
                                 <div
                                     class="input-focus rounded-lg border border-outline-variant overflow-hidden bg-surface-bright relative">
                                     <select
-                                        class="w-full bg-transparent border-none focus:ring-0 px-sm py-2 appearance-none font-body-md text-body-md text-on-surface">
+                                        class="w-full bg-transparent border-none focus:ring-0 px-sm py-2 appearance-none font-body-md text-body-md text-on-surface"
+                                        required>
                                         <option disabled selected
                                             value>Selecione</option>
                                         <option value="ms">Mato Grosso do Sul
@@ -330,7 +335,7 @@
                                     <input
                                         class="w-full bg-transparent border-none focus:ring-0 px-sm py-2 font-body-md text-body-md text-on-surface"
                                         placeholder="Nome da cidade"
-                                        type="text" />
+                                        required type="text" />
                                 </div>
                             </div>
                         </div>
@@ -400,6 +405,7 @@
                                     <textarea
                                         class="w-full bg-transparent border-none focus:ring-0 px-sm py-2 font-body-md text-body-md text-on-surface resize-y"
                                         placeholder="Escreva o resumo do seu projeto detalhando os objetivos, metodologia e conclusões..."
+                                        required
                                         rows="5"></textarea>
                                 </div>
                             </div>
@@ -412,7 +418,7 @@
                                     <input
                                         class="w-full bg-transparent border-none focus:ring-0 px-sm py-2 font-body-md text-body-md text-on-surface"
                                         min="1" placeholder="Ex: 6"
-                                        type="number" />
+                                        required type="number" />
                                 </div>
                             </div>
                             <div class="fetec-file-field" data-fetec-file-field>
@@ -428,7 +434,7 @@
                                     <input type="file" id="upload-arquivos"
                                         name="arquivos[]" class="sr-only"
                                         accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                                        multiple />
+                                        multiple required />
                                     <span
                                         class="material-symbols-outlined text-primary text-[48px] mb-sm block">cloud_upload</span>
                                     <p
@@ -473,7 +479,9 @@
                                 <div>
                                     <h4
                                         class="font-label-md text-label-md text-on-surface">Projeto
-                                        de Continuação?</h4>
+                                        de Continuação?
+                                        <span
+                                            class="font-label-sm text-label-sm text-on-surface-variant">(Opcional)</span></h4>
                                     <p
                                         class="font-body-sm text-body-sm text-on-surface-variant">Este
                                         projeto é a continuação de um trabalho
@@ -482,8 +490,10 @@
                                 <!-- Custom Toggle Switch -->
                                 <label
                                     class="relative inline-flex items-center cursor-pointer">
-                                    <input class="sr-only peer" type="checkbox"
-                                        value />
+                                    <input id="cadastro4-aceite"
+                                        class="sr-only peer"
+                                        data-optional
+                                        type="checkbox" value />
                                     <div
                                         class="w-11 h-6 bg-surface-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-outline-variant after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
                                 </label>
@@ -493,7 +503,9 @@
                                 <div>
                                     <h4
                                         class="font-label-md text-label-md text-on-surface">Participou
-                                        de Feira Afiliada?</h4>
+                                        de Feira Afiliada?
+                                        <span
+                                            class="font-label-sm text-label-sm text-on-surface-variant">(Opcional)</span></h4>
                                     <p
                                         class="font-body-sm text-body-sm text-on-surface-variant">Indique
                                         se o projeto foi credenciado através de
@@ -502,31 +514,78 @@
                                 <label
                                     class="relative inline-flex items-center cursor-pointer">
                                     <input class="sr-only peer" type="checkbox"
+                                        data-optional
                                         value />
                                     <div
                                         class="w-11 h-6 bg-surface-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-outline-variant after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
                                 </label>
                             </div>
-                            <hr class="border-surface-variant" />
-                            <div class="flex items-center justify-between">
-                                <div>
-                                    <h4
-                                        class="font-label-md text-label-md text-on-surface">Alinhado
-                                        à Agenda 2030?</h4>
-                                    <p
-                                        class="font-body-sm text-body-sm text-on-surface-variant">O
-                                        projeto atende a um ou mais Objetivos de
-                                        Desenvolvimento Sustentável (ODS) da
-                                        ONU?</p>
-                                </div>
-                                <label
-                                    class="relative inline-flex items-center cursor-pointer">
-                                    <input checked class="sr-only peer"
-                                        type="checkbox" value />
+                        </div>
+                    </section>
+                    <section
+                        class="bg-white rounded-xl p-md md:p-lg custom-shadow custom-shadow-hover transition-shadow">
+                        <div
+                            class="flex items-center gap-sm border-b border-surface-variant pb-sm mb-md">
+                            <span
+                                class="material-symbols-outlined text-primary">tune</span>
+                            <h3
+                                class="font-headline-sm text-headline-sm text-primary">5.
+                                E-mail para comunicação</h3>
+                        </div>
+                        <div class="flex flex-col gap-8">
+                            <div class="space-y-md">
+                                <div class="col-span-1 md:col-span-2">
+                                    <label
+                                        class="block font-label-md text-label-md text-on-surface mb-xs">E-mail
+                                        para comunicação *</label>
                                     <div
-                                        class="w-11 h-6 bg-surface-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-outline-variant after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-                                </label>
+                                        class="flex flex-col gap-3 input-focus rounded-lg border border-outline-variant overflow-hidden bg-surface-bright">
+                                        <input
+                                            class="w-full bg-transparent border-none focus:ring-0 px-sm py-2 font-body-md text-body-md text-on-surface"
+                                            placeholder="Insira o e-mail que será utilizado para comunicações oficiais sobre o evento."
+                                                required type="text" />
+                                    </div>
+                                </div>
                             </div>
+                            <div class="flex flex-col gap-3">
+                                <div id="login-alert"
+                                    class="flex gap-1.5 p-3 rounded-lg text-sm bg-[#ffdad6] text-[#93000a] border border-[#ba1a1a33]"
+                                    role="alert" aria-live="polite">
+                                    <span
+                                        class="material-symbols-outlined text-[20px] shrink-0">error</span>
+                                    <span id="login-alert-text">Toda
+                                        a COMUNICAÇÃO OFICIAL e todos os
+                                        CERTIFICADOS
+                                        sobre o evento será enviada única e
+                                        exclusivamente para este e-mail.</span>
+
+                                </div>
+                                <div class="flex flex-col gap-xs w-full">
+                                    <label
+                                        class="flex items-start gap-sm cursor-pointer group">
+                                        <input
+                                            class="mt-1 rounded text-primary-container focus:ring-primary-container/20 border-outline-variant w-5 h-5 transition-all"
+                                            type="checkbox" />
+                                        <div>
+                                            <span
+                                                class="font-label-md text-label-md text-on-surface block group-hover:text-primary transition-colors">Declaração
+                                                de leitura.</span>
+                                            <span
+                                                class="font-body-sm text-body-sm text-on-surface-variant">Declaro
+                                                ter lido, compreendido e estar
+                                                consciente que tenho a
+                                                responsabilidade de manter ativo
+                                                o e-mail anteriormente
+                                                informado, e, em caso de
+                                                problemas com acesso ao referido
+                                                e-mail, devo entrar em contato
+                                                com a organização do evento
+                                                solicitando a alteração.</span>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+
                         </div>
                     </section>
                     <!-- Actions Footer -->
@@ -537,13 +596,13 @@
                             type="button">
                             SALVAR RASCUNHO
                         </button>
-                        <a
-                            class="fetec-btn fetec-btn-success w-full sm:w-auto justify-center text-sm py-2 px-4"
-                            href="cadastro7.html">
+                        <button id="submeter-projeto"
+                            class="fetec-btn fetec-btn-success w-full sm:w-auto justify-center text-sm py-2 px-4 opacity-50 cursor-not-allowed"
+                            type="button" disabled>
                             <span
                                 class="material-symbols-outlined text-[18px]">send</span>
                             SUBMETER PROJETO
-                        </a>
+                        </button>
                     </div>
                 </form>
             </div>
@@ -553,7 +612,7 @@
                 <div class="mb-sm md:mb-0">
                     <span
                         class="font-label-md text-label-md font-bold text-primary">©
-                        2024 XVI FETECMS - A CIÊNCIA É A PONTE PARA O
+                        2026 XVI FETECMS - A CIÊNCIA É A PONTE PARA O
                         FUTURO</span>
                 </div>
                 <div
@@ -583,6 +642,53 @@
                     charCount.classList.add('text-on-surface-variant');
                 }
             });
+        }
+
+        const cadastroForm = document.querySelector('form');
+        const submeterProjeto = document.getElementById('submeter-projeto');
+
+        if(cadastroForm && submeterProjeto) {
+            function checkAllFieldsFilled() {
+                var fields = cadastroForm.querySelectorAll('input, select, textarea');
+                for (var i = 0; i < fields.length; i++) {
+                    var field = fields[i];
+                    // Pula campos opcionais
+                    if (field.hasAttribute('data-optional')) continue;
+                    var type = (field.type || '').toLowerCase();
+                    var tag = field.tagName.toLowerCase();
+
+                    if (tag === 'select') {
+                        if (!field.value) return false;
+                    } else if (type === 'checkbox') {
+                        if (!field.checked) return false;
+                    } else if (type === 'file') {
+                        if (!field.files || field.files.length === 0) return false;
+                    } else if (tag === 'textarea') {
+                        if (!field.value.trim()) return false;
+                    } else {
+                        // text, url, number, email, etc.
+                        if (!field.value.trim()) return false;
+                    }
+                }
+                return true;
+            }
+
+            var syncSubmeterState = function() {
+                var habilitado = checkAllFieldsFilled();
+                submeterProjeto.classList.toggle('opacity-50', !habilitado);
+                submeterProjeto.classList.toggle('cursor-not-allowed', !habilitado);
+                submeterProjeto.disabled = !habilitado;
+            };
+
+            submeterProjeto.addEventListener('click', function() {
+                if(checkAllFieldsFilled()) {
+                    window.location.href = 'cadastro7.html';
+                }
+            });
+
+            cadastroForm.addEventListener('input', syncSubmeterState);
+            cadastroForm.addEventListener('change', syncSubmeterState);
+            syncSubmeterState();
         }
     </script>
         <script src="../js/video-preview.js"></script>

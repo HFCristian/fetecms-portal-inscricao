@@ -64,21 +64,7 @@ body.fetec-auth-shell.fetec-has-bottom-nav {
 .fetec-input-icon-wrap input {
   padding-left: 2.75rem;
 }
-.fetec-login-alert {
-  display: none;
-  padding: 0.75rem 1rem;
-  border-radius: 0.5rem;
-  font-size: 14px;
-  margin-bottom: 1rem;
-}
-.fetec-login-alert--error {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.5rem;
-  background: #ffdad6;
-  color: #93000a;
-  border: 1px solid rgba(186, 26, 26, 0.2);
-}
+
 .fetec-login-alert--show {
   display: flex;
 }
@@ -232,7 +218,6 @@ select.form-input-styled {
   .fetec-main-offset {
     margin-left: 16rem;
     padding-top: 0.5rem;
-    padding-bottom: 1.5rem;
     min-height: 100vh;
     min-height: 100dvh;
   }
