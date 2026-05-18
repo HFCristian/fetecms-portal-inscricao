@@ -120,7 +120,8 @@ cadastro4 → cadastro5, cadastro6, cadastro7
 cadastro5 → cadastro4 (voltar)
 cadastro6 → cadastro4 (voltar / cancelar)
 cadastro7 → cadastro4, cadastro5, cadastro6, perfil.html (atalhos editar)
-Menu (JS) → cadastro4, perfil.html, login.html
+Menu (JS) → projetos.html, perfil.html, login.html · Nova inscrição → cadastro4.html
+projetos.html → integrantes.html?projeto=N · cadastro4/5/6/7
 ```
 
 ---

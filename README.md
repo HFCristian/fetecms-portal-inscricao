@@ -11,6 +11,8 @@ Protótipo HTML/CSS/JS das telas de inscrição da **XVI FETECMS**, separado do 
 | `view/cadastro1.html` | Cadastro do orientador — etapa 1 (dados básicos) |
 | `view/cadastro2.html` | Cadastro do orientador — etapa 2 (info. acadêmicas) |
 | `view/cadastro3.html` | Cadastro do orientador — etapa 3 (endereço) |
+| `view/projetos.html` | **Lista** de projetos inscritos pelo orientador |
+| `view/integrantes.html` | **Lista** de integrantes de um projeto (`?projeto=1`) |
 | `view/cadastro4.html` | Cadastro / edição do projeto (com pré-visualização do link de vídeo) |
 | `view/cadastro5.html` | Cadastro de aluno no projeto |
 | `view/cadastro6.html` | Cadastro de coorientador |
@@ -26,7 +28,7 @@ Coloque a pasta no servidor web (ex.: XAMPP `htdocs`) e acesse:
 http://localhost/fetecms-portal-inscricao/
 ```
 
-Ou abra diretamente `view/cadastro1.html` para o fluxo do orientador, ou `view/cadastro4.html` para a área autenticada (protótipo).
+Ou abra `view/cadastro1.html` (cadastro orientador) ou `view/projetos.html` (área autenticada — lista de projetos).
 
 ## Estrutura
 
@@ -61,7 +63,8 @@ Ou abra diretamente `view/cadastro1.html` para o fluxo do orientador, ou `view/c
 
 1. Orientador: `cadastro1` → `cadastro2` → `cadastro3` → `cadastro4`
 2. Projeto: incluir aluno (`cadastro5`), coorientador (`cadastro6`)
-3. Submissão: `cadastro4` → **Submeter** → `cadastro7` → confirmar
+3. Área logada: `projetos` → editar projeto / `integrantes` → cadastrar aluno/coorientador
+4. Submissão: `cadastro4` → **Submeter** → `cadastro7` → confirmar
 
 ## Integração futura
 
