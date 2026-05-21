@@ -409,18 +409,6 @@
                                         rows="5"></textarea>
                                 </div>
                             </div>
-                            <div>
-                                <label
-                                    class="block font-label-md text-label-md text-on-surface mb-xs">Tempo
-                                    de Pesquisa (Meses) *</label>
-                                <div
-                                    class="input-focus rounded-lg border border-outline-variant overflow-hidden bg-surface-bright w-32">
-                                    <input
-                                        class="w-full bg-transparent border-none focus:ring-0 px-sm py-2 font-body-md text-body-md text-on-surface"
-                                        min="1" placeholder="Ex: 6"
-                                        required type="number" />
-                                </div>
-                            </div>
                             <div class="fetec-file-field" data-fetec-file-field>
                                 <label
                                     class="block font-label-md text-label-md text-on-surface mb-xs"
@@ -487,6 +475,7 @@
                                         projeto é a continuação de um trabalho
                                         apresentado em anos anteriores?</p>
                                 </div>
+
                                 <!-- Custom Toggle Switch -->
                                 <label
                                     class="relative inline-flex items-center cursor-pointer">
@@ -497,6 +486,118 @@
                                     <div
                                         class="w-11 h-6 bg-surface-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-outline-variant after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
                                 </label>
+                            </div>
+                            
+                            <div class="hidden space-y-md"
+                                data-continuacao-only>
+                                <div>
+                                    <label
+                                        class="block font-label-md text-label-md text-on-surface mb-xs">Tempo
+                                        de Pesquisa (Meses) *</label>
+                                    <div
+                                        class="input-focus rounded-lg border border-outline-variant overflow-hidden bg-surface-bright w-32">
+                                        <input
+                                            class="w-full bg-transparent border-none focus:ring-0 px-sm py-2 font-body-md text-body-md text-on-surface"
+                                            min="1" placeholder="Ex: 6"
+                                            required type="number" />
+                                    </div>
+                                </div>
+                                <div class="fetec-file-field" data-fetec-file-field>
+                                    <label
+                                        class="block font-label-md text-label-md text-on-surface mb-xs"
+                                        for="upload-arquivos">Upload de Arquivos
+                                        (PDF ou DOCX) *</label>
+                                    <div
+                                        class="fetec-file-dropzone border-2 border-dashed border-outline-variant rounded-lg p-lg text-center hover:bg-surface-container-low transition-colors cursor-pointer bg-surface-bright"
+                                        id="fetec-file-dropzone" role="button"
+                                        tabindex="0"
+                                        aria-label="Selecionar arquivos PDF ou DOCX">
+                                        <input type="file" id="upload-arquivos"
+                                            name="arquivos[]" class="sr-only"
+                                            accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                                            multiple required />
+                                        <span
+                                            class="material-symbols-outlined text-primary text-[48px] mb-sm block">cloud_upload</span>
+                                        <p
+                                            class="font-label-md text-label-md text-primary mb-xs">Clique
+                                            para fazer upload ou arraste os arquivos
+                                            aqui</p>
+                                        <p
+                                            class="font-body-sm text-body-sm text-on-surface-variant">Plano
+                                            de Pesquisa, Relatório, etc. Máx 10MB
+                                            por arquivo.</p>
+                                    </div>
+                                    <p
+                                        class="font-body-sm text-body-sm text-on-surface-variant mt-xs">A
+                                        pré-visualização abaixo confirma o arquivo
+                                        selecionado antes de submeter.</p>
+                                    <div class="fetec-file-preview mt-md hidden"
+                                        id="fetec-file-preview" aria-live="polite">
+                                        <div class="fetec-file-preview__status"
+                                            id="fetec-file-status"></div>
+                                        <div
+                                            class="fetec-file-preview__viewer hidden"
+                                            id="fetec-file-viewer"></div>
+                                    </div>
+                                    <div class="mt-sm flex flex-wrap gap-sm"
+                                        id="fetec-file-list"></div>
+                                </div>
+                            </div>
+
+                            <div class="hidden space-y-md"
+                                data-continuacao-only>
+                                <div>
+                                    <label
+                                        class="block font-label-md text-label-md text-on-surface mb-xs">Tempo
+                                        de Pesquisa (Meses) *</label>
+                                    <div
+                                        class="input-focus rounded-lg border border-outline-variant overflow-hidden bg-surface-bright w-32">
+                                        <input
+                                            class="w-full bg-transparent border-none focus:ring-0 px-sm py-2 font-body-md text-body-md text-on-surface"
+                                            min="1" placeholder="Ex: 6"
+                                            required type="number" />
+                                    </div>
+                                </div>
+                                <div class="fetec-file-field" data-fetec-file-field>
+                                    <label
+                                        class="block font-label-md text-label-md text-on-surface mb-xs"
+                                        for="upload-arquivos">Upload de Arquivos
+                                        (PDF ou DOCX) *</label>
+                                    <div
+                                        class="fetec-file-dropzone border-2 border-dashed border-outline-variant rounded-lg p-lg text-center hover:bg-surface-container-low transition-colors cursor-pointer bg-surface-bright"
+                                        id="fetec-file-dropzone" role="button"
+                                        tabindex="0"
+                                        aria-label="Selecionar arquivos PDF ou DOCX">
+                                        <input type="file" id="upload-arquivos"
+                                            name="arquivos[]" class="sr-only"
+                                            accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                                            multiple required />
+                                        <span
+                                            class="material-symbols-outlined text-primary text-[48px] mb-sm block">cloud_upload</span>
+                                        <p
+                                            class="font-label-md text-label-md text-primary mb-xs">Clique
+                                            para fazer upload ou arraste os arquivos
+                                            aqui</p>
+                                        <p
+                                            class="font-body-sm text-body-sm text-on-surface-variant">Plano
+                                            de Pesquisa, Relatório, etc. Máx 10MB
+                                            por arquivo.</p>
+                                    </div>
+                                    <p
+                                        class="font-body-sm text-body-sm text-on-surface-variant mt-xs">A
+                                        pré-visualização abaixo confirma o arquivo
+                                        selecionado antes de submeter.</p>
+                                    <div class="fetec-file-preview mt-md hidden"
+                                        id="fetec-file-preview" aria-live="polite">
+                                        <div class="fetec-file-preview__status"
+                                            id="fetec-file-status"></div>
+                                        <div
+                                            class="fetec-file-preview__viewer hidden"
+                                            id="fetec-file-viewer"></div>
+                                    </div>
+                                    <div class="mt-sm flex flex-wrap gap-sm"
+                                        id="fetec-file-list"></div>
+                                </div>
                             </div>
                             <hr class="border-surface-variant" />
                             <div class="flex items-center justify-between">
@@ -543,7 +644,7 @@
                                         <input
                                             class="w-full bg-transparent border-none focus:ring-0 px-sm py-2 font-body-md text-body-md text-on-surface"
                                             placeholder="Insira o e-mail que será utilizado para comunicações oficiais sobre o evento."
-                                                required type="text" />
+                                            required type="text" />
                                     </div>
                                 </div>
                             </div>
@@ -648,10 +749,31 @@
         const submeterProjeto = document.getElementById('submeter-projeto');
 
         if(cadastroForm && submeterProjeto) {
+            const continuacaoToggle = document.getElementById('cadastro4-aceite');
+            const continuacaoFields = document.querySelector('[data-continuacao-only]');
+
+            function syncContinuacaoFields() {
+                if (!continuacaoToggle || !continuacaoFields) return;
+
+                const isActive = continuacaoToggle.checked;
+                continuacaoFields.classList.toggle('hidden', !isActive);
+
+                const inputs = continuacaoFields.querySelectorAll('input, select, textarea');
+                for (var i = 0; i < inputs.length; i++) {
+                    var field = inputs[i];
+                    field.disabled = !isActive;
+                    if (!isActive) field.value = '';
+                    if (field.type === 'file' && !isActive) {
+                        field.value = '';
+                    }
+                }
+            }
+
             function checkAllFieldsFilled() {
                 var fields = cadastroForm.querySelectorAll('input, select, textarea');
                 for (var i = 0; i < fields.length; i++) {
                     var field = fields[i];
+                    if (field.disabled) continue;
                     // Pula campos opcionais
                     if (field.hasAttribute('data-optional')) continue;
                     var type = (field.type || '').toLowerCase();
@@ -686,6 +808,14 @@
                 }
             });
 
+            if (continuacaoToggle) {
+                continuacaoToggle.addEventListener('change', function() {
+                    syncContinuacaoFields();
+                    syncSubmeterState();
+                });
+            }
+
+            syncContinuacaoFields();
             cadastroForm.addEventListener('input', syncSubmeterState);
             cadastroForm.addEventListener('change', syncSubmeterState);
             syncSubmeterState();
