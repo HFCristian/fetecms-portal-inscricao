@@ -182,7 +182,7 @@
                             continuar editando mais tarde.</p>
                     </div>
                 </div>
-                <form class="space-y-lg">
+                <form class="flex flex-col space-y-lg">
                     <!-- Section 1: Dados do Projeto -->
                     <section
                         class="bg-white rounded-xl p-md md:p-lg custom-shadow custom-shadow-hover transition-shadow">
@@ -273,6 +273,66 @@
                                         data-optional
                                         type="text" />
                                 </div>
+                            </div>
+
+                            <!-- Palavras-chave -->
+                            <div class="col-span-1 md:col-span-2"
+                                id="kw-section">
+                                <label
+                                    class="block font-label-md text-label-md text-on-surface mb-xs">
+                                    Palavras-chave *
+                                    <span
+                                        class="font-label-sm text-label-sm text-on-surface-variant font-normal ml-1">(3
+                                        a 5 · cada uma com 1 a 4
+                                        palavras)</span>
+                                </label>
+
+                                <!-- Tags selecionadas -->
+                                <div id="kw-tags"
+                                    class="flex flex-wrap gap-2 mb-2"
+                                    aria-live="polite"
+                                    aria-label="Palavras-chave selecionadas"></div>
+
+                                <!-- Input + dropdown -->
+                                <div class="relative" id="kw-field-wrap">
+                                    <div
+                                        class="input-focus rounded-lg border border-outline-variant bg-surface-bright flex items-center"
+                                        id="kw-input-wrap">
+                                        <span
+                                            class="material-symbols-outlined text-on-surface-variant pl-sm shrink-0"
+                                            aria-hidden="true">label</span>
+                                        <input
+                                            class="w-full bg-transparent border-none focus:ring-0 px-sm py-2 font-body-md text-body-md text-on-surface"
+                                            id="kw-input"
+                                            type="text"
+                                            placeholder="Digite uma palavra-chave e selecione ou crie…"
+                                            autocomplete="off"
+                                            data-optional
+                                            aria-autocomplete="list"
+                                            aria-controls="kw-dropdown"
+                                            aria-expanded="false" />
+                                    </div>
+                                    <ul id="kw-dropdown"
+                                        class="hidden absolute left-0 right-0 top-full mt-1 bg-white border border-outline-variant rounded-xl shadow-lg z-50 max-h-60 overflow-y-auto py-1"
+                                        role="listbox"
+                                        aria-label="Sugestões de palavras-chave"></ul>
+                                </div>
+
+                                <!-- Contador + dica -->
+                                <div
+                                    class="flex items-center justify-between mt-xs">
+                                    <p
+                                        class="font-body-sm text-body-sm text-on-surface-variant"
+                                        id="kw-hint">Adicione de 3 a 5
+                                        palavras-chave para o seu projeto.</p>
+                                    <span
+                                        class="font-label-sm text-label-sm text-on-surface-variant tabular-nums"
+                                        id="kw-counter">0 / 5</span>
+                                </div>
+
+                                <!-- Campo oculto: controla validação do formulário -->
+                                <input type="hidden" id="kw-valid"
+                                    name="kw_valid" value />
                             </div>
                         </div>
                     </section>
@@ -397,22 +457,32 @@
                                         class="block font-label-md text-label-md text-on-surface">Resumo
                                         do Projeto *</label>
                                     <span
-                                        class="font-label-sm text-label-sm text-on-surface-variant"
-                                        id="char-count">0 / 2500</span>
+                                        class="font-label-sm text-label-sm text-on-surface-variant tabular-nums"
+                                        id="word-count">0 / 250 palavras</span>
                                 </div>
                                 <div
                                     class="input-focus rounded-lg border border-outline-variant overflow-hidden bg-surface-bright">
                                     <textarea
                                         class="w-full bg-transparent border-none focus:ring-0 px-sm py-2 font-body-md text-body-md text-on-surface resize-y"
                                         placeholder="Escreva o resumo do seu projeto detalhando os objetivos, metodologia e conclusões..."
-                                        required
-                                        rows="5"></textarea>
+                                        id="resumo-textarea"
+                                        data-optional
+                                        rows="8"></textarea>
                                 </div>
+                                <div
+                                    class="flex items-center justify-between mt-xs">
+                                    <p
+                                        class="font-body-sm text-body-sm text-on-surface-variant"
+                                        id="resumo-hint">Entre 150 e 250
+                                        palavras.</p>
+                                </div>
+                                <input type="hidden" id="resumo-valid"
+                                    name="resumo_valid" value />
                             </div>
                             <div class="fetec-file-field" data-fetec-file-field>
                                 <label
                                     class="block font-label-md text-label-md text-on-surface mb-xs"
-                                    for="upload-arquivos">Upload de Arquivos
+                                    for="upload-arquivos">Projeto de Pesquisa
                                     (PDF ou DOCX) *</label>
                                 <div
                                     class="fetec-file-dropzone border-2 border-dashed border-outline-variant rounded-lg p-lg text-center hover:bg-surface-container-low transition-colors cursor-pointer bg-surface-bright"
@@ -430,8 +500,7 @@
                                         para fazer upload ou arraste os arquivos
                                         aqui</p>
                                     <p
-                                        class="font-body-sm text-body-sm text-on-surface-variant">Plano
-                                        de Pesquisa, Relatório, etc. Máx 10MB
+                                        class="font-body-sm text-body-sm text-on-surface-variant">Projeto de Pesquisa. Máx 10MB
                                         por arquivo.</p>
                                 </div>
                                 <p
@@ -463,287 +532,497 @@
                                 Informações Adicionais</h3>
                         </div>
                         <div class="space-y-md">
-                            <div class="flex items-center justify-between">
-                                <div>
+                            <div class="flex items-center">
+                                <div class="flex flex-col gap-3">
                                     <h4
                                         class="font-label-md text-label-md text-on-surface">Projeto
                                         de Continuação?
                                         <span
                                             class="font-label-sm text-label-sm text-on-surface-variant">(Opcional)</span></h4>
-                                    <p
-                                        class="font-body-sm text-body-sm text-on-surface-variant">Este
-                                        projeto é a continuação de um trabalho
-                                        apresentado em anos anteriores?</p>
-                                </div>
-
-                                <!-- Custom Toggle Switch -->
-                                <label
-                                    class="relative inline-flex items-center cursor-pointer">
-                                    <input id="cadastro4-aceite"
-                                        class="sr-only peer"
-                                        data-optional
-                                        type="checkbox" value />
                                     <div
-                                        class="w-11 h-6 bg-surface-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-outline-variant after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-                                </label>
-                            </div>
-                            
-                            <div class="hidden space-y-md"
-                                data-continuacao-only>
-                                <div>
-                                    <label
-                                        class="block font-label-md text-label-md text-on-surface mb-xs">Tempo
-                                        de Pesquisa (Meses) *</label>
-                                    <div
-                                        class="input-focus rounded-lg border border-outline-variant overflow-hidden bg-surface-bright w-32">
-                                        <input
-                                            class="w-full bg-transparent border-none focus:ring-0 px-sm py-2 font-body-md text-body-md text-on-surface"
-                                            min="1" placeholder="Ex: 6"
-                                            required type="number" />
-                                    </div>
-                                </div>
-                                <div class="fetec-file-field" data-fetec-file-field>
-                                    <label
-                                        class="block font-label-md text-label-md text-on-surface mb-xs"
-                                        for="upload-arquivos">Upload de Arquivos
-                                        (PDF ou DOCX) *</label>
-                                    <div
-                                        class="fetec-file-dropzone border-2 border-dashed border-outline-variant rounded-lg p-lg text-center hover:bg-surface-container-low transition-colors cursor-pointer bg-surface-bright"
-                                        id="fetec-file-dropzone" role="button"
-                                        tabindex="0"
-                                        aria-label="Selecionar arquivos PDF ou DOCX">
-                                        <input type="file" id="upload-arquivos"
-                                            name="arquivos[]" class="sr-only"
-                                            accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                                            multiple required />
+                                        class="flex gap-1.5 p-3 mr-4 rounded-lg text-sm bg-[#fceec6] text-[#7a5d0d] border border-[#b68c14]"
+                                        role="alert" aria-live="polite">
                                         <span
-                                            class="material-symbols-outlined text-primary text-[48px] mb-sm block">cloud_upload</span>
-                                        <p
-                                            class="font-label-md text-label-md text-primary mb-xs">Clique
-                                            para fazer upload ou arraste os arquivos
-                                            aqui</p>
-                                        <p
-                                            class="font-body-sm text-body-sm text-on-surface-variant">Plano
-                                            de Pesquisa, Relatório, etc. Máx 10MB
-                                            por arquivo.</p>
-                                    </div>
-                                    <p
-                                        class="font-body-sm text-body-sm text-on-surface-variant mt-xs">A
-                                        pré-visualização abaixo confirma o arquivo
-                                        selecionado antes de submeter.</p>
-                                    <div class="fetec-file-preview mt-md hidden"
-                                        id="fetec-file-preview" aria-live="polite">
-                                        <div class="fetec-file-preview__status"
-                                            id="fetec-file-status"></div>
-                                        <div
-                                            class="fetec-file-preview__viewer hidden"
-                                            id="fetec-file-viewer"></div>
-                                    </div>
-                                    <div class="mt-sm flex flex-wrap gap-sm"
-                                        id="fetec-file-list"></div>
-                                </div>
-                            </div>
-
-                            <div class="hidden space-y-md"
-                                data-continuacao-only>
-                                <div>
-                                    <label
-                                        class="block font-label-md text-label-md text-on-surface mb-xs">Tempo
-                                        de Pesquisa (Meses) *</label>
-                                    <div
-                                        class="input-focus rounded-lg border border-outline-variant overflow-hidden bg-surface-bright w-32">
-                                        <input
-                                            class="w-full bg-transparent border-none focus:ring-0 px-sm py-2 font-body-md text-body-md text-on-surface"
-                                            min="1" placeholder="Ex: 6"
-                                            required type="number" />
-                                    </div>
-                                </div>
-                                <div class="fetec-file-field" data-fetec-file-field>
-                                    <label
-                                        class="block font-label-md text-label-md text-on-surface mb-xs"
-                                        for="upload-arquivos">Upload de Arquivos
-                                        (PDF ou DOCX) *</label>
-                                    <div
-                                        class="fetec-file-dropzone border-2 border-dashed border-outline-variant rounded-lg p-lg text-center hover:bg-surface-container-low transition-colors cursor-pointer bg-surface-bright"
-                                        id="fetec-file-dropzone" role="button"
-                                        tabindex="0"
-                                        aria-label="Selecionar arquivos PDF ou DOCX">
-                                        <input type="file" id="upload-arquivos"
-                                            name="arquivos[]" class="sr-only"
-                                            accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                                            multiple required />
-                                        <span
-                                            class="material-symbols-outlined text-primary text-[48px] mb-sm block">cloud_upload</span>
-                                        <p
-                                            class="font-label-md text-label-md text-primary mb-xs">Clique
-                                            para fazer upload ou arraste os arquivos
-                                            aqui</p>
-                                        <p
-                                            class="font-body-sm text-body-sm text-on-surface-variant">Plano
-                                            de Pesquisa, Relatório, etc. Máx 10MB
-                                            por arquivo.</p>
-                                    </div>
-                                    <p
-                                        class="font-body-sm text-body-sm text-on-surface-variant mt-xs">A
-                                        pré-visualização abaixo confirma o arquivo
-                                        selecionado antes de submeter.</p>
-                                    <div class="fetec-file-preview mt-md hidden"
-                                        id="fetec-file-preview" aria-live="polite">
-                                        <div class="fetec-file-preview__status"
-                                            id="fetec-file-status"></div>
-                                        <div
-                                            class="fetec-file-preview__viewer hidden"
-                                            id="fetec-file-viewer"></div>
-                                    </div>
-                                    <div class="mt-sm flex flex-wrap gap-sm"
-                                        id="fetec-file-list"></div>
-                                </div>
-                            </div>
-                            <hr class="border-surface-variant" />
-                            <div class="flex items-center justify-between">
-                                <div>
-                                    <h4
-                                        class="font-label-md text-label-md text-on-surface">Participou
-                                        de Feira Afiliada?
-                                        <span
-                                            class="font-label-sm text-label-sm text-on-surface-variant">(Opcional)</span></h4>
-                                    <p
-                                        class="font-body-sm text-body-sm text-on-surface-variant">Indique
-                                        se o projeto foi credenciado através de
-                                        uma feira municipal ou regional.</p>
-                                </div>
-                                <label
-                                    class="relative inline-flex items-center cursor-pointer">
-                                    <input class="sr-only peer" type="checkbox"
-                                        data-optional
-                                        value />
-                                    <div
-                                        class="w-11 h-6 bg-surface-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-outline-variant after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-                                </label>
-                            </div>
-                        </div>
-                    </section>
-                    <section
-                        class="bg-white rounded-xl p-md md:p-lg custom-shadow custom-shadow-hover transition-shadow">
-                        <div
-                            class="flex items-center gap-sm border-b border-surface-variant pb-sm mb-md">
-                            <span
-                                class="material-symbols-outlined text-primary">tune</span>
-                            <h3
-                                class="font-headline-sm text-headline-sm text-primary">5.
-                                E-mail para comunicação</h3>
-                        </div>
-                        <div class="flex flex-col gap-8">
-                            <div class="space-y-md">
-                                <div class="col-span-1 md:col-span-2">
-                                    <label
-                                        class="block font-label-md text-label-md text-on-surface mb-xs">E-mail
-                                        para comunicação *</label>
-                                    <div
-                                        class="flex flex-col gap-3 input-focus rounded-lg border border-outline-variant overflow-hidden bg-surface-bright">
-                                        <input
-                                            class="w-full bg-transparent border-none focus:ring-0 px-sm py-2 font-body-md text-body-md text-on-surface"
-                                            placeholder="Insira o e-mail que será utilizado para comunicações oficiais sobre o evento."
-                                            required type="text" />
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="flex flex-col gap-3">
-                                <div id="login-alert"
-                                    class="flex gap-1.5 p-3 rounded-lg text-sm bg-[#ffdad6] text-[#93000a] border border-[#ba1a1a33]"
-                                    role="alert" aria-live="polite">
-                                    <span
-                                        class="material-symbols-outlined text-[20px] shrink-0">error</span>
-                                    <span id="login-alert-text">Toda
-                                        a COMUNICAÇÃO OFICIAL e todos os
-                                        CERTIFICADOS
-                                        sobre o evento será enviada única e
-                                        exclusivamente para este e-mail.</span>
-
-                                </div>
-                                <div class="flex flex-col gap-xs w-full">
-                                    <label
-                                        class="flex items-start gap-sm cursor-pointer group">
-                                        <input
-                                            class="mt-1 rounded text-primary-container focus:ring-primary-container/20 border-outline-variant w-5 h-5 transition-all"
-                                            type="checkbox" />
-                                        <div>
-                                            <span
-                                                class="font-label-md text-label-md text-on-surface block group-hover:text-primary transition-colors">Declaração
-                                                de leitura.</span>
-                                            <span
-                                                class="font-body-sm text-body-sm text-on-surface-variant">Declaro
-                                                ter lido, compreendido e estar
-                                                consciente que tenho a
-                                                responsabilidade de manter ativo
-                                                o e-mail anteriormente
-                                                informado, e, em caso de
-                                                problemas com acesso ao referido
-                                                e-mail, devo entrar em contato
-                                                com a organização do evento
-                                                solicitando a alteração.</span>
+                                            class="material-symbols-outlined text-[20px] shrink-0">error</span>
+                                        <span id="login-alert-text">Devem
+                                               responder <b>"Sim"</b> os projetos
+                                            científicos
+                                            que:<br>
+                                            - Tenham sido desenvolvidos a partir
+                                            de pesquisas anteriores de outra
+                                            equipe, na mesma área do
+                                            conhecimento ou com a mesma base
+                                            teórica;<br>
+                                            - Tenham sido submetidos em edições
+                                            anteriores da FETECMS , mesmo que
+                                            não apresentados
+                                            presencialmente;<br>
+                                            - Possuam duração superior a 12
+                                            meses e, portanto, estejam divididos
+                                            em fases ou etapas de até 12 meses
+                                            cada.
+                                            <br><br>
+                                            <b>Antes de responder, leia
+                                                atentamente o item 7.9 do edital
+                                                para verificar se o projeto se
+                                                enquadra nos critérios de
+                                                Projeto de Continuidade e
+                                                necessita da documentação
+                                                específica
+                                                correspondente.</span>
                                         </div>
+
+                                    </div>
+
+                                    <!-- Custom Toggle Switch -->
+                                    <label
+                                        class="relative inline-flex items-center cursor-pointer">
+                                        <input id="cadastro4-aceite"
+                                            class="sr-only peer"
+                                            data-optional
+                                            type="checkbox" value />
+                                        <div
+                                            class="w-11 h-6 bg-surface-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-outline-variant after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
                                     </label>
                                 </div>
+
+                                <div class="hidden space-y-md"
+                                    data-continuacao-only>
+                                    <div>
+                                        <label
+                                            class="block font-label-md text-label-md text-on-surface mb-xs">Tempo
+                                            de Pesquisa (Meses) *</label>
+                                        <div
+                                            class="input-focus rounded-lg border border-outline-variant overflow-hidden bg-surface-bright w-32">
+                                            <input
+                                                class="w-full bg-transparent border-none focus:ring-0 px-sm py-2 font-body-md text-body-md text-on-surface"
+                                                min="1" placeholder="Ex: 6"
+                                                required type="number" />
+                                        </div>
+                                    </div>
+                                    <div class="fetec-file-field"
+                                        data-fetec-file-field>
+                                        <label
+                                            class="block font-label-md text-label-md text-on-surface mb-xs"
+                                            for="upload-arquivos">Projeto
+                                        de Continuação
+                                            (PDF ou DOCX) *</label>
+                                        <div
+                                            class="fetec-file-dropzone border-2 border-dashed border-outline-variant rounded-lg p-lg text-center hover:bg-surface-container-low transition-colors cursor-pointer bg-surface-bright"
+                                            id="fetec-file-dropzone"
+                                            role="button"
+                                            tabindex="0"
+                                            aria-label="Selecionar arquivos PDF ou DOCX">
+                                            <input type="file"
+                                                id="upload-arquivos"
+                                                name="arquivos[]"
+                                                class="sr-only"
+                                                accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                                                multiple required />
+                                            <span
+                                                class="material-symbols-outlined text-primary text-[48px] mb-sm block">cloud_upload</span>
+                                            <p
+                                                class="font-label-md text-label-md text-primary mb-xs">Clique
+                                                para fazer upload ou arraste os
+                                                arquivos
+                                                aqui</p>
+                                            <p
+                                                class="font-body-sm text-body-sm text-on-surface-variant">Projeto
+                                        de Continuação. Máx
+                                                10MB
+                                                por arquivo.</p>
+                                        </div>
+                                        <p
+                                            class="font-body-sm text-body-sm text-on-surface-variant mt-xs">A
+                                            pré-visualização abaixo confirma o
+                                            arquivo
+                                            selecionado antes de submeter.</p>
+                                        <div
+                                            class="fetec-file-preview mt-md hidden"
+                                            id="fetec-file-preview"
+                                            aria-live="polite">
+                                            <div
+                                                class="fetec-file-preview__status"
+                                                id="fetec-file-status"></div>
+                                            <div
+                                                class="fetec-file-preview__viewer hidden"
+                                                id="fetec-file-viewer"></div>
+                                        </div>
+                                        <div class="mt-sm flex flex-wrap gap-sm"
+                                            id="fetec-file-list"></div>
+                                    </div>
+                                </div>
+
+                                <div class="hidden space-y-md"
+                                    data-continuacao-only>
+                                    <div>
+                                        <label
+                                            class="block font-label-md text-label-md text-on-surface mb-xs">Tempo
+                                            de Pesquisa (Meses) *</label>
+                                        <div
+                                            class="input-focus rounded-lg border border-outline-variant overflow-hidden bg-surface-bright w-32">
+                                            <input
+                                                class="w-full bg-transparent border-none focus:ring-0 px-sm py-2 font-body-md text-body-md text-on-surface"
+                                                min="1" placeholder="Ex: 6"
+                                                required type="number" />
+                                        </div>
+                                    </div>
+                                    <div class="fetec-file-field"
+                                        data-fetec-file-field>
+                                        <label
+                                            class="block font-label-md text-label-md text-on-surface mb-xs"
+                                            for="upload-arquivos">Projeto
+                                        de Continuação
+                                            (PDF ou DOCX) *</label>
+                                        <div
+                                            class="fetec-file-dropzone border-2 border-dashed border-outline-variant rounded-lg p-lg text-center hover:bg-surface-container-low transition-colors cursor-pointer bg-surface-bright"
+                                            id="fetec-file-dropzone"
+                                            role="button"
+                                            tabindex="0"
+                                            aria-label="Selecionar arquivos PDF ou DOCX">
+                                            <input type="file"
+                                                id="upload-arquivos"
+                                                name="arquivos[]"
+                                                class="sr-only"
+                                                accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                                                multiple required />
+                                            <span
+                                                class="material-symbols-outlined text-primary text-[48px] mb-sm block">cloud_upload</span>
+                                            <p
+                                                class="font-label-md text-label-md text-primary mb-xs">Clique
+                                                para fazer upload ou arraste os
+                                                arquivos
+                                                aqui</p>
+                                            <p
+                                                class="font-body-sm text-body-sm text-on-surface-variant">Projeto
+                                                de Continuação. Máx
+                                                10MB
+                                                por arquivo.</p>
+                                        </div>
+                                        <p
+                                            class="font-body-sm text-body-sm text-on-surface-variant mt-xs">A
+                                            pré-visualização abaixo confirma o
+                                            arquivo
+                                            selecionado antes de submeter.</p>
+                                        <div
+                                            class="fetec-file-preview mt-md hidden"
+                                            id="fetec-file-preview"
+                                            aria-live="polite">
+                                            <div
+                                                class="fetec-file-preview__status"
+                                                id="fetec-file-status"></div>
+                                            <div
+                                                class="fetec-file-preview__viewer hidden"
+                                                id="fetec-file-viewer"></div>
+                                        </div>
+                                        <div class="mt-sm flex flex-wrap gap-sm"
+                                            id="fetec-file-list"></div>
+                                    </div>
+                                </div>
+                                <hr class="py-2 border-surface-variant" />
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <h4
+                                            class="font-label-md text-label-md text-on-surface">Participou
+                                            de Feira Afiliada?
+                                            <span
+                                                class="font-label-sm text-label-sm text-on-surface-variant">(Opcional)</span></h4>
+                                        <p
+                                            class="font-body-sm text-body-sm text-on-surface-variant">Indique
+                                            se o projeto foi credenciado através
+                                            de
+                                            uma feira municipal ou regional.</p>
+                                    </div>
+                                    <label
+                                        class="relative inline-flex items-center cursor-pointer">
+                                        <input class="sr-only peer"
+                                            type="checkbox"
+                                            data-optional
+                                            value />
+                                        <div
+                                            class="w-11 h-6 bg-surface-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-outline-variant after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                                    </label>
+                                </div>
+                                <hr class="mt-2 py-2 border-surface-variant" />
+                                <div class="mb-3 flex items-center justify-between">
+                                    <div class="flex flex-col gap-3">
+                                        <h4
+                                            class="font-label-md text-label-md text-on-surface">O
+                                            projeto necessita da submissão do
+                                            Termo
+                                            do Comitê Escolar de Ética (ANEXO
+                                            V)?
+                                            <span
+                                                class="font-label-sm text-label-sm text-on-surface-variant">(Opcional)</span></h4>
+                                        <div
+                                            class="flex gap-1.5 p-3 rounded-lg text-sm bg-[#fceec6] text-[#7a5d0d] border border-[#b68c14]"
+                                            role="alert" aria-live="polite">
+                                            <span
+                                                class="material-symbols-outlined text-[20px] shrink-0">error</span>
+                                            <span id="login-alert-text"
+                                                class="font-body-sm text-body-sm">Devem
+                                                responder <b>"Sim"</b> os
+                                                projetos
+                                                científicos
+                                                que envolvam:<br>
+                                                - Participação de seres
+                                                humanos;<br>
+                                                - Utilização de animais
+                                                vertebrados;<br>
+                                                - Agentes biológicos perigosos
+                                                ou
+                                                não;<br>
+                                                - Substâncias controladas;<br>
+                                                - Atividades de risco;<br>
+                                                - Materiais, procedimentos ou
+                                                experimentos enquadrados em
+                                                qualquer
+                                                pictograma de perigo.<br><br>
+                                                <b>Antes de responder, leia
+                                                    atentamente
+                                                    o
+                                                    item 7.11 do edital para
+                                                    verificar
+                                                    se o
+                                                    projeto se enquadra nas
+                                                    exigências
+                                                    éticas e de
+                                                    biossegurança.</b></span>
+                                            </div>
+                                        </div>
+                                        <label
+                                            class="relative inline-flex items-center cursor-pointer">
+                                            <input id="etica-toggle"
+                                                class="sr-only peer"
+                                                type="checkbox"
+                                                data-optional
+                                                value />
+                                            <div
+                                                class="w-11 h-6 bg-surface-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-outline-variant after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                                        </label>
+                                    </div>
+                                    <div id="etica-fields" class="hidden">
+                                        <div class="fetec-file-field"
+                                            data-fetec-file-field>
+                                            <label
+                                                class="block font-label-md text-label-md text-on-surface mb-xs"
+                                                for="etica-upload">Termo
+                                            do Comitê Escolar de Ética
+                                                (PDF ou DOCX) *</label>
+                                            <div
+                                                class="fetec-file-dropzone border-2 border-dashed border-outline-variant rounded-lg p-lg text-center hover:bg-surface-container-low transition-colors cursor-pointer bg-surface-bright"
+                                                id="etica-dropzone"
+                                                role="button"
+                                                tabindex="0"
+                                                aria-label="Selecionar arquivos PDF ou DOCX">
+                                                <input type="file"
+                                                    id="etica-upload"
+                                                    name="arquivos[]"
+                                                    class="sr-only"
+                                                    accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                                                    multiple required />
+                                                <span
+                                                    class="material-symbols-outlined text-primary text-[48px] mb-sm block">cloud_upload</span>
+                                                <p
+                                                    class="font-label-md text-label-md text-primary mb-xs">Clique
+                                                    para fazer upload ou arraste
+                                                    os
+                                                    arquivos
+                                                    aqui</p>
+                                                <p
+                                                    class="font-body-sm text-body-sm text-on-surface-variant">Termo
+                                            do Comitê Escolar de Ética.
+                                                    Máx
+                                                    10MB
+                                                    por arquivo.</p>
+                                            </div>
+                                            <p
+                                                class="font-body-sm text-body-sm text-on-surface-variant mt-xs">A
+                                                pré-visualização abaixo confirma
+                                                o
+                                                arquivo
+                                                selecionado antes de
+                                                submeter.</p>
+                                            <div
+                                                class="fetec-file-preview mt-md hidden"
+                                                id="fetec-file-preview"
+                                                aria-live="polite">
+                                                <div
+                                                    class="fetec-file-preview__status"
+                                                    id="fetec-file-status"></div>
+                                                <div
+                                                    class="fetec-file-preview__viewer hidden"
+                                                    id="fetec-file-viewer"></div>
+                                            </div>
+                                            <div
+                                                class="mt-sm flex flex-wrap gap-sm"
+                                                id="fetec-file-list"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </section>
+                            <section
+                                class="bg-white rounded-xl p-md md:p-lg custom-shadow custom-shadow-hover transition-shadow">
+                                <div
+                                    class="flex items-center gap-sm border-b border-surface-variant pb-sm mb-md">
+                                    <span
+                                        class="material-symbols-outlined text-primary">tune</span>
+                                    <h3
+                                        class="font-headline-sm text-headline-sm text-primary">5.
+                                        E-mail para comunicação</h3>
+                                </div>
+                                <div class="flex flex-col gap-8">
+                                    <div class="space-y-md">
+                                        <div class="col-span-1 md:col-span-2">
+                                            <label
+                                                class="block font-label-md text-label-md text-on-surface mb-xs">E-mail
+                                                para comunicação *</label>
+                                            <div
+                                                class="flex flex-col gap-3 input-focus rounded-lg border border-outline-variant overflow-hidden bg-surface-bright">
+                                                <input
+                                                    class="w-full bg-transparent border-none focus:ring-0 px-sm py-2 font-body-md text-body-md text-on-surface"
+                                                    placeholder="Insira o e-mail que será utilizado para comunicações oficiais sobre o evento."
+                                                    required type="text" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="flex flex-col gap-3">
+                                        <div id="login-alert"
+                                            class="flex gap-1.5 p-3 rounded-lg text-sm bg-[#ffdad6] text-[#93000a] border border-[#ba1a1a33]"
+                                            role="alert" aria-live="polite">
+                                            <span
+                                                class="material-symbols-outlined text-[20px] shrink-0">error</span>
+                                            <span id="login-alert-text">Toda
+                                                a COMUNICAÇÃO OFICIAL e todos os
+                                                CERTIFICADOS
+                                                sobre o evento será enviada
+                                                única e
+                                                exclusivamente para este
+                                                e-mail.</span>
+                                        </div>
+                                        <div
+                                            class="flex flex-col gap-xs w-full">
+                                            <label
+                                                class="flex items-start gap-sm cursor-pointer group">
+                                                <input
+                                                    class="mt-1 rounded text-primary-container focus:ring-primary-container/20 border-outline-variant w-5 h-5 transition-all"
+                                                    type="checkbox" />
+                                                <div>
+                                                    <span
+                                                        class="font-label-md text-label-md text-on-surface block group-hover:text-primary transition-colors">Declaração
+                                                        de leitura.</span>
+                                                    <span
+                                                        class="font-body-sm text-body-sm text-on-surface-variant">Declaro
+                                                        ter lido, compreendido e
+                                                        estar
+                                                        consciente que tenho a
+                                                        responsabilidade de
+                                                        manter ativo
+                                                        o e-mail anteriormente
+                                                        informado, e, em caso de
+                                                        problemas com acesso ao
+                                                        referido
+                                                        e-mail, devo entrar em
+                                                        contato
+                                                        com a organização do
+                                                        evento
+                                                        solicitando a
+                                                        alteração.</span>
+                                                </div>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </section>
+                            <!-- Actions Footer -->
+                            <div
+                                class="flex flex-col sm:flex-row justify-end items-center gap-md pt-md">
+                                <button
+                                    class="w-full sm:w-auto px-lg py-sm rounded-lg border-2 border-primary text-primary font-label-md text-label-md hover:bg-primary-fixed transition-colors"
+                                    type="button">
+                                    SALVAR RASCUNHO
+                                </button>
+                                <button id="submeter-projeto"
+                                    class="fetec-btn fetec-btn-success w-full sm:w-auto justify-center text-sm py-2 px-4"
+                                    type="button">
+                                    <span
+                                        class="material-symbols-outlined text-[18px]">send</span>
+                                    SUBMETER PROJETO
+                                </button>
                             </div>
-
-                        </div>
-                    </section>
-                    <!-- Actions Footer -->
-                    <div
-                        class="flex flex-col sm:flex-row justify-end items-center gap-md pt-md">
-                        <button
-                            class="w-full sm:w-auto px-lg py-sm rounded-lg border-2 border-primary text-primary font-label-md text-label-md hover:bg-primary-fixed transition-colors"
-                            type="button">
-                            SALVAR RASCUNHO
-                        </button>
-                        <button id="submeter-projeto"
-                            class="fetec-btn fetec-btn-success w-full sm:w-auto justify-center text-sm py-2 px-4 opacity-50 cursor-not-allowed"
-                            type="button" disabled>
-                            <span
-                                class="material-symbols-outlined text-[18px]">send</span>
-                            SUBMETER PROJETO
-                        </button>
+                        </form>
                     </div>
-                </form>
-            </div>
-            <!-- Footer -->
-            <footer
-                class="fetec-auth-content mt-auto border-t border-outline-variant bg-surface-container-highest w-full py-md flex flex-col md:flex-row justify-between items-center">
-                <div class="mb-sm md:mb-0">
-                    <span
-                        class="font-label-md text-label-md font-bold text-primary">©
-                        2026 XVI FETECMS - A CIÊNCIA É A PONTE PARA O
-                        FUTURO</span>
-                </div>
-                <div
-                    class="flex gap-md font-body-sm text-body-sm text-on-surface-variant">
-                    <a class="hover:underline" href="#">Privacidade</a>
-                    <a class="hover:underline" href="#">Termos de Uso</a>
-                    <a class="hover:underline" href="#">Contato</a>
-                    <a class="hover:underline" href="#">FAQ</a>
-                </div>
-            </footer>
-        </main>
-        <script>
-        // Simple character counter logic for the textarea
-        const textarea = document.querySelector('textarea');
-        const charCount = document.getElementById('char-count');
-        const maxChars = 2500;
+                    <!-- Footer -->
+                    <footer
+                        class="fetec-auth-content mt-auto border-t border-outline-variant bg-surface-container-highest w-full py-md flex flex-col md:flex-row justify-between items-center">
+                        <div class="mb-sm md:mb-0">
+                            <span
+                                class="font-label-md text-label-md font-bold text-primary">©
+                                2026 XVI FETECMS - A CIÊNCIA É A PONTE PARA O
+                                FUTURO</span>
+                        </div>
+                        <div
+                            class="flex gap-md font-body-sm text-body-sm text-on-surface-variant">
+                            <a class="hover:underline" href="#">Privacidade</a>
+                            <a class="hover:underline" href="#">Termos de
+                                Uso</a>
+                            <a class="hover:underline" href="#">Contato</a>
+                            <a class="hover:underline" href="#">FAQ</a>
+                        </div>
+                    </footer>
+                </main>
+                <script>
+        /* Contador de palavras — Resumo do Projeto (150–250 palavras) */
+        (function () {
+            var resumoEl    = document.getElementById('resumo-textarea');
+            var wordCountEl = document.getElementById('word-count');
+            var hintEl      = document.getElementById('resumo-hint');
+            var validEl     = document.getElementById('resumo-valid');
+            var MIN_W = 150, MAX_W = 250;
 
-        if(textarea && charCount) {
-            textarea.addEventListener('input', function() {
-                const currentLength = this.value.length;
-                charCount.textContent = `${currentLength} / ${maxChars}`;
-                if(currentLength > maxChars * 0.9) {
-                    charCount.classList.add('text-error');
-                    charCount.classList.remove('text-on-surface-variant');
+            if (!resumoEl || !wordCountEl) return;
+
+            function countWords(text) {
+                return text.trim().split(/\s+/).filter(Boolean).length;
+            }
+
+            function updateCount() {
+                var n = countWords(resumoEl.value);
+                wordCountEl.textContent = n + ' / ' + MAX_W + ' palavras';
+
+                if (n === 0) {
+                    wordCountEl.className = 'font-label-sm text-label-sm tabular-nums text-on-surface-variant';
+                    hintEl.textContent = 'Entre 150 e 250 palavras.';
+                    hintEl.className = 'font-body-sm text-body-sm text-on-surface-variant';
+                } else if (n < MIN_W) {
+                    wordCountEl.className = 'font-label-sm text-label-sm tabular-nums text-error';
+                    var faltam = MIN_W - n;
+                    hintEl.textContent = 'Mínimo de 150 palavras. Falt' + (faltam === 1 ? 'a 1 palavra.' : 'am ' + faltam + ' palavras.');
+                    hintEl.className = 'font-body-sm text-body-sm text-error';
+                } else if (n <= MAX_W) {
+                    wordCountEl.className = 'font-label-sm text-label-sm tabular-nums text-secondary';
+                    if (n === MAX_W) {
+                        hintEl.textContent = 'Limite máximo atingido.';
+                    } else {
+                        var restam = MAX_W - n;
+                        hintEl.textContent = 'Ótimo! Ainda cab' + (restam === 1 ? 'e 1 palavra.' : 'em ' + restam + ' palavras.');
+                    }
+                    hintEl.className = 'font-body-sm text-body-sm text-secondary';
                 } else {
-                    charCount.classList.remove('text-error');
-                    charCount.classList.add('text-on-surface-variant');
+                    wordCountEl.className = 'font-label-sm text-label-sm tabular-nums text-error';
+                    var excesso = n - MAX_W;
+                    hintEl.textContent = 'Limite excedido. Remov' + (excesso === 1 ? 'a 1 palavra.' : 'a ' + excesso + ' palavras.');
+                    hintEl.className = 'font-body-sm text-body-sm text-error';
                 }
-            });
-        }
+
+                validEl.value = (n >= MIN_W && n <= MAX_W) ? 'ok' : '';
+                validEl.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+
+            resumoEl.addEventListener('input', updateCount);
+            updateCount();
+        })();
 
         const cadastroForm = document.querySelector('form');
         const submeterProjeto = document.getElementById('submeter-projeto');
@@ -769,59 +1048,338 @@
                 }
             }
 
-            function checkAllFieldsFilled() {
-                var fields = cadastroForm.querySelectorAll('input, select, textarea');
-                for (var i = 0; i < fields.length; i++) {
-                    var field = fields[i];
-                    if (field.disabled) continue;
-                    // Pula campos opcionais
-                    if (field.hasAttribute('data-optional')) continue;
-                    var type = (field.type || '').toLowerCase();
-                    var tag = field.tagName.toLowerCase();
-
-                    if (tag === 'select') {
-                        if (!field.value) return false;
-                    } else if (type === 'checkbox') {
-                        if (!field.checked) return false;
-                    } else if (type === 'file') {
-                        if (!field.files || field.files.length === 0) return false;
-                    } else if (tag === 'textarea') {
-                        if (!field.value.trim()) return false;
-                    } else {
-                        // text, url, number, email, etc.
-                        if (!field.value.trim()) return false;
-                    }
-                }
-                return true;
-            }
-
-            var syncSubmeterState = function() {
-                var habilitado = checkAllFieldsFilled();
-                submeterProjeto.classList.toggle('opacity-50', !habilitado);
-                submeterProjeto.classList.toggle('cursor-not-allowed', !habilitado);
-                submeterProjeto.disabled = !habilitado;
-            };
-
             submeterProjeto.addEventListener('click', function() {
-                if(checkAllFieldsFilled()) {
-                    window.location.href = 'cadastro7.html';
-                }
+                window.location.href = 'cadastro7.html';
             });
 
             if (continuacaoToggle) {
                 continuacaoToggle.addEventListener('change', function() {
                     syncContinuacaoFields();
-                    syncSubmeterState();
+                });
+            }
+
+            /* --- Toggle: Comitê de Ética (ANEXO V) --- */
+            var eticaToggle  = document.getElementById('etica-toggle');
+            var eticaFields  = document.getElementById('etica-fields');
+            var eticaInput   = document.getElementById('etica-upload');
+            var eticaDrop    = document.getElementById('etica-dropzone');
+            var eticaDisplay = document.getElementById('etica-filename-display');
+            var eticaNameEl  = document.getElementById('etica-filename-text');
+            var eticaRemove  = document.getElementById('etica-file-remove');
+
+            function syncEticaFields() {
+                if (!eticaToggle || !eticaFields) return;
+                var isActive = eticaToggle.checked;
+                eticaFields.classList.toggle('hidden', !isActive);
+                if (eticaInput) {
+                    eticaInput.disabled = !isActive;
+                    if (!isActive) {
+                        eticaInput.value = '';
+                        if (eticaDisplay) eticaDisplay.style.display = 'none';
+                        if (eticaDrop)    eticaDrop.classList.remove('fetec-file-dropzone--ok');
+                    }
+                }
+            }
+
+            if (eticaToggle) {
+                eticaToggle.addEventListener('change', function () {
+                    syncEticaFields();
+                });
+            }
+
+            if (eticaDrop && eticaInput) {
+                eticaDrop.addEventListener('click', function () {
+                    eticaInput.click();
+                });
+                eticaDrop.addEventListener('keydown', function (e) {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        eticaInput.click();
+                    }
+                });
+                eticaInput.addEventListener('change', function () {
+                    if (this.files && this.files.length > 0) {
+                        var f = this.files[0];
+                        var sizeMB = (f.size / 1024 / 1024).toFixed(2);
+                        if (eticaNameEl) eticaNameEl.textContent = f.name + ' (' + sizeMB + ' MB)';
+                        if (eticaDisplay) eticaDisplay.style.display = 'flex';
+                        eticaDrop.classList.add('fetec-file-dropzone--ok');
+                    }
+                });
+            }
+
+            if (eticaRemove) {
+                eticaRemove.addEventListener('click', function () {
+                    if (eticaInput)   eticaInput.value = '';
+                    if (eticaDisplay) eticaDisplay.style.display = 'none';
+                    if (eticaDrop)    eticaDrop.classList.remove('fetec-file-dropzone--ok');
                 });
             }
 
             syncContinuacaoFields();
-            cadastroForm.addEventListener('input', syncSubmeterState);
-            cadastroForm.addEventListener('change', syncSubmeterState);
-            syncSubmeterState();
+            syncEticaFields();
         }
     </script>
-        <script src="../js/video-preview.js"></script>
-        <script src="../js/file-upload-preview.js"></script>
-        <script src="../js/fetec-layout.js"></script>
-    </body></html>
+                <script>
+        /* =====================================================
+           Palavras-chave — campo com autocomplete e criação
+           ===================================================== */
+        (function () {
+            /* Lista global simulada (compartilhada entre orientadores) */
+            var globalKW = [
+                'Biotecnologia', 'Sustentabilidade', 'Energia Solar', 'Bioplástico',
+                'Agricultura Familiar', 'Inteligência Artificial', 'Internet das Coisas',
+                'Reciclagem', 'Recursos Hídricos', 'Saúde Pública', 'Educação Ambiental',
+                'Robótica', 'Microbiologia', 'Química Orgânica', 'Física Aplicada',
+                'Matemática Computacional', 'Ciências Agrárias', 'Nanotecnologia',
+                'Arduino', 'Programação', 'Biodiversidade', 'Mudanças Climáticas',
+                'Nutrição', 'Genética', 'Astronomia', 'Mecânica dos Fluidos',
+                'Casca de Mandioca', 'Qualidade da Água', 'Análise Química',
+                'Meio Ambiente', 'Energia Renovável', 'Resíduos Sólidos',
+                'Impacto Ambiental', 'Saúde Mental', 'Inclusão Digital'
+            ];
+
+            var MIN = 3, MAX = 5, MAX_WORDS = 4;
+            var selected = [];
+
+            var inputEl   = document.getElementById('kw-input');
+            var dropdown  = document.getElementById('kw-dropdown');
+            var tagsWrap  = document.getElementById('kw-tags');
+            var counterEl = document.getElementById('kw-counter');
+            var hintEl    = document.getElementById('kw-hint');
+            var validEl   = document.getElementById('kw-valid');
+            var inputWrap = document.getElementById('kw-input-wrap');
+
+            if (!inputEl) return;
+
+            /* ---- utilitários ---- */
+            function toTitleCase(s) {
+                return s.replace(/\S+/g, function (w) {
+                    return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+                });
+            }
+            function wordCount(s) {
+                return s.trim().split(/\s+/).filter(Boolean).length;
+            }
+            function esc(s) {
+                return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+            }
+
+            /* ---- renderizar tags ---- */
+            function renderTags() {
+                tagsWrap.innerHTML = '';
+                selected.forEach(function (kw, i) {
+                    var chip = document.createElement('span');
+                    chip.className = 'inline-flex items-center gap-1 bg-primary-fixed text-primary-container rounded-full pl-3 pr-1 py-1 text-sm font-semibold';
+                    chip.innerHTML =
+                        '<span>' + esc(kw) + '</span>' +
+                        '<button type="button" ' +
+                            'class="flex items-center justify-center w-5 h-5 rounded-full hover:bg-primary-container hover:text-white transition-colors ml-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-container" ' +
+                            'aria-label="Remover ' + esc(kw) + '">' +
+                            '<span class="material-symbols-outlined text-[14px]" aria-hidden="true">close</span>' +
+                        '</button>';
+                    chip.querySelector('button').addEventListener('click', function () {
+                        selected.splice(i, 1);
+                        renderTags();
+                        updateState();
+                    });
+                    tagsWrap.appendChild(chip);
+                });
+            }
+
+            /* ---- atualizar estado geral ---- */
+            function updateState() {
+                var n = selected.length;
+                counterEl.textContent = n + ' / ' + MAX;
+                validEl.value = (n >= MIN) ? 'ok' : '';
+
+                counterEl.className = 'font-label-sm text-label-sm tabular-nums ' +
+                    (n >= MIN ? 'text-secondary' : 'text-on-surface-variant');
+
+                var full = (n >= MAX);
+                inputEl.disabled = full;
+                inputEl.placeholder = full
+                    ? 'Máximo de 5 palavras-chave atingido'
+                    : 'Digite uma palavra-chave e selecione ou crie…';
+                inputWrap.style.opacity = full ? '0.6' : '';
+
+                if (full) closeDropdown();
+
+                /* dispara change para o listener do formulário recalcular o botão */
+                validEl.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+
+            /* ---- dica temporária ---- */
+            var hintTimer = null;
+            function showHint(msg, type) {
+                clearTimeout(hintTimer);
+                hintEl.textContent = msg;
+                hintEl.className = 'font-body-sm text-body-sm ' + (
+                    type === 'error' ? 'text-error' :
+                    type === 'ok'    ? 'text-secondary' :
+                    'text-on-surface-variant'
+                );
+                if (type !== 'error') {
+                    hintTimer = setTimeout(function () {
+                        hintEl.textContent = 'Adicione de 3 a 5 palavras-chave para o seu projeto.';
+                        hintEl.className = 'font-body-sm text-body-sm text-on-surface-variant';
+                    }, 2500);
+                }
+            }
+
+            /* ---- adicionar palavra-chave ---- */
+            function addKeyword(raw) {
+                var kw = toTitleCase(raw.trim());
+                if (!kw) return;
+
+                if (selected.length >= MAX) {
+                    showHint('Você já atingiu o máximo de 5 palavras-chave.', 'error'); return;
+                }
+                if (wordCount(kw) > MAX_WORDS) {
+                    showHint('Cada palavra-chave pode ter no máximo 4 palavras.', 'error'); return;
+                }
+                if (selected.map(function (s) { return s.toLowerCase(); }).indexOf(kw.toLowerCase()) !== -1) {
+                    showHint('Esta palavra-chave já foi adicionada.', 'error'); return;
+                }
+
+                /* adiciona ao banco global se for nova */
+                if (globalKW.map(function (g) { return g.toLowerCase(); }).indexOf(kw.toLowerCase()) === -1) {
+                    globalKW.push(kw);
+                }
+
+                selected.push(kw);
+                inputEl.value = '';
+                renderTags();
+                updateState();
+                closeDropdown();
+
+                var remaining = MAX - selected.length;
+                if (selected.length >= MIN) {
+                    showHint(
+                        remaining === 0
+                            ? 'Máximo atingido!'
+                            : 'Ótimo! Você pode adicionar mais ' + remaining + ' palavra' + (remaining > 1 ? 's' : '') + '-chave.',
+                        'ok'
+                    );
+                }
+            }
+
+            /* ---- renderizar dropdown ---- */
+            function renderDropdown(query) {
+                var raw = query.trim();
+                if (!raw) { closeDropdown(); return; }
+
+                var kw       = toTitleCase(raw);
+                var lower    = raw.toLowerCase();
+                var selLower = selected.map(function (s) { return s.toLowerCase(); });
+
+                var matches = globalKW.filter(function (g) {
+                    return g.toLowerCase().indexOf(lower) !== -1 &&
+                           selLower.indexOf(g.toLowerCase()) === -1;
+                });
+
+                var exactExists    = globalKW.some(function (g) { return g.toLowerCase() === lower; });
+                var alreadySelected = selLower.indexOf(lower) !== -1;
+                var wc             = wordCount(raw);
+                var canCreate      = !exactExists && !alreadySelected && wc >= 1 && wc <= MAX_WORDS;
+                var tooManyWords   = wc > MAX_WORDS;
+
+                if (matches.length === 0 && !canCreate && !tooManyWords) { closeDropdown(); return; }
+
+                var html = '';
+
+                if (matches.length > 0) {
+                    html += '<li class="px-3 pt-2 pb-1 select-none">' +
+                            '<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wide">Sugestões</span></li>';
+                    matches.forEach(function (m) {
+                        html += '<li role="option" aria-selected="false">' +
+                            '<button type="button" class="kw-opt w-full text-left px-4 py-2.5 flex items-center gap-2 hover:bg-surface-container-low transition-colors font-body-md text-body-md text-on-surface" data-kw="' + esc(m) + '">' +
+                            '<span class="material-symbols-outlined text-[16px] text-primary-container shrink-0" aria-hidden="true">label</span>' +
+                            esc(m) + '</button></li>';
+                    });
+                }
+
+                if (canCreate) {
+                    if (matches.length > 0) html += '<li role="separator"><hr class="py-2 border-outline-variant/30 mx-3 my-1"/></li>';
+                    html += '<li role="option" aria-selected="false">' +
+                        '<button type="button" class="kw-opt w-full text-left px-4 py-2.5 flex items-center gap-2 hover:bg-primary-fixed transition-colors font-body-md text-body-md text-primary-container font-semibold" data-kw="' + esc(kw) + '">' +
+                        '<span class="material-symbols-outlined text-[16px] shrink-0" aria-hidden="true">add_circle</span>' +
+                        'Criar: &ldquo;' + esc(kw) + '&rdquo;</button></li>';
+                } else if (tooManyWords) {
+                    if (matches.length > 0) html += '<li role="separator"><hr class="py-2border-outline-variant/30 mx-3 my-1"/></li>';
+                    html += '<li class="px-4 py-2.5 flex items-center gap-2 font-body-sm text-body-sm text-error select-none">' +
+                        '<span class="material-symbols-outlined text-[16px] shrink-0" aria-hidden="true">error</span>' +
+                        'Máximo de 4 palavras por palavra-chave</li>';
+                }
+
+                dropdown.innerHTML = html;
+                dropdown.classList.remove('hidden');
+                inputEl.setAttribute('aria-expanded', 'true');
+
+                dropdown.querySelectorAll('.kw-opt').forEach(function (btn) {
+                    btn.addEventListener('click', function () {
+                        addKeyword(this.getAttribute('data-kw'));
+                    });
+                });
+            }
+
+            function closeDropdown() {
+                dropdown.classList.add('hidden');
+                dropdown.innerHTML = '';
+                inputEl.setAttribute('aria-expanded', 'false');
+            }
+
+            /* ---- eventos ---- */
+            inputEl.addEventListener('input', function () {
+                renderDropdown(this.value);
+            });
+
+            inputEl.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    var first = dropdown.querySelector('.kw-opt');
+                    if (first) {
+                        addKeyword(first.getAttribute('data-kw'));
+                    } else if (this.value.trim()) {
+                        addKeyword(this.value);
+                    }
+                } else if (e.key === 'Escape') {
+                    closeDropdown();
+                } else if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    var opts = dropdown.querySelectorAll('.kw-opt');
+                    if (opts.length) opts[0].focus();
+                }
+            });
+
+            /* navegação por teclado dentro do dropdown */
+            dropdown.addEventListener('keydown', function (e) {
+                var opts = Array.prototype.slice.call(dropdown.querySelectorAll('.kw-opt'));
+                var idx  = opts.indexOf(document.activeElement);
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    if (idx < opts.length - 1) opts[idx + 1].focus();
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    if (idx > 0) opts[idx - 1].focus();
+                    else inputEl.focus();
+                } else if (e.key === 'Escape') {
+                    closeDropdown();
+                    inputEl.focus();
+                }
+            });
+
+            document.addEventListener('click', function (e) {
+                var wrap = document.getElementById('kw-field-wrap');
+                if (wrap && !wrap.contains(e.target)) closeDropdown();
+            });
+
+            /* ---- init ---- */
+            renderTags();
+            updateState();
+        })();
+        </script>
+                <script src="../js/video-preview.js"></script>
+                <script src="../js/file-upload-preview.js"></script>
+                <script src="../js/fetec-layout.js"></script>
+            </body></html>

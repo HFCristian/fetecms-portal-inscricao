@@ -457,6 +457,16 @@ select.form-input-styled {
   vertical-align: middle;
 }
 
+/* Campo de palavras-chave */
+#kw-tags:empty {
+  display: none;
+}
+#kw-dropdown li button:focus {
+  outline: 2px solid #43157a;
+  outline-offset: -2px;
+  background: rgba(67, 21, 122, 0.06);
+}
+
 /* Pré-visualização de vídeo (cadastro projeto) */
 .fetec-video-input-wrap--ok {
   border-color: #007b24 !important;
