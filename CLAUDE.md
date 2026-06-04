@@ -53,7 +53,17 @@ Tabela `users` única com coluna `role`: **`orientador`**, **`avaliador`**, **`a
   (salvável como **rascunho**) → alunos → coorientador opcional → resumo → **submissão irreversível**.
 - **Avaliador (online)**: mesmo login do orientador; botão de cadastro **abaixo** do de orientador
   na tela de login. **Exclusão mútua**: quem é orientador NÃO pode ser avaliador, e vice-versa
-  (validar no cadastro, em ambos os sentidos). *Workflow de avaliação ainda a especificar.*
+  (validar no cadastro, em ambos os sentidos), pois o avaliador avalia projetos **submetidos**.
+  Workflow de avaliação (Sprint 4):
+  - Após uma **data definida pelo admin**, o avaliador acessa e vê a tela com os projetos **designados** a ele.
+  - Vê **até 3 projetos** designados automaticamente; ao **iniciar** uma avaliação **não pode cancelar**
+    e trocar de projeto — só o **admin** pode cancelar/reverter.
+  - A avaliação permite **ler o projeto inteiro** e dar uma **nota de 1 a 10**.
+  - Cada projeto passa por **≥ 3 avaliadores**, com *match* por **subárea** (preferencial) ou **área**.
+  - **Distribuição automática**: casa subárea do projeto ↔ subárea do avaliador; se não houver,
+    cai para a **mesma área**. (Algoritmo ainda a refinar.)
+  - Cada projeto fica visível para **no máximo 5 avaliadores**.
+  - O **admin pode designar manualmente** projetos a avaliadores, podendo **exceder o limite de 3**.
 - **Admin**: criado **somente por outro admin** (cadastro simples: nome, e-mail, senha). Dashboard
   com 9 métricas: projetos totais / submetidos / em rascunho; orientadores; alunos; coorientadores;
   escolas, cidades e estados **com projeto cadastrado**.

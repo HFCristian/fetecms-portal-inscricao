@@ -32,6 +32,11 @@ export default function Cadastro() {
 
     async function onSubmit(e) {
         e.preventDefault();
+        // Trava: só efetiva o cadastro na última etapa (evita submit acidental).
+        if (step < 3) {
+            setStep((s) => s + 1);
+            return;
+        }
         setAlert('');
         setErrors({});
         setLoading(true);
@@ -231,12 +236,12 @@ export default function Cadastro() {
                     )}
 
                     {step < 3 ? (
-                        <Button type="button" onClick={() => setStep((s) => s + 1)}>
+                        <Button key="next" type="button" onClick={() => setStep((s) => s + 1)}>
                             PRÓXIMO
                             <span className="material-symbols-outlined text-[20px]">arrow_forward</span>
                         </Button>
                     ) : (
-                        <Button type="submit" variant="success" loading={loading}>
+                        <Button key="submit" type="submit" variant="success" loading={loading}>
                             CRIAR CONTA
                         </Button>
                     )}
