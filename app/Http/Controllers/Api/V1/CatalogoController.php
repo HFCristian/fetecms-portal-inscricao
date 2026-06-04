@@ -1,0 +1,85 @@
+<?php
+
+namespace App\Http\Controllers\Api\V1;
+
+use App\Enums\Categoria;
+use App\Http\Controllers\Controller;
+use App\Models\Area;
+use App\Models\Cidade;
+use App\Models\Edicao;
+use App\Models\Estado;
+use App\Models\Instituicao;
+use App\Models\Subarea;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+
+class CatalogoController extends Controller
+{
+    public function edicoes(): JsonResponse
+    {
+        $data = Edicao::where('inscricoes_abertas', true)
+            ->orderByDesc('ano')
+            ->get(['id', 'nome', 'ano']);
+
+        return response()->json(['data' => $data]);
+    }
+
+    public function categorias(): JsonResponse
+    {
+        $data = array_map(fn (Categoria $c) => [
+            'value' => $c->value,
+            'label' => $c->label(),
+            'max_alunos' => $c->maxAlunos(),
+        ], Categoria::cases());
+
+        return response()->json(['data' => $data]);
+    }
+
+    public function areas(): JsonResponse
+    {
+        $data = Cache::remember('catalogo.areas', now()->addHour(),
+            fn () => Area::orderBy('nome')->get(['id', 'nome']));
+
+        return response()->json(['data' => $data]);
+    }
+
+    public function subareas(Request $request): JsonResponse
+    {
+        $data = Subarea::when($request->filled('area_id'),
+            fn ($q) => $q->where('area_id', $request->integer('area_id')))
+            ->orderBy('nome')
+            ->get(['id', 'nome', 'area_id']);
+
+        return response()->json(['data' => $data]);
+    }
+
+    public function estados(): JsonResponse
+    {
+        $data = Cache::remember('catalogo.estados', now()->addHour(),
+            fn () => Estado::orderBy('nome')->get(['id', 'nome', 'uf']));
+
+        return response()->json(['data' => $data]);
+    }
+
+    public function cidades(Request $request): JsonResponse
+    {
+        $data = Cidade::when($request->filled('estado_id'),
+            fn ($q) => $q->where('estado_id', $request->integer('estado_id')))
+            ->orderBy('nome')
+            ->get(['id', 'nome', 'estado_id']);
+
+        return response()->json(['data' => $data]);
+    }
+
+    public function instituicoes(Request $request): JsonResponse
+    {
+        $data = Instituicao::when($request->filled('search'),
+            fn ($q) => $q->where('nome', 'like', '%'.$request->string('search').'%'))
+            ->orderBy('nome')
+            ->limit(50)
+            ->get(['id', 'nome', 'cidade_id']);
+
+        return response()->json(['data' => $data]);
+    }
+}

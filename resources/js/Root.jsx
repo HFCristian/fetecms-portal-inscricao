@@ -5,6 +5,7 @@ import Login from './pages/Login.jsx';
 import Cadastro from './pages/Cadastro.jsx';
 import EmBreve from './pages/EmBreve.jsx';
 import Projetos from './pages/Projetos.jsx';
+import ProjetoForm from './pages/ProjetoForm.jsx';
 import Perfil from './pages/Perfil.jsx';
 
 function Spinner() {
@@ -35,6 +36,8 @@ export default function Root() {
 
                     <Route element={<ProtectedRoute />}>
                         <Route path="/projetos" element={<Projetos />} />
+                        <Route path="/projetos/novo" element={<ProjetoForm />} />
+                        <Route path="/projetos/:id/editar" element={<ProjetoForm />} />
                         <Route path="/perfil" element={<Perfil />} />
                     </Route>
 

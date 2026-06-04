@@ -133,7 +133,8 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 
 | Sprint | Épicos | Commit feito | Push feito? | Sprints desde o último push |
 |--------|--------|--------------|-------------|------------------------------|
-| 1 | E0 Fundação + E1 Auth/perfil orientador | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 1 | E0 Fundação + E1 Auth/perfil orientador | ✅ sim | ✅ sim (Pedro) | 0 |
+| 2 | E2 Catálogos + E3 Projetos (CRUD/rascunho) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
 ### Roadmap de sprints (proposto)
 
