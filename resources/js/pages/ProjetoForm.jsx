@@ -23,6 +23,8 @@ export default function ProjetoForm() {
     const [alert, setAlert] = useState('');
     const [success, setSuccess] = useState('');
     const [saving, setSaving] = useState(false);
+    const [dirty, setDirty] = useState(false);   // há alteração não salva?
+    const [saved, setSaved] = useState(Boolean(id)); // projeto já existe (foi salvo)?
     const [loading, setLoading] = useState(Boolean(id));
 
     const err = (name) => errors[name]?.[0];
@@ -46,14 +48,25 @@ export default function ProjetoForm() {
             .finally(() => setLoading(false));
     }, [id]);
 
-    const setField = (name, value) => setForm((f) => ({ ...f, [name]: value }));
+    // Marca alteração pendente e some com a confirmação de "salvo".
+    const markDirty = () => {
+        setDirty(true);
+        setSuccess('');
+    };
+
+    const setField = (name, value) => {
+        setForm((f) => ({ ...f, [name]: value }));
+        markDirty();
+    };
 
     async function onAreaChange(areaId) {
         setForm((f) => ({ ...f, area_id: areaId, subarea_id: '' }));
+        markDirty();
         setSubareas(areaId ? await loadSubareas(areaId) : []);
     }
     async function onEstadoChange(estadoId) {
         setForm((f) => ({ ...f, estado_id: estadoId, cidade_id: '' }));
+        markDirty();
         setCidades(estadoId ? await loadCidades(estadoId) : []);
     }
 
@@ -85,8 +98,12 @@ export default function ProjetoForm() {
             if (id) {
                 await atualizarProjeto(id, payload);
                 setSuccess('Rascunho salvo.');
+                setSaved(true);
+                setDirty(false);
             } else {
                 const novo = await criarProjeto(payload);
+                setSaved(true);
+                setDirty(false);
                 navigate(`/projetos/${novo.id}/editar`, { replace: true });
             }
         } catch (e) {
@@ -229,9 +246,11 @@ export default function ProjetoForm() {
                     <Button variant="outline" onClick={() => navigate('/projetos')} type="button">
                         Voltar
                     </Button>
-                    <Button onClick={salvarRascunho} loading={saving} type="button">
-                        <span className="material-symbols-outlined text-[20px]">save</span>
-                        SALVAR RASCUNHO
+                    <Button onClick={salvarRascunho} loading={saving} disabled={!dirty} type="button">
+                        <span className="material-symbols-outlined text-[20px]">
+                            {!dirty && saved ? 'check' : 'save'}
+                        </span>
+                        {!dirty && saved ? 'RASCUNHO SALVO' : 'SALVAR RASCUNHO'}
                     </Button>
                     <Button variant="success" type="button" disabled title="Submissão na Sprint 4">
                         <span className="material-symbols-outlined text-[20px]">send</span>
