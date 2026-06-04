@@ -1,0 +1,73 @@
+@import 'tailwindcss';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+@source './**/*.{js,jsx,ts,tsx}';
+@source '../js/**/*.{js,jsx,ts,tsx}';
+
+/*
+| Design tokens da XVI FETECMS (portados do protótipo static_page_base).
+| No Tailwind v4 o tema é definido em CSS: cada --color-* vira utilitário
+| (ex.: --color-primary-container => bg-primary-container / text-primary-container).
+*/
+@theme {
+    --font-headline: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+    --font-body: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    --font-display: 'Orbitron', 'Space Grotesk', sans-serif;
+    --default-font-family: var(--font-body);
+
+    /* Marca */
+    --color-primary: #2a0058;
+    --color-primary-container: #43157a;
+    --color-on-primary: #ffffff;
+    --color-on-primary-container: #b085eb;
+    --color-primary-fixed: #eddcff;
+    --color-primary-fixed-dim: #d8baff;
+
+    --color-secondary: #006e1f;
+    --color-on-secondary: #ffffff;
+    --color-secondary-container: #92fa91;
+    --color-secondary-fixed: #92fa91;
+    --color-on-secondary-container: #007522;
+
+    --color-error: #ba1a1a;
+    --color-on-error: #ffffff;
+    --color-error-container: #ffdad6;
+    --color-on-error-container: #93000a;
+
+    /* Superfícies */
+    --color-background: #f8f9fa;
+    --color-surface: #f8f9fa;
+    --color-surface-bright: #f8f9fa;
+    --color-surface-container-lowest: #ffffff;
+    --color-surface-container-low: #f3f4f5;
+    --color-surface-container: #edeeef;
+    --color-surface-container-high: #e7e8e9;
+    --color-surface-variant: #e1e3e4;
+
+    --color-on-surface: #191c1d;
+    --color-on-surface-variant: #4a4451;
+    --color-on-background: #191c1d;
+    --color-outline: #7c7482;
+    --color-outline-variant: #cdc3d3;
+}
+
+/* Fundo em gradiente usado nas telas de autenticação (login/cadastro). */
+.fetec-gradient-bg {
+    background: linear-gradient(135deg, #eddcff 0%, #f8f9fa 45%, #d6f5da 100%);
+}
+
+.fetec-card-shadow {
+    box-shadow: 0 4px 24px rgba(67, 21, 122, 0.12);
+}
+
+.font-orbitron-override {
+    font-family: var(--font-display) !important;
+}
+
+/* Ícones Material Symbols (carregados via Google Fonts no app.blade.php). */
+.material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    vertical-align: middle;
+    user-select: none;
+}

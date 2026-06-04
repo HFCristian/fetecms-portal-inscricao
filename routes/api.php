@@ -1,0 +1,35 @@
+<?php
+
+use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\OrientadorController;
+use App\Http\Controllers\Api\V1\PerfilController;
+use Illuminate\Support\Facades\Route;
+
+/*
+|--------------------------------------------------------------------------
+| API v1
+|--------------------------------------------------------------------------
+| Auth do web por cookie/CSRF (Sanctum SPA, mesma origem); mobile usará
+| token Bearer na mesma API. Regra de negócio nos Services.
+*/
+
+Route::prefix('v1')->group(function () {
+    Route::get('/health', fn () => response()->json([
+        'data' => ['status' => 'ok', 'service' => 'fetecms-api'],
+    ]));
+
+    // Públicas (com rate limiting contra brute force)
+    Route::post('/orientadores', [OrientadorController::class, 'store'])
+        ->middleware('throttle:10,1');
+    Route::post('/auth/login', [AuthController::class, 'login'])
+        ->middleware('throttle:6,1');
+
+    // Autenticadas (sessão Sanctum SPA ou token)
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::post('/auth/logout', [AuthController::class, 'logout']);
+        Route::get('/auth/me', [AuthController::class, 'me']);
+
+        Route::get('/perfil', [PerfilController::class, 'show']);
+        Route::put('/perfil', [PerfilController::class, 'update']);
+    });
+});

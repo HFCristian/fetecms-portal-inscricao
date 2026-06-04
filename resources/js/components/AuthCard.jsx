@@ -1,0 +1,33 @@
+export default function AuthCard({ children }) {
+    return (
+        <main className="fetec-gradient-bg min-h-screen flex items-center justify-center p-4 sm:p-6 md:p-10">
+            <div className="w-full max-w-5xl bg-surface-container-lowest rounded-xl fetec-card-shadow overflow-hidden flex flex-col lg:flex-row">
+                {/* Painel lateral de marca (desktop) */}
+                <aside className="hidden lg:flex lg:w-5/12 bg-surface-container-low flex-col justify-between p-10 relative overflow-hidden border-r border-outline-variant/30">
+                    <div className="relative z-10">
+                        <span className="text-sm font-semibold tracking-wider uppercase text-primary-container">
+                            XVI FETECMS
+                        </span>
+                        <h1 className="font-display text-4xl font-bold text-on-surface leading-tight mt-2">
+                            Portal do<br />Orientador
+                        </h1>
+                    </div>
+                    <div className="relative z-10 mt-auto">
+                        <p className="font-display text-lg font-semibold text-primary-container border-l-4 border-secondary pl-4 py-1">
+                            A CIÊNCIA É A PONTE PARA O FUTURO.
+                        </p>
+                        <p className="text-sm text-on-surface-variant mt-3 max-w-[90%]">
+                            Gerencie seus projetos, integrantes e inscrições da feira de
+                            ciência e tecnologia do Mato Grosso do Sul.
+                        </p>
+                    </div>
+                </aside>
+
+                {/* Área de conteúdo (formulário) */}
+                <section className="w-full lg:w-7/12 flex flex-col bg-surface-container-lowest">
+                    {children}
+                </section>
+            </div>
+        </main>
+    );
+}
