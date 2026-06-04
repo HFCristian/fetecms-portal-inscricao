@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use Database\Seeders\CatalogoSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Tests\TestCase;
 
 class CatalogoTest extends TestCase
@@ -53,5 +54,22 @@ class CatalogoTest extends TestCase
         $this->getJson('/api/v1/catalogos/instituicoes?search=IFMS')
             ->assertOk()
             ->assertJsonFragment(['nome' => 'IFMS Campus Três Lagoas']);
+    }
+
+    /**
+     * Regressão: com o cache `database`, cachear a Collection do Eloquent gerava
+     * __PHP_Incomplete_Class na releitura (data virava objeto, não array).
+     * Aqui forçamos miss + hit e exigimos um array nas duas.
+     */
+    public function test_areas_continuam_array_com_cache_database(): void
+    {
+        config(['cache.default' => 'database']);
+        Cache::store('database')->forget('catalogo.areas');
+
+        $this->getJson('/api/v1/catalogos/areas')->assertOk()->assertJsonCount(9, 'data'); // miss
+        $this->getJson('/api/v1/catalogos/areas')                                          // hit
+            ->assertOk()
+            ->assertJsonCount(9, 'data')
+            ->assertJsonStructure(['data' => [['id', 'nome']]]);
     }
 }

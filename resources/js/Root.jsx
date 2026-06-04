@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './lib/auth.jsx';
+import ErrorBoundary from './components/ErrorBoundary.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import Login from './pages/Login.jsx';
 import Cadastro from './pages/Cadastro.jsx';
@@ -28,6 +29,7 @@ export default function Root() {
     return (
         <BrowserRouter>
             <AuthProvider>
+                <ErrorBoundary>
                 <Routes>
                     <Route path="/" element={<Navigate to="/projetos" replace />} />
                     <Route path="/login" element={<GuestRoute><Login /></GuestRoute>} />
@@ -43,6 +45,7 @@ export default function Root() {
 
                     <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
+                </ErrorBoundary>
             </AuthProvider>
         </BrowserRouter>
     );

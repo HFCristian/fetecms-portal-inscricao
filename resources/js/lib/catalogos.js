@@ -15,15 +15,16 @@ export function useCatalogos() {
             http.get('/catalogos/instituicoes'),
             http.get('/catalogos/edicoes'),
         ])
-            .then(([c, a, e, i, ed]) =>
+            .then(([c, a, e, i, ed]) => {
+                const arr = (resp) => (Array.isArray(resp?.data?.data) ? resp.data.data : []);
                 setCat({
-                    categorias: c.data.data,
-                    areas: a.data.data,
-                    estados: e.data.data,
-                    instituicoes: i.data.data,
-                    edicoes: ed.data.data,
-                }),
-            )
+                    categorias: arr(c),
+                    areas: arr(a),
+                    estados: arr(e),
+                    instituicoes: arr(i),
+                    edicoes: arr(ed),
+                });
+            })
             .catch(() => {});
     }, []);
 

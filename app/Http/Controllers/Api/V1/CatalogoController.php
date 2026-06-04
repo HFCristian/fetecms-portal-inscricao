@@ -38,8 +38,10 @@ class CatalogoController extends Controller
 
     public function areas(): JsonResponse
     {
+        // Cacheia ARRAY puro (não a Collection do Eloquent): cachear objetos no
+        // driver database gera __PHP_Incomplete_Class na releitura.
         $data = Cache::remember('catalogo.areas', now()->addHour(),
-            fn () => Area::orderBy('nome')->get(['id', 'nome']));
+            fn () => Area::orderBy('nome')->get(['id', 'nome'])->toArray());
 
         return response()->json(['data' => $data]);
     }
@@ -57,7 +59,7 @@ class CatalogoController extends Controller
     public function estados(): JsonResponse
     {
         $data = Cache::remember('catalogo.estados', now()->addHour(),
-            fn () => Estado::orderBy('nome')->get(['id', 'nome', 'uf']));
+            fn () => Estado::orderBy('nome')->get(['id', 'nome', 'uf'])->toArray());
 
         return response()->json(['data' => $data]);
     }
