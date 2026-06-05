@@ -28,14 +28,23 @@ export default function AppShell({ children }) {
                     <p className="text-sm text-on-surface-variant">XVI FETECMS</p>
                 </div>
                 <div className="flex-1 flex flex-col gap-1">
-                    <NavLink to="/projetos" className={navClass}>
-                        <span className="material-symbols-outlined">folder_shared</span>
-                        Meus Projetos
-                    </NavLink>
-                    <NavLink to="/perfil" className={navClass}>
-                        <span className="material-symbols-outlined">account_circle</span>
-                        Perfil
-                    </NavLink>
+                    {user?.role === 'avaliador' ? (
+                        <NavLink to="/avaliador" className={navClass}>
+                            <span className="material-symbols-outlined">fact_check</span>
+                            Avaliações
+                        </NavLink>
+                    ) : (
+                        <>
+                            <NavLink to="/projetos" className={navClass}>
+                                <span className="material-symbols-outlined">folder_shared</span>
+                                Meus Projetos
+                            </NavLink>
+                            <NavLink to="/perfil" className={navClass}>
+                                <span className="material-symbols-outlined">account_circle</span>
+                                Perfil
+                            </NavLink>
+                        </>
+                    )}
                     <button
                         onClick={handleLogout}
                         className="mt-auto flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold text-on-surface-variant hover:bg-surface-variant transition-colors"

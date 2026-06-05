@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\AlunoController;
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\AvaliadorController;
 use App\Http\Controllers\Api\V1\CatalogoController;
 use App\Http\Controllers\Api\V1\CoorientadorController;
 use App\Http\Controllers\Api\V1\DocumentoController;
@@ -9,6 +10,7 @@ use App\Http\Controllers\Api\V1\IntegranteController;
 use App\Http\Controllers\Api\V1\OrientadorController;
 use App\Http\Controllers\Api\V1\PerfilController;
 use App\Http\Controllers\Api\V1\ProjetoController;
+use App\Http\Controllers\Api\V1\ProjetoSubmissaoController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -26,6 +28,8 @@ Route::prefix('v1')->group(function () {
 
     // Públicas (com rate limiting contra brute force)
     Route::post('/orientadores', [OrientadorController::class, 'store'])
+        ->middleware('throttle:10,1');
+    Route::post('/avaliadores', [AvaliadorController::class, 'store'])
         ->middleware('throttle:10,1');
     Route::post('/auth/login', [AuthController::class, 'login'])
         ->middleware('throttle:6,1');
@@ -50,6 +54,10 @@ Route::prefix('v1')->group(function () {
         Route::put('/perfil', [PerfilController::class, 'update']);
 
         Route::apiResource('projetos', ProjetoController::class);
+
+        // Submissão (E6) — resumo/checklist e envio irreversível
+        Route::get('projetos/{projeto}/resumo', [ProjetoSubmissaoController::class, 'resumo']);
+        Route::post('projetos/{projeto}/submeter', [ProjetoSubmissaoController::class, 'submeter']);
 
         // Integrantes do projeto (E4)
         Route::get('projetos/{projeto}/integrantes', [IntegranteController::class, 'index']);

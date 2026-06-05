@@ -41,6 +41,11 @@ class User extends Authenticatable
         return $this->hasOne(OrientadorProfile::class);
     }
 
+    public function avaliadorProfile(): HasOne
+    {
+        return $this->hasOne(AvaliadorProfile::class);
+    }
+
     public function projetos(): HasMany
     {
         return $this->hasMany(Projeto::class);

@@ -30,7 +30,7 @@ class AuthController extends Controller
             $request->session()->regenerate();
         }
 
-        return UserResource::make($user->load('orientadorProfile'));
+        return UserResource::make($user->load(['orientadorProfile', 'avaliadorProfile.area', 'avaliadorProfile.subarea']));
     }
 
     public function logout(Request $request): JsonResponse
@@ -47,6 +47,8 @@ class AuthController extends Controller
 
     public function me(Request $request): UserResource
     {
-        return UserResource::make($request->user()->load('orientadorProfile'));
+        return UserResource::make(
+            $request->user()->load(['orientadorProfile', 'avaliadorProfile.area', 'avaliadorProfile.subarea'])
+        );
     }
 }

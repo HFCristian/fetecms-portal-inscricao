@@ -312,11 +312,17 @@ export default function ProjetoForm() {
                         variant="success"
                         type="button"
                         disabled={!podeSubmeter}
-                        title={motivoBloqueio || 'Submissão final na Sprint 4'}
-                        onClick={() => window.alert('Pré-requisitos atendidos ✓. A revisão e a submissão final (irreversível) serão habilitadas na Sprint 4.')}
+                        title={motivoBloqueio || 'Revisar e submeter'}
+                        onClick={() => {
+                            if (!id) {
+                                window.alert('Salve o rascunho antes de revisar e submeter.');
+                                return;
+                            }
+                            navigate(`/projetos/${id}/resumo`);
+                        }}
                     >
                         <span className="material-symbols-outlined text-[20px]">send</span>
-                        SUBMETER
+                        REVISAR E SUBMETER
                     </Button>
                 </div>
                 {motivoBloqueio && <p className="text-right text-xs text-on-surface-variant">{motivoBloqueio}</p>}

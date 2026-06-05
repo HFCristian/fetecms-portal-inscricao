@@ -38,4 +38,13 @@ class ProjetoPolicy
     {
         return $projeto->user_id === $user->id && $projeto->status->editavel();
     }
+
+    /**
+     * Só o dono submete. O bloqueio de "já submetido" é tratado no controller
+     * (idempotente: resubmeter o próprio projeto já submetido devolve 200).
+     */
+    public function submit(User $user, Projeto $projeto): bool
+    {
+        return $projeto->user_id === $user->id;
+    }
 }

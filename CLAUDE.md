@@ -136,6 +136,7 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 1 | E0 Fundação + E1 Auth/perfil orientador | ✅ sim | ✅ sim (Pedro) | 0 |
 | 2 | E2 Catálogos + E3 Projetos (CRUD/rascunho) | ✅ sim | ✅ sim (Pedro) | 0 |
 | 3 | E4 Integrantes (alunos 1–4 + coorientador) + E5 Uploads | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 4 | E6 Submissão & checklist (irreversível) + E7 Avaliador (cadastro/login + exclusão mútua) | ✅ sim | ❌ não (manual do Pedro) | 2 |
 
 ### Roadmap de sprints (proposto)
 

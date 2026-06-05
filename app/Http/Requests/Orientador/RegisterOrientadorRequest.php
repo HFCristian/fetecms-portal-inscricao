@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Orientador;
 
+use App\Models\AvaliadorProfile;
 use App\Rules\Cpf;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rules\Password;
@@ -37,7 +38,15 @@ class RegisterOrientadorRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'confirmed', Password::min(8)],
-            'cpf' => ['required', 'string', 'size:11', new Cpf, 'unique:orientador_profiles,cpf'],
+            'cpf' => [
+                'required', 'string', 'size:11', new Cpf, 'unique:orientador_profiles,cpf',
+                // Exclusão mútua: quem já é avaliador (por CPF) não pode ser orientador.
+                function (string $attribute, mixed $value, \Closure $fail) {
+                    if (AvaliadorProfile::where('cpf', $value)->exists()) {
+                        $fail('Este CPF já está cadastrado como avaliador. Um avaliador não pode ser orientador.');
+                    }
+                },
+            ],
             'telefone' => ['required', 'string', 'max:20'],
             'data_nascimento' => ['required', 'date', 'before:today'],
             'genero' => ['nullable', 'string', 'max:30'],

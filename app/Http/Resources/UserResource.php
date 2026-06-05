@@ -20,6 +20,9 @@ class UserResource extends JsonResource
             'orientador_profile' => OrientadorProfileResource::make(
                 $this->whenLoaded('orientadorProfile')
             ),
+            'avaliador_profile' => AvaliadorProfileResource::make(
+                $this->whenLoaded('avaliadorProfile')
+            ),
         ];
     }
 }

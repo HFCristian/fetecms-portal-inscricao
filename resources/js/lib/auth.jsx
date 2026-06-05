@@ -29,6 +29,13 @@ export function AuthProvider({ children }) {
         return r.data.data;
     }, []);
 
+    const registerAvaliador = useCallback(async (payload) => {
+        await ensureCsrf();
+        const r = await http.post('/avaliadores', payload);
+        setUser(r.data.data);
+        return r.data.data;
+    }, []);
+
     const logout = useCallback(async () => {
         try {
             await http.post('/auth/logout');
@@ -38,10 +45,17 @@ export function AuthProvider({ children }) {
     }, []);
 
     return (
-        <AuthContext.Provider value={{ user, setUser, loading, login, register, logout }}>
+        <AuthContext.Provider value={{ user, setUser, loading, login, register, registerAvaliador, logout }}>
             {children}
         </AuthContext.Provider>
     );
+}
+
+/** Rota inicial conforme o papel do usuário. */
+export function homeFor(role) {
+    if (role === 'avaliador') return '/avaliador';
+    if (role === 'admin') return '/admin';
+    return '/projetos';
 }
 
 export function useAuth() {

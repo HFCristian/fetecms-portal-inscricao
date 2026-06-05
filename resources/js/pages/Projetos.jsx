@@ -139,12 +139,30 @@ export default function Projetos() {
                                     Integrantes
                                 </button>
                                 {p.status === 'rascunho' && (
+                                    <>
+                                        <button
+                                            onClick={() => navigate(`/projetos/${p.id}/resumo`)}
+                                            className="inline-flex items-center gap-1 text-sm border border-outline-variant rounded-lg px-3 py-2 text-secondary hover:bg-secondary-container/40"
+                                        >
+                                            <span className="material-symbols-outlined text-[16px]">send</span>
+                                            Revisar e submeter
+                                        </button>
+                                        <button
+                                            onClick={() => excluir(p.id)}
+                                            className="inline-flex items-center gap-1 text-sm border border-outline-variant rounded-lg px-3 py-2 text-error hover:bg-error-container/40"
+                                        >
+                                            <span className="material-symbols-outlined text-[16px]">delete</span>
+                                            Excluir
+                                        </button>
+                                    </>
+                                )}
+                                {p.status === 'submetido' && (
                                     <button
-                                        onClick={() => excluir(p.id)}
-                                        className="inline-flex items-center gap-1 text-sm border border-outline-variant rounded-lg px-3 py-2 text-error hover:bg-error-container/40"
+                                        onClick={() => navigate(`/projetos/${p.id}/resumo`)}
+                                        className="inline-flex items-center gap-1 text-sm border border-outline-variant rounded-lg px-3 py-2 hover:bg-surface-variant"
                                     >
-                                        <span className="material-symbols-outlined text-[16px]">delete</span>
-                                        Excluir
+                                        <span className="material-symbols-outlined text-[16px]">visibility</span>
+                                        Ver resumo
                                     </button>
                                 )}
                             </div>

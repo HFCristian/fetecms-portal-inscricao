@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth, extractErrors } from '../lib/auth.jsx';
+import { useAuth, extractErrors, homeFor } from '../lib/auth.jsx';
 import AuthCard from '../components/AuthCard.jsx';
 import { Field, Input, Select, Button, Alert } from '../components/ui.jsx';
 
@@ -41,8 +41,8 @@ export default function Cadastro() {
         setErrors({});
         setLoading(true);
         try {
-            await register({ ...form, password_confirmation: form.password_confirmation ?? '' });
-            navigate('/projetos', { replace: true });
+            const user = await register({ ...form, password_confirmation: form.password_confirmation ?? '' });
+            navigate(homeFor(user.role), { replace: true });
         } catch (error) {
             const { message, fields } = extractErrors(error);
             setErrors(fields);
