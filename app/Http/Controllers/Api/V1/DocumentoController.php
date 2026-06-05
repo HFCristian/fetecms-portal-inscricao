@@ -45,6 +45,16 @@ class DocumentoController extends Controller
         return Storage::disk($documento->disk)->download($documento->path, $documento->nome_original);
     }
 
+    /** Serve o arquivo inline (Content-Disposition: inline) para pré-visualização no navegador. */
+    public function preview(ProjetoDocumento $documento): StreamedResponse
+    {
+        $this->authorize('view', $documento->projeto);
+
+        return Storage::disk($documento->disk)->response($documento->path, $documento->nome_original, [
+            'Content-Type' => $documento->mime ?? 'application/octet-stream',
+        ]);
+    }
+
     public function destroy(ProjetoDocumento $documento): JsonResponse
     {
         $this->authorize('update', $documento->projeto);

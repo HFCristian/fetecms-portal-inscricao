@@ -58,6 +58,26 @@ export function Button({ variant = 'primary', loading, children, className = '',
     );
 }
 
+export function Toggle({ checked, onChange, label, description }) {
+    return (
+        <div className="flex items-start gap-3">
+            <button
+                type="button"
+                role="switch"
+                aria-checked={checked}
+                onClick={() => onChange(!checked)}
+                className={`relative w-11 h-6 rounded-full transition-colors shrink-0 mt-0.5 ${checked ? 'bg-primary-container' : 'bg-surface-variant'}`}
+            >
+                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${checked ? 'translate-x-5' : ''}`} />
+            </button>
+            <div>
+                <span className="text-sm font-semibold text-on-surface">{label}</span>
+                {description && <p className="text-xs text-on-surface-variant mt-0.5">{description}</p>}
+            </div>
+        </div>
+    );
+}
+
 export function Alert({ children, type = 'error' }) {
     if (!children) return null;
     const styles = {

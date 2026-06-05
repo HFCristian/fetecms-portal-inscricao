@@ -110,4 +110,27 @@ class DocumentoTest extends TestCase
 
         $this->getJson("/api/v1/documentos/{$alheio->id}/download")->assertForbidden();
     }
+
+    public function test_preview_inline_do_proprio_documento(): void
+    {
+        $user = User::factory()->create();
+        $projeto = $this->projetoDe($user);
+        Sanctum::actingAs($user);
+
+        $id = $this->post("/api/v1/projetos/{$projeto->id}/documentos",
+            ['file' => $this->pdf(), 'tipo' => 'plano_pesquisa'],
+            ['Accept' => 'application/json'])->json('data.id');
+
+        $this->get("/api/v1/documentos/{$id}/preview")->assertOk();
+    }
+
+    public function test_nao_visualiza_documento_de_projeto_alheio(): void
+    {
+        $alheio = ProjetoDocumento::factory()->create([
+            'projeto_id' => $this->projetoDe(User::factory()->create())->id,
+        ]);
+        Sanctum::actingAs(User::factory()->create());
+
+        $this->getJson("/api/v1/documentos/{$alheio->id}/preview")->assertForbidden();
+    }
 }

@@ -62,6 +62,7 @@ Route::prefix('v1')->group(function () {
         Route::get('projetos/{projeto}/documentos', [DocumentoController::class, 'index']);
         Route::post('projetos/{projeto}/documentos', [DocumentoController::class, 'store']);
         Route::get('documentos/{documento}/download', [DocumentoController::class, 'download']);
+        Route::get('documentos/{documento}/preview', [DocumentoController::class, 'preview']);
         Route::delete('documentos/{documento}', [DocumentoController::class, 'destroy']);
     });
 });

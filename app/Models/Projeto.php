@@ -28,7 +28,8 @@ class Projeto extends Model
         'user_id', 'edicao_id', 'titulo', 'categoria', 'instituicao_id', 'area_id',
         'subarea_id', 'resumo', 'link_video', 'palavras_chave', 'pais', 'estado_id',
         'cidade_id', 'continuacao', 'tempo_pesquisa_meses', 'feira_afiliada',
-        'numero_credencial', 'agenda_2030', 'categoria_agenda_2030', 'email_comunicacao',
+        'feira_afiliada_nome', 'necessita_termo_etica', 'numero_credencial', 'agenda_2030',
+        'categoria_agenda_2030', 'email_comunicacao', 'declaracao_email',
         'status', 'submitted_at',
     ];
 
@@ -40,6 +41,8 @@ class Projeto extends Model
             'palavras_chave' => 'array',
             'continuacao' => 'boolean',
             'feira_afiliada' => 'boolean',
+            'necessita_termo_etica' => 'boolean',
+            'declaracao_email' => 'boolean',
             'agenda_2030' => 'boolean',
             'tempo_pesquisa_meses' => 'integer',
             'submitted_at' => 'datetime',

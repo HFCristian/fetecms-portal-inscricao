@@ -101,6 +101,23 @@ class ProjetoTest extends TestCase
         $this->putJson("/api/v1/projetos/{$projeto->id}", ['titulo' => 'X'])->assertForbidden();
     }
 
+    public function test_salva_campos_de_feira_etica_e_declaracao(): void
+    {
+        $user = $this->orientador();
+        $projeto = Projeto::factory()->create(['user_id' => $user->id]);
+        Sanctum::actingAs($user);
+
+        $this->putJson("/api/v1/projetos/{$projeto->id}", [
+            'feira_afiliada' => true,
+            'feira_afiliada_nome' => 'Feira Municipal de Ciências',
+            'necessita_termo_etica' => true,
+            'declaracao_email' => true,
+        ])->assertOk()
+            ->assertJsonPath('data.feira_afiliada_nome', 'Feira Municipal de Ciências')
+            ->assertJsonPath('data.necessita_termo_etica', true)
+            ->assertJsonPath('data.declaracao_email', true);
+    }
+
     public function test_avaliador_nao_cria_projeto(): void
     {
         Sanctum::actingAs(User::factory()->avaliador()->create());

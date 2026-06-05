@@ -32,10 +32,13 @@ class ProjetoResource extends JsonResource
             'continuacao' => $this->continuacao,
             'tempo_pesquisa_meses' => $this->tempo_pesquisa_meses,
             'feira_afiliada' => $this->feira_afiliada,
+            'feira_afiliada_nome' => $this->feira_afiliada_nome,
+            'necessita_termo_etica' => $this->necessita_termo_etica,
             'numero_credencial' => $this->numero_credencial,
             'agenda_2030' => $this->agenda_2030,
             'categoria_agenda_2030' => $this->categoria_agenda_2030,
             'email_comunicacao' => $this->email_comunicacao,
+            'declaracao_email' => $this->declaracao_email,
             'submitted_at' => $this->submitted_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
             // Nomes legíveis (quando carregados) para exibição.

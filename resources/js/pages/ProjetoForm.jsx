@@ -1,12 +1,14 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
-import { Field, Input, Select, Button, Alert } from '../components/ui.jsx';
+import { Field, Input, Select, Button, Alert, Toggle } from '../components/ui.jsx';
 import KeywordsInput from '../components/KeywordsInput.jsx';
+import VideoPreview from '../components/VideoPreview.jsx';
+import DocumentoUpload from '../components/DocumentoUpload.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import { useCatalogos, loadSubareas, loadCidades } from '../lib/catalogos.js';
 import { criarProjeto, atualizarProjeto, obterProjeto } from '../lib/projetos.js';
-import { listarDocumentos, enviarDocumento, removerDocumento } from '../lib/documentos.js';
+import { listarDocumentos } from '../lib/documentos.js';
 
 function contarPalavras(texto) {
     return (texto || '').trim().split(/\s+/).filter(Boolean).length;
@@ -17,24 +19,27 @@ export default function ProjetoForm() {
     const navigate = useNavigate();
     const catalogos = useCatalogos();
 
-    const [form, setForm] = useState({ pais: 'BR', palavras_chave: [], continuacao: false, feira_afiliada: false, agenda_2030: false });
+    const [form, setForm] = useState({
+        pais: 'BR', palavras_chave: [], continuacao: false, feira_afiliada: false,
+        necessita_termo_etica: false, declaracao_email: false,
+    });
     const [subareas, setSubareas] = useState([]);
     const [cidades, setCidades] = useState([]);
+    const [documentos, setDocumentos] = useState([]);
     const [errors, setErrors] = useState({});
     const [alert, setAlert] = useState('');
     const [success, setSuccess] = useState('');
     const [saving, setSaving] = useState(false);
-    const [dirty, setDirty] = useState(false);   // há alteração não salva?
-    const [saved, setSaved] = useState(Boolean(id)); // projeto já existe (foi salvo)?
+    const [dirty, setDirty] = useState(false);
+    const [saved, setSaved] = useState(Boolean(id));
     const [loading, setLoading] = useState(Boolean(id));
-    const [documentos, setDocumentos] = useState([]);
-    const [tipoDoc, setTipoDoc] = useState('plano_pesquisa');
-    const [uploading, setUploading] = useState(false);
-    const [uploadError, setUploadError] = useState('');
 
     const err = (name) => errors[name]?.[0];
 
-    // Carrega projeto em edição.
+    const reloadDocs = useCallback(async () => {
+        if (id) setDocumentos(await listarDocumentos(id));
+    }, [id]);
+
     useEffect(() => {
         if (!id) return;
         obterProjeto(id)
@@ -44,7 +49,8 @@ export default function ProjetoForm() {
                     area_id: p.area_id ?? '', subarea_id: p.subarea_id ?? '', resumo: p.resumo ?? '',
                     link_video: p.link_video ?? '', palavras_chave: p.palavras_chave ?? [], pais: p.pais ?? 'BR',
                     estado_id: p.estado_id ?? '', cidade_id: p.cidade_id ?? '', email_comunicacao: p.email_comunicacao ?? '',
-                    continuacao: p.continuacao, feira_afiliada: p.feira_afiliada, agenda_2030: p.agenda_2030,
+                    continuacao: p.continuacao, feira_afiliada: p.feira_afiliada, feira_afiliada_nome: p.feira_afiliada_nome ?? '',
+                    necessita_termo_etica: p.necessita_termo_etica, declaracao_email: p.declaracao_email,
                 });
                 if (p.area_id) setSubareas(await loadSubareas(p.area_id));
                 if (p.estado_id) setCidades(await loadCidades(p.estado_id));
@@ -53,45 +59,10 @@ export default function ProjetoForm() {
             .finally(() => setLoading(false));
     }, [id]);
 
-    // Documentos do projeto (só existem após o projeto ter sido salvo).
-    useEffect(() => {
-        if (id) listarDocumentos(id).then(setDocumentos).catch(() => {});
-    }, [id]);
+    useEffect(() => { reloadDocs(); }, [reloadDocs]);
 
-    async function onUpload(e) {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        setUploadError('');
-        setUploading(true);
-        try {
-            await enviarDocumento(id, file, tipoDoc);
-            setDocumentos(await listarDocumentos(id));
-        } catch (error) {
-            setUploadError(extractErrors(error).message);
-        } finally {
-            setUploading(false);
-            e.target.value = '';
-        }
-    }
-
-    async function onRemoveDoc(docId) {
-        await removerDocumento(docId);
-        setDocumentos(await listarDocumentos(id));
-    }
-
-    const formatBytes = (b) =>
-        b > 1024 * 1024 ? (b / 1024 / 1024).toFixed(1) + ' MB' : Math.round(b / 1024) + ' KB';
-
-    // Marca alteração pendente e some com a confirmação de "salvo".
-    const markDirty = () => {
-        setDirty(true);
-        setSuccess('');
-    };
-
-    const setField = (name, value) => {
-        setForm((f) => ({ ...f, [name]: value }));
-        markDirty();
-    };
+    const markDirty = () => { setDirty(true); setSuccess(''); };
+    const setField = (name, value) => { setForm((f) => ({ ...f, [name]: value })); markDirty(); };
 
     async function onAreaChange(areaId) {
         setForm((f) => ({ ...f, area_id: areaId, subarea_id: '' }));
@@ -112,30 +83,31 @@ export default function ProjetoForm() {
             instituicao_id: num(form.instituicao_id),
             area_id: num(form.area_id),
             subarea_id: num(form.subarea_id),
-            resumo: form.resumo || null,
-            link_video: form.link_video || null,
             palavras_chave: form.palavras_chave,
             pais: form.pais || 'BR',
             estado_id: num(form.estado_id),
             cidade_id: num(form.cidade_id),
-            email_comunicacao: form.email_comunicacao || null,
+            link_video: form.link_video || null,
+            resumo: form.resumo || null,
             continuacao: !!form.continuacao,
             feira_afiliada: !!form.feira_afiliada,
-            agenda_2030: !!form.agenda_2030,
+            feira_afiliada_nome: form.feira_afiliada ? (form.feira_afiliada_nome || null) : null,
+            necessita_termo_etica: !!form.necessita_termo_etica,
+            email_comunicacao: form.email_comunicacao || null,
+            declaracao_email: !!form.declaracao_email,
         };
     }, [form]);
 
     async function salvarRascunho() {
         setAlert(''); setSuccess(''); setErrors({}); setSaving(true);
         try {
-            const payload = buildPayload();
             if (id) {
-                await atualizarProjeto(id, payload);
+                await atualizarProjeto(id, buildPayload());
                 setSuccess('Rascunho salvo.');
                 setSaved(true);
                 setDirty(false);
             } else {
-                const novo = await criarProjeto(payload);
+                const novo = await criarProjeto(buildPayload());
                 setSaved(true);
                 setDirty(false);
                 navigate(`/projetos/${novo.id}/editar`, { replace: true });
@@ -160,6 +132,10 @@ export default function ProjetoForm() {
     }
 
     const palavras = contarPalavras(form.resumo);
+    const podeSubmeter = form.categoria && form.declaracao_email;
+    const motivoBloqueio = !form.categoria
+        ? 'Defina a categoria (seção 1) para habilitar a submissão.'
+        : (!form.declaracao_email ? 'Marque a declaração de leitura do e-mail (seção 5).' : '');
 
     return (
         <AppShell>
@@ -167,22 +143,18 @@ export default function ProjetoForm() {
                 <span className="material-symbols-outlined text-[18px]">arrow_back</span>
                 Meus projetos
             </Link>
-            <h1 className="font-display text-2xl font-semibold text-primary mb-1">
-                {id ? 'Editar Projeto' : 'Novo Projeto'}
-            </h1>
-            <p className="text-on-surface-variant mb-4">
-                Preencha os dados do projeto. Você pode salvar como rascunho e voltar depois.
-            </p>
+            <h1 className="font-display text-2xl font-semibold text-primary mb-1">{id ? 'Editar Projeto' : 'Novo Projeto'}</h1>
+            <p className="text-on-surface-variant mb-4">Preencha os dados do projeto. Você pode salvar como rascunho e voltar depois.</p>
 
             <div className="bg-primary-fixed/40 border-l-4 border-primary rounded-r-lg p-3 mb-6 text-sm text-on-surface">
-                <strong>Status: rascunho.</strong> Upload de arquivos e submissão final entram na Sprint 3/4.
+                <strong>Status: rascunho.</strong> A submissão final (irreversível) entra na Sprint 4.
             </div>
 
             {alert && <div className="mb-4"><Alert>{alert}</Alert></div>}
             {success && <div className="mb-4"><Alert type="info">{success}</Alert></div>}
 
             <div className="space-y-6 max-w-3xl">
-                {/* 1. Dados do projeto */}
+                {/* 1. Dados do Projeto */}
                 <section className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-6 space-y-4">
                     <h3 className="font-display text-primary font-semibold border-b border-surface-variant pb-2">1. Dados do Projeto</h3>
                     <Field label="Título do Projeto" error={err('titulo')}>
@@ -198,9 +170,7 @@ export default function ProjetoForm() {
                         <Field label="Categoria" error={err('categoria')}>
                             <Select value={form.categoria ?? ''} onChange={(e) => setField('categoria', e.target.value)} error={err('categoria')}>
                                 <option value="">Selecione</option>
-                                {catalogos.categorias.map((c) => (
-                                    <option key={c.value} value={c.value}>{c.label} (até {c.max_alunos} alunos)</option>
-                                ))}
+                                {catalogos.categorias.map((c) => <option key={c.value} value={c.value}>{c.label} (até {c.max_alunos} alunos)</option>)}
                             </Select>
                         </Field>
                         <Field label="Área do Conhecimento" error={err('area_id')}>
@@ -224,7 +194,13 @@ export default function ProjetoForm() {
                 {/* 2. Localização */}
                 <section className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-6 space-y-4">
                     <h3 className="font-display text-primary font-semibold border-b border-surface-variant pb-2">2. Localização</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <Field label="País">
+                            <Select value={form.pais ?? 'BR'} onChange={(e) => setField('pais', e.target.value)}>
+                                <option value="BR">Brasil</option>
+                                <option value="OUTRO">Outro</option>
+                            </Select>
+                        </Field>
                         <Field label="Estado">
                             <Select value={form.estado_id ?? ''} onChange={(e) => onEstadoChange(e.target.value)}>
                                 <option value="">Selecione</option>
@@ -240,12 +216,14 @@ export default function ProjetoForm() {
                     </div>
                 </section>
 
-                {/* 3. Conteúdo */}
+                {/* 3. Conteúdo e Arquivos */}
                 <section className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-6 space-y-4">
-                    <h3 className="font-display text-primary font-semibold border-b border-surface-variant pb-2">3. Conteúdo</h3>
+                    <h3 className="font-display text-primary font-semibold border-b border-surface-variant pb-2">3. Conteúdo e Arquivos</h3>
                     <Field label="Link do Vídeo/Apresentação" error={err('link_video')} hint="YouTube, Vimeo ou Google Drive (público).">
                         <Input type="url" value={form.link_video ?? ''} onChange={(e) => setField('link_video', e.target.value)} error={err('link_video')} placeholder="https://youtube.com/..." />
                     </Field>
+                    <VideoPreview url={form.link_video} />
+
                     <Field label={`Resumo do Projeto (${palavras} palavras)`} error={err('resumo')} hint="Entre 150 e 250 palavras na submissão.">
                         <textarea
                             value={form.resumo ?? ''}
@@ -255,90 +233,93 @@ export default function ProjetoForm() {
                             placeholder="Objetivos, metodologia e conclusões..."
                         />
                     </Field>
+
+                    <DocumentoUpload
+                        projetoId={id}
+                        tipo="plano_pesquisa"
+                        label="Projeto de Pesquisa (PDF ou DOCX)"
+                        required
+                        documentos={documentos}
+                        onChanged={reloadDocs}
+                    />
+                </section>
+
+                {/* 4. Informações Adicionais */}
+                <section className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-6 space-y-5">
+                    <h3 className="font-display text-primary font-semibold border-b border-surface-variant pb-2">4. Informações Adicionais</h3>
+
+                    <div className="space-y-3">
+                        <Toggle checked={!!form.continuacao} onChange={(v) => setField('continuacao', v)}
+                            label="Projeto de Continuação? (Opcional)" />
+                        {form.continuacao && (
+                            <div className="pl-14">
+                                <DocumentoUpload projetoId={id} tipo="projeto_continuacao"
+                                    label="Projeto de Continuação (PDF ou DOCX)" documentos={documentos} onChanged={reloadDocs} />
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="space-y-3">
+                        <Toggle checked={!!form.feira_afiliada} onChange={(v) => setField('feira_afiliada', v)}
+                            label="Participou de Feira Afiliada? (Opcional)" />
+                        {form.feira_afiliada && (
+                            <div className="pl-14">
+                                <Field label="Nome da feira">
+                                    <Input value={form.feira_afiliada_nome ?? ''} onChange={(e) => setField('feira_afiliada_nome', e.target.value)} placeholder="Ex: Feira Municipal de Ciências" />
+                                </Field>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="space-y-3">
+                        <Toggle checked={!!form.necessita_termo_etica} onChange={(v) => setField('necessita_termo_etica', v)}
+                            label="Necessita do Termo do Comitê Escolar de Ética (ANEXO V)? (Opcional)" />
+                        {form.necessita_termo_etica && (
+                            <div className="pl-14">
+                                <DocumentoUpload projetoId={id} tipo="termo_etica"
+                                    label="Termo do Comitê Escolar de Ética (PDF ou DOCX)" documentos={documentos} onChanged={reloadDocs} />
+                            </div>
+                        )}
+                    </div>
+                </section>
+
+                {/* 5. E-mail para comunicação */}
+                <section className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-6 space-y-4">
+                    <h3 className="font-display text-primary font-semibold border-b border-surface-variant pb-2">5. E-mail para comunicação</h3>
                     <Field label="E-mail para comunicação" error={err('email_comunicacao')}>
                         <Input type="email" value={form.email_comunicacao ?? ''} onChange={(e) => setField('email_comunicacao', e.target.value)} error={err('email_comunicacao')} placeholder="email@instituicao.br" />
                     </Field>
+                    <label className="flex items-start gap-3 cursor-pointer">
+                        <input type="checkbox" checked={!!form.declaracao_email}
+                            onChange={(e) => setField('declaracao_email', e.target.checked)}
+                            className="mt-1 w-5 h-5 rounded text-primary-container" />
+                        <span className="text-sm text-on-surface-variant">
+                            Declaro ter lido, compreendido e estar consciente que tenho a responsabilidade de manter
+                            ativo o e-mail anteriormente informado, e, em caso de problemas com acesso ao referido
+                            e-mail, devo entrar em contato com a organização do evento solicitando a alteração.
+                        </span>
+                    </label>
                 </section>
-
-                {/* 4. Informações adicionais */}
-                <section className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-6 space-y-3">
-                    <h3 className="font-display text-primary font-semibold border-b border-surface-variant pb-2">4. Informações Adicionais</h3>
-                    {[
-                        ['continuacao', 'Projeto de continuação?'],
-                        ['feira_afiliada', 'Participou de feira afiliada?'],
-                        ['agenda_2030', 'Relacionado à Agenda 2030 (ODS)?'],
-                    ].map(([key, label]) => (
-                        <label key={key} className="flex items-center gap-3 cursor-pointer">
-                            <input type="checkbox" checked={!!form[key]} onChange={(e) => setField(key, e.target.checked)} className="w-5 h-5 rounded text-primary-container" />
-                            <span className="text-sm text-on-surface">{label}</span>
-                        </label>
-                    ))}
-                </section>
-
-                {/* 5. Documentos (PDF/DOCX) — disponível após salvar o projeto */}
-                {id && (
-                    <section className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-6 space-y-4">
-                        <h3 className="font-display text-primary font-semibold border-b border-surface-variant pb-2">5. Documentos (PDF ou DOCX, máx. 10 MB)</h3>
-                        {uploadError && <Alert>{uploadError}</Alert>}
-                        <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
-                            <Field label="Tipo do documento">
-                                <Select value={tipoDoc} onChange={(e) => setTipoDoc(e.target.value)}>
-                                    <option value="plano_pesquisa">Projeto de Pesquisa</option>
-                                    <option value="projeto_continuacao">Projeto de Continuação</option>
-                                    <option value="termo_etica">Termo do Comitê de Ética</option>
-                                    <option value="anexo">Anexo</option>
-                                </Select>
-                            </Field>
-                            <label className="inline-flex items-center gap-2 rounded-lg px-5 py-2.5 font-semibold border-2 border-primary-container text-primary-container hover:bg-primary-fixed cursor-pointer">
-                                <span className="material-symbols-outlined text-[20px]">upload_file</span>
-                                {uploading ? 'Enviando…' : 'Enviar arquivo'}
-                                <input type="file" accept=".pdf,.docx" className="sr-only" onChange={onUpload} disabled={uploading} />
-                            </label>
-                        </div>
-                        <ul className="divide-y divide-outline-variant/30">
-                            {documentos.length === 0 && <li className="text-sm text-on-surface-variant py-2">Nenhum documento enviado.</li>}
-                            {documentos.map((d) => (
-                                <li key={d.id} className="flex items-center gap-3 py-2">
-                                    <span className="material-symbols-outlined text-primary-container">description</span>
-                                    <div className="min-w-0 flex-1">
-                                        <p className="text-sm font-semibold text-on-surface truncate">{d.nome_original}</p>
-                                        <p className="text-xs text-on-surface-variant">{d.tipo_label} · {formatBytes(d.tamanho_bytes)}</p>
-                                    </div>
-                                    <a href={d.download_url} target="_blank" rel="noreferrer" className="text-sm text-primary-container hover:underline">Baixar</a>
-                                    <button type="button" onClick={() => onRemoveDoc(d.id)} className="text-sm text-error hover:underline">Remover</button>
-                                </li>
-                            ))}
-                        </ul>
-                    </section>
-                )}
 
                 {/* Ações */}
                 <div className="flex flex-col sm:flex-row justify-end gap-3 pt-2">
-                    <Button variant="outline" onClick={() => navigate('/projetos')} type="button">
-                        Voltar
-                    </Button>
+                    <Button variant="outline" onClick={() => navigate('/projetos')} type="button">Voltar</Button>
                     <Button onClick={salvarRascunho} loading={saving} disabled={!dirty} type="button">
-                        <span className="material-symbols-outlined text-[20px]">
-                            {!dirty && saved ? 'check' : 'save'}
-                        </span>
+                        <span className="material-symbols-outlined text-[20px]">{!dirty && saved ? 'check' : 'save'}</span>
                         {!dirty && saved ? 'RASCUNHO SALVO' : 'SALVAR RASCUNHO'}
                     </Button>
                     <Button
                         variant="success"
                         type="button"
-                        disabled={!form.categoria}
-                        title={!form.categoria ? 'Defina a categoria do projeto para habilitar' : 'Submissão final na Sprint 4'}
-                        onClick={() => window.alert('Categoria definida ✓. A revisão e a submissão final (irreversível) serão habilitadas na Sprint 4.')}
+                        disabled={!podeSubmeter}
+                        title={motivoBloqueio || 'Submissão final na Sprint 4'}
+                        onClick={() => window.alert('Pré-requisitos atendidos ✓. A revisão e a submissão final (irreversível) serão habilitadas na Sprint 4.')}
                     >
                         <span className="material-symbols-outlined text-[20px]">send</span>
                         SUBMETER
                     </Button>
                 </div>
-                {!form.categoria && (
-                    <p className="text-right text-xs text-on-surface-variant">
-                        Defina a <strong>categoria</strong> (seção 1) para habilitar a submissão.
-                    </p>
-                )}
+                {motivoBloqueio && <p className="text-right text-xs text-on-surface-variant">{motivoBloqueio}</p>}
             </div>
         </AppShell>
     );

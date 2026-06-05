@@ -37,10 +37,13 @@ class ProjetoRequest extends FormRequest
             'continuacao' => ['sometimes', 'boolean'],
             'tempo_pesquisa_meses' => ['nullable', 'integer', 'min:1', 'max:600'],
             'feira_afiliada' => ['sometimes', 'boolean'],
+            'feira_afiliada_nome' => ['nullable', 'string', 'max:255'],
+            'necessita_termo_etica' => ['sometimes', 'boolean'],
             'numero_credencial' => ['nullable', 'string', 'max:120'],
             'agenda_2030' => ['sometimes', 'boolean'],
             'categoria_agenda_2030' => ['nullable', 'string', 'max:120'],
             'email_comunicacao' => ['nullable', 'email', 'max:255'],
+            'declaracao_email' => ['sometimes', 'boolean'],
         ];
     }
 }

@@ -17,8 +17,10 @@ class DocumentoResource extends JsonResource
             'nome_original' => $this->nome_original,
             'mime' => $this->mime,
             'tamanho_bytes' => $this->tamanho_bytes,
-            // URL de download autenticada (nunca expõe o path interno do storage).
+            // URLs autenticadas (nunca expõem o path interno do storage).
             'download_url' => url("/api/v1/documentos/{$this->id}/download"),
+            'preview_url' => url("/api/v1/documentos/{$this->id}/preview"),
+            'is_pdf' => $this->mime === 'application/pdf',
             'created_at' => $this->created_at?->toIso8601String(),
         ];
     }
