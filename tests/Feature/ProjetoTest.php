@@ -118,6 +118,31 @@ class ProjetoTest extends TestCase
             ->assertJsonPath('data.declaracao_email', true);
     }
 
+    public function test_palavra_chave_com_mais_de_5_palavras_e_rejeitada(): void
+    {
+        $user = $this->orientador();
+        $projeto = Projeto::factory()->create(['user_id' => $user->id]);
+        Sanctum::actingAs($user);
+
+        $this->putJson("/api/v1/projetos/{$projeto->id}", [
+            'palavras_chave' => ['uma duas tres quatro cinco seis'], // 6 palavras
+        ])->assertStatus(422)->assertJsonValidationErrors('palavras_chave.0');
+    }
+
+    public function test_palavras_chave_entram_na_lista_global(): void
+    {
+        $user = $this->orientador();
+        $projeto = Projeto::factory()->create(['user_id' => $user->id]);
+        Sanctum::actingAs($user);
+
+        $this->putJson("/api/v1/projetos/{$projeto->id}", [
+            'palavras_chave' => ['Biotecnologia', 'Energia Solar', 'Casca de Mandioca'],
+        ])->assertOk();
+
+        $this->assertDatabaseHas('palavras_chave', ['texto' => 'Energia Solar']);
+        $this->assertDatabaseHas('palavras_chave', ['texto' => 'Casca de Mandioca']);
+    }
+
     public function test_avaliador_nao_cria_projeto(): void
     {
         Sanctum::actingAs(User::factory()->avaliador()->create());

@@ -56,6 +56,17 @@ class CatalogoTest extends TestCase
             ->assertJsonFragment(['nome' => 'IFMS Campus Três Lagoas']);
     }
 
+    public function test_busca_palavras_chave_globais(): void
+    {
+        \App\Models\PalavraChave::create(['texto' => 'Biotecnologia']);
+        \App\Models\PalavraChave::create(['texto' => 'Energia Solar']);
+
+        $this->getJson('/api/v1/catalogos/palavras-chave?search=Energia')
+            ->assertOk()
+            ->assertJsonFragment(['Energia Solar'])
+            ->assertJsonMissing(['Biotecnologia']);
+    }
+
     /**
      * Regressão: com o cache `database`, cachear a Collection do Eloquent gerava
      * __PHP_Incomplete_Class na releitura (data virava objeto, não array).

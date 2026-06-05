@@ -36,3 +36,6 @@ export const loadSubareas = (areaId) =>
 
 export const loadCidades = (estadoId) =>
     http.get('/catalogos/cidades', { params: { estado_id: estadoId } }).then((r) => r.data.data);
+
+export const buscarPalavrasChave = (search) =>
+    http.get('/catalogos/palavras-chave', { params: search ? { search } : {} }).then((r) => r.data.data);

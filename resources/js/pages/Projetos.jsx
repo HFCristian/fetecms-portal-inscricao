@@ -124,19 +124,21 @@ export default function Projetos() {
                                 {[p.instituicao, p.categoria_label, p.area].filter(Boolean).join(' · ') || '—'}
                             </p>
                             <div className="flex flex-wrap gap-2 mt-4">
-                                <button
-                                    onClick={() => navigate(`/projetos/${p.id}/editar`)}
-                                    className="inline-flex items-center gap-1 text-sm border border-outline-variant rounded-lg px-3 py-2 hover:bg-surface-variant"
-                                >
-                                    <span className="material-symbols-outlined text-[16px]">edit</span>
-                                    {p.status === 'rascunho' ? 'Continuar edição' : 'Ver/editar'}
-                                </button>
+                                {p.status === 'rascunho' && (
+                                    <button
+                                        onClick={() => navigate(`/projetos/${p.id}/editar`)}
+                                        className="inline-flex items-center gap-1 text-sm border border-outline-variant rounded-lg px-3 py-2 hover:bg-surface-variant"
+                                    >
+                                        <span className="material-symbols-outlined text-[16px]">edit</span>
+                                        Continuar edição
+                                    </button>
+                                )}
                                 <button
                                     onClick={() => navigate(`/projetos/${p.id}/integrantes`)}
                                     className="inline-flex items-center gap-1 text-sm border border-outline-variant rounded-lg px-3 py-2 hover:bg-surface-variant"
                                 >
                                     <span className="material-symbols-outlined text-[16px]">groups</span>
-                                    Integrantes
+                                    {p.status === 'rascunho' ? 'Integrantes' : 'Ver integrantes'}
                                 </button>
                                 {p.status === 'rascunho' && (
                                     <>

@@ -9,6 +9,7 @@ use App\Models\Cidade;
 use App\Models\Edicao;
 use App\Models\Estado;
 use App\Models\Instituicao;
+use App\Models\PalavraChave;
 use App\Models\Subarea;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -70,6 +71,17 @@ class CatalogoController extends Controller
             fn ($q) => $q->where('estado_id', $request->integer('estado_id')))
             ->orderBy('nome')
             ->get(['id', 'nome', 'estado_id']);
+
+        return response()->json(['data' => $data]);
+    }
+
+    public function palavrasChave(Request $request): JsonResponse
+    {
+        $data = PalavraChave::when($request->filled('search'),
+            fn ($q) => $q->where('texto', 'like', '%'.$request->string('search').'%'))
+            ->orderBy('texto')
+            ->limit(20)
+            ->pluck('texto');
 
         return response()->json(['data' => $data]);
     }

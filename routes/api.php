@@ -43,6 +43,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/estados', [CatalogoController::class, 'estados']);
         Route::get('/cidades', [CatalogoController::class, 'cidades']);
         Route::get('/instituicoes', [CatalogoController::class, 'instituicoes']);
+        Route::get('/palavras-chave', [CatalogoController::class, 'palavrasChave']);
     });
 
     // Autenticadas (sessão Sanctum SPA ou token)

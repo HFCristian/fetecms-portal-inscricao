@@ -19,6 +19,12 @@ class IntegranteController extends Controller
         $projeto->load(['user.orientadorProfile', 'alunos', 'coorientador']);
 
         return response()->json(['data' => [
+            'projeto' => [
+                'id' => $projeto->id,
+                'titulo' => $projeto->titulo,
+                'status' => $projeto->status->value,
+                'editavel' => $projeto->status->editavel(),
+            ],
             'orientador' => [
                 'nome' => $projeto->user->name,
                 'email' => $projeto->user->email,

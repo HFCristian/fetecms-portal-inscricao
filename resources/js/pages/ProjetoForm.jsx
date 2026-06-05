@@ -10,9 +10,9 @@ import { useCatalogos, loadSubareas, loadCidades } from '../lib/catalogos.js';
 import { criarProjeto, atualizarProjeto, obterProjeto } from '../lib/projetos.js';
 import { listarDocumentos } from '../lib/documentos.js';
 
-function contarPalavras(texto) {
-    return (texto || '').trim().split(/\s+/).filter(Boolean).length;
-}
+const contarPalavras = (t) => (t || '').trim().split(/\s+/).filter(Boolean).length;
+const videoValido = (url) =>
+    !!url && /(youtube\.com\/(watch\?v=|embed\/|shorts\/)|youtu\.be\/|vimeo\.com\/|drive\.google\.com\/file\/d\/)/i.test(url);
 
 export default function ProjetoForm() {
     const { id } = useParams();
@@ -33,17 +33,22 @@ export default function ProjetoForm() {
     const [dirty, setDirty] = useState(false);
     const [saved, setSaved] = useState(Boolean(id));
     const [loading, setLoading] = useState(Boolean(id));
+    const [estado, setEstado] = useState('ok'); // ok | indisponivel | submetido
 
     const err = (name) => errors[name]?.[0];
 
     const reloadDocs = useCallback(async () => {
-        if (id) setDocumentos(await listarDocumentos(id));
+        if (id) setDocumentos(await listarDocumentos(id).catch(() => []));
     }, [id]);
 
     useEffect(() => {
         if (!id) return;
         obterProjeto(id)
-            .then(async (p) => {
+            .then((p) => {
+                if (p.status !== 'rascunho') { // submetido/aprovado/rejeitado: não editável
+                    setEstado('submetido');
+                    return;
+                }
                 setForm({
                     titulo: p.titulo ?? '', categoria: p.categoria ?? '', instituicao_id: p.instituicao_id ?? '',
                     area_id: p.area_id ?? '', subarea_id: p.subarea_id ?? '', resumo: p.resumo ?? '',
@@ -52,10 +57,11 @@ export default function ProjetoForm() {
                     continuacao: p.continuacao, feira_afiliada: p.feira_afiliada, feira_afiliada_nome: p.feira_afiliada_nome ?? '',
                     necessita_termo_etica: p.necessita_termo_etica, declaracao_email: p.declaracao_email,
                 });
-                if (p.area_id) setSubareas(await loadSubareas(p.area_id));
-                if (p.estado_id) setCidades(await loadCidades(p.estado_id));
+                if (p.area_id) loadSubareas(p.area_id).then(setSubareas);
+                if (p.estado_id) loadCidades(p.estado_id).then(setCidades);
             })
-            .catch(() => setAlert('Não foi possível carregar o projeto.'))
+            // 403 (não é seu) ou 404 (não existe) → página de erro
+            .catch(() => setEstado('indisponivel'))
             .finally(() => setLoading(false));
     }, [id]);
 
@@ -78,23 +84,15 @@ export default function ProjetoForm() {
     const buildPayload = useCallback(() => {
         const num = (v) => (v === '' || v == null ? null : Number(v));
         return {
-            titulo: form.titulo || null,
-            categoria: form.categoria || null,
-            instituicao_id: num(form.instituicao_id),
-            area_id: num(form.area_id),
-            subarea_id: num(form.subarea_id),
-            palavras_chave: form.palavras_chave,
-            pais: form.pais || 'BR',
-            estado_id: num(form.estado_id),
-            cidade_id: num(form.cidade_id),
-            link_video: form.link_video || null,
-            resumo: form.resumo || null,
-            continuacao: !!form.continuacao,
-            feira_afiliada: !!form.feira_afiliada,
+            titulo: form.titulo || null, categoria: form.categoria || null,
+            instituicao_id: num(form.instituicao_id), area_id: num(form.area_id), subarea_id: num(form.subarea_id),
+            palavras_chave: form.palavras_chave, pais: form.pais || 'BR',
+            estado_id: num(form.estado_id), cidade_id: num(form.cidade_id),
+            link_video: form.link_video || null, resumo: form.resumo || null,
+            continuacao: !!form.continuacao, feira_afiliada: !!form.feira_afiliada,
             feira_afiliada_nome: form.feira_afiliada ? (form.feira_afiliada_nome || null) : null,
             necessita_termo_etica: !!form.necessita_termo_etica,
-            email_comunicacao: form.email_comunicacao || null,
-            declaracao_email: !!form.declaracao_email,
+            email_comunicacao: form.email_comunicacao || null, declaracao_email: !!form.declaracao_email,
         };
     }, [form]);
 
@@ -103,39 +101,84 @@ export default function ProjetoForm() {
         try {
             if (id) {
                 await atualizarProjeto(id, buildPayload());
-                setSuccess('Rascunho salvo.');
-                setSaved(true);
-                setDirty(false);
+                setSuccess('Rascunho salvo.'); setSaved(true); setDirty(false);
             } else {
                 const novo = await criarProjeto(buildPayload());
-                setSaved(true);
-                setDirty(false);
+                setSaved(true); setDirty(false);
                 navigate(`/projetos/${novo.id}/editar`, { replace: true });
             }
         } catch (e) {
             const { message, fields } = extractErrors(e);
-            setErrors(fields);
-            setAlert(message);
+            setErrors(fields); setAlert(message);
+        } finally {
+            setSaving(false);
+        }
+    }
+
+    // Salva as alterações pendentes e segue para a revisão/submissão.
+    async function revisarESubmeter() {
+        if (!id) { window.alert('Salve o rascunho antes de revisar e submeter.'); return; }
+        setAlert(''); setErrors({}); setSaving(true);
+        try {
+            await atualizarProjeto(id, buildPayload());
+            setSaved(true); setDirty(false);
+            navigate(`/projetos/${id}/resumo`);
+        } catch (e) {
+            const { message, fields } = extractErrors(e);
+            setErrors(fields); setAlert(message);
         } finally {
             setSaving(false);
         }
     }
 
     if (loading) {
+        return <AppShell><div className="text-center py-10 text-on-surface-variant"><span className="material-symbols-outlined animate-spin">progress_activity</span></div></AppShell>;
+    }
+
+    if (estado === 'indisponivel') {
         return (
             <AppShell>
-                <div className="text-center py-10 text-on-surface-variant">
-                    <span className="material-symbols-outlined animate-spin">progress_activity</span>
+                <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-10 text-center max-w-lg mx-auto">
+                    <span className="material-symbols-outlined text-[48px] text-error">report</span>
+                    <h1 className="font-display text-xl font-semibold text-on-surface mt-3">Projeto não encontrado</h1>
+                    <p className="text-on-surface-variant text-sm mt-1">Este projeto não existe ou não está vinculado à sua conta.</p>
+                    <Button className="mt-6" onClick={() => navigate('/projetos')}>Voltar aos meus projetos</Button>
+                </div>
+            </AppShell>
+        );
+    }
+
+    if (estado === 'submetido') {
+        return (
+            <AppShell>
+                <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-10 text-center max-w-lg mx-auto">
+                    <span className="material-symbols-outlined text-[48px] text-secondary" style={{ fontVariationSettings: "'FILL' 1" }}>lock</span>
+                    <h1 className="font-display text-xl font-semibold text-on-surface mt-3">Projeto já submetido</h1>
+                    <p className="text-on-surface-variant text-sm mt-1">Projetos submetidos não podem mais ser editados (previsto em edital). Você pode visualizar o resumo.</p>
+                    <div className="flex justify-center gap-3 mt-6">
+                        <Button variant="outline" onClick={() => navigate('/projetos')}>Voltar</Button>
+                        <Button onClick={() => navigate(`/projetos/${id}/resumo`)}>Ver resumo</Button>
+                    </div>
                 </div>
             </AppShell>
         );
     }
 
     const palavras = contarPalavras(form.resumo);
-    const podeSubmeter = form.categoria && form.declaracao_email;
-    const motivoBloqueio = !form.categoria
-        ? 'Defina a categoria (seção 1) para habilitar a submissão.'
-        : (!form.declaracao_email ? 'Marque a declaração de leitura do e-mail (seção 5).' : '');
+    const temDoc = (tipo) => documentos.some((d) => d.tipo === tipo);
+    const kw = form.palavras_chave || [];
+    const formularioCompleto = Boolean(
+        form.titulo && form.instituicao_id && form.categoria && form.area_id && form.subarea_id &&
+        kw.length >= 3 && kw.length <= 5 &&
+        form.pais && form.estado_id && form.cidade_id &&
+        videoValido(form.link_video) &&
+        palavras >= 150 && palavras <= 250 &&
+        form.email_comunicacao && form.declaracao_email &&
+        temDoc('plano_pesquisa') &&
+        (!form.continuacao || temDoc('projeto_continuacao')) &&
+        (!form.feira_afiliada || (form.feira_afiliada_nome && form.feira_afiliada_nome.trim())) &&
+        (!form.necessita_termo_etica || temDoc('termo_etica')),
+    );
 
     return (
         <AppShell>
@@ -147,7 +190,7 @@ export default function ProjetoForm() {
             <p className="text-on-surface-variant mb-4">Preencha os dados do projeto. Você pode salvar como rascunho e voltar depois.</p>
 
             <div className="bg-primary-fixed/40 border-l-4 border-primary rounded-r-lg p-3 mb-6 text-sm text-on-surface">
-                <strong>Status: rascunho.</strong> A submissão final (irreversível) entra na Sprint 4.
+                <strong>Status: rascunho.</strong> Para <strong>Revisar e submeter</strong>, todos os campos abaixo precisam estar preenchidos (anexos incluídos).
             </div>
 
             {alert && <div className="mb-4"><Alert>{alert}</Alert></div>}
@@ -186,7 +229,7 @@ export default function ProjetoForm() {
                             </Select>
                         </Field>
                     </div>
-                    <Field label="Palavras-chave (3 a 5)" error={err('palavras_chave')}>
+                    <Field label="Palavras-chave (3 a 5)" error={err('palavras_chave') || err('palavras_chave.0')}>
                         <KeywordsInput value={form.palavras_chave} onChange={(v) => setField('palavras_chave', v)} />
                     </Field>
                 </section>
@@ -224,44 +267,28 @@ export default function ProjetoForm() {
                     </Field>
                     <VideoPreview url={form.link_video} />
 
-                    <Field label={`Resumo do Projeto (${palavras} palavras)`} error={err('resumo')} hint="Entre 150 e 250 palavras na submissão.">
-                        <textarea
-                            value={form.resumo ?? ''}
-                            onChange={(e) => setField('resumo', e.target.value)}
-                            rows={6}
+                    <Field label={`Resumo do Projeto (${palavras} palavras)`} error={err('resumo')} hint="Entre 150 e 250 palavras.">
+                        <textarea value={form.resumo ?? ''} onChange={(e) => setField('resumo', e.target.value)} rows={6}
                             className="w-full bg-surface border border-outline-variant rounded-lg px-3 py-2.5 text-on-surface focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 outline-none resize-y"
-                            placeholder="Objetivos, metodologia e conclusões..."
-                        />
+                            placeholder="Objetivos, metodologia e conclusões..." />
                     </Field>
 
-                    <DocumentoUpload
-                        projetoId={id}
-                        tipo="plano_pesquisa"
-                        label="Projeto de Pesquisa (PDF ou DOCX)"
-                        required
-                        documentos={documentos}
-                        onChanged={reloadDocs}
-                    />
+                    <DocumentoUpload projetoId={id} tipo="plano_pesquisa" label="Projeto de Pesquisa (PDF ou DOCX)" required documentos={documentos} onChanged={reloadDocs} />
                 </section>
 
                 {/* 4. Informações Adicionais */}
                 <section className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-6 space-y-5">
                     <h3 className="font-display text-primary font-semibold border-b border-surface-variant pb-2">4. Informações Adicionais</h3>
-
                     <div className="space-y-3">
-                        <Toggle checked={!!form.continuacao} onChange={(v) => setField('continuacao', v)}
-                            label="Projeto de Continuação? (Opcional)" />
+                        <Toggle checked={!!form.continuacao} onChange={(v) => setField('continuacao', v)} label="Projeto de Continuação? (Opcional)" />
                         {form.continuacao && (
                             <div className="pl-14">
-                                <DocumentoUpload projetoId={id} tipo="projeto_continuacao"
-                                    label="Projeto de Continuação (PDF ou DOCX)" documentos={documentos} onChanged={reloadDocs} />
+                                <DocumentoUpload projetoId={id} tipo="projeto_continuacao" label="Projeto de Continuação (PDF ou DOCX)" documentos={documentos} onChanged={reloadDocs} />
                             </div>
                         )}
                     </div>
-
                     <div className="space-y-3">
-                        <Toggle checked={!!form.feira_afiliada} onChange={(v) => setField('feira_afiliada', v)}
-                            label="Participou de Feira Afiliada? (Opcional)" />
+                        <Toggle checked={!!form.feira_afiliada} onChange={(v) => setField('feira_afiliada', v)} label="Participou de Feira Afiliada? (Opcional)" />
                         {form.feira_afiliada && (
                             <div className="pl-14">
                                 <Field label="Nome da feira">
@@ -270,14 +297,11 @@ export default function ProjetoForm() {
                             </div>
                         )}
                     </div>
-
                     <div className="space-y-3">
-                        <Toggle checked={!!form.necessita_termo_etica} onChange={(v) => setField('necessita_termo_etica', v)}
-                            label="Necessita do Termo do Comitê Escolar de Ética (ANEXO V)? (Opcional)" />
+                        <Toggle checked={!!form.necessita_termo_etica} onChange={(v) => setField('necessita_termo_etica', v)} label="Necessita do Termo do Comitê Escolar de Ética (ANEXO V)? (Opcional)" />
                         {form.necessita_termo_etica && (
                             <div className="pl-14">
-                                <DocumentoUpload projetoId={id} tipo="termo_etica"
-                                    label="Termo do Comitê Escolar de Ética (PDF ou DOCX)" documentos={documentos} onChanged={reloadDocs} />
+                                <DocumentoUpload projetoId={id} tipo="termo_etica" label="Termo do Comitê Escolar de Ética (PDF ou DOCX)" documentos={documentos} onChanged={reloadDocs} />
                             </div>
                         )}
                     </div>
@@ -290,9 +314,7 @@ export default function ProjetoForm() {
                         <Input type="email" value={form.email_comunicacao ?? ''} onChange={(e) => setField('email_comunicacao', e.target.value)} error={err('email_comunicacao')} placeholder="email@instituicao.br" />
                     </Field>
                     <label className="flex items-start gap-3 cursor-pointer">
-                        <input type="checkbox" checked={!!form.declaracao_email}
-                            onChange={(e) => setField('declaracao_email', e.target.checked)}
-                            className="mt-1 w-5 h-5 rounded text-primary-container" />
+                        <input type="checkbox" checked={!!form.declaracao_email} onChange={(e) => setField('declaracao_email', e.target.checked)} className="mt-1 w-5 h-5 rounded text-primary-container" />
                         <span className="text-sm text-on-surface-variant">
                             Declaro ter lido, compreendido e estar consciente que tenho a responsabilidade de manter
                             ativo o e-mail anteriormente informado, e, em caso de problemas com acesso ao referido
@@ -308,24 +330,18 @@ export default function ProjetoForm() {
                         <span className="material-symbols-outlined text-[20px]">{!dirty && saved ? 'check' : 'save'}</span>
                         {!dirty && saved ? 'RASCUNHO SALVO' : 'SALVAR RASCUNHO'}
                     </Button>
-                    <Button
-                        variant="success"
-                        type="button"
-                        disabled={!podeSubmeter}
-                        title={motivoBloqueio || 'Revisar e submeter'}
-                        onClick={() => {
-                            if (!id) {
-                                window.alert('Salve o rascunho antes de revisar e submeter.');
-                                return;
-                            }
-                            navigate(`/projetos/${id}/resumo`);
-                        }}
-                    >
+                    <Button variant="success" type="button" loading={saving} disabled={!formularioCompleto}
+                        title={formularioCompleto ? 'Revisar e submeter' : 'Preencha todos os campos obrigatórios (e anexos) para habilitar'}
+                        onClick={revisarESubmeter}>
                         <span className="material-symbols-outlined text-[20px]">send</span>
                         REVISAR E SUBMETER
                     </Button>
                 </div>
-                {motivoBloqueio && <p className="text-right text-xs text-on-surface-variant">{motivoBloqueio}</p>}
+                {!formularioCompleto && (
+                    <p className="text-right text-xs text-on-surface-variant">
+                        Preencha todos os campos (e anexe o Projeto de Pesquisa) para habilitar a revisão/submissão. Sem isso, você ainda pode salvar o rascunho.
+                    </p>
+                )}
             </div>
         </AppShell>
     );

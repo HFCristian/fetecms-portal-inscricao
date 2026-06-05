@@ -18,6 +18,18 @@ class ProjetoRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        if (is_array($this->input('palavras_chave'))) {
+            $this->merge([
+                'palavras_chave' => array_values(array_filter(array_map(
+                    fn ($p) => trim(preg_replace('/\s+/', ' ', (string) $p)),
+                    $this->input('palavras_chave'),
+                ), fn ($p) => $p !== '')),
+            ]);
+        }
+    }
+
     public function rules(): array
     {
         return [
@@ -30,7 +42,8 @@ class ProjetoRequest extends FormRequest
             'resumo' => ['nullable', 'string', 'max:5000'],
             'link_video' => ['nullable', 'url', 'max:255'],
             'palavras_chave' => ['nullable', 'array', 'max:5'],
-            'palavras_chave.*' => ['string', 'max:60'],
+            // Cada palavra-chave deve ter de 1 a 5 palavras.
+            'palavras_chave.*' => ['string', 'max:60', 'regex:/^\S+(?:\s+\S+){0,4}$/u'],
             'pais' => ['nullable', 'string', 'max:60'],
             'estado_id' => ['nullable', 'integer', 'exists:estados,id'],
             'cidade_id' => ['nullable', 'integer', 'exists:cidades,id'],
@@ -44,6 +57,13 @@ class ProjetoRequest extends FormRequest
             'categoria_agenda_2030' => ['nullable', 'string', 'max:120'],
             'email_comunicacao' => ['nullable', 'email', 'max:255'],
             'declaracao_email' => ['sometimes', 'boolean'],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'palavras_chave.*.regex' => 'Cada palavra-chave deve ter de 1 a 5 palavras.',
         ];
     }
 }

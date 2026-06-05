@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { Field, Input, Select, Button, Alert } from '../components/ui.jsx';
 import { extractErrors } from '../lib/auth.jsx';
@@ -175,20 +175,22 @@ function CoorientadorForm({ inicial, onSubmit, onCancelar }) {
 
 export default function Integrantes() {
     const { id } = useParams();
+    const navigate = useNavigate();
     const catalogos = useCatalogos();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [erro, setErro] = useState(false);
     const [alunoForm, setAlunoForm] = useState(null);   // null | {} | aluno
     const [coorForm, setCoorForm] = useState(null);     // null | {} | coorientador
 
     const carregar = useCallback(() => {
         setLoading(true);
-        getIntegrantes(id).then(setData).finally(() => setLoading(false));
+        getIntegrantes(id).then(setData).catch(() => setErro(true)).finally(() => setLoading(false));
     }, [id]);
 
     useEffect(() => carregar(), [carregar]);
 
-    if (loading || !data) {
+    if (loading) {
         return (
             <AppShell>
                 <div className="text-center py-10 text-on-surface-variant">
@@ -198,8 +200,22 @@ export default function Integrantes() {
         );
     }
 
-    const { limites, alunos, coorientador, orientador } = data;
-    const podeAdicionarAluno = limites.categoria && limites.alunos_atual < limites.max_alunos;
+    if (erro || !data) {
+        return (
+            <AppShell>
+                <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-10 text-center max-w-lg mx-auto">
+                    <span className="material-symbols-outlined text-[48px] text-error">report</span>
+                    <h1 className="font-display text-xl font-semibold text-on-surface mt-3">Projeto não encontrado</h1>
+                    <p className="text-on-surface-variant text-sm mt-1">Este projeto não existe ou não está vinculado à sua conta.</p>
+                    <Button className="mt-6" onClick={() => navigate('/projetos')}>Voltar aos meus projetos</Button>
+                </div>
+            </AppShell>
+        );
+    }
+
+    const { projeto, limites, alunos, coorientador, orientador } = data;
+    const editavel = projeto?.editavel ?? true;
+    const podeAdicionarAluno = editavel && limites.categoria && limites.alunos_atual < limites.max_alunos;
 
     async function salvarAluno(form) {
         if (form.id) await atualizarAluno(form.id, form);
@@ -231,6 +247,10 @@ export default function Integrantes() {
             </Link>
             <h1 className="font-display text-2xl font-semibold text-primary mb-1">Integrantes</h1>
 
+            {!editavel && (
+                <div className="mb-4"><Alert type="info">Projeto submetido — os integrantes estão em modo somente leitura.</Alert></div>
+            )}
+
             {/* Limites / categoria */}
             {limites.categoria ? (
                 <p className="text-on-surface-variant mb-6">
@@ -256,11 +276,13 @@ export default function Integrantes() {
             {/* Alunos */}
             <div className="flex items-center justify-between mb-2">
                 <p className="text-sm font-semibold text-on-surface-variant">Alunos</p>
-                <Button onClick={() => setAlunoForm({})} disabled={!podeAdicionarAluno || alunoForm !== null}
-                    title={!limites.categoria ? 'Defina a categoria primeiro' : (!podeAdicionarAluno ? 'Limite atingido' : '')}>
-                    <span className="material-symbols-outlined text-[18px]">person_add</span>
-                    Adicionar aluno
-                </Button>
+                {editavel && (
+                    <Button onClick={() => setAlunoForm({})} disabled={!podeAdicionarAluno || alunoForm !== null}
+                        title={!limites.categoria ? 'Defina a categoria primeiro' : (!podeAdicionarAluno ? 'Limite atingido' : '')}>
+                        <span className="material-symbols-outlined text-[18px]">person_add</span>
+                        Adicionar aluno
+                    </Button>
+                )}
             </div>
 
             {alunoForm !== null && (
@@ -274,14 +296,15 @@ export default function Integrantes() {
                 {alunos.map((a, i) => (
                     <PessoaCard key={a.id} titulo={`Aluno ${i + 1}`} nome={a.nome}
                         meta={`${a.email}${a.camiseta ? ' · Camiseta ' + a.camiseta : ''}`}
-                        onEdit={() => setAlunoForm(a)} onRemove={() => excluirAluno(a)} />
+                        onEdit={editavel ? () => setAlunoForm(a) : undefined}
+                        onRemove={editavel ? () => excluirAluno(a) : undefined} />
                 ))}
             </div>
 
             {/* Coorientador */}
             <div className="flex items-center justify-between mb-2">
                 <p className="text-sm font-semibold text-on-surface-variant">Coorientador <span className="text-xs">(opcional, máx. 1)</span></p>
-                {!coorientador && coorForm === null && (
+                {!coorientador && coorForm === null && editavel && (
                     <Button variant="outline" onClick={() => setCoorForm({})}>
                         <span className="material-symbols-outlined text-[18px]">group_add</span>
                         Adicionar coorientador
@@ -298,7 +321,8 @@ export default function Integrantes() {
             {coorientador && coorForm === null && (
                 <PessoaCard titulo="Coorientador" nome={coorientador.nome}
                     meta={`${coorientador.email}${coorientador.telefone ? ' · ' + coorientador.telefone : ''}`}
-                    onEdit={() => setCoorForm(coorientador)} onRemove={excluirCoor} />
+                    onEdit={editavel ? () => setCoorForm(coorientador) : undefined}
+                    onRemove={editavel ? excluirCoor : undefined} />
             )}
         </AppShell>
     );
