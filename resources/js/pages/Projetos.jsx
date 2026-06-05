@@ -131,6 +131,13 @@ export default function Projetos() {
                                     <span className="material-symbols-outlined text-[16px]">edit</span>
                                     {p.status === 'rascunho' ? 'Continuar edição' : 'Ver/editar'}
                                 </button>
+                                <button
+                                    onClick={() => navigate(`/projetos/${p.id}/integrantes`)}
+                                    className="inline-flex items-center gap-1 text-sm border border-outline-variant rounded-lg px-3 py-2 hover:bg-surface-variant"
+                                >
+                                    <span className="material-symbols-outlined text-[16px]">groups</span>
+                                    Integrantes
+                                </button>
                                 {p.status === 'rascunho' && (
                                     <button
                                         onClick={() => excluir(p.id)}

@@ -7,6 +7,8 @@ use App\Enums\ProjetoStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Projeto extends Model
@@ -77,5 +79,26 @@ class Projeto extends Model
     public function cidade(): BelongsTo
     {
         return $this->belongsTo(Cidade::class);
+    }
+
+    public function alunos(): HasMany
+    {
+        return $this->hasMany(Aluno::class);
+    }
+
+    public function coorientador(): HasOne
+    {
+        return $this->hasOne(Coorientador::class);
+    }
+
+    public function documentos(): HasMany
+    {
+        return $this->hasMany(ProjetoDocumento::class);
+    }
+
+    /** Limite de alunos conforme a categoria (Jr=4, demais=3); null se sem categoria. */
+    public function maxAlunos(): ?int
+    {
+        return $this->categoria?->maxAlunos();
     }
 }

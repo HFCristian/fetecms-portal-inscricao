@@ -6,6 +6,7 @@ import KeywordsInput from '../components/KeywordsInput.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import { useCatalogos, loadSubareas, loadCidades } from '../lib/catalogos.js';
 import { criarProjeto, atualizarProjeto, obterProjeto } from '../lib/projetos.js';
+import { listarDocumentos, enviarDocumento, removerDocumento } from '../lib/documentos.js';
 
 function contarPalavras(texto) {
     return (texto || '').trim().split(/\s+/).filter(Boolean).length;
@@ -26,6 +27,10 @@ export default function ProjetoForm() {
     const [dirty, setDirty] = useState(false);   // há alteração não salva?
     const [saved, setSaved] = useState(Boolean(id)); // projeto já existe (foi salvo)?
     const [loading, setLoading] = useState(Boolean(id));
+    const [documentos, setDocumentos] = useState([]);
+    const [tipoDoc, setTipoDoc] = useState('plano_pesquisa');
+    const [uploading, setUploading] = useState(false);
+    const [uploadError, setUploadError] = useState('');
 
     const err = (name) => errors[name]?.[0];
 
@@ -47,6 +52,35 @@ export default function ProjetoForm() {
             .catch(() => setAlert('Não foi possível carregar o projeto.'))
             .finally(() => setLoading(false));
     }, [id]);
+
+    // Documentos do projeto (só existem após o projeto ter sido salvo).
+    useEffect(() => {
+        if (id) listarDocumentos(id).then(setDocumentos).catch(() => {});
+    }, [id]);
+
+    async function onUpload(e) {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setUploadError('');
+        setUploading(true);
+        try {
+            await enviarDocumento(id, file, tipoDoc);
+            setDocumentos(await listarDocumentos(id));
+        } catch (error) {
+            setUploadError(extractErrors(error).message);
+        } finally {
+            setUploading(false);
+            e.target.value = '';
+        }
+    }
+
+    async function onRemoveDoc(docId) {
+        await removerDocumento(docId);
+        setDocumentos(await listarDocumentos(id));
+    }
+
+    const formatBytes = (b) =>
+        b > 1024 * 1024 ? (b / 1024 / 1024).toFixed(1) + ' MB' : Math.round(b / 1024) + ' KB';
 
     // Marca alteração pendente e some com a confirmação de "salvo".
     const markDirty = () => {
@@ -241,6 +275,43 @@ export default function ProjetoForm() {
                     ))}
                 </section>
 
+                {/* 5. Documentos (PDF/DOCX) — disponível após salvar o projeto */}
+                {id && (
+                    <section className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-6 space-y-4">
+                        <h3 className="font-display text-primary font-semibold border-b border-surface-variant pb-2">5. Documentos (PDF ou DOCX, máx. 10 MB)</h3>
+                        {uploadError && <Alert>{uploadError}</Alert>}
+                        <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
+                            <Field label="Tipo do documento">
+                                <Select value={tipoDoc} onChange={(e) => setTipoDoc(e.target.value)}>
+                                    <option value="plano_pesquisa">Projeto de Pesquisa</option>
+                                    <option value="projeto_continuacao">Projeto de Continuação</option>
+                                    <option value="termo_etica">Termo do Comitê de Ética</option>
+                                    <option value="anexo">Anexo</option>
+                                </Select>
+                            </Field>
+                            <label className="inline-flex items-center gap-2 rounded-lg px-5 py-2.5 font-semibold border-2 border-primary-container text-primary-container hover:bg-primary-fixed cursor-pointer">
+                                <span className="material-symbols-outlined text-[20px]">upload_file</span>
+                                {uploading ? 'Enviando…' : 'Enviar arquivo'}
+                                <input type="file" accept=".pdf,.docx" className="sr-only" onChange={onUpload} disabled={uploading} />
+                            </label>
+                        </div>
+                        <ul className="divide-y divide-outline-variant/30">
+                            {documentos.length === 0 && <li className="text-sm text-on-surface-variant py-2">Nenhum documento enviado.</li>}
+                            {documentos.map((d) => (
+                                <li key={d.id} className="flex items-center gap-3 py-2">
+                                    <span className="material-symbols-outlined text-primary-container">description</span>
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-sm font-semibold text-on-surface truncate">{d.nome_original}</p>
+                                        <p className="text-xs text-on-surface-variant">{d.tipo_label} · {formatBytes(d.tamanho_bytes)}</p>
+                                    </div>
+                                    <a href={d.download_url} target="_blank" rel="noreferrer" className="text-sm text-primary-container hover:underline">Baixar</a>
+                                    <button type="button" onClick={() => onRemoveDoc(d.id)} className="text-sm text-error hover:underline">Remover</button>
+                                </li>
+                            ))}
+                        </ul>
+                    </section>
+                )}
+
                 {/* Ações */}
                 <div className="flex flex-col sm:flex-row justify-end gap-3 pt-2">
                     <Button variant="outline" onClick={() => navigate('/projetos')} type="button">
@@ -252,11 +323,22 @@ export default function ProjetoForm() {
                         </span>
                         {!dirty && saved ? 'RASCUNHO SALVO' : 'SALVAR RASCUNHO'}
                     </Button>
-                    <Button variant="success" type="button" disabled title="Submissão na Sprint 4">
+                    <Button
+                        variant="success"
+                        type="button"
+                        disabled={!form.categoria}
+                        title={!form.categoria ? 'Defina a categoria do projeto para habilitar' : 'Submissão final na Sprint 4'}
+                        onClick={() => window.alert('Categoria definida ✓. A revisão e a submissão final (irreversível) serão habilitadas na Sprint 4.')}
+                    >
                         <span className="material-symbols-outlined text-[20px]">send</span>
-                        SUBMETER (Sprint 4)
+                        SUBMETER
                     </Button>
                 </div>
+                {!form.categoria && (
+                    <p className="text-right text-xs text-on-surface-variant">
+                        Defina a <strong>categoria</strong> (seção 1) para habilitar a submissão.
+                    </p>
+                )}
             </div>
         </AppShell>
     );

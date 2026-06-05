@@ -7,6 +7,7 @@ import Cadastro from './pages/Cadastro.jsx';
 import EmBreve from './pages/EmBreve.jsx';
 import Projetos from './pages/Projetos.jsx';
 import ProjetoForm from './pages/ProjetoForm.jsx';
+import Integrantes from './pages/Integrantes.jsx';
 import Perfil from './pages/Perfil.jsx';
 
 function Spinner() {
@@ -40,6 +41,7 @@ export default function Root() {
                         <Route path="/projetos" element={<Projetos />} />
                         <Route path="/projetos/novo" element={<ProjetoForm />} />
                         <Route path="/projetos/:id/editar" element={<ProjetoForm />} />
+                        <Route path="/projetos/:id/integrantes" element={<Integrantes />} />
                         <Route path="/perfil" element={<Perfil />} />
                     </Route>
 

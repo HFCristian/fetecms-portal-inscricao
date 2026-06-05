@@ -1,7 +1,11 @@
 <?php
 
+use App\Http\Controllers\Api\V1\AlunoController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\CatalogoController;
+use App\Http\Controllers\Api\V1\CoorientadorController;
+use App\Http\Controllers\Api\V1\DocumentoController;
+use App\Http\Controllers\Api\V1\IntegranteController;
 use App\Http\Controllers\Api\V1\OrientadorController;
 use App\Http\Controllers\Api\V1\PerfilController;
 use App\Http\Controllers\Api\V1\ProjetoController;
@@ -46,5 +50,18 @@ Route::prefix('v1')->group(function () {
         Route::put('/perfil', [PerfilController::class, 'update']);
 
         Route::apiResource('projetos', ProjetoController::class);
+
+        // Integrantes do projeto (E4)
+        Route::get('projetos/{projeto}/integrantes', [IntegranteController::class, 'index']);
+        Route::apiResource('projetos.alunos', AlunoController::class)->shallow();
+        Route::get('projetos/{projeto}/coorientador', [CoorientadorController::class, 'show']);
+        Route::put('projetos/{projeto}/coorientador', [CoorientadorController::class, 'upsert']);
+        Route::delete('projetos/{projeto}/coorientador', [CoorientadorController::class, 'destroy']);
+
+        // Documentos do projeto (E5) — upload PDF/DOCX, download autenticado
+        Route::get('projetos/{projeto}/documentos', [DocumentoController::class, 'index']);
+        Route::post('projetos/{projeto}/documentos', [DocumentoController::class, 'store']);
+        Route::get('documentos/{documento}/download', [DocumentoController::class, 'download']);
+        Route::delete('documentos/{documento}', [DocumentoController::class, 'destroy']);
     });
 });
