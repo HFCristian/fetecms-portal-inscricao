@@ -133,15 +133,22 @@ export default function Resumo() {
 
             {/* Ações */}
             <div className="flex flex-col sm:flex-row justify-between gap-3">
-                <Button variant="outline" type="button" onClick={() => navigate(`/projetos/${id}/editar`)}>
-                    Voltar e editar
-                </Button>
-                {!jaSubmetido && (
-                    <Button variant="success" type="button" loading={submitting} disabled={!pode_submeter} onClick={confirmar}
-                        title={pode_submeter ? '' : 'Resolva as pendências do checklist'}>
-                        <span className="material-symbols-outlined text-[20px]">verified</span>
-                        CONFIRMAR SUBMISSÃO
+                {jaSubmetido ? (
+                    <Button variant="outline" type="button" onClick={() => navigate('/projetos')}>
+                        <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+                        Voltar aos meus projetos
                     </Button>
+                ) : (
+                    <>
+                        <Button variant="outline" type="button" onClick={() => navigate(`/projetos/${id}/editar`)}>
+                            Voltar e editar
+                        </Button>
+                        <Button variant="success" type="button" loading={submitting} disabled={!pode_submeter} onClick={confirmar}
+                            title={pode_submeter ? '' : 'Resolva as pendências do checklist'}>
+                            <span className="material-symbols-outlined text-[20px]">verified</span>
+                            CONFIRMAR SUBMISSÃO
+                        </Button>
+                    </>
                 )}
             </div>
         </AppShell>
