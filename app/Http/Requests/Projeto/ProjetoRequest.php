@@ -47,6 +47,8 @@ class ProjetoRequest extends FormRequest
             'pais' => ['nullable', 'string', 'max:60'],
             'estado_id' => ['nullable', 'integer', 'exists:estados,id'],
             'cidade_id' => ['nullable', 'integer', 'exists:cidades,id'],
+            'estado_nome' => ['nullable', 'string', 'max:120'],
+            'cidade_nome' => ['nullable', 'string', 'max:120'],
             'continuacao' => ['sometimes', 'boolean'],
             'tempo_pesquisa_meses' => ['nullable', 'integer', 'min:1', 'max:600'],
             'feira_afiliada' => ['sometimes', 'boolean'],

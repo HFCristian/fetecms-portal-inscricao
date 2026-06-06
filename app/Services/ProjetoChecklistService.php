@@ -13,6 +13,7 @@ use App\Models\Projeto;
 class ProjetoChecklistService
 {
     private const RESUMO_MIN = 150;
+
     private const RESUMO_MAX = 250;
 
     /** @return array<int, array{code: string, message: string}> */
@@ -50,11 +51,21 @@ class ProjetoChecklistService
         if (blank($projeto->pais)) {
             $falta('PAIS', 'Informe o país.');
         }
-        if (! $projeto->estado_id) {
-            $falta('ESTADO', 'Selecione o estado.');
-        }
-        if (! $projeto->cidade_id) {
-            $falta('CIDADE', 'Selecione a cidade.');
+        // Brasil usa catálogo (IDs); outros países usam texto livre.
+        if ($projeto->pais === 'BR') {
+            if (! $projeto->estado_id) {
+                $falta('ESTADO', 'Selecione o estado.');
+            }
+            if (! $projeto->cidade_id) {
+                $falta('CIDADE', 'Selecione a cidade.');
+            }
+        } else {
+            if (blank($projeto->estado_nome)) {
+                $falta('ESTADO', 'Informe o estado/província.');
+            }
+            if (blank($projeto->cidade_nome)) {
+                $falta('CIDADE', 'Informe a cidade.');
+            }
         }
 
         // Seção 3 — Conteúdo e arquivos
@@ -88,8 +99,13 @@ class ProjetoChecklistService
         }
 
         // Seção 4 — Condicionais (só obrigatórios quando o toggle está marcado)
-        if ($projeto->continuacao && ! $this->temDocumento($projeto, 'projeto_continuacao')) {
-            $falta('CONTINUACAO_DOC', 'Anexe o documento do Projeto de Continuação.');
+        if ($projeto->continuacao) {
+            if (! $this->temDocumento($projeto, 'projeto_continuacao')) {
+                $falta('CONTINUACAO_DOC', 'Anexe o documento do Projeto de Continuação.');
+            }
+            if (! $projeto->tempo_pesquisa_meses) {
+                $falta('CONTINUACAO_MESES', 'Informe o tempo de pesquisa (em meses) do Projeto de Continuação.');
+            }
         }
         if ($projeto->feira_afiliada && blank($projeto->feira_afiliada_nome)) {
             $falta('FEIRA_NOME', 'Informe o nome da feira afiliada.');

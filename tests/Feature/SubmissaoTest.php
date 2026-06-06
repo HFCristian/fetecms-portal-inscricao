@@ -113,6 +113,46 @@ class SubmissaoTest extends TestCase
             ->assertJsonFragment(['code' => 'CONTINUACAO_DOC']);
     }
 
+    public function test_projeto_fora_do_brasil_usa_estado_e_cidade_em_texto(): void
+    {
+        $user = User::factory()->create();
+        $projeto = $this->projetoCompleto($user, [
+            'pais' => 'AR', 'estado_id' => null, 'cidade_id' => null,
+            'estado_nome' => 'Buenos Aires', 'cidade_nome' => 'La Plata',
+        ]);
+        Sanctum::actingAs($user);
+
+        $this->getJson("/api/v1/projetos/{$projeto->id}/resumo")
+            ->assertOk()->assertJsonPath('data.pode_submeter', true);
+    }
+
+    public function test_fora_do_brasil_sem_estado_texto_gera_pendencia(): void
+    {
+        $user = User::factory()->create();
+        $projeto = $this->projetoCompleto($user, [
+            'pais' => 'AR', 'estado_id' => null, 'cidade_id' => null,
+            'estado_nome' => null, 'cidade_nome' => 'La Plata',
+        ]);
+        Sanctum::actingAs($user);
+
+        $this->postJson("/api/v1/projetos/{$projeto->id}/submeter")
+            ->assertStatus(422)->assertJsonFragment(['code' => 'ESTADO']);
+    }
+
+    public function test_continuacao_exige_tempo_de_pesquisa_em_meses(): void
+    {
+        $user = User::factory()->create();
+        $projeto = $this->projetoCompleto($user, ['continuacao' => true, 'tempo_pesquisa_meses' => null]);
+        ProjetoDocumento::factory()->create([
+            'projeto_id' => $projeto->id, 'tipo' => TipoDocumento::ProjetoContinuacao,
+        ]);
+        Sanctum::actingAs($user);
+
+        // Tem o documento de continuação, mas falta o tempo em meses.
+        $this->postJson("/api/v1/projetos/{$projeto->id}/submeter")
+            ->assertStatus(422)->assertJsonFragment(['code' => 'CONTINUACAO_MESES']);
+    }
+
     public function test_submissao_e_idempotente(): void
     {
         $user = User::factory()->create();

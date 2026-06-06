@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\Categoria;
 use App\Enums\ProjetoStatus;
+use Database\Factories\ProjetoFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -13,7 +14,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Projeto extends Model
 {
-    /** @use HasFactory<\Database\Factories\ProjetoFactory> */
+    /** @use HasFactory<ProjetoFactory> */
     use HasFactory, SoftDeletes;
 
     protected $table = 'projetos';
@@ -27,7 +28,7 @@ class Projeto extends Model
     protected $fillable = [
         'user_id', 'edicao_id', 'titulo', 'categoria', 'instituicao_id', 'area_id',
         'subarea_id', 'resumo', 'link_video', 'palavras_chave', 'pais', 'estado_id',
-        'cidade_id', 'continuacao', 'tempo_pesquisa_meses', 'feira_afiliada',
+        'cidade_id', 'estado_nome', 'cidade_nome', 'continuacao', 'tempo_pesquisa_meses', 'feira_afiliada',
         'feira_afiliada_nome', 'necessita_termo_etica', 'numero_credencial', 'agenda_2030',
         'categoria_agenda_2030', 'email_comunicacao', 'declaracao_email',
         'status', 'submitted_at',

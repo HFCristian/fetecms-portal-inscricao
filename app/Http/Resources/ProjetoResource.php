@@ -2,10 +2,11 @@
 
 namespace App\Http\Resources;
 
+use App\Models\Projeto;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-/** @mixin \App\Models\Projeto */
+/** @mixin Projeto */
 class ProjetoResource extends JsonResource
 {
     public function toArray(Request $request): array
@@ -29,6 +30,8 @@ class ProjetoResource extends JsonResource
             'pais' => $this->pais,
             'estado_id' => $this->estado_id,
             'cidade_id' => $this->cidade_id,
+            'estado_nome' => $this->estado_nome,
+            'cidade_nome' => $this->cidade_nome,
             'continuacao' => $this->continuacao,
             'tempo_pesquisa_meses' => $this->tempo_pesquisa_meses,
             'feira_afiliada' => $this->feira_afiliada,

@@ -3,6 +3,9 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth, extractErrors, homeFor } from '../lib/auth.jsx';
 import AuthCard from '../components/AuthCard.jsx';
 import { Field, Input, Select, Button, Alert } from '../components/ui.jsx';
+import { listaPaises } from '../lib/paises.js';
+
+const PAISES = listaPaises();
 
 const STEPS = ['Dados Pessoais', 'Info. Acadêmicas', 'Endereço'];
 
@@ -250,8 +253,7 @@ export default function Cadastro() {
                             </div>
                             <Field label="País">
                                 <Select value={form.pais ?? 'BR'} onChange={set('pais')}>
-                                    <option value="BR">Brasil</option>
-                                    <option value="OUTRO">Outro</option>
+                                    {PAISES.map((p) => <option key={p.code} value={p.code}>{p.nome}</option>)}
                                 </Select>
                             </Field>
                             <Field label="Estado">

@@ -52,11 +52,17 @@ export default function DocumentoUpload({ projetoId, tipo, label, required, docu
                 <div className="mt-2 space-y-3">
                     {error && <Alert>{error}</Alert>}
 
-                    <label className="inline-flex items-center gap-2 rounded-lg px-4 py-2 font-semibold border-2 border-primary-container text-primary-container hover:bg-primary-fixed cursor-pointer text-sm">
-                        <span className="material-symbols-outlined text-[18px]">upload_file</span>
-                        {uploading ? 'Enviando…' : (docs.length ? 'Enviar outro arquivo' : 'Selecionar PDF ou DOCX')}
-                        <input type="file" accept=".pdf,.docx" className="sr-only" onChange={onUpload} disabled={uploading} />
-                    </label>
+                    {/* Apenas 1 documento por campo: o botão some quando já há um anexo. */}
+                    {docs.length === 0 && (
+                        <label className="inline-flex items-center gap-2 rounded-lg px-4 py-2 font-semibold border-2 border-primary-container text-primary-container hover:bg-primary-fixed cursor-pointer text-sm">
+                            <span className="material-symbols-outlined text-[18px]">upload_file</span>
+                            {uploading ? 'Enviando…' : 'Selecionar PDF ou DOCX'}
+                            <input type="file" accept=".pdf,.docx" className="sr-only" onChange={onUpload} disabled={uploading} />
+                        </label>
+                    )}
+                    {docs.length > 0 && (
+                        <p className="text-xs text-on-surface-variant">Remova o arquivo atual para enviar outro.</p>
+                    )}
 
                     {docs.map((d) => (
                         <div key={d.id} className="rounded-lg border border-outline-variant overflow-hidden">

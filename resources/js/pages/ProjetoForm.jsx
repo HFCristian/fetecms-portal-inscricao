@@ -9,6 +9,18 @@ import { extractErrors } from '../lib/auth.jsx';
 import { useCatalogos, loadSubareas, loadCidades } from '../lib/catalogos.js';
 import { criarProjeto, atualizarProjeto, obterProjeto } from '../lib/projetos.js';
 import { listarDocumentos } from '../lib/documentos.js';
+import { listaPaises } from '../lib/paises.js';
+
+const PAISES = listaPaises();
+
+function Aviso({ children }) {
+    return (
+        <div className="flex gap-2 rounded-lg p-3 text-sm bg-amber-50 text-amber-900 border border-amber-300">
+            <span className="material-symbols-outlined text-[20px] shrink-0">info</span>
+            <div className="space-y-1">{children}</div>
+        </div>
+    );
+}
 
 const contarPalavras = (t) => (t || '').trim().split(/\s+/).filter(Boolean).length;
 const videoValido = (url) =>
@@ -53,8 +65,11 @@ export default function ProjetoForm() {
                     titulo: p.titulo ?? '', categoria: p.categoria ?? '', instituicao_id: p.instituicao_id ?? '',
                     area_id: p.area_id ?? '', subarea_id: p.subarea_id ?? '', resumo: p.resumo ?? '',
                     link_video: p.link_video ?? '', palavras_chave: p.palavras_chave ?? [], pais: p.pais ?? 'BR',
-                    estado_id: p.estado_id ?? '', cidade_id: p.cidade_id ?? '', email_comunicacao: p.email_comunicacao ?? '',
-                    continuacao: p.continuacao, feira_afiliada: p.feira_afiliada, feira_afiliada_nome: p.feira_afiliada_nome ?? '',
+                    estado_id: p.estado_id ?? '', cidade_id: p.cidade_id ?? '',
+                    estado_nome: p.estado_nome ?? '', cidade_nome: p.cidade_nome ?? '',
+                    email_comunicacao: p.email_comunicacao ?? '',
+                    continuacao: p.continuacao, tempo_pesquisa_meses: p.tempo_pesquisa_meses ?? '',
+                    feira_afiliada: p.feira_afiliada, feira_afiliada_nome: p.feira_afiliada_nome ?? '',
                     necessita_termo_etica: p.necessita_termo_etica, declaracao_email: p.declaracao_email,
                 });
                 if (p.area_id) loadSubareas(p.area_id).then(setSubareas);
@@ -80,16 +95,33 @@ export default function ProjetoForm() {
         markDirty();
         setCidades(estadoId ? await loadCidades(estadoId) : []);
     }
+    // Ao trocar Brasil <-> exterior, limpa os campos de localização do outro modo.
+    function onPaisChange(pais) {
+        setForm((f) => ({
+            ...f,
+            pais,
+            ...(pais === 'BR' ? { estado_nome: '', cidade_nome: '' } : { estado_id: '', cidade_id: '' }),
+        }));
+        markDirty();
+        if (pais !== 'BR') setCidades([]);
+    }
 
     const buildPayload = useCallback(() => {
         const num = (v) => (v === '' || v == null ? null : Number(v));
+        const ehBR = (form.pais || 'BR') === 'BR';
         return {
             titulo: form.titulo || null, categoria: form.categoria || null,
             instituicao_id: num(form.instituicao_id), area_id: num(form.area_id), subarea_id: num(form.subarea_id),
             palavras_chave: form.palavras_chave, pais: form.pais || 'BR',
-            estado_id: num(form.estado_id), cidade_id: num(form.cidade_id),
+            // Brasil usa catálogo (IDs); exterior usa texto livre.
+            estado_id: ehBR ? num(form.estado_id) : null,
+            cidade_id: ehBR ? num(form.cidade_id) : null,
+            estado_nome: ehBR ? null : (form.estado_nome || null),
+            cidade_nome: ehBR ? null : (form.cidade_nome || null),
             link_video: form.link_video || null, resumo: form.resumo || null,
-            continuacao: !!form.continuacao, feira_afiliada: !!form.feira_afiliada,
+            continuacao: !!form.continuacao,
+            tempo_pesquisa_meses: form.continuacao && form.tempo_pesquisa_meses ? Number(form.tempo_pesquisa_meses) : null,
+            feira_afiliada: !!form.feira_afiliada,
             feira_afiliada_nome: form.feira_afiliada ? (form.feira_afiliada_nome || null) : null,
             necessita_termo_etica: !!form.necessita_termo_etica,
             email_comunicacao: form.email_comunicacao || null, declaracao_email: !!form.declaracao_email,
@@ -167,15 +199,19 @@ export default function ProjetoForm() {
     const palavras = contarPalavras(form.resumo);
     const temDoc = (tipo) => documentos.some((d) => d.tipo === tipo);
     const kw = form.palavras_chave || [];
+    const ehBR = (form.pais || 'BR') === 'BR';
+    const localizacaoOk = ehBR
+        ? Boolean(form.estado_id && form.cidade_id)
+        : Boolean(form.estado_nome?.trim() && form.cidade_nome?.trim());
     const formularioCompleto = Boolean(
         form.titulo && form.instituicao_id && form.categoria && form.area_id && form.subarea_id &&
         kw.length >= 3 && kw.length <= 5 &&
-        form.pais && form.estado_id && form.cidade_id &&
+        form.pais && localizacaoOk &&
         videoValido(form.link_video) &&
         palavras >= 150 && palavras <= 250 &&
         form.email_comunicacao && form.declaracao_email &&
         temDoc('plano_pesquisa') &&
-        (!form.continuacao || temDoc('projeto_continuacao')) &&
+        (!form.continuacao || (temDoc('projeto_continuacao') && form.tempo_pesquisa_meses)) &&
         (!form.feira_afiliada || (form.feira_afiliada_nome && form.feira_afiliada_nome.trim())) &&
         (!form.necessita_termo_etica || temDoc('termo_etica')),
     );
@@ -222,12 +258,14 @@ export default function ProjetoForm() {
                                 {catalogos.areas.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
                             </Select>
                         </Field>
-                        <Field label="Subárea">
-                            <Select value={form.subarea_id ?? ''} onChange={(e) => setField('subarea_id', e.target.value)} disabled={!form.area_id}>
-                                <option value="">{form.area_id ? 'Selecione' : 'Escolha a área primeiro'}</option>
-                                {subareas.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
-                            </Select>
-                        </Field>
+                        <div className='md:col-span-2'>
+                            <Field label="Subárea">
+                                <Select value={form.subarea_id ?? ''} onChange={(e) => setField('subarea_id', e.target.value)} disabled={!form.area_id}>
+                                    <option value="">{form.area_id ? 'Selecione' : 'Escolha a área primeiro'}</option>
+                                    {subareas.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
+                                </Select>
+                            </Field>
+                        </div>
                     </div>
                     <Field label="Palavras-chave (3 a 5)" error={err('palavras_chave') || err('palavras_chave.0')}>
                         <KeywordsInput value={form.palavras_chave} onChange={(v) => setField('palavras_chave', v)} />
@@ -239,23 +277,35 @@ export default function ProjetoForm() {
                     <h3 className="font-display text-primary font-semibold border-b border-surface-variant pb-2">2. Localização</h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <Field label="País">
-                            <Select value={form.pais ?? 'BR'} onChange={(e) => setField('pais', e.target.value)}>
-                                <option value="BR">Brasil</option>
-                                <option value="OUTRO">Outro</option>
+                            <Select value={form.pais ?? 'BR'} onChange={(e) => onPaisChange(e.target.value)}>
+                                {PAISES.map((p) => <option key={p.code} value={p.code}>{p.nome}</option>)}
                             </Select>
                         </Field>
-                        <Field label="Estado">
-                            <Select value={form.estado_id ?? ''} onChange={(e) => onEstadoChange(e.target.value)}>
-                                <option value="">Selecione</option>
-                                {catalogos.estados.map((e) => <option key={e.id} value={e.id}>{e.nome} ({e.uf})</option>)}
-                            </Select>
-                        </Field>
-                        <Field label="Cidade">
-                            <Select value={form.cidade_id ?? ''} onChange={(e) => setField('cidade_id', e.target.value)} disabled={!form.estado_id}>
-                                <option value="">{form.estado_id ? 'Selecione' : 'Escolha o estado primeiro'}</option>
-                                {cidades.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                            </Select>
-                        </Field>
+                        {ehBR ? (
+                            <>
+                                <Field label="Estado">
+                                    <Select value={form.estado_id ?? ''} onChange={(e) => onEstadoChange(e.target.value)}>
+                                        <option value="">Selecione</option>
+                                        {catalogos.estados.map((e) => <option key={e.id} value={e.id}>{e.nome} ({e.uf})</option>)}
+                                    </Select>
+                                </Field>
+                                <Field label="Cidade">
+                                    <Select value={form.cidade_id ?? ''} onChange={(e) => setField('cidade_id', e.target.value)} disabled={!form.estado_id}>
+                                        <option value="">{form.estado_id ? 'Selecione' : 'Escolha o estado primeiro'}</option>
+                                        {cidades.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                                    </Select>
+                                </Field>
+                            </>
+                        ) : (
+                            <>
+                                <Field label="Estado/Província">
+                                    <Input value={form.estado_nome ?? ''} onChange={(e) => setField('estado_nome', e.target.value)} placeholder="Ex: Buenos Aires" />
+                                </Field>
+                                <Field label="Cidade">
+                                    <Input value={form.cidade_nome ?? ''} onChange={(e) => setField('cidade_nome', e.target.value)} placeholder="Ex: La Plata" />
+                                </Field>
+                            </>
+                        )}
                     </div>
                 </section>
 
@@ -281,8 +331,20 @@ export default function ProjetoForm() {
                     <h3 className="font-display text-primary font-semibold border-b border-surface-variant pb-2">4. Informações Adicionais</h3>
                     <div className="space-y-3">
                         <Toggle checked={!!form.continuacao} onChange={(v) => setField('continuacao', v)} label="Projeto de Continuação? (Opcional)" />
+                        <Aviso>
+                            <p>Devem responder <strong>“Sim”</strong> os projetos científicos que:</p>
+                            <ul className="list-disc pl-5">
+                                <li>Tenham sido desenvolvidos a partir de pesquisas anteriores de outra equipe, na mesma área do conhecimento ou com a mesma base teórica;</li>
+                                <li>Tenham sido submetidos em edições anteriores da FETECMS, mesmo que não apresentados presencialmente;</li>
+                                <li>Possuam duração superior a 12 meses e, portanto, estejam divididos em fases ou etapas de até 12 meses cada.</li>
+                            </ul>
+                            <p>Antes de responder, leia atentamente o item 7.9 do edital para verificar se o projeto se enquadra nos critérios de Projeto de Continuidade e necessita da documentação específica correspondente.</p>
+                        </Aviso>
                         {form.continuacao && (
-                            <div className="pl-14">
+                            <div className="pl-14 space-y-4">
+                                <Field label="Tempo de Pesquisa (meses)" error={err('tempo_pesquisa_meses')}>
+                                    <Input type="number" min="1" value={form.tempo_pesquisa_meses ?? ''} onChange={(e) => setField('tempo_pesquisa_meses', e.target.value)} error={err('tempo_pesquisa_meses')} placeholder="Ex: 18" />
+                                </Field>
                                 <DocumentoUpload projetoId={id} tipo="projeto_continuacao" label="Projeto de Continuação (PDF ou DOCX)" documentos={documentos} onChanged={reloadDocs} />
                             </div>
                         )}
@@ -299,6 +361,18 @@ export default function ProjetoForm() {
                     </div>
                     <div className="space-y-3">
                         <Toggle checked={!!form.necessita_termo_etica} onChange={(v) => setField('necessita_termo_etica', v)} label="Necessita do Termo do Comitê Escolar de Ética (ANEXO V)? (Opcional)" />
+                        <Aviso>
+                            <p>Devem responder <strong>“Sim”</strong> os projetos científicos que envolvam:</p>
+                            <ul className="list-disc pl-5">
+                                <li>Participação de seres humanos;</li>
+                                <li>Utilização de animais vertebrados;</li>
+                                <li>Agentes biológicos perigosos ou não;</li>
+                                <li>Substâncias controladas;</li>
+                                <li>Atividades de risco;</li>
+                                <li>Materiais, procedimentos ou experimentos enquadrados em qualquer pictograma de perigo.</li>
+                            </ul>
+                            <p>Antes de responder, leia atentamente o item 7.11 do edital para verificar se o projeto se enquadra nas exigências éticas e de biossegurança.</p>
+                        </Aviso>
                         {form.necessita_termo_etica && (
                             <div className="pl-14">
                                 <DocumentoUpload projetoId={id} tipo="termo_etica" label="Termo do Comitê Escolar de Ética (PDF ou DOCX)" documentos={documentos} onChanged={reloadDocs} />
