@@ -11,14 +11,18 @@ export default function AuthCard({ children }) {
                         <h1 className="font-display text-4xl font-bold text-on-surface leading-tight mt-2">
                             Portal do<br />Orientador
                         </h1>
+                        <img
+                            src="/img/logo2026slogan.png"
+                            alt="Logo XVI FETECMS"
+                            className="mt-6 w-full max-w-[260px] h-auto object-contain drop-shadow-md"
+                        />
                     </div>
                     <div className="relative z-10 mt-auto">
                         <p className="font-display text-lg font-semibold text-primary-container border-l-4 border-secondary pl-4 py-1">
                             A CIÊNCIA É A PONTE PARA O FUTURO.
                         </p>
                         <p className="text-sm text-on-surface-variant mt-3 max-w-[90%]">
-                            Gerencie seus projetos, integrantes e inscrições da feira de
-                            ciência e tecnologia do Mato Grosso do Sul.
+                            Acesse sua conta para gerenciar projetos, integrantes e inscrições.
                         </p>
                     </div>
                 </aside>
