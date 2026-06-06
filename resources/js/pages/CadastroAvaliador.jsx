@@ -55,17 +55,13 @@ export default function CadastroAvaliador() {
                         <Input value={form.name ?? ''} onChange={set('name')} error={err('name')} />
                     </Field>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="md:col-span-2">
                         <Field label="E-mail" required error={err('email')}>
                             <Input type="email" value={form.email ?? ''} onChange={set('email')} error={err('email')} />
                         </Field>
+                        </div>
                         <Field label="CPF" required error={err('cpf')}>
                             <Input value={form.cpf ?? ''} onChange={set('cpf')} error={err('cpf')} placeholder="000.000.000-00" />
-                        </Field>
-                        <Field label="Senha" required error={err('password')} hint="Mínimo de 8 caracteres.">
-                            <Input type="password" value={form.password ?? ''} onChange={set('password')} error={err('password')} />
-                        </Field>
-                        <Field label="Confirmar Senha" required>
-                            <Input type="password" value={form.password_confirmation ?? ''} onChange={set('password_confirmation')} />
                         </Field>
                         <Field label="Titulação">
                             <Select value={form.titulacao ?? ''} onChange={set('titulacao')}>
@@ -76,17 +72,27 @@ export default function CadastroAvaliador() {
                                 <option value="Doutorado">Doutorado</option>
                             </Select>
                         </Field>
-                        <Field label="Área de Atuação" required error={err('area_id')}>
-                            <Select value={form.area_id ?? ''} onChange={(e) => onAreaChange(e.target.value)} error={err('area_id')}>
-                                <option value="">Selecione</option>
-                                {catalogos.areas.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
-                            </Select>
+                        <div className="md:col-span-2">
+                            <Field label="Área de Atuação" required error={err('area_id')}>
+                                <Select value={form.area_id ?? ''} onChange={(e) => onAreaChange(e.target.value)} error={err('area_id')}>
+                                    <option value="">Selecione</option>
+                                    {catalogos.areas.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
+                                </Select>
+                            </Field>
+                        </div>
+                        <div className="md:col-span-2">
+                            <Field label="Subárea (preferencial para o match)">
+                                <Select value={form.subarea_id ?? ''} onChange={set('subarea_id')} disabled={!form.area_id}>
+                                    <option value="">{form.area_id ? 'Selecione' : 'Escolha a área primeiro'}</option>
+                                    {subareas.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
+                                </Select>
+                            </Field>
+                        </div>
+                        <Field label="Senha" required error={err('password')} hint="Mínimo de 8 caracteres.">
+                            <Input type="password" value={form.password ?? ''} onChange={set('password')} error={err('password')} />
                         </Field>
-                        <Field label="Subárea (preferencial para o match)">
-                            <Select value={form.subarea_id ?? ''} onChange={set('subarea_id')} disabled={!form.area_id}>
-                                <option value="">{form.area_id ? 'Selecione' : 'Escolha a área primeiro'}</option>
-                                {subareas.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
-                            </Select>
+                        <Field label="Confirmar Senha" required>
+                            <Input type="password" value={form.password_confirmation ?? ''} onChange={set('password_confirmation')} />
                         </Field>
                     </div>
 

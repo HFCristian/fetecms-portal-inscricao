@@ -54,7 +54,11 @@
 
 /* Fundo em gradiente usado nas telas de autenticação (login/cadastro). */
 .fetec-gradient-bg {
-    background: linear-gradient(135deg, #eddcff 0%, #f8f9fa 45%, #d6f5da 100%);
+    background: linear-gradient(135deg, var(--color-primary-container) 0%, #007B24 100%);
+}
+
+.fetec-auth-card-gradient-bg {
+    background: linear-gradient(135deg, #ddc9f1 10%, #f8f9fa 50%, #abdbb1 100%);
 }
 
 .fetec-card-shadow {

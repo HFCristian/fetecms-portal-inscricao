@@ -1,20 +1,20 @@
 export default function AuthCard({ children }) {
     return (
         <main className="fetec-gradient-bg min-h-screen flex items-center justify-center p-4 sm:p-6 md:p-10">
-            <div className="w-full max-w-5xl bg-surface-container-lowest rounded-xl fetec-card-shadow overflow-hidden flex flex-col lg:flex-row">
+            <div className="w-full max-w-4xl bg-surface-container-lowest rounded-xl fetec-card-shadow overflow-hidden flex flex-col lg:flex-row">
                 {/* Painel lateral de marca (desktop) */}
-                <aside className="hidden lg:flex lg:w-5/12 bg-surface-container-low flex-col justify-between p-10 relative overflow-hidden border-r border-outline-variant/30">
+                <aside className="fetec-auth-card-gradient-bg hidden lg:flex lg:w-5/12 flex-col justify-between p-10 relative overflow-hidden border-r border-outline-variant/30">
                     <div className="relative z-10">
                         <span className="text-sm font-semibold tracking-wider uppercase text-primary-container">
                             XVI FETECMS
                         </span>
-                        <h1 className="font-display text-4xl font-bold text-on-surface leading-tight mt-2">
-                            Portal do<br />Orientador
+                        <h1 className="font-display text-5xl font-bold text-on-surface leading-tight mt-2">
+                            Portal do Orientador
                         </h1>
                         <img
                             src="/img/logo2026slogan.png"
                             alt="Logo XVI FETECMS"
-                            className="mt-6 w-full max-w-[260px] h-auto object-contain drop-shadow-md"
+                            className="my-6 mx-auto w-full max-w-[260px] h-auto object-contain drop-shadow-md"
                         />
                     </div>
                     <div className="relative z-10 mt-auto">
