@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\AdminController;
 use App\Http\Controllers\Api\V1\AlunoController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\AvaliadorController;
@@ -21,7 +22,7 @@ use Illuminate\Support\Facades\Route;
 | token Bearer na mesma API. Regra de negócio nos Services.
 */
 
-Route::prefix('v1')->group(function () {
+Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
     Route::get('/health', fn () => response()->json([
         'data' => ['status' => 'ok', 'service' => 'fetecms-api'],
     ]));
@@ -73,5 +74,11 @@ Route::prefix('v1')->group(function () {
         Route::get('documentos/{documento}/download', [DocumentoController::class, 'download']);
         Route::get('documentos/{documento}/preview', [DocumentoController::class, 'preview']);
         Route::delete('documentos/{documento}', [DocumentoController::class, 'destroy']);
+
+        // Administração (E8) — somente admin
+        Route::prefix('admin')->middleware('role:admin')->group(function () {
+            Route::get('/dashboard', [AdminController::class, 'dashboard']);
+            Route::post('/admins', [AdminController::class, 'store']);
+        });
     });
 });

@@ -28,7 +28,12 @@ export default function AppShell({ children }) {
                     <p className="text-sm text-on-surface-variant">XVI FETECMS</p>
                 </div>
                 <div className="flex-1 flex flex-col gap-1">
-                    {user?.role === 'avaliador' ? (
+                    {user?.role === 'admin' ? (
+                        <NavLink to="/admin" className={navClass}>
+                            <span className="material-symbols-outlined">dashboard</span>
+                            Dashboard
+                        </NavLink>
+                    ) : user?.role === 'avaliador' ? (
                         <NavLink to="/avaliador" className={navClass}>
                             <span className="material-symbols-outlined">fact_check</span>
                             Avaliações

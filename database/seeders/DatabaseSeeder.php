@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Enums\Role;
+use App\Models\OrientadorProfile;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 
@@ -10,11 +11,11 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        $this->call(CatalogoSeeder::class);
+        $this->call([CatalogoSeeder::class, AdminSeeder::class]);
 
         // Orientador de exemplo para desenvolvimento (senha: password).
         User::factory()
-            ->has(\App\Models\OrientadorProfile::factory(), 'orientadorProfile')
+            ->has(OrientadorProfile::factory(), 'orientadorProfile')
             ->create([
                 'name' => 'Orientador Demo',
                 'email' => 'orientador@fetecms.test',

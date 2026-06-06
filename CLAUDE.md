@@ -97,6 +97,10 @@ php artisan test --filter=Nome    # roda um teste específico
 # Frontend (Vite)
 npm run dev                       # dev server com HMR
 npm run build                     # build de produção
+npm test                          # testes de componente (Vitest)
+
+# Carga (k6 — instalar separadamente): k6 run load/k6-smoke.js
+# Admin padrão (seed): admin@fetecms.test / password
 ```
 
 Node 22 + npm já estão instalados na máquina. PHP/Composer vêm do Herd.
@@ -135,8 +139,9 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 |--------|--------|--------------|-------------|------------------------------|
 | 1 | E0 Fundação + E1 Auth/perfil orientador | ✅ sim | ✅ sim (Pedro) | 0 |
 | 2 | E2 Catálogos + E3 Projetos (CRUD/rascunho) | ✅ sim | ✅ sim (Pedro) | 0 |
-| 3 | E4 Integrantes (alunos 1–4 + coorientador) + E5 Uploads | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 4 | E6 Submissão & checklist (irreversível) + E7 Avaliador (cadastro/login + exclusão mútua) | ✅ sim | ❌ não (manual do Pedro) | 2 |
+| 3 | E4 Integrantes (alunos 1–4 + coorientador) + E5 Uploads | ✅ sim | ✅ sim (Pedro) | 0 |
+| 4 | E6 Submissão & checklist (irreversível) + E7 Avaliador (cadastro/login + exclusão mútua) | ✅ sim | ✅ sim (Pedro) | 0 |
+| 5 | E8 Admin & dashboard (9 métricas) + E9 Qualidade/segurança/carga | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
 ### Roadmap de sprints (proposto)
 
