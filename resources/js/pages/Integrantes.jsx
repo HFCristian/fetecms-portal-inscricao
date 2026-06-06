@@ -53,65 +53,119 @@ function AlunoForm({ catalogos, inicial, onSubmit, onCancelar }) {
     }
 
     return (
-        <form onSubmit={submit} className="bg-surface-container-low rounded-xl p-5 space-y-4 border border-outline-variant/40">
+        <form onSubmit={submit} className="bg-surface-container-low rounded-xl p-5 space-y-5 border border-outline-variant/40">
             <h3 className="font-display text-primary font-semibold">{inicial?.id ? 'Editar aluno' : 'Novo aluno'}</h3>
             {(errors.equipe || errors.categoria || errors._geral) && (
                 <Alert>{errors.equipe?.[0] || errors.categoria?.[0] || errors._geral?.[0]}</Alert>
             )}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Field label="Nome" required error={err('nome')}>
-                    <Input value={form.nome ?? ''} onChange={set('nome')} error={err('nome')} />
-                </Field>
-                <Field label="CPF" required error={err('cpf')}>
-                    <Input value={form.cpf ?? ''} onChange={set('cpf')} error={err('cpf')} placeholder="000.000.000-00" />
-                </Field>
-                <Field label="E-mail" required error={err('email')}>
-                    <Input type="email" value={form.email ?? ''} onChange={set('email')} error={err('email')} />
-                </Field>
-                <Field label="Telefone" error={err('telefone')}>
-                    <Input value={form.telefone ?? ''} onChange={set('telefone')} placeholder="(00) 00000-0000" />
-                </Field>
-                <Field label="Data de Nascimento" error={err('data_nascimento')}>
-                    <Input type="date" value={form.data_nascimento ?? ''} onChange={set('data_nascimento')} error={err('data_nascimento')} />
-                </Field>
-                <Field label="Gênero">
-                    <Select value={form.genero ?? ''} onChange={set('genero')}>
-                        <option value="">Selecione</option>
-                        <option value="F">Feminino</option>
-                        <option value="M">Masculino</option>
-                        <option value="NB">Não-binário</option>
-                        <option value="P">Prefiro não informar</option>
-                    </Select>
-                </Field>
-                <Field label="Instituição de Ensino">
-                    <Select value={form.instituicao_id ?? ''} onChange={set('instituicao_id')}>
-                        <option value="">Selecione</option>
-                        {catalogos.instituicoes.map((i) => <option key={i.id} value={i.id}>{i.nome}</option>)}
-                    </Select>
-                </Field>
-                <Field label="Modalidade">
-                    <Select value={form.modalidade ?? ''} onChange={set('modalidade')}>
-                        <option value="">Selecione</option>
-                        <option value="fundamental">Ensino Fundamental</option>
-                        <option value="medio">Ensino Médio</option>
-                        <option value="tecnico">Ensino Técnico</option>
-                    </Select>
-                </Field>
-                <Field label="Tamanho da Camiseta">
-                    <Select value={form.camiseta ?? ''} onChange={set('camiseta')}>
-                        <option value="">Selecione</option>
-                        {['PP', 'P', 'M', 'G', 'GG'].map((t) => <option key={t} value={t}>{t}</option>)}
-                    </Select>
-                </Field>
+
+            {/* 1. Dados Pessoais */}
+            <div className="space-y-3">
+                <p className="text-sm font-semibold text-on-surface-variant">1. Dados Pessoais</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Field label="Nome Completo" required error={err('nome')}>
+                        <Input value={form.nome ?? ''} onChange={set('nome')} error={err('nome')} />
+                    </Field>
+                    <Field label="CPF" required error={err('cpf')}>
+                        <Input value={form.cpf ?? ''} onChange={set('cpf')} error={err('cpf')} placeholder="000.000.000-00" />
+                    </Field>
+                    <Field label="E-mail" required error={err('email')}>
+                        <Input type="email" value={form.email ?? ''} onChange={set('email')} error={err('email')} />
+                    </Field>
+                    <Field label="Telefone / WhatsApp" error={err('telefone')}>
+                        <Input value={form.telefone ?? ''} onChange={set('telefone')} placeholder="(00) 00000-0000" />
+                    </Field>
+                    <Field label="Data de Nascimento" error={err('data_nascimento')}>
+                        <Input type="date" value={form.data_nascimento ?? ''} onChange={set('data_nascimento')} error={err('data_nascimento')} />
+                    </Field>
+                    <Field label="Gênero">
+                        <Select value={form.genero ?? ''} onChange={set('genero')}>
+                            <option value="">Selecione</option>
+                            <option value="F">Feminino</option>
+                            <option value="M">Masculino</option>
+                            <option value="NB">Não-binário</option>
+                            <option value="P">Prefiro não informar</option>
+                        </Select>
+                    </Field>
+                    <Field label="Raça/Cor (IBGE)">
+                        <Select value={form.etnia ?? ''} onChange={set('etnia')}>
+                            <option value="">Selecione</option>
+                            <option value="branca">Branca</option>
+                            <option value="preta">Preta</option>
+                            <option value="parda">Parda</option>
+                            <option value="amarela">Amarela</option>
+                            <option value="indigena">Indígena</option>
+                            <option value="nao_declarar">Prefiro não declarar</option>
+                        </Select>
+                    </Field>
+                    <Field label="Tamanho da Camiseta">
+                        <Select value={form.camiseta ?? ''} onChange={set('camiseta')}>
+                            <option value="">Selecione</option>
+                            {['PP', 'P', 'M', 'G', 'GG'].map((t) => <option key={t} value={t}>{t}</option>)}
+                        </Select>
+                    </Field>
+                </div>
             </div>
-            <div className="flex gap-4">
-                <label className="flex items-center gap-2 text-sm cursor-pointer">
-                    <input type="checkbox" checked={!!form.bolsista} onChange={set('bolsista')} className="w-4 h-4" /> Bolsista CNPq/Fundect
-                </label>
-                <label className="flex items-center gap-2 text-sm cursor-pointer">
-                    <input type="checkbox" checked={!!form.clube_ciencias} onChange={set('clube_ciencias')} className="w-4 h-4" /> Clube de Ciências
-                </label>
+
+            {/* 2. Dados Acadêmicos */}
+            <div className="space-y-3">
+                <p className="text-sm font-semibold text-on-surface-variant">2. Dados Acadêmicos</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Field label="Instituição de Ensino">
+                        <Select value={form.instituicao_id ?? ''} onChange={set('instituicao_id')}>
+                            <option value="">Selecione</option>
+                            {catalogos.instituicoes.map((i) => <option key={i.id} value={i.id}>{i.nome}</option>)}
+                        </Select>
+                    </Field>
+                    <Field label="Modalidade de Ensino">
+                        <Select value={form.modalidade ?? ''} onChange={set('modalidade')}>
+                            <option value="">Selecione</option>
+                            <option value="fundamental_i">Ensino Fundamental I</option>
+                            <option value="fundamental_ii">Ensino Fundamental II</option>
+                            <option value="medio">Ensino Médio</option>
+                            <option value="tecnico_integrado">Ensino Técnico Integrado</option>
+                        </Select>
+                    </Field>
+                    <Field label="Ano/Série">
+                        <Select value={form.ano_escolar ?? ''} onChange={set('ano_escolar')}>
+                            <option value="">Selecione</option>
+                            {[
+                                { v: '5_ef', l: '5º ano (Fundamental)' },
+                                { v: '6_ef', l: '6º ano (Fundamental)' },
+                                { v: '7_ef', l: '7º ano (Fundamental)' },
+                                { v: '8_ef', l: '8º ano (Fundamental)' },
+                                { v: '9_ef', l: '9º ano (Fundamental)' },
+                                { v: '1_em', l: '1º ano (Médio)' },
+                                { v: '2_em', l: '2º ano (Médio)' },
+                                { v: '3_em', l: '3º ano (Médio)' },
+                            ].map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}
+                        </Select>
+                    </Field>
+                    <Field label="Período de Estudo">
+                        <Select value={form.periodo ?? ''} onChange={set('periodo')}>
+                            <option value="">Selecione</option>
+                            <option value="matutino">Matutino</option>
+                            <option value="vespertino">Vespertino</option>
+                            <option value="noturno">Noturno</option>
+                            <option value="integral">Integral</option>
+                        </Select>
+                    </Field>
+                    <div className="md:col-span-2">
+                        <Field label="Graduação Pretendida (Futuro)">
+                            <Input value={form.graduacao_pretendida ?? ''} onChange={set('graduacao_pretendida')} placeholder="Ex: Engenharia de Software, Medicina..." />
+                        </Field>
+                    </div>
+                </div>
+                <div className="flex flex-wrap gap-4 pt-1">
+                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input type="checkbox" checked={!!form.bolsista} onChange={set('bolsista')} className="w-4 h-4" /> Bolsista CNPq/Fundect
+                    </label>
+                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input type="checkbox" checked={!!form.clube_ciencias} onChange={set('clube_ciencias')} className="w-4 h-4" /> Membro de Clube de Ciências
+                    </label>
+                </div>
             </div>
+
             <div className="flex justify-end gap-3">
                 <Button type="button" variant="outline" onClick={onCancelar}>Cancelar</Button>
                 <Button type="submit" variant="success" loading={saving}>Salvar aluno</Button>
