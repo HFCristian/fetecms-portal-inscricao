@@ -115,12 +115,6 @@ export default function Cadastro() {
                             <Field label="Telefone/WhatsApp" required error={err('telefone')}>
                                 <Input value={form.telefone ?? ''} onChange={set('telefone')} error={err('telefone')} placeholder="(00) 00000-0000" />
                             </Field>
-                            <Field label="Senha" required error={err('password')} hint="Mínimo de 8 caracteres.">
-                                <Input type="password" value={form.password ?? ''} onChange={set('password')} error={err('password')} placeholder="••••••••" />
-                            </Field>
-                            <Field label="Confirmar Senha" required>
-                                <Input type="password" value={form.password_confirmation ?? ''} onChange={set('password_confirmation')} placeholder="••••••••" />
-                            </Field>
                             <Field label="Gênero">
                                 <Select value={form.genero ?? ''} onChange={set('genero')}>
                                     <option value="">Selecione</option>
@@ -131,12 +125,20 @@ export default function Cadastro() {
                                     <option value="P">Prefiro não informar</option>
                                 </Select>
                             </Field>
-                            <Field label="Tamanho da Camiseta">
-                                <Select value={form.camiseta ?? ''} onChange={set('camiseta')}>
-                                    <option value="">Selecione</option>
-                                    {['PP', 'P', 'M', 'G', 'GG', 'XG'].map((t) => <option key={t} value={t}>{t}</option>)}
-                                </Select>
+                            <Field label="Senha" required error={err('password')} hint="Mínimo de 8 caracteres.">
+                                <Input type="password" value={form.password ?? ''} onChange={set('password')} error={err('password')} placeholder="••••••••" />
                             </Field>
+                            <Field label="Confirmar Senha" required>
+                                <Input type="password" value={form.password_confirmation ?? ''} onChange={set('password_confirmation')} placeholder="••••••••" />
+                            </Field>
+                            <div className="md:col-span-2">
+                                <Field label="Tamanho da Camiseta">
+                                    <Select value={form.camiseta ?? ''} onChange={set('camiseta')}>
+                                        <option value="">Selecione</option>
+                                        {['PP', 'P', 'M', 'G', 'GG', 'XG'].map((t) => <option key={t} value={t}>{t}</option>)}
+                                    </Select>
+                                </Field>
+                            </div>
                         </div>
                     )}
 
@@ -150,6 +152,15 @@ export default function Cadastro() {
                                     </Select>
                                 </Field>
                             </div>
+                            <Field label="Tipo de Instituição">
+                                <Select value={form.tipo_instituicao ?? ''} onChange={set('tipo_instituicao')}>
+                                    <option value="">Selecione</option>
+                                    <option value="publica_federal">Pública Federal</option>
+                                    <option value="publica_estadual">Pública Estadual</option>
+                                    <option value="publica_municipal">Pública Municipal</option>
+                                    <option value="particular">Particular</option>
+                                </Select>
+                            </Field>
                             <Field label="Vínculo Institucional">
                                 <Select value={form.vinculo ?? ''} onChange={set('vinculo')}>
                                     <option value="">Selecione</option>
@@ -166,7 +177,11 @@ export default function Cadastro() {
                                     <option value="especializacao">Especialização</option>
                                     <option value="mestrado">Mestrado</option>
                                     <option value="doutorado">Doutorado</option>
+                                    <option value="pos_doutorado">Pós-Doutorado</option>
                                 </Select>
+                            </Field>
+                            <Field label="Curso de Formação">
+                                <Input value={form.curso_formacao ?? ''} onChange={set('curso_formacao')} placeholder="Ex: Ciências Biológicas" />
                             </Field>
                             <Field label="Área do Conhecimento (CNPq)">
                                 <Select value={form.area_conhecimento ?? ''} onChange={set('area_conhecimento')}>
@@ -178,17 +193,36 @@ export default function Cadastro() {
                                 <Input value={form.subarea ?? ''} onChange={set('subarea')} placeholder="Ex: Genética Molecular" />
                             </Field>
                             <Field label="Tempo de Experiência com Orientação">
-                                <Select value={form.tempo_orientacao ?? ''} onChange={set('tempo_orientacao')}>
+                                <Select
+                                    value={form.tempo_orientacao ?? ''}
+                                    onChange={(e) => {
+                                        const v = e.target.value;
+                                        // Limpa "vezes na FETEC" quando for iniciante (pergunta some).
+                                        setForm((f) => ({ ...f, tempo_orientacao: v, vezes_fetec: v && v !== 'iniciante' ? f.vezes_fetec : '' }));
+                                    }}
+                                >
                                     <option value="">Selecione</option>
-                                    <option value="iniciante">Menos de 1 ano</option>
+                                    <option value="iniciante">Menos de 1 ano (primeira vez orientando)</option>
                                     <option value="1a3">De 1 a 3 anos</option>
                                     <option value="3a5">De 3 a 5 anos</option>
-                                    <option value="mais5">Mais de 5 anos</option>
+                                    <option value="5a10">De 5 a 10 anos</option>
+                                    <option value="mais10">Mais de 10 anos</option>
                                 </Select>
                             </Field>
+                            {form.tempo_orientacao && form.tempo_orientacao !== 'iniciante' && (
+                                <Field label="Quantas vezes você já participou da FETEC como orientador?">
+                                    <Select value={form.vezes_fetec ?? ''} onChange={set('vezes_fetec')}>
+                                        <option value="">Selecione</option>
+                                        <option value="1a3">De 1 a 3 vezes</option>
+                                        <option value="3a5">De 3 a 5 vezes</option>
+                                        <option value="5a10">De 5 a 10 vezes</option>
+                                        <option value="mais10">Mais de 10 vezes</option>
+                                    </Select>
+                                </Field>
+                            )}
                             <label className="md:col-span-2 flex items-start gap-2 cursor-pointer">
                                 <input type="checkbox" checked={!!form.ex_aluno_fetec} onChange={set('ex_aluno_fetec')} className="mt-1 w-5 h-5 rounded text-primary-container" />
-                                <span className="text-sm text-on-surface">Já participei da FETEC como aluno</span>
+                                <span className="text-sm text-on-surface">Ex-aluno FETEC — já estive na FETEC como aluno</span>
                             </label>
                         </div>
                     )}
@@ -197,6 +231,12 @@ export default function Cadastro() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <Field label="CEP" error={err('cep')}>
                                 <Input value={form.cep ?? ''} onChange={set('cep')} error={err('cep')} placeholder="00000-000" />
+                            </Field>
+                            <Field label="País">
+                                <Select value={form.pais ?? 'BR'} onChange={set('pais')}>
+                                    <option value="BR">Brasil</option>
+                                    <option value="OUTRO">Outro</option>
+                                </Select>
                             </Field>
                             <Field label="Estado">
                                 <Input value={form.estado ?? ''} onChange={set('estado')} placeholder="MS" />
