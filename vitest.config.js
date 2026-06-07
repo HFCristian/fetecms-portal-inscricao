@@ -1,9 +1,8 @@
 import { defineConfig } from 'vitest/config';
 
-// Testes de componente React em jsdom. Usa o JSX automático do esbuild
-// (não precisa importar React), evitando incompatibilidades de plugin com o Vite 8.
+// Testes de componente React em jsdom. O Vitest 4 usa o oxc, que já aplica o
+// JSX automático (não precisa importar React nem configurar esbuild/plugin).
 export default defineConfig({
-    esbuild: { jsx: 'automatic' },
     test: {
         environment: 'jsdom',
         globals: true,
