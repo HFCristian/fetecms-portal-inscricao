@@ -11,6 +11,7 @@ import Integrantes from './pages/Integrantes.jsx';
 import Resumo from './pages/Resumo.jsx';
 import Perfil from './pages/Perfil.jsx';
 import AvaliadorHome from './pages/AvaliadorHome.jsx';
+import AdminHome from './pages/AdminHome.jsx';
 
 function Spinner() {
     return (
@@ -52,6 +53,11 @@ export default function Root() {
                         {/* Área do avaliador */}
                         <Route element={<RoleRoute allow={['avaliador']} />}>
                             <Route path="/avaliador" element={<AvaliadorHome />} />
+                        </Route>
+
+                        {/* Área do admin */}
+                        <Route element={<RoleRoute allow={['admin']} />}>
+                            <Route path="/admin" element={<AdminHome />} />
                         </Route>
 
                         <Route path="*" element={<Navigate to="/" replace />} />
