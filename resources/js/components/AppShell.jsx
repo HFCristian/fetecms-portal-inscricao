@@ -24,7 +24,7 @@ export default function AppShell({ children }) {
             {/* Sidebar desktop */}
             <nav className="hidden md:flex fixed left-0 top-0 h-full w-64 z-40 p-3 flex-col bg-surface-container-low border-r border-outline-variant/30">
                 <div className="mb-6 pb-4 border-b border-outline-variant/30">
-                    <img src="/img/logo2026.png" alt="XVI FETECMS" className="h-12 w-auto mb-2" />
+                    <img src="/img/logo2026.png" alt="XVI FETECMS" className="max-h-28 mx-auto w-auto mb-2" />
                     <h1 className="font-display text-lg text-primary font-bold">Portal do Orientador</h1>
                     <p className="text-sm text-on-surface-variant">XVI FETECMS</p>
                 </div>
@@ -62,8 +62,12 @@ export default function AppShell({ children }) {
             </nav>
 
             {/* Header mobile */}
-            <header className="md:hidden sticky top-0 z-40 flex items-center justify-between bg-surface border-b border-outline-variant/30 px-4 h-16">
-                <img src="/img/logo2026.png" alt="XVI FETECMS" className="h-9 w-auto" />
+            <header className="md:hidden sticky top-0 z-40 flex items-center justify-between bg-surface border-b border-outline-variant/30 px-4 h-20">
+                <img src="/img/logo2026.png" alt="XVI FETECMS" className="max-h-16" />
+                <div className='text-center'>
+                    <h1 className="font-display text-lg text-primary font-bold">Portal do Orientador</h1>
+                    <p className="text-sm text-on-surface-variant">XVI FETECMS</p>
+                </div>
                 <button onClick={handleLogout} className="text-on-surface-variant p-2">
                     <span className="material-symbols-outlined">logout</span>
                 </button>

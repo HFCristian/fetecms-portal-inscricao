@@ -60,7 +60,11 @@ export function Button({ variant = 'primary', loading, children, className = '',
 
 export function Toggle({ checked, onChange, label, description }) {
     return (
-        <div className="flex items-start gap-3">
+        <div className="flex items-start justify-between gap-3">
+            <div>
+                <span className="text-sm font-semibold text-on-surface">{label}</span>
+                {description && <p className="text-xs text-on-surface-variant mt-0.5">{description}</p>}
+            </div>
             <button
                 type="button"
                 role="switch"
@@ -70,10 +74,6 @@ export function Toggle({ checked, onChange, label, description }) {
             >
                 <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${checked ? 'translate-x-5' : ''}`} />
             </button>
-            <div>
-                <span className="text-sm font-semibold text-on-surface">{label}</span>
-                {description && <p className="text-xs text-on-surface-variant mt-0.5">{description}</p>}
-            </div>
         </div>
     );
 }

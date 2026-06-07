@@ -106,7 +106,7 @@ function AlunoForm({ catalogos, inicial, onSubmit, onCancelar }) {
                     </Field>
                 </div>
             </div>
-
+            <hr className='text-on-primary-container/55 rounded' />
             {/* 2. Dados Acadêmicos */}
             <div className="space-y-3">
                 <p className="text-sm font-semibold text-on-surface-variant">2. Dados Acadêmicos</p>

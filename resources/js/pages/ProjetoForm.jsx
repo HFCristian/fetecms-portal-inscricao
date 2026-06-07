@@ -15,7 +15,7 @@ const PAISES = listaPaises();
 
 function Aviso({ children }) {
     return (
-        <div className="flex gap-2 rounded-lg p-3 text-sm bg-amber-50 text-amber-900 border border-amber-300">
+        <div className="flex gap-2 rounded-lg p-3 text-sm bg-amber-100 text-amber-900 border border-amber-600">
             <span className="material-symbols-outlined text-[20px] shrink-0">info</span>
             <div className="space-y-1">{children}</div>
         </div>
@@ -349,6 +349,7 @@ export default function ProjetoForm() {
                             </div>
                         )}
                     </div>
+                    <hr className='text-on-primary-container/55 rounded' />
                     <div className="space-y-3">
                         <Toggle checked={!!form.feira_afiliada} onChange={(v) => setField('feira_afiliada', v)} label="Participou de Feira Afiliada? (Opcional)" />
                         {form.feira_afiliada && (
@@ -359,6 +360,7 @@ export default function ProjetoForm() {
                             </div>
                         )}
                     </div>
+                    <hr className='text-on-primary-container/55 rounded' />
                     <div className="space-y-3">
                         <Toggle checked={!!form.necessita_termo_etica} onChange={(v) => setField('necessita_termo_etica', v)} label="Necessita do Termo do Comitê Escolar de Ética (ANEXO V)? (Opcional)" />
                         <Aviso>
