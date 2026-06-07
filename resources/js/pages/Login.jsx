@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth, extractErrors } from '../lib/auth.jsx';
+import { useAuth, extractErrors, homeFor } from '../lib/auth.jsx';
 import AuthCard from '../components/AuthCard.jsx';
 import { Field, Input, Button, Alert } from '../components/ui.jsx';
 
@@ -18,8 +18,8 @@ export default function Login() {
         setError('');
         setLoading(true);
         try {
-            await login(email, password);
-            navigate('/projetos', { replace: true });
+            const user = await login(email, password);
+            navigate(homeFor(user.role), { replace: true });
         } catch (err) {
             setError(extractErrors(err).message);
         } finally {
