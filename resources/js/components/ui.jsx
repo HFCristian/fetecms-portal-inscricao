@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react';
+
 const inputClass =
     'w-full bg-surface border border-outline-variant rounded-lg px-3 py-2.5 text-on-surface ' +
     'placeholder:text-outline focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 ' +
@@ -22,6 +24,59 @@ export function Input({ error, ...props }) {
     return (
         <input
             {...props}
+            className={`${inputClass} ${error ? 'border-error focus:border-error focus:ring-error/20' : ''}`}
+        />
+    );
+}
+
+// Converte ISO (yyyy-mm-dd) -> exibição br (dd/mm/aaaa). String vazia se inválido.
+function isoToBr(iso) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso ?? '');
+    return m ? `${m[3]}/${m[2]}/${m[1]}` : '';
+}
+
+// Converte br (dd/mm/aaaa) -> ISO (yyyy-mm-dd). String vazia se incompleto/inválido.
+function brToIso(br) {
+    const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(br ?? '');
+    return m ? `${m[3]}-${m[2]}-${m[1]}` : '';
+}
+
+// Aplica a máscara dd/mm/aaaa enquanto o usuário digita (só dígitos, barras automáticas).
+function maskBr(value) {
+    const d = (value ?? '').replace(/\D/g, '').slice(0, 8);
+    if (d.length <= 2) return d;
+    if (d.length <= 4) return `${d.slice(0, 2)}/${d.slice(2)}`;
+    return `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`;
+}
+
+// Campo de data no formato brasileiro (dd/mm/aaaa) que mantém o valor em ISO
+// (yyyy-mm-dd) no estado do form/API. Compatível com o helper set(name) que lê
+// e.target.value. Emite '' enquanto a data estiver incompleta.
+export function DateInput({ value, onChange, error, ...props }) {
+    const [text, setText] = useState(() => isoToBr(value));
+
+    // Ressincroniza quando o valor externo (ISO) for diferente do que está digitado,
+    // sem apagar o texto parcial enquanto o usuário ainda digita.
+    useEffect(() => {
+        if ((value || '') !== (brToIso(text) || '')) setText(isoToBr(value));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [value]);
+
+    function handleChange(e) {
+        const masked = maskBr(e.target.value);
+        setText(masked);
+        onChange?.({ target: { value: brToIso(masked) } });
+    }
+
+    return (
+        <input
+            {...props}
+            type="text"
+            inputMode="numeric"
+            placeholder="dd/mm/aaaa"
+            maxLength={10}
+            value={text}
+            onChange={handleChange}
             className={`${inputClass} ${error ? 'border-error focus:border-error focus:ring-error/20' : ''}`}
         />
     );

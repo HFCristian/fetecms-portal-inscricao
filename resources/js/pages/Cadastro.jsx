@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth, extractErrors, homeFor } from '../lib/auth.jsx';
 import AuthCard from '../components/AuthCard.jsx';
-import { Field, Input, Select, Button, Alert } from '../components/ui.jsx';
+import { Field, Input, DateInput, Select, Button, Alert } from '../components/ui.jsx';
 import { listaPaises } from '../lib/paises.js';
 
 const PAISES = listaPaises();
@@ -107,7 +107,7 @@ export default function Cadastro() {
                                 <Input value={form.cpf ?? ''} onChange={set('cpf')} error={err('cpf')} placeholder="000.000.000-00" />
                             </Field>
                             <Field label="Data de Nascimento" required error={err('data_nascimento')}>
-                                <Input type="date" value={form.data_nascimento ?? ''} onChange={set('data_nascimento')} error={err('data_nascimento')} />
+                                <DateInput value={form.data_nascimento ?? ''} onChange={set('data_nascimento')} error={err('data_nascimento')} />
                             </Field>
                             <div className="md:col-span-2">
                                 <Field label="E-mail" required error={err('email')}>

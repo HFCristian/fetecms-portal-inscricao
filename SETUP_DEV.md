@@ -4,7 +4,7 @@ Guia para rodar o **Portal de Inscrição XVI FETECMS** numa máquina de desenvo
 a partir de um clone do GitHub. Cobre **Linux (Zorin OS / Ubuntu)** e resume o equivalente
 no **Windows**.
 
-> Stack: **Laravel 13 / PHP 8.3+** (API REST + Sanctum) · **React + Vite** (SPA servida pelo
+> Stack: **Laravel 13 / PHP 8.4+** (API REST + Sanctum) · **React + Vite** (SPA servida pelo
 > próprio Laravel, mesma origem) · banco local **SQLite**.
 
 ---
@@ -13,7 +13,7 @@ no **Windows**.
 
 | Ferramenta | Versão | Observação |
 |-----------|--------|------------|
-| PHP | **8.3+** | com extensões: `sqlite3`, `mbstring`, `xml`, `curl`, `bcmath`, `intl`, `zip` |
+| PHP | **8.4+** | com extensões: `sqlite3`, `mbstring`, `xml`, `curl`, `bcmath`, `intl`, `zip` |
 | Composer | 2.x | gerenciador de dependências PHP |
 | Node.js | **22+** | Vite 8 exige Node 20.19+/22+ |
 | npm | 10+ | vem com o Node |
@@ -36,11 +36,12 @@ sudo apt install -y software-properties-common
 sudo add-apt-repository -y ppa:ondrej/php
 sudo apt update
 sudo apt install -y \
-  php8.3 php8.3-cli php8.3-common \
-  php8.3-sqlite3 php8.3-mbstring php8.3-xml php8.3-curl \
-  php8.3-bcmath php8.3-intl php8.3-zip
+  php8.4 php8.4-cli php8.4-common \
+  php8.4-sqlite3 php8.4-mbstring php8.4-xml php8.4-curl \
+  php8.4-bcmath php8.4-intl php8.4-zip
 
-php -v   # deve mostrar PHP 8.3.x (ou superior)
+sudo update-alternatives --set php /usr/bin/php8.4
+php -v   # deve mostrar PHP 8.4.x (ou superior)
 
 # --- Composer ---
 sudo apt install -y composer
@@ -142,7 +143,7 @@ npm run build                      # build de produção do front (gera public/b
 - **Porta 8000 ocupada:** `php artisan serve --port=8001` (lembre de ajustar a URL e, se mudar a
   porta, os domínios em `SANCTUM_STATEFUL_DOMAINS`/`SESSION_DOMAIN` no `.env`).
 - **Erro de extensão PHP (ex.: `could not find driver`):** falta a extensão SQLite —
-  `sudo apt install php8.3-sqlite3` e reinicie o terminal.
+  `sudo apt install php8.4-sqlite3` e reinicie o terminal.
 
 ---
 

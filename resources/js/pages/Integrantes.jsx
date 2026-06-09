@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
-import { Field, Input, Select, Button, Alert } from '../components/ui.jsx';
+import { Field, Input, DateInput, Select, Button, Alert } from '../components/ui.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import { useCatalogos } from '../lib/catalogos.js';
 import {
@@ -76,7 +76,7 @@ function AlunoForm({ catalogos, inicial, onSubmit, onCancelar }) {
                         <Input value={form.telefone ?? ''} onChange={set('telefone')} placeholder="(00) 00000-0000" />
                     </Field>
                     <Field label="Data de Nascimento" error={err('data_nascimento')}>
-                        <Input type="date" value={form.data_nascimento ?? ''} onChange={set('data_nascimento')} error={err('data_nascimento')} />
+                        <DateInput value={form.data_nascimento ?? ''} onChange={set('data_nascimento')} error={err('data_nascimento')} />
                     </Field>
                     <Field label="Gênero">
                         <Select value={form.genero ?? ''} onChange={set('genero')}>
@@ -200,17 +200,31 @@ function CoorientadorForm({ inicial, onSubmit, onCancelar }) {
             <h3 className="font-display text-primary font-semibold">{inicial?.id ? 'Editar coorientador' : 'Novo coorientador'}</h3>
             {errors._geral && <Alert>{errors._geral[0]}</Alert>}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Field label="Nome" required error={err('nome')}>
-                    <Input value={form.nome ?? ''} onChange={set('nome')} error={err('nome')} />
-                </Field>
-                <Field label="CPF" required error={err('cpf')}>
-                    <Input value={form.cpf ?? ''} onChange={set('cpf')} error={err('cpf')} placeholder="000.000.000-00" />
-                </Field>
+                <div className="md:col-span-2">
+                    <Field label="Nome" required error={err('nome')}>
+                        <Input value={form.nome ?? ''} onChange={set('nome')} error={err('nome')} />
+                    </Field>
+                </div>
                 <Field label="E-mail" required error={err('email')}>
                     <Input type="email" value={form.email ?? ''} onChange={set('email')} error={err('email')} />
                 </Field>
                 <Field label="Telefone" error={err('telefone')}>
                     <Input value={form.telefone ?? ''} onChange={set('telefone')} placeholder="(00) 00000-0000" />
+                </Field>
+                <Field label="CPF" required error={err('cpf')}>
+                    <Input value={form.cpf ?? ''} onChange={set('cpf')} error={err('cpf')} placeholder="000.000.000-00" />
+                </Field>
+                <Field label="Data de Nascimento" error={err('data_nascimento')}>
+                    <DateInput value={form.data_nascimento ?? ''} onChange={set('data_nascimento')} error={err('data_nascimento')} />
+                </Field>
+                <Field label="Gênero">
+                    <Select value={form.genero ?? ''} onChange={set('genero')}>
+                        <option value="">Selecione</option>
+                        <option value="F">Feminino</option>
+                        <option value="M">Masculino</option>
+                        <option value="NB">Não-binário</option>
+                        <option value="P">Prefiro não informar</option>
+                    </Select>
                 </Field>
                 <Field label="Tamanho da Camiseta">
                     <Select value={form.camiseta ?? ''} onChange={set('camiseta')}>
