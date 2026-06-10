@@ -172,6 +172,27 @@ export default function ProjetoForm() {
         }
     }
 
+    // Integrantes exigem um projeto salvo. Na criação ainda não há id, então
+    // salva o rascunho primeiro (mesma lógica do salvarRascunho) para obter o
+    // id e só então abre a tela de integrantes.
+    async function irParaIntegrantes() {
+        if (id) {
+            navigate(`/projetos/${id}/integrantes`);
+            return;
+        }
+        setAlert(''); setSuccess(''); setErrors({}); setSaving(true);
+        try {
+            const novo = await criarProjeto(buildPayload());
+            setSaved(true); setDirty(false);
+            navigate(`/projetos/${novo.id}/integrantes`);
+        } catch (e) {
+            const { message, fields } = extractErrors(e);
+            setErrors(fields); setAlert(message);
+        } finally {
+            setSaving(false);
+        }
+    }
+
     if (loading) {
         return <AppShell><div className="text-center py-10 text-on-surface-variant"><span className="material-symbols-outlined animate-spin">progress_activity</span></div></AppShell>;
     }
@@ -236,12 +257,10 @@ export default function ProjetoForm() {
                     <h1 className="font-display text-2xl font-semibold text-primary mb-1">{id ? 'Editar Projeto' : 'Novo Projeto'}</h1>
                     <p className="text-on-surface-variant">Preencha os dados do projeto. Você pode salvar como rascunho e voltar depois.</p>
                 </div>
-                {id && (
-                    <Button variant="outline" type="button" onClick={() => navigate(`/projetos/${id}/integrantes`)}>
-                        <span className="material-symbols-outlined text-[20px]">groups</span>
-                        Integrantes
-                    </Button>
-                )}
+                <Button variant="outline" type="button" onClick={irParaIntegrantes} loading={saving}>
+                    <span className="material-symbols-outlined text-[20px]">groups</span>
+                    Integrantes
+                </Button>
             </div>
 
             <div className="bg-primary-fixed/40 border-l-4 border-primary rounded-r-lg p-3 mb-6 text-sm text-on-surface">
