@@ -15,6 +15,12 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Atrás do ALB da AWS: confia nos cabeçalhos X-Forwarded-* (Proto/Host/For)
+        // para o Laravel enxergar HTTPS e o IP real do cliente (cookies Secure,
+        // URLs https, rate limit por IP correto). Seguro porque o security group
+        // do EC2 só aceita tráfego vindo do load balancer. Ver docs/DEPLOY_AWS.md.
+        $middleware->trustProxies(at: '*');
+
         // Sanctum SPA: autentica o front web (mesma origem) por cookie de sessão + CSRF.
         $middleware->statefulApi();
 
