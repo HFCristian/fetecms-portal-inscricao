@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Aluno;
 use App\Models\Projeto;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class AlunoService
@@ -30,9 +31,15 @@ class AlunoService
 
     public function adicionar(Projeto $projeto, array $data): Aluno
     {
-        $this->assertPodeAdicionar($projeto);
+        // Serializa adições concorrentes ao mesmo projeto (lockForUpdate vira
+        // SELECT ... FOR UPDATE no Postgres de produção) para que o limite por
+        // categoria não seja burlado por uma corrida entre duas requisições.
+        return DB::transaction(function () use ($projeto, $data) {
+            Projeto::whereKey($projeto->getKey())->lockForUpdate()->first();
+            $this->assertPodeAdicionar($projeto);
 
-        return $projeto->alunos()->create($data);
+            return $projeto->alunos()->create($data);
+        });
     }
 
     public function atualizar(Aluno $aluno, array $data): Aluno

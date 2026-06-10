@@ -63,11 +63,18 @@ class ProjetoSubmissaoController extends Controller
             ], 422);
         }
 
+        // Trava a linha (SELECT ... FOR UPDATE no Postgres) e revalida o status
+        // dentro da transação: se duas requisições passarem pela verificação
+        // acima ao mesmo tempo, só a primeira efetiva a submissão; a outra é
+        // no-op idempotente. Evita reprocessar efeitos colaterais no futuro.
         DB::transaction(function () use ($projeto) {
-            $projeto->update([
-                'status' => ProjetoStatus::Submetido,
-                'submitted_at' => now(),
-            ]);
+            $travado = Projeto::whereKey($projeto->getKey())->lockForUpdate()->first();
+            if ($travado->status->editavel()) {
+                $travado->update([
+                    'status' => ProjetoStatus::Submetido,
+                    'submitted_at' => now(),
+                ]);
+            }
         });
 
         return response()->json([
