@@ -379,7 +379,15 @@ export default function Integrantes() {
                 <span className="material-symbols-outlined text-[18px]">arrow_back</span>
                 Meus projetos
             </Link>
-            <h1 className="font-display text-2xl font-semibold text-primary mb-1">Integrantes</h1>
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
+                <h1 className="font-display text-2xl font-semibold text-primary">Integrantes</h1>
+                {editavel && (
+                    <Button variant="outline" type="button" onClick={() => navigate(`/projetos/${id}/editar`)}>
+                        <span className="material-symbols-outlined text-[20px]">edit</span>
+                        Editar projeto
+                    </Button>
+                )}
+            </div>
 
             {!editavel && (
                 <div className="mb-4"><Alert type="info">Projeto submetido — os integrantes estão em modo somente leitura.</Alert></div>
