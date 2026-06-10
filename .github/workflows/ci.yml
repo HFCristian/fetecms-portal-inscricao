@@ -1,0 +1,73 @@
+name: CI
+
+# Roda automaticamente a cada push/merge na main e em PRs que miram a main.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancela execuções antigas do mesmo ref quando chega um push novo.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend — Pint + PHPUnit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: sqlite3, pdo_sqlite, mbstring, xml, curl, bcmath, intl, zip
+          coverage: none
+          tools: composer:v2
+
+      - name: Cache de dependências do Composer
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: composer-${{ runner.os }}-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-
+
+      - name: Instalar dependências (Composer)
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Preparar ambiente (.env + APP_KEY)
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Lint (Laravel Pint)
+        run: php vendor/bin/pint --test
+
+      - name: Testes (PHPUnit, SQLite :memory:)
+        run: php artisan test
+
+  frontend:
+    name: Frontend — Vitest + build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Instalar dependências (npm ci)
+        run: npm ci
+
+      - name: Testes de componente (Vitest)
+        run: npm test
+
+      - name: Build de produção (Vite)
+        run: npm run build
