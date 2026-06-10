@@ -419,7 +419,7 @@ export default function Integrantes() {
             <div className="flex items-center justify-between mb-2">
                 <p className="text-sm font-semibold text-on-surface-variant">Alunos</p>
                 {editavel && (
-                    <Button onClick={() => setAlunoForm({})} disabled={!podeAdicionarAluno || alunoForm !== null}
+                    <Button variant="outline" onClick={() => setAlunoForm({})} disabled={!podeAdicionarAluno || alunoForm !== null}
                         title={!limites.categoria ? 'Defina a categoria primeiro' : (!podeAdicionarAluno ? 'Limite atingido' : '')}>
                         <span className="material-symbols-outlined text-[18px]">person_add</span>
                         Adicionar aluno
