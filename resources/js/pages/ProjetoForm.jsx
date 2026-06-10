@@ -172,19 +172,24 @@ export default function ProjetoForm() {
         }
     }
 
-    // Integrantes exigem um projeto salvo. Na criação ainda não há id, então
-    // salva o rascunho primeiro (mesma lógica do salvarRascunho) para obter o
-    // id e só então abre a tela de integrantes.
+    // Integrantes exigem um projeto salvo. Ao abrir, persiste no rascunho as
+    // alterações pendentes do formulário: atualiza o projeto existente ou, na
+    // criação, cria o rascunho para obter o id. Sem alterações (edição), só navega.
     async function irParaIntegrantes() {
-        if (id) {
+        if (id && !dirty) {
             navigate(`/projetos/${id}/integrantes`);
             return;
         }
         setAlert(''); setSuccess(''); setErrors({}); setSaving(true);
         try {
-            const novo = await criarProjeto(buildPayload());
+            let projetoId = id;
+            if (id) {
+                await atualizarProjeto(id, buildPayload());
+            } else {
+                projetoId = (await criarProjeto(buildPayload())).id;
+            }
             setSaved(true); setDirty(false);
-            navigate(`/projetos/${novo.id}/integrantes`);
+            navigate(`/projetos/${projetoId}/integrantes`);
         } catch (e) {
             const { message, fields } = extractErrors(e);
             setErrors(fields); setAlert(message);
