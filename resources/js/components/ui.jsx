@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 
+const errorClass = 'border-error focus:border-error focus:ring-error/20';
+
 const inputClass =
     'w-full bg-surface border border-outline-variant rounded-lg px-3 py-2.5 text-on-surface ' +
     'placeholder:text-outline focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 ' +
@@ -82,6 +84,66 @@ export function DateInput({ value, onChange, error, ...props }) {
     );
 }
 
+// Máscara de CPF: 000.000.000-00 (até 11 dígitos).
+function maskCpf(value) {
+    const d = (value ?? '').replace(/\D/g, '').slice(0, 11);
+    if (d.length > 9) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
+    if (d.length > 6) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`;
+    if (d.length > 3) return `${d.slice(0, 3)}.${d.slice(3)}`;
+    return d;
+}
+
+// Máscara de telefone BR: (00) 0000-0000 (fixo) ou (00) 00000-0000 (celular).
+function maskTelefone(value) {
+    const d = (value ?? '').replace(/\D/g, '').slice(0, 11);
+    if (d.length === 0) return '';
+    if (d.length <= 2) return `(${d}`;
+    const ddd = d.slice(0, 2);
+    const resto = d.slice(2);
+    if (resto.length <= 4) return `(${ddd}) ${resto}`;
+    if (d.length <= 10) return `(${ddd}) ${resto.slice(0, 4)}-${resto.slice(4)}`;
+    return `(${ddd}) ${resto.slice(0, 5)}-${resto.slice(5)}`;
+}
+
+// Input com máscara que mantém o valor já formatado no form. O backend normaliza
+// para apenas dígitos (prepareForValidation), então enviar o valor mascarado é seguro.
+// Segue o mesmo padrão controlado do DateInput: só ressincroniza com o valor externo
+// quando os dígitos diferem (não atrapalha a digitação).
+function MaskedInput({ value, onChange, error, mask, ...props }) {
+    const onlyDigits = (s) => (s ?? '').replace(/\D/g, '');
+    const [text, setText] = useState(() => mask(value));
+
+    useEffect(() => {
+        if (onlyDigits(value) !== onlyDigits(text)) setText(mask(value));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [value]);
+
+    function handleChange(e) {
+        const masked = mask(e.target.value);
+        setText(masked);
+        onChange?.({ target: { value: masked } });
+    }
+
+    return (
+        <input
+            {...props}
+            type="text"
+            inputMode="numeric"
+            value={text}
+            onChange={handleChange}
+            className={`${inputClass} ${error ? errorClass : ''}`}
+        />
+    );
+}
+
+export function CpfInput(props) {
+    return <MaskedInput mask={maskCpf} maxLength={14} placeholder="000.000.000-00" {...props} />;
+}
+
+export function TelefoneInput(props) {
+    return <MaskedInput mask={maskTelefone} maxLength={15} placeholder="(00) 00000-0000" {...props} />;
+}
+
 export function Select({ error, children, ...props }) {
     return (
         <select
@@ -147,4 +209,70 @@ export function Alert({ children, type = 'error' }) {
             <span>{children}</span>
         </div>
     );
+}
+
+// Caixa de diálogo de confirmação (substitui window.confirm/window.alert).
+// Exibe a mensagem e os botões de confirmar/cancelar. Use via o hook useConfirm.
+export function ConfirmDialog({
+    open, title = 'Confirmar ação', message,
+    confirmLabel = 'Confirmar', cancelLabel = 'Cancelar',
+    danger = false, hideCancel = false, onConfirm, onCancel,
+}) {
+    if (!open) return null;
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            role="dialog" aria-modal="true">
+            <div className="bg-surface-container-lowest rounded-2xl fetec-card-shadow w-full max-w-md p-6 space-y-4">
+                <div className="flex items-center gap-3">
+                    <span className={`material-symbols-outlined text-[28px] ${danger ? 'text-error' : 'text-primary-container'}`}>
+                        {danger ? 'warning' : 'help'}
+                    </span>
+                    <h3 className="font-display text-xl font-semibold text-on-surface">{title}</h3>
+                </div>
+                {message && <p className="text-sm text-on-surface-variant whitespace-pre-line">{message}</p>}
+                <div className="flex justify-end gap-3 pt-1">
+                    {!hideCancel && (
+                        <Button type="button" variant="outline" onClick={onCancel}>{cancelLabel}</Button>
+                    )}
+                    <Button type="button" variant={danger ? 'primary' : 'success'} onClick={onConfirm}>
+                        {confirmLabel}
+                    </Button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// Hook que devolve [confirm, dialogo]. confirm(opts) abre a caixa e resolve uma Promise
+// com true/false. opts pode ser uma string (mensagem) ou um objeto
+// { title, message, confirmLabel, cancelLabel, danger, hideCancel }.
+export function useConfirm() {
+    const [state, setState] = useState(null);
+
+    const confirm = (opts) =>
+        new Promise((resolve) => {
+            const o = typeof opts === 'string' ? { message: opts } : (opts || {});
+            setState({ ...o, resolve });
+        });
+
+    function fechar(valor) {
+        if (state) state.resolve(valor);
+        setState(null);
+    }
+
+    const dialogo = (
+        <ConfirmDialog
+            open={!!state}
+            title={state?.title}
+            message={state?.message}
+            confirmLabel={state?.confirmLabel}
+            cancelLabel={state?.cancelLabel}
+            danger={state?.danger}
+            hideCancel={state?.hideCancel}
+            onConfirm={() => fechar(true)}
+            onCancel={() => fechar(false)}
+        />
+    );
+
+    return [confirm, dialogo];
 }

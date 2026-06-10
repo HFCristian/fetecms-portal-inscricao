@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
-import { Field, Input, Select, Button, Alert, Toggle } from '../components/ui.jsx';
+import { Field, Input, Select, Button, Alert, Toggle, useConfirm } from '../components/ui.jsx';
 import KeywordsInput from '../components/KeywordsInput.jsx';
 import VideoPreview from '../components/VideoPreview.jsx';
 import DocumentoUpload from '../components/DocumentoUpload.jsx';
@@ -30,6 +30,7 @@ export default function ProjetoForm() {
     const { id } = useParams();
     const navigate = useNavigate();
     const catalogos = useCatalogos();
+    const [confirm, confirmDialog] = useConfirm();
 
     const [form, setForm] = useState({
         pais: 'BR', palavras_chave: [], continuacao: false, feira_afiliada: false,
@@ -149,7 +150,15 @@ export default function ProjetoForm() {
 
     // Salva as alterações pendentes e segue para a revisão/submissão.
     async function revisarESubmeter() {
-        if (!id) { window.alert('Salve o rascunho antes de revisar e submeter.'); return; }
+        if (!id) {
+            await confirm({
+                title: 'Salve o rascunho primeiro',
+                message: 'Salve o rascunho antes de revisar e submeter.',
+                confirmLabel: 'Entendi',
+                hideCancel: true,
+            });
+            return;
+        }
         setAlert(''); setErrors({}); setSaving(true);
         try {
             await atualizarProjeto(id, buildPayload());
@@ -222,8 +231,18 @@ export default function ProjetoForm() {
                 <span className="material-symbols-outlined text-[18px]">arrow_back</span>
                 Meus projetos
             </Link>
-            <h1 className="font-display text-2xl font-semibold text-primary mb-1">{id ? 'Editar Projeto' : 'Novo Projeto'}</h1>
-            <p className="text-on-surface-variant mb-4">Preencha os dados do projeto. Você pode salvar como rascunho e voltar depois.</p>
+            <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+                <div>
+                    <h1 className="font-display text-2xl font-semibold text-primary mb-1">{id ? 'Editar Projeto' : 'Novo Projeto'}</h1>
+                    <p className="text-on-surface-variant">Preencha os dados do projeto. Você pode salvar como rascunho e voltar depois.</p>
+                </div>
+                {id && (
+                    <Button variant="outline" type="button" onClick={() => navigate(`/projetos/${id}/integrantes`)}>
+                        <span className="material-symbols-outlined text-[20px]">groups</span>
+                        Integrantes
+                    </Button>
+                )}
+            </div>
 
             <div className="bg-primary-fixed/40 border-l-4 border-primary rounded-r-lg p-3 mb-6 text-sm text-on-surface">
                 <strong>Status: rascunho.</strong> Para <strong>Revisar e submeter</strong>, todos os campos abaixo precisam estar preenchidos (anexos incluídos).
@@ -255,7 +274,9 @@ export default function ProjetoForm() {
                         <Field label="Área do Conhecimento" error={err('area_id')}>
                             <Select value={form.area_id ?? ''} onChange={(e) => onAreaChange(e.target.value)}>
                                 <option value="">Selecione</option>
-                                {catalogos.areas.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
+                                {catalogos.areas
+                                    .filter((a) => !/multidisciplinar/i.test(a.nome))
+                                    .map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
                             </Select>
                         </Field>
                         <div className='md:col-span-2'>
@@ -419,6 +440,7 @@ export default function ProjetoForm() {
                     </p>
                 )}
             </div>
+            {confirmDialog}
         </AppShell>
     );
 }

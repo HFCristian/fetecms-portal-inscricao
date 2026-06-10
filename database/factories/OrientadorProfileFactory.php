@@ -17,7 +17,7 @@ class OrientadorProfileFactory extends Factory
             'user_id' => User::factory(),
             'cpf' => fake()->numerify('###########'),
             'telefone' => fake()->numerify('67#########'),
-            'data_nascimento' => fake()->dateTimeBetween('-60 years', '-20 years')->format('Y-m-d'),
+            'data_nascimento' => fake()->dateTimeBetween('-60 years', '-22 years')->format('Y-m-d'),
             'genero' => fake()->randomElement(['F', 'M', 'NB', 'O', 'P']),
             'camiseta' => fake()->randomElement(['PP', 'P', 'M', 'G', 'GG', 'XG']),
             'pcd' => false,

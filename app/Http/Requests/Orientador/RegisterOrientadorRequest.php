@@ -48,7 +48,8 @@ class RegisterOrientadorRequest extends FormRequest
                 },
             ],
             'telefone' => ['required', 'string', 'max:20'],
-            'data_nascimento' => ['required', 'date', 'before:today'],
+            // Idade mínima: 21 anos completos (nascido até a data de 21 anos atrás).
+            'data_nascimento' => ['required', 'date', 'before_or_equal:'.now()->subYears(21)->toDateString()],
             'genero' => ['nullable', 'string', 'max:30'],
             'genero_outro' => ['nullable', 'string', 'max:60'],
             'etnia' => ['nullable', 'string', 'max:30'],
@@ -76,6 +77,13 @@ class RegisterOrientadorRequest extends FormRequest
             'cidade' => ['nullable', 'string', 'max:120'],
             'estado' => ['nullable', 'string', 'max:60'],
             'pais' => ['nullable', 'string', 'max:60'],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'data_nascimento.before_or_equal' => 'É necessário possuir ao menos 21 anos completos para submissão.',
         ];
     }
 }

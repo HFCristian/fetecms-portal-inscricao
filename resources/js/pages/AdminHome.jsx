@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import AppShell from '../components/AppShell.jsx';
 import { Field, Input, Button, Alert } from '../components/ui.jsx';
 import { extractErrors } from '../lib/auth.jsx';
-import { getDashboard, criarAdmin } from '../lib/admin.js';
+import { getDashboard, getProjetosPorArea, criarAdmin } from '../lib/admin.js';
 
 const CARDS = [
     { key: 'projetos_total', label: 'Projetos (total)', icon: 'folder', color: 'text-on-surface' },
@@ -68,6 +68,66 @@ function CriarAdminForm() {
     );
 }
 
+const STATUS_PILL = {
+    rascunho: 'bg-primary-fixed text-primary-container',
+    submetido: 'bg-secondary-container text-on-secondary-container',
+    aprovado: 'bg-secondary-container text-on-secondary-container',
+    rejeitado: 'bg-error-container text-on-error-container',
+};
+
+function ProjetosPorArea() {
+    const [grupos, setGrupos] = useState(null);
+
+    useEffect(() => { getProjetosPorArea().then(setGrupos).catch(() => setGrupos([])); }, []);
+
+    return (
+        <section className="mb-10">
+            <h2 className="font-display text-primary font-semibold mb-1">Projetos por área do conhecimento</h2>
+            <p className="text-sm text-on-surface-variant mb-4">
+                Inclui rascunhos. Projetos sem área aparecem em “Área ainda não informada”.
+            </p>
+
+            {grupos === null ? (
+                <div className="text-center py-6 text-on-surface-variant">
+                    <span className="material-symbols-outlined animate-spin">progress_activity</span>
+                </div>
+            ) : grupos.length === 0 ? (
+                <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-6 text-center text-on-surface-variant text-sm">
+                    Nenhum projeto cadastrado ainda.
+                </div>
+            ) : (
+                <div className="space-y-4">
+                    {grupos.map((g) => (
+                        <div key={g.area_id ?? 'sem-area'} className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-5">
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className="font-semibold text-on-surface">{g.area}</h3>
+                                <span className="text-xs text-on-surface-variant">{g.total} projeto(s)</span>
+                            </div>
+                            <ul className="divide-y divide-outline-variant/30">
+                                {g.projetos.map((p) => (
+                                    <li key={p.id} className="py-2 flex items-center gap-3">
+                                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${STATUS_PILL[p.status] ?? ''}`}>
+                                            {p.status_label}
+                                        </span>
+                                        <div className="min-w-0 flex-1">
+                                            <p className="text-sm font-medium text-on-surface truncate">
+                                                {p.titulo || <span className="italic text-on-surface-variant">Sem título</span>}
+                                            </p>
+                                            <p className="text-xs text-on-surface-variant truncate">
+                                                {[p.orientador, p.categoria_label].filter(Boolean).join(' · ') || '—'}
+                                            </p>
+                                        </div>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </section>
+    );
+}
+
 export default function AdminHome() {
     const [metricas, setMetricas] = useState(null);
 
@@ -93,6 +153,8 @@ export default function AdminHome() {
                     ))}
                 </div>
             )}
+
+            <ProjetosPorArea />
 
             <CriarAdminForm />
         </AppShell>

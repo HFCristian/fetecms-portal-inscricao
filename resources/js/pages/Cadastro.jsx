@@ -2,12 +2,22 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth, extractErrors, homeFor } from '../lib/auth.jsx';
 import AuthCard from '../components/AuthCard.jsx';
-import { Field, Input, DateInput, Select, Button, Alert } from '../components/ui.jsx';
+import { Field, Input, DateInput, CpfInput, TelefoneInput, Select, Button, Alert } from '../components/ui.jsx';
 import { listaPaises } from '../lib/paises.js';
+import { MIN_IDADE, idadeEmAnos } from '../lib/idade.js';
+import { validarObrigatorios } from '../lib/validacao.js';
 
 const PAISES = listaPaises();
 
 const STEPS = ['Dados Pessoais', 'Info. Acadêmicas', 'Endereço'];
+
+// Campos obrigatórios por etapa. Exceções: subárea, checkboxes (pcd, ex_aluno_fetec),
+// campos condicionais (vezes_fetec) e complemento.
+const OBRIGATORIOS_POR_ETAPA = {
+    1: ['name', 'cpf', 'data_nascimento', 'email', 'telefone', 'genero', 'camiseta', 'password', 'password_confirmation'],
+    2: ['instituicao', 'tipo_instituicao', 'vinculo', 'titulacao', 'curso_formacao', 'area_conhecimento', 'tempo_orientacao'],
+    3: ['cep', 'pais', 'estado', 'cidade', 'logradouro', 'numero', 'bairro'],
+};
 
 // Mapeia cada campo à sua etapa, para saltar à etapa do primeiro erro de validação.
 const FIELD_STEP = {
@@ -33,11 +43,45 @@ export default function Cadastro() {
     };
     const err = (name) => errors[name]?.[0];
 
+    // Valida os obrigatórios da etapa atual e, se ok, avança para a próxima.
+    function avancar() {
+        const faltando = validarObrigatorios(form, OBRIGATORIOS_POR_ETAPA[step]);
+        if (Object.keys(faltando).length) {
+            setErrors(faltando);
+            setAlert('Preencha todos os campos obrigatórios desta etapa.');
+            return;
+        }
+        setErrors({});
+        setAlert('');
+        setStep((s) => s + 1);
+    }
+
     async function onSubmit(e) {
         e.preventDefault();
         // Trava: só efetiva o cadastro na última etapa (evita submit acidental).
         if (step < 3) {
-            setStep((s) => s + 1);
+            avancar();
+            return;
+        }
+        // Revalida tudo: nenhum obrigatório (de qualquer etapa) pode ficar vazio.
+        const faltando = {
+            ...validarObrigatorios(form, OBRIGATORIOS_POR_ETAPA[1]),
+            ...validarObrigatorios(form, OBRIGATORIOS_POR_ETAPA[2]),
+            ...validarObrigatorios(form, OBRIGATORIOS_POR_ETAPA[3]),
+        };
+        if (Object.keys(faltando).length) {
+            setErrors(faltando);
+            setAlert('Preencha todos os campos obrigatórios.');
+            const primeiro = Object.keys(faltando)[0];
+            if (FIELD_STEP[primeiro]) setStep(FIELD_STEP[primeiro]);
+            return;
+        }
+        // Idade mínima: orientador precisa ter ao menos 21 anos completos.
+        const idade = idadeEmAnos(form.data_nascimento);
+        if (idade !== null && idade < MIN_IDADE) {
+            setErrors({ data_nascimento: [`É necessário possuir ao menos ${MIN_IDADE} anos completos para submissão.`] });
+            setAlert(`É necessário possuir ao menos ${MIN_IDADE} anos completos para submissão.`);
+            setStep(1);
             return;
         }
         setAlert('');
@@ -104,7 +148,7 @@ export default function Cadastro() {
                                 </Field>
                             </div>
                             <Field label="CPF" required error={err('cpf')}>
-                                <Input value={form.cpf ?? ''} onChange={set('cpf')} error={err('cpf')} placeholder="000.000.000-00" />
+                                <CpfInput value={form.cpf ?? ''} onChange={set('cpf')} error={err('cpf')} />
                             </Field>
                             <Field label="Data de Nascimento" required error={err('data_nascimento')}>
                                 <DateInput value={form.data_nascimento ?? ''} onChange={set('data_nascimento')} error={err('data_nascimento')} />
@@ -115,10 +159,10 @@ export default function Cadastro() {
                                 </Field>
                             </div>
                             <Field label="Telefone/WhatsApp" required error={err('telefone')}>
-                                <Input value={form.telefone ?? ''} onChange={set('telefone')} error={err('telefone')} placeholder="(00) 00000-0000" />
+                                <TelefoneInput value={form.telefone ?? ''} onChange={set('telefone')} error={err('telefone')} />
                             </Field>
-                            <Field label="Gênero">
-                                <Select value={form.genero ?? ''} onChange={set('genero')}>
+                            <Field label="Gênero" required error={err('genero')}>
+                                <Select value={form.genero ?? ''} onChange={set('genero')} error={err('genero')}>
                                     <option value="">Selecione</option>
                                     <option value="F">Feminino</option>
                                     <option value="M">Masculino</option>
@@ -128,8 +172,8 @@ export default function Cadastro() {
                                 </Select>
                             </Field>
                             <div className="md:col-span-2">
-                                <Field label="Tamanho da Camiseta">
-                                    <Select value={form.camiseta ?? ''} onChange={set('camiseta')}>
+                                <Field label="Tamanho da Camiseta" required error={err('camiseta')}>
+                                    <Select value={form.camiseta ?? ''} onChange={set('camiseta')} error={err('camiseta')}>
                                         <option value="">Selecione</option>
                                         {['PP', 'P', 'M', 'G', 'GG', 'XG'].map((t) => <option key={t} value={t}>{t}</option>)}
                                     </Select>
@@ -138,8 +182,8 @@ export default function Cadastro() {
                             <Field label="Senha" required error={err('password')} hint="Mínimo de 8 caracteres.">
                                 <Input type="password" value={form.password ?? ''} onChange={set('password')} error={err('password')} placeholder="••••••••" />
                             </Field>
-                            <Field label="Confirmar Senha" required>
-                                <Input type="password" value={form.password_confirmation ?? ''} onChange={set('password_confirmation')} placeholder="••••••••" />
+                            <Field label="Confirmar Senha" required error={err('password_confirmation')}>
+                                <Input type="password" value={form.password_confirmation ?? ''} onChange={set('password_confirmation')} error={err('password_confirmation')} placeholder="••••••••" />
                             </Field>
                         </div>
                     )}
@@ -147,15 +191,15 @@ export default function Cadastro() {
                     {step === 2 && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="md:col-span-2">
-                                <Field label="Instituição de Ensino">
-                                    <Select value={form.instituicao ?? ''} onChange={set('instituicao')}>
+                                <Field label="Instituição de Ensino" required error={err('instituicao')}>
+                                    <Select value={form.instituicao ?? ''} onChange={set('instituicao')} error={err('instituicao')}>
                                         <option value="">Selecione</option>
                                         {['UFMS', 'UEMS', 'IFMS', 'UCDB'].map((i) => <option key={i} value={i}>{i}</option>)}
                                     </Select>
                                 </Field>
                             </div>
-                            <Field label="Tipo de Instituição">
-                                <Select value={form.tipo_instituicao ?? ''} onChange={set('tipo_instituicao')}>
+                            <Field label="Tipo de Instituição" required error={err('tipo_instituicao')}>
+                                <Select value={form.tipo_instituicao ?? ''} onChange={set('tipo_instituicao')} error={err('tipo_instituicao')}>
                                     <option value="">Selecione</option>
                                     <option value="publica_federal">Pública Federal</option>
                                     <option value="publica_estadual">Pública Estadual</option>
@@ -163,8 +207,8 @@ export default function Cadastro() {
                                     <option value="particular">Particular</option>
                                 </Select>
                             </Field>
-                            <Field label="Vínculo Institucional">
-                                <Select value={form.vinculo ?? ''} onChange={set('vinculo')}>
+                            <Field label="Vínculo Institucional" required error={err('vinculo')}>
+                                <Select value={form.vinculo ?? ''} onChange={set('vinculo')} error={err('vinculo')}>
                                     <option value="">Selecione</option>
                                     <option value="efetivo">Professor Efetivo</option>
                                     <option value="substituto">Professor Substituto</option>
@@ -172,22 +216,23 @@ export default function Cadastro() {
                                     <option value="pesquisador">Pesquisador</option>
                                 </Select>
                             </Field>
-                            <Field label="Titulação">
-                                <Select value={form.titulacao ?? ''} onChange={set('titulacao')}>
+                            <Field label="Titulação" required error={err('titulacao')}>
+                                <Select value={form.titulacao ?? ''} onChange={set('titulacao')} error={err('titulacao')}>
                                     <option value="">Selecione</option>
                                     <option value="graduacao">Graduação</option>
+                                    <option value="tecnologo">Tecnólogo</option>
                                     <option value="especializacao">Especialização</option>
                                     <option value="mestrado">Mestrado</option>
                                     <option value="doutorado">Doutorado</option>
                                     <option value="pos_doutorado">Pós-Doutorado</option>
                                 </Select>
                             </Field>
-                            <Field label="Curso de Formação">
-                                <Input value={form.curso_formacao ?? ''} onChange={set('curso_formacao')} placeholder="Ex: Ciências Biológicas" />
+                            <Field label="Curso de Formação" required error={err('curso_formacao')}>
+                                <Input value={form.curso_formacao ?? ''} onChange={set('curso_formacao')} error={err('curso_formacao')} placeholder="Ex: Ciências Biológicas" />
                             </Field>
                             <div className="md:col-span-2">
-                                <Field label="Área do Conhecimento (CNPq)">
-                                    <Select value={form.area_conhecimento ?? ''} onChange={set('area_conhecimento')}>
+                                <Field label="Área do Conhecimento (CNPq)" required error={err('area_conhecimento')}>
+                                    <Select value={form.area_conhecimento ?? ''} onChange={set('area_conhecimento')} error={err('area_conhecimento')}>
                                         <option value="">Selecione</option>
                                         {['Exatas e da Terra', 'Biológicas', 'Engenharias', 'Saúde', 'Agrárias', 'Sociais Aplicadas', 'Humanas', 'Letras e Artes'].map((a) => <option key={a} value={a}>{a}</option>)}
                                     </Select>
@@ -199,8 +244,9 @@ export default function Cadastro() {
                                 </Field>
                             </div>
                             <div className="md:col-span-2">
-                                <Field label="Tempo de Experiência com Orientação">
+                                <Field label="Tempo de Experiência com Orientação" required error={err('tempo_orientacao')}>
                                     <Select
+                                        error={err('tempo_orientacao')}
                                         value={form.tempo_orientacao ?? ''}
                                         onChange={(e) => {
                                             const v = e.target.value;
@@ -247,33 +293,33 @@ export default function Cadastro() {
                     {step === 3 && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="md:col-span-2">
-                                <Field label="CEP" error={err('cep')}>
+                                <Field label="CEP" required error={err('cep')}>
                                     <Input value={form.cep ?? ''} onChange={set('cep')} error={err('cep')} placeholder="00000-000" />
                                 </Field>
                             </div>
-                            <Field label="País">
-                                <Select value={form.pais ?? 'BR'} onChange={set('pais')}>
+                            <Field label="País" required error={err('pais')}>
+                                <Select value={form.pais ?? 'BR'} onChange={set('pais')} error={err('pais')}>
                                     {PAISES.map((p) => <option key={p.code} value={p.code}>{p.nome}</option>)}
                                 </Select>
                             </Field>
-                            <Field label="Estado">
-                                <Input value={form.estado ?? ''} onChange={set('estado')} placeholder="MS" />
+                            <Field label="Estado" required error={err('estado')}>
+                                <Input value={form.estado ?? ''} onChange={set('estado')} error={err('estado')} placeholder="MS" />
                             </Field>
                             <div className="md:col-span-2">
-                                <Field label="Cidade">
-                                    <Input value={form.cidade ?? ''} onChange={set('cidade')} placeholder="Campo Grande" />
+                                <Field label="Cidade" required error={err('cidade')}>
+                                    <Input value={form.cidade ?? ''} onChange={set('cidade')} error={err('cidade')} placeholder="Campo Grande" />
                                 </Field>
                             </div>
                             <div className="md:col-span-2">
-                                <Field label="Logradouro">
-                                    <Input value={form.logradouro ?? ''} onChange={set('logradouro')} placeholder="Rua, Avenida, etc." />
+                                <Field label="Logradouro" required error={err('logradouro')}>
+                                    <Input value={form.logradouro ?? ''} onChange={set('logradouro')} error={err('logradouro')} placeholder="Rua, Avenida, etc." />
                                 </Field>
                             </div>
-                            <Field label="Número">
-                                <Input value={form.numero ?? ''} onChange={set('numero')} placeholder="123" />
+                            <Field label="Número" required error={err('numero')}>
+                                <Input value={form.numero ?? ''} onChange={set('numero')} error={err('numero')} placeholder="123" />
                             </Field>
-                            <Field label="Bairro">
-                                <Input value={form.bairro ?? ''} onChange={set('bairro')} placeholder="Centro" />
+                            <Field label="Bairro" required error={err('bairro')}>
+                                <Input value={form.bairro ?? ''} onChange={set('bairro')} error={err('bairro')} placeholder="Centro" />
                             </Field>
                             <div className="md:col-span-2">
                                 <Field label="Complemento">
@@ -298,7 +344,7 @@ export default function Cadastro() {
                     )}
 
                     {step < 3 ? (
-                        <Button key="next" type="button" onClick={() => setStep((s) => s + 1)}>
+                        <Button key="next" type="button" onClick={avancar}>
                             PRÓXIMO
                             <span className="material-symbols-outlined text-[20px]">arrow_forward</span>
                         </Button>

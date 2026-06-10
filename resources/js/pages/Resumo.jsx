@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
-import { Button, Alert } from '../components/ui.jsx';
+import { Button, Alert, useConfirm } from '../components/ui.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import { getResumo, submeterProjeto } from '../lib/submissao.js';
 
@@ -17,6 +17,7 @@ function Linha({ label, valor }) {
 export default function Resumo() {
     const { id } = useParams();
     const navigate = useNavigate();
+    const [confirm, confirmDialog] = useConfirm();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
@@ -30,7 +31,12 @@ export default function Resumo() {
     useEffect(() => carregar(), [carregar]);
 
     async function confirmar() {
-        if (!window.confirm('Confirmar a submissão? Após submeter, o projeto NÃO poderá mais ser editado (previsto em edital).')) return;
+        const ok = await confirm({
+            title: 'Confirmar submissão',
+            message: 'Confirmar a submissão? Após submeter, o projeto NÃO poderá mais ser editado (previsto em edital).',
+            confirmLabel: 'Submeter',
+        });
+        if (!ok) return;
         setAlert('');
         setSubmitting(true);
         try {
@@ -132,17 +138,34 @@ export default function Resumo() {
             </section>
 
             {/* Ações */}
-            <div className="flex flex-col sm:flex-row justify-between gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 {jaSubmetido ? (
-                    <Button variant="outline" type="button" onClick={() => navigate('/projetos')}>
-                        <span className="material-symbols-outlined text-[20px]">arrow_back</span>
-                        Voltar aos meus projetos
-                    </Button>
+                    <div className="flex flex-wrap gap-3">
+                        <Button variant="outline" type="button" onClick={() => navigate('/projetos')}>
+                            <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+                            Voltar aos projetos
+                        </Button>
+                        <Button variant="outline" type="button" onClick={() => navigate(`/projetos/${id}/integrantes`)}>
+                            <span className="material-symbols-outlined text-[20px]">groups</span>
+                            Ver integrantes
+                        </Button>
+                    </div>
                 ) : (
                     <>
-                        <Button variant="outline" type="button" onClick={() => navigate(`/projetos/${id}/editar`)}>
-                            Voltar e editar
-                        </Button>
+                        <div className="flex flex-wrap gap-3">
+                            <Button variant="outline" type="button" onClick={() => navigate('/projetos')}>
+                                <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+                                Voltar aos projetos
+                            </Button>
+                            <Button variant="outline" type="button" onClick={() => navigate(`/projetos/${id}/editar`)}>
+                                <span className="material-symbols-outlined text-[20px]">edit</span>
+                                Editar projeto
+                            </Button>
+                            <Button variant="outline" type="button" onClick={() => navigate(`/projetos/${id}/integrantes`)}>
+                                <span className="material-symbols-outlined text-[20px]">groups</span>
+                                Integrantes
+                            </Button>
+                        </div>
                         <Button variant="success" type="button" loading={submitting} disabled={!pode_submeter} onClick={confirmar}
                             title={pode_submeter ? '' : 'Resolva as pendências do checklist'}>
                             <span className="material-symbols-outlined text-[20px]">verified</span>
@@ -151,6 +174,7 @@ export default function Resumo() {
                     </>
                 )}
             </div>
+            {confirmDialog}
         </AppShell>
     );
 }

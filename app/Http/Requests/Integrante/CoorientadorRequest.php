@@ -32,9 +32,17 @@ class CoorientadorRequest extends FormRequest
             'email' => ['required', 'email', 'max:255'],
             'cpf' => ['required', 'string', 'size:11', new Cpf],
             'telefone' => ['nullable', 'string', 'max:20'],
-            'data_nascimento' => ['nullable', 'date', 'before:today'],
+            // Idade mínima: 21 anos completos (quando a data for informada).
+            'data_nascimento' => ['nullable', 'date', 'before_or_equal:'.now()->subYears(21)->toDateString()],
             'genero' => ['nullable', 'string', 'max:30'],
             'camiseta' => ['nullable', 'string', 'max:5'],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'data_nascimento.before_or_equal' => 'O coorientador precisa ter ao menos 21 anos completos.',
         ];
     }
 }

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useAuth, extractErrors } from '../lib/auth.jsx';
 import AppShell from '../components/AppShell.jsx';
 import http from '../lib/http.js';
-import { Field, Input, Button, Alert } from '../components/ui.jsx';
+import { Field, Input, CpfInput, TelefoneInput, Button, Alert } from '../components/ui.jsx';
 
 export default function Perfil() {
     const { user, setUser } = useAuth();
@@ -51,7 +51,7 @@ export default function Perfil() {
                 {success && <Alert type="info">{success}</Alert>}
 
                 <Field label="CPF" hint="O CPF não pode ser alterado por aqui.">
-                    <Input value={profile.cpf ?? ''} disabled />
+                    <CpfInput value={profile.cpf ?? ''} disabled />
                 </Field>
                 <Field label="Nome Completo" error={err('name')}>
                     <Input value={form.name} onChange={set('name')} error={err('name')} />
@@ -61,7 +61,7 @@ export default function Perfil() {
                 </Field>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Field label="Telefone" error={err('telefone')}>
-                        <Input value={form.telefone} onChange={set('telefone')} error={err('telefone')} />
+                        <TelefoneInput value={form.telefone} onChange={set('telefone')} error={err('telefone')} />
                     </Field>
                     <Field label="Instituição">
                         <Input value={form.instituicao} onChange={set('instituicao')} />

@@ -78,6 +78,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
         // Administração (E8) — somente admin
         Route::prefix('admin')->middleware('role:admin')->group(function () {
             Route::get('/dashboard', [AdminController::class, 'dashboard']);
+            Route::get('/projetos-por-area', [AdminController::class, 'projetosPorArea']);
             Route::post('/admins', [AdminController::class, 'store']);
         });
     });

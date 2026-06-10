@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Aluno;
+use App\Models\Area;
 use App\Models\Coorientador;
 use App\Models\Estado;
 use App\Models\Instituicao;
@@ -57,6 +58,36 @@ class AdminTest extends TestCase
             ->assertJsonPath('data.escolas_com_projeto', 2)
             ->assertJsonPath('data.cidades_com_projeto', 2)
             ->assertJsonPath('data.estados_com_projeto', 2);
+    }
+
+    public function test_projetos_por_area_agrupa_incluindo_rascunhos(): void
+    {
+        $orient = User::factory()->create();
+        $area = Area::first();
+
+        // 1 com área (rascunho) e 1 sem área (rascunho) — ambos devem aparecer.
+        Projeto::factory()->create(['user_id' => $orient->id, 'area_id' => $area->id]);
+        Projeto::factory()->create(['user_id' => $orient->id, 'area_id' => null]);
+
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $resp = $this->getJson('/api/v1/admin/projetos-por-area')->assertOk();
+
+        $grupos = collect($resp->json('data'));
+        $this->assertSame(2, $grupos->sum('total'));
+
+        // O grupo sem área usa o rótulo de fallback e fica por último.
+        $semArea = $grupos->firstWhere('area_id', null);
+        $this->assertNotNull($semArea);
+        $this->assertSame('Área ainda não informada', $semArea['area']);
+        $this->assertSame('Área ainda não informada', $grupos->last()['area']);
+        $this->assertSame($area->nome, $grupos->firstWhere('area_id', $area->id)['area']);
+    }
+
+    public function test_nao_admin_nao_acessa_projetos_por_area(): void
+    {
+        Sanctum::actingAs(User::factory()->create()); // orientador
+        $this->getJson('/api/v1/admin/projetos-por-area')->assertForbidden();
     }
 
     public function test_admin_cria_outro_admin(): void

@@ -1,13 +1,50 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
-import { Field, Input, DateInput, Select, Button, Alert } from '../components/ui.jsx';
+import { Field, Input, DateInput, CpfInput, TelefoneInput, Select, Button, Alert, useConfirm } from '../components/ui.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import { useCatalogos } from '../lib/catalogos.js';
+import { MIN_IDADE, idadeEmAnos } from '../lib/idade.js';
+import { validarObrigatorios } from '../lib/validacao.js';
 import {
     getIntegrantes, criarAluno, atualizarAluno, removerAluno,
     salvarCoorientador, removerCoorientador,
 } from '../lib/integrantes.js';
+
+// Obrigatórios do aluno (tudo menos graduação pretendida e as checkboxes).
+const ALUNO_OBRIGATORIOS = [
+    'nome', 'cpf', 'email', 'telefone', 'data_nascimento', 'genero', 'etnia', 'camiseta',
+    'instituicao_id', 'modalidade', 'ano_escolar', 'periodo',
+];
+
+// Obrigatórios do coorientador (todos os campos do formulário).
+const COORIENTADOR_OBRIGATORIOS = ['nome', 'email', 'telefone', 'cpf', 'data_nascimento', 'genero', 'camiseta'];
+
+// Anos/séries disponíveis conforme a modalidade de ensino selecionada.
+const ANOS_POR_MODALIDADE = {
+    fundamental_i: [
+        { v: '3_ef', l: '3º ano (Fundamental)' },
+        { v: '4_ef', l: '4º ano (Fundamental)' },
+        { v: '5_ef', l: '5º ano (Fundamental)' },
+    ],
+    fundamental_ii: [
+        { v: '6_ef', l: '6º ano (Fundamental)' },
+        { v: '7_ef', l: '7º ano (Fundamental)' },
+        { v: '8_ef', l: '8º ano (Fundamental)' },
+        { v: '9_ef', l: '9º ano (Fundamental)' },
+    ],
+    medio: [
+        { v: '1_em', l: '1º ano (Médio)' },
+        { v: '2_em', l: '2º ano (Médio)' },
+        { v: '3_em', l: '3º ano (Médio)' },
+    ],
+    tecnico_integrado: [
+        { v: '1_em', l: '1º ano (Técnico Integrado)' },
+        { v: '2_em', l: '2º ano (Técnico Integrado)' },
+        { v: '3_em', l: '3º ano (Técnico Integrado)' },
+        { v: '4_em', l: '4º ano (Técnico Integrado)' },
+    ],
+};
 
 function PessoaCard({ titulo, nome, meta, onEdit, onRemove }) {
     return (
@@ -40,6 +77,11 @@ function AlunoForm({ catalogos, inicial, onSubmit, onCancelar }) {
 
     async function submit(e) {
         e.preventDefault();
+        const faltando = validarObrigatorios(form, ALUNO_OBRIGATORIOS);
+        if (Object.keys(faltando).length) {
+            setErrors({ ...faltando, _geral: ['Preencha todos os campos obrigatórios.'] });
+            return;
+        }
         setSaving(true);
         setErrors({});
         try {
@@ -67,19 +109,19 @@ function AlunoForm({ catalogos, inicial, onSubmit, onCancelar }) {
                         <Input value={form.nome ?? ''} onChange={set('nome')} error={err('nome')} />
                     </Field>
                     <Field label="CPF" required error={err('cpf')}>
-                        <Input value={form.cpf ?? ''} onChange={set('cpf')} error={err('cpf')} placeholder="000.000.000-00" />
+                        <CpfInput value={form.cpf ?? ''} onChange={set('cpf')} error={err('cpf')} />
                     </Field>
                     <Field label="E-mail" required error={err('email')}>
                         <Input type="email" value={form.email ?? ''} onChange={set('email')} error={err('email')} />
                     </Field>
-                    <Field label="Telefone / WhatsApp" error={err('telefone')}>
-                        <Input value={form.telefone ?? ''} onChange={set('telefone')} placeholder="(00) 00000-0000" />
+                    <Field label="Telefone / WhatsApp" required error={err('telefone')}>
+                        <TelefoneInput value={form.telefone ?? ''} onChange={set('telefone')} error={err('telefone')} />
                     </Field>
-                    <Field label="Data de Nascimento" error={err('data_nascimento')}>
+                    <Field label="Data de Nascimento" required error={err('data_nascimento')}>
                         <DateInput value={form.data_nascimento ?? ''} onChange={set('data_nascimento')} error={err('data_nascimento')} />
                     </Field>
-                    <Field label="Gênero">
-                        <Select value={form.genero ?? ''} onChange={set('genero')}>
+                    <Field label="Gênero" required error={err('genero')}>
+                        <Select value={form.genero ?? ''} onChange={set('genero')} error={err('genero')}>
                             <option value="">Selecione</option>
                             <option value="F">Feminino</option>
                             <option value="M">Masculino</option>
@@ -87,8 +129,8 @@ function AlunoForm({ catalogos, inicial, onSubmit, onCancelar }) {
                             <option value="P">Prefiro não informar</option>
                         </Select>
                     </Field>
-                    <Field label="Raça/Cor (IBGE)">
-                        <Select value={form.etnia ?? ''} onChange={set('etnia')}>
+                    <Field label="Raça/Cor (IBGE)" required error={err('etnia')}>
+                        <Select value={form.etnia ?? ''} onChange={set('etnia')} error={err('etnia')}>
                             <option value="">Selecione</option>
                             <option value="branca">Branca</option>
                             <option value="preta">Preta</option>
@@ -98,8 +140,8 @@ function AlunoForm({ catalogos, inicial, onSubmit, onCancelar }) {
                             <option value="nao_declarar">Prefiro não declarar</option>
                         </Select>
                     </Field>
-                    <Field label="Tamanho da Camiseta">
-                        <Select value={form.camiseta ?? ''} onChange={set('camiseta')}>
+                    <Field label="Tamanho da Camiseta" required error={err('camiseta')}>
+                        <Select value={form.camiseta ?? ''} onChange={set('camiseta')} error={err('camiseta')}>
                             <option value="">Selecione</option>
                             {['PP', 'P', 'M', 'G', 'GG'].map((t) => <option key={t} value={t}>{t}</option>)}
                         </Select>
@@ -111,14 +153,22 @@ function AlunoForm({ catalogos, inicial, onSubmit, onCancelar }) {
             <div className="space-y-3">
                 <p className="text-sm font-semibold text-on-surface-variant">2. Dados Acadêmicos</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Field label="Instituição de Ensino">
-                        <Select value={form.instituicao_id ?? ''} onChange={set('instituicao_id')}>
+                    <Field label="Instituição de Ensino" required error={err('instituicao_id')}>
+                        <Select value={form.instituicao_id ?? ''} onChange={set('instituicao_id')} error={err('instituicao_id')}>
                             <option value="">Selecione</option>
                             {catalogos.instituicoes.map((i) => <option key={i.id} value={i.id}>{i.nome}</option>)}
                         </Select>
                     </Field>
-                    <Field label="Modalidade de Ensino">
-                        <Select value={form.modalidade ?? ''} onChange={set('modalidade')}>
+                    <Field label="Modalidade de Ensino" required error={err('modalidade')}>
+                        <Select
+                            value={form.modalidade ?? ''}
+                            error={err('modalidade')}
+                            onChange={(e) => {
+                                // Troca de modalidade limpa o ano/série (a lista de opções muda).
+                                const modalidade = e.target.value;
+                                setForm((f) => ({ ...f, modalidade, ano_escolar: '' }));
+                            }}
+                        >
                             <option value="">Selecione</option>
                             <option value="fundamental_i">Ensino Fundamental I</option>
                             <option value="fundamental_ii">Ensino Fundamental II</option>
@@ -126,23 +176,14 @@ function AlunoForm({ catalogos, inicial, onSubmit, onCancelar }) {
                             <option value="tecnico_integrado">Ensino Técnico Integrado</option>
                         </Select>
                     </Field>
-                    <Field label="Ano/Série">
-                        <Select value={form.ano_escolar ?? ''} onChange={set('ano_escolar')}>
-                            <option value="">Selecione</option>
-                            {[
-                                { v: '5_ef', l: '5º ano (Fundamental)' },
-                                { v: '6_ef', l: '6º ano (Fundamental)' },
-                                { v: '7_ef', l: '7º ano (Fundamental)' },
-                                { v: '8_ef', l: '8º ano (Fundamental)' },
-                                { v: '9_ef', l: '9º ano (Fundamental)' },
-                                { v: '1_em', l: '1º ano (Médio)' },
-                                { v: '2_em', l: '2º ano (Médio)' },
-                                { v: '3_em', l: '3º ano (Médio)' },
-                            ].map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}
+                    <Field label="Ano/Série" required error={err('ano_escolar')}>
+                        <Select value={form.ano_escolar ?? ''} onChange={set('ano_escolar')} disabled={!form.modalidade} error={err('ano_escolar')}>
+                            <option value="">{form.modalidade ? 'Selecione' : 'Escolha a modalidade primeiro'}</option>
+                            {(ANOS_POR_MODALIDADE[form.modalidade] ?? []).map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}
                         </Select>
                     </Field>
-                    <Field label="Período de Estudo">
-                        <Select value={form.periodo ?? ''} onChange={set('periodo')}>
+                    <Field label="Período de Estudo" required error={err('periodo')}>
+                        <Select value={form.periodo ?? ''} onChange={set('periodo')} error={err('periodo')}>
                             <option value="">Selecione</option>
                             <option value="matutino">Matutino</option>
                             <option value="vespertino">Vespertino</option>
@@ -183,6 +224,18 @@ function CoorientadorForm({ inicial, onSubmit, onCancelar }) {
 
     async function submit(e) {
         e.preventDefault();
+        const faltando = validarObrigatorios(form, COORIENTADOR_OBRIGATORIOS);
+        if (Object.keys(faltando).length) {
+            setErrors({ ...faltando, _geral: ['Preencha todos os campos obrigatórios.'] });
+            return;
+        }
+        // Idade mínima: coorientador precisa ter ao menos 21 anos completos.
+        const idade = idadeEmAnos(form.data_nascimento);
+        if (idade !== null && idade < MIN_IDADE) {
+            const msg = `É necessário possuir ao menos ${MIN_IDADE} anos completos para submissão.`;
+            setErrors({ data_nascimento: [msg], _geral: [msg] });
+            return;
+        }
         setSaving(true);
         setErrors({});
         try {
@@ -208,17 +261,17 @@ function CoorientadorForm({ inicial, onSubmit, onCancelar }) {
                 <Field label="E-mail" required error={err('email')}>
                     <Input type="email" value={form.email ?? ''} onChange={set('email')} error={err('email')} />
                 </Field>
-                <Field label="Telefone" error={err('telefone')}>
-                    <Input value={form.telefone ?? ''} onChange={set('telefone')} placeholder="(00) 00000-0000" />
+                <Field label="Telefone" required error={err('telefone')}>
+                    <TelefoneInput value={form.telefone ?? ''} onChange={set('telefone')} error={err('telefone')} />
                 </Field>
                 <Field label="CPF" required error={err('cpf')}>
-                    <Input value={form.cpf ?? ''} onChange={set('cpf')} error={err('cpf')} placeholder="000.000.000-00" />
+                    <CpfInput value={form.cpf ?? ''} onChange={set('cpf')} error={err('cpf')} />
                 </Field>
-                <Field label="Data de Nascimento" error={err('data_nascimento')}>
+                <Field label="Data de Nascimento" required error={err('data_nascimento')}>
                     <DateInput value={form.data_nascimento ?? ''} onChange={set('data_nascimento')} error={err('data_nascimento')} />
                 </Field>
-                <Field label="Gênero">
-                    <Select value={form.genero ?? ''} onChange={set('genero')}>
+                <Field label="Gênero" required error={err('genero')}>
+                    <Select value={form.genero ?? ''} onChange={set('genero')} error={err('genero')}>
                         <option value="">Selecione</option>
                         <option value="F">Feminino</option>
                         <option value="M">Masculino</option>
@@ -226,8 +279,8 @@ function CoorientadorForm({ inicial, onSubmit, onCancelar }) {
                         <option value="P">Prefiro não informar</option>
                     </Select>
                 </Field>
-                <Field label="Tamanho da Camiseta">
-                    <Select value={form.camiseta ?? ''} onChange={set('camiseta')}>
+                <Field label="Tamanho da Camiseta" required error={err('camiseta')}>
+                    <Select value={form.camiseta ?? ''} onChange={set('camiseta')} error={err('camiseta')}>
                         <option value="">Selecione</option>
                         {['PP', 'P', 'M', 'G', 'GG'].map((t) => <option key={t} value={t}>{t}</option>)}
                     </Select>
@@ -245,6 +298,7 @@ export default function Integrantes() {
     const { id } = useParams();
     const navigate = useNavigate();
     const catalogos = useCatalogos();
+    const [confirm, confirmDialog] = useConfirm();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [erro, setErro] = useState(false);
@@ -292,7 +346,13 @@ export default function Integrantes() {
         setAlunoForm(null);
     }
     async function excluirAluno(aluno) {
-        if (!window.confirm(`Remover ${aluno.nome}?`)) return;
+        const ok = await confirm({
+            title: 'Remover aluno',
+            message: `Remover ${aluno.nome}?`,
+            confirmLabel: 'Remover',
+            danger: true,
+        });
+        if (!ok) return;
         await removerAluno(aluno.id);
         carregar();
     }
@@ -302,7 +362,13 @@ export default function Integrantes() {
         setCoorForm(null);
     }
     async function excluirCoor() {
-        if (!window.confirm('Remover coorientador?')) return;
+        const ok = await confirm({
+            title: 'Remover coorientador',
+            message: 'Remover coorientador?',
+            confirmLabel: 'Remover',
+            danger: true,
+        });
+        if (!ok) return;
         await removerCoorientador(id);
         carregar();
     }
@@ -392,6 +458,19 @@ export default function Integrantes() {
                     onEdit={editavel ? () => setCoorForm(coorientador) : undefined}
                     onRemove={editavel ? excluirCoor : undefined} />
             )}
+
+            {/* Navegação */}
+            <div className="flex flex-col sm:flex-row justify-between gap-3 mt-8 pt-4 border-t border-outline-variant/30">
+                <Button variant="outline" type="button" onClick={() => navigate('/projetos')}>
+                    <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+                    Voltar aos projetos
+                </Button>
+                <Button type="button" onClick={() => navigate(`/projetos/${id}/resumo`)}>
+                    <span className="material-symbols-outlined text-[20px]">summarize</span>
+                    Ir para o resumo
+                </Button>
+            </div>
+            {confirmDialog}
         </AppShell>
     );
 }

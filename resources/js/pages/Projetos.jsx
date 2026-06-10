@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
-import { Alert } from '../components/ui.jsx';
+import { Alert, useConfirm } from '../components/ui.jsx';
 import { listarProjetos, removerProjeto } from '../lib/projetos.js';
 
 const FILTROS = [
@@ -22,6 +22,7 @@ function StatusPill({ status, label }) {
 
 export default function Projetos() {
     const navigate = useNavigate();
+    const [confirm, confirmDialog] = useConfirm();
     const [projetos, setProjetos] = useState([]);
     const [filtro, setFiltro] = useState('all');
     const [loading, setLoading] = useState(true);
@@ -38,7 +39,13 @@ export default function Projetos() {
     useEffect(() => carregar(), [carregar]);
 
     async function excluir(id) {
-        if (!window.confirm('Excluir este rascunho? Esta ação não pode ser desfeita.')) return;
+        const ok = await confirm({
+            title: 'Excluir rascunho',
+            message: 'Excluir este rascunho? Esta ação não pode ser desfeita.',
+            confirmLabel: 'Excluir',
+            danger: true,
+        });
+        if (!ok) return;
         await removerProjeto(id);
         carregar();
     }
@@ -172,6 +179,7 @@ export default function Projetos() {
                     ))}
                 </div>
             )}
+            {confirmDialog}
         </AppShell>
     );
 }
