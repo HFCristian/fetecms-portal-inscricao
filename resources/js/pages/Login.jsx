@@ -93,7 +93,7 @@ export default function Login() {
                         </Link>
                         <Link
                             to="/cadastro/avaliador"
-                            className="inline-flex items-center justify-center gap-2 rounded-lg px-5 py-3 font-semibold transition-colors border-2 border-secondary/50 text-secondary bg-secondary-fixed/20 hover:bg-secondary-fixed/80"
+                            className="inline-flex items-center justify-center gap-2 rounded-lg px-5 py-3 font-semibold transition-colors border-2 border-secondary/50 text-secondary bg-secondary-fixed/20 hover:bg-secondary-container/70"
                         >
                             <span className="material-symbols-outlined text-[20px]">rate_review</span>
                             Avaliador
