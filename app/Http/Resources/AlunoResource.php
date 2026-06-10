@@ -2,10 +2,11 @@
 
 namespace App\Http\Resources;
 
+use App\Models\Aluno;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-/** @mixin \App\Models\Aluno */
+/** @mixin Aluno */
 class AlunoResource extends JsonResource
 {
     public function toArray(Request $request): array

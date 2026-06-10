@@ -2,13 +2,14 @@
 
 namespace App\Models;
 
+use Database\Factories\OrientadorProfileFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class OrientadorProfile extends Model
 {
-    /** @use HasFactory<\Database\Factories\OrientadorProfileFactory> */
+    /** @use HasFactory<OrientadorProfileFactory> */
     use HasFactory;
 
     protected $fillable = [

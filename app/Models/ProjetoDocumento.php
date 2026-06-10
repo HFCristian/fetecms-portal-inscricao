@@ -3,13 +3,14 @@
 namespace App\Models;
 
 use App\Enums\TipoDocumento;
+use Database\Factories\ProjetoDocumentoFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ProjetoDocumento extends Model
 {
-    /** @use HasFactory<\Database\Factories\ProjetoDocumentoFactory> */
+    /** @use HasFactory<ProjetoDocumentoFactory> */
     use HasFactory;
 
     protected $table = 'projeto_documentos';

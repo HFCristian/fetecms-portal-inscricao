@@ -2,8 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Models\AvaliadorProfile;
 use App\Models\Area;
+use App\Models\AvaliadorProfile;
 use App\Models\Coorientador;
 use App\Models\OrientadorProfile;
 use App\Models\User;

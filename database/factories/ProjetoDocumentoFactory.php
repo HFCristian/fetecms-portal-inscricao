@@ -4,10 +4,11 @@ namespace Database\Factories;
 
 use App\Enums\TipoDocumento;
 use App\Models\Projeto;
+use App\Models\ProjetoDocumento;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends Factory<\App\Models\ProjetoDocumento>
+ * @extends Factory<ProjetoDocumento>
  */
 class ProjetoDocumentoFactory extends Factory
 {

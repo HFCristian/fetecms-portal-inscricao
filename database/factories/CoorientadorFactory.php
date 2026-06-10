@@ -2,11 +2,12 @@
 
 namespace Database\Factories;
 
+use App\Models\Coorientador;
 use App\Models\Projeto;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends Factory<\App\Models\Coorientador>
+ * @extends Factory<Coorientador>
  */
 class CoorientadorFactory extends Factory
 {

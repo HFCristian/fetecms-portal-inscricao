@@ -4,11 +4,12 @@ namespace Database\Factories;
 
 use App\Enums\Categoria;
 use App\Enums\ProjetoStatus;
+use App\Models\Projeto;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends Factory<\App\Models\Projeto>
+ * @extends Factory<Projeto>
  */
 class ProjetoFactory extends Factory
 {

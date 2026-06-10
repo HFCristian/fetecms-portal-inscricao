@@ -7,7 +7,6 @@ use App\Http\Requests\Avaliador\RegisterAvaliadorRequest;
 use App\Http\Resources\UserResource;
 use App\Services\AvaliadorService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 
 class AvaliadorController extends Controller
 {

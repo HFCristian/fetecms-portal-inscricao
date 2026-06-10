@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\PalavraChave;
 use Database\Seeders\CatalogoSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
@@ -58,8 +59,8 @@ class CatalogoTest extends TestCase
 
     public function test_busca_palavras_chave_globais(): void
     {
-        \App\Models\PalavraChave::create(['texto' => 'Biotecnologia']);
-        \App\Models\PalavraChave::create(['texto' => 'Energia Solar']);
+        PalavraChave::create(['texto' => 'Biotecnologia']);
+        PalavraChave::create(['texto' => 'Energia Solar']);
 
         $this->getJson('/api/v1/catalogos/palavras-chave?search=Energia')
             ->assertOk()

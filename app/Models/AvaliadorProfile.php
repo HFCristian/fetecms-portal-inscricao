@@ -2,13 +2,14 @@
 
 namespace App\Models;
 
+use Database\Factories\AvaliadorProfileFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class AvaliadorProfile extends Model
 {
-    /** @use HasFactory<\Database\Factories\AvaliadorProfileFactory> */
+    /** @use HasFactory<AvaliadorProfileFactory> */
     use HasFactory;
 
     protected $fillable = ['cpf', 'titulacao', 'area_id', 'subarea_id'];

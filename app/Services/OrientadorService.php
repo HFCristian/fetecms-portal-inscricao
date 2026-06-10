@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Enums\Role;
-use App\Models\OrientadorProfile;
 use App\Models\User;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;

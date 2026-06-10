@@ -7,7 +7,6 @@ use App\Http\Requests\Orientador\RegisterOrientadorRequest;
 use App\Http\Resources\UserResource;
 use App\Services\OrientadorService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 
 class OrientadorController extends Controller
 {

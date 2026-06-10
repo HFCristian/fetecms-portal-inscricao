@@ -2,11 +2,12 @@
 
 namespace Database\Factories;
 
+use App\Models\AvaliadorProfile;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends Factory<\App\Models\AvaliadorProfile>
+ * @extends Factory<AvaliadorProfile>
  */
 class AvaliadorProfileFactory extends Factory
 {

@@ -2,11 +2,12 @@
 
 namespace Database\Factories;
 
+use App\Models\Aluno;
 use App\Models\Projeto;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends Factory<\App\Models\Aluno>
+ * @extends Factory<Aluno>
  */
 class AlunoFactory extends Factory
 {
