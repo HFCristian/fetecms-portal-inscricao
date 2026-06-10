@@ -122,15 +122,19 @@ A SPA deve manter a identidade visual de [static_page_base/](static_page_base/):
 ## Fluxo de trabalho por sprint (política do cliente)
 
 O desenvolvimento avança em **sprints de 2 épicos**, entregando um MVP sempre que possível.
-Ao **final de cada sprint**:
+
+**Commitar é responsabilidade do Claude:** **toda alteração deve ser commitada** na branch
+**`changes`** (já é a branch ativa) assim que concluída — não deixar mudança sem commit nem
+adiar para o fim da sprint. Mensagem no padrão convencional (`feat(...)`, `fix(...)`,
+`docs(...)`, …) + rodapé `Co-Authored-By`. O **Pedro fica responsável apenas pelo push**.
+
+Ao **final de cada sprint** (com os commits já feitos ao longo do caminho):
 
 1. **Rodar os testes** (unitários, feature, segurança/autorização; responsividade e carga quando
    aplicável) e registrar o resultado.
-2. **Commitar** as mudanças na branch **`changes`** (já é a branch ativa).
-   - Mensagem padrão: `feat(sprintN): <resumo dos 2 épicos>` + rodapé `Co-Authored-By`.
-3. **Push é manual** (feito pelo Pedro). **Exceção**: se houver **3 sprints seguidas sem push**,
+2. **Push é manual** (feito pelo Pedro). **Exceção**: se houver **3 sprints seguidas sem push**,
    o Claude pode fazer `git push origin changes` diretamente.
-4. Entregar ao Pedro um **overview** da sprint: o que foi feito, orientações, dúvidas e **ações
+3. Entregar ao Pedro um **overview** da sprint: o que foi feito, orientações, dúvidas e **ações
    a realizar antes da próxima sprint**.
 
 Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sprints sem push":
