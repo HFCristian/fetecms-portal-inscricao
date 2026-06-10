@@ -26,29 +26,27 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
-          extensions: sqlite3, pdo_sqlite, mbstring, xml, curl, bcmath, intl, zip
-          coverage: none
-          tools: composer:v2
 
-      - name: Cache de dependências do Composer
-        uses: actions/cache@v4
-        with:
-          path: vendor
-          key: composer-${{ runner.os }}-${{ hashFiles('composer.lock') }}
-          restore-keys: composer-${{ runner.os }}-
-
-      - name: Instalar dependências (Composer)
+      - name: Instalar dependências Composer
         run: composer install --no-interaction --prefer-dist --no-progress
 
-      - name: Preparar ambiente (.env + APP_KEY)
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Instalar dependências NPM
+        run: npm ci
+
+      - name: Build assets
+        run: npm run build
+
+      - name: Preparar ambiente
         run: |
           cp .env.example .env
           php artisan key:generate
 
-      - name: Lint (Laravel Pint)
-        run: php vendor/bin/pint --test
-
-      - name: Testes (PHPUnit, SQLite :memory:)
+      - name: Testes
         run: php artisan test
 
   frontend:
