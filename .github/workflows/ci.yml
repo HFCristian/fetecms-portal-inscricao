@@ -1,11 +1,13 @@
 name: CI
 
+# Roda automaticamente a cada push/merge na main e em PRs que miram a main.
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
 
+# Cancela execuções antigas do mesmo ref quando chega um push novo.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -17,7 +19,6 @@ jobs:
   backend:
     name: Backend — Pint + PHPUnit
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
@@ -25,82 +26,90 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
+          extensions: sqlite3, pdo_sqlite, mbstring, xml, curl, bcmath, intl, zip
+          coverage: none
+          tools: composer:v2
 
-      - name: Instalar dependências Composer
+      - name: Instalar dependências (Composer)
         run: composer install --no-interaction --prefer-dist --no-progress
 
-      - name: Setup Node
+      - name: Lint (Laravel Pint)
+        run: php vendor/bin/pint --test
+
+      - name: Setup Node 22
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: '22'
+          cache: npm
 
-      - name: Instalar dependências NPM
+      - name: Instalar dependências (npm ci)
         run: npm ci
 
-      - name: Build assets
+      # Necessário para o teste que renderiza a casca da SPA (@vite) em GET /.
+      - name: Build de assets (manifest do Vite)
         run: npm run build
 
-      - name: Preparar ambiente
+      - name: Preparar ambiente (.env + APP_KEY)
         run: |
           cp .env.example .env
           php artisan key:generate
 
-      - name: Testes
+      - name: Testes (PHPUnit, SQLite :memory:)
         run: php artisan test
 
-    frontend:
-      name: Frontend — Vitest + build
-      runs-on: ubuntu-latest
+  frontend:
+    name: Frontend — Vitest + build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-      steps:
-        - uses: actions/checkout@v4
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
 
-        - name: Setup Node 22
-          uses: actions/setup-node@v4
-          with:
-            node-version: '22'
-            cache: npm
+      - name: Instalar dependências (npm ci)
+        run: npm ci
 
-        - name: Instalar dependências (npm ci)
-          run: npm ci
+      - name: Testes de componente (Vitest)
+        run: npm test
 
-        - name: Testes de componente (Vitest)
-          run: npm test
+      - name: Build de produção (Vite)
+        run: npm run build
 
-        - name: Build de produção (Vite)
-          run: npm run build
+  security:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-    security:
-      name: Security Audit
-      runs-on: ubuntu-latest
+      - name: Setup PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: sqlite3, pdo_sqlite, mbstring, xml, curl, bcmath, intl, zip
+          tools: composer:v2
 
-      steps:
-        - uses: actions/checkout@v4
+      - name: Instalar dependências (Composer)
+        run: composer install --no-interaction --prefer-dist --no-progress
 
-        - name: Setup PHP 8.4
-          uses: shivammathur/setup-php@v2
-          with:
-            php-version: '8.4'
+      - name: Auditoria de dependências (Composer)
+        run: composer audit
 
-        - name: Instalar dependências Composer
-          run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
 
-        - name: Auditoria Composer
-          run: composer audit
+      - name: Instalar dependências (npm ci)
+        run: npm ci
 
-        - name: Setup Node 22
-          uses: actions/setup-node@v4
-          with:
-            node-version: '22'
-            cache: npm
+      - name: Auditoria de dependências (npm)
+        run: npm audit --audit-level=high
 
-        - name: Instalar dependências NPM
-          run: npm ci
-
-        - name: Auditoria NPM
-          run: npm audit --audit-level=high
-
-        - name: Scan de segredos (Gitleaks)
-          uses: gitleaks/gitleaks-action@v2
-          env:
-            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Scan de segredos (Gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
