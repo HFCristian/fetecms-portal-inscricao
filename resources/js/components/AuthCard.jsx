@@ -9,7 +9,7 @@ export default function AuthCard({ children }) {
                             XVI FETECMS
                         </span>
                         <h1 className="font-display text-5xl font-bold text-on-surface leading-tight mt-2">
-                            Portal do Orientador
+                            Portal da FETEC
                         </h1>
                         <img
                             src="/img/logo2026slogan.png"

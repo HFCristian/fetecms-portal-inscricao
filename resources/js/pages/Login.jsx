@@ -79,22 +79,26 @@ export default function Login() {
                     </Button>
                 </form>
 
-                <div className="mt-8 pt-6 border-t border-outline-variant/30 space-y-3 text-center">
-                    <p className="text-sm text-on-surface-variant">
-                        Novo por aqui?{' '}
-                        <Link to="/cadastro" className="font-semibold text-primary-container hover:underline">
-                            Criar conta de orientador
-                        </Link>
+                <div className="mt-8 pt-6 border-t border-outline-variant/30">
+                    <p className="text-sm text-on-surface-variant text-center mb-4">
+                        Ainda não tem conta? Cadastre-se como:
                     </p>
-                    <p className="text-sm text-on-surface-variant">
-                        É avaliador?{' '}
+                    <div className="mt-4 flex flex-row justify-between">
+                        <Link
+                            to="/cadastro"
+                            className="inline-flex items-center justify-center gap-2 rounded-lg px-5 py-3 font-semibold transition-colors border-2 border-primary-container/50 text-primary-container bg-primary-fixed-dim/20 hover:bg-primary-fixed-dim"
+                        >
+                            <span className="material-symbols-outlined text-[20px]">school</span>
+                            Orientador
+                        </Link>
                         <Link
                             to="/cadastro/avaliador"
-                            className="font-semibold text-secondary hover:underline"
+                            className="inline-flex items-center justify-center gap-2 rounded-lg px-5 py-3 font-semibold transition-colors border-2 border-secondary/50 text-secondary bg-secondary-fixed/20 hover:bg-secondary-fixed/80"
                         >
-                            Cadastre-se como avaliador
+                            <span className="material-symbols-outlined text-[20px]">rate_review</span>
+                            Avaliador
                         </Link>
-                    </p>
+                    </div>
                 </div>
             </div>
         </AuthCard>
