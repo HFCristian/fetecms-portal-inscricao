@@ -16,7 +16,7 @@ export default function AuthCard({ children }) {
                         <img
                             src="/img/logo2026slogan.png"
                             alt="Logo XVI FETECMS"
-                            className="my-6 mx-auto w-full max-w-[260px] h-auto object-contain drop-shadow-md"
+                            className="my-6 mx-auto w-full max-w-65 h-auto object-contain drop-shadow-md"
                         />
                     </div>
                     <div className="relative z-10 mt-auto">

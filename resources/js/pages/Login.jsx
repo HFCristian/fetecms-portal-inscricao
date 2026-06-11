@@ -29,7 +29,7 @@ export default function Login() {
 
     return (
         <AuthCard>
-            <div className="flex-grow flex flex-col justify-center px-6 sm:px-10 py-10 w-full max-w-lg mx-auto">
+            <div className="flex flex-col grow justify-center px-6 sm:px-10 py-10 w-full max-w-lg mx-auto">
                 <h2 className="font-display text-2xl font-semibold text-on-surface mb-1">Bem-vindo de volta</h2>
                 <p className="text-sm text-on-surface-variant mb-8">
                     Informe seu e-mail e senha para acessar o portal.
