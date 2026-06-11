@@ -152,13 +152,13 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 9 | Erros 100% em pt_BR + favicon (logo2026.png) + rodapé com e-mail de suporte | ✅ sim | ✅ sim (Pedro) | 0 |
 | 10 | Instituições: importar escolas_ms.csv + combobox "digite/crie" (criação global) no orientador e projeto | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
-> **Estado atual:** ciclo de ajustes pós-v1 (Sprints 6–10) **concluído**. Sprint 10 commitada —
-> back 108/108, front 11/11, Pint limpo, build OK. 1 sprint sem push (10).
-> Para popular as escolas em produção/local: `php artisan instituicoes:importar`
-> (lê `database/data/instituicoes/escolas_ms.csv`; 1888 escolas de MS, todos os municípios casam).
-> Sprint 10 (instituições): arquivo **`escolas_ms.csv`** (raiz, MS apenas) com colunas
-> `MUNICÍPIO, ZONA, CÓDIGO DO INEP, UNIDADE ESCOLAR, TIPO`. Será versionado e também ganha
-> **combobox "digite/crie"** de instituição (criação global) no cadastro do orientador e no projeto.
+> **Estado atual:** ciclo de ajustes pós-v1 (Sprints 6–10) **concluído e verde** — back 108/108,
+> front 11/11, Pint limpo, build OK (estado integrado, já com a refatoração visual do Pedro).
+> A Sprint 10 ficou versionada **junto** das correções visuais do Pedro no commit `f502e4f`
+> (criação de admin movida para a página `AdminManager` em `/admin/gerir-admins`).
+> **Pendências do Pedro:** (1) `git push origin changes` do `f502e4f`; (2) popular as escolas com
+> `php artisan instituicoes:importar` (lê `database/data/instituicoes/escolas_ms.csv`; 1888 escolas
+> de MS, todos os 79 municípios casam com o catálogo IBGE).
 
 ### Roadmap de sprints (proposto)
 
