@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth.jsx';
 import SupportFooter from './SupportFooter.jsx';
@@ -11,11 +12,67 @@ function navClass({ isActive }) {
     );
 }
 
+// Links de navegação por papel. onNavigate fecha o menu mobile ao clicar num link.
+function NavLinks({ role, onNavigate }) {
+    if (role === 'admin') {
+        return (
+            <>
+                <NavLink to="/admin" end className={navClass} onClick={onNavigate}>
+                    <span className="material-symbols-outlined">dashboard</span>
+                    Dashboard
+                </NavLink>
+                <NavLink to="/admin/parametrizacao" className={navClass} onClick={onNavigate}>
+                    <span className="material-symbols-outlined">tune</span>
+                    Parametrização
+                </NavLink>
+                <NavLink to="/admin/gerir-admins" className={navClass} onClick={onNavigate}>
+                    <span className="material-symbols-outlined">people</span>
+                    Administradores
+                </NavLink>
+            </>
+        );
+    }
+    if (role === 'avaliador') {
+        return (
+            <NavLink to="/avaliador" className={navClass} onClick={onNavigate}>
+                <span className="material-symbols-outlined">fact_check</span>
+                Avaliações
+            </NavLink>
+        );
+    }
+    return (
+        <>
+            <NavLink to="/projetos" className={navClass} onClick={onNavigate}>
+                <span className="material-symbols-outlined">folder_shared</span>
+                Meus Projetos
+            </NavLink>
+            <NavLink to="/perfil" className={navClass} onClick={onNavigate}>
+                <span className="material-symbols-outlined">account_circle</span>
+                Perfil
+            </NavLink>
+        </>
+    );
+}
+
+function LogoutButton({ onClick }) {
+    return (
+        <button
+            onClick={onClick}
+            className="flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold text-red-900 hover:bg-surface-variant transition-colors"
+        >
+            <span className="material-symbols-outlined">logout</span>
+            Sair
+        </button>
+    );
+}
+
 export default function AppShell({ children }) {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
+    const [menuOpen, setMenuOpen] = useState(false);
 
     async function handleLogout() {
+        setMenuOpen(false);
         await logout();
         navigate('/login', { replace: true });
     }
@@ -30,62 +87,53 @@ export default function AppShell({ children }) {
                     <p className="text-sm text-on-surface-variant">XVI FETECMS</p>
                 </div>
                 <div className="flex-1 flex flex-col gap-1">
-                    {user?.role === 'admin' ? (
-                        <>
-                            <NavLink to="/admin" end className={navClass}>
-                                <span className="material-symbols-outlined">dashboard</span>
-                                Dashboard
-                            </NavLink>
-                            <NavLink to="/admin/parametrizacao" className={navClass}>
-                                <span className="material-symbols-outlined">tune</span>
-                                Parametrização
-                            </NavLink>
-                            <NavLink to="/admin/gerir-admins" className={navClass}>
-                                <span className="material-symbols-outlined">people</span>
-                                Administradores
-                            </NavLink>
-                        </>
-                    ) : user?.role === 'avaliador' ? (
-                        <NavLink to="/avaliador" className={navClass}>
-                            <span className="material-symbols-outlined">fact_check</span>
-                            Avaliações
-                        </NavLink>
-                    ) : (
-                        <>
-                            <NavLink to="/projetos" className={navClass}>
-                                <span className="material-symbols-outlined">folder_shared</span>
-                                Meus Projetos
-                            </NavLink>
-                            <NavLink to="/perfil" className={navClass}>
-                                <span className="material-symbols-outlined">account_circle</span>
-                                Perfil
-                            </NavLink>
-                        </>
-                    )}
+                    <NavLinks role={user?.role} />
                     <div className="flex flex-col gap-4 mt-auto mb-4">
-                        <button
-                            onClick={handleLogout}
-                            className="flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold text-red-900 hover:bg-surface-variant transition-colors"
-                        >
-                            <span className="material-symbols-outlined">logout</span>
-                            Sair
-                        </button>
+                        <LogoutButton onClick={handleLogout} />
                         <SupportFooter className="pb-2" />
                     </div>
                 </div>
             </nav>
 
-            {/* Header mobile */}
+            {/* Header mobile: botão de menu abre o menu lateral em tela cheia */}
             <header className="md:hidden sticky top-0 z-40 flex items-center justify-between bg-surface border-b border-outline-variant/30 px-4 h-20">
                 <img src="/img/logo2026.png" alt="XVI FETECMS" className="max-h-16" />
                 <div className='text-center'>
                     <h1 className="font-display text-lg text-primary font-bold">Portal do Orientador</h1>
                     <p className="text-sm text-on-surface-variant">XVI FETECMS</p>
                 </div>
-                <button onClick={handleLogout} className="text-on-surface-variant p-2">
-                    <span className="material-symbols-outlined">logout</span>
+                <button onClick={() => setMenuOpen(true)} aria-label="Abrir menu" className="text-on-surface-variant p-2">
+                    <span className="material-symbols-outlined text-[28px]">menu</span>
                 </button>
             </header>
+
+            {/* Menu lateral em tela cheia (mobile) */}
+            {menuOpen && (
+                <div className="md:hidden fixed inset-0 z-50 bg-surface-container-low flex flex-col" role="dialog" aria-modal="true">
+                    <div className="flex items-center justify-between px-4 h-20 border-b border-outline-variant/30 shrink-0">
+                        <div className="flex items-center gap-3">
+                            <img src="/img/logo2026.png" alt="XVI FETECMS" className="max-h-14" />
+                            <div>
+                                <h1 className="font-display text-lg text-primary font-bold leading-tight">Portal</h1>
+                                <p className="text-xs text-on-surface-variant">XVI FETECMS</p>
+                            </div>
+                        </div>
+                        <button onClick={() => setMenuOpen(false)} aria-label="Fechar menu" className="text-on-surface-variant p-2">
+                            <span className="material-symbols-outlined text-[28px]">close</span>
+                        </button>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-1">
+                        <p className="text-sm text-on-surface-variant mb-3 px-1">
+                            Olá, <strong className="text-on-surface">{user?.name}</strong>
+                        </p>
+                        <NavLinks role={user?.role} onNavigate={() => setMenuOpen(false)} />
+                    </div>
+                    <div className="p-4 border-t border-outline-variant/30 flex flex-col gap-3 shrink-0">
+                        <LogoutButton onClick={handleLogout} />
+                        <SupportFooter />
+                    </div>
+                </div>
+            )}
 
             {/* Conteúdo */}
             <div className="md:ml-64">
