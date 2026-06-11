@@ -1,12 +1,19 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth, extractErrors } from '../lib/auth.jsx';
 import AppShell from '../components/AppShell.jsx';
 import http from '../lib/http.js';
-import { Field, Input, CpfInput, TelefoneInput, Button, Alert } from '../components/ui.jsx';
+import { Field, Input, CpfInput, TelefoneInput, CepInput, Select, Button, Alert } from '../components/ui.jsx';
+import { listaPaises } from '../lib/paises.js';
+import { useCatalogos, loadCidades } from '../lib/catalogos.js';
+
+const PAISES = listaPaises();
 
 export default function Perfil() {
     const { user, setUser } = useAuth();
     const profile = user?.orientador_profile ?? {};
+    const endereco = profile.endereco ?? {};
+    const catalogos = useCatalogos();
+    const [cidades, setCidades] = useState([]);
 
     const [form, setForm] = useState({
         name: user?.name ?? '',
@@ -14,16 +21,42 @@ export default function Perfil() {
         telefone: profile.telefone ?? '',
         instituicao: profile.instituicao ?? '',
         titulacao: profile.titulacao ?? '',
-        cidade: profile.endereco?.cidade ?? '',
-        estado: profile.endereco?.estado ?? '',
+        pais: endereco.pais ?? 'BR',
+        cep: endereco.cep ?? '',
+        estado_id: endereco.estado_id ?? '',
+        cidade_id: endereco.cidade_id ?? '',
+        estado_nome: endereco.estado_nome ?? '',
+        cidade_nome: endereco.cidade_nome ?? '',
     });
     const [errors, setErrors] = useState({});
     const [alert, setAlert] = useState('');
     const [success, setSuccess] = useState('');
     const [loading, setLoading] = useState(false);
 
+    const ehBR = (form.pais || 'BR') === 'BR';
+
+    // Pré-carrega as cidades do estado já salvo, para o select de cidade vir preenchido.
+    useEffect(() => {
+        if (endereco.estado_id) loadCidades(endereco.estado_id).then(setCidades).catch(() => {});
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [endereco.estado_id]);
+
     const set = (name) => (e) => setForm((f) => ({ ...f, [name]: e.target.value }));
     const err = (name) => errors[name]?.[0];
+
+    // Endereço: no Brasil é catálogo em cascata (estado→cidade); fora do Brasil, texto livre.
+    async function onEstadoChange(estadoId) {
+        setForm((f) => ({ ...f, estado_id: estadoId, cidade_id: '' }));
+        setCidades(estadoId ? await loadCidades(estadoId) : []);
+    }
+    function onPaisChange(pais) {
+        setForm((f) => ({
+            ...f,
+            pais,
+            ...(pais === 'BR' ? { estado_nome: '', cidade_nome: '' } : { estado_id: '', cidade_id: '' }),
+        }));
+        if (pais !== 'BR') setCidades([]);
+    }
 
     async function onSubmit(e) {
         e.preventDefault();
@@ -66,12 +99,45 @@ export default function Perfil() {
                     <Field label="Instituição">
                         <Input value={form.instituicao} onChange={set('instituicao')} />
                     </Field>
-                    <Field label="Cidade">
-                        <Input value={form.cidade} onChange={set('cidade')} />
+                    <Field label="País">
+                        <Select value={form.pais} onChange={(e) => onPaisChange(e.target.value)}>
+                            {PAISES.map((p) => <option key={p.code} value={p.code}>{p.nome}</option>)}
+                        </Select>
                     </Field>
-                    <Field label="Estado">
-                        <Input value={form.estado} onChange={set('estado')} />
-                    </Field>
+                    {ehBR ? (
+                        <Field label="CEP" error={err('cep')}>
+                            <CepInput value={form.cep} onChange={set('cep')} error={err('cep')} />
+                        </Field>
+                    ) : (
+                        <Field label="Código Postal">
+                            <Input value={form.cep} onChange={set('cep')} placeholder="Código postal" />
+                        </Field>
+                    )}
+                    {ehBR ? (
+                        <>
+                            <Field label="Estado" error={err('estado_id')}>
+                                <Select value={form.estado_id} onChange={(e) => onEstadoChange(e.target.value)} error={err('estado_id')}>
+                                    <option value="">Selecione</option>
+                                    {catalogos.estados.map((es) => <option key={es.id} value={es.id}>{es.nome} ({es.uf})</option>)}
+                                </Select>
+                            </Field>
+                            <Field label="Cidade" error={err('cidade_id')}>
+                                <Select value={form.cidade_id} onChange={set('cidade_id')} error={err('cidade_id')} disabled={!form.estado_id}>
+                                    <option value="">{form.estado_id ? 'Selecione' : 'Escolha o estado primeiro'}</option>
+                                    {cidades.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                                </Select>
+                            </Field>
+                        </>
+                    ) : (
+                        <>
+                            <Field label="Estado/Província">
+                                <Input value={form.estado_nome} onChange={set('estado_nome')} placeholder="Ex: Buenos Aires" />
+                            </Field>
+                            <Field label="Cidade">
+                                <Input value={form.cidade_nome} onChange={set('cidade_nome')} placeholder="Ex: La Plata" />
+                            </Field>
+                        </>
+                    )}
                 </div>
 
                 <div className="pt-2">

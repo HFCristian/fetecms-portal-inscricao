@@ -18,7 +18,7 @@ class OrientadorService
         'camiseta', 'pcd', 'instituicao', 'tipo_instituicao', 'vinculo', 'titulacao',
         'curso_formacao', 'area_conhecimento', 'subarea', 'tempo_orientacao',
         'vezes_fetec', 'ex_aluno_fetec', 'cep', 'logradouro', 'numero', 'complemento',
-        'bairro', 'cidade', 'estado', 'pais',
+        'bairro', 'estado_id', 'cidade_id', 'estado_nome', 'cidade_nome', 'pais',
     ];
 
     /**
@@ -38,7 +38,7 @@ class OrientadorService
 
             $user->orientadorProfile()->create(Arr::only($data, self::PROFILE_FIELDS));
 
-            return $user->load('orientadorProfile');
+            return $user->load('orientadorProfile.estado', 'orientadorProfile.cidade');
         });
     }
 
@@ -58,7 +58,7 @@ class OrientadorService
                 $user->orientadorProfile()->update($profileData);
             }
 
-            return $user->fresh('orientadorProfile');
+            return $user->fresh(['orientadorProfile.estado', 'orientadorProfile.cidade']);
         });
     }
 }

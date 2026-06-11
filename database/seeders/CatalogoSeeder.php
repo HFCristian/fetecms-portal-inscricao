@@ -19,7 +19,7 @@ class CatalogoSeeder extends Seeder
     {
         $this->seedEdicao();
         $this->seedEstados();
-        $this->seedCidadesMS();
+        $this->seedCidades();
         $this->seedAreas();
         $this->seedInstituicoes();
     }
@@ -49,21 +49,46 @@ class CatalogoSeeder extends Seeder
         }
     }
 
-    private function seedCidadesMS(): void
+    /**
+     * Todos os municípios do Brasil (base oficial do IBGE, versionada em
+     * database/data/municipios.json). Idempotente: o índice único (estado_id, nome)
+     * + insertOrIgnore permitem re-seed sem duplicar. Se o arquivo não existir,
+     * cai para um conjunto mínimo de MS apenas para o ambiente não ficar vazio.
+     */
+    private function seedCidades(): void
     {
-        $ms = Estado::where('uf', 'MS')->first();
-        $cidades = [
-            'Campo Grande', 'Dourados', 'Três Lagoas', 'Corumbá', 'Ponta Porã',
-            'Naviraí', 'Nova Andradina', 'Aquidauana', 'Sidrolândia', 'Maracaju',
-            'Coxim', 'Paranaíba',
-        ];
-        foreach ($cidades as $nome) {
-            Cidade::firstOrCreate(['estado_id' => $ms->id, 'nome' => $nome]);
+        $ufToId = Estado::pluck('id', 'uf'); // ['MS' => 12, 'SP' => 26, ...]
+        $path = database_path('data/municipios.json');
+
+        if (! is_file($path)) {
+            $ms = $ufToId['MS'] ?? null;
+            foreach ($ms ? ['Campo Grande', 'Dourados', 'Três Lagoas', 'Corumbá'] : [] as $nome) {
+                Cidade::firstOrCreate(['estado_id' => $ms, 'nome' => $nome]);
+            }
+
+            return;
         }
 
-        // Algumas capitais p/ variedade nos selects.
-        $sp = Estado::where('uf', 'SP')->first();
-        Cidade::firstOrCreate(['estado_id' => $sp->id, 'nome' => 'São Paulo']);
+        $municipios = json_decode((string) file_get_contents($path), true) ?: [];
+        $now = now();
+
+        $linhas = [];
+        foreach ($municipios as $m) {
+            $estadoId = $ufToId[$m['uf']] ?? null;
+            if ($estadoId === null) {
+                continue;
+            }
+            $linhas[] = [
+                'estado_id' => $estadoId,
+                'nome' => $m['nome'],
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+
+        foreach (array_chunk($linhas, 1000) as $chunk) {
+            Cidade::insertOrIgnore($chunk);
+        }
     }
 
     private function seedAreas(): void
@@ -90,7 +115,10 @@ class CatalogoSeeder extends Seeder
 
     private function seedInstituicoes(): void
     {
-        $cidade = fn (string $nome) => Cidade::where('nome', $nome)->value('id');
+        // Resolve a cidade DENTRO de MS: com o Brasil inteiro semeado, nomes como
+        // "Campo Grande" existem em mais de um estado.
+        $msId = Estado::where('uf', 'MS')->value('id');
+        $cidade = fn (string $nome) => Cidade::where('estado_id', $msId)->where('nome', $nome)->value('id');
 
         $escolas = [
             ['nome' => 'EE Prof. João Mendes', 'cidade' => 'Campo Grande', 'tipo' => 'publica_estadual'],

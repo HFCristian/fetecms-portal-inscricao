@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth, extractErrors, homeFor } from '../lib/auth.jsx';
 import AuthCard from '../components/AuthCard.jsx';
-import { Field, Input, DateInput, CpfInput, TelefoneInput, Select, Button, Alert } from '../components/ui.jsx';
+import { Field, Input, DateInput, CpfInput, TelefoneInput, CepInput, Select, Button, Alert } from '../components/ui.jsx';
 import { listaPaises } from '../lib/paises.js';
+import { useCatalogos, loadCidades } from '../lib/catalogos.js';
 import { MIN_IDADE, idadeEmAnos } from '../lib/idade.js';
 import { validarObrigatorios } from '../lib/validacao.js';
 
@@ -16,7 +17,7 @@ const STEPS = ['Dados Pessoais', 'Info. Acadêmicas', 'Endereço'];
 const OBRIGATORIOS_POR_ETAPA = {
     1: ['name', 'cpf', 'data_nascimento', 'email', 'telefone', 'genero', 'camiseta', 'password', 'password_confirmation'],
     2: ['instituicao', 'tipo_instituicao', 'vinculo', 'titulacao', 'curso_formacao', 'area_conhecimento', 'tempo_orientacao'],
-    3: ['cep', 'pais', 'estado', 'cidade', 'logradouro', 'numero', 'bairro'],
+    // Etapa 3 (endereço) é dinâmica conforme o país — ver camposEtapa() no componente.
 };
 
 // Mapeia cada campo à sua etapa, para saltar à etapa do primeiro erro de validação.
@@ -25,7 +26,8 @@ const FIELD_STEP = {
     genero: 1, etnia: 1, camiseta: 1, pcd: 1,
     instituicao: 2, tipo_instituicao: 2, vinculo: 2, titulacao: 2, curso_formacao: 2,
     area_conhecimento: 2, subarea: 2, tempo_orientacao: 2, vezes_fetec: 2, ex_aluno_fetec: 2,
-    cep: 3, pais: 3, estado: 3, cidade: 3, logradouro: 3, numero: 3, bairro: 3, complemento: 3,
+    cep: 3, pais: 3, estado_id: 3, cidade_id: 3, estado_nome: 3, cidade_nome: 3,
+    logradouro: 3, numero: 3, bairro: 3, complemento: 3,
 };
 
 export default function Cadastro() {
@@ -36,6 +38,10 @@ export default function Cadastro() {
     const [errors, setErrors] = useState({});
     const [alert, setAlert] = useState('');
     const [loading, setLoading] = useState(false);
+    const catalogos = useCatalogos();
+    const [cidades, setCidades] = useState([]);
+
+    const ehBR = (form.pais || 'BR') === 'BR';
 
     const set = (name) => (e) => {
         const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
@@ -43,9 +49,29 @@ export default function Cadastro() {
     };
     const err = (name) => errors[name]?.[0];
 
+    // Endereço: no Brasil é catálogo em cascata (estado→cidade); fora do Brasil, texto livre.
+    async function onEstadoChange(estadoId) {
+        setForm((f) => ({ ...f, estado_id: estadoId, cidade_id: '' }));
+        setCidades(estadoId ? await loadCidades(estadoId) : []);
+    }
+    function onPaisChange(pais) {
+        setForm((f) => ({
+            ...f,
+            pais,
+            ...(pais === 'BR' ? { estado_nome: '', cidade_nome: '' } : { estado_id: '', cidade_id: '' }),
+        }));
+        if (pais !== 'BR') setCidades([]);
+    }
+
+    // Obrigatórios da etapa 3 dependem do país (catálogo por FK vs. texto livre).
+    const camposEtapa = (s) => (s === 3
+        ? ['pais', 'logradouro', 'numero', 'bairro',
+            ...(ehBR ? ['cep', 'estado_id', 'cidade_id'] : ['estado_nome', 'cidade_nome'])]
+        : OBRIGATORIOS_POR_ETAPA[s]);
+
     // Valida os obrigatórios da etapa atual e, se ok, avança para a próxima.
     function avancar() {
-        const faltando = validarObrigatorios(form, OBRIGATORIOS_POR_ETAPA[step]);
+        const faltando = validarObrigatorios(form, camposEtapa(step));
         if (Object.keys(faltando).length) {
             setErrors(faltando);
             setAlert('Preencha todos os campos obrigatórios desta etapa.');
@@ -65,9 +91,9 @@ export default function Cadastro() {
         }
         // Revalida tudo: nenhum obrigatório (de qualquer etapa) pode ficar vazio.
         const faltando = {
-            ...validarObrigatorios(form, OBRIGATORIOS_POR_ETAPA[1]),
-            ...validarObrigatorios(form, OBRIGATORIOS_POR_ETAPA[2]),
-            ...validarObrigatorios(form, OBRIGATORIOS_POR_ETAPA[3]),
+            ...validarObrigatorios(form, camposEtapa(1)),
+            ...validarObrigatorios(form, camposEtapa(2)),
+            ...validarObrigatorios(form, camposEtapa(3)),
         };
         if (Object.keys(faltando).length) {
             setErrors(faltando);
@@ -292,24 +318,45 @@ export default function Cadastro() {
 
                     {step === 3 && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="md:col-span-2">
-                                <Field label="CEP" required error={err('cep')}>
-                                    <Input value={form.cep ?? ''} onChange={set('cep')} error={err('cep')} placeholder="00000-000" />
-                                </Field>
-                            </div>
                             <Field label="País" required error={err('pais')}>
-                                <Select value={form.pais ?? 'BR'} onChange={set('pais')} error={err('pais')}>
+                                <Select value={form.pais ?? 'BR'} onChange={(e) => onPaisChange(e.target.value)} error={err('pais')}>
                                     {PAISES.map((p) => <option key={p.code} value={p.code}>{p.nome}</option>)}
                                 </Select>
                             </Field>
-                            <Field label="Estado" required error={err('estado')}>
-                                <Input value={form.estado ?? ''} onChange={set('estado')} error={err('estado')} placeholder="MS" />
-                            </Field>
-                            <div className="md:col-span-2">
-                                <Field label="Cidade" required error={err('cidade')}>
-                                    <Input value={form.cidade ?? ''} onChange={set('cidade')} error={err('cidade')} placeholder="Campo Grande" />
+                            {ehBR ? (
+                                <Field label="CEP" required error={err('cep')}>
+                                    <CepInput value={form.cep ?? ''} onChange={set('cep')} error={err('cep')} />
                                 </Field>
-                            </div>
+                            ) : (
+                                <Field label="Código Postal">
+                                    <Input value={form.cep ?? ''} onChange={set('cep')} placeholder="Código postal (opcional)" />
+                                </Field>
+                            )}
+                            {ehBR ? (
+                                <>
+                                    <Field label="Estado" required error={err('estado_id')}>
+                                        <Select value={form.estado_id ?? ''} onChange={(e) => onEstadoChange(e.target.value)} error={err('estado_id')}>
+                                            <option value="">Selecione</option>
+                                            {catalogos.estados.map((e) => <option key={e.id} value={e.id}>{e.nome} ({e.uf})</option>)}
+                                        </Select>
+                                    </Field>
+                                    <Field label="Cidade" required error={err('cidade_id')}>
+                                        <Select value={form.cidade_id ?? ''} onChange={set('cidade_id')} error={err('cidade_id')} disabled={!form.estado_id}>
+                                            <option value="">{form.estado_id ? 'Selecione' : 'Escolha o estado primeiro'}</option>
+                                            {cidades.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                                        </Select>
+                                    </Field>
+                                </>
+                            ) : (
+                                <>
+                                    <Field label="Estado/Província" required error={err('estado_nome')}>
+                                        <Input value={form.estado_nome ?? ''} onChange={set('estado_nome')} error={err('estado_nome')} placeholder="Ex: Buenos Aires" />
+                                    </Field>
+                                    <Field label="Cidade" required error={err('cidade_nome')}>
+                                        <Input value={form.cidade_nome ?? ''} onChange={set('cidade_nome')} error={err('cidade_nome')} placeholder="Ex: La Plata" />
+                                    </Field>
+                                </>
+                            )}
                             <div className="md:col-span-2">
                                 <Field label="Logradouro" required error={err('logradouro')}>
                                     <Input value={form.logradouro ?? ''} onChange={set('logradouro')} error={err('logradouro')} placeholder="Rua, Avenida, etc." />

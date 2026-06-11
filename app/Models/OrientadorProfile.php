@@ -17,7 +17,7 @@ class OrientadorProfile extends Model
         'camiseta', 'pcd', 'instituicao', 'tipo_instituicao', 'vinculo', 'titulacao',
         'curso_formacao', 'area_conhecimento', 'subarea', 'tempo_orientacao',
         'vezes_fetec', 'ex_aluno_fetec', 'cep', 'logradouro', 'numero', 'complemento',
-        'bairro', 'cidade', 'estado', 'pais',
+        'bairro', 'estado_id', 'cidade_id', 'estado_nome', 'cidade_nome', 'pais',
     ];
 
     protected function casts(): array
@@ -32,5 +32,15 @@ class OrientadorProfile extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function estado(): BelongsTo
+    {
+        return $this->belongsTo(Estado::class);
+    }
+
+    public function cidade(): BelongsTo
+    {
+        return $this->belongsTo(Cidade::class);
     }
 }

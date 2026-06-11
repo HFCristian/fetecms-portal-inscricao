@@ -3,6 +3,7 @@
 namespace Tests\Feature\Auth;
 
 use App\Enums\Role;
+use App\Models\Estado;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -24,8 +25,6 @@ class RegisterOrientadorTest extends TestCase
             'genero' => 'M',
             'camiseta' => 'G',
             'instituicao' => 'UFMS',
-            'cidade' => 'Campo Grande',
-            'estado' => 'MS',
         ], $overrides);
     }
 
@@ -76,5 +75,53 @@ class RegisterOrientadorTest extends TestCase
             'password' => '123',
             'password_confirmation' => '123',
         ]))->assertStatus(422)->assertJsonValidationErrors('password');
+    }
+
+    public function test_orientador_se_cadastra_com_endereco_por_fk(): void
+    {
+        $estado = Estado::create(['nome' => 'Mato Grosso do Sul', 'uf' => 'MS']);
+        $cidade = $estado->cidades()->create(['nome' => 'Campo Grande']);
+
+        $this->postJson('/api/v1/orientadores', $this->payload([
+            'pais' => 'BR',
+            'cep' => '79000-000',
+            'estado_id' => $estado->id,
+            'cidade_id' => $cidade->id,
+        ]))
+            ->assertCreated()
+            ->assertJsonPath('data.orientador_profile.endereco.cidade', 'Campo Grande')
+            ->assertJsonPath('data.orientador_profile.endereco.estado_uf', 'MS');
+
+        $this->assertDatabaseHas('orientador_profiles', [
+            'estado_id' => $estado->id,
+            'cidade_id' => $cidade->id,
+            'cep' => '79000000',
+        ]);
+    }
+
+    public function test_cidade_de_outro_estado_e_rejeitada(): void
+    {
+        $ms = Estado::create(['nome' => 'Mato Grosso do Sul', 'uf' => 'MS']);
+        $sp = Estado::create(['nome' => 'São Paulo', 'uf' => 'SP']);
+        $cidadeSp = $sp->cidades()->create(['nome' => 'São Paulo']);
+
+        $this->postJson('/api/v1/orientadores', $this->payload([
+            'estado_id' => $ms->id,
+            'cidade_id' => $cidadeSp->id,
+        ]))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('cidade_id');
+    }
+
+    public function test_endereco_no_exterior_usa_texto_livre(): void
+    {
+        $this->postJson('/api/v1/orientadores', $this->payload([
+            'pais' => 'AR',
+            'estado_nome' => 'Buenos Aires',
+            'cidade_nome' => 'La Plata',
+        ]))
+            ->assertCreated()
+            ->assertJsonPath('data.orientador_profile.endereco.cidade', 'La Plata')
+            ->assertJsonPath('data.orientador_profile.endereco.estado', 'Buenos Aires');
     }
 }

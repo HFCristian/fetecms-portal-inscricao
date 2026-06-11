@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Orientador;
 
 use App\Models\AvaliadorProfile;
+use App\Rules\CidadeDoEstado;
 use App\Rules\Cpf;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rules\Password;
@@ -74,8 +75,11 @@ class RegisterOrientadorRequest extends FormRequest
             'numero' => ['nullable', 'string', 'max:20'],
             'complemento' => ['nullable', 'string', 'max:120'],
             'bairro' => ['nullable', 'string', 'max:120'],
-            'cidade' => ['nullable', 'string', 'max:120'],
-            'estado' => ['nullable', 'string', 'max:60'],
+            // Endereço: no Brasil usa o catálogo (FK); fora do Brasil, texto livre.
+            'estado_id' => ['nullable', 'integer', 'exists:estados,id'],
+            'cidade_id' => ['nullable', 'integer', 'exists:cidades,id', new CidadeDoEstado($this->input('estado_id'))],
+            'estado_nome' => ['nullable', 'string', 'max:120'],
+            'cidade_nome' => ['nullable', 'string', 'max:120'],
             'pais' => ['nullable', 'string', 'max:60'],
         ];
     }

@@ -105,6 +105,13 @@ function maskTelefone(value) {
     return `(${ddd}) ${resto.slice(0, 5)}-${resto.slice(5)}`;
 }
 
+// Máscara de CEP: 00000-000 (até 8 dígitos).
+function maskCep(value) {
+    const d = (value ?? '').replace(/\D/g, '').slice(0, 8);
+    if (d.length > 5) return `${d.slice(0, 5)}-${d.slice(5)}`;
+    return d;
+}
+
 // Input com máscara que mantém o valor já formatado no form. O backend normaliza
 // para apenas dígitos (prepareForValidation), então enviar o valor mascarado é seguro.
 // Segue o mesmo padrão controlado do DateInput: só ressincroniza com o valor externo
@@ -142,6 +149,10 @@ export function CpfInput(props) {
 
 export function TelefoneInput(props) {
     return <MaskedInput mask={maskTelefone} maxLength={15} placeholder="(00) 00000-0000" {...props} />;
+}
+
+export function CepInput(props) {
+    return <MaskedInput mask={maskCep} maxLength={9} placeholder="00000-000" {...props} />;
 }
 
 export function Select({ error, children, ...props }) {

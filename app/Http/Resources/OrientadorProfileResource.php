@@ -36,9 +36,16 @@ class OrientadorProfileResource extends JsonResource
                 'numero' => $this->numero,
                 'complemento' => $this->complemento,
                 'bairro' => $this->bairro,
-                'cidade' => $this->cidade,
-                'estado' => $this->estado,
                 'pais' => $this->pais,
+                // No Brasil: FK do catálogo. Fora do Brasil: texto livre.
+                'estado_id' => $this->estado_id,
+                'cidade_id' => $this->cidade_id,
+                'estado_nome' => $this->estado_nome,
+                'cidade_nome' => $this->cidade_nome,
+                // Resolvidos para exibição (UF/nome do catálogo, ou o texto livre).
+                'estado' => $this->estado?->nome ?? $this->estado_nome,
+                'estado_uf' => $this->estado?->uf,
+                'cidade' => $this->cidade?->nome ?? $this->cidade_nome,
             ],
         ];
     }
