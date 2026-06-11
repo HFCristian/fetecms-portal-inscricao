@@ -39,6 +39,8 @@ export const loadSubareas = (areaId) =>
 export const criarSubarea = (areaId, nome) =>
     http.post('/catalogos/subareas', { area_id: areaId, nome }).then((r) => r.data.data);
 
+export const loadEstados = () => http.get('/catalogos/estados').then((r) => r.data.data);
+
 export const loadCidades = (estadoId) =>
     http.get('/catalogos/cidades', { params: { estado_id: estadoId } }).then((r) => r.data.data);
 
@@ -49,6 +51,7 @@ export const buscarPalavrasChave = (search) =>
 export const buscarInstituicoes = (search) =>
     http.get('/catalogos/instituicoes', { params: search ? { search } : {} }).then((r) => r.data.data);
 
-// Cria (ou reaproveita) uma instituição global pelo nome. Telas autenticadas.
-export const criarInstituicao = (nome, extras = {}) =>
-    http.post('/catalogos/instituicoes', { nome, ...extras }).then((r) => r.data.data);
+// Cria (ou reaproveita) uma instituição global. payload: { nome, cidade_id?, tipo? }.
+// O par (nome, cidade) é a chave: mesmo nome em cidades diferentes vira registros distintos.
+export const criarInstituicao = (payload) =>
+    http.post('/catalogos/instituicoes', payload).then((r) => r.data.data);

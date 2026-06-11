@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import InstituicaoCreateDialog from './InstituicaoCreateDialog.jsx';
 
 const inputClass =
     'w-full bg-surface border border-outline-variant rounded-lg px-3 py-2.5 text-on-surface ' +
@@ -7,11 +8,12 @@ const inputClass =
 
 /**
  * Combobox de instituição (catálogo global). Busca no servidor conforme se digita
- * (debounce). Permite criar uma instituição nova; em telas autenticadas passe
- * `create(nome) => Promise<{id,nome}>` (persiste na hora); sem `create` (cadastro
- * público) o "Criar" emite { id: null, nome } e o backend materializa no registro.
+ * (debounce). "Cadastrar nova" abre um diálogo (nome + estado→cidade + tipo): em
+ * telas autenticadas passe `create({nome,cidade_id,tipo}) => Promise<inst>` (persiste
+ * na hora); sem `create` (cadastro público) emite { id:null, nome, cidade_id, tipo } e
+ * o backend materializa no registro. O par (nome, cidade) diferencia homônimas.
  *
- * value: { id, nome } | null   ·   onChange(sel: { id, nome } | null)
+ * value: { id, nome } | null   ·   onChange(sel: { id, nome, cidade_id?, tipo? } | null)
  */
 export default function InstituicaoCombobox({
     value = null, onChange, buscar, create, disabled = false, placeholder,
@@ -21,6 +23,7 @@ export default function InstituicaoCombobox({
     const [resultados, setResultados] = useState([]);
     const [carregando, setCarregando] = useState(false);
     const [criando, setCriando] = useState(false);
+    const [dialogAberto, setDialogAberto] = useState(false);
     const boxRef = useRef(null);
 
     useEffect(() => { setQuery(value?.nome ?? ''); }, [value?.id, value?.nome]);
@@ -61,19 +64,26 @@ export default function InstituicaoCombobox({
         setOpen(false);
     }
 
-    async function criar() {
-        if (q.length < 2 || criando) return;
+    function abrirCriacao() {
+        if (q.length < 2) return;
+        setOpen(false);
+        setDialogAberto(true);
+    }
+
+    async function handleCriar(payload) {
         if (create) {
             setCriando(true);
             try {
-                selecionar(await create(q));
+                selecionar(await create(payload));
+                setDialogAberto(false);
             } catch {
-                setOpen(false); // erro tratado pelo formulário pai
+                // erro tratado pelo formulário pai
             } finally {
                 setCriando(false);
             }
         } else {
-            selecionar({ id: null, nome: q });
+            selecionar({ id: null, nome: payload.nome, cidade_id: payload.cidade_id, tipo: payload.tipo });
+            setDialogAberto(false);
         }
     }
 
@@ -81,7 +91,7 @@ export default function InstituicaoCombobox({
         if (e.key === 'Enter') {
             e.preventDefault();
             if (resultados.length === 1) selecionar(resultados[0]);
-            else if (podeCriar) criar();
+            else if (podeCriar) abrirCriacao();
         } else if (e.key === 'Escape') {
             setOpen(false);
         }
@@ -134,13 +144,11 @@ export default function InstituicaoCombobox({
                         <li>
                             <button
                                 type="button"
-                                onMouseDown={(e) => { e.preventDefault(); criar(); }}
+                                onMouseDown={(e) => { e.preventDefault(); abrirCriacao(); }}
                                 className="w-full text-left px-3 py-2 text-sm text-primary-container hover:bg-primary-fixed flex items-center gap-2"
                             >
-                                <span className={`material-symbols-outlined text-[18px] ${criando ? 'animate-spin' : ''}`}>
-                                    {criando ? 'progress_activity' : 'add'}
-                                </span>
-                                Criar “{q}”
+                                <span className="material-symbols-outlined text-[18px]">add_business</span>
+                                Cadastrar “{q}”…
                             </button>
                         </li>
                     )}
@@ -158,6 +166,13 @@ export default function InstituicaoCombobox({
                     )}
                 </ul>
             )}
+            <InstituicaoCreateDialog
+                open={dialogAberto}
+                nomeInicial={q}
+                loading={criando}
+                onCancel={() => setDialogAberto(false)}
+                onConfirm={handleCriar}
+            />
         </div>
     );
 }

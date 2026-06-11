@@ -46,6 +46,8 @@ class UpdatePerfilRequest extends FormRequest
             'pcd' => ['sometimes', 'boolean'],
             'instituicao_id' => ['nullable', 'integer', 'exists:instituicoes,id'],
             'instituicao_nome' => ['nullable', 'string', 'min:2', 'max:255'],
+            'instituicao_cidade_id' => ['nullable', 'integer', 'exists:cidades,id'],
+            'instituicao_tipo' => ['nullable', 'string', 'max:60'],
             'tipo_instituicao' => ['nullable', 'string', 'max:60'],
             'vinculo' => ['nullable', 'string', 'max:60'],
             'titulacao' => ['nullable', 'string', 'max:60'],

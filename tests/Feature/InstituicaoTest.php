@@ -99,4 +99,48 @@ class InstituicaoTest extends TestCase
 
         @unlink($csv);
     }
+
+    public function test_mesmo_nome_em_cidades_diferentes_cria_instituicoes_distintas(): void
+    {
+        $ms = Estado::create(['nome' => 'Mato Grosso do Sul', 'uf' => 'MS']);
+        $cg = $ms->cidades()->create(['nome' => 'Campo Grande']);
+        $rs = Estado::create(['nome' => 'Rio Grande do Sul', 'uf' => 'RS']);
+        $poa = $rs->cidades()->create(['nome' => 'Porto Alegre']);
+
+        Sanctum::actingAs(User::factory()->create());
+
+        $a = $this->postJson('/api/v1/catalogos/instituicoes', ['nome' => 'Escola São José', 'cidade_id' => $cg->id])->json('data.id');
+        $b = $this->postJson('/api/v1/catalogos/instituicoes', ['nome' => 'Escola São José', 'cidade_id' => $poa->id])->json('data.id');
+
+        $this->assertNotSame($a, $b);
+        $this->assertSame(2, Instituicao::where('nome', 'Escola São José')->count());
+
+        // Mesma cidade reaproveita.
+        $c = $this->postJson('/api/v1/catalogos/instituicoes', ['nome' => 'Escola São José', 'cidade_id' => $cg->id])->json('data.id');
+        $this->assertSame($a, $c);
+    }
+
+    public function test_orientador_cria_instituicao_nova_com_cidade_e_tipo(): void
+    {
+        $ms = Estado::create(['nome' => 'Mato Grosso do Sul', 'uf' => 'MS']);
+        $cg = $ms->cidades()->create(['nome' => 'Campo Grande']);
+
+        $this->postJson('/api/v1/orientadores', [
+            'name' => 'Professor Teste',
+            'email' => 'prof2@escola.ms.gov.br',
+            'password' => 'Senha@123',
+            'password_confirmation' => 'Senha@123',
+            'cpf' => '529.982.247-25',
+            'telefone' => '(67) 99999-1234',
+            'data_nascimento' => '1985-03-15',
+            'instituicao_nome' => 'Colégio Novo',
+            'instituicao_cidade_id' => $cg->id,
+            'instituicao_tipo' => 'particular',
+        ])->assertCreated()
+            ->assertJsonPath('data.orientador_profile.instituicao', 'Colégio Novo');
+
+        $this->assertDatabaseHas('instituicoes', [
+            'nome' => 'Colégio Novo', 'cidade_id' => $cg->id, 'tipo' => 'particular',
+        ]);
+    }
 }

@@ -81,9 +81,15 @@ export default function Cadastro() {
             subarea_nome: sel && sel.id == null ? sel.nome : '',
         }));
     }
-    // Instituição: id quando existente; nome quando nova (criada na transação do registro).
+    // Instituição: id quando existente; nome+cidade+tipo quando nova (criada na transação).
     function onInstituicaoChange(sel) {
-        setForm((f) => ({ ...f, instituicao_id: sel?.id ?? '', instituicao_nome: sel?.nome ?? '' }));
+        setForm((f) => ({
+            ...f,
+            instituicao_id: sel?.id ?? '',
+            instituicao_nome: sel?.nome ?? '',
+            instituicao_cidade_id: sel?.cidade_id ?? '',
+            instituicao_tipo: sel?.tipo ?? '',
+        }));
     }
     const instituicaoValue = form.instituicao_id || form.instituicao_nome
         ? { id: form.instituicao_id || null, nome: form.instituicao_nome || '' }
@@ -169,9 +175,9 @@ export default function Cadastro() {
             <div className="px-6 sm:px-10 pt-8 pb-4 border-b border-outline-variant/20">
                 <h2 className="font-display text-xl font-semibold text-on-surface mb-4">Cadastro do Orientador</h2>
                 <div className="flex items-center justify-between relative">
-                    <div className="absolute top-1/2 left-0 w-full h-[2px] bg-surface-variant -translate-y-1/2" />
+                    <div className="absolute top-1/2 left-0 w-full h-0.5 bg-surface-variant -translate-y-1/2" />
                     <div
-                        className="absolute top-1/2 left-0 h-[2px] bg-primary-container -translate-y-1/2 transition-all duration-500"
+                        className="absolute top-1/2 left-0 h-0.5 bg-primary-container -translate-y-1/2 transition-all duration-500"
                         style={{ width: progress }}
                     />
                     {STEPS.map((label, i) => {

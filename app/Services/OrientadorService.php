@@ -104,9 +104,13 @@ class OrientadorService
     private function resolverInstituicao(array $data): array
     {
         if (empty($data['instituicao_id'] ?? null) && ! empty($data['instituicao_nome'] ?? null)) {
-            $data['instituicao_id'] = $this->instituicoes
-                ->firstOrCreateGlobal((string) $data['instituicao_nome'])
-                ->id;
+            $data['instituicao_id'] = $this->instituicoes->firstOrCreateGlobal(
+                (string) $data['instituicao_nome'],
+                [
+                    'cidade_id' => $data['instituicao_cidade_id'] ?? null,
+                    'tipo' => $data['instituicao_tipo'] ?? null,
+                ],
+            )->id;
         }
 
         return $data;

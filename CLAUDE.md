@@ -152,11 +152,14 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 9 | Erros 100% em pt_BR + favicon (logo2026.png) + rodapé com e-mail de suporte | ✅ sim | ✅ sim (Pedro) | 0 |
 | 10 | Instituições: importar escolas_ms.csv + combobox "digite/crie" (criação global) no orientador e projeto | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
-> **Estado atual:** ciclo de ajustes pós-v1 (Sprints 6–10) **concluído e verde** — back 108/108,
+> **Estado atual:** ciclo de ajustes pós-v1 (Sprints 6–10) **concluído e verde** — back 110/110,
 > front 11/11, Pint limpo, build OK (estado integrado, já com a refatoração visual do Pedro).
 > A Sprint 10 ficou versionada **junto** das correções visuais do Pedro no commit `f502e4f`
 > (criação de admin movida para a página `AdminManager` em `/admin/gerir-admins`).
-> **Pendências do Pedro:** (1) `git push origin changes` do `f502e4f`; (2) popular as escolas com
+> **Ajustes finos pós-ciclo:** favicon multi-tamanho gerado da logo (`c47859f`); instituição com
+> dedup por **(nome + cidade)** — permite mesmo nome em cidades diferentes, com diálogo de criação
+> (nome + estado→cidade + tipo) no combobox.
+> **Pendências do Pedro:** (1) `git push origin changes`; (2) popular as escolas com
 > `php artisan instituicoes:importar` (lê `database/data/instituicoes/escolas_ms.csv`; 1888 escolas
 > de MS, todos os 79 municípios casam com o catálogo IBGE).
 

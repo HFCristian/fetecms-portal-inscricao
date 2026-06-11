@@ -59,9 +59,12 @@ class RegisterOrientadorRequest extends FormRequest
             'pcd' => ['sometimes', 'boolean'],
 
             // Dados acadêmicos (cadastro2) — opcionais nesta fase
-            // Instituição do catálogo (FK); instituicao_nome cria uma nova global.
+            // Instituição do catálogo (FK); instituicao_nome cria uma nova global
+            // (cidade/tipo diferenciam instituições de mesmo nome em locais distintos).
             'instituicao_id' => ['nullable', 'integer', 'exists:instituicoes,id'],
             'instituicao_nome' => ['nullable', 'string', 'min:2', 'max:255'],
+            'instituicao_cidade_id' => ['nullable', 'integer', 'exists:cidades,id'],
+            'instituicao_tipo' => ['nullable', 'string', 'max:60'],
             'tipo_instituicao' => ['nullable', 'string', 'max:60'],
             'vinculo' => ['nullable', 'string', 'max:60'],
             'titulacao' => ['nullable', 'string', 'max:60'],
