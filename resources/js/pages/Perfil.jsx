@@ -3,8 +3,9 @@ import { useAuth, extractErrors } from '../lib/auth.jsx';
 import AppShell from '../components/AppShell.jsx';
 import http from '../lib/http.js';
 import { Field, Input, CpfInput, TelefoneInput, CepInput, Select, Button, Alert } from '../components/ui.jsx';
+import SubareaCombobox from '../components/SubareaCombobox.jsx';
 import { listaPaises } from '../lib/paises.js';
-import { useCatalogos, loadCidades } from '../lib/catalogos.js';
+import { useCatalogos, loadCidades, loadSubareas, criarSubarea } from '../lib/catalogos.js';
 
 const PAISES = listaPaises();
 
@@ -14,6 +15,7 @@ export default function Perfil() {
     const endereco = profile.endereco ?? {};
     const catalogos = useCatalogos();
     const [cidades, setCidades] = useState([]);
+    const [subareas, setSubareas] = useState([]);
 
     const [form, setForm] = useState({
         name: user?.name ?? '',
@@ -21,6 +23,8 @@ export default function Perfil() {
         telefone: profile.telefone ?? '',
         instituicao: profile.instituicao ?? '',
         titulacao: profile.titulacao ?? '',
+        area_id: profile.area_id ?? '',
+        subarea_id: profile.subarea_id ?? '',
         pais: endereco.pais ?? 'BR',
         cep: endereco.cep ?? '',
         estado_id: endereco.estado_id ?? '',
@@ -41,6 +45,12 @@ export default function Perfil() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [endereco.estado_id]);
 
+    // Pré-carrega as subáreas da área já salva, para o combobox listar/exibir.
+    useEffect(() => {
+        if (profile.area_id) loadSubareas(profile.area_id).then(setSubareas).catch(() => {});
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [profile.area_id]);
+
     const set = (name) => (e) => setForm((f) => ({ ...f, [name]: e.target.value }));
     const err = (name) => errors[name]?.[0];
 
@@ -57,6 +67,21 @@ export default function Perfil() {
         }));
         if (pais !== 'BR') setCidades([]);
     }
+
+    async function onAreaChange(areaId) {
+        setForm((f) => ({ ...f, area_id: areaId, subarea_id: '' }));
+        setSubareas(areaId ? await loadSubareas(areaId) : []);
+    }
+    async function criarSubareaNaArea(nome) {
+        const nova = await criarSubarea(form.area_id, nome);
+        setSubareas((prev) => (prev.some((s) => s.id === nova.id)
+            ? prev
+            : [...prev, nova].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))));
+        return nova;
+    }
+    const subareaValue = form.subarea_id
+        ? (subareas.find((s) => String(s.id) === String(form.subarea_id)) ?? null)
+        : null;
 
     async function onSubmit(e) {
         e.preventDefault();
@@ -98,6 +123,22 @@ export default function Perfil() {
                     </Field>
                     <Field label="Instituição">
                         <Input value={form.instituicao} onChange={set('instituicao')} />
+                    </Field>
+                    <Field label="Área do Conhecimento" error={err('area_id')}>
+                        <Select value={form.area_id} onChange={(e) => onAreaChange(e.target.value)} error={err('area_id')}>
+                            <option value="">Selecione</option>
+                            {catalogos.areas.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
+                        </Select>
+                    </Field>
+                    <Field label="Subárea" error={err('subarea_id')}>
+                        <SubareaCombobox
+                            options={subareas}
+                            value={subareaValue}
+                            onChange={(sel) => setForm((f) => ({ ...f, subarea_id: sel?.id ?? '' }))}
+                            create={criarSubareaNaArea}
+                            disabled={!form.area_id}
+                            placeholder={form.area_id ? 'Digite para buscar ou criar…' : 'Escolha a área primeiro'}
+                        />
                     </Field>
                     <Field label="País">
                         <Select value={form.pais} onChange={(e) => onPaisChange(e.target.value)}>

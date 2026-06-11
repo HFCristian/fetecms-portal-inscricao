@@ -5,8 +5,9 @@ import { Field, Input, Select, Button, Alert, Toggle, useConfirm } from '../comp
 import KeywordsInput from '../components/KeywordsInput.jsx';
 import VideoPreview from '../components/VideoPreview.jsx';
 import DocumentoUpload from '../components/DocumentoUpload.jsx';
+import SubareaCombobox from '../components/SubareaCombobox.jsx';
 import { extractErrors } from '../lib/auth.jsx';
-import { useCatalogos, loadSubareas, loadCidades } from '../lib/catalogos.js';
+import { useCatalogos, loadSubareas, loadCidades, criarSubarea } from '../lib/catalogos.js';
 import { criarProjeto, atualizarProjeto, obterProjeto } from '../lib/projetos.js';
 import { listarDocumentos } from '../lib/documentos.js';
 import { listaPaises } from '../lib/paises.js';
@@ -90,6 +91,14 @@ export default function ProjetoForm() {
         setForm((f) => ({ ...f, area_id: areaId, subarea_id: '' }));
         markDirty();
         setSubareas(areaId ? await loadSubareas(areaId) : []);
+    }
+    // Cria a subárea global na hora (autenticado) e a deixa disponível na lista.
+    async function criarSubareaNaArea(nome) {
+        const nova = await criarSubarea(form.area_id, nome);
+        setSubareas((prev) => (prev.some((s) => s.id === nova.id)
+            ? prev
+            : [...prev, nova].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))));
+        return nova;
     }
     async function onEstadoChange(estadoId) {
         setForm((f) => ({ ...f, estado_id: estadoId, cidade_id: '' }));
@@ -298,17 +307,19 @@ export default function ProjetoForm() {
                         <Field label="Área do Conhecimento" error={err('area_id')}>
                             <Select value={form.area_id ?? ''} onChange={(e) => onAreaChange(e.target.value)}>
                                 <option value="">Selecione</option>
-                                {catalogos.areas
-                                    .filter((a) => !/multidisciplinar/i.test(a.nome))
-                                    .map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
+                                {catalogos.areas.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
                             </Select>
                         </Field>
                         <div className='md:col-span-2'>
                             <Field label="Subárea">
-                                <Select value={form.subarea_id ?? ''} onChange={(e) => setField('subarea_id', e.target.value)} disabled={!form.area_id}>
-                                    <option value="">{form.area_id ? 'Selecione' : 'Escolha a área primeiro'}</option>
-                                    {subareas.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
-                                </Select>
+                                <SubareaCombobox
+                                    options={subareas}
+                                    value={form.subarea_id ? (subareas.find((s) => String(s.id) === String(form.subarea_id)) ?? null) : null}
+                                    onChange={(sel) => setField('subarea_id', sel?.id ?? '')}
+                                    create={criarSubareaNaArea}
+                                    disabled={!form.area_id}
+                                    placeholder={form.area_id ? 'Digite para buscar ou criar…' : 'Escolha a área primeiro'}
+                                />
                             </Field>
                         </div>
                     </div>

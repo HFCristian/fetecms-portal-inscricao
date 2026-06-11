@@ -16,10 +16,12 @@ class OrientadorService
     private const PROFILE_FIELDS = [
         'cpf', 'telefone', 'data_nascimento', 'genero', 'genero_outro', 'etnia',
         'camiseta', 'pcd', 'instituicao', 'tipo_instituicao', 'vinculo', 'titulacao',
-        'curso_formacao', 'area_conhecimento', 'subarea', 'tempo_orientacao',
+        'curso_formacao', 'area_id', 'subarea_id', 'tempo_orientacao',
         'vezes_fetec', 'ex_aluno_fetec', 'cep', 'logradouro', 'numero', 'complemento',
         'bairro', 'estado_id', 'cidade_id', 'estado_nome', 'cidade_nome', 'pais',
     ];
+
+    public function __construct(private readonly SubareaService $subareas) {}
 
     /**
      * Cria o usuário (role orientador) e o perfil numa única transação.
@@ -28,6 +30,8 @@ class OrientadorService
     public function register(array $data): User
     {
         return DB::transaction(function () use ($data) {
+            $data = $this->resolverSubarea($data);
+
             $user = User::create([
                 'name' => $data['name'],
                 'email' => $data['email'],
@@ -38,7 +42,10 @@ class OrientadorService
 
             $user->orientadorProfile()->create(Arr::only($data, self::PROFILE_FIELDS));
 
-            return $user->load('orientadorProfile.estado', 'orientadorProfile.cidade');
+            return $user->load(
+                'orientadorProfile.estado', 'orientadorProfile.cidade',
+                'orientadorProfile.area', 'orientadorProfile.subarea',
+            );
         });
     }
 
@@ -48,6 +55,8 @@ class OrientadorService
     public function updatePerfil(User $user, array $data): User
     {
         return DB::transaction(function () use ($user, $data) {
+            $data = $this->resolverSubarea($data);
+
             $userData = Arr::only($data, ['name', 'email']);
             if (! empty($userData)) {
                 $user->fill($userData)->save();
@@ -58,7 +67,28 @@ class OrientadorService
                 $user->orientadorProfile()->update($profileData);
             }
 
-            return $user->fresh(['orientadorProfile.estado', 'orientadorProfile.cidade']);
+            return $user->fresh([
+                'orientadorProfile.estado', 'orientadorProfile.cidade',
+                'orientadorProfile.area', 'orientadorProfile.subarea',
+            ]);
         });
+    }
+
+    /**
+     * Se veio uma subárea NOVA por texto (subarea_nome) sem id, cria/reaproveita a
+     * subárea global na área escolhida e injeta o subarea_id resultante.
+     */
+    private function resolverSubarea(array $data): array
+    {
+        $temNome = ! empty($data['subarea_nome'] ?? null);
+        $temArea = ! empty($data['area_id'] ?? null);
+
+        if (empty($data['subarea_id'] ?? null) && $temNome && $temArea) {
+            $data['subarea_id'] = $this->subareas
+                ->firstOrCreateNaArea((int) $data['area_id'], (string) $data['subarea_nome'])
+                ->id;
+        }
+
+        return $data;
     }
 }

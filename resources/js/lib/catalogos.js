@@ -34,6 +34,11 @@ export function useCatalogos() {
 export const loadSubareas = (areaId) =>
     http.get('/catalogos/subareas', { params: { area_id: areaId } }).then((r) => r.data.data);
 
+// Cria (ou reaproveita) uma subárea global na área e devolve { id, nome, area_id }.
+// Usada pelo combobox em telas autenticadas (projeto/perfil).
+export const criarSubarea = (areaId, nome) =>
+    http.post('/catalogos/subareas', { area_id: areaId, nome }).then((r) => r.data.data);
+
 export const loadCidades = (estadoId) =>
     http.get('/catalogos/cidades', { params: { estado_id: estadoId } }).then((r) => r.data.data);
 

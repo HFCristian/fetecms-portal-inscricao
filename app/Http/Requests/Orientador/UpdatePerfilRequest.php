@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Orientador;
 
 use App\Rules\CidadeDoEstado;
+use App\Rules\SubareaDaArea;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -48,8 +49,9 @@ class UpdatePerfilRequest extends FormRequest
             'vinculo' => ['nullable', 'string', 'max:60'],
             'titulacao' => ['nullable', 'string', 'max:60'],
             'curso_formacao' => ['nullable', 'string', 'max:120'],
-            'area_conhecimento' => ['nullable', 'string', 'max:120'],
-            'subarea' => ['nullable', 'string', 'max:120'],
+            'area_id' => ['nullable', 'integer', 'exists:areas,id'],
+            'subarea_id' => ['nullable', 'integer', 'exists:subareas,id', new SubareaDaArea($this->input('area_id'))],
+            'subarea_nome' => ['nullable', 'string', 'min:2', 'max:120'],
             'tempo_orientacao' => ['nullable', 'string', 'max:30'],
             'vezes_fetec' => ['nullable', 'string', 'max:30'],
             'ex_aluno_fetec' => ['sometimes', 'boolean'],

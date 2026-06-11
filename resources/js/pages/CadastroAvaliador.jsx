@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth, extractErrors, homeFor } from '../lib/auth.jsx';
 import AuthCard from '../components/AuthCard.jsx';
 import { Field, Input, CpfInput, Select, Button, Alert } from '../components/ui.jsx';
+import SubareaCombobox from '../components/SubareaCombobox.jsx';
 import { useCatalogos, loadSubareas } from '../lib/catalogos.js';
 import { validarObrigatorios } from '../lib/validacao.js';
 
@@ -25,8 +26,20 @@ export default function CadastroAvaliador() {
     const err = (name) => errors[name]?.[0];
 
     async function onAreaChange(areaId) {
-        setForm((f) => ({ ...f, area_id: areaId, subarea_id: '' }));
+        setForm((f) => ({ ...f, area_id: areaId, subarea_id: '', subarea_nome: '' }));
         setSubareas(areaId ? await loadSubareas(areaId) : []);
+    }
+
+    // Subárea (opcional): id quando existente; nome quando nova (criada na transação).
+    const subareaValue = form.subarea_id
+        ? (subareas.find((s) => String(s.id) === String(form.subarea_id)) ?? null)
+        : (form.subarea_nome ? { id: null, nome: form.subarea_nome } : null);
+    function onSubareaChange(sel) {
+        setForm((f) => ({
+            ...f,
+            subarea_id: sel?.id ?? '',
+            subarea_nome: sel && sel.id == null ? sel.nome : '',
+        }));
     }
 
     // Clicar no botão não cadastra direto: valida os obrigatórios e, se ok,
@@ -103,11 +116,14 @@ export default function CadastroAvaliador() {
                             </Field>
                         </div>
                         <div className="md:col-span-2">
-                            <Field label="Subárea (preferencial para o match)">
-                                <Select value={form.subarea_id ?? ''} onChange={set('subarea_id')} disabled={!form.area_id}>
-                                    <option value="">{form.area_id ? 'Selecione' : 'Escolha a área primeiro'}</option>
-                                    {subareas.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
-                                </Select>
+                            <Field label="Subárea (preferencial para o match)" hint="Opcional. Digite para buscar; se não existir, você pode criar e ela passa a valer para todos.">
+                                <SubareaCombobox
+                                    options={subareas}
+                                    value={subareaValue}
+                                    onChange={onSubareaChange}
+                                    disabled={!form.area_id}
+                                    placeholder={form.area_id ? 'Digite para buscar ou criar…' : 'Escolha a área primeiro'}
+                                />
                             </Field>
                         </div>
                         <Field label="Senha" required error={err('password')} hint="Mínimo de 8 caracteres.">

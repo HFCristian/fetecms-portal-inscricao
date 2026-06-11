@@ -25,8 +25,11 @@ class OrientadorProfileResource extends JsonResource
             'vinculo' => $this->vinculo,
             'titulacao' => $this->titulacao,
             'curso_formacao' => $this->curso_formacao,
-            'area_conhecimento' => $this->area_conhecimento,
-            'subarea' => $this->subarea,
+            // Área/subárea do catálogo unificado (FK) + nomes resolvidos p/ exibição.
+            'area_id' => $this->area_id,
+            'subarea_id' => $this->subarea_id,
+            'area' => $this->area?->nome,
+            'subarea' => $this->subarea?->nome,
             'tempo_orientacao' => $this->tempo_orientacao,
             'vezes_fetec' => $this->vezes_fetec,
             'ex_aluno_fetec' => $this->ex_aluno_fetec,

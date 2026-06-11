@@ -5,6 +5,7 @@ namespace App\Http\Requests\Avaliador;
 use App\Models\Coorientador;
 use App\Models\OrientadorProfile;
 use App\Rules\Cpf;
+use App\Rules\SubareaDaArea;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
@@ -43,7 +44,9 @@ class RegisterAvaliadorRequest extends FormRequest
             ],
             'titulacao' => ['nullable', 'string', 'max:60'],
             'area_id' => ['required', 'integer', 'exists:areas,id'],
-            'subarea_id' => ['nullable', 'integer', 'exists:subareas,id'],
+            // subarea_nome cria uma subárea global nova (resolvida no service).
+            'subarea_id' => ['nullable', 'integer', 'exists:subareas,id', new SubareaDaArea($this->input('area_id'))],
+            'subarea_nome' => ['nullable', 'string', 'min:2', 'max:120'],
         ];
     }
 }

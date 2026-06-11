@@ -3,8 +3,9 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth, extractErrors, homeFor } from '../lib/auth.jsx';
 import AuthCard from '../components/AuthCard.jsx';
 import { Field, Input, DateInput, CpfInput, TelefoneInput, CepInput, Select, Button, Alert } from '../components/ui.jsx';
+import SubareaCombobox from '../components/SubareaCombobox.jsx';
 import { listaPaises } from '../lib/paises.js';
-import { useCatalogos, loadCidades } from '../lib/catalogos.js';
+import { useCatalogos, loadCidades, loadSubareas } from '../lib/catalogos.js';
 import { MIN_IDADE, idadeEmAnos } from '../lib/idade.js';
 import { validarObrigatorios } from '../lib/validacao.js';
 
@@ -16,7 +17,7 @@ const STEPS = ['Dados Pessoais', 'Info. Acadêmicas', 'Endereço'];
 // campos condicionais (vezes_fetec) e complemento.
 const OBRIGATORIOS_POR_ETAPA = {
     1: ['name', 'cpf', 'data_nascimento', 'email', 'telefone', 'genero', 'camiseta', 'password', 'password_confirmation'],
-    2: ['instituicao', 'tipo_instituicao', 'vinculo', 'titulacao', 'curso_formacao', 'area_conhecimento', 'tempo_orientacao'],
+    2: ['instituicao', 'tipo_instituicao', 'vinculo', 'titulacao', 'curso_formacao', 'area_id', 'tempo_orientacao'],
     // Etapa 3 (endereço) é dinâmica conforme o país — ver camposEtapa() no componente.
 };
 
@@ -25,7 +26,7 @@ const FIELD_STEP = {
     name: 1, cpf: 1, data_nascimento: 1, email: 1, telefone: 1, password: 1,
     genero: 1, etnia: 1, camiseta: 1, pcd: 1,
     instituicao: 2, tipo_instituicao: 2, vinculo: 2, titulacao: 2, curso_formacao: 2,
-    area_conhecimento: 2, subarea: 2, tempo_orientacao: 2, vezes_fetec: 2, ex_aluno_fetec: 2,
+    area_id: 2, subarea_id: 2, subarea_nome: 2, tempo_orientacao: 2, vezes_fetec: 2, ex_aluno_fetec: 2,
     cep: 3, pais: 3, estado_id: 3, cidade_id: 3, estado_nome: 3, cidade_nome: 3,
     logradouro: 3, numero: 3, bairro: 3, complemento: 3,
 };
@@ -40,6 +41,7 @@ export default function Cadastro() {
     const [loading, setLoading] = useState(false);
     const catalogos = useCatalogos();
     const [cidades, setCidades] = useState([]);
+    const [subareas, setSubareas] = useState([]);
 
     const ehBR = (form.pais || 'BR') === 'BR';
 
@@ -61,6 +63,22 @@ export default function Cadastro() {
             ...(pais === 'BR' ? { estado_nome: '', cidade_nome: '' } : { estado_id: '', cidade_id: '' }),
         }));
         if (pais !== 'BR') setCidades([]);
+    }
+
+    // Área do catálogo unificado; subárea opcional via combobox (id existente ou nome novo).
+    async function onAreaChange(areaId) {
+        setForm((f) => ({ ...f, area_id: areaId, subarea_id: '', subarea_nome: '' }));
+        setSubareas(areaId ? await loadSubareas(areaId) : []);
+    }
+    const subareaValue = form.subarea_id
+        ? (subareas.find((s) => String(s.id) === String(form.subarea_id)) ?? null)
+        : (form.subarea_nome ? { id: null, nome: form.subarea_nome } : null);
+    function onSubareaChange(sel) {
+        setForm((f) => ({
+            ...f,
+            subarea_id: sel?.id ?? '',
+            subarea_nome: sel && sel.id == null ? sel.nome : '',
+        }));
     }
 
     // Obrigatórios da etapa 3 dependem do país (catálogo por FK vs. texto livre).
@@ -257,16 +275,22 @@ export default function Cadastro() {
                                 <Input value={form.curso_formacao ?? ''} onChange={set('curso_formacao')} error={err('curso_formacao')} placeholder="Ex: Ciências Biológicas" />
                             </Field>
                             <div className="md:col-span-2">
-                                <Field label="Área do Conhecimento (CNPq)" required error={err('area_conhecimento')}>
-                                    <Select value={form.area_conhecimento ?? ''} onChange={set('area_conhecimento')} error={err('area_conhecimento')}>
+                                <Field label="Área do Conhecimento (CNPq)" required error={err('area_id')}>
+                                    <Select value={form.area_id ?? ''} onChange={(e) => onAreaChange(e.target.value)} error={err('area_id')}>
                                         <option value="">Selecione</option>
-                                        {['Exatas e da Terra', 'Biológicas', 'Engenharias', 'Saúde', 'Agrárias', 'Sociais Aplicadas', 'Humanas', 'Letras e Artes'].map((a) => <option key={a} value={a}>{a}</option>)}
+                                        {catalogos.areas.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
                                     </Select>
                                 </Field>
                             </div>
                             <div className="md:col-span-2">
-                                <Field label="Subárea de Atuação">
-                                    <Input value={form.subarea ?? ''} onChange={set('subarea')} placeholder="Ex: Genética Molecular" />
+                                <Field label="Subárea de Atuação" hint="Opcional. Digite para buscar; se não existir, você pode criar e ela passa a valer para todos.">
+                                    <SubareaCombobox
+                                        options={subareas}
+                                        value={subareaValue}
+                                        onChange={onSubareaChange}
+                                        disabled={!form.area_id}
+                                        placeholder={form.area_id ? 'Digite para buscar ou criar…' : 'Escolha a área primeiro'}
+                                    />
                                 </Field>
                             </div>
                             <div className="md:col-span-2">

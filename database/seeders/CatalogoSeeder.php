@@ -102,7 +102,6 @@ class CatalogoSeeder extends Seeder
             'Ciências Sociais Aplicadas' => ['Administração', 'Direito', 'Economia', 'Comunicação'],
             'Ciências Humanas' => ['Educação', 'História', 'Geografia', 'Psicologia', 'Sociologia'],
             'Linguística, Letras e Artes' => ['Linguística', 'Letras', 'Artes'],
-            'Multidisciplinar' => ['Biotecnologia', 'Meio Ambiente', 'Materiais'],
         ];
 
         foreach ($arvore as $area => $subareas) {

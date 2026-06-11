@@ -146,11 +146,12 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 3 | E4 Integrantes (alunos 1–4 + coorientador) + E5 Uploads | ✅ sim | ✅ sim (Pedro) | 0 |
 | 4 | E6 Submissão & checklist (irreversível) + E7 Avaliador (cadastro/login + exclusão mútua) | ✅ sim | ✅ sim (Pedro) | 0 |
 | 5 | E8 Admin & dashboard (9 métricas) + E9 Qualidade/segurança/carga | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 6 | Localidades: cidades do Brasil (IBGE) + endereço do orientador por FK + máscara de CEP | ✅ sim | ❌ não (manual do Pedro) | 2 |
+| 6 | Localidades: cidades do Brasil (IBGE) + endereço do orientador por FK + máscara de CEP | ✅ sim | ✅ sim (Pedro) | 0 |
+| 7 | Catálogo unificado área/subárea: combobox digite/cria + criação global + unificação do orientador + remove Multidisciplinar | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
-> **Estado atual:** ajustes pós-v1 (Sprints 6–10). **Sprint 6 (Localidades) concluída** — testes 82/82
-> back, 8/8 front, Pint limpo, build OK. Próxima: **Sprint 7 — Catálogo unificado de área/subárea**.
-> ⚠️ 2 sprints sem push (5 e 6); na 7 atinge o limite de 3 da política.
+> **Estado atual:** ajustes pós-v1 (Sprints 6–10). Sprints 6–7 concluídas (6 com push do Pedro).
+> Sprint 7 (catálogo unificado de área/subárea) commitada — back 88/88, front 11/11, Pint limpo, build OK.
+> Próxima: **Sprint 8 — Admin Parametrização** (renomear/mesclar/excluir áreas e subáreas).
 > Pendência do Pedro: enviar as 3 planilhas de instituições em CSV (`database/data/instituicoes/`) para a Sprint 10.
 
 ### Roadmap de sprints (proposto)
