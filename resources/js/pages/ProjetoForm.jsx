@@ -6,8 +6,9 @@ import KeywordsInput from '../components/KeywordsInput.jsx';
 import VideoPreview from '../components/VideoPreview.jsx';
 import DocumentoUpload from '../components/DocumentoUpload.jsx';
 import SubareaCombobox from '../components/SubareaCombobox.jsx';
+import InstituicaoCombobox from '../components/InstituicaoCombobox.jsx';
 import { extractErrors } from '../lib/auth.jsx';
-import { useCatalogos, loadSubareas, loadCidades, criarSubarea } from '../lib/catalogos.js';
+import { useCatalogos, loadSubareas, loadCidades, criarSubarea, buscarInstituicoes, criarInstituicao } from '../lib/catalogos.js';
 import { criarProjeto, atualizarProjeto, obterProjeto } from '../lib/projetos.js';
 import { listarDocumentos } from '../lib/documentos.js';
 import { listaPaises } from '../lib/paises.js';
@@ -65,6 +66,7 @@ export default function ProjetoForm() {
                 }
                 setForm({
                     titulo: p.titulo ?? '', categoria: p.categoria ?? '', instituicao_id: p.instituicao_id ?? '',
+                    instituicao_nome: p.nomes?.instituicao ?? '',
                     area_id: p.area_id ?? '', subarea_id: p.subarea_id ?? '', resumo: p.resumo ?? '',
                     link_video: p.link_video ?? '', palavras_chave: p.palavras_chave ?? [], pais: p.pais ?? 'BR',
                     estado_id: p.estado_id ?? '', cidade_id: p.cidade_id ?? '',
@@ -292,10 +294,13 @@ export default function ProjetoForm() {
                         <Input value={form.titulo ?? ''} onChange={(e) => setField('titulo', e.target.value)} error={err('titulo')} placeholder="Título completo do projeto" />
                     </Field>
                     <Field label="Instituição de Ensino" error={err('instituicao_id')}>
-                        <Select value={form.instituicao_id ?? ''} onChange={(e) => setField('instituicao_id', e.target.value)}>
-                            <option value="">Selecione</option>
-                            {catalogos.instituicoes.map((i) => <option key={i.id} value={i.id}>{i.nome}</option>)}
-                        </Select>
+                        <InstituicaoCombobox
+                            buscar={buscarInstituicoes}
+                            create={criarInstituicao}
+                            value={form.instituicao_id ? { id: form.instituicao_id, nome: form.instituicao_nome } : null}
+                            onChange={(sel) => { setForm((f) => ({ ...f, instituicao_id: sel?.id ?? '', instituicao_nome: sel?.nome ?? '' })); markDirty(); }}
+                            placeholder="Digite para buscar ou criar…"
+                        />
                     </Field>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <Field label="Categoria" error={err('categoria')}>

@@ -56,8 +56,10 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
         Route::get('/perfil', [PerfilController::class, 'show']);
         Route::put('/perfil', [PerfilController::class, 'update']);
 
-        // Criação de subárea global (combobox "digite/crie") — autenticada e limitada.
+        // Criação global (combobox "digite/crie") — autenticada e limitada.
         Route::post('/catalogos/subareas', [CatalogoController::class, 'criarSubarea'])
+            ->middleware('throttle:30,1');
+        Route::post('/catalogos/instituicoes', [CatalogoController::class, 'criarInstituicao'])
             ->middleware('throttle:30,1');
 
         Route::apiResource('projetos', ProjetoController::class);

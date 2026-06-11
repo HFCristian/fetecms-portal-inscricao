@@ -4,10 +4,11 @@ import { useAuth, extractErrors, homeFor } from '../lib/auth.jsx';
 import AuthCard from '../components/AuthCard.jsx';
 import { Field, Input, DateInput, CpfInput, TelefoneInput, CepInput, Select, Button, Alert } from '../components/ui.jsx';
 import SubareaCombobox from '../components/SubareaCombobox.jsx';
+import InstituicaoCombobox from '../components/InstituicaoCombobox.jsx';
 import { listaPaises } from '../lib/paises.js';
-import { useCatalogos, loadCidades, loadSubareas } from '../lib/catalogos.js';
+import { useCatalogos, loadCidades, loadSubareas, buscarInstituicoes } from '../lib/catalogos.js';
 import { MIN_IDADE, idadeEmAnos } from '../lib/idade.js';
-import { validarObrigatorios } from '../lib/validacao.js';
+import { validarObrigatorios, MSG_OBRIGATORIO } from '../lib/validacao.js';
 
 const PAISES = listaPaises();
 
@@ -17,7 +18,7 @@ const STEPS = ['Dados Pessoais', 'Info. Acadêmicas', 'Endereço'];
 // campos condicionais (vezes_fetec) e complemento.
 const OBRIGATORIOS_POR_ETAPA = {
     1: ['name', 'cpf', 'data_nascimento', 'email', 'telefone', 'genero', 'camiseta', 'password', 'password_confirmation'],
-    2: ['instituicao', 'tipo_instituicao', 'vinculo', 'titulacao', 'curso_formacao', 'area_id', 'tempo_orientacao'],
+    2: ['tipo_instituicao', 'vinculo', 'titulacao', 'curso_formacao', 'area_id', 'tempo_orientacao'],
     // Etapa 3 (endereço) é dinâmica conforme o país — ver camposEtapa() no componente.
 };
 
@@ -25,7 +26,7 @@ const OBRIGATORIOS_POR_ETAPA = {
 const FIELD_STEP = {
     name: 1, cpf: 1, data_nascimento: 1, email: 1, telefone: 1, password: 1,
     genero: 1, etnia: 1, camiseta: 1, pcd: 1,
-    instituicao: 2, tipo_instituicao: 2, vinculo: 2, titulacao: 2, curso_formacao: 2,
+    instituicao_id: 2, instituicao_nome: 2, tipo_instituicao: 2, vinculo: 2, titulacao: 2, curso_formacao: 2,
     area_id: 2, subarea_id: 2, subarea_nome: 2, tempo_orientacao: 2, vezes_fetec: 2, ex_aluno_fetec: 2,
     cep: 3, pais: 3, estado_id: 3, cidade_id: 3, estado_nome: 3, cidade_nome: 3,
     logradouro: 3, numero: 3, bairro: 3, complemento: 3,
@@ -80,6 +81,13 @@ export default function Cadastro() {
             subarea_nome: sel && sel.id == null ? sel.nome : '',
         }));
     }
+    // Instituição: id quando existente; nome quando nova (criada na transação do registro).
+    function onInstituicaoChange(sel) {
+        setForm((f) => ({ ...f, instituicao_id: sel?.id ?? '', instituicao_nome: sel?.nome ?? '' }));
+    }
+    const instituicaoValue = form.instituicao_id || form.instituicao_nome
+        ? { id: form.instituicao_id || null, nome: form.instituicao_nome || '' }
+        : null;
 
     // Obrigatórios da etapa 3 dependem do país (catálogo por FK vs. texto livre).
     const camposEtapa = (s) => (s === 3
@@ -87,9 +95,18 @@ export default function Cadastro() {
             ...(ehBR ? ['cep', 'estado_id', 'cidade_id'] : ['estado_nome', 'cidade_nome'])]
         : OBRIGATORIOS_POR_ETAPA[s]);
 
+    // Etapa 2 exige instituição: id de catálogo OU nome novo (via combobox digite/crie).
+    function validarEtapa(s) {
+        const faltando = validarObrigatorios(form, camposEtapa(s));
+        if (s === 2 && !form.instituicao_id && !(form.instituicao_nome || '').trim()) {
+            faltando.instituicao_id = [MSG_OBRIGATORIO];
+        }
+        return faltando;
+    }
+
     // Valida os obrigatórios da etapa atual e, se ok, avança para a próxima.
     function avancar() {
-        const faltando = validarObrigatorios(form, camposEtapa(step));
+        const faltando = validarEtapa(step);
         if (Object.keys(faltando).length) {
             setErrors(faltando);
             setAlert('Preencha todos os campos obrigatórios desta etapa.');
@@ -109,9 +126,9 @@ export default function Cadastro() {
         }
         // Revalida tudo: nenhum obrigatório (de qualquer etapa) pode ficar vazio.
         const faltando = {
-            ...validarObrigatorios(form, camposEtapa(1)),
-            ...validarObrigatorios(form, camposEtapa(2)),
-            ...validarObrigatorios(form, camposEtapa(3)),
+            ...validarEtapa(1),
+            ...validarEtapa(2),
+            ...validarEtapa(3),
         };
         if (Object.keys(faltando).length) {
             setErrors(faltando);
@@ -235,11 +252,13 @@ export default function Cadastro() {
                     {step === 2 && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="md:col-span-2">
-                                <Field label="Instituição de Ensino" required error={err('instituicao')}>
-                                    <Select value={form.instituicao ?? ''} onChange={set('instituicao')} error={err('instituicao')}>
-                                        <option value="">Selecione</option>
-                                        {['UFMS', 'UEMS', 'IFMS', 'UCDB'].map((i) => <option key={i} value={i}>{i}</option>)}
-                                    </Select>
+                                <Field label="Instituição de Ensino" required error={err('instituicao_id')}>
+                                    <InstituicaoCombobox
+                                        buscar={buscarInstituicoes}
+                                        value={instituicaoValue}
+                                        onChange={onInstituicaoChange}
+                                        placeholder="Digite para buscar ou criar…"
+                                    />
                                 </Field>
                             </div>
                             <Field label="Tipo de Instituição" required error={err('tipo_instituicao')}>
@@ -409,9 +428,9 @@ export default function Cadastro() {
                             VOLTAR
                         </Button>
                     ) : (
-                        <Link to="/login" className="text-sm text-primary-container font-semibold hover:underline">
-                            Já tenho conta
-                        </Link>
+                        <p className="text-center text-sm text-on-surface-variant">
+                            Já tem conta? <Link to="/login" className="font-semibold text-primary-container hover:underline">Entrar</Link>
+                        </p>
                     )}
 
                     {step < 3 ? (

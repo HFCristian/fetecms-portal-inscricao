@@ -24,7 +24,6 @@ class RegisterOrientadorTest extends TestCase
             'data_nascimento' => '1985-03-15',
             'genero' => 'M',
             'camiseta' => 'G',
-            'instituicao' => 'UFMS',
         ], $overrides);
     }
 

@@ -15,13 +15,16 @@ class OrientadorService
      */
     private const PROFILE_FIELDS = [
         'cpf', 'telefone', 'data_nascimento', 'genero', 'genero_outro', 'etnia',
-        'camiseta', 'pcd', 'instituicao', 'tipo_instituicao', 'vinculo', 'titulacao',
+        'camiseta', 'pcd', 'instituicao_id', 'tipo_instituicao', 'vinculo', 'titulacao',
         'curso_formacao', 'area_id', 'subarea_id', 'tempo_orientacao',
         'vezes_fetec', 'ex_aluno_fetec', 'cep', 'logradouro', 'numero', 'complemento',
         'bairro', 'estado_id', 'cidade_id', 'estado_nome', 'cidade_nome', 'pais',
     ];
 
-    public function __construct(private readonly SubareaService $subareas) {}
+    public function __construct(
+        private readonly SubareaService $subareas,
+        private readonly InstituicaoService $instituicoes,
+    ) {}
 
     /**
      * Cria o usuário (role orientador) e o perfil numa única transação.
@@ -31,6 +34,7 @@ class OrientadorService
     {
         return DB::transaction(function () use ($data) {
             $data = $this->resolverSubarea($data);
+            $data = $this->resolverInstituicao($data);
 
             $user = User::create([
                 'name' => $data['name'],
@@ -44,7 +48,7 @@ class OrientadorService
 
             return $user->load(
                 'orientadorProfile.estado', 'orientadorProfile.cidade',
-                'orientadorProfile.area', 'orientadorProfile.subarea',
+                'orientadorProfile.area', 'orientadorProfile.subarea', 'orientadorProfile.instituicao',
             );
         });
     }
@@ -56,6 +60,7 @@ class OrientadorService
     {
         return DB::transaction(function () use ($user, $data) {
             $data = $this->resolverSubarea($data);
+            $data = $this->resolverInstituicao($data);
 
             $userData = Arr::only($data, ['name', 'email']);
             if (! empty($userData)) {
@@ -69,7 +74,7 @@ class OrientadorService
 
             return $user->fresh([
                 'orientadorProfile.estado', 'orientadorProfile.cidade',
-                'orientadorProfile.area', 'orientadorProfile.subarea',
+                'orientadorProfile.area', 'orientadorProfile.subarea', 'orientadorProfile.instituicao',
             ]);
         });
     }
@@ -86,6 +91,21 @@ class OrientadorService
         if (empty($data['subarea_id'] ?? null) && $temNome && $temArea) {
             $data['subarea_id'] = $this->subareas
                 ->firstOrCreateNaArea((int) $data['area_id'], (string) $data['subarea_nome'])
+                ->id;
+        }
+
+        return $data;
+    }
+
+    /**
+     * Se veio uma instituição NOVA por texto (instituicao_nome) sem id, cria/reaproveita
+     * a instituição global e injeta o instituicao_id resultante.
+     */
+    private function resolverInstituicao(array $data): array
+    {
+        if (empty($data['instituicao_id'] ?? null) && ! empty($data['instituicao_nome'] ?? null)) {
+            $data['instituicao_id'] = $this->instituicoes
+                ->firstOrCreateGlobal((string) $data['instituicao_nome'])
                 ->id;
         }
 

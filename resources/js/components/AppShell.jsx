@@ -40,6 +40,10 @@ export default function AppShell({ children }) {
                                 <span className="material-symbols-outlined">tune</span>
                                 Parametrização
                             </NavLink>
+                            <NavLink to="/admin/gerir-admins" className={navClass}>
+                                <span className="material-symbols-outlined">people</span>
+                                Administradores
+                            </NavLink>
                         </>
                     ) : user?.role === 'avaliador' ? (
                         <NavLink to="/avaliador" className={navClass}>
@@ -58,13 +62,16 @@ export default function AppShell({ children }) {
                             </NavLink>
                         </>
                     )}
-                    <button
-                        onClick={handleLogout}
-                        className="mt-auto flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold text-on-surface-variant hover:bg-surface-variant transition-colors"
-                    >
-                        <span className="material-symbols-outlined">logout</span>
-                        Sair
-                    </button>
+                    <div className="flex flex-col gap-4 mt-auto mb-4">
+                        <button
+                            onClick={handleLogout}
+                            className="flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold text-red-900 hover:bg-surface-variant transition-colors"
+                        >
+                            <span className="material-symbols-outlined">logout</span>
+                            Sair
+                        </button>
+                        <SupportFooter className="pb-2" />
+                    </div>
                 </div>
             </nav>
 
@@ -87,7 +94,7 @@ export default function AppShell({ children }) {
                         Olá, <strong className="text-on-surface">{user?.name}</strong>
                     </p>
                     {children}
-                    <SupportFooter className="mt-10 pb-2" />
+                    <SupportFooter className="mt-10 pb-2 md:hidden" />
                 </div>
             </div>
         </div>

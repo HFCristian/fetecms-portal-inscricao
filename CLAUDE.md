@@ -148,13 +148,14 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 5 | E8 Admin & dashboard (9 métricas) + E9 Qualidade/segurança/carga | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 6 | Localidades: cidades do Brasil (IBGE) + endereço do orientador por FK + máscara de CEP | ✅ sim | ✅ sim (Pedro) | 0 |
 | 7 | Catálogo unificado área/subárea: combobox digite/cria + criação global + unificação do orientador + remove Multidisciplinar | ✅ sim | ✅ sim (Pedro) | 0 |
-| 8 | Admin Parametrização: renomear/mesclar/excluir áreas e subáreas (reatribui referências) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 9 | Erros 100% em pt_BR + favicon (logo2026.png) + rodapé com e-mail de suporte | ✅ sim | ❌ não (manual do Pedro) | 2 |
+| 8 | Admin Parametrização: renomear/mesclar/excluir áreas e subáreas (reatribui referências) | ✅ sim | ✅ sim (Pedro) | 0 |
+| 9 | Erros 100% em pt_BR + favicon (logo2026.png) + rodapé com e-mail de suporte | ✅ sim | ✅ sim (Pedro) | 0 |
+| 10 | Instituições: importar escolas_ms.csv + combobox "digite/crie" (criação global) no orientador e projeto | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
-> **Estado atual:** ajustes pós-v1 (Sprints 6–10). Sprints 6–9 concluídas (6–7 com push do Pedro; 8–9 sem push).
-> Sprint 9 (erros pt_BR + favicon + rodapé) commitada — back 102/102, front 11/11, Pint limpo, build OK.
-> Próxima e última: **Sprint 10 — Instituições** (importar `escolas_ms.csv` + combobox "digite/crie").
-> ⚠️ 2 sprints sem push (8 e 9); ao concluir a 10 sem push, atinge o limite de 3 e o Claude pode dar push.
+> **Estado atual:** ciclo de ajustes pós-v1 (Sprints 6–10) **concluído**. Sprint 10 commitada —
+> back 108/108, front 11/11, Pint limpo, build OK. 1 sprint sem push (10).
+> Para popular as escolas em produção/local: `php artisan instituicoes:importar`
+> (lê `database/data/instituicoes/escolas_ms.csv`; 1888 escolas de MS, todos os municípios casam).
 > Sprint 10 (instituições): arquivo **`escolas_ms.csv`** (raiz, MS apenas) com colunas
 > `MUNICÍPIO, ZONA, CÓDIGO DO INEP, UNIDADE ESCOLAR, TIPO`. Será versionado e também ganha
 > **combobox "digite/crie"** de instituição (criação global) no cadastro do orientador e no projeto.

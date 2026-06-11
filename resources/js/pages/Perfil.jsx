@@ -4,8 +4,9 @@ import AppShell from '../components/AppShell.jsx';
 import http from '../lib/http.js';
 import { Field, Input, CpfInput, TelefoneInput, CepInput, Select, Button, Alert } from '../components/ui.jsx';
 import SubareaCombobox from '../components/SubareaCombobox.jsx';
+import InstituicaoCombobox from '../components/InstituicaoCombobox.jsx';
 import { listaPaises } from '../lib/paises.js';
-import { useCatalogos, loadCidades, loadSubareas, criarSubarea } from '../lib/catalogos.js';
+import { useCatalogos, loadCidades, loadSubareas, criarSubarea, buscarInstituicoes, criarInstituicao } from '../lib/catalogos.js';
 
 const PAISES = listaPaises();
 
@@ -21,7 +22,8 @@ export default function Perfil() {
         name: user?.name ?? '',
         email: user?.email ?? '',
         telefone: profile.telefone ?? '',
-        instituicao: profile.instituicao ?? '',
+        instituicao_id: profile.instituicao_id ?? '',
+        instituicao_nome: profile.instituicao ?? '',
         titulacao: profile.titulacao ?? '',
         area_id: profile.area_id ?? '',
         subarea_id: profile.subarea_id ?? '',
@@ -121,8 +123,14 @@ export default function Perfil() {
                     <Field label="Telefone" error={err('telefone')}>
                         <TelefoneInput value={form.telefone} onChange={set('telefone')} error={err('telefone')} />
                     </Field>
-                    <Field label="Instituição">
-                        <Input value={form.instituicao} onChange={set('instituicao')} />
+                    <Field label="Instituição" error={err('instituicao_id')}>
+                        <InstituicaoCombobox
+                            buscar={buscarInstituicoes}
+                            create={criarInstituicao}
+                            value={form.instituicao_id ? { id: form.instituicao_id, nome: form.instituicao_nome } : null}
+                            onChange={(sel) => setForm((f) => ({ ...f, instituicao_id: sel?.id ?? '', instituicao_nome: sel?.nome ?? '' }))}
+                            placeholder="Digite para buscar ou criar…"
+                        />
                     </Field>
                     <Field label="Área do Conhecimento" error={err('area_id')}>
                         <Select value={form.area_id} onChange={(e) => onAreaChange(e.target.value)} error={err('area_id')}>

@@ -14,7 +14,7 @@ class OrientadorProfile extends Model
 
     protected $fillable = [
         'cpf', 'telefone', 'data_nascimento', 'genero', 'genero_outro', 'etnia',
-        'camiseta', 'pcd', 'instituicao', 'tipo_instituicao', 'vinculo', 'titulacao',
+        'camiseta', 'pcd', 'instituicao_id', 'tipo_instituicao', 'vinculo', 'titulacao',
         'curso_formacao', 'area_id', 'subarea_id', 'tempo_orientacao',
         'vezes_fetec', 'ex_aluno_fetec', 'cep', 'logradouro', 'numero', 'complemento',
         'bairro', 'estado_id', 'cidade_id', 'estado_nome', 'cidade_nome', 'pais',
@@ -52,5 +52,10 @@ class OrientadorProfile extends Model
     public function subarea(): BelongsTo
     {
         return $this->belongsTo(Subarea::class);
+    }
+
+    public function instituicao(): BelongsTo
+    {
+        return $this->belongsTo(Instituicao::class);
     }
 }

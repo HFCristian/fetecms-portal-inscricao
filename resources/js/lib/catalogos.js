@@ -44,3 +44,11 @@ export const loadCidades = (estadoId) =>
 
 export const buscarPalavrasChave = (search) =>
     http.get('/catalogos/palavras-chave', { params: search ? { search } : {} }).then((r) => r.data.data);
+
+// Busca instituições no catálogo (server-side, até 50). Cada item: { id, nome, cidade, tipo }.
+export const buscarInstituicoes = (search) =>
+    http.get('/catalogos/instituicoes', { params: search ? { search } : {} }).then((r) => r.data.data);
+
+// Cria (ou reaproveita) uma instituição global pelo nome. Telas autenticadas.
+export const criarInstituicao = (nome, extras = {}) =>
+    http.post('/catalogos/instituicoes', { nome, ...extras }).then((r) => r.data.data);

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Enums\Categoria;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Catalogo\StoreInstituicaoRequest;
 use App\Http\Requests\Catalogo\StoreSubareaRequest;
 use App\Models\Area;
 use App\Models\Cidade;
@@ -12,6 +13,7 @@ use App\Models\Estado;
 use App\Models\Instituicao;
 use App\Models\PalavraChave;
 use App\Models\Subarea;
+use App\Services\InstituicaoService;
 use App\Services\SubareaService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -107,12 +109,40 @@ class CatalogoController extends Controller
 
     public function instituicoes(Request $request): JsonResponse
     {
-        $data = Instituicao::when($request->filled('search'),
-            fn ($q) => $q->where('nome', 'like', '%'.$request->string('search').'%'))
+        $data = Instituicao::with('cidade:id,nome')
+            ->when($request->filled('search'),
+                fn ($q) => $q->where('nome', 'like', '%'.$request->string('search').'%'))
             ->orderBy('nome')
             ->limit(50)
-            ->get(['id', 'nome', 'cidade_id']);
+            ->get(['id', 'nome', 'cidade_id', 'tipo'])
+            ->map(fn (Instituicao $i) => [
+                'id' => $i->id,
+                'nome' => $i->nome,
+                'cidade' => $i->cidade?->nome,
+                'tipo' => $i->tipo,
+            ]);
 
         return response()->json(['data' => $data]);
+    }
+
+    /**
+     * Cria (ou reaproveita) uma instituição global pelo nome. Usada pelo combobox
+     * "digite/crie" nos formulários autenticados (projeto/perfil).
+     */
+    public function criarInstituicao(StoreInstituicaoRequest $request, InstituicaoService $instituicoes): JsonResponse
+    {
+        $inst = $instituicoes->firstOrCreateGlobal((string) $request->input('nome'), array_filter([
+            'cidade_id' => $request->integer('cidade_id') ?: null,
+            'tipo' => $request->input('tipo'),
+        ]));
+
+        return response()->json([
+            'data' => [
+                'id' => $inst->id,
+                'nome' => $inst->nome,
+                'cidade' => $inst->cidade?->nome,
+                'tipo' => $inst->tipo,
+            ],
+        ], 201);
     }
 }

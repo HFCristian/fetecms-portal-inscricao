@@ -20,7 +20,7 @@ class PerfilController extends Controller
 
         return UserResource::make($user->load(
             'orientadorProfile.estado', 'orientadorProfile.cidade',
-            'orientadorProfile.area', 'orientadorProfile.subarea',
+            'orientadorProfile.area', 'orientadorProfile.subarea', 'orientadorProfile.instituicao',
         ));
     }
 
