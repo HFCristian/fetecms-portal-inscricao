@@ -149,11 +149,15 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 6 | Localidades: cidades do Brasil (IBGE) + endereço do orientador por FK + máscara de CEP | ✅ sim | ✅ sim (Pedro) | 0 |
 | 7 | Catálogo unificado área/subárea: combobox digite/cria + criação global + unificação do orientador + remove Multidisciplinar | ✅ sim | ✅ sim (Pedro) | 0 |
 | 8 | Admin Parametrização: renomear/mesclar/excluir áreas e subáreas (reatribui referências) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 9 | Erros 100% em pt_BR + favicon (logo2026.png) + rodapé com e-mail de suporte | ✅ sim | ❌ não (manual do Pedro) | 2 |
 
-> **Estado atual:** ajustes pós-v1 (Sprints 6–10). Sprints 6–8 concluídas (6–7 com push do Pedro).
-> Sprint 8 (Admin Parametrização) commitada — back 98/98, front 11/11, Pint limpo, build OK.
-> Próxima: **Sprint 9 — Erros 100% em pt_BR + favicon + rodapé de suporte**.
-> Pendência do Pedro: enviar as 3 planilhas de instituições em CSV (`database/data/instituicoes/`) para a Sprint 10.
+> **Estado atual:** ajustes pós-v1 (Sprints 6–10). Sprints 6–9 concluídas (6–7 com push do Pedro; 8–9 sem push).
+> Sprint 9 (erros pt_BR + favicon + rodapé) commitada — back 102/102, front 11/11, Pint limpo, build OK.
+> Próxima e última: **Sprint 10 — Instituições** (importar `escolas_ms.csv` + combobox "digite/crie").
+> ⚠️ 2 sprints sem push (8 e 9); ao concluir a 10 sem push, atinge o limite de 3 e o Claude pode dar push.
+> Sprint 10 (instituições): arquivo **`escolas_ms.csv`** (raiz, MS apenas) com colunas
+> `MUNICÍPIO, ZONA, CÓDIGO DO INEP, UNIDADE ESCOLAR, TIPO`. Será versionado e também ganha
+> **combobox "digite/crie"** de instituição (criação global) no cadastro do orientador e no projeto.
 
 ### Roadmap de sprints (proposto)
 
@@ -174,8 +178,10 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
   referências) e excluir áreas/subáreas.
 - **Sprint 9** — Erros 100% em pt_BR (auditoria + testes) + favicon + rodapé com e-mail de suporte
   (`fetecms@gmail.com`).
-- **Sprint 10** — Importação das instituições de ensino (federais/estaduais/municipais) a partir
-  de CSVs em `database/data/instituicoes/`.
+- **Sprint 10** — Instituições de ensino: importar a lista de MS (federais/estaduais/municipais/
+  particulares) de `escolas_ms.csv` (colunas `MUNICÍPIO, ZONA, CÓDIGO DO INEP, UNIDADE ESCOLAR,
+  TIPO`) + **combobox "digite/crie"** de instituição no cadastro do orientador e no projeto
+  (criação global, como as subáreas).
 
 **Decisões travadas (deste ciclo):** endereço sempre por FK no Brasil (texto livre só fora do
 Brasil); área/subárea sempre do **mesmo catálogo** em todos os formulários; subárea criada por

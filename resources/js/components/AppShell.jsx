@@ -1,5 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth.jsx';
+import SupportFooter from './SupportFooter.jsx';
 
 function navClass({ isActive }) {
     return (
@@ -86,6 +87,7 @@ export default function AppShell({ children }) {
                         Olá, <strong className="text-on-surface">{user?.name}</strong>
                     </p>
                     {children}
+                    <SupportFooter className="mt-10 pb-2" />
                 </div>
             </div>
         </div>

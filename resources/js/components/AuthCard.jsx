@@ -1,6 +1,8 @@
+import SupportFooter from './SupportFooter.jsx';
+
 export default function AuthCard({ children }) {
     return (
-        <main className="fetec-gradient-bg min-h-screen flex items-center justify-center p-4 sm:p-6 md:p-10">
+        <main className="fetec-gradient-bg min-h-screen flex flex-col items-center justify-center gap-4 p-4 sm:p-6 md:p-10">
             <div className="w-full max-w-4xl bg-surface-container-lowest rounded-xl fetec-card-shadow overflow-hidden flex flex-col lg:flex-row">
                 {/* Painel lateral de marca (desktop) */}
                 <aside className="fetec-auth-card-gradient-bg hidden lg:flex lg:w-5/12 flex-col justify-between p-10 relative overflow-hidden border-r border-outline-variant/30">
@@ -32,6 +34,7 @@ export default function AuthCard({ children }) {
                     {children}
                 </section>
             </div>
+            <SupportFooter />
         </main>
     );
 }

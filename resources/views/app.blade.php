@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{{ config('app.name', 'XVI FETECMS') }}</title>
 
+    {{-- Favicon (logo da XVI FETECMS). PNG é honrado pelos navegadores modernos. --}}
+    <link rel="icon" type="image/png" href="/img/logo2026.png" />
+    <link rel="apple-touch-icon" href="/img/logo2026.png" />
+
     {{-- CSRF token para o Sanctum SPA (axios lê o cookie XSRF-TOKEN automaticamente). --}}
     <meta name="csrf-token" content="{{ csrf_token() }}" />
 
