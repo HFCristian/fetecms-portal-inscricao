@@ -1,7 +1,9 @@
+import SupportFooter from './SupportFooter.jsx';
+
 export default function AuthCard({ children }) {
     return (
-        <main className="fetec-gradient-bg min-h-screen flex items-center justify-center p-4 sm:p-6 md:p-10">
-            <div className="w-full max-w-4xl bg-surface-container-lowest rounded-xl fetec-card-shadow overflow-hidden flex flex-col lg:flex-row">
+        <main className="fetec-gradient-bg min-h-screen flex flex-col items-center justify-center gap-4 p-4 sm:p-6 md:p-10">
+            <div className="w-full max-w-5xl bg-surface-container-lowest rounded-xl fetec-card-shadow overflow-hidden flex flex-col lg:flex-row">
                 {/* Painel lateral de marca (desktop) */}
                 <aside className="fetec-auth-card-gradient-bg hidden lg:flex lg:w-5/12 flex-col justify-between p-10 relative overflow-hidden border-r border-outline-variant/30">
                     <div className="relative z-10">
@@ -14,7 +16,7 @@ export default function AuthCard({ children }) {
                         <img
                             src="/img/logo2026slogan.png"
                             alt="Logo XVI FETECMS"
-                            className="my-6 mx-auto w-full max-w-[260px] h-auto object-contain drop-shadow-md"
+                            className="my-6 mx-auto w-full max-w-65 h-auto object-contain drop-shadow-md"
                         />
                     </div>
                     <div className="relative z-10 mt-auto">
@@ -32,6 +34,7 @@ export default function AuthCard({ children }) {
                     {children}
                 </section>
             </div>
+            <SupportFooter />
         </main>
     );
 }

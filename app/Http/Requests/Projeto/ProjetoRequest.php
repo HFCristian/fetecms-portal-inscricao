@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Projeto;
 
 use App\Enums\Categoria;
+use App\Rules\SubareaDaArea;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -38,7 +39,7 @@ class ProjetoRequest extends FormRequest
             'categoria' => ['nullable', Rule::enum(Categoria::class)],
             'instituicao_id' => ['nullable', 'integer', 'exists:instituicoes,id'],
             'area_id' => ['nullable', 'integer', 'exists:areas,id'],
-            'subarea_id' => ['nullable', 'integer', 'exists:subareas,id'],
+            'subarea_id' => ['nullable', 'integer', 'exists:subareas,id', new SubareaDaArea($this->input('area_id'))],
             'resumo' => ['nullable', 'string', 'max:5000'],
             'link_video' => ['nullable', 'url', 'max:255'],
             'palavras_chave' => ['nullable', 'array', 'max:5'],

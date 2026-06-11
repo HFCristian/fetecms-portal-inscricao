@@ -1,0 +1,28 @@
+<?php
+
+namespace App\Http\Requests\Admin;
+
+use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
+
+class AreaUpdateRequest extends FormRequest
+{
+    public function authorize(): bool
+    {
+        return true; // rota já protegida por role:admin
+    }
+
+    protected function prepareForValidation(): void
+    {
+        if ($this->filled('nome')) {
+            $this->merge(['nome' => trim(preg_replace('/\s+/', ' ', (string) $this->input('nome')))]);
+        }
+    }
+
+    public function rules(): array
+    {
+        return [
+            'nome' => ['required', 'string', 'min:2', 'max:120', Rule::unique('areas', 'nome')->ignore($this->route('area')->id)],
+        ];
+    }
+}

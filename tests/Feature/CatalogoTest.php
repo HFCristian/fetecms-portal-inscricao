@@ -78,10 +78,10 @@ class CatalogoTest extends TestCase
         config(['cache.default' => 'database']);
         Cache::store('database')->forget('catalogo.areas');
 
-        $this->getJson('/api/v1/catalogos/areas')->assertOk()->assertJsonCount(9, 'data'); // miss
+        $this->getJson('/api/v1/catalogos/areas')->assertOk()->assertJsonCount(8, 'data'); // miss
         $this->getJson('/api/v1/catalogos/areas')                                          // hit
             ->assertOk()
-            ->assertJsonCount(9, 'data')
+            ->assertJsonCount(8, 'data')
             ->assertJsonStructure(['data' => [['id', 'nome']]]);
     }
 }

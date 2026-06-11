@@ -29,7 +29,7 @@ export default function Login() {
 
     return (
         <AuthCard>
-            <div className="flex-grow flex flex-col justify-center px-6 sm:px-10 py-10 w-full max-w-md mx-auto">
+            <div className="flex flex-col grow justify-center px-6 sm:px-10 py-10 w-full max-w-lg mx-auto">
                 <h2 className="font-display text-2xl font-semibold text-on-surface mb-1">Bem-vindo de volta</h2>
                 <p className="text-sm text-on-surface-variant mb-8">
                     Informe seu e-mail e senha para acessar o portal.
@@ -83,7 +83,7 @@ export default function Login() {
                     <p className="text-sm text-on-surface-variant text-center mb-4">
                         Ainda não tem conta? Cadastre-se como:
                     </p>
-                    <div className="mt-4 flex flex-row justify-between">
+                    <div className="mt-4 mx-8 flex flex-col gap-4 sm:flex-row justify-between">
                         <Link
                             to="/cadastro"
                             className="inline-flex items-center justify-center gap-2 rounded-lg px-5 py-3 font-semibold transition-colors border-2 border-primary-container/50 text-primary-container bg-primary-fixed-dim/20 hover:bg-primary-fixed-dim"

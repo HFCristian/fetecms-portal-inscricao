@@ -130,11 +130,11 @@ export default function Projetos() {
                             <p className="text-sm text-on-surface-variant">
                                 {[p.instituicao, p.categoria_label, p.area].filter(Boolean).join(' · ') || '—'}
                             </p>
-                            <div className="flex flex-wrap gap-2 mt-4">
+                            <div className="w-full flex flex-col align-middle flex-wrap md:flex-row gap-2 mt-4">
                                 {p.status === 'rascunho' && (
                                     <button
                                         onClick={() => navigate(`/projetos/${p.id}/editar`)}
-                                        className="inline-flex items-center gap-1 text-sm border border-outline-variant rounded-lg px-3 py-2 hover:bg-surface-variant"
+                                        className="max-w-80 md:w-auto w-[70vw] md:mx-0 mx-auto inline-flex items-center gap-1 text-sm border border-outline-variant rounded-lg px-3 py-2 hover:bg-surface-variant"
                                     >
                                         <span className="material-symbols-outlined text-[16px]">edit</span>
                                         Continuar edição
@@ -142,7 +142,7 @@ export default function Projetos() {
                                 )}
                                 <button
                                     onClick={() => navigate(`/projetos/${p.id}/integrantes`)}
-                                    className="inline-flex items-center gap-1 text-sm border border-outline-variant rounded-lg px-3 py-2 hover:bg-surface-variant"
+                                    className="max-w-80 md:w-auto w-[70vw] md:mx-0 mx-auto inline-flex items-center gap-1 text-sm border border-outline-variant rounded-lg px-3 py-2 hover:bg-surface-variant"
                                 >
                                     <span className="material-symbols-outlined text-[16px]">groups</span>
                                     {p.status === 'rascunho' ? 'Integrantes' : 'Ver integrantes'}
@@ -151,14 +151,14 @@ export default function Projetos() {
                                     <>
                                         <button
                                             onClick={() => navigate(`/projetos/${p.id}/resumo`)}
-                                            className="inline-flex items-center gap-1 text-sm border border-outline-variant rounded-lg px-3 py-2 text-secondary hover:bg-secondary-container/40"
+                                            className="max-w-80 md:w-auto w-[70vw] md:mx-0 mx-auto inline-flex items-center gap-1 text-sm border border-outline-variant rounded-lg px-3 py-2 text-secondary hover:bg-secondary-container/40"
                                         >
                                             <span className="material-symbols-outlined text-[16px]">send</span>
                                             Revisar e submeter
                                         </button>
                                         <button
                                             onClick={() => excluir(p.id)}
-                                            className="inline-flex items-center gap-1 text-sm border border-outline-variant rounded-lg px-3 py-2 text-error hover:bg-error-container/40"
+                                            className="max-w-80 md:w-auto w-[70vw] md:mx-0 mx-auto inline-flex items-center gap-1 text-sm border border-outline-variant rounded-lg px-3 py-2 text-error hover:bg-error-container/40"
                                         >
                                             <span className="material-symbols-outlined text-[16px]">delete</span>
                                             Excluir
@@ -168,7 +168,7 @@ export default function Projetos() {
                                 {p.status === 'submetido' && (
                                     <button
                                         onClick={() => navigate(`/projetos/${p.id}/resumo`)}
-                                        className="inline-flex items-center gap-1 text-sm border border-outline-variant rounded-lg px-3 py-2 hover:bg-surface-variant"
+                                        className="max-w-80 md:w-auto w-[70vw] md:mx-0 mx-auto inline-flex items-center gap-1 text-sm border border-outline-variant rounded-lg px-3 py-2 hover:bg-surface-variant"
                                     >
                                         <span className="material-symbols-outlined text-[16px]">visibility</span>
                                         Ver resumo

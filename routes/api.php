@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\V1\AdminController;
 use App\Http\Controllers\Api\V1\AlunoController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\AvaliadorController;
+use App\Http\Controllers\Api\V1\CatalogoAdminController;
 use App\Http\Controllers\Api\V1\CatalogoController;
 use App\Http\Controllers\Api\V1\CoorientadorController;
 use App\Http\Controllers\Api\V1\DocumentoController;
@@ -55,6 +56,12 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
         Route::get('/perfil', [PerfilController::class, 'show']);
         Route::put('/perfil', [PerfilController::class, 'update']);
 
+        // Criação global (combobox "digite/crie") — autenticada e limitada.
+        Route::post('/catalogos/subareas', [CatalogoController::class, 'criarSubarea'])
+            ->middleware('throttle:30,1');
+        Route::post('/catalogos/instituicoes', [CatalogoController::class, 'criarInstituicao'])
+            ->middleware('throttle:30,1');
+
         Route::apiResource('projetos', ProjetoController::class);
 
         // Submissão (E6) — resumo/checklist e envio irreversível
@@ -80,6 +87,15 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::get('/dashboard', [AdminController::class, 'dashboard']);
             Route::get('/projetos-por-area', [AdminController::class, 'projetosPorArea']);
             Route::post('/admins', [AdminController::class, 'store']);
+
+            // Parametrização do catálogo (áreas/subáreas)
+            Route::get('/catalogo', [CatalogoAdminController::class, 'index']);
+            Route::put('/areas/{area}', [CatalogoAdminController::class, 'updateArea']);
+            Route::post('/areas/{area}/mesclar', [CatalogoAdminController::class, 'mergeArea']);
+            Route::delete('/areas/{area}', [CatalogoAdminController::class, 'destroyArea']);
+            Route::put('/subareas/{subarea}', [CatalogoAdminController::class, 'updateSubarea']);
+            Route::post('/subareas/{subarea}/mesclar', [CatalogoAdminController::class, 'mergeSubarea']);
+            Route::delete('/subareas/{subarea}', [CatalogoAdminController::class, 'destroySubarea']);
         });
     });
 });

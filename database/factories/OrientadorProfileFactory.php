@@ -21,10 +21,10 @@ class OrientadorProfileFactory extends Factory
             'genero' => fake()->randomElement(['F', 'M', 'NB', 'O', 'P']),
             'camiseta' => fake()->randomElement(['PP', 'P', 'M', 'G', 'GG', 'XG']),
             'pcd' => false,
-            'instituicao' => fake()->randomElement(['UFMS', 'UEMS', 'IFMS', 'UCDB']),
+            // instituicao_id (FK) fica nulo por padrão; testes que precisam definem.
             'titulacao' => fake()->randomElement(['Graduação', 'Mestrado', 'Doutorado']),
-            'cidade' => 'Campo Grande',
-            'estado' => 'MS',
+            // Endereço por FK (estado_id/cidade_id) fica nulo por padrão para a factory
+            // não depender do catálogo semeado; testes que precisam definem explicitamente.
             'pais' => 'BR',
         ];
     }

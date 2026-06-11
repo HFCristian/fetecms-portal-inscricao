@@ -2,10 +2,13 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth, extractErrors, homeFor } from '../lib/auth.jsx';
 import AuthCard from '../components/AuthCard.jsx';
-import { Field, Input, DateInput, CpfInput, TelefoneInput, Select, Button, Alert } from '../components/ui.jsx';
+import { Field, Input, DateInput, CpfInput, TelefoneInput, CepInput, Select, Button, Alert } from '../components/ui.jsx';
+import SubareaCombobox from '../components/SubareaCombobox.jsx';
+import InstituicaoCombobox from '../components/InstituicaoCombobox.jsx';
 import { listaPaises } from '../lib/paises.js';
+import { useCatalogos, loadCidades, loadSubareas, buscarInstituicoes } from '../lib/catalogos.js';
 import { MIN_IDADE, idadeEmAnos } from '../lib/idade.js';
-import { validarObrigatorios } from '../lib/validacao.js';
+import { validarObrigatorios, MSG_OBRIGATORIO } from '../lib/validacao.js';
 
 const PAISES = listaPaises();
 
@@ -15,17 +18,18 @@ const STEPS = ['Dados Pessoais', 'Info. Acadêmicas', 'Endereço'];
 // campos condicionais (vezes_fetec) e complemento.
 const OBRIGATORIOS_POR_ETAPA = {
     1: ['name', 'cpf', 'data_nascimento', 'email', 'telefone', 'genero', 'camiseta', 'password', 'password_confirmation'],
-    2: ['instituicao', 'tipo_instituicao', 'vinculo', 'titulacao', 'curso_formacao', 'area_conhecimento', 'tempo_orientacao'],
-    3: ['cep', 'pais', 'estado', 'cidade', 'logradouro', 'numero', 'bairro'],
+    2: ['tipo_instituicao', 'vinculo', 'titulacao', 'curso_formacao', 'area_id', 'tempo_orientacao'],
+    // Etapa 3 (endereço) é dinâmica conforme o país — ver camposEtapa() no componente.
 };
 
 // Mapeia cada campo à sua etapa, para saltar à etapa do primeiro erro de validação.
 const FIELD_STEP = {
     name: 1, cpf: 1, data_nascimento: 1, email: 1, telefone: 1, password: 1,
     genero: 1, etnia: 1, camiseta: 1, pcd: 1,
-    instituicao: 2, tipo_instituicao: 2, vinculo: 2, titulacao: 2, curso_formacao: 2,
-    area_conhecimento: 2, subarea: 2, tempo_orientacao: 2, vezes_fetec: 2, ex_aluno_fetec: 2,
-    cep: 3, pais: 3, estado: 3, cidade: 3, logradouro: 3, numero: 3, bairro: 3, complemento: 3,
+    instituicao_id: 2, instituicao_nome: 2, tipo_instituicao: 2, vinculo: 2, titulacao: 2, curso_formacao: 2,
+    area_id: 2, subarea_id: 2, subarea_nome: 2, tempo_orientacao: 2, vezes_fetec: 2, ex_aluno_fetec: 2,
+    cep: 3, pais: 3, estado_id: 3, cidade_id: 3, estado_nome: 3, cidade_nome: 3,
+    logradouro: 3, numero: 3, bairro: 3, complemento: 3,
 };
 
 export default function Cadastro() {
@@ -36,6 +40,11 @@ export default function Cadastro() {
     const [errors, setErrors] = useState({});
     const [alert, setAlert] = useState('');
     const [loading, setLoading] = useState(false);
+    const catalogos = useCatalogos();
+    const [cidades, setCidades] = useState([]);
+    const [subareas, setSubareas] = useState([]);
+
+    const ehBR = (form.pais || 'BR') === 'BR';
 
     const set = (name) => (e) => {
         const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
@@ -43,9 +52,67 @@ export default function Cadastro() {
     };
     const err = (name) => errors[name]?.[0];
 
+    // Endereço: no Brasil é catálogo em cascata (estado→cidade); fora do Brasil, texto livre.
+    async function onEstadoChange(estadoId) {
+        setForm((f) => ({ ...f, estado_id: estadoId, cidade_id: '' }));
+        setCidades(estadoId ? await loadCidades(estadoId) : []);
+    }
+    function onPaisChange(pais) {
+        setForm((f) => ({
+            ...f,
+            pais,
+            ...(pais === 'BR' ? { estado_nome: '', cidade_nome: '' } : { estado_id: '', cidade_id: '' }),
+        }));
+        if (pais !== 'BR') setCidades([]);
+    }
+
+    // Área do catálogo unificado; subárea opcional via combobox (id existente ou nome novo).
+    async function onAreaChange(areaId) {
+        setForm((f) => ({ ...f, area_id: areaId, subarea_id: '', subarea_nome: '' }));
+        setSubareas(areaId ? await loadSubareas(areaId) : []);
+    }
+    const subareaValue = form.subarea_id
+        ? (subareas.find((s) => String(s.id) === String(form.subarea_id)) ?? null)
+        : (form.subarea_nome ? { id: null, nome: form.subarea_nome } : null);
+    function onSubareaChange(sel) {
+        setForm((f) => ({
+            ...f,
+            subarea_id: sel?.id ?? '',
+            subarea_nome: sel && sel.id == null ? sel.nome : '',
+        }));
+    }
+    // Instituição: id quando existente; nome+cidade+tipo quando nova (criada na transação).
+    function onInstituicaoChange(sel) {
+        setForm((f) => ({
+            ...f,
+            instituicao_id: sel?.id ?? '',
+            instituicao_nome: sel?.nome ?? '',
+            instituicao_cidade_id: sel?.cidade_id ?? '',
+            instituicao_tipo: sel?.tipo ?? '',
+        }));
+    }
+    const instituicaoValue = form.instituicao_id || form.instituicao_nome
+        ? { id: form.instituicao_id || null, nome: form.instituicao_nome || '' }
+        : null;
+
+    // Obrigatórios da etapa 3 dependem do país (catálogo por FK vs. texto livre).
+    const camposEtapa = (s) => (s === 3
+        ? ['pais', 'logradouro', 'numero', 'bairro',
+            ...(ehBR ? ['cep', 'estado_id', 'cidade_id'] : ['estado_nome', 'cidade_nome'])]
+        : OBRIGATORIOS_POR_ETAPA[s]);
+
+    // Etapa 2 exige instituição: id de catálogo OU nome novo (via combobox digite/crie).
+    function validarEtapa(s) {
+        const faltando = validarObrigatorios(form, camposEtapa(s));
+        if (s === 2 && !form.instituicao_id && !(form.instituicao_nome || '').trim()) {
+            faltando.instituicao_id = [MSG_OBRIGATORIO];
+        }
+        return faltando;
+    }
+
     // Valida os obrigatórios da etapa atual e, se ok, avança para a próxima.
     function avancar() {
-        const faltando = validarObrigatorios(form, OBRIGATORIOS_POR_ETAPA[step]);
+        const faltando = validarEtapa(step);
         if (Object.keys(faltando).length) {
             setErrors(faltando);
             setAlert('Preencha todos os campos obrigatórios desta etapa.');
@@ -65,9 +132,9 @@ export default function Cadastro() {
         }
         // Revalida tudo: nenhum obrigatório (de qualquer etapa) pode ficar vazio.
         const faltando = {
-            ...validarObrigatorios(form, OBRIGATORIOS_POR_ETAPA[1]),
-            ...validarObrigatorios(form, OBRIGATORIOS_POR_ETAPA[2]),
-            ...validarObrigatorios(form, OBRIGATORIOS_POR_ETAPA[3]),
+            ...validarEtapa(1),
+            ...validarEtapa(2),
+            ...validarEtapa(3),
         };
         if (Object.keys(faltando).length) {
             setErrors(faltando);
@@ -108,9 +175,9 @@ export default function Cadastro() {
             <div className="px-6 sm:px-10 pt-8 pb-4 border-b border-outline-variant/20">
                 <h2 className="font-display text-xl font-semibold text-on-surface mb-4">Cadastro do Orientador</h2>
                 <div className="flex items-center justify-between relative">
-                    <div className="absolute top-1/2 left-0 w-full h-[2px] bg-surface-variant -translate-y-1/2" />
+                    <div className="absolute top-1/2 left-0 w-full h-0.5 bg-surface-variant -translate-y-1/2" />
                     <div
-                        className="absolute top-1/2 left-0 h-[2px] bg-primary-container -translate-y-1/2 transition-all duration-500"
+                        className="absolute top-1/2 left-0 h-0.5 bg-primary-container -translate-y-1/2 transition-all duration-500"
                         style={{ width: progress }}
                     />
                     {STEPS.map((label, i) => {
@@ -191,11 +258,13 @@ export default function Cadastro() {
                     {step === 2 && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="md:col-span-2">
-                                <Field label="Instituição de Ensino" required error={err('instituicao')}>
-                                    <Select value={form.instituicao ?? ''} onChange={set('instituicao')} error={err('instituicao')}>
-                                        <option value="">Selecione</option>
-                                        {['UFMS', 'UEMS', 'IFMS', 'UCDB'].map((i) => <option key={i} value={i}>{i}</option>)}
-                                    </Select>
+                                <Field label="Instituição de Ensino" required error={err('instituicao_id')}>
+                                    <InstituicaoCombobox
+                                        buscar={buscarInstituicoes}
+                                        value={instituicaoValue}
+                                        onChange={onInstituicaoChange}
+                                        placeholder="Digite para buscar ou criar…"
+                                    />
                                 </Field>
                             </div>
                             <Field label="Tipo de Instituição" required error={err('tipo_instituicao')}>
@@ -231,16 +300,22 @@ export default function Cadastro() {
                                 <Input value={form.curso_formacao ?? ''} onChange={set('curso_formacao')} error={err('curso_formacao')} placeholder="Ex: Ciências Biológicas" />
                             </Field>
                             <div className="md:col-span-2">
-                                <Field label="Área do Conhecimento (CNPq)" required error={err('area_conhecimento')}>
-                                    <Select value={form.area_conhecimento ?? ''} onChange={set('area_conhecimento')} error={err('area_conhecimento')}>
+                                <Field label="Área do Conhecimento (CNPq)" required error={err('area_id')}>
+                                    <Select value={form.area_id ?? ''} onChange={(e) => onAreaChange(e.target.value)} error={err('area_id')}>
                                         <option value="">Selecione</option>
-                                        {['Exatas e da Terra', 'Biológicas', 'Engenharias', 'Saúde', 'Agrárias', 'Sociais Aplicadas', 'Humanas', 'Letras e Artes'].map((a) => <option key={a} value={a}>{a}</option>)}
+                                        {catalogos.areas.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
                                     </Select>
                                 </Field>
                             </div>
                             <div className="md:col-span-2">
-                                <Field label="Subárea de Atuação">
-                                    <Input value={form.subarea ?? ''} onChange={set('subarea')} placeholder="Ex: Genética Molecular" />
+                                <Field label="Subárea de Atuação" hint="Opcional. Digite para buscar; se não existir, você pode criar e ela passa a valer para todos.">
+                                    <SubareaCombobox
+                                        options={subareas}
+                                        value={subareaValue}
+                                        onChange={onSubareaChange}
+                                        disabled={!form.area_id}
+                                        placeholder={form.area_id ? 'Digite para buscar ou criar…' : 'Escolha a área primeiro'}
+                                    />
                                 </Field>
                             </div>
                             <div className="md:col-span-2">
@@ -292,24 +367,45 @@ export default function Cadastro() {
 
                     {step === 3 && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="md:col-span-2">
-                                <Field label="CEP" required error={err('cep')}>
-                                    <Input value={form.cep ?? ''} onChange={set('cep')} error={err('cep')} placeholder="00000-000" />
-                                </Field>
-                            </div>
                             <Field label="País" required error={err('pais')}>
-                                <Select value={form.pais ?? 'BR'} onChange={set('pais')} error={err('pais')}>
+                                <Select value={form.pais ?? 'BR'} onChange={(e) => onPaisChange(e.target.value)} error={err('pais')}>
                                     {PAISES.map((p) => <option key={p.code} value={p.code}>{p.nome}</option>)}
                                 </Select>
                             </Field>
-                            <Field label="Estado" required error={err('estado')}>
-                                <Input value={form.estado ?? ''} onChange={set('estado')} error={err('estado')} placeholder="MS" />
-                            </Field>
-                            <div className="md:col-span-2">
-                                <Field label="Cidade" required error={err('cidade')}>
-                                    <Input value={form.cidade ?? ''} onChange={set('cidade')} error={err('cidade')} placeholder="Campo Grande" />
+                            {ehBR ? (
+                                <Field label="CEP" required error={err('cep')}>
+                                    <CepInput value={form.cep ?? ''} onChange={set('cep')} error={err('cep')} />
                                 </Field>
-                            </div>
+                            ) : (
+                                <Field label="Código Postal">
+                                    <Input value={form.cep ?? ''} onChange={set('cep')} placeholder="Código postal (opcional)" />
+                                </Field>
+                            )}
+                            {ehBR ? (
+                                <>
+                                    <Field label="Estado" required error={err('estado_id')}>
+                                        <Select value={form.estado_id ?? ''} onChange={(e) => onEstadoChange(e.target.value)} error={err('estado_id')}>
+                                            <option value="">Selecione</option>
+                                            {catalogos.estados.map((e) => <option key={e.id} value={e.id}>{e.nome} ({e.uf})</option>)}
+                                        </Select>
+                                    </Field>
+                                    <Field label="Cidade" required error={err('cidade_id')}>
+                                        <Select value={form.cidade_id ?? ''} onChange={set('cidade_id')} error={err('cidade_id')} disabled={!form.estado_id}>
+                                            <option value="">{form.estado_id ? 'Selecione' : 'Escolha o estado primeiro'}</option>
+                                            {cidades.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                                        </Select>
+                                    </Field>
+                                </>
+                            ) : (
+                                <>
+                                    <Field label="Estado/Província" required error={err('estado_nome')}>
+                                        <Input value={form.estado_nome ?? ''} onChange={set('estado_nome')} error={err('estado_nome')} placeholder="Ex: Buenos Aires" />
+                                    </Field>
+                                    <Field label="Cidade" required error={err('cidade_nome')}>
+                                        <Input value={form.cidade_nome ?? ''} onChange={set('cidade_nome')} error={err('cidade_nome')} placeholder="Ex: La Plata" />
+                                    </Field>
+                                </>
+                            )}
                             <div className="md:col-span-2">
                                 <Field label="Logradouro" required error={err('logradouro')}>
                                     <Input value={form.logradouro ?? ''} onChange={set('logradouro')} error={err('logradouro')} placeholder="Rua, Avenida, etc." />
@@ -338,9 +434,9 @@ export default function Cadastro() {
                             VOLTAR
                         </Button>
                     ) : (
-                        <Link to="/login" className="text-sm text-primary-container font-semibold hover:underline">
-                            Já tenho conta
-                        </Link>
+                        <p className="text-center text-sm text-on-surface-variant">
+                            Já tem conta? <Link to="/login" className="font-semibold text-primary-container hover:underline">Entrar</Link>
+                        </p>
                     )}
 
                     {step < 3 ? (

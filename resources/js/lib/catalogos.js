@@ -34,8 +34,24 @@ export function useCatalogos() {
 export const loadSubareas = (areaId) =>
     http.get('/catalogos/subareas', { params: { area_id: areaId } }).then((r) => r.data.data);
 
+// Cria (ou reaproveita) uma subárea global na área e devolve { id, nome, area_id }.
+// Usada pelo combobox em telas autenticadas (projeto/perfil).
+export const criarSubarea = (areaId, nome) =>
+    http.post('/catalogos/subareas', { area_id: areaId, nome }).then((r) => r.data.data);
+
+export const loadEstados = () => http.get('/catalogos/estados').then((r) => r.data.data);
+
 export const loadCidades = (estadoId) =>
     http.get('/catalogos/cidades', { params: { estado_id: estadoId } }).then((r) => r.data.data);
 
 export const buscarPalavrasChave = (search) =>
     http.get('/catalogos/palavras-chave', { params: search ? { search } : {} }).then((r) => r.data.data);
+
+// Busca instituições no catálogo (server-side, até 50). Cada item: { id, nome, cidade, tipo }.
+export const buscarInstituicoes = (search) =>
+    http.get('/catalogos/instituicoes', { params: search ? { search } : {} }).then((r) => r.data.data);
+
+// Cria (ou reaproveita) uma instituição global. payload: { nome, cidade_id?, tipo? }.
+// O par (nome, cidade) é a chave: mesmo nome em cidades diferentes vira registros distintos.
+export const criarInstituicao = (payload) =>
+    http.post('/catalogos/instituicoes', payload).then((r) => r.data.data);

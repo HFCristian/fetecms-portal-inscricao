@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests\Orientador;
 
+use App\Rules\CidadeDoEstado;
+use App\Rules\SubareaDaArea;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -42,13 +44,17 @@ class UpdatePerfilRequest extends FormRequest
             'etnia' => ['nullable', 'string', 'max:30'],
             'camiseta' => ['nullable', 'string', 'max:5'],
             'pcd' => ['sometimes', 'boolean'],
-            'instituicao' => ['nullable', 'string', 'max:255'],
+            'instituicao_id' => ['nullable', 'integer', 'exists:instituicoes,id'],
+            'instituicao_nome' => ['nullable', 'string', 'min:2', 'max:255'],
+            'instituicao_cidade_id' => ['nullable', 'integer', 'exists:cidades,id'],
+            'instituicao_tipo' => ['nullable', 'string', 'max:60'],
             'tipo_instituicao' => ['nullable', 'string', 'max:60'],
             'vinculo' => ['nullable', 'string', 'max:60'],
             'titulacao' => ['nullable', 'string', 'max:60'],
             'curso_formacao' => ['nullable', 'string', 'max:120'],
-            'area_conhecimento' => ['nullable', 'string', 'max:120'],
-            'subarea' => ['nullable', 'string', 'max:120'],
+            'area_id' => ['nullable', 'integer', 'exists:areas,id'],
+            'subarea_id' => ['nullable', 'integer', 'exists:subareas,id', new SubareaDaArea($this->input('area_id'))],
+            'subarea_nome' => ['nullable', 'string', 'min:2', 'max:120'],
             'tempo_orientacao' => ['nullable', 'string', 'max:30'],
             'vezes_fetec' => ['nullable', 'string', 'max:30'],
             'ex_aluno_fetec' => ['sometimes', 'boolean'],
@@ -57,8 +63,11 @@ class UpdatePerfilRequest extends FormRequest
             'numero' => ['nullable', 'string', 'max:20'],
             'complemento' => ['nullable', 'string', 'max:120'],
             'bairro' => ['nullable', 'string', 'max:120'],
-            'cidade' => ['nullable', 'string', 'max:120'],
-            'estado' => ['nullable', 'string', 'max:60'],
+            // Endereço: no Brasil usa o catálogo (FK); fora do Brasil, texto livre.
+            'estado_id' => ['nullable', 'integer', 'exists:estados,id'],
+            'cidade_id' => ['nullable', 'integer', 'exists:cidades,id', new CidadeDoEstado($this->input('estado_id'))],
+            'estado_nome' => ['nullable', 'string', 'max:120'],
+            'cidade_nome' => ['nullable', 'string', 'max:120'],
             'pais' => ['nullable', 'string', 'max:60'],
         ];
     }

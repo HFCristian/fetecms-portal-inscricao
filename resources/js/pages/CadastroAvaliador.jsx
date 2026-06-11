@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth, extractErrors, homeFor } from '../lib/auth.jsx';
 import AuthCard from '../components/AuthCard.jsx';
 import { Field, Input, CpfInput, Select, Button, Alert } from '../components/ui.jsx';
+import SubareaCombobox from '../components/SubareaCombobox.jsx';
 import { useCatalogos, loadSubareas } from '../lib/catalogos.js';
 import { validarObrigatorios } from '../lib/validacao.js';
 
@@ -25,8 +26,20 @@ export default function CadastroAvaliador() {
     const err = (name) => errors[name]?.[0];
 
     async function onAreaChange(areaId) {
-        setForm((f) => ({ ...f, area_id: areaId, subarea_id: '' }));
+        setForm((f) => ({ ...f, area_id: areaId, subarea_id: '', subarea_nome: '' }));
         setSubareas(areaId ? await loadSubareas(areaId) : []);
+    }
+
+    // Subárea (opcional): id quando existente; nome quando nova (criada na transação).
+    const subareaValue = form.subarea_id
+        ? (subareas.find((s) => String(s.id) === String(form.subarea_id)) ?? null)
+        : (form.subarea_nome ? { id: null, nome: form.subarea_nome } : null);
+    function onSubareaChange(sel) {
+        setForm((f) => ({
+            ...f,
+            subarea_id: sel?.id ?? '',
+            subarea_nome: sel && sel.id == null ? sel.nome : '',
+        }));
     }
 
     // Clicar no botão não cadastra direto: valida os obrigatórios e, se ok,
@@ -65,23 +78,25 @@ export default function CadastroAvaliador() {
 
     return (
         <AuthCard>
-            <div className="flex-grow flex flex-col justify-center px-6 sm:px-10 py-8 w-full max-w-lg mx-auto">
-                <h2 className="font-display text-2xl font-semibold text-on-surface mb-1">Cadastro de Avaliador</h2>
-                <p className="text-sm text-on-surface-variant mb-6">
-                    Avaliadores analisam projetos submetidos. Quem é orientador (ou coorientador) não pode ser avaliador.
-                </p>
+            <div className="flex flex-col grow justify-center pt-8 w-full mx-auto">
+                <div className="px-6 sm:px-10">
+                    <h2 className="font-display text-2xl font-semibold text-on-surface mb-1">Cadastro de Avaliador</h2>
+                    <p className="text-sm text-on-surface-variant mb-6">
+                        Avaliadores analisam projetos submetidos. Quem é orientador (ou coorientador) não pode ser avaliador.
+                    </p>
 
-                {alert && <div className="mb-4"><Alert>{alert}</Alert></div>}
+                    {alert && <div className="mb-4"><Alert>{alert}</Alert></div>}
+                </div>
 
-                <form onSubmit={onSubmit} className="space-y-4">
+                <form onSubmit={onSubmit} className="px-6 py-6 sm:px-10 space-y-4 overflow-y-auto max-h-[55vh] border-t border-outline-variant/20">
                     <Field label="Nome Completo" required error={err('name')}>
                         <Input value={form.name ?? ''} onChange={set('name')} error={err('name')} />
                     </Field>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="md:col-span-2">
-                        <Field label="E-mail" required error={err('email')}>
-                            <Input type="email" value={form.email ?? ''} onChange={set('email')} error={err('email')} />
-                        </Field>
+                            <Field label="E-mail" required error={err('email')}>
+                                <Input type="email" value={form.email ?? ''} onChange={set('email')} error={err('email')} />
+                            </Field>
                         </div>
                         <Field label="CPF" required error={err('cpf')}>
                             <CpfInput value={form.cpf ?? ''} onChange={set('cpf')} error={err('cpf')} />
@@ -103,11 +118,14 @@ export default function CadastroAvaliador() {
                             </Field>
                         </div>
                         <div className="md:col-span-2">
-                            <Field label="Subárea (preferencial para o match)">
-                                <Select value={form.subarea_id ?? ''} onChange={set('subarea_id')} disabled={!form.area_id}>
-                                    <option value="">{form.area_id ? 'Selecione' : 'Escolha a área primeiro'}</option>
-                                    {subareas.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
-                                </Select>
+                            <Field label="Subárea (preferencial para o match)" hint="Opcional. Digite para buscar; se não existir, você pode criar e ela passa a valer para todos.">
+                                <SubareaCombobox
+                                    options={subareas}
+                                    value={subareaValue}
+                                    onChange={onSubareaChange}
+                                    disabled={!form.area_id}
+                                    placeholder={form.area_id ? 'Digite para buscar ou criar…' : 'Escolha a área primeiro'}
+                                />
                             </Field>
                         </div>
                         <Field label="Senha" required error={err('password')} hint="Mínimo de 8 caracteres.">
@@ -123,8 +141,11 @@ export default function CadastroAvaliador() {
                         CRIAR CONTA DE AVALIADOR
                     </Button>
                 </form>
+            </div>
 
-                <p className="text-center text-sm text-on-surface-variant mt-6 pt-4 border-t border-outline-variant/30">
+            {/* Rodapé de navegação */}
+            <div className="px-6 sm:px-10 py-5 border-t border-outline-variant/20 bg-surface-bright flex items-center justify-center gap-3">
+                <p className="text-center text-sm text-on-surface-variant">
                     Já tem conta? <Link to="/login" className="font-semibold text-primary-container hover:underline">Entrar</Link>
                 </p>
             </div>

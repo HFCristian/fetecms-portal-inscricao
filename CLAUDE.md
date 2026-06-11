@@ -146,6 +146,22 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 3 | E4 Integrantes (alunos 1–4 + coorientador) + E5 Uploads | ✅ sim | ✅ sim (Pedro) | 0 |
 | 4 | E6 Submissão & checklist (irreversível) + E7 Avaliador (cadastro/login + exclusão mútua) | ✅ sim | ✅ sim (Pedro) | 0 |
 | 5 | E8 Admin & dashboard (9 métricas) + E9 Qualidade/segurança/carga | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 6 | Localidades: cidades do Brasil (IBGE) + endereço do orientador por FK + máscara de CEP | ✅ sim | ✅ sim (Pedro) | 0 |
+| 7 | Catálogo unificado área/subárea: combobox digite/cria + criação global + unificação do orientador + remove Multidisciplinar | ✅ sim | ✅ sim (Pedro) | 0 |
+| 8 | Admin Parametrização: renomear/mesclar/excluir áreas e subáreas (reatribui referências) | ✅ sim | ✅ sim (Pedro) | 0 |
+| 9 | Erros 100% em pt_BR + favicon (logo2026.png) + rodapé com e-mail de suporte | ✅ sim | ✅ sim (Pedro) | 0 |
+| 10 | Instituições: importar escolas_ms.csv + combobox "digite/crie" (criação global) no orientador e projeto | ✅ sim | ❌ não (manual do Pedro) | 1 |
+
+> **Estado atual:** ciclo de ajustes pós-v1 (Sprints 6–10) **concluído e verde** — back 110/110,
+> front 11/11, Pint limpo, build OK (estado integrado, já com a refatoração visual do Pedro).
+> A Sprint 10 ficou versionada **junto** das correções visuais do Pedro no commit `f502e4f`
+> (criação de admin movida para a página `AdminManager` em `/admin/gerir-admins`).
+> **Ajustes finos pós-ciclo:** favicon multi-tamanho gerado da logo (`c47859f`); instituição com
+> dedup por **(nome + cidade)** — permite mesmo nome em cidades diferentes, com diálogo de criação
+> (nome + estado→cidade + tipo) no combobox.
+> **Pendências do Pedro:** (1) `git push origin changes`; (2) popular as escolas com
+> `php artisan instituicoes:importar` (lê `database/data/instituicoes/escolas_ms.csv`; 1888 escolas
+> de MS, todos os 79 municípios casam com o catálogo IBGE).
 
 ### Roadmap de sprints (proposto)
 
@@ -154,6 +170,27 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 - **Sprint 3** — E4 Integrantes (alunos 1–4 por categoria, coorientador) + E5 Uploads.
 - **Sprint 4** — E6 Submissão & checklist (irreversível) + E7 Avaliador (cadastro/login + exclusão mútua).
 - **Sprint 5** — E8 Admin & dashboard (9 métricas) + E9 Qualidade/segurança/carga.
+
+#### Ajustes pós-v1 (Sprints 6–10)
+
+- **Sprint 6** — Localidades: semear todas as cidades do Brasil (IBGE) + endereço do orientador
+  por FK (cascata estado→cidade no cadastro e no perfil, espelhando o projeto) + máscara de CEP.
+- **Sprint 7** — Catálogo unificado de área/subárea: combobox "digite/crie" reutilizável, criação
+  global de subárea (dedupe + rate limit), unificação do cadastro do orientador no catálogo,
+  remoção de "Multidisciplinar".
+- **Sprint 8** — Admin **Parametrização** (menu lateral): renomear, **mesclar** (reatribui
+  referências) e excluir áreas/subáreas.
+- **Sprint 9** — Erros 100% em pt_BR (auditoria + testes) + favicon + rodapé com e-mail de suporte
+  (`fetecms@gmail.com`).
+- **Sprint 10** — Instituições de ensino: importar a lista de MS (federais/estaduais/municipais/
+  particulares) de `escolas_ms.csv` (colunas `MUNICÍPIO, ZONA, CÓDIGO DO INEP, UNIDADE ESCOLAR,
+  TIPO`) + **combobox "digite/crie"** de instituição no cadastro do orientador e no projeto
+  (criação global, como as subáreas).
+
+**Decisões travadas (deste ciclo):** endereço sempre por FK no Brasil (texto livre só fora do
+Brasil); área/subárea sempre do **mesmo catálogo** em todos os formulários; subárea criada por
+usuário fica **global na hora** (com limpeza/mescla pelo admin em Parametrização); subárea é
+**opcional** em todo formulário.
 
 ## Convenções ao desenvolver
 

@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Enums\Categoria;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Catalogo\StoreInstituicaoRequest;
+use App\Http\Requests\Catalogo\StoreSubareaRequest;
 use App\Models\Area;
 use App\Models\Cidade;
 use App\Models\Edicao;
@@ -11,6 +13,8 @@ use App\Models\Estado;
 use App\Models\Instituicao;
 use App\Models\PalavraChave;
 use App\Models\Subarea;
+use App\Services\InstituicaoService;
+use App\Services\SubareaService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -57,6 +61,23 @@ class CatalogoController extends Controller
         return response()->json(['data' => $data]);
     }
 
+    /**
+     * Cria (ou reaproveita) uma subárea global dentro da área. Usado pelo combobox
+     * "digite/crie" nos formulários autenticados (projeto/perfil). Devolve a subárea
+     * para o front selecioná-la na hora.
+     */
+    public function criarSubarea(StoreSubareaRequest $request, SubareaService $subareas): JsonResponse
+    {
+        $subarea = $subareas->firstOrCreateNaArea(
+            $request->integer('area_id'),
+            (string) $request->input('nome'),
+        );
+
+        return response()->json([
+            'data' => ['id' => $subarea->id, 'nome' => $subarea->nome, 'area_id' => $subarea->area_id],
+        ], 201);
+    }
+
     public function estados(): JsonResponse
     {
         $data = Cache::remember('catalogo.estados', now()->addHour(),
@@ -88,12 +109,40 @@ class CatalogoController extends Controller
 
     public function instituicoes(Request $request): JsonResponse
     {
-        $data = Instituicao::when($request->filled('search'),
-            fn ($q) => $q->where('nome', 'like', '%'.$request->string('search').'%'))
+        $data = Instituicao::with('cidade:id,nome')
+            ->when($request->filled('search'),
+                fn ($q) => $q->where('nome', 'like', '%'.$request->string('search').'%'))
             ->orderBy('nome')
             ->limit(50)
-            ->get(['id', 'nome', 'cidade_id']);
+            ->get(['id', 'nome', 'cidade_id', 'tipo'])
+            ->map(fn (Instituicao $i) => [
+                'id' => $i->id,
+                'nome' => $i->nome,
+                'cidade' => $i->cidade?->nome,
+                'tipo' => $i->tipo,
+            ]);
 
         return response()->json(['data' => $data]);
+    }
+
+    /**
+     * Cria (ou reaproveita) uma instituição global pelo nome. Usada pelo combobox
+     * "digite/crie" nos formulários autenticados (projeto/perfil).
+     */
+    public function criarInstituicao(StoreInstituicaoRequest $request, InstituicaoService $instituicoes): JsonResponse
+    {
+        $inst = $instituicoes->firstOrCreateGlobal((string) $request->input('nome'), array_filter([
+            'cidade_id' => $request->integer('cidade_id') ?: null,
+            'tipo' => $request->input('tipo'),
+        ]));
+
+        return response()->json([
+            'data' => [
+                'id' => $inst->id,
+                'nome' => $inst->nome,
+                'cidade' => $inst->cidade?->nome,
+                'tipo' => $inst->tipo,
+            ],
+        ], 201);
     }
 }

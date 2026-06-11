@@ -18,7 +18,10 @@ class PerfilController extends Controller
         $user = $request->user();
         $this->ensureOrientador($user);
 
-        return UserResource::make($user->load('orientadorProfile'));
+        return UserResource::make($user->load(
+            'orientadorProfile.estado', 'orientadorProfile.cidade',
+            'orientadorProfile.area', 'orientadorProfile.subarea', 'orientadorProfile.instituicao',
+        ));
     }
 
     public function update(UpdatePerfilRequest $request): UserResource

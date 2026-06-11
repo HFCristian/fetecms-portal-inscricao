@@ -9,7 +9,7 @@ class Instituicao extends Model
 {
     protected $table = 'instituicoes';
 
-    protected $fillable = ['nome', 'cidade_id', 'tipo'];
+    protected $fillable = ['nome', 'cidade_id', 'tipo', 'codigo_inep', 'zona'];
 
     public function cidade(): BelongsTo
     {

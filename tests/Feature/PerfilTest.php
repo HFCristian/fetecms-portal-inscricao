@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Estado;
 use App\Models\OrientadorProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -35,15 +36,21 @@ class PerfilTest extends TestCase
         $user = $this->orientadorComPerfil();
         Sanctum::actingAs($user);
 
+        $estado = Estado::create(['nome' => 'Mato Grosso do Sul', 'uf' => 'MS']);
+        $cidade = $estado->cidades()->create(['nome' => 'Dourados']);
+
         $this->putJson('/api/v1/perfil', [
             'name' => 'Nome Atualizado',
-            'cidade' => 'Dourados',
-        ])->assertOk()->assertJsonPath('data.name', 'Nome Atualizado');
+            'estado_id' => $estado->id,
+            'cidade_id' => $cidade->id,
+        ])->assertOk()
+            ->assertJsonPath('data.name', 'Nome Atualizado')
+            ->assertJsonPath('data.orientador_profile.endereco.cidade', 'Dourados');
 
         $this->assertDatabaseHas('users', ['id' => $user->id, 'name' => 'Nome Atualizado']);
         $this->assertDatabaseHas('orientador_profiles', [
             'user_id' => $user->id,
-            'cidade' => 'Dourados',
+            'cidade_id' => $cidade->id,
         ]);
     }
 
