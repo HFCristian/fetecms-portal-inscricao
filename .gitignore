@@ -27,5 +27,3 @@ _ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
-# Cópia de trabalho na raiz (a versão oficial fica em database/data/instituicoes/).
-/escolas_ms.csv
