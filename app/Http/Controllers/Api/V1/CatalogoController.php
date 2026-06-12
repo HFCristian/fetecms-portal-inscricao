@@ -99,7 +99,7 @@ class CatalogoController extends Controller
     public function palavrasChave(Request $request): JsonResponse
     {
         $data = PalavraChave::when($request->filled('search'),
-            fn ($q) => $q->where('texto', 'like', '%'.$request->string('search').'%'))
+            fn ($q) => $q->whereRaw('LOWER(texto) LIKE ?', ['%'.mb_strtolower((string) $request->string('search')).'%']))
             ->orderBy('texto')
             ->limit(20)
             ->pluck('texto');
@@ -111,7 +111,7 @@ class CatalogoController extends Controller
     {
         $data = Instituicao::with('cidade:id,nome')
             ->when($request->filled('search'),
-                fn ($q) => $q->where('nome', 'like', '%'.$request->string('search').'%'))
+                fn ($q) => $q->whereRaw('LOWER(nome) LIKE ?', ['%'.mb_strtolower((string) $request->string('search')).'%']))
             ->orderBy('nome')
             ->limit(50)
             ->get(['id', 'nome', 'cidade_id', 'tipo'])
