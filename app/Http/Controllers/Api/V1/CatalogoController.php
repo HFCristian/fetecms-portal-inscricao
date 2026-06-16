@@ -111,7 +111,7 @@ class CatalogoController extends Controller
     {
         $data = Instituicao::with('cidade:id,nome')
             ->when($request->filled('search'),
-                fn ($q) => $q->whereRaw('LOWER(nome) LIKE ?', ['%'.mb_strtolower((string) $request->string('search')).'%']))
+                fn ($q) => $q->buscaNome((string) $request->string('search')))
             ->orderBy('nome')
             ->limit(50)
             ->get(['id', 'nome', 'cidade_id', 'tipo'])

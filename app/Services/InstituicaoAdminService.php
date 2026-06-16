@@ -24,7 +24,7 @@ class InstituicaoAdminService
         return Instituicao::with('cidade:id,nome')
             ->when(
                 $termo !== null && $termo !== '',
-                fn ($q) => $q->whereRaw('LOWER(nome) LIKE ?', ['%'.mb_strtolower($termo).'%'])
+                fn ($q) => $q->buscaNome($termo)
             )
             ->orderBy('nome')
             ->limit(50)

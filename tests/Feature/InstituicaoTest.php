@@ -55,6 +55,22 @@ class InstituicaoTest extends TestCase
             ->assertJsonPath('data.0.cidade', 'Dourados');
     }
 
+    public function test_busca_encontra_palavras_fora_de_ordem(): void
+    {
+        $estado = Estado::create(['nome' => 'Mato Grosso do Sul', 'uf' => 'MS']);
+        $cidade = $estado->cidades()->create(['nome' => 'Dourados']);
+        Instituicao::create(['nome' => 'IFMS - Campus Dourados', 'cidade_id' => $cidade->id, 'tipo' => 'publica_federal']);
+        Instituicao::create(['nome' => 'IFMS - Campus Três Lagoas', 'cidade_id' => $cidade->id, 'tipo' => 'publica_federal']);
+
+        Sanctum::actingAs(User::factory()->create());
+
+        // "IFMS Dourados" deve casar "IFMS - Campus Dourados" (palavras em qualquer ordem/posição).
+        $this->getJson('/api/v1/catalogos/instituicoes?search=IFMS+Dourados')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.nome', 'IFMS - Campus Dourados');
+    }
+
     public function test_orientador_cria_instituicao_nova_no_cadastro(): void
     {
         $this->postJson('/api/v1/orientadores', [

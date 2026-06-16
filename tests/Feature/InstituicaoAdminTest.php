@@ -42,6 +42,19 @@ class InstituicaoAdminTest extends TestCase
             ->assertJsonPath('data.0.usos', 1);
     }
 
+    public function test_busca_admin_encontra_palavras_fora_de_ordem(): void
+    {
+        Instituicao::create(['nome' => 'IFMS - Campus Dourados']);
+        Instituicao::create(['nome' => 'IFMS - Campus Três Lagoas']);
+
+        Sanctum::actingAs($this->admin());
+
+        $this->getJson('/api/v1/admin/instituicoes?search=IFMS+Dourados')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.nome', 'IFMS - Campus Dourados');
+    }
+
     public function test_admin_renomeia_instituicao(): void
     {
         $inst = Instituicao::create(['nome' => 'Escola  Mal  Escrita ']);
