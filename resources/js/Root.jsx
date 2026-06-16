@@ -13,6 +13,8 @@ import Perfil from './pages/Perfil.jsx';
 import AvaliadorHome from './pages/AvaliadorHome.jsx';
 import AdminHome from './pages/AdminHome.jsx';
 import Parametrizacao from './pages/Parametrizacao.jsx';
+import ParametrizacaoAreas from './pages/ParametrizacaoAreas.jsx';
+import ParametrizacaoEscolas from './pages/ParametrizacaoEscolas.jsx';
 import AdminManager from './pages/AdminManager.jsx';
 
 function Spinner() {
@@ -61,6 +63,8 @@ export default function Root() {
                         <Route element={<RoleRoute allow={['admin']} />}>
                             <Route path="/admin" element={<AdminHome />} />
                             <Route path="/admin/parametrizacao" element={<Parametrizacao />} />
+                            <Route path="/admin/parametrizacao/areas" element={<ParametrizacaoAreas />} />
+                            <Route path="/admin/parametrizacao/escolas" element={<ParametrizacaoEscolas />} />
                             <Route path="/admin/gerir-admins" element={<AdminManager />} />
                         </Route>
 

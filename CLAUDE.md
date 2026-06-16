@@ -159,6 +159,13 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > **Ajustes finos pós-ciclo:** favicon multi-tamanho gerado da logo (`c47859f`); instituição com
 > dedup por **(nome + cidade)** — permite mesmo nome em cidades diferentes, com diálogo de criação
 > (nome + estado→cidade + tipo) no combobox.
+> **Ajustes recentes (nesta sessão):** (a) instituição do **aluno** (Integrantes) agora usa o
+> `InstituicaoCombobox` (busca em todo o catálogo + criação global), igual a orientador/projeto;
+> (b) vínculo institucional do orientador ganhou **"Professor Convocado"**;
+> (c) **Parametrização** virou landing com 2 cards — **Áreas e subáreas** (`/admin/parametrizacao/areas`)
+> e **Escolas** (`/admin/parametrizacao/escolas`): admin busca, **renomeia, mescla** (reatribui
+> projetos/alunos/orientadores) e **exclui** instituições sem uso (`InstituicaoAdminService`/Controller,
+> rotas `admin/instituicoes`). Back **117/117**, front 11/11, Pint limpo, build OK.
 > **Pendências do Pedro:** (1) `git push origin changes`; (2) popular as escolas com
 > `php artisan instituicoes:importar` (lê `database/data/instituicoes/escolas_ms.csv`; 1888 escolas
 > de MS, todos os 79 municípios casam com o catálogo IBGE).

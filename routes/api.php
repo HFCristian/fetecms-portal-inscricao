@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\CatalogoAdminController;
 use App\Http\Controllers\Api\V1\CatalogoController;
 use App\Http\Controllers\Api\V1\CoorientadorController;
 use App\Http\Controllers\Api\V1\DocumentoController;
+use App\Http\Controllers\Api\V1\InstituicaoAdminController;
 use App\Http\Controllers\Api\V1\IntegranteController;
 use App\Http\Controllers\Api\V1\OrientadorController;
 use App\Http\Controllers\Api\V1\PerfilController;
@@ -96,6 +97,12 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::put('/subareas/{subarea}', [CatalogoAdminController::class, 'updateSubarea']);
             Route::post('/subareas/{subarea}/mesclar', [CatalogoAdminController::class, 'mergeSubarea']);
             Route::delete('/subareas/{subarea}', [CatalogoAdminController::class, 'destroySubarea']);
+
+            // Parametrização das instituições de ensino (escolas)
+            Route::get('/instituicoes', [InstituicaoAdminController::class, 'index']);
+            Route::put('/instituicoes/{instituicao}', [InstituicaoAdminController::class, 'update']);
+            Route::post('/instituicoes/{instituicao}/mesclar', [InstituicaoAdminController::class, 'merge']);
+            Route::delete('/instituicoes/{instituicao}', [InstituicaoAdminController::class, 'destroy']);
         });
     });
 });

@@ -14,3 +14,11 @@ export const excluirArea = (id) => http.delete(`/admin/areas/${id}`).then((r) =>
 export const renomearSubarea = (id, nome) => http.put(`/admin/subareas/${id}`, { nome }).then((r) => r.data.data);
 export const mesclarSubarea = (id, destinoId) => http.post(`/admin/subareas/${id}/mesclar`, { destino_id: destinoId }).then((r) => r.data.data);
 export const excluirSubarea = (id) => http.delete(`/admin/subareas/${id}`).then((r) => r.data.data);
+
+// Parametrização de instituições (escolas). Toda mutação devolve a lista filtrada pelo
+// termo de busca atual (passado em query) para a tela recarregar sem segunda requisição.
+const params = (search) => ({ params: search ? { search } : {} });
+export const getInstituicoesAdmin = (search) => http.get('/admin/instituicoes', params(search)).then((r) => r.data.data);
+export const renomearInstituicao = (id, nome, search) => http.put(`/admin/instituicoes/${id}`, { nome }, params(search)).then((r) => r.data.data);
+export const mesclarInstituicao = (id, destinoId, search) => http.post(`/admin/instituicoes/${id}/mesclar`, { destino_id: destinoId }, params(search)).then((r) => r.data.data);
+export const excluirInstituicao = (id, search) => http.delete(`/admin/instituicoes/${id}`, params(search)).then((r) => r.data.data);
