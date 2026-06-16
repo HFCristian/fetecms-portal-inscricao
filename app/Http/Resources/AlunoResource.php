@@ -22,6 +22,7 @@ class AlunoResource extends JsonResource
             'etnia' => $this->etnia,
             'camiseta' => $this->camiseta,
             'instituicao_id' => $this->instituicao_id,
+            'instituicao' => $this->instituicao?->nome,
             'modalidade' => $this->modalidade,
             'ano_escolar' => $this->ano_escolar,
             'periodo' => $this->periodo,

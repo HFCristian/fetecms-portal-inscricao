@@ -16,7 +16,7 @@ class IntegranteController extends Controller
     {
         $this->authorize('view', $projeto);
 
-        $projeto->load(['user.orientadorProfile', 'alunos', 'coorientador']);
+        $projeto->load(['user.orientadorProfile', 'alunos.instituicao', 'coorientador']);
 
         return response()->json(['data' => [
             'projeto' => [

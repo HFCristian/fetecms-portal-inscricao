@@ -281,6 +281,7 @@ export default function Cadastro() {
                                     <option value="">Selecione</option>
                                     <option value="efetivo">Professor Efetivo</option>
                                     <option value="substituto">Professor Substituto</option>
+                                    <option value="convocado">Professor Convocado</option>
                                     <option value="tecnico">Técnico Administrativo</option>
                                     <option value="pesquisador">Pesquisador</option>
                                 </Select>

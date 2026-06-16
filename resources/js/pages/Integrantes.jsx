@@ -2,8 +2,9 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { Field, Input, DateInput, CpfInput, TelefoneInput, Select, Button, Alert, useConfirm } from '../components/ui.jsx';
+import InstituicaoCombobox from '../components/InstituicaoCombobox.jsx';
 import { extractErrors } from '../lib/auth.jsx';
-import { useCatalogos } from '../lib/catalogos.js';
+import { buscarInstituicoes, criarInstituicao } from '../lib/catalogos.js';
 import { MIN_IDADE, idadeEmAnos } from '../lib/idade.js';
 import { validarObrigatorios } from '../lib/validacao.js';
 import {
@@ -67,7 +68,7 @@ function PessoaCard({ titulo, nome, meta, onEdit, onRemove }) {
     );
 }
 
-function AlunoForm({ catalogos, inicial, onSubmit, onCancelar }) {
+function AlunoForm({ inicial, onSubmit, onCancelar }) {
     const [form, setForm] = useState(inicial ?? {});
     const [errors, setErrors] = useState({});
     const [saving, setSaving] = useState(false);
@@ -154,10 +155,13 @@ function AlunoForm({ catalogos, inicial, onSubmit, onCancelar }) {
                 <p className="text-sm font-semibold text-on-surface-variant">2. Dados Acadêmicos</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Field label="Instituição de Ensino" required error={err('instituicao_id')}>
-                        <Select value={form.instituicao_id ?? ''} onChange={set('instituicao_id')} error={err('instituicao_id')}>
-                            <option value="">Selecione</option>
-                            {catalogos.instituicoes.map((i) => <option key={i.id} value={i.id}>{i.nome}</option>)}
-                        </Select>
+                        <InstituicaoCombobox
+                            buscar={buscarInstituicoes}
+                            create={criarInstituicao}
+                            value={form.instituicao_id ? { id: form.instituicao_id, nome: form.instituicao_nome ?? form.instituicao ?? '' } : null}
+                            onChange={(sel) => setForm((f) => ({ ...f, instituicao_id: sel?.id ?? '', instituicao_nome: sel?.nome ?? '' }))}
+                            placeholder="Digite para buscar ou criar…"
+                        />
                     </Field>
                     <Field label="Modalidade de Ensino" required error={err('modalidade')}>
                         <Select
@@ -297,7 +301,6 @@ function CoorientadorForm({ inicial, onSubmit, onCancelar }) {
 export default function Integrantes() {
     const { id } = useParams();
     const navigate = useNavigate();
-    const catalogos = useCatalogos();
     const [confirm, confirmDialog] = useConfirm();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -429,7 +432,7 @@ export default function Integrantes() {
 
             {alunoForm !== null && (
                 <div className="mb-4">
-                    <AlunoForm catalogos={catalogos} inicial={alunoForm} onSubmit={salvarAluno} onCancelar={() => setAlunoForm(null)} />
+                    <AlunoForm inicial={alunoForm} onSubmit={salvarAluno} onCancelar={() => setAlunoForm(null)} />
                 </div>
             )}
 
