@@ -3,48 +3,72 @@ import { Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { getDashboard } from '../lib/admin.js';
 
+// Cards simples (1 número). O card de status (submetidos + rascunho) é tratado à parte.
 const CARDS = [
-    { key: 'projetos_total', label: 'Projetos (total)', icon: 'folder', color: 'text-on-surface' },
-    { key: 'projetos_submetidos', label: 'Submetidos', icon: 'task_alt', color: 'text-secondary' },
-    { key: 'projetos_rascunho', label: 'Rascunhos', icon: 'edit_note', color: 'text-primary-container' },
-    { key: 'orientadores', label: 'Orientadores', icon: 'person', color: 'text-on-surface' },
-    { key: 'alunos', label: 'Alunos', icon: 'school', color: 'text-on-surface' },
-    { key: 'coorientadores', label: 'Coorientadores', icon: 'group', color: 'text-on-surface' },
-    { key: 'escolas_com_projeto', label: 'Escolas com projeto', icon: 'apartment', color: 'text-on-surface' },
-    { key: 'cidades_com_projeto', label: 'Cidades com projeto', icon: 'location_city', color: 'text-on-surface' },
-    { key: 'estados_com_projeto', label: 'Estados com projeto', icon: 'map', color: 'text-on-surface' },
+    { key: 'projetos_total', label: 'Projetos (total)', icon: 'folder', verMais: '/admin/projetos-por-area' },
+    { type: 'status', label: 'Projetos por status', icon: 'donut_large' },
+    { key: 'orientadores', label: 'Orientadores', icon: 'person' },
+    { key: 'alunos', label: 'Alunos', icon: 'school' },
+    { key: 'coorientadores', label: 'Coorientadores', icon: 'group' },
+    { key: 'escolas_com_projeto', label: 'Escolas com projeto', icon: 'apartment', verMais: '/admin/projetos-por-escola' },
+    { key: 'cidades_com_projeto', label: 'Cidades com projeto', icon: 'location_city', verMais: '/admin/projetos-por-cidade' },
+    { key: 'estados_com_projeto', label: 'Estados com projeto', icon: 'map', verMais: '/admin/projetos-por-estado' },
 ];
 
-export default function AdminHome() {
-    const [metricas, setMetricas] = useState(null);
+function VerMais({ to }) {
+    return (
+        <Link
+            to={to}
+            className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-primary-container hover:text-primary self-start"
+        >
+            Ver mais
+            <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+        </Link>
+    );
+}
 
-    useEffect(() => { getDashboard().then(setMetricas).catch(() => setMetricas({})); }, []);
+export default function AdminHome() {
+    const [m, setM] = useState(null);
+
+    useEffect(() => { getDashboard().then(setM).catch(() => setM({})); }, []);
 
     return (
         <AppShell>
             <h1 className="font-display text-2xl font-semibold text-primary mb-1">Painel do Administrador</h1>
             <p className="text-on-surface-variant mb-6">Visão geral da XVI FETECMS.</p>
 
-            {!metricas ? (
+            {!m ? (
                 <div className="text-center py-10 text-on-surface-variant">
                     <span className="material-symbols-outlined animate-spin">progress_activity</span>
                 </div>
             ) : (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-10">
                     {CARDS.map((c) => (
-                        <div key={c.key} className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-5 flex flex-col">
+                        <div key={c.key ?? c.type} className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-5 flex flex-col">
                             <span className="material-symbols-outlined text-primary-container">{c.icon}</span>
-                            <div className={`text-3xl font-bold mt-1 ${c.color}`}>{metricas[c.key] ?? 0}</div>
-                            <div className="text-xs text-on-surface-variant">{c.label}</div>
-                            {c.key === 'projetos_total' && (
-                                <Link
-                                    to="/admin/projetos-por-area"
-                                    className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-primary-container hover:text-primary self-start"
-                                >
-                                    Ver mais
-                                    <span className="material-symbols-outlined text-[18px]">chevron_right</span>
-                                </Link>
+
+                            {c.type === 'status' ? (
+                                <>
+                                    <div className="flex gap-6 mt-1">
+                                        <div>
+                                            <div className="text-3xl font-bold text-secondary">{m.projetos_submetidos ?? 0}</div>
+                                            <div className="text-xs text-on-surface-variant">Submetidos</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-3xl font-bold text-primary-container">{m.projetos_rascunho ?? 0}</div>
+                                            <div className="text-xs text-on-surface-variant">Rascunho</div>
+                                        </div>
+                                    </div>
+                                    <div className="text-xs text-on-surface-variant mt-1">{c.label}</div>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="text-3xl font-bold mt-1 text-on-surface">{m[c.key] ?? 0}</div>
+                                    <div className="text-xs text-on-surface-variant">{c.label}</div>
+                                </>
                             )}
+
+                            {c.verMais && <VerMais to={c.verMais} />}
                         </div>
                     ))}
                 </div>

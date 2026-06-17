@@ -4,6 +4,8 @@ export const getDashboard = () => http.get('/admin/dashboard').then((r) => r.dat
 
 export const getProjetosPorArea = () => http.get('/admin/projetos-por-area').then((r) => r.data.data);
 
+export const getProjetosPorLocalidade = () => http.get('/admin/projetos-por-localidade').then((r) => r.data.data);
+
 export const criarAdmin = (payload) => http.post('/admin/admins', payload).then((r) => r.data.data);
 
 // Parametrização do catálogo (áreas/subáreas). Toda mutação devolve a árvore atualizada.
