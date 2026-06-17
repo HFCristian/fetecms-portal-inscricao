@@ -87,6 +87,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
         Route::prefix('admin')->middleware('role:admin')->group(function () {
             Route::get('/dashboard', [AdminController::class, 'dashboard']);
             Route::get('/projetos-por-area', [AdminController::class, 'projetosPorArea']);
+            Route::get('/projetos-por-localidade', [AdminController::class, 'projetosPorLocalidade']);
             Route::post('/admins', [AdminController::class, 'store']);
 
             // Parametrização do catálogo (áreas/subáreas)

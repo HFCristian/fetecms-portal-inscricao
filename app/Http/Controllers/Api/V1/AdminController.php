@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\RegisterAdminRequest;
 use App\Http\Resources\UserResource;
 use App\Services\AdminDashboardService;
+use App\Services\AdminLocalidadesService;
 use App\Services\AdminProjetosService;
 use App\Services\AdminService;
 use Illuminate\Http\JsonResponse;
@@ -16,6 +17,7 @@ class AdminController extends Controller
         private readonly AdminService $admins,
         private readonly AdminDashboardService $dashboard,
         private readonly AdminProjetosService $projetos,
+        private readonly AdminLocalidadesService $localidades,
     ) {}
 
     /** 9 métricas do painel. */
@@ -28,6 +30,12 @@ class AdminController extends Controller
     public function projetosPorArea(): JsonResponse
     {
         return response()->json(['data' => $this->projetos->porArea()]);
+    }
+
+    /** Projetos agregados por estado, cidade e escola (com status). */
+    public function projetosPorLocalidade(): JsonResponse
+    {
+        return response()->json(['data' => $this->localidades->agregado()]);
     }
 
     /** Cria outro administrador (rota protegida por role:admin). */

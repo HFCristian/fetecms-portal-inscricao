@@ -13,6 +13,9 @@ import Perfil from './pages/Perfil.jsx';
 import AvaliadorHome from './pages/AvaliadorHome.jsx';
 import AdminHome from './pages/AdminHome.jsx';
 import AdminProjetosPorArea from './pages/AdminProjetosPorArea.jsx';
+import AdminProjetosPorEstado from './pages/AdminProjetosPorEstado.jsx';
+import AdminProjetosPorCidade from './pages/AdminProjetosPorCidade.jsx';
+import AdminProjetosPorEscola from './pages/AdminProjetosPorEscola.jsx';
 import Parametrizacao from './pages/Parametrizacao.jsx';
 import ParametrizacaoAreas from './pages/ParametrizacaoAreas.jsx';
 import ParametrizacaoEscolas from './pages/ParametrizacaoEscolas.jsx';
@@ -64,6 +67,9 @@ export default function Root() {
                         <Route element={<RoleRoute allow={['admin']} />}>
                             <Route path="/admin" element={<AdminHome />} />
                             <Route path="/admin/projetos-por-area" element={<AdminProjetosPorArea />} />
+                            <Route path="/admin/projetos-por-estado" element={<AdminProjetosPorEstado />} />
+                            <Route path="/admin/projetos-por-cidade" element={<AdminProjetosPorCidade />} />
+                            <Route path="/admin/projetos-por-escola" element={<AdminProjetosPorEscola />} />
                             <Route path="/admin/parametrizacao" element={<Parametrizacao />} />
                             <Route path="/admin/parametrizacao/areas" element={<ParametrizacaoAreas />} />
                             <Route path="/admin/parametrizacao/escolas" element={<ParametrizacaoEscolas />} />
