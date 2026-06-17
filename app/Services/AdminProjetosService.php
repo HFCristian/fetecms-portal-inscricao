@@ -17,7 +17,7 @@ class AdminProjetosService
     public function porArea(): array
     {
         return Projeto::query()
-            ->with(['area:id,nome', 'user:id,name'])
+            ->with(['area:id,nome'])
             ->orderByDesc('updated_at')
             ->get()
             ->groupBy(fn (Projeto $p) => $p->area_id ?? 0)
@@ -42,7 +42,6 @@ class AdminProjetosService
                 'status' => $p->status->value,
                 'status_label' => $p->status->label(),
                 'categoria_label' => $p->categoria?->label(),
-                'orientador' => $p->user?->name,
                 'updated_at' => $p->updated_at?->toIso8601String(),
             ])->values(),
         ];
