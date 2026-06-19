@@ -19,10 +19,10 @@ function VerMais({ to }) {
     return (
         <Link
             to={to}
-            className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-primary-container hover:text-primary self-start"
+            className="flex flex-row items-center justify-center text-sm font-semibold text-primary-container hover:text-primary hover:border-b-2 border-primary transition ease-in-out w-2/4"
         >
-            Ver mais
-            <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+            <p>Ver mais</p>
+            <span class="material-symbols-outlined text-[18px]">chevron_right</span>
         </Link>
     );
 }
@@ -42,14 +42,14 @@ export default function AdminHome() {
                     <span className="material-symbols-outlined animate-spin">progress_activity</span>
                 </div>
             ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-10">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-10">
                     {CARDS.map((c) => (
-                        <div key={c.key ?? c.type} className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-5 flex flex-col">
-                            <span className="material-symbols-outlined text-primary-container">{c.icon}</span>
+                        <div key={c.key ?? c.type} className="flex flex-col items-center text-center gap-2 bg-surface-container-lowest rounded-xl fetec-card-shadow p-5">
+                            <span className="material-symbols-outlined text-primary-container text-2xl">{c.icon}</span>
 
                             {c.type === 'status' ? (
                                 <>
-                                    <div className="flex gap-6 mt-1">
+                                    <div className="flex gap-4 py-2">
                                         <div>
                                             <div className="text-3xl font-bold text-secondary">{m.projetos_submetidos ?? 0}</div>
                                             <div className="text-xs text-on-surface-variant">Submetidos</div>
@@ -59,12 +59,14 @@ export default function AdminHome() {
                                             <div className="text-xs text-on-surface-variant">Rascunho</div>
                                         </div>
                                     </div>
-                                    <div className="text-xs text-on-surface-variant mt-1">{c.label}</div>
+                                    <div className="text-sm text-on-surface-variant">{c.label}</div>
                                 </>
                             ) : (
                                 <>
-                                    <div className="text-3xl font-bold mt-1 text-on-surface">{m[c.key] ?? 0}</div>
-                                    <div className="text-xs text-on-surface-variant">{c.label}</div>
+                                    <div className='py-2'>
+                                        <div className="text-3xl font-bold text-on-surface">{m[c.key] ?? 0}</div>
+                                        <div className="text-sm text-on-surface-variant">{c.label}</div>
+                                    </div>
                                 </>
                             )}
 
