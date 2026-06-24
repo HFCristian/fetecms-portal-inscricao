@@ -27,7 +27,7 @@ export default function AdminProjetosPorArea() {
 
             {grupos === null ? (
                 <div className="text-center py-6 text-on-surface-variant">
-                    <span className="material-symbols-outlined animate-spin">progress_activity</span>
+                    <span className="inline-block w-8 h-8 rounded-full border-4 border-on-surface-variant/25 border-t-primary animate-spin align-[-0.2em]" role="status" aria-label="Carregando" />
                 </div>
             ) : grupos.length === 0 ? (
                 <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-6 text-center text-on-surface-variant text-sm">
