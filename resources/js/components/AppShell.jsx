@@ -82,7 +82,7 @@ export default function AppShell({ children }) {
             {/* Sidebar desktop */}
             <nav className="hidden md:flex fixed left-0 top-0 h-full w-64 z-40 p-3 flex-col bg-surface-container-low border-r border-outline-variant/30">
                 <div className="mb-6 pb-4 border-b border-outline-variant/30">
-                    <img src="/img/logo2026.png" alt="XVI FETECMS" className="max-h-28 mx-auto w-auto mb-2" />
+                    <img src="/img/logo2026.webp" alt="XVI FETECMS" className="max-h-28 mx-auto w-auto mb-2" />
                     <h1 className="font-display text-lg text-primary font-bold">Portal do Orientador</h1>
                     <p className="text-sm text-on-surface-variant">XVI FETECMS</p>
                 </div>
@@ -97,7 +97,7 @@ export default function AppShell({ children }) {
 
             {/* Header mobile: botão de menu abre o menu lateral em tela cheia */}
             <header className="md:hidden sticky top-0 z-40 flex items-center justify-between bg-surface border-b border-outline-variant/30 px-4 h-20">
-                <img src="/img/logo2026.png" alt="XVI FETECMS" className="max-h-16" />
+                <img src="/img/logo2026.webp" alt="XVI FETECMS" className="max-h-16" />
                 <div className='text-center'>
                     <h1 className="font-display text-lg text-primary font-bold">Portal do Orientador</h1>
                     <p className="text-sm text-on-surface-variant">XVI FETECMS</p>
@@ -112,7 +112,7 @@ export default function AppShell({ children }) {
                 <div className="md:hidden fixed inset-0 z-50 bg-surface-container-low flex flex-col" role="dialog" aria-modal="true">
                     <div className="flex items-center justify-between px-4 h-20 border-b border-outline-variant/30 shrink-0">
                         <div className="flex items-center gap-3">
-                            <img src="/img/logo2026.png" alt="XVI FETECMS" className="max-h-14" />
+                            <img src="/img/logo2026.webp" alt="XVI FETECMS" className="max-h-14" />
                             <div>
                                 <h1 className="font-display text-lg text-primary font-bold leading-tight">Portal</h1>
                                 <p className="text-xs text-on-surface-variant">XVI FETECMS</p>

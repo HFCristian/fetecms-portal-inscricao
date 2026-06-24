@@ -14,7 +14,7 @@ export default function AuthCard({ children }) {
                             Portal da FETEC
                         </h1>
                         <img
-                            src="/img/logo2026slogan.png"
+                            src="/img/logo2026slogan.webp"
                             alt="Logo XVI FETECMS"
                             className="my-6 mx-auto w-full max-w-65 h-auto object-contain drop-shadow-md"
                         />
