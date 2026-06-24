@@ -36,6 +36,9 @@ class CatalogoController extends Controller
             'value' => $c->value,
             'label' => $c->label(),
             'max_alunos' => $c->maxAlunos(),
+            // Limite com PICTEC MS (só difere do base na FETECMS).
+            'max_alunos_pictec' => $c->maxAlunos(true),
+            'permite_pictec' => $c->permitePictec(),
         ], Categoria::cases());
 
         return response()->json(['data' => $data]);

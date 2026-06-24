@@ -68,16 +68,48 @@ class IntegranteTest extends TestCase
             ->assertJsonValidationErrors('equipe');
     }
 
-    public function test_fetec_jr_permite_ate_quatro(): void
+    public function test_fetec_jr_limita_em_tres(): void
     {
         $user = User::factory()->create();
-        $projeto = $this->projetoDe($user, Categoria::FetecJr); // máx 4
+        $projeto = $this->projetoDe($user, Categoria::FetecJr); // máx 3
         Aluno::factory()->count(3)->create(['projeto_id' => $projeto->id]);
         Sanctum::actingAs($user);
 
-        // 4º aluno é permitido na FETEC Jr
+        // 4º aluno é rejeitado na FETEC Jr (limite reduzido para 3).
+        $this->postJson("/api/v1/projetos/{$projeto->id}/alunos", $this->alunoPayload())
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('equipe');
+    }
+
+    public function test_fundect_permite_ate_quatro(): void
+    {
+        $user = User::factory()->create();
+        $projeto = $this->projetoDe($user, Categoria::FetecmsFundect); // máx 4
+        Aluno::factory()->count(3)->create(['projeto_id' => $projeto->id]);
+        Sanctum::actingAs($user);
+
+        // 4º aluno é permitido na FETECMS FUNDECT.
         $this->postJson("/api/v1/projetos/{$projeto->id}/alunos", $this->alunoPayload())
             ->assertCreated();
+    }
+
+    public function test_fetecms_com_pictec_permite_ate_quatro(): void
+    {
+        $user = User::factory()->create();
+        $projeto = Projeto::factory()->create([
+            'user_id' => $user->id,
+            'categoria' => Categoria::Fetecms,
+            'pictec_ms' => true, // PICTEC MS eleva o limite para 4
+        ]);
+        Aluno::factory()->count(3)->create(['projeto_id' => $projeto->id]);
+        Sanctum::actingAs($user);
+
+        $this->postJson("/api/v1/projetos/{$projeto->id}/alunos", $this->alunoPayload())
+            ->assertCreated();
+
+        $this->getJson("/api/v1/projetos/{$projeto->id}/integrantes")
+            ->assertOk()
+            ->assertJsonPath('data.limites.max_alunos', 4);
     }
 
     public function test_nao_adiciona_aluno_em_projeto_alheio(): void

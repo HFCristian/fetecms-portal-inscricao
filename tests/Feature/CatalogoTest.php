@@ -23,8 +23,9 @@ class CatalogoTest extends TestCase
         $this->getJson('/api/v1/catalogos/categorias')
             ->assertOk()
             ->assertJsonCount(3, 'data')
-            ->assertJsonFragment(['value' => 'fetec_jr', 'max_alunos' => 4])
-            ->assertJsonFragment(['value' => 'fetecms', 'max_alunos' => 3]);
+            ->assertJsonFragment(['value' => 'fetec_jr', 'max_alunos' => 3, 'permite_pictec' => false])
+            ->assertJsonFragment(['value' => 'fetecms_fundect', 'max_alunos' => 4, 'permite_pictec' => false])
+            ->assertJsonFragment(['value' => 'fetecms', 'max_alunos' => 3, 'max_alunos_pictec' => 4, 'permite_pictec' => true]);
     }
 
     public function test_areas_e_subareas_filtradas_por_area(): void

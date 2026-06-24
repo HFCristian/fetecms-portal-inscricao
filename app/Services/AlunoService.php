@@ -10,8 +10,9 @@ use Illuminate\Validation\ValidationException;
 class AlunoService
 {
     /**
-     * Garante que é possível adicionar mais um aluno ao projeto:
-     * exige categoria definida e respeita o limite por categoria (Jr=4, demais=3).
+     * Garante que é possível adicionar mais um aluno ao projeto: exige categoria
+     * definida e respeita o limite por categoria (Jr=3, FUNDECT=4, FETECMS=3 ou
+     * 4 com PICTEC MS).
      */
     public function assertPodeAdicionar(Projeto $projeto): void
     {
