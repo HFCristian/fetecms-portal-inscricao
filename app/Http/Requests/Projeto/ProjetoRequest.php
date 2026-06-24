@@ -21,6 +21,12 @@ class ProjetoRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        // PICTEC MS só existe na FETECMS: se a categoria veio e não é FETECMS,
+        // zera o flag para não persistir um estado inconsistente.
+        if ($this->has('categoria') && $this->input('categoria') !== Categoria::Fetecms->value) {
+            $this->merge(['pictec_ms' => false]);
+        }
+
         if (is_array($this->input('palavras_chave'))) {
             $this->merge([
                 'palavras_chave' => array_values(array_filter(array_map(
@@ -37,6 +43,7 @@ class ProjetoRequest extends FormRequest
             'edicao_id' => ['nullable', 'integer', 'exists:edicoes,id'],
             'titulo' => ['nullable', 'string', 'max:255'],
             'categoria' => ['nullable', Rule::enum(Categoria::class)],
+            'pictec_ms' => ['sometimes', 'boolean'],
             'instituicao_id' => ['nullable', 'integer', 'exists:instituicoes,id'],
             'area_id' => ['nullable', 'integer', 'exists:areas,id'],
             'subarea_id' => ['nullable', 'integer', 'exists:subareas,id', new SubareaDaArea($this->input('area_id'))],
