@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth.jsx';
 import SupportFooter from './SupportFooter.jsx';
+import ChatWidget from './ChatWidget.jsx';
 
 function navClass({ isActive }) {
     return (
@@ -24,6 +25,10 @@ function NavLinks({ role, onNavigate }) {
                 <NavLink to="/admin/parametrizacao" className={navClass} onClick={onNavigate}>
                     <span className="material-symbols-outlined">tune</span>
                     Parametrização
+                </NavLink>
+                <NavLink to="/admin/suporte" className={navClass} onClick={onNavigate}>
+                    <span className="material-symbols-outlined">forum</span>
+                    Suporte
                 </NavLink>
                 <NavLink to="/admin/gerir-admins" className={navClass} onClick={onNavigate}>
                     <span className="material-symbols-outlined">people</span>
@@ -145,6 +150,9 @@ export default function AppShell({ children }) {
                     <SupportFooter className="mt-10 pb-2 md:hidden" />
                 </div>
             </div>
+
+            {/* Chat de suporte: disponível para orientador e avaliador (o admin é o suporte). */}
+            {(user?.role === 'orientador' || user?.role === 'avaliador') && <ChatWidget />}
         </div>
     );
 }
