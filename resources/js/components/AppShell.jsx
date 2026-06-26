@@ -117,7 +117,7 @@ export default function AppShell({ children }) {
                 <div className="md:hidden fixed inset-0 z-50 bg-surface-container-low flex flex-col" role="dialog" aria-modal="true">
                     <div className="flex items-center justify-between px-4 h-20 border-b border-outline-variant/30 shrink-0">
                         <div className="flex items-center gap-3">
-                            <img src="/img/logo2026.webp" alt="XVI FETECMS" className="max-h-14" />
+                            <img src="/img/logo2026.webp" alt="XVI FETECMS" className="max-h-16" />
                             <div>
                                 <h1 className="font-display text-lg text-primary font-bold leading-tight">Portal</h1>
                                 <p className="text-xs text-on-surface-variant">XVI FETECMS</p>
