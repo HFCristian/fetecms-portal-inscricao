@@ -20,6 +20,7 @@ import Parametrizacao from './pages/Parametrizacao.jsx';
 import ParametrizacaoAreas from './pages/ParametrizacaoAreas.jsx';
 import ParametrizacaoEscolas from './pages/ParametrizacaoEscolas.jsx';
 import AdminManager from './pages/AdminManager.jsx';
+import AdminSuporte from './pages/AdminSuporte.jsx';
 
 function Spinner() {
     return (
@@ -74,6 +75,7 @@ export default function Root() {
                             <Route path="/admin/parametrizacao/areas" element={<ParametrizacaoAreas />} />
                             <Route path="/admin/parametrizacao/escolas" element={<ParametrizacaoEscolas />} />
                             <Route path="/admin/gerir-admins" element={<AdminManager />} />
+                            <Route path="/admin/suporte" element={<AdminSuporte />} />
                         </Route>
 
                         <Route path="*" element={<Navigate to="/" replace />} />
