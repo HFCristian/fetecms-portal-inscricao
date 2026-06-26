@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Auth\AlterarSenhaRequest;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Resources\UserResource;
 use App\Services\AuthService;
@@ -50,5 +51,17 @@ class AuthController extends Controller
         return UserResource::make(
             $request->user()->load(['orientadorProfile', 'avaliadorProfile.area', 'avaliadorProfile.subarea'])
         );
+    }
+
+    /** Troca de senha do próprio usuário (qualquer papel). */
+    public function alterarSenha(AlterarSenhaRequest $request): JsonResponse
+    {
+        $this->auth->alterarSenha(
+            $request->user(),
+            $request->validated('current_password'),
+            $request->validated('password'),
+        );
+
+        return response()->json(['data' => ['message' => 'Senha alterada com sucesso.']]);
     }
 }
