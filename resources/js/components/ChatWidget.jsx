@@ -5,9 +5,7 @@ import { tempoRelativo } from '../lib/tempo.js';
 // Mensagem de boas-vindas: tom amigável, deixa claro que NÃO é um chatbot e
 // indica o e-mail para assuntos mais complexos.
 const INTRO =
-    'Olá! 👋 Aqui é o suporte da FETECMS — gente de verdade, não um robô. ' +
-    'Manda sua dúvida que a gente responde assim que possível. Para perguntas mais ' +
-    'complexas, o e-mail fetecms@gmail.com continua sendo o melhor caminho.';
+    'Olá! Esse é o chat de suporte da FETECMS. Manda sua dúvida que a gente responde assim que possível. Para perguntas mais complexas, o e-mail fetecms@gmail.com continua sendo o melhor caminho.';
 
 export default function ChatWidget() {
     const [aberto, setAberto] = useState(false);
@@ -74,9 +72,12 @@ export default function ChatWidget() {
                     aria-label="Chat de suporte da FETECMS"
                 >
                     {/* Cabeçalho */}
-                    <div className="bg-primary-container text-on-primary px-4 py-3 shrink-0">
-                        <h2 className="font-display font-semibold leading-tight">Suporte FETECMS</h2>
-                        <p className="text-xs opacity-90">Atendimento humano — respondemos aqui e por e-mail.</p>
+                    <div className="flex bg-primary-container text-on-primary px-4 py-3 shrink-0">
+                        <img src="/img/logo2026.webp" alt="FETECMS" className="h-9 w-auto mr-3 self-center shrink-0" />
+                        <div>
+                            <h2 className="font-display font-semibold leading-tight">Suporte FETECMS</h2>
+                            <p className="text-xs opacity-90">Atendimento humano, sem chatbots.</p>
+                        </div>
                     </div>
 
                     {/* Mensagens */}
