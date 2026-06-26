@@ -16,8 +16,8 @@ class AlterarSenhaTest extends TestCase
     {
         return array_merge([
             'current_password' => 'password', // padrão da UserFactory
-            'password' => 'NovaSenha123',
-            'password_confirmation' => 'NovaSenha123',
+            'password' => 'nova-senha-segura',
+            'password_confirmation' => 'nova-senha-segura',
         ], $over);
     }
 
@@ -30,7 +30,7 @@ class AlterarSenhaTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.message', 'Senha alterada com sucesso.');
 
-        $this->assertTrue(Hash::check('NovaSenha123', $user->fresh()->password));
+        $this->assertTrue(Hash::check('nova-senha-segura', $user->fresh()->password));
     }
 
     public function test_avaliador_e_admin_tambem_podem(): void
@@ -38,7 +38,7 @@ class AlterarSenhaTest extends TestCase
         foreach ([User::factory()->avaliador()->create(), User::factory()->admin()->create()] as $user) {
             Sanctum::actingAs($user);
             $this->putJson('/api/v1/auth/senha', $this->payload())->assertOk();
-            $this->assertTrue(Hash::check('NovaSenha123', $user->fresh()->password));
+            $this->assertTrue(Hash::check('nova-senha-segura', $user->fresh()->password));
         }
     }
 
@@ -68,7 +68,7 @@ class AlterarSenhaTest extends TestCase
     {
         Sanctum::actingAs(User::factory()->create());
 
-        $this->putJson('/api/v1/auth/senha', $this->payload(['password_confirmation' => 'OutraCoisa123']))
+        $this->putJson('/api/v1/auth/senha', $this->payload(['password_confirmation' => 'confirmacao-diferente']))
             ->assertStatus(422)
             ->assertJsonValidationErrors('password');
     }
