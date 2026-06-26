@@ -215,6 +215,9 @@ export default function AdminSuporte() {
         const res = await getConversas();
         setGrupos(res.data);
         setContagem(res.meta?.contagem ?? { nao_respondidas: 0, respondidas: 0, arquivadas: 0 });
+        // Sinaliza ao menu (AppShell) para reatualizar o badge "Suporte" na hora,
+        // sem esperar o polling de 60s (ex.: logo após abrir/responder/arquivar).
+        window.dispatchEvent(new Event('suporte:atualizar'));
     }, []);
 
     useEffect(() => {

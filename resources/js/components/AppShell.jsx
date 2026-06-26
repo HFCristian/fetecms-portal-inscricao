@@ -90,7 +90,8 @@ export default function AppShell({ children }) {
     const [suporteBadge, setSuporteBadge] = useState(0);
 
     // Só o admin: número de conversas não visualizadas ao lado de "Suporte".
-    // Checagem leve em segundo plano (~60s) para o badge aparecer ao vivo.
+    // Checagem leve em segundo plano (~60s) + reatualização imediata quando o
+    // painel de suporte sinaliza mudança (abrir/responder/arquivar uma conversa).
     useEffect(() => {
         if (user?.role !== 'admin') return undefined;
         let cancelado = false;
@@ -100,7 +101,12 @@ export default function AppShell({ children }) {
                 .catch(() => {});
         checar();
         const id = setInterval(checar, 60000);
-        return () => { cancelado = true; clearInterval(id); };
+        window.addEventListener('suporte:atualizar', checar);
+        return () => {
+            cancelado = true;
+            clearInterval(id);
+            window.removeEventListener('suporte:atualizar', checar);
+        };
     }, [user?.role]);
 
     async function handleLogout() {
