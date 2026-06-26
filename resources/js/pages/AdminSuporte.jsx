@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import AppShell from '../components/AppShell.jsx';
 import { Button } from '../components/ui.jsx';
-import { getConversas, getConversa, responderConversa, atualizarStatusConversa } from '../lib/chat.js';
+import { getConversas, getConversa, responderConversa, atualizarStatusConversa, foiVista } from '../lib/chat.js';
 import { tempoRelativo } from '../lib/tempo.js';
+import ReciboLeitura from '../components/ReciboLeitura.jsx';
 
 // Cores do "pill" de status (todas com tokens sólidos do design system).
 const PILL = {
@@ -102,6 +103,13 @@ function DetalheConversa({ conversa, onFechar, onResponder, onStatus, salvando }
         setResposta('');
     }
 
+    const mensagens = conversa.mensagens ?? [];
+    // Recibo de leitura do lado do admin: o usuário vê as mensagens do suporte;
+    // "vista" se usuario_visto_em for posterior ao envio. Texto só na última.
+    const usuarioVistoEm = conversa.usuario_visto_em;
+    const dosSuporte = mensagens.filter((m) => m.autor === 'suporte');
+    const ultimaSuporteId = dosSuporte.length ? dosSuporte[dosSuporte.length - 1].id : null;
+
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
             <div className="bg-surface-container-lowest rounded-2xl fetec-card-shadow w-full max-w-lg max-h-[88vh] flex flex-col overflow-hidden">
@@ -125,7 +133,7 @@ function DetalheConversa({ conversa, onFechar, onResponder, onStatus, salvando }
 
                 {/* Histórico */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-surface">
-                    {(conversa.mensagens ?? []).map((m) => {
+                    {mensagens.map((m) => {
                         const doSuporte = m.autor === 'suporte';
                         return (
                             <div key={m.id} className={`flex ${doSuporte ? 'justify-end' : 'justify-start'}`}>
@@ -135,8 +143,15 @@ function DetalheConversa({ conversa, onFechar, onResponder, onStatus, salvando }
                                     }`}
                                 >
                                     {m.corpo}
-                                    <div className={`text-[10px] mt-1 ${doSuporte ? 'text-on-primary/70' : 'text-on-surface-variant'}`}>
-                                        {doSuporte ? 'Suporte' : 'Usuário'} · {tempoRelativo(m.created_at)}
+                                    <div className={`text-[10px] mt-1 flex items-center gap-1 ${doSuporte ? 'text-on-primary/70 justify-end' : 'text-on-surface-variant'}`}>
+                                        <span>{doSuporte ? 'Suporte' : 'Usuário'} · {tempoRelativo(m.created_at)}</span>
+                                        {doSuporte && (
+                                            <ReciboLeitura
+                                                vista={foiVista(m.created_at, usuarioVistoEm)}
+                                                ultima={m.id === ultimaSuporteId}
+                                                vistoEm={usuarioVistoEm}
+                                            />
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -205,6 +220,19 @@ export default function AdminSuporte() {
     useEffect(() => {
         carregar().catch(() => setGrupos({ nao_respondidas: [], respondidas: [], arquivadas: [] }));
     }, [carregar]);
+
+    // Enquanto uma conversa está aberta, atualiza o detalhe ao vivo (recibo de
+    // leitura do usuário + novas mensagens). Cada refetch também registra o
+    // suporte_visto_em no backend, mantendo o "visto" do usuário fresco.
+    useEffect(() => {
+        if (!selecionada) return undefined;
+        const id = selecionada.id;
+        const t = setInterval(() => {
+            getConversa(id).then(setSelecionada).catch(() => {});
+        }, 15000);
+        return () => clearInterval(t);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selecionada?.id]);
 
     async function abrir(conversa) {
         // Abrir o detalhe marca como "visualizada" no backend.

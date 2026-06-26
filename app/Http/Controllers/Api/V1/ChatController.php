@@ -21,6 +21,7 @@ class ChatController extends Controller
     public function show(Request $request): JsonResponse
     {
         $conversa = $this->chat->obterOuCriar($request->user());
+        $this->chat->marcarVistoPeloUsuario($conversa);
 
         // setStatusCode(200): firstOrCreate marca o model como "recém-criado" e o
         // Laravel responderia 201 num GET na primeira vez que o chat é aberto.

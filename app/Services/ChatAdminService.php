@@ -48,12 +48,19 @@ class ChatAdminService
         ];
     }
 
-    /** Marca como "visualizada" ao abrir (só se ainda estava "não visualizada"). */
+    /**
+     * Marca como "visualizada" ao abrir (só se ainda estava "não visualizada") e
+     * registra o recibo de leitura do suporte (sempre, inclusive no polling).
+     */
     public function marcarVisualizada(Conversa $conversa): Conversa
     {
+        $conversa->suporte_visto_em = now();
+
         if ($conversa->status === StatusConversa::NaoVisualizada) {
-            $conversa->update(['status' => StatusConversa::Visualizada]);
+            $conversa->status = StatusConversa::Visualizada;
         }
+
+        $conversa->save();
 
         return $conversa;
     }

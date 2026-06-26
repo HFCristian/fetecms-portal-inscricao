@@ -21,13 +21,15 @@ class Conversa extends Model
 
     protected $table = 'conversas';
 
-    protected $fillable = ['user_id', 'status', 'ultima_mensagem_em'];
+    protected $fillable = ['user_id', 'status', 'ultima_mensagem_em', 'usuario_visto_em', 'suporte_visto_em'];
 
     protected function casts(): array
     {
         return [
             'status' => StatusConversa::class,
             'ultima_mensagem_em' => 'datetime',
+            'usuario_visto_em' => 'datetime',
+            'suporte_visto_em' => 'datetime',
         ];
     }
 

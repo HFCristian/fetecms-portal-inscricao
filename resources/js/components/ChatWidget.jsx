@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { getMinhaConversa, enviarMensagem } from '../lib/chat.js';
+import { getMinhaConversa, enviarMensagem, foiVista } from '../lib/chat.js';
 import { tempoRelativo } from '../lib/tempo.js';
+import ReciboLeitura from './ReciboLeitura.jsx';
 
 // Mensagem de boas-vindas: tom amigável, deixa claro que NÃO é um chatbot e
 // indica o e-mail para assuntos mais complexos.
@@ -52,6 +53,11 @@ export default function ChatWidget() {
     }
 
     const mensagens = conversa?.mensagens ?? [];
+    // Recibo de leitura: o suporte vê minhas mensagens; "vista" se suporte_visto_em
+    // for posterior ao envio. O texto aparece só sob a minha última mensagem.
+    const suporteVistoEm = conversa?.suporte_visto_em;
+    const minhas = mensagens.filter((m) => m.autor === 'usuario');
+    const ultimaMinhaId = minhas.length ? minhas[minhas.length - 1].id : null;
 
     return (
         <>
@@ -97,8 +103,15 @@ export default function ChatWidget() {
                                         }`}
                                     >
                                         {m.corpo}
-                                        <div className={`text-[10px] mt-1 ${meu ? 'text-on-primary/70' : 'text-on-surface-variant'}`}>
-                                            {meu ? 'Você' : 'Suporte'} · {tempoRelativo(m.created_at)}
+                                        <div className={`text-[10px] mt-1 flex items-center gap-1 ${meu ? 'text-on-primary/70 justify-end' : 'text-on-surface-variant'}`}>
+                                            <span>{meu ? 'Você' : 'Suporte'} · {tempoRelativo(m.created_at)}</span>
+                                            {meu && (
+                                                <ReciboLeitura
+                                                    vista={foiVista(m.created_at, suporteVistoEm)}
+                                                    ultima={m.id === ultimaMinhaId}
+                                                    vistoEm={suporteVistoEm}
+                                                />
+                                            )}
                                         </div>
                                     </div>
                                 </div>

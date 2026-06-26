@@ -1,5 +1,17 @@
 import http from './http.js';
 
+// Uma mensagem foi vista pelo outro lado se ele visualizou a conversa em um
+// momento igual ou posterior ao envio dela. `outroLadoVistoEm` é o carimbo de
+// leitura do destinatário (suporte_visto_em para mensagens do usuário, e
+// usuario_visto_em para mensagens do suporte).
+export function foiVista(mensagemCriadaEm, outroLadoVistoEm) {
+    if (!mensagemCriadaEm || !outroLadoVistoEm) return false;
+    const criada = new Date(mensagemCriadaEm).getTime();
+    const visto = new Date(outroLadoVistoEm).getTime();
+    if (Number.isNaN(criada) || Number.isNaN(visto)) return false;
+    return visto >= criada;
+}
+
 // Chat de suporte — orientador/avaliador
 export const getMinhaConversa = () => http.get('/chat/conversa').then((r) => r.data.data);
 export const enviarMensagem = (corpo) => http.post('/chat/mensagens', { corpo }).then((r) => r.data.data);

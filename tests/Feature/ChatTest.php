@@ -130,9 +130,32 @@ class ChatTest extends TestCase
 
         $this->getJson("/api/v1/admin/conversas/{$conversa->id}")
             ->assertOk()
-            ->assertJsonPath('data.status', 'visualizada');
+            ->assertJsonPath('data.status', 'visualizada')
+            ->assertJsonPath('data.suporte_visto_em', fn ($v) => $v !== null);
 
         $this->assertDatabaseHas('conversas', ['id' => $conversa->id, 'status' => 'visualizada']);
+        $this->assertNotNull($conversa->fresh()->suporte_visto_em);
+    }
+
+    public function test_usuario_ao_abrir_o_chat_registra_recibo_de_leitura(): void
+    {
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/v1/chat/conversa')->assertOk();
+
+        $this->assertNotNull(Conversa::firstWhere('user_id', $user->id)->usuario_visto_em);
+    }
+
+    public function test_recibo_do_admin_nao_e_marcado_so_porque_o_usuario_abriu(): void
+    {
+        // O usuário abrir o chat marca o lado dele (usuario_visto_em), não o do suporte.
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/v1/chat/conversa')
+            ->assertOk()
+            ->assertJsonPath('data.suporte_visto_em', null);
     }
 
     public function test_admin_responde_marca_respondida_e_notifica_usuario(): void

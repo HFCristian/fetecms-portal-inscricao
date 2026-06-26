@@ -24,6 +24,17 @@ class ChatService
     }
 
     /**
+     * Registra que o usuário está vendo a conversa agora (recibo de leitura das
+     * mensagens do suporte). Chamado ao abrir o chat e a cada polling.
+     */
+    public function marcarVistoPeloUsuario(Conversa $conversa): Conversa
+    {
+        $conversa->forceFill(['usuario_visto_em' => now()])->save();
+
+        return $conversa;
+    }
+
+    /**
      * Registra uma mensagem do usuário. Reabre a conversa como "não visualizada"
      * para o suporte ver que há conteúdo novo, mesmo que já tivesse sido respondida.
      */
