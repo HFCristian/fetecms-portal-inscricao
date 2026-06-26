@@ -121,8 +121,17 @@ export default function ChatWidget() {
                             const meu = m.autor === 'usuario';
                             return (
                                 <div key={m.id} className={`flex ${meu ? 'justify-end' : 'justify-start'}`}>
+                                    <div className='text-[10px] mb-0.5 flex items-end gap-1 text-on-surface-variant/85'>
+                                        {meu && (
+                                            <ReciboLeitura
+                                                vista={foiVista(m.created_at, suporteVistoEm)}
+                                                ultima={m.id === ultimaMinhaId}
+                                                vistoEm={suporteVistoEm}
+                                            />
+                                        )}
+                                    </div>
                                     <div
-                                        className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm whitespace-pre-line ${
+                                        className={`mx-1 max-w-[80%] rounded-2xl px-3 py-2 text-sm whitespace-pre-line ${
                                             meu
                                                 ? 'bg-primary-container text-on-primary'
                                                 : 'bg-surface-container-high text-on-surface'
@@ -131,13 +140,6 @@ export default function ChatWidget() {
                                         {m.corpo}
                                         <div className={`text-[10px] mt-1 flex items-center gap-1 ${meu ? 'text-on-primary/70 justify-end' : 'text-on-surface-variant'}`}>
                                             <span>{meu ? 'Você' : 'Suporte'} · {tempoRelativo(m.created_at)}</span>
-                                            {meu && (
-                                                <ReciboLeitura
-                                                    vista={foiVista(m.created_at, suporteVistoEm)}
-                                                    ultima={m.id === ultimaMinhaId}
-                                                    vistoEm={suporteVistoEm}
-                                                />
-                                            )}
                                         </div>
                                     </div>
                                 </div>
