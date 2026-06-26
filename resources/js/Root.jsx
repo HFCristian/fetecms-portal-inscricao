@@ -21,6 +21,7 @@ import ParametrizacaoAreas from './pages/ParametrizacaoAreas.jsx';
 import ParametrizacaoEscolas from './pages/ParametrizacaoEscolas.jsx';
 import AdminManager from './pages/AdminManager.jsx';
 import AdminSuporte from './pages/AdminSuporte.jsx';
+import AlterarSenha from './pages/AlterarSenha.jsx';
 
 function Spinner() {
     return (
@@ -48,6 +49,11 @@ export default function Root() {
                         <Route path="/login" element={<GuestRoute><Login /></GuestRoute>} />
                         <Route path="/cadastro" element={<GuestRoute><Cadastro /></GuestRoute>} />
                         <Route path="/cadastro/avaliador" element={<GuestRoute><CadastroAvaliador /></GuestRoute>} />
+
+                        {/* Disponível a qualquer usuário autenticado */}
+                        <Route element={<RoleRoute />}>
+                            <Route path="/alterar-senha" element={<AlterarSenha />} />
+                        </Route>
 
                         {/* Área do orientador */}
                         <Route element={<RoleRoute allow={['orientador']} />}>

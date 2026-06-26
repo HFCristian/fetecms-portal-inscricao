@@ -126,9 +126,13 @@ export default function AppShell({ children }) {
                 </div>
                 <div className="flex-1 flex flex-col gap-1">
                     <NavLinks role={user?.role} suporteBadge={suporteBadge} />
-                    <div className="flex flex-col gap-4 mt-auto mb-4">
+                    <div className="flex flex-col gap-1 mt-auto mb-4">
+                        <NavLink to="/alterar-senha" className={navClass}>
+                            <span className="material-symbols-outlined">lock</span>
+                            Alterar senha
+                        </NavLink>
                         <LogoutButton onClick={handleLogout} />
-                        <SupportFooter className="pb-2" />
+                        <SupportFooter className="pb-2 mt-3" />
                     </div>
                 </div>
             </nav>
@@ -166,9 +170,13 @@ export default function AppShell({ children }) {
                         </p>
                         <NavLinks role={user?.role} onNavigate={() => setMenuOpen(false)} suporteBadge={suporteBadge} />
                     </div>
-                    <div className="p-4 border-t border-outline-variant/30 flex flex-col gap-3 shrink-0">
+                    <div className="p-4 border-t border-outline-variant/30 flex flex-col gap-1 shrink-0">
+                        <NavLink to="/alterar-senha" className={navClass} onClick={() => setMenuOpen(false)}>
+                            <span className="material-symbols-outlined">lock</span>
+                            Alterar senha
+                        </NavLink>
                         <LogoutButton onClick={handleLogout} />
-                        <SupportFooter />
+                        <SupportFooter className="mt-3" />
                     </div>
                 </div>
             )}

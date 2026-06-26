@@ -55,6 +55,9 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('/auth/logout', [AuthController::class, 'logout']);
         Route::get('/auth/me', [AuthController::class, 'me']);
+        // Troca de senha (qualquer papel); rate limit contra brute force da senha atual.
+        Route::put('/auth/senha', [AuthController::class, 'alterarSenha'])
+            ->middleware('throttle:6,1');
 
         Route::get('/perfil', [PerfilController::class, 'show']);
         Route::put('/perfil', [PerfilController::class, 'update']);
