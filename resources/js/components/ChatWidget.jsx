@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { getMinhaConversa, enviarMensagem, foiVista } from '../lib/chat.js';
+import { getMinhaConversa, enviarMensagem, foiVista, getNaoLidas } from '../lib/chat.js';
 import { tempoRelativo } from '../lib/tempo.js';
 import ReciboLeitura from './ReciboLeitura.jsx';
 
@@ -14,6 +14,7 @@ export default function ChatWidget() {
     const [texto, setTexto] = useState('');
     const [enviando, setEnviando] = useState(false);
     const [erro, setErro] = useState('');
+    const [temNaoLidas, setTemNaoLidas] = useState(false);
     const fimRef = useRef(null);
 
     async function carregar() {
@@ -35,6 +36,24 @@ export default function ChatWidget() {
     useEffect(() => {
         fimRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [conversa, aberto]);
+
+    // Com o chat fechado, checa em segundo plano (~60s) se há mensagens do suporte
+    // não lidas, para exibir a bolinha. Abrir o chat limpa a bolinha (a abertura
+    // marca como visto no backend).
+    useEffect(() => {
+        if (aberto) {
+            setTemNaoLidas(false);
+            return undefined;
+        }
+        let cancelado = false;
+        const checar = () =>
+            getNaoLidas()
+                .then((r) => { if (!cancelado) setTemNaoLidas(!!r.nao_lidas); })
+                .catch(() => {});
+        checar();
+        const id = setInterval(checar, 60000);
+        return () => { cancelado = true; clearInterval(id); };
+    }, [aberto]);
 
     async function handleEnviar(e) {
         e.preventDefault();
@@ -69,6 +88,13 @@ export default function ChatWidget() {
                 className="fixed bottom-5 right-5 z-50 w-14 h-14 rounded-full bg-primary-container text-on-primary shadow-lg flex items-center justify-center hover:bg-primary transition-colors"
             >
                 <span className="material-symbols-outlined text-[26px]">{aberto ? 'close' : 'chat'}</span>
+                {!aberto && temNaoLidas && (
+                    <span
+                        role="status"
+                        aria-label="Há mensagens não lidas"
+                        className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-error ring-2 ring-white"
+                    />
+                )}
             </button>
 
             {aberto && (

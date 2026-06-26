@@ -88,6 +88,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
         // Chat de suporte — orientador/avaliador falam com o suporte (admin)
         Route::middleware('role:orientador,avaliador')->prefix('chat')->group(function () {
             Route::get('/conversa', [ChatController::class, 'show']);
+            Route::get('/nao-lidas', [ChatController::class, 'naoLidas']);
             Route::post('/mensagens', [ChatController::class, 'store'])
                 ->middleware('throttle:30,1');
         });
@@ -116,6 +117,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
 
             // Chat de suporte (inbox): conversas dos orientadores/avaliadores
             Route::get('/conversas', [ChatAdminController::class, 'index']);
+            Route::get('/conversas-nao-vistas', [ChatAdminController::class, 'naoVistas']);
             Route::get('/conversas/{conversa}', [ChatAdminController::class, 'show']);
             Route::patch('/conversas/{conversa}/status', [ChatAdminController::class, 'atualizarStatus']);
             Route::post('/conversas/{conversa}/responder', [ChatAdminController::class, 'responder']);

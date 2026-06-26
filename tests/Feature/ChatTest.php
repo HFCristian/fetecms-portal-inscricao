@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\StatusConversa;
 use App\Models\Conversa;
+use App\Models\Mensagem;
 use App\Models\User;
 use App\Notifications\MensagemRespondida;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -200,5 +201,76 @@ class ChatTest extends TestCase
         Sanctum::actingAs(User::factory()->create());
 
         $this->getJson('/api/v1/admin/conversas')->assertStatus(403);
+    }
+
+    public function test_nao_lidas_e_zero_sem_conversa(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+
+        $this->getJson('/api/v1/chat/nao-lidas')
+            ->assertOk()
+            ->assertJsonPath('data.nao_lidas', false)
+            ->assertJsonPath('data.total', 0);
+    }
+
+    public function test_nao_lidas_detecta_resposta_do_suporte_sem_marcar_leitura(): void
+    {
+        $user = User::factory()->create();
+        $conversa = Conversa::factory()->create([
+            'user_id' => $user->id,
+            'usuario_visto_em' => now()->subHour(),
+        ]);
+        // Resposta do suporte criada DEPOIS do último "visto" do usuário.
+        Mensagem::factory()->doSuporte()->create([
+            'conversa_id' => $conversa->id,
+            'created_at' => now(),
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/v1/chat/nao-lidas')
+            ->assertOk()
+            ->assertJsonPath('data.nao_lidas', true)
+            ->assertJsonPath('data.total', 1);
+
+        // A consulta NÃO pode marcar como visto (senão a bolinha sumiria sozinha).
+        $this->assertTrue($conversa->fresh()->usuario_visto_em->lessThan(now()->subMinutes(30)));
+    }
+
+    public function test_nao_lidas_e_falso_quando_usuario_ja_viu_a_resposta(): void
+    {
+        $user = User::factory()->create();
+        $conversa = Conversa::factory()->create(['user_id' => $user->id]);
+        Mensagem::factory()->doSuporte()->create([
+            'conversa_id' => $conversa->id,
+            'created_at' => now()->subHour(),
+        ]);
+        $conversa->update(['usuario_visto_em' => now()]); // viu depois da resposta
+
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/v1/chat/nao-lidas')
+            ->assertOk()
+            ->assertJsonPath('data.nao_lidas', false);
+    }
+
+    public function test_admin_conta_conversas_nao_vistas(): void
+    {
+        Conversa::factory()->count(2)->create(); // nao_visualizada
+        Conversa::factory()->status(StatusConversa::Visualizada)->create();
+        Conversa::factory()->status(StatusConversa::Respondida)->create();
+
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->getJson('/api/v1/admin/conversas-nao-vistas')
+            ->assertOk()
+            ->assertJsonPath('data.total', 2);
+    }
+
+    public function test_orientador_nao_acessa_o_contador_do_admin(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+
+        $this->getJson('/api/v1/admin/conversas-nao-vistas')->assertStatus(403);
     }
 }

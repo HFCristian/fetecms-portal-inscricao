@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth.jsx';
+import { getConversasNaoVistas } from '../lib/chat.js';
 import SupportFooter from './SupportFooter.jsx';
 import ChatWidget from './ChatWidget.jsx';
 
@@ -13,8 +14,18 @@ function navClass({ isActive }) {
     );
 }
 
+// Badge numérico (ex.: conversas não vistas) ao final de um item do menu.
+function NavBadge({ count }) {
+    if (!count) return null;
+    return (
+        <span className="ml-auto min-w-5 h-5 px-1.5 rounded-full bg-error text-on-error text-xs font-bold inline-flex items-center justify-center">
+            {count > 99 ? '99+' : count}
+        </span>
+    );
+}
+
 // Links de navegação por papel. onNavigate fecha o menu mobile ao clicar num link.
-function NavLinks({ role, onNavigate }) {
+function NavLinks({ role, onNavigate, suporteBadge = 0 }) {
     if (role === 'admin') {
         return (
             <>
@@ -29,6 +40,7 @@ function NavLinks({ role, onNavigate }) {
                 <NavLink to="/admin/suporte" className={navClass} onClick={onNavigate}>
                     <span className="material-symbols-outlined">forum</span>
                     Suporte
+                    <NavBadge count={suporteBadge} />
                 </NavLink>
                 <NavLink to="/admin/gerir-admins" className={navClass} onClick={onNavigate}>
                     <span className="material-symbols-outlined">people</span>
@@ -75,6 +87,21 @@ export default function AppShell({ children }) {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
     const [menuOpen, setMenuOpen] = useState(false);
+    const [suporteBadge, setSuporteBadge] = useState(0);
+
+    // Só o admin: número de conversas não visualizadas ao lado de "Suporte".
+    // Checagem leve em segundo plano (~60s) para o badge aparecer ao vivo.
+    useEffect(() => {
+        if (user?.role !== 'admin') return undefined;
+        let cancelado = false;
+        const checar = () =>
+            getConversasNaoVistas()
+                .then((r) => { if (!cancelado) setSuporteBadge(r.total ?? 0); })
+                .catch(() => {});
+        checar();
+        const id = setInterval(checar, 60000);
+        return () => { cancelado = true; clearInterval(id); };
+    }, [user?.role]);
 
     async function handleLogout() {
         setMenuOpen(false);
@@ -92,7 +119,7 @@ export default function AppShell({ children }) {
                     <p className="text-sm text-on-surface-variant">XVI FETECMS</p>
                 </div>
                 <div className="flex-1 flex flex-col gap-1">
-                    <NavLinks role={user?.role} />
+                    <NavLinks role={user?.role} suporteBadge={suporteBadge} />
                     <div className="flex flex-col gap-4 mt-auto mb-4">
                         <LogoutButton onClick={handleLogout} />
                         <SupportFooter className="pb-2" />
@@ -131,7 +158,7 @@ export default function AppShell({ children }) {
                         <p className="text-sm text-on-surface-variant mb-3 px-1">
                             Olá, <strong className="text-on-surface">{user?.name}</strong>
                         </p>
-                        <NavLinks role={user?.role} onNavigate={() => setMenuOpen(false)} />
+                        <NavLinks role={user?.role} onNavigate={() => setMenuOpen(false)} suporteBadge={suporteBadge} />
                     </div>
                     <div className="p-4 border-t border-outline-variant/30 flex flex-col gap-3 shrink-0">
                         <LogoutButton onClick={handleLogout} />

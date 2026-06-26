@@ -35,6 +35,28 @@ class ChatService
     }
 
     /**
+     * Quantas mensagens do suporte o usuário ainda não viu (criadas após o último
+     * usuario_visto_em). Consulta somente leitura — NÃO marca a conversa como vista,
+     * para o botão fechado poder exibir a bolinha de "não lidas".
+     */
+    public function naoLidasDoUsuario(User $user): int
+    {
+        $conversa = Conversa::where('user_id', $user->id)->first();
+
+        if (! $conversa) {
+            return 0;
+        }
+
+        return $conversa->mensagens()
+            ->where('autor', Mensagem::AUTOR_SUPORTE)
+            ->when(
+                $conversa->usuario_visto_em,
+                fn ($q) => $q->where('created_at', '>', $conversa->usuario_visto_em),
+            )
+            ->count();
+    }
+
+    /**
      * Registra uma mensagem do usuário. Reabre a conversa como "não visualizada"
      * para o suporte ver que há conteúdo novo, mesmo que já tivesse sido respondida.
      */

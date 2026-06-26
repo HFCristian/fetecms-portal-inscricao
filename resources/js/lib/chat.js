@@ -15,6 +15,11 @@ export function foiVista(mensagemCriadaEm, outroLadoVistoEm) {
 // Chat de suporte — orientador/avaliador
 export const getMinhaConversa = () => http.get('/chat/conversa').then((r) => r.data.data);
 export const enviarMensagem = (corpo) => http.post('/chat/mensagens', { corpo }).then((r) => r.data.data);
+// Consulta leve (não marca leitura) p/ a bolinha do botão fechado.
+export const getNaoLidas = () => http.get('/chat/nao-lidas').then((r) => r.data.data);
+
+// Badge do menu admin: quantas conversas estão "não visualizadas".
+export const getConversasNaoVistas = () => http.get('/admin/conversas-nao-vistas').then((r) => r.data.data);
 
 // Chat de suporte — admin (inbox). getConversas devolve { data: grupos, meta: { contagem } }.
 export const getConversas = () => http.get('/admin/conversas').then((r) => r.data);

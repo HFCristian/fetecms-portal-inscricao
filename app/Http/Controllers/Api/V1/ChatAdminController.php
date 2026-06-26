@@ -33,6 +33,12 @@ class ChatAdminController extends Controller
         ]);
     }
 
+    /** Quantidade de conversas não visualizadas (badge do menu do admin). */
+    public function naoVistas(): JsonResponse
+    {
+        return response()->json(['data' => ['total' => $this->chat->naoVisualizadasCount()]]);
+    }
+
     /** Abre o histórico completo; marca como "visualizada" se ainda não foi. */
     public function show(Conversa $conversa): ConversaResource
     {

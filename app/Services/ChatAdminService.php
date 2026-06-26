@@ -48,6 +48,12 @@ class ChatAdminService
         ];
     }
 
+    /** Quantas conversas estão "não visualizadas" (badge do menu do admin). */
+    public function naoVisualizadasCount(): int
+    {
+        return Conversa::where('status', StatusConversa::NaoVisualizada->value)->count();
+    }
+
     /**
      * Marca como "visualizada" ao abrir (só se ainda estava "não visualizada") e
      * registra o recibo de leitura do suporte (sempre, inclusive no polling).

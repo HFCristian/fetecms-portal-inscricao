@@ -37,4 +37,15 @@ class ChatController extends Controller
 
         return ConversaResource::make($conversa->load('mensagens'));
     }
+
+    /**
+     * Há mensagens do suporte não lidas? Consulta leve para a bolinha do botão
+     * fechado. NÃO marca a conversa como vista (não altera o recibo de leitura).
+     */
+    public function naoLidas(Request $request): JsonResponse
+    {
+        $total = $this->chat->naoLidasDoUsuario($request->user());
+
+        return response()->json(['data' => ['nao_lidas' => $total > 0, 'total' => $total]]);
+    }
 }
