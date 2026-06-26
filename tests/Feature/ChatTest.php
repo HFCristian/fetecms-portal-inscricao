@@ -46,6 +46,32 @@ class ChatTest extends TestCase
             ->assertJsonValidationErrors('corpo');
     }
 
+    public function test_corpo_nao_string_e_rejeitado(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+
+        $this->postJson('/api/v1/chat/mensagens', ['corpo' => ['injection']])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('corpo');
+    }
+
+    public function test_usuario_nao_consegue_forjar_mensagem_do_suporte(): void
+    {
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+
+        // Mesmo enviando campos extras, o autor é fixado no servidor como 'usuario'.
+        $this->postJson('/api/v1/chat/mensagens', [
+            'corpo' => 'Tentando me passar pelo suporte',
+            'autor' => 'suporte',
+            'autor_user_id' => 999,
+            'status' => 'respondida',
+        ])->assertOk()->assertJsonPath('data.status', 'nao_visualizada');
+
+        $this->assertDatabaseHas('mensagens', ['autor' => 'usuario', 'autor_user_id' => null]);
+        $this->assertDatabaseMissing('mensagens', ['autor' => 'suporte']);
+    }
+
     public function test_admin_nao_usa_o_chat_de_usuario(): void
     {
         Sanctum::actingAs(User::factory()->admin()->create());

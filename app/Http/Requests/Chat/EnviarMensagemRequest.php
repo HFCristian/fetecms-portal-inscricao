@@ -13,7 +13,10 @@ class EnviarMensagemRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
-        $this->merge(['corpo' => trim((string) $this->input('corpo'))]);
+        // Só normaliza quando for string; um array/objeto fica intacto para a
+        // regra 'string' rejeitar com 422 (em vez de virar a literal "Array").
+        $corpo = $this->input('corpo');
+        $this->merge(['corpo' => is_string($corpo) ? trim($corpo) : $corpo]);
     }
 
     public function rules(): array
