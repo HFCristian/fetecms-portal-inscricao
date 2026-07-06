@@ -18,7 +18,7 @@ class ProjetoListResource extends JsonResource
             'status_label' => $this->status->label(),
             'categoria' => $this->categoria?->value,
             'categoria_label' => $this->categoria?->label(),
-            'max_alunos' => $this->categoria?->maxAlunos(),
+            'max_alunos' => $this->maxAlunos(),
             'instituicao' => $this->whenLoaded('instituicao', fn () => $this->instituicao?->nome),
             'area' => $this->whenLoaded('area', fn () => $this->area?->nome),
             'updated_at' => $this->updated_at?->toIso8601String(),

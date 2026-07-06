@@ -207,7 +207,7 @@ export default function ParametrizacaoEscolas() {
                 </div>
 
                 {lista === null ? (
-                    <div className="text-center py-10 text-on-surface-variant"><span className="material-symbols-outlined animate-spin">progress_activity</span></div>
+                    <div className="text-center py-10 text-on-surface-variant"><span className="inline-block w-8 h-8 rounded-full border-4 border-on-surface-variant/25 border-t-primary animate-spin align-[-0.2em]" role="status" aria-label="Carregando" /></div>
                 ) : lista.length === 0 ? (
                     <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-6 text-center text-on-surface-variant text-sm">
                         {busca.trim() ? 'Nenhuma instituição encontrada.' : 'Nenhuma instituição cadastrada.'}

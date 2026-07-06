@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 
 class AuthService
@@ -32,5 +33,21 @@ class AuthService
         }
 
         return $user;
+    }
+
+    /**
+     * Altera a senha do próprio usuário. Exige a senha atual correta; a nova é
+     * gravada com hash (cast 'hashed' do model). Verificação manual (independe
+     * do guard) para funcionar tanto no SPA (sessão) quanto via token.
+     */
+    public function alterarSenha(User $user, string $senhaAtual, string $novaSenha): void
+    {
+        if (! Hash::check($senhaAtual, $user->password)) {
+            throw ValidationException::withMessages([
+                'current_password' => 'A senha atual está incorreta.',
+            ]);
+        }
+
+        $user->update(['password' => $novaSenha]);
     }
 }

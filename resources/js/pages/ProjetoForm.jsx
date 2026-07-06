@@ -35,7 +35,7 @@ export default function ProjetoForm() {
     const [confirm, confirmDialog] = useConfirm();
 
     const [form, setForm] = useState({
-        pais: 'BR', palavras_chave: [], continuacao: false, feira_afiliada: false,
+        pais: 'BR', palavras_chave: [], pictec_ms: false, continuacao: false, feira_afiliada: false,
         necessita_termo_etica: false, declaracao_email: false,
     });
     const [subareas, setSubareas] = useState([]);
@@ -65,7 +65,8 @@ export default function ProjetoForm() {
                     return;
                 }
                 setForm({
-                    titulo: p.titulo ?? '', categoria: p.categoria ?? '', instituicao_id: p.instituicao_id ?? '',
+                    titulo: p.titulo ?? '', categoria: p.categoria ?? '', pictec_ms: p.pictec_ms ?? false,
+                    instituicao_id: p.instituicao_id ?? '',
                     instituicao_nome: p.nomes?.instituicao ?? '',
                     area_id: p.area_id ?? '', subarea_id: p.subarea_id ?? '', resumo: p.resumo ?? '',
                     link_video: p.link_video ?? '', palavras_chave: p.palavras_chave ?? [], pais: p.pais ?? 'BR',
@@ -88,6 +89,12 @@ export default function ProjetoForm() {
 
     const markDirty = () => { setDirty(true); setSuccess(''); };
     const setField = (name, value) => { setForm((f) => ({ ...f, [name]: value })); markDirty(); };
+
+    // PICTEC MS só vale na FETECMS: ao trocar de categoria, limpa o flag.
+    function onCategoriaChange(value) {
+        setForm((f) => ({ ...f, categoria: value, pictec_ms: value === 'fetecms' ? f.pictec_ms : false }));
+        markDirty();
+    }
 
     async function onAreaChange(areaId) {
         setForm((f) => ({ ...f, area_id: areaId, subarea_id: '' }));
@@ -123,6 +130,7 @@ export default function ProjetoForm() {
         const ehBR = (form.pais || 'BR') === 'BR';
         return {
             titulo: form.titulo || null, categoria: form.categoria || null,
+            pictec_ms: form.categoria === 'fetecms' ? !!form.pictec_ms : false,
             instituicao_id: num(form.instituicao_id), area_id: num(form.area_id), subarea_id: num(form.subarea_id),
             palavras_chave: form.palavras_chave, pais: form.pais || 'BR',
             // Brasil usa catálogo (IDs); exterior usa texto livre.
@@ -210,7 +218,7 @@ export default function ProjetoForm() {
     }
 
     if (loading) {
-        return <AppShell><div className="text-center py-10 text-on-surface-variant"><span className="material-symbols-outlined animate-spin">progress_activity</span></div></AppShell>;
+        return <AppShell><div className="text-center py-10 text-on-surface-variant"><span className="inline-block w-8 h-8 rounded-full border-4 border-on-surface-variant/25 border-t-primary animate-spin align-[-0.2em]" role="status" aria-label="Carregando" /></div></AppShell>;
     }
 
     if (estado === 'indisponivel') {
@@ -304,10 +312,21 @@ export default function ProjetoForm() {
                     </Field>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <Field label="Categoria" error={err('categoria')}>
-                            <Select value={form.categoria ?? ''} onChange={(e) => setField('categoria', e.target.value)} error={err('categoria')}>
+                            <Select value={form.categoria ?? ''} onChange={(e) => onCategoriaChange(e.target.value)} error={err('categoria')}>
                                 <option value="">Selecione</option>
                                 {catalogos.categorias.map((c) => <option key={c.value} value={c.value}>{c.label} (até {c.max_alunos} alunos)</option>)}
                             </Select>
+                            {form.categoria === 'fetecms' && (
+                                <label className="flex items-start gap-2 mt-2 cursor-pointer">
+                                    <input type="checkbox" checked={!!form.pictec_ms}
+                                        onChange={(e) => setField('pictec_ms', e.target.checked)}
+                                        className="mt-0.5 w-5 h-5 rounded text-primary-container shrink-0" />
+                                    <span className="text-sm text-on-surface-variant">
+                                        Projeto contemplado pelo programa PICTEC MS
+                                        <span className="block text-xs text-on-surface-variant/80">Eleva o limite da equipe para até 4 estudantes.</span>
+                                    </span>
+                                </label>
+                            )}
                         </Field>
                         <Field label="Área do Conhecimento" error={err('area_id')}>
                             <Select value={form.area_id ?? ''} onChange={(e) => onAreaChange(e.target.value)}>

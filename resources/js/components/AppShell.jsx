@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth.jsx';
+import { getConversasNaoVistas } from '../lib/chat.js';
 import SupportFooter from './SupportFooter.jsx';
+import ChatWidget from './ChatWidget.jsx';
 
 function navClass({ isActive }) {
     return (
@@ -12,8 +14,18 @@ function navClass({ isActive }) {
     );
 }
 
+// Badge numérico (ex.: conversas não vistas) ao final de um item do menu.
+function NavBadge({ count }) {
+    if (!count) return null;
+    return (
+        <span className="ml-auto min-w-5 h-5 px-1.5 rounded-full bg-error text-on-error text-xs font-bold inline-flex items-center justify-center">
+            {count > 99 ? '99+' : count}
+        </span>
+    );
+}
+
 // Links de navegação por papel. onNavigate fecha o menu mobile ao clicar num link.
-function NavLinks({ role, onNavigate }) {
+function NavLinks({ role, onNavigate, suporteBadge = 0 }) {
     if (role === 'admin') {
         return (
             <>
@@ -24,6 +36,11 @@ function NavLinks({ role, onNavigate }) {
                 <NavLink to="/admin/parametrizacao" className={navClass} onClick={onNavigate}>
                     <span className="material-symbols-outlined">tune</span>
                     Parametrização
+                </NavLink>
+                <NavLink to="/admin/suporte" className={navClass} onClick={onNavigate}>
+                    <span className="material-symbols-outlined">forum</span>
+                    Suporte
+                    <NavBadge count={suporteBadge} />
                 </NavLink>
                 <NavLink to="/admin/gerir-admins" className={navClass} onClick={onNavigate}>
                     <span className="material-symbols-outlined">people</span>
@@ -70,6 +87,27 @@ export default function AppShell({ children }) {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
     const [menuOpen, setMenuOpen] = useState(false);
+    const [suporteBadge, setSuporteBadge] = useState(0);
+
+    // Só o admin: número de conversas não visualizadas ao lado de "Suporte".
+    // Checagem leve em segundo plano (~60s) + reatualização imediata quando o
+    // painel de suporte sinaliza mudança (abrir/responder/arquivar uma conversa).
+    useEffect(() => {
+        if (user?.role !== 'admin') return undefined;
+        let cancelado = false;
+        const checar = () =>
+            getConversasNaoVistas()
+                .then((r) => { if (!cancelado) setSuporteBadge(r.total ?? 0); })
+                .catch(() => {});
+        checar();
+        const id = setInterval(checar, 60000);
+        window.addEventListener('suporte:atualizar', checar);
+        return () => {
+            cancelado = true;
+            clearInterval(id);
+            window.removeEventListener('suporte:atualizar', checar);
+        };
+    }, [user?.role]);
 
     async function handleLogout() {
         setMenuOpen(false);
@@ -82,22 +120,26 @@ export default function AppShell({ children }) {
             {/* Sidebar desktop */}
             <nav className="hidden md:flex fixed left-0 top-0 h-full w-64 z-40 p-3 flex-col bg-surface-container-low border-r border-outline-variant/30">
                 <div className="mb-6 pb-4 border-b border-outline-variant/30">
-                    <img src="/img/logo2026.png" alt="XVI FETECMS" className="max-h-28 mx-auto w-auto mb-2" />
+                    <img src="/img/logo2026.webp" alt="XVI FETECMS" className="max-h-28 mx-auto w-auto mb-2" />
                     <h1 className="font-display text-lg text-primary font-bold">Portal do Orientador</h1>
                     <p className="text-sm text-on-surface-variant">XVI FETECMS</p>
                 </div>
                 <div className="flex-1 flex flex-col gap-1">
-                    <NavLinks role={user?.role} />
-                    <div className="flex flex-col gap-4 mt-auto mb-4">
+                    <NavLinks role={user?.role} suporteBadge={suporteBadge} />
+                    <div className="flex flex-col gap-1 mt-auto mb-4">
+                        <NavLink to="/alterar-senha" className={navClass}>
+                            <span className="material-symbols-outlined">lock</span>
+                            Alterar senha
+                        </NavLink>
                         <LogoutButton onClick={handleLogout} />
-                        <SupportFooter className="pb-2" />
+                        <SupportFooter className="pb-2 mt-3" />
                     </div>
                 </div>
             </nav>
 
             {/* Header mobile: botão de menu abre o menu lateral em tela cheia */}
             <header className="md:hidden sticky top-0 z-40 flex items-center justify-between bg-surface border-b border-outline-variant/30 px-4 h-20">
-                <img src="/img/logo2026.png" alt="XVI FETECMS" className="max-h-16" />
+                <img src="/img/logo2026.webp" alt="XVI FETECMS" className="max-h-16" />
                 <div className='text-center'>
                     <h1 className="font-display text-lg text-primary font-bold">Portal do Orientador</h1>
                     <p className="text-sm text-on-surface-variant">XVI FETECMS</p>
@@ -112,7 +154,7 @@ export default function AppShell({ children }) {
                 <div className="md:hidden fixed inset-0 z-50 bg-surface-container-low flex flex-col" role="dialog" aria-modal="true">
                     <div className="flex items-center justify-between px-4 h-20 border-b border-outline-variant/30 shrink-0">
                         <div className="flex items-center gap-3">
-                            <img src="/img/logo2026.png" alt="XVI FETECMS" className="max-h-14" />
+                            <img src="/img/logo2026.webp" alt="XVI FETECMS" className="max-h-16" />
                             <div>
                                 <h1 className="font-display text-lg text-primary font-bold leading-tight">Portal</h1>
                                 <p className="text-xs text-on-surface-variant">XVI FETECMS</p>
@@ -126,11 +168,15 @@ export default function AppShell({ children }) {
                         <p className="text-sm text-on-surface-variant mb-3 px-1">
                             Olá, <strong className="text-on-surface">{user?.name}</strong>
                         </p>
-                        <NavLinks role={user?.role} onNavigate={() => setMenuOpen(false)} />
+                        <NavLinks role={user?.role} onNavigate={() => setMenuOpen(false)} suporteBadge={suporteBadge} />
                     </div>
-                    <div className="p-4 border-t border-outline-variant/30 flex flex-col gap-3 shrink-0">
+                    <div className="p-4 border-t border-outline-variant/30 flex flex-col gap-1 shrink-0">
+                        <NavLink to="/alterar-senha" className={navClass} onClick={() => setMenuOpen(false)}>
+                            <span className="material-symbols-outlined">lock</span>
+                            Alterar senha
+                        </NavLink>
                         <LogoutButton onClick={handleLogout} />
-                        <SupportFooter />
+                        <SupportFooter className="mt-3" />
                     </div>
                 </div>
             )}
@@ -145,6 +191,9 @@ export default function AppShell({ children }) {
                     <SupportFooter className="mt-10 pb-2 md:hidden" />
                 </div>
             </div>
+
+            {/* Chat de suporte: disponível para orientador e avaliador (o admin é o suporte). */}
+            {(user?.role === 'orientador' || user?.role === 'avaliador') && <ChatWidget />}
         </div>
     );
 }

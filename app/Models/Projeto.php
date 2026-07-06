@@ -26,7 +26,7 @@ class Projeto extends Model
      * request — o FormRequest não valida/aceita user_id.
      */
     protected $fillable = [
-        'user_id', 'edicao_id', 'titulo', 'categoria', 'instituicao_id', 'area_id',
+        'user_id', 'edicao_id', 'titulo', 'categoria', 'pictec_ms', 'instituicao_id', 'area_id',
         'subarea_id', 'resumo', 'link_video', 'palavras_chave', 'pais', 'estado_id',
         'cidade_id', 'estado_nome', 'cidade_nome', 'continuacao', 'tempo_pesquisa_meses', 'feira_afiliada',
         'feira_afiliada_nome', 'necessita_termo_etica', 'numero_credencial', 'agenda_2030',
@@ -38,6 +38,7 @@ class Projeto extends Model
     {
         return [
             'categoria' => Categoria::class,
+            'pictec_ms' => 'boolean',
             'status' => ProjetoStatus::class,
             'palavras_chave' => 'array',
             'continuacao' => 'boolean',
@@ -100,9 +101,12 @@ class Projeto extends Model
         return $this->hasMany(ProjetoDocumento::class);
     }
 
-    /** Limite de alunos conforme a categoria (Jr=4, demais=3); null se sem categoria. */
+    /**
+     * Limite de alunos conforme a categoria (Jr=3, FUNDECT=4, FETECMS=3 ou 4 com
+     * PICTEC MS); null se sem categoria.
+     */
     public function maxAlunos(): ?int
     {
-        return $this->categoria?->maxAlunos();
+        return $this->categoria?->maxAlunos((bool) $this->pictec_ms);
     }
 }

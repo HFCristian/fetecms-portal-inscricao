@@ -1,0 +1,8 @@
+# Falsos positivos conhecidos do Gitleaks (suprimidos pelo fingerprint exato —
+# não afeta a varredura de nenhum outro arquivo/linha).
+#
+# 'OutraCoisa123' era uma senha-fixture do teste de troca de senha (caso de
+# confirmação divergente), não um segredo real. O valor já foi substituído por
+# uma string de baixa entropia em commit posterior; este fingerprint apenas
+# ignora a detecção no commit histórico que a introduziu.
+26a1613163030147c82b85252649a1bb8f378781:tests/Feature/Auth/AlterarSenhaTest.php:generic-api-key:71

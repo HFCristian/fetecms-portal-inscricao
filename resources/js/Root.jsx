@@ -20,11 +20,13 @@ import Parametrizacao from './pages/Parametrizacao.jsx';
 import ParametrizacaoAreas from './pages/ParametrizacaoAreas.jsx';
 import ParametrizacaoEscolas from './pages/ParametrizacaoEscolas.jsx';
 import AdminManager from './pages/AdminManager.jsx';
+import AdminSuporte from './pages/AdminSuporte.jsx';
+import AlterarSenha from './pages/AlterarSenha.jsx';
 
 function Spinner() {
     return (
         <div className="min-h-screen flex items-center justify-center text-on-surface-variant">
-            <span className="material-symbols-outlined animate-spin">progress_activity</span>
+            <span className="inline-block w-8 h-8 rounded-full border-4 border-on-surface-variant/25 border-t-primary animate-spin align-[-0.2em]" role="status" aria-label="Carregando" />
         </div>
     );
 }
@@ -47,6 +49,11 @@ export default function Root() {
                         <Route path="/login" element={<GuestRoute><Login /></GuestRoute>} />
                         <Route path="/cadastro" element={<GuestRoute><Cadastro /></GuestRoute>} />
                         <Route path="/cadastro/avaliador" element={<GuestRoute><CadastroAvaliador /></GuestRoute>} />
+
+                        {/* Disponível a qualquer usuário autenticado */}
+                        <Route element={<RoleRoute />}>
+                            <Route path="/alterar-senha" element={<AlterarSenha />} />
+                        </Route>
 
                         {/* Área do orientador */}
                         <Route element={<RoleRoute allow={['orientador']} />}>
@@ -74,6 +81,7 @@ export default function Root() {
                             <Route path="/admin/parametrizacao/areas" element={<ParametrizacaoAreas />} />
                             <Route path="/admin/parametrizacao/escolas" element={<ParametrizacaoEscolas />} />
                             <Route path="/admin/gerir-admins" element={<AdminManager />} />
+                            <Route path="/admin/suporte" element={<AdminSuporte />} />
                         </Route>
 
                         <Route path="*" element={<Navigate to="/" replace />} />

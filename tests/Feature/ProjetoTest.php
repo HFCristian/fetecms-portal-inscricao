@@ -57,6 +57,41 @@ class ProjetoTest extends TestCase
             ->assertJsonPath('data.titulo', 'Atualizado');
     }
 
+    public function test_pictec_ms_persiste_na_fetecms(): void
+    {
+        $user = $this->orientador();
+        $projeto = Projeto::factory()->create(['user_id' => $user->id]);
+        Sanctum::actingAs($user);
+
+        $this->putJson("/api/v1/projetos/{$projeto->id}", [
+            'categoria' => 'fetecms',
+            'pictec_ms' => true,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.pictec_ms', true)
+            ->assertJsonPath('data.max_alunos', 4);
+
+        $this->assertDatabaseHas('projetos', ['id' => $projeto->id, 'pictec_ms' => true]);
+    }
+
+    public function test_pictec_ms_zerado_quando_categoria_nao_e_fetecms(): void
+    {
+        $user = $this->orientador();
+        $projeto = Projeto::factory()->create(['user_id' => $user->id]);
+        Sanctum::actingAs($user);
+
+        // Mesmo enviando pictec_ms=true, fora da FETECMS o flag é descartado.
+        $this->putJson("/api/v1/projetos/{$projeto->id}", [
+            'categoria' => 'fetecms_fundect',
+            'pictec_ms' => true,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.pictec_ms', false)
+            ->assertJsonPath('data.max_alunos', 4);
+
+        $this->assertDatabaseHas('projetos', ['id' => $projeto->id, 'pictec_ms' => false]);
+    }
+
     public function test_nao_ve_projeto_de_outro_orientador(): void
     {
         $projetoAlheio = Projeto::factory()->create();

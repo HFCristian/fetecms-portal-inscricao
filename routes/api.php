@@ -6,6 +6,8 @@ use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\AvaliadorController;
 use App\Http\Controllers\Api\V1\CatalogoAdminController;
 use App\Http\Controllers\Api\V1\CatalogoController;
+use App\Http\Controllers\Api\V1\ChatAdminController;
+use App\Http\Controllers\Api\V1\ChatController;
 use App\Http\Controllers\Api\V1\CoorientadorController;
 use App\Http\Controllers\Api\V1\DocumentoController;
 use App\Http\Controllers\Api\V1\InstituicaoAdminController;
@@ -53,6 +55,9 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('/auth/logout', [AuthController::class, 'logout']);
         Route::get('/auth/me', [AuthController::class, 'me']);
+        // Troca de senha (qualquer papel); rate limit contra brute force da senha atual.
+        Route::put('/auth/senha', [AuthController::class, 'alterarSenha'])
+            ->middleware('throttle:6,1');
 
         Route::get('/perfil', [PerfilController::class, 'show']);
         Route::put('/perfil', [PerfilController::class, 'update']);
@@ -83,6 +88,14 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
         Route::get('documentos/{documento}/preview', [DocumentoController::class, 'preview']);
         Route::delete('documentos/{documento}', [DocumentoController::class, 'destroy']);
 
+        // Chat de suporte — orientador/avaliador falam com o suporte (admin)
+        Route::middleware('role:orientador,avaliador')->prefix('chat')->group(function () {
+            Route::get('/conversa', [ChatController::class, 'show']);
+            Route::get('/nao-lidas', [ChatController::class, 'naoLidas']);
+            Route::post('/mensagens', [ChatController::class, 'store'])
+                ->middleware('throttle:30,1');
+        });
+
         // Administração (E8) — somente admin
         Route::prefix('admin')->middleware('role:admin')->group(function () {
             Route::get('/dashboard', [AdminController::class, 'dashboard']);
@@ -104,6 +117,13 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::put('/instituicoes/{instituicao}', [InstituicaoAdminController::class, 'update']);
             Route::post('/instituicoes/{instituicao}/mesclar', [InstituicaoAdminController::class, 'merge']);
             Route::delete('/instituicoes/{instituicao}', [InstituicaoAdminController::class, 'destroy']);
+
+            // Chat de suporte (inbox): conversas dos orientadores/avaliadores
+            Route::get('/conversas', [ChatAdminController::class, 'index']);
+            Route::get('/conversas-nao-vistas', [ChatAdminController::class, 'naoVistas']);
+            Route::get('/conversas/{conversa}', [ChatAdminController::class, 'show']);
+            Route::patch('/conversas/{conversa}/status', [ChatAdminController::class, 'atualizarStatus']);
+            Route::post('/conversas/{conversa}/responder', [ChatAdminController::class, 'responder']);
         });
     });
 });

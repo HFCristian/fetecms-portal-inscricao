@@ -6,7 +6,7 @@ const rotulo = (item) => (item.uf ? `${item.nome} (${item.uf})` : item.nome);
 export function Carregando() {
     return (
         <div className="text-center py-10 text-on-surface-variant">
-            <span className="material-symbols-outlined animate-spin">progress_activity</span>
+            <span className="inline-block w-8 h-8 rounded-full border-4 border-on-surface-variant/25 border-t-primary animate-spin align-[-0.2em]" role="status" aria-label="Carregando" />
         </div>
     );
 }
