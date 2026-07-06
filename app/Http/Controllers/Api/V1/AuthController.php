@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\AlterarSenhaRequest;
+use App\Http\Requests\Auth\EsqueciSenhaRequest;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Http\Requests\Auth\RedefinirSenhaRequest;
 use App\Http\Resources\UserResource;
 use App\Services\AuthService;
 use Illuminate\Http\JsonResponse;
@@ -63,5 +65,28 @@ class AuthController extends Controller
         );
 
         return response()->json(['data' => ['message' => 'Senha alterada com sucesso.']]);
+    }
+
+    /**
+     * Solicita o e-mail com o link de redefinição de senha. Resposta sempre
+     * neutra (não revela se o e-mail existe) para prevenir enumeração de usuários.
+     */
+    public function esqueciSenha(EsqueciSenhaRequest $request): JsonResponse
+    {
+        $this->auth->enviarLinkRecuperacao($request->validated('email'));
+
+        return response()->json(['data' => [
+            'message' => 'Se este e-mail estiver cadastrado, enviamos um link para redefinir a senha.',
+        ]]);
+    }
+
+    /** Redefine a senha a partir do token enviado por e-mail. */
+    public function redefinirSenha(RedefinirSenhaRequest $request): JsonResponse
+    {
+        $this->auth->redefinirSenha($request->validated());
+
+        return response()->json(['data' => [
+            'message' => 'Senha redefinida com sucesso. Você já pode entrar com a nova senha.',
+        ]]);
     }
 }

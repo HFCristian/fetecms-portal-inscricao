@@ -4,6 +4,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Enums\Role;
+use App\Notifications\RedefinirSenhaNotification;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -64,5 +65,14 @@ class User extends Authenticatable
     public function isAdmin(): bool
     {
         return $this->role === Role::Admin;
+    }
+
+    /**
+     * Envia a notificação de redefinição de senha em pt_BR, com link para o SPA
+     * (sobrescreve o padrão do Laravel, que aponta para uma rota nomeada Blade).
+     */
+    public function sendPasswordResetNotification($token): void
+    {
+        $this->notify(new RedefinirSenhaNotification($token));
     }
 }

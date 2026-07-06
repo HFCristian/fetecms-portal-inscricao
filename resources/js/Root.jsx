@@ -3,6 +3,8 @@ import { AuthProvider, useAuth, homeFor } from './lib/auth.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import { RoleRoute, RoleRedirect } from './components/RoleRoute.jsx';
 import Login from './pages/Login.jsx';
+import EsqueciSenha from './pages/EsqueciSenha.jsx';
+import RedefinirSenha from './pages/RedefinirSenha.jsx';
 import Cadastro from './pages/Cadastro.jsx';
 import CadastroAvaliador from './pages/CadastroAvaliador.jsx';
 import Projetos from './pages/Projetos.jsx';
@@ -47,6 +49,9 @@ export default function Root() {
                     <Routes>
                         <Route path="/" element={<RoleRedirect />} />
                         <Route path="/login" element={<GuestRoute><Login /></GuestRoute>} />
+                        <Route path="/esqueci-senha" element={<GuestRoute><EsqueciSenha /></GuestRoute>} />
+                        {/* Redefinição via link do e-mail: acessível mesmo se houver sessão aberta. */}
+                        <Route path="/redefinir-senha" element={<RedefinirSenha />} />
                         <Route path="/cadastro" element={<GuestRoute><Cadastro /></GuestRoute>} />
                         <Route path="/cadastro/avaliador" element={<GuestRoute><CadastroAvaliador /></GuestRoute>} />
 
