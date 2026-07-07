@@ -73,6 +73,15 @@ export default function Login() {
                         </div>
                     </Field>
 
+                    <div className="flex justify-end -mt-2">
+                        <Link
+                            to="/esqueci-senha"
+                            className="text-sm font-semibold text-primary-container hover:underline"
+                        >
+                            Esqueci minha senha
+                        </Link>
+                    </div>
+
                     <Button type="submit" loading={loading} className="w-full">
                         <span className="material-symbols-outlined text-[20px]">login</span>
                         ENTRAR

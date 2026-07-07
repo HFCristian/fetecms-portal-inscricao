@@ -39,6 +39,12 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
     Route::post('/auth/login', [AuthController::class, 'login'])
         ->middleware('throttle:6,1');
 
+    // Recuperação de senha (link temporário por e-mail) — rate limit contra abuso.
+    Route::post('/auth/esqueci-senha', [AuthController::class, 'esqueciSenha'])
+        ->middleware('throttle:6,1');
+    Route::post('/auth/redefinir-senha', [AuthController::class, 'redefinirSenha'])
+        ->middleware('throttle:6,1');
+
     // Catálogos (leitura pública — dados de referência)
     Route::prefix('catalogos')->group(function () {
         Route::get('/edicoes', [CatalogoController::class, 'edicoes']);
