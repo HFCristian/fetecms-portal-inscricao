@@ -53,6 +53,12 @@ class User extends Authenticatable
         return $this->hasMany(Projeto::class);
     }
 
+    /** Avaliações em que este usuário é o avaliador (E7). */
+    public function avaliacoes(): HasMany
+    {
+        return $this->hasMany(Avaliacao::class, 'avaliador_id');
+    }
+
     public function isOrientador(): bool
     {
         return $this->role === Role::Orientador;

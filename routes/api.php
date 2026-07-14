@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\AdminAvaliacaoController;
 use App\Http\Controllers\Api\V1\AdminController;
 use App\Http\Controllers\Api\V1\AlunoController;
 use App\Http\Controllers\Api\V1\AuthController;
@@ -107,6 +108,10 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
         Route::prefix('admin')->middleware('role:admin')->group(function () {
             Route::get('/dashboard', [AdminController::class, 'dashboard']);
             Route::get('/avaliadores', [AdminController::class, 'avaliadores']);
+
+            // Avaliação online (E7): visão por área de avaliadores e projetos submetidos
+            Route::get('/avaliacao/avaliadores', [AdminAvaliacaoController::class, 'avaliadores']);
+            Route::get('/avaliacao/projetos', [AdminAvaliacaoController::class, 'projetos']);
             Route::get('/projetos-por-area', [AdminController::class, 'projetosPorArea']);
             Route::get('/projetos-por-localidade', [AdminController::class, 'projetosPorLocalidade']);
             Route::post('/admins', [AdminController::class, 'store']);

@@ -37,6 +37,10 @@ function NavLinks({ role, onNavigate, suporteBadge = 0 }) {
                     <span className="material-symbols-outlined">fact_check</span>
                     Avaliadores
                 </NavLink>
+                <NavLink to="/admin/avaliacao" className={navClass} onClick={onNavigate}>
+                    <span className="material-symbols-outlined">grading</span>
+                    Avaliação online
+                </NavLink>
                 <NavLink to="/admin/parametrizacao" className={navClass} onClick={onNavigate}>
                     <span className="material-symbols-outlined">tune</span>
                     Parametrização

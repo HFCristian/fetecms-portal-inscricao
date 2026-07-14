@@ -24,6 +24,9 @@ import ParametrizacaoEscolas from './pages/ParametrizacaoEscolas.jsx';
 import AdminManager from './pages/AdminManager.jsx';
 import AdminSuporte from './pages/AdminSuporte.jsx';
 import AdminAvaliadores from './pages/AdminAvaliadores.jsx';
+import AdminAvaliacaoOnline from './pages/AdminAvaliacaoOnline.jsx';
+import AvaliacaoAvaliadores from './pages/AvaliacaoAvaliadores.jsx';
+import AvaliacaoProjetos from './pages/AvaliacaoProjetos.jsx';
 import AlterarSenha from './pages/AlterarSenha.jsx';
 
 function Spinner() {
@@ -80,6 +83,9 @@ export default function Root() {
                         <Route element={<RoleRoute allow={['admin']} />}>
                             <Route path="/admin" element={<AdminHome />} />
                             <Route path="/admin/avaliadores" element={<AdminAvaliadores />} />
+                            <Route path="/admin/avaliacao" element={<AdminAvaliacaoOnline />} />
+                            <Route path="/admin/avaliacao/avaliadores" element={<AvaliacaoAvaliadores />} />
+                            <Route path="/admin/avaliacao/projetos" element={<AvaliacaoProjetos />} />
                             <Route path="/admin/projetos-por-area" element={<AdminProjetosPorArea />} />
                             <Route path="/admin/projetos-por-estado" element={<AdminProjetosPorEstado />} />
                             <Route path="/admin/projetos-por-cidade" element={<AdminProjetosPorCidade />} />
