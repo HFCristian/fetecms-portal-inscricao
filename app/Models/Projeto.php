@@ -101,6 +101,11 @@ class Projeto extends Model
         return $this->hasMany(ProjetoDocumento::class);
     }
 
+    public function avaliacoes(): HasMany
+    {
+        return $this->hasMany(Avaliacao::class);
+    }
+
     /**
      * Limite de alunos conforme a categoria (Jr=3, FUNDECT=4, FETECMS=3 ou 4 com
      * PICTEC MS); null se sem categoria.

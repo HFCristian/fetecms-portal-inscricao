@@ -3,13 +3,13 @@ import { Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { getDashboard } from '../lib/admin.js';
 
-// Cards simples (1 número). O card de status (submetidos + rascunho) é tratado à parte.
+// Cards do painel. `status` = submetidos/rascunho; `genero` = mulheres/homens/outros.
 const CARDS = [
     { key: 'projetos_total', label: 'Projetos (total)', icon: 'folder', verMais: '/admin/projetos-por-area' },
     { type: 'status', label: 'Projetos por status', icon: 'donut_large' },
-    { key: 'orientadores', label: 'Orientadores', icon: 'person' },
-    { key: 'alunos', label: 'Alunos', icon: 'school' },
-    { key: 'coorientadores', label: 'Coorientadores', icon: 'group' },
+    { type: 'genero', generoKey: 'orientadores_genero', label: 'Orientadores', icon: 'person' },
+    { type: 'genero', generoKey: 'alunos_genero', label: 'Alunos', icon: 'school' },
+    { type: 'genero', generoKey: 'coorientadores_genero', label: 'Coorientadores', icon: 'group' },
     { key: 'escolas_com_projeto', label: 'Escolas com projeto', icon: 'apartment', verMais: '/admin/projetos-por-escola' },
     { key: 'cidades_com_projeto', label: 'Cidades com projeto', icon: 'location_city', verMais: '/admin/projetos-por-cidade' },
     { key: 'estados_com_projeto', label: 'Estados com projeto', icon: 'map', verMais: '/admin/projetos-por-estado' },
@@ -22,8 +22,31 @@ function VerMais({ to }) {
             className="flex flex-row items-center justify-center text-sm font-semibold text-primary-container hover:text-primary hover:border-b-2 border-primary transition ease-in-out w-2/4"
         >
             <p>Ver mais</p>
-            <span class="material-symbols-outlined text-[18px]">chevron_right</span>
+            <span className="material-symbols-outlined text-[18px]">chevron_right</span>
         </Link>
+    );
+}
+
+// Recorte por gênero: mulheres (F), homens (M) e outros/não informado.
+function GeneroBreakdown({ dados, label }) {
+    const g = dados ?? { f: 0, m: 0, outros: 0 };
+    const colunas = [
+        { valor: g.f, rotulo: 'Mulheres', cor: 'text-primary-container' },
+        { valor: g.m, rotulo: 'Homens', cor: 'text-secondary' },
+        { valor: g.outros, rotulo: 'Outros/N.I.', cor: 'text-on-surface-variant' },
+    ];
+    return (
+        <>
+            <div className="flex gap-3 py-2">
+                {colunas.map((c) => (
+                    <div key={c.rotulo}>
+                        <div className={`text-2xl font-bold ${c.cor}`}>{c.valor ?? 0}</div>
+                        <div className="text-[11px] text-on-surface-variant leading-tight">{c.rotulo}</div>
+                    </div>
+                ))}
+            </div>
+            <div className="text-sm text-on-surface-variant">{label}</div>
+        </>
     );
 }
 
@@ -44,7 +67,7 @@ export default function AdminHome() {
             ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-10">
                     {CARDS.map((c) => (
-                        <div key={c.key ?? c.type} className="flex flex-col items-center text-center gap-2 bg-surface-container-lowest rounded-xl fetec-card-shadow p-5">
+                        <div key={c.key ?? c.generoKey ?? c.type} className="flex flex-col items-center text-center gap-2 bg-surface-container-lowest rounded-xl fetec-card-shadow p-5">
                             <span className="material-symbols-outlined text-primary-container text-2xl">{c.icon}</span>
 
                             {c.type === 'status' ? (
@@ -61,6 +84,8 @@ export default function AdminHome() {
                                     </div>
                                     <div className="text-sm text-on-surface-variant">{c.label}</div>
                                 </>
+                            ) : c.type === 'genero' ? (
+                                <GeneroBreakdown dados={m[c.generoKey]} label={c.label} />
                             ) : (
                                 <>
                                     <div className='py-2'>
