@@ -121,4 +121,42 @@ class InstituicaoAdminTest extends TestCase
             ->assertJsonPath('meta.message', 'Instituição excluída.');
         $this->assertDatabaseMissing('instituicoes', ['id' => $inst->id]);
     }
+
+    public function test_lista_de_escolas_e_paginada_em_50(): void
+    {
+        for ($i = 1; $i <= 60; $i++) {
+            Instituicao::create(['nome' => sprintf('Escola %03d', $i)]);
+        }
+        Sanctum::actingAs($this->admin());
+
+        $this->getJson('/api/v1/admin/instituicoes')
+            ->assertOk()
+            ->assertJsonCount(50, 'data')
+            ->assertJsonPath('meta.total', 60)
+            ->assertJsonPath('meta.por_pagina', 50)
+            ->assertJsonPath('meta.ultima_pagina', 2)
+            ->assertJsonPath('meta.pagina_atual', 1);
+
+        $this->getJson('/api/v1/admin/instituicoes?page=2')
+            ->assertOk()
+            ->assertJsonCount(10, 'data')
+            ->assertJsonPath('meta.pagina_atual', 2);
+    }
+
+    public function test_ordenacao_por_nome_e_por_criacao(): void
+    {
+        Instituicao::create(['nome' => 'Beta']);
+        Instituicao::create(['nome' => 'Alfa']);
+        Instituicao::create(['nome' => 'Gama']); // criada por último
+
+        Sanctum::actingAs($this->admin());
+
+        // Nome (A–Z): Alfa primeiro.
+        $this->getJson('/api/v1/admin/instituicoes?ordenar=nome')
+            ->assertOk()->assertJsonPath('data.0.nome', 'Alfa');
+
+        // Criação (mais recentes primeiro): a última criada (Gama) vem primeiro.
+        $this->getJson('/api/v1/admin/instituicoes?ordenar=criacao')
+            ->assertOk()->assertJsonPath('data.0.nome', 'Gama');
+    }
 }

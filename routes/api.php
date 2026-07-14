@@ -98,6 +98,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
         Route::middleware('role:orientador,avaliador')->prefix('chat')->group(function () {
             Route::get('/conversa', [ChatController::class, 'show']);
             Route::get('/nao-lidas', [ChatController::class, 'naoLidas']);
+            Route::post('/dispensar-dica', [ChatController::class, 'dispensarDica']);
             Route::post('/mensagens', [ChatController::class, 'store'])
                 ->middleware('throttle:30,1');
         });
@@ -105,9 +106,13 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
         // Administração (E8) — somente admin
         Route::prefix('admin')->middleware('role:admin')->group(function () {
             Route::get('/dashboard', [AdminController::class, 'dashboard']);
+            Route::get('/avaliadores', [AdminController::class, 'avaliadores']);
             Route::get('/projetos-por-area', [AdminController::class, 'projetosPorArea']);
             Route::get('/projetos-por-localidade', [AdminController::class, 'projetosPorLocalidade']);
             Route::post('/admins', [AdminController::class, 'store']);
+            Route::get('/admins', [AdminController::class, 'listarAdmins']);
+            Route::put('/admins/{admin}', [AdminController::class, 'updateAdmin']);
+            Route::patch('/admins/{admin}/status', [AdminController::class, 'statusAdmin']);
 
             // Parametrização do catálogo (áreas/subáreas)
             Route::get('/catalogo', [CatalogoAdminController::class, 'index']);

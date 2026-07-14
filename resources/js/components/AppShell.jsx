@@ -30,8 +30,12 @@ function NavLinks({ role, onNavigate, suporteBadge = 0 }) {
         return (
             <>
                 <NavLink to="/admin" end className={navClass} onClick={onNavigate}>
-                    <span className="material-symbols-outlined">dashboard</span>
-                    Dashboard
+                    <span className="material-symbols-outlined">folder</span>
+                    Projetos
+                </NavLink>
+                <NavLink to="/admin/avaliadores" className={navClass} onClick={onNavigate}>
+                    <span className="material-symbols-outlined">fact_check</span>
+                    Avaliadores
                 </NavLink>
                 <NavLink to="/admin/parametrizacao" className={navClass} onClick={onNavigate}>
                     <span className="material-symbols-outlined">tune</span>

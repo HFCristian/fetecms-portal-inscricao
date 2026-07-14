@@ -18,6 +18,7 @@ class UserResource extends JsonResource
             'role' => $this->role->value,
             'role_label' => $this->role->label(),
             'is_active' => $this->is_active,
+            'chat_dica_dispensada' => (bool) $this->chat_dica_dispensada,
             'orientador_profile' => OrientadorProfileResource::make(
                 $this->whenLoaded('orientadorProfile')
             ),

@@ -16,26 +16,54 @@ class InstituicaoAdminService
     /** Tabelas que referenciam instituicao_id. */
     private const TABELAS = ['projetos', 'alunos', 'orientador_profiles'];
 
-    /** Busca instituições por nome (com cidade, tipo e total de usos). Limite de 50. */
-    public function buscar(?string $termo): array
+    public const POR_PAGINA = 50;
+
+    /**
+     * Busca instituições (com cidade, tipo e total de usos), paginada em 50/página.
+     * Ordenação: 'nome' (A–Z) ou 'criacao' (mais recentes primeiro, via id).
+     *
+     * @return array{itens: array, meta: array{pagina_atual:int, ultima_pagina:int, total:int, por_pagina:int}}
+     */
+    public function buscar(?string $termo, string $ordenar = 'nome', int $pagina = 1): array
     {
         $usos = $this->contarUsos();
 
-        return Instituicao::with('cidade:id,nome')
+        $query = Instituicao::query()
+            ->with('cidade:id,nome')
             ->when(
                 $termo !== null && $termo !== '',
                 fn ($q) => $q->buscaNome($termo)
-            )
-            ->orderBy('nome')
-            ->limit(50)
-            ->get(['id', 'nome', 'cidade_id', 'tipo'])
-            ->map(fn (Instituicao $i) => [
-                'id' => $i->id,
-                'nome' => $i->nome,
-                'cidade' => $i->cidade?->nome,
-                'tipo' => $i->tipo,
-                'usos' => $usos[$i->id] ?? 0,
-            ])->all();
+            );
+
+        if ($ordenar === 'criacao') {
+            $query->orderByDesc('id'); // id é monotônico com a criação (evita created_at nulo do import)
+        } else {
+            $query->orderBy('nome');
+        }
+
+        $paginado = $query->paginate(
+            perPage: self::POR_PAGINA,
+            columns: ['id', 'nome', 'cidade_id', 'tipo'],
+            page: max(1, $pagina),
+        );
+
+        $itens = collect($paginado->items())->map(fn (Instituicao $i) => [
+            'id' => $i->id,
+            'nome' => $i->nome,
+            'cidade' => $i->cidade?->nome,
+            'tipo' => $i->tipo,
+            'usos' => $usos[$i->id] ?? 0,
+        ])->all();
+
+        return [
+            'itens' => $itens,
+            'meta' => [
+                'pagina_atual' => $paginado->currentPage(),
+                'ultima_pagina' => $paginado->lastPage(),
+                'total' => $paginado->total(),
+                'por_pagina' => $paginado->perPage(),
+            ],
+        ];
     }
 
     public function renomear(Instituicao $instituicao, string $nome): void

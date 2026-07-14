@@ -6,7 +6,9 @@ vi.mock('../lib/auth.jsx', () => ({
     useAuth: () => ({
         user: { name: 'Av Teste', role: 'avaliador', avaliador_profile: { area: 'Ciências Exatas e da Terra', subarea: null } },
         logout: vi.fn(),
+        setUser: vi.fn(),
     }),
+    homeFor: () => '/avaliador',
 }));
 
 import AvaliadorHome from './AvaliadorHome.jsx';
