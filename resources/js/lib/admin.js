@@ -25,8 +25,12 @@ export const excluirSubarea = (id) => http.delete(`/admin/subareas/${id}`).then(
 
 // Parametrização de instituições (escolas). Toda mutação devolve a lista filtrada pelo
 // termo de busca atual (passado em query) para a tela recarregar sem segunda requisição.
-const params = (search) => ({ params: search ? { search } : {} });
-export const getInstituicoesAdmin = (search) => http.get('/admin/instituicoes', params(search)).then((r) => r.data.data);
-export const renomearInstituicao = (id, nome, search) => http.put(`/admin/instituicoes/${id}`, { nome }, params(search)).then((r) => r.data.data);
-export const mesclarInstituicao = (id, destinoId, search) => http.post(`/admin/instituicoes/${id}/mesclar`, { destino_id: destinoId }, params(search)).then((r) => r.data.data);
-export const excluirInstituicao = (id, search) => http.delete(`/admin/instituicoes/${id}`, params(search)).then((r) => r.data.data);
+// opts: { search, ordenar: 'nome'|'criacao', page }. Toda chamada devolve { data, meta }
+// (meta com pagina_atual/ultima_pagina/total/por_pagina) para paginar sem 2ª requisição.
+const instParams = ({ search, ordenar, page } = {}) => ({
+    params: { ...(search ? { search } : {}), ordenar: ordenar ?? 'nome', page: page ?? 1 },
+});
+export const getInstituicoesAdmin = (opts) => http.get('/admin/instituicoes', instParams(opts)).then((r) => r.data);
+export const renomearInstituicao = (id, nome, opts) => http.put(`/admin/instituicoes/${id}`, { nome }, instParams(opts)).then((r) => r.data);
+export const mesclarInstituicao = (id, destinoId, opts) => http.post(`/admin/instituicoes/${id}/mesclar`, { destino_id: destinoId }, instParams(opts)).then((r) => r.data);
+export const excluirInstituicao = (id, opts) => http.delete(`/admin/instituicoes/${id}`, instParams(opts)).then((r) => r.data);

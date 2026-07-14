@@ -47,11 +47,17 @@ class InstituicaoAdminController extends Controller
 
     private function lista(Request $request, ?string $message = null): JsonResponse
     {
-        $payload = ['data' => $this->service->buscar($request->query('search') ?: null)];
+        $resultado = $this->service->buscar(
+            $request->query('search') ?: null,
+            $request->query('ordenar') === 'criacao' ? 'criacao' : 'nome',
+            (int) $request->query('page', 1),
+        );
+
+        $meta = $resultado['meta'];
         if ($message !== null) {
-            $payload['meta'] = ['message' => $message];
+            $meta['message'] = $message;
         }
 
-        return response()->json($payload);
+        return response()->json(['data' => $resultado['itens'], 'meta' => $meta]);
     }
 }

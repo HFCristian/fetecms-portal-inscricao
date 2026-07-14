@@ -141,43 +141,67 @@ function EscolaRow({ item, onRename, onMerge, onDelete }) {
 
 export default function ParametrizacaoEscolas() {
     const [busca, setBusca] = useState('');
+    const [ordenar, setOrdenar] = useState('nome'); // 'nome' | 'criacao'
+    const [page, setPage] = useState(1);
     const [lista, setLista] = useState(null);
+    const [meta, setMeta] = useState(null);
     const [alert, setAlert] = useState('');
     const [success, setSuccess] = useState('');
     const [confirm, confirmDialog] = useConfirm();
 
-    // Termo efetivamente aplicado na busca (após debounce) — usado também nas mutações
-    // para o servidor devolver a lista já filtrada.
+    // Estado atual (após debounce) — usado nas mutações para o servidor devolver a
+    // MESMA página filtrada/ordenada, sem uma segunda requisição.
     const termoRef = useRef('');
+    const ordenarRef = useRef('nome');
+    const pageRef = useRef(1);
+    ordenarRef.current = ordenar;
+    pageRef.current = page;
 
     useEffect(() => {
         const t = setTimeout(() => {
             const termo = busca.trim();
             termoRef.current = termo;
             setLista(null);
-            getInstituicoesAdmin(termo).then(setLista).catch(() => setLista([]));
+            getInstituicoesAdmin({ search: termo, ordenar, page })
+                .then((resp) => { setLista(resp.data); setMeta(resp.meta); })
+                .catch(() => { setLista([]); setMeta(null); });
         }, 300);
         return () => clearTimeout(t);
-    }, [busca]);
+    }, [busca, ordenar, page]);
+
+    const opts = () => ({ search: termoRef.current, ordenar: ordenarRef.current, page: pageRef.current });
 
     function aplicar(promise, okMsg) {
         setAlert(''); setSuccess('');
         return promise
-            .then((nova) => { setLista(nova); setSuccess(okMsg); })
+            .then((resp) => {
+                setSuccess(okMsg);
+                // Página esvaziou (ex.: excluí o último item dela) → volta uma página.
+                if ((resp.data?.length ?? 0) === 0 && (resp.meta?.pagina_atual ?? 1) > 1) {
+                    setPage((p) => Math.max(1, p - 1));
+                } else {
+                    setLista(resp.data);
+                    setMeta(resp.meta);
+                }
+            })
             .catch((e) => { setAlert(extractErrors(e).message); throw e; });
     }
 
-    const onRename = (id, nome) => aplicar(renomearInstituicao(id, nome, termoRef.current), 'Instituição renomeada.');
+    const onRename = (id, nome) => aplicar(renomearInstituicao(id, nome, opts()), 'Instituição renomeada.');
 
     async function onMerge(id, destinoId) {
         const ok = await confirm({ title: 'Mesclar instituições', danger: true, confirmLabel: 'Mesclar',
             message: 'Todas as referências (projetos, alunos e orientadores) serão movidas para a instituição de destino, e esta será excluída. Continuar?' });
-        if (ok) return aplicar(mesclarInstituicao(id, destinoId, termoRef.current), 'Instituições mescladas.');
+        if (ok) return aplicar(mesclarInstituicao(id, destinoId, opts()), 'Instituições mescladas.');
     }
     async function onDelete(item) {
         const ok = await confirm({ title: 'Excluir instituição', danger: true, confirmLabel: 'Excluir', message: `Excluir a instituição “${item.nome}”?` });
-        if (ok) aplicar(excluirInstituicao(item.id, termoRef.current), 'Instituição excluída.').catch(() => {});
+        if (ok) aplicar(excluirInstituicao(item.id, opts()), 'Instituição excluída.').catch(() => {});
     }
+
+    // Trocar busca/ordenação sempre reinicia na página 1.
+    const mudarBusca = (v) => { setBusca(v); setPage(1); };
+    const mudarOrdenar = (v) => { setOrdenar(v); setPage(1); };
 
     return (
         <AppShell>
@@ -195,16 +219,33 @@ export default function ParametrizacaoEscolas() {
             {success && <div className="mb-4 max-w-3xl"><Alert type="info">{success}</Alert></div>}
 
             <div className="max-w-3xl">
-                <div className="relative mb-4">
-                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">search</span>
-                    <input
-                        type="text"
-                        className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg pl-10 pr-3 py-2.5 text-on-surface placeholder:text-outline focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 transition-all outline-none"
-                        placeholder="Buscar escola pelo nome…"
-                        value={busca}
-                        onChange={(e) => setBusca(e.target.value)}
-                    />
+                <div className="flex flex-col sm:flex-row gap-2 mb-3">
+                    <div className="relative flex-1">
+                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">search</span>
+                        <input
+                            type="text"
+                            className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg pl-10 pr-3 py-2.5 text-on-surface placeholder:text-outline focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 transition-all outline-none"
+                            placeholder="Buscar escola pelo nome…"
+                            value={busca}
+                            onChange={(e) => mudarBusca(e.target.value)}
+                        />
+                    </div>
+                    <select
+                        aria-label="Ordenar escolas"
+                        value={ordenar}
+                        onChange={(e) => mudarOrdenar(e.target.value)}
+                        className="bg-surface-container-lowest border border-outline-variant rounded-lg px-3 py-2.5 text-sm text-on-surface focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 outline-none sm:w-52"
+                    >
+                        <option value="nome">Nome (A–Z)</option>
+                        <option value="criacao">Mais recentes</option>
+                    </select>
                 </div>
+
+                {meta && (
+                    <p className="text-xs text-on-surface-variant mb-2">
+                        {meta.total} {meta.total === 1 ? 'escola' : 'escolas'}{busca.trim() ? (meta.total === 1 ? ' encontrada' : ' encontradas') : ''}.
+                    </p>
+                )}
 
                 {lista === null ? (
                     <div className="text-center py-10 text-on-surface-variant"><span className="inline-block w-8 h-8 rounded-full border-4 border-on-surface-variant/25 border-t-primary animate-spin align-[-0.2em]" role="status" aria-label="Carregando" /></div>
@@ -213,14 +254,22 @@ export default function ParametrizacaoEscolas() {
                         {busca.trim() ? 'Nenhuma instituição encontrada.' : 'Nenhuma instituição cadastrada.'}
                     </div>
                 ) : (
-                    <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-4 divide-y divide-outline-variant/30">
-                        {lista.map((item) => (
-                            <EscolaRow key={item.id} item={item} onRename={onRename} onMerge={onMerge} onDelete={onDelete} />
-                        ))}
-                        {lista.length === 50 && (
-                            <p className="text-xs text-on-surface-variant pt-3">Mostrando as primeiras 50. Refine a busca para ver outras.</p>
+                    <>
+                        <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-4 divide-y divide-outline-variant/30">
+                            {lista.map((item) => (
+                                <EscolaRow key={item.id} item={item} onRename={onRename} onMerge={onMerge} onDelete={onDelete} />
+                            ))}
+                        </div>
+                        {meta && meta.ultima_pagina > 1 && (
+                            <div className="flex items-center justify-between gap-3 mt-4">
+                                <span className="text-xs text-on-surface-variant">Página {meta.pagina_atual} de {meta.ultima_pagina}</span>
+                                <div className="flex gap-2">
+                                    <Button type="button" variant="outline" disabled={meta.pagina_atual <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Anterior</Button>
+                                    <Button type="button" variant="outline" disabled={meta.pagina_atual >= meta.ultima_pagina} onClick={() => setPage((p) => p + 1)}>Próxima</Button>
+                                </div>
+                            </div>
                         )}
-                    </div>
+                    </>
                 )}
             </div>
             {confirmDialog}
