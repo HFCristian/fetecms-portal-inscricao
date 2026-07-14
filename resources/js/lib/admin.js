@@ -2,6 +2,8 @@ import http from './http.js';
 
 export const getDashboard = () => http.get('/admin/dashboard').then((r) => r.data.data);
 
+export const getAvaliadores = () => http.get('/admin/avaliadores').then((r) => r.data.data);
+
 export const getProjetosPorArea = () => http.get('/admin/projetos-por-area').then((r) => r.data.data);
 
 export const getProjetosPorLocalidade = () => http.get('/admin/projetos-por-localidade').then((r) => r.data.data);

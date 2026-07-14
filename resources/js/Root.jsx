@@ -23,6 +23,7 @@ import ParametrizacaoAreas from './pages/ParametrizacaoAreas.jsx';
 import ParametrizacaoEscolas from './pages/ParametrizacaoEscolas.jsx';
 import AdminManager from './pages/AdminManager.jsx';
 import AdminSuporte from './pages/AdminSuporte.jsx';
+import AdminAvaliadores from './pages/AdminAvaliadores.jsx';
 import AlterarSenha from './pages/AlterarSenha.jsx';
 
 function Spinner() {
@@ -78,6 +79,7 @@ export default function Root() {
                         {/* Área do admin */}
                         <Route element={<RoleRoute allow={['admin']} />}>
                             <Route path="/admin" element={<AdminHome />} />
+                            <Route path="/admin/avaliadores" element={<AdminAvaliadores />} />
                             <Route path="/admin/projetos-por-area" element={<AdminProjetosPorArea />} />
                             <Route path="/admin/projetos-por-estado" element={<AdminProjetosPorEstado />} />
                             <Route path="/admin/projetos-por-cidade" element={<AdminProjetosPorCidade />} />

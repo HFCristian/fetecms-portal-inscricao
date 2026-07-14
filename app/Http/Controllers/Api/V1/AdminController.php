@@ -8,6 +8,7 @@ use App\Http\Requests\Admin\StatusAdminRequest;
 use App\Http\Requests\Admin\UpdateAdminRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
+use App\Services\AdminAvaliadoresService;
 use App\Services\AdminDashboardService;
 use App\Services\AdminLocalidadesService;
 use App\Services\AdminProjetosService;
@@ -21,12 +22,19 @@ class AdminController extends Controller
         private readonly AdminDashboardService $dashboard,
         private readonly AdminProjetosService $projetos,
         private readonly AdminLocalidadesService $localidades,
+        private readonly AdminAvaliadoresService $avaliadores,
     ) {}
 
     /** 9 métricas do painel. */
     public function dashboard(): JsonResponse
     {
         return response()->json(['data' => $this->dashboard->metricas()]);
+    }
+
+    /** Métricas de avaliadores: totais e distribuição por área. */
+    public function avaliadores(): JsonResponse
+    {
+        return response()->json(['data' => $this->avaliadores->metricas()]);
     }
 
     /** Projetos agrupados por área do conhecimento (inclui rascunhos). */
