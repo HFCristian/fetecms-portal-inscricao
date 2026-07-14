@@ -7,6 +7,7 @@ use App\Models\Area;
 use App\Models\Coorientador;
 use App\Models\Estado;
 use App\Models\Instituicao;
+use App\Models\OrientadorProfile;
 use App\Models\Projeto;
 use App\Models\User;
 use Database\Seeders\CatalogoSeeder;
@@ -58,6 +59,45 @@ class AdminTest extends TestCase
             ->assertJsonPath('data.escolas_com_projeto', 2)
             ->assertJsonPath('data.cidades_com_projeto', 2)
             ->assertJsonPath('data.estados_com_projeto', 2);
+    }
+
+    public function test_dashboard_recorta_pessoas_por_genero(): void
+    {
+        // Orientadores: 2 F, 1 M (com profile).
+        $o1 = $this->orientadorComGenero('F');
+        $this->orientadorComGenero('F');
+        $this->orientadorComGenero('M');
+
+        $proj = Projeto::factory()->create(['user_id' => $o1->id]);
+
+        // Alunos: 1 F, 1 M, 1 NB (→ outros).
+        Aluno::factory()->create(['projeto_id' => $proj->id, 'genero' => 'F']);
+        Aluno::factory()->create(['projeto_id' => $proj->id, 'genero' => 'M']);
+        Aluno::factory()->create(['projeto_id' => $proj->id, 'genero' => 'NB']);
+
+        // Coorientador: 1 sem gênero (nulo → outros).
+        Coorientador::factory()->create(['projeto_id' => $proj->id, 'genero' => null]);
+
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->getJson('/api/v1/admin/dashboard')
+            ->assertOk()
+            ->assertJsonPath('data.orientadores', 3)
+            ->assertJsonPath('data.orientadores_genero.f', 2)
+            ->assertJsonPath('data.orientadores_genero.m', 1)
+            ->assertJsonPath('data.orientadores_genero.outros', 0)
+            ->assertJsonPath('data.alunos_genero.f', 1)
+            ->assertJsonPath('data.alunos_genero.m', 1)
+            ->assertJsonPath('data.alunos_genero.outros', 1)
+            ->assertJsonPath('data.coorientadores_genero.outros', 1);
+    }
+
+    private function orientadorComGenero(string $genero): User
+    {
+        $user = User::factory()->create(); // role orientador
+        OrientadorProfile::factory()->create(['user_id' => $user->id, 'genero' => $genero]);
+
+        return $user;
     }
 
     public function test_projetos_por_area_agrupa_incluindo_rascunhos(): void
