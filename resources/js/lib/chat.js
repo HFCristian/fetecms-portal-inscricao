@@ -17,6 +17,8 @@ export const getMinhaConversa = () => http.get('/chat/conversa').then((r) => r.d
 export const enviarMensagem = (corpo) => http.post('/chat/mensagens', { corpo }).then((r) => r.data.data);
 // Consulta leve (não marca leitura) p/ a bolinha do botão fechado.
 export const getNaoLidas = () => http.get('/chat/nao-lidas').then((r) => r.data.data);
+// Marca que o usuário fechou o balão de apresentação do chat (não mostrar mais).
+export const dispensarDicaChat = () => http.post('/chat/dispensar-dica').then((r) => r.data.data);
 
 // Badge do menu admin: quantas conversas estão "não visualizadas".
 export const getConversasNaoVistas = () => http.get('/admin/conversas-nao-vistas').then((r) => r.data.data);

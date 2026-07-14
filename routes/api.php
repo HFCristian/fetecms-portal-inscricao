@@ -98,6 +98,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
         Route::middleware('role:orientador,avaliador')->prefix('chat')->group(function () {
             Route::get('/conversa', [ChatController::class, 'show']);
             Route::get('/nao-lidas', [ChatController::class, 'naoLidas']);
+            Route::post('/dispensar-dica', [ChatController::class, 'dispensarDica']);
             Route::post('/mensagens', [ChatController::class, 'store'])
                 ->middleware('throttle:30,1');
         });

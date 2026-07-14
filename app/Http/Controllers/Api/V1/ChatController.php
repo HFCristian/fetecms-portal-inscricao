@@ -48,4 +48,12 @@ class ChatController extends Controller
 
         return response()->json(['data' => ['nao_lidas' => $total > 0, 'total' => $total]]);
     }
+
+    /** Marca que o usuário fechou o balão de apresentação do chat (não mostrar mais). */
+    public function dispensarDica(Request $request): JsonResponse
+    {
+        $request->user()->update(['chat_dica_dispensada' => true]);
+
+        return response()->json(['data' => ['chat_dica_dispensada' => true]]);
+    }
 }

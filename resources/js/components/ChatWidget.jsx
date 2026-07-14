@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { getMinhaConversa, enviarMensagem, foiVista, getNaoLidas } from '../lib/chat.js';
+import { useLocation } from 'react-router-dom';
+import { getMinhaConversa, enviarMensagem, foiVista, getNaoLidas, dispensarDicaChat } from '../lib/chat.js';
+import { useAuth, homeFor } from '../lib/auth.jsx';
 import { tempoRelativo } from '../lib/tempo.js';
 import ReciboLeitura from './ReciboLeitura.jsx';
+
+// Mensagem do balão de apresentação (some quando o usuário fecha — persiste na conta).
+const DICA = 'Esse é nosso chat de comunicação rápida. Entre em contato se tiver alguma dúvida';
 
 // Mensagem de boas-vindas: tom amigável, deixa claro que NÃO é um chatbot e
 // indica o e-mail para assuntos mais complexos.
@@ -15,7 +20,24 @@ export default function ChatWidget() {
     const [enviando, setEnviando] = useState(false);
     const [erro, setErro] = useState('');
     const [temNaoLidas, setTemNaoLidas] = useState(false);
+    const [dicaFechada, setDicaFechada] = useState(false);
+    const { user, setUser } = useAuth();
+    const location = useLocation();
     const fimRef = useRef(null);
+
+    // Balão de apresentação: só na página inicial do papel, enquanto não dispensado.
+    const mostrarDica = !aberto && !dicaFechada && !!user
+        && !user.chat_dica_dispensada && location.pathname === homeFor(user.role);
+
+    async function dispensarDica() {
+        setDicaFechada(true); // esconde na hora (otimista)
+        try {
+            await dispensarDicaChat();
+            setUser?.((u) => (u ? { ...u, chat_dica_dispensada: true } : u));
+        } catch {
+            /* se falhar, fica escondido nesta sessão e reaparece no próximo login */
+        }
+    }
 
     async function carregar() {
         try {
@@ -80,6 +102,25 @@ export default function ChatWidget() {
 
     return (
         <>
+            {/* Balão de apresentação, apontando para o botão do chat */}
+            {mostrarDica && (
+                <div
+                    role="status"
+                    className="fixed bottom-24 right-5 z-40 w-[min(82vw,17rem)] bg-surface-container-lowest rounded-2xl fetec-card-shadow border border-outline-variant/40 p-3 pr-9"
+                >
+                    <button
+                        type="button"
+                        onClick={dispensarDica}
+                        aria-label="Fechar aviso"
+                        className="absolute top-1.5 right-1.5 p-1 text-on-surface-variant hover:text-on-surface transition-colors"
+                    >
+                        <span className="material-symbols-outlined text-[18px]">close</span>
+                    </button>
+                    <p className="text-sm text-on-surface">{DICA}</p>
+                    <span className="absolute -bottom-1.5 right-6 w-3 h-3 rotate-45 bg-surface-container-lowest border-r border-b border-outline-variant/40" />
+                </div>
+            )}
+
             {/* Botão flutuante */}
             <button
                 type="button"

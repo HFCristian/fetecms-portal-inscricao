@@ -273,4 +273,32 @@ class ChatTest extends TestCase
 
         $this->getJson('/api/v1/admin/conversas-nao-vistas')->assertStatus(403);
     }
+
+    public function test_usuario_dispensa_o_balao_do_chat(): void
+    {
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/v1/chat/dispensar-dica')
+            ->assertOk()
+            ->assertJsonPath('data.chat_dica_dispensada', true);
+
+        $this->assertTrue($user->fresh()->chat_dica_dispensada);
+    }
+
+    public function test_perfil_expoe_o_estado_da_dica_do_chat(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+
+        $this->getJson('/api/v1/auth/me')
+            ->assertOk()
+            ->assertJsonPath('data.chat_dica_dispensada', false);
+    }
+
+    public function test_admin_nao_acessa_o_dispensar_dica(): void
+    {
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->postJson('/api/v1/chat/dispensar-dica')->assertStatus(403);
+    }
 }
