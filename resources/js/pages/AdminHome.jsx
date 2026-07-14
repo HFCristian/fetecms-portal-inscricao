@@ -40,8 +40,8 @@ function GeneroBreakdown({ dados, label }) {
             <div className="flex gap-3 py-2">
                 {colunas.map((c) => (
                     <div key={c.rotulo}>
-                        <div className={`text-2xl font-bold ${c.cor}`}>{c.valor ?? 0}</div>
-                        <div className="text-[11px] text-on-surface-variant leading-tight">{c.rotulo}</div>
+                        <div className={`text-3xl font-bold ${c.cor}`}>{c.valor ?? 0}</div>
+                        <div className="text-xs text-on-surface-variant leading-tight">{c.rotulo}</div>
                     </div>
                 ))}
             </div>
