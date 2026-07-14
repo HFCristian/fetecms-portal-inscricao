@@ -8,6 +8,12 @@ export const getProjetosPorLocalidade = () => http.get('/admin/projetos-por-loca
 
 export const criarAdmin = (payload) => http.post('/admin/admins', payload).then((r) => r.data.data);
 
+// Gestão de administradores (listar, editar nome/email, ativar/desativar).
+export const getAdmins = () => http.get('/admin/admins').then((r) => r.data.data);
+export const atualizarAdmin = (id, payload) => http.put(`/admin/admins/${id}`, payload).then((r) => r.data.data);
+export const definirStatusAdmin = (id, isActive) =>
+    http.patch(`/admin/admins/${id}/status`, { is_active: isActive }).then((r) => r.data.data);
+
 // Parametrização do catálogo (áreas/subáreas). Toda mutação devolve a árvore atualizada.
 export const getCatalogo = () => http.get('/admin/catalogo').then((r) => r.data.data);
 export const renomearArea = (id, nome) => http.put(`/admin/areas/${id}`, { nome }).then((r) => r.data.data);

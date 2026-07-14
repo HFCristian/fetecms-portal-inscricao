@@ -108,6 +108,9 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::get('/projetos-por-area', [AdminController::class, 'projetosPorArea']);
             Route::get('/projetos-por-localidade', [AdminController::class, 'projetosPorLocalidade']);
             Route::post('/admins', [AdminController::class, 'store']);
+            Route::get('/admins', [AdminController::class, 'listarAdmins']);
+            Route::put('/admins/{admin}', [AdminController::class, 'updateAdmin']);
+            Route::patch('/admins/{admin}/status', [AdminController::class, 'statusAdmin']);
 
             // Parametrização do catálogo (áreas/subáreas)
             Route::get('/catalogo', [CatalogoAdminController::class, 'index']);
