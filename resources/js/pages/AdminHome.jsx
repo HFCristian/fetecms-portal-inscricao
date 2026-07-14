@@ -32,8 +32,8 @@ function GeneroBreakdown({ dados, label }) {
     const g = dados ?? { f: 0, m: 0, outros: 0 };
     const colunas = [
         { valor: g.f, rotulo: 'Mulheres', cor: 'text-primary-container' },
-        { valor: g.m, rotulo: 'Homens', cor: 'text-secondary' },
-        { valor: g.outros, rotulo: 'Outros/N.I.', cor: 'text-on-surface-variant' },
+        { valor: g.m, rotulo: 'Homens', cor: 'text-primary-container' },
+        { valor: g.outros, rotulo: 'Outros/N.I.', cor: 'text-primary-container' },
     ];
     return (
         <>
