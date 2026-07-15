@@ -5,11 +5,14 @@ namespace App\Http\Controllers\Api\V1;
 use App\Enums\ProjetoStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\DesignarAvaliacaoRequest;
+use App\Http\Requests\Admin\LiberacaoAvaliacaoRequest;
 use App\Http\Requests\Admin\LimiteAvaliadorRequest;
 use App\Models\Projeto;
 use App\Models\User;
 use App\Services\AdminAvaliacaoService;
+use App\Services\DistribuicaoService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 /**
  * Telas de "Avaliação online" (somente admin): visão dos avaliadores por área
@@ -17,12 +20,29 @@ use Illuminate\Http\JsonResponse;
  */
 class AdminAvaliacaoController extends Controller
 {
-    public function __construct(private readonly AdminAvaliacaoService $service) {}
+    public function __construct(
+        private readonly AdminAvaliacaoService $service,
+        private readonly DistribuicaoService $distribuicao,
+    ) {}
 
     /** Avaliadores agrupados por área, com o progresso de avaliação de cada um. */
     public function avaliadores(): JsonResponse
     {
         return response()->json(['data' => $this->service->avaliadoresPorArea()]);
+    }
+
+    /** Configuração da liberação da avaliação (data + se já liberada). */
+    public function config(): JsonResponse
+    {
+        return response()->json(['data' => $this->service->config()]);
+    }
+
+    /** Define/remove a data de liberação da avaliação (edição atual). */
+    public function definirLiberacao(LiberacaoAvaliacaoRequest $request): JsonResponse
+    {
+        $config = $this->service->definirLiberacao($request->validated('liberada_em'));
+
+        return response()->json(['data' => $config, 'meta' => ['message' => 'Liberação atualizada.']]);
     }
 
     /** Projetos submetidos por área, com realizadas/em avaliação/faltantes. */
@@ -64,6 +84,42 @@ class AdminAvaliacaoController extends Controller
         return response()->json([
             'data' => ['limite' => $limite],
             'meta' => ['message' => $limite === null ? 'Limite removido.' : "Limite definido em {$limite}."],
+        ]);
+    }
+
+    /** Marca/desmarca o avaliador como "demo" (fora do escopo real da avaliação). */
+    public function demo(Request $request, User $avaliador): JsonResponse
+    {
+        abort_unless($avaliador->isAvaliador(), 404, 'Avaliador não encontrado.');
+        $demo = $request->validate(['is_demo' => ['required', 'boolean']])['is_demo'];
+
+        $this->service->definirDemo($avaliador, $demo);
+
+        return response()->json([
+            'data' => ['is_demo' => $demo],
+            'meta' => ['message' => $demo ? 'Avaliador marcado como demo.' : 'Avaliador não é mais demo.'],
+        ]);
+    }
+
+    /** Apaga todas as avaliações dos avaliadores demo (dados de teste). */
+    public function limparTestes(): JsonResponse
+    {
+        $apagadas = $this->service->limparDadosDeTeste();
+
+        return response()->json([
+            'data' => ['apagadas' => $apagadas],
+            'meta' => ['message' => "{$apagadas} avaliação(ões) de teste apagada(s)."],
+        ]);
+    }
+
+    /** Roda a distribuição automática (idempotente) e devolve o relatório. */
+    public function distribuir(): JsonResponse
+    {
+        $relatorio = $this->distribuicao->distribuir();
+
+        return response()->json([
+            'data' => $relatorio,
+            'meta' => ['message' => "{$relatorio['designadas_criadas']} designação(ões) criada(s)."],
         ]);
     }
 }

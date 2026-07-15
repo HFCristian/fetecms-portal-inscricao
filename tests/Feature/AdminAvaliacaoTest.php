@@ -207,6 +207,57 @@ class AdminAvaliacaoTest extends TestCase
         $this->assertFalse($perfil->atingiuLimite(99));
     }
 
+    public function test_marca_avaliador_como_demo_e_a_lista_reflete(): void
+    {
+        $a = Area::create(['nome' => 'Área A']);
+        $ana = $this->avaliador($a->id, 'Ana');
+
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->getJson('/api/v1/admin/avaliacao/avaliadores')
+            ->assertJsonPath('data.0.avaliadores.0.is_demo', false);
+
+        $this->patchJson("/api/v1/admin/avaliacao/avaliadores/{$ana->id}/demo", ['is_demo' => true])
+            ->assertOk()
+            ->assertJsonPath('data.is_demo', true);
+        $this->assertDatabaseHas('users', ['id' => $ana->id, 'is_demo' => true]);
+
+        $this->getJson('/api/v1/admin/avaliacao/avaliadores')
+            ->assertJsonPath('data.0.avaliadores.0.is_demo', true);
+    }
+
+    public function test_limpar_dados_de_teste_apaga_so_dos_demo(): void
+    {
+        $a = Area::create(['nome' => 'Área A']);
+        $demo = $this->avaliador($a->id, 'Demo');
+        $demo->update(['is_demo' => true]);
+        $real = $this->avaliador($a->id, 'Real');
+
+        $orient = User::factory()->create();
+        $p = Projeto::factory()->submetido()->create(['user_id' => $orient->id, 'area_id' => $a->id]);
+        Avaliacao::create(['projeto_id' => $p->id, 'avaliador_id' => $demo->id, 'status' => 'concluida', 'nota' => 8]);
+        Avaliacao::create(['projeto_id' => $p->id, 'avaliador_id' => $real->id, 'status' => 'concluida', 'nota' => 9]);
+
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->deleteJson('/api/v1/admin/avaliacao/testes')
+            ->assertOk()
+            ->assertJsonPath('data.apagadas', 1);
+
+        $this->assertDatabaseMissing('avaliacoes', ['avaliador_id' => $demo->id]);
+        $this->assertDatabaseHas('avaliacoes', ['avaliador_id' => $real->id]);
+    }
+
+    public function test_demo_exige_que_o_alvo_seja_avaliador(): void
+    {
+        $orientador = User::factory()->create();
+
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->patchJson("/api/v1/admin/avaliacao/avaliadores/{$orientador->id}/demo", ['is_demo' => true])
+            ->assertStatus(404);
+    }
+
     public function test_nao_admin_nao_acessa_avaliacao_online(): void
     {
         Sanctum::actingAs(User::factory()->create());

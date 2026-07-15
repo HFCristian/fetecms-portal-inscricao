@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
-import { Button, Alert } from '../components/ui.jsx';
+import { Button, Alert, useConfirm } from '../components/ui.jsx';
 import { extractErrors } from '../lib/auth.jsx';
-import { getAvaliacaoAvaliadores, definirLimiteAvaliador } from '../lib/admin.js';
+import { getAvaliacaoAvaliadores, definirLimiteAvaliador, definirDemoAvaliador, limparDadosDeTeste } from '../lib/admin.js';
 
 function Metrica({ valor, rotulo, cor }) {
     return (
@@ -59,11 +59,39 @@ export default function AvaliacaoAvaliadores() {
     const [salvando, setSalvando] = useState(false);
     const [alert, setAlert] = useState('');
     const [success, setSuccess] = useState('');
+    const [confirm, dialogo] = useConfirm();
 
     function carregar() {
         return getAvaliacaoAvaliadores().then(setAreas).catch(() => setAreas([]));
     }
     useEffect(() => { carregar(); }, []);
+
+    async function alternarDemo(a) {
+        setAlert(''); setSuccess('');
+        try {
+            const resp = await definirDemoAvaliador(a.id, !a.is_demo);
+            setSuccess(resp.meta?.message || 'Atualizado.');
+            await carregar();
+        } catch (e) {
+            setAlert(extractErrors(e).message);
+        }
+    }
+
+    async function limparTestes() {
+        const ok = await confirm({
+            title: 'Limpar dados de teste', danger: true, confirmLabel: 'Limpar',
+            message: 'Isso apaga TODAS as avaliações dos avaliadores marcados como demo. Não afeta os avaliadores reais. Continuar?',
+        });
+        if (!ok) return;
+        setAlert(''); setSuccess('');
+        try {
+            const resp = await limparDadosDeTeste();
+            setSuccess(resp.meta?.message || 'Dados de teste limpos.');
+            await carregar();
+        } catch (e) {
+            setAlert(extractErrors(e).message);
+        }
+    }
 
     async function salvarLimite(limite) {
         setSalvando(true); setAlert(''); setSuccess('');
@@ -85,10 +113,21 @@ export default function AvaliacaoAvaliadores() {
                 <span className="material-symbols-outlined text-[18px]">arrow_back</span> Avaliação online
             </Link>
             <h1 className="font-display text-2xl font-semibold text-primary mb-1">Avaliadores por área</h1>
-            <p className="text-on-surface-variant mb-6 max-w-3xl">
+            <p className="text-on-surface-variant mb-4 max-w-3xl">
                 Progresso de cada avaliador - no máximo 3 projetos por avaliador. Você pode limitar
-                individualmente quantas avaliações cada um pode assumir.
+                individualmente quantas avaliações cada um pode assumir e marcar avaliadores de teste (demo).
             </p>
+
+            <div className="mb-4 max-w-3xl">
+                <button
+                    type="button"
+                    onClick={limparTestes}
+                    className="inline-flex items-center gap-1 text-sm font-semibold text-error border border-error/40 rounded-lg px-3 py-1.5 hover:bg-error-container/40 transition-colors"
+                >
+                    <span className="material-symbols-outlined text-[18px]">delete_sweep</span>
+                    Limpar dados de teste
+                </button>
+            </div>
 
             {alert && <div className="mb-4 max-w-3xl"><Alert>{alert}</Alert></div>}
             {success && <div className="mb-4 max-w-3xl"><Alert type="info">{success}</Alert></div>}
@@ -129,12 +168,28 @@ export default function AvaliacaoAvaliadores() {
                                                         Limite {a.limite}
                                                     </span>
                                                 )}
+                                                {a.is_demo && (
+                                                    <span
+                                                        title="Avaliador de teste (fora do escopo real)"
+                                                        className="text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap bg-primary-fixed text-primary-container"
+                                                    >
+                                                        Demo
+                                                    </span>
+                                                )}
                                             </div>
                                             <div className="flex items-center gap-2 shrink-0">
                                                 <Metrica valor={a.em_avaliacao} rotulo="Em avaliação" cor="text-primary-container" />
                                                 <Metrica valor={a.avaliou} rotulo="Já avaliou" cor="text-secondary" />
                                                 <Metrica valor={a.faltam} rotulo="Faltam" cor="text-on-surface" />
                                             </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => alternarDemo(a)}
+                                                title={a.is_demo ? 'Remover marca de teste (demo)' : 'Marcar como avaliador de teste (demo)'}
+                                                className={`shrink-0 p-1.5 rounded-lg hover:bg-surface-variant transition-colors ${a.is_demo ? 'text-primary-container' : 'text-on-surface-variant'}`}
+                                            >
+                                                <span className="material-symbols-outlined text-[20px]">science</span>
+                                            </button>
                                             <button
                                                 type="button"
                                                 onClick={() => setLimitando(a)}
@@ -160,6 +215,7 @@ export default function AvaliacaoAvaliadores() {
                     salvando={salvando}
                 />
             )}
+            {dialogo}
         </AppShell>
     );
 }

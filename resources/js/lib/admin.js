@@ -4,13 +4,20 @@ export const getDashboard = () => http.get('/admin/dashboard').then((r) => r.dat
 
 export const getAvaliadores = () => http.get('/admin/avaliadores').then((r) => r.data.data);
 
-// Avaliação online (E7): avaliadores por área e projetos submetidos por área.
+// Avaliação online (E7): configuração de liberação, avaliadores e projetos por área.
+export const getAvaliacaoConfig = () => http.get('/admin/avaliacao/config').then((r) => r.data.data);
+export const definirLiberacaoAvaliacao = (liberadaEm) =>
+    http.patch('/admin/avaliacao/config', { liberada_em: liberadaEm }).then((r) => r.data.data);
 export const getAvaliacaoAvaliadores = () => http.get('/admin/avaliacao/avaliadores').then((r) => r.data.data);
 export const definirLimiteAvaliador = (avaliadorId, limite) =>
     http.patch(`/admin/avaliacao/avaliadores/${avaliadorId}/limite`, { limite }).then((r) => r.data);
+export const definirDemoAvaliador = (avaliadorId, isDemo) =>
+    http.patch(`/admin/avaliacao/avaliadores/${avaliadorId}/demo`, { is_demo: isDemo }).then((r) => r.data);
+export const limparDadosDeTeste = () => http.delete('/admin/avaliacao/testes').then((r) => r.data);
 export const getAvaliacaoProjetos = () => http.get('/admin/avaliacao/projetos').then((r) => r.data.data);
 export const designarProjeto = (projetoId, payload) =>
     http.post(`/admin/avaliacao/projetos/${projetoId}/designar`, payload).then((r) => r.data);
+export const distribuirAvaliacoes = () => http.post('/admin/avaliacao/distribuir').then((r) => r.data);
 
 export const getProjetosPorArea = () => http.get('/admin/projetos-por-area').then((r) => r.data.data);
 

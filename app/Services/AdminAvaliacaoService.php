@@ -7,6 +7,7 @@ use App\Enums\Role;
 use App\Enums\StatusAvaliacao;
 use App\Models\Avaliacao;
 use App\Models\AvaliadorProfile;
+use App\Models\Edicao;
 use App\Models\Projeto;
 use App\Models\User;
 
@@ -49,6 +50,7 @@ class AdminAvaliacaoService
                 'avaliou' => $avaliou,
                 'faltam' => max(0, StatusAvaliacao::MAX_POR_AVALIADOR - $avaliou),
                 'limite' => $u->avaliadorProfile?->limite_avaliacoes,
+                'is_demo' => (bool) $u->is_demo,
             ];
         }
 
@@ -128,6 +130,41 @@ class AdminAvaliacaoService
     public function definirLimite(User $avaliador, ?int $limite): void
     {
         $avaliador->avaliadorProfile?->update(['limite_avaliacoes' => $limite]);
+    }
+
+    /** Marca/desmarca um avaliador como "demo" (fora do escopo real). */
+    public function definirDemo(User $avaliador, bool $demo): void
+    {
+        $avaliador->update(['is_demo' => $demo]);
+    }
+
+    /** Apaga todas as avaliações dos avaliadores demo. Retorna quantas foram apagadas. */
+    public function limparDadosDeTeste(): int
+    {
+        $demoIds = User::where('role', Role::Avaliador->value)
+            ->where('is_demo', true)
+            ->pluck('id');
+
+        return Avaliacao::whereIn('avaliador_id', $demoIds)->delete();
+    }
+
+    /** Configuração da liberação da avaliação (data + se já liberada). */
+    public function config(): array
+    {
+        $edicao = Edicao::atual();
+
+        return [
+            'liberada_em' => $edicao?->avaliacao_liberada_em?->toIso8601String(),
+            'liberada' => (bool) $edicao?->avaliacaoLiberada(),
+        ];
+    }
+
+    /** Define a data de liberação (ou remove, com null) na edição atual. */
+    public function definirLiberacao(?string $dataIso): array
+    {
+        Edicao::atual()?->update(['avaliacao_liberada_em' => $dataIso ?: null]);
+
+        return $this->config();
     }
 
     /** Ordena os grupos por nome da área (mantendo "Sem área" no fim). */

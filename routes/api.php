@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\V1\AdminAvaliacaoController;
 use App\Http\Controllers\Api\V1\AdminController;
 use App\Http\Controllers\Api\V1\AlunoController;
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\AvaliadorAvaliacaoController;
 use App\Http\Controllers\Api\V1\AvaliadorController;
 use App\Http\Controllers\Api\V1\CatalogoAdminController;
 use App\Http\Controllers\Api\V1\CatalogoController;
@@ -95,6 +96,9 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
         Route::get('documentos/{documento}/preview', [DocumentoController::class, 'preview']);
         Route::delete('documentos/{documento}', [DocumentoController::class, 'destroy']);
 
+        // Avaliação online — lado do avaliador (projetos designados, após liberação)
+        Route::middleware('role:avaliador')->get('/avaliacao', [AvaliadorAvaliacaoController::class, 'index']);
+
         // Chat de suporte — orientador/avaliador falam com o suporte (admin)
         Route::middleware('role:orientador,avaliador')->prefix('chat')->group(function () {
             Route::get('/conversa', [ChatController::class, 'show']);
@@ -110,10 +114,15 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::get('/avaliadores', [AdminController::class, 'avaliadores']);
 
             // Avaliação online (E7): visão por área de avaliadores e projetos submetidos
+            Route::get('/avaliacao/config', [AdminAvaliacaoController::class, 'config']);
+            Route::patch('/avaliacao/config', [AdminAvaliacaoController::class, 'definirLiberacao']);
             Route::get('/avaliacao/avaliadores', [AdminAvaliacaoController::class, 'avaliadores']);
             Route::get('/avaliacao/projetos', [AdminAvaliacaoController::class, 'projetos']);
             Route::post('/avaliacao/projetos/{projeto}/designar', [AdminAvaliacaoController::class, 'designar']);
+            Route::post('/avaliacao/distribuir', [AdminAvaliacaoController::class, 'distribuir']);
             Route::patch('/avaliacao/avaliadores/{avaliador}/limite', [AdminAvaliacaoController::class, 'limitar']);
+            Route::patch('/avaliacao/avaliadores/{avaliador}/demo', [AdminAvaliacaoController::class, 'demo']);
+            Route::delete('/avaliacao/testes', [AdminAvaliacaoController::class, 'limparTestes']);
             Route::get('/projetos-por-area', [AdminController::class, 'projetosPorArea']);
             Route::get('/projetos-por-localidade', [AdminController::class, 'projetosPorLocalidade']);
             Route::post('/admins', [AdminController::class, 'store']);

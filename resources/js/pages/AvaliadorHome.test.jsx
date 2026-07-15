@@ -10,12 +10,23 @@ vi.mock('../lib/auth.jsx', () => ({
     }),
     homeFor: () => '/avaliador',
 }));
+vi.mock('../lib/avaliacao.js', () => ({
+    getMinhaAvaliacao: vi.fn(() => Promise.resolve({
+        liberada: true,
+        liberada_em: null,
+        projetos: [
+            { avaliacao_id: 1, projeto_id: 10, titulo: 'Projeto X', area: 'Ciências Exatas e da Terra', status: 'designada', status_label: 'Designada', nota: null },
+        ],
+    })),
+}));
 
 import AvaliadorHome from './AvaliadorHome.jsx';
 
 describe('AvaliadorHome', () => {
-    it('renderiza o painel do avaliador sem erro', () => {
+    it('renderiza o painel e lista os projetos designados quando liberado', async () => {
         render(<MemoryRouter><AvaliadorHome /></MemoryRouter>);
         expect(screen.getByText('Painel do Avaliador')).toBeInTheDocument();
+        expect(await screen.findByText('Projeto X')).toBeInTheDocument();
+        expect(screen.getByText('Projetos designados a você')).toBeInTheDocument();
     });
 });
