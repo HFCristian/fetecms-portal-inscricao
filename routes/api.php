@@ -112,6 +112,8 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             // Avaliação online (E7): visão por área de avaliadores e projetos submetidos
             Route::get('/avaliacao/avaliadores', [AdminAvaliacaoController::class, 'avaliadores']);
             Route::get('/avaliacao/projetos', [AdminAvaliacaoController::class, 'projetos']);
+            Route::post('/avaliacao/projetos/{projeto}/designar', [AdminAvaliacaoController::class, 'designar']);
+            Route::patch('/avaliacao/avaliadores/{avaliador}/limite', [AdminAvaliacaoController::class, 'limitar']);
             Route::get('/projetos-por-area', [AdminController::class, 'projetosPorArea']);
             Route::get('/projetos-por-localidade', [AdminController::class, 'projetosPorLocalidade']);
             Route::post('/admins', [AdminController::class, 'store']);
