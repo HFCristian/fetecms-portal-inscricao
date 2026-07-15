@@ -85,16 +85,30 @@ class ChatTest extends TestCase
         $this->getJson('/api/v1/chat/conversa')->assertStatus(401);
     }
 
-    public function test_get_conversa_cria_se_nao_existir(): void
+    public function test_abrir_o_chat_nao_cria_conversa(): void
     {
         $user = User::factory()->create();
         Sanctum::actingAs($user);
 
         $this->getJson('/api/v1/chat/conversa')
             ->assertOk()
-            ->assertJsonPath('data.mensagens', []);
+            ->assertJsonPath('data.mensagens', [])
+            ->assertJsonPath('data.id', null);
 
-        $this->assertDatabaseHas('conversas', ['user_id' => $user->id]);
+        // Abrir o chat NÃO cria conversa — só o envio da 1ª mensagem cria.
+        $this->assertDatabaseCount('conversas', 0);
+    }
+
+    public function test_abrir_o_chat_nao_faz_o_usuario_aparecer_no_suporte(): void
+    {
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+        $this->getJson('/api/v1/chat/conversa')->assertOk();
+
+        Sanctum::actingAs(User::factory()->admin()->create());
+        $this->getJson('/api/v1/admin/conversas')
+            ->assertOk()
+            ->assertJsonPath('meta.contagem.nao_respondidas', 0);
     }
 
     public function test_nova_mensagem_reabre_conversa_respondida(): void
@@ -138,9 +152,10 @@ class ChatTest extends TestCase
         $this->assertNotNull($conversa->fresh()->suporte_visto_em);
     }
 
-    public function test_usuario_ao_abrir_o_chat_registra_recibo_de_leitura(): void
+    public function test_usuario_ao_abrir_marca_recibo_se_a_conversa_ja_existe(): void
     {
         $user = User::factory()->create();
+        Conversa::factory()->create(['user_id' => $user->id]); // já enviou antes
         Sanctum::actingAs($user);
 
         $this->getJson('/api/v1/chat/conversa')->assertOk();

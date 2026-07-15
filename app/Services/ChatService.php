@@ -24,6 +24,15 @@ class ChatService
     }
 
     /**
+     * Conversa do usuário, se já existir (NÃO cria). Abrir o chat não deve criar
+     * conversa nem notificar o suporte — isso só acontece ao enviar a 1ª mensagem.
+     */
+    public function obter(User $user): ?Conversa
+    {
+        return Conversa::where('user_id', $user->id)->first();
+    }
+
+    /**
      * Registra que o usuário está vendo a conversa agora (recibo de leitura das
      * mensagens do suporte). Chamado ao abrir o chat e a cada polling.
      */
