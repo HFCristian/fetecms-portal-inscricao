@@ -148,6 +148,65 @@ class AdminAvaliacaoTest extends TestCase
         ])->assertStatus(422);
     }
 
+    public function test_avaliador_comeca_sem_limite(): void
+    {
+        $a = Area::create(['nome' => 'Área A']);
+        $this->avaliador($a->id, 'Ana');
+
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->getJson('/api/v1/admin/avaliacao/avaliadores')
+            ->assertOk()
+            ->assertJsonPath('data.0.avaliadores.0.limite', null);
+    }
+
+    public function test_admin_define_e_remove_limite_do_avaliador(): void
+    {
+        $a = Area::create(['nome' => 'Área A']);
+        $ana = $this->avaliador($a->id, 'Ana');
+
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->patchJson("/api/v1/admin/avaliacao/avaliadores/{$ana->id}/limite", ['limite' => 2])
+            ->assertOk()
+            ->assertJsonPath('data.limite', 2);
+        $this->assertDatabaseHas('avaliador_profiles', ['user_id' => $ana->id, 'limite_avaliacoes' => 2]);
+
+        // A lista passa a exibir o limite.
+        $this->getJson('/api/v1/admin/avaliacao/avaliadores')
+            ->assertJsonPath('data.0.avaliadores.0.limite', 2);
+
+        // Remover o limite (null).
+        $this->patchJson("/api/v1/admin/avaliacao/avaliadores/{$ana->id}/limite", ['limite' => null])
+            ->assertOk()
+            ->assertJsonPath('data.limite', null);
+        $this->assertDatabaseHas('avaliador_profiles', ['user_id' => $ana->id, 'limite_avaliacoes' => null]);
+    }
+
+    public function test_limitar_exige_que_o_alvo_seja_avaliador(): void
+    {
+        $orientador = User::factory()->create();
+
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->patchJson("/api/v1/admin/avaliacao/avaliadores/{$orientador->id}/limite", ['limite' => 2])
+            ->assertStatus(404);
+    }
+
+    public function test_atingiu_limite_considera_as_assumidas(): void
+    {
+        $a = Area::create(['nome' => 'Área A']);
+        $ana = $this->avaliador($a->id, 'Ana');
+        $perfil = $ana->avaliadorProfile;
+
+        $perfil->update(['limite_avaliacoes' => 2]);
+        $this->assertTrue($perfil->atingiuLimite(2));   // 2 assumidas >= limite 2
+        $this->assertFalse($perfil->atingiuLimite(1));  // ainda pode assumir
+
+        $perfil->update(['limite_avaliacoes' => null]); // sem limite nunca bloqueia
+        $this->assertFalse($perfil->atingiuLimite(99));
+    }
+
     public function test_nao_admin_nao_acessa_avaliacao_online(): void
     {
         Sanctum::actingAs(User::factory()->create());

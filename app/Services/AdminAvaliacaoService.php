@@ -48,6 +48,7 @@ class AdminAvaliacaoService
                 'em_avaliacao' => (int) $u->em_avaliacao_count,
                 'avaliou' => $avaliou,
                 'faltam' => max(0, StatusAvaliacao::MAX_POR_AVALIADOR - $avaliou),
+                'limite' => $u->avaliadorProfile?->limite_avaliacoes,
             ];
         }
 
@@ -121,6 +122,12 @@ class AdminAvaliacaoService
         }
 
         return $novas;
+    }
+
+    /** Define (ou remove, com null) o limite individual de avaliações do avaliador. */
+    public function definirLimite(User $avaliador, ?int $limite): void
+    {
+        $avaliador->avaliadorProfile?->update(['limite_avaliacoes' => $limite]);
     }
 
     /** Ordena os grupos por nome da área (mantendo "Sem área" no fim). */

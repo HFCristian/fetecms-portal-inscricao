@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Api\V1;
 use App\Enums\ProjetoStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\DesignarAvaliacaoRequest;
+use App\Http\Requests\Admin\LimiteAvaliadorRequest;
 use App\Models\Projeto;
+use App\Models\User;
 use App\Services\AdminAvaliacaoService;
 use Illuminate\Http\JsonResponse;
 
@@ -47,6 +49,21 @@ class AdminAvaliacaoController extends Controller
         return response()->json([
             'data' => ['designadas' => $novas],
             'meta' => ['message' => $novas === 1 ? '1 designação criada.' : "{$novas} designações criadas."],
+        ]);
+    }
+
+    /** Define ou remove (limite null) o limite individual de avaliações de um avaliador. */
+    public function limitar(LimiteAvaliadorRequest $request, User $avaliador): JsonResponse
+    {
+        abort_unless($avaliador->isAvaliador(), 404, 'Avaliador não encontrado.');
+
+        $limite = $request->validated('limite');
+        $limite = $limite === null ? null : (int) $limite;
+        $this->service->definirLimite($avaliador, $limite);
+
+        return response()->json([
+            'data' => ['limite' => $limite],
+            'meta' => ['message' => $limite === null ? 'Limite removido.' : "Limite definido em {$limite}."],
         ]);
     }
 }
