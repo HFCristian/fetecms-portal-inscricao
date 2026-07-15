@@ -11,6 +11,9 @@ export const definirLiberacaoAvaliacao = (liberadaEm) =>
 export const getAvaliacaoAvaliadores = () => http.get('/admin/avaliacao/avaliadores').then((r) => r.data.data);
 export const definirLimiteAvaliador = (avaliadorId, limite) =>
     http.patch(`/admin/avaliacao/avaliadores/${avaliadorId}/limite`, { limite }).then((r) => r.data);
+export const definirDemoAvaliador = (avaliadorId, isDemo) =>
+    http.patch(`/admin/avaliacao/avaliadores/${avaliadorId}/demo`, { is_demo: isDemo }).then((r) => r.data);
+export const limparDadosDeTeste = () => http.delete('/admin/avaliacao/testes').then((r) => r.data);
 export const getAvaliacaoProjetos = () => http.get('/admin/avaliacao/projetos').then((r) => r.data.data);
 export const designarProjeto = (projetoId, payload) =>
     http.post(`/admin/avaliacao/projetos/${projetoId}/designar`, payload).then((r) => r.data);

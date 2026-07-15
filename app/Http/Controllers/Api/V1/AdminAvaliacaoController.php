@@ -11,6 +11,7 @@ use App\Models\Projeto;
 use App\Models\User;
 use App\Services\AdminAvaliacaoService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 /**
  * Telas de "Avaliação online" (somente admin): visão dos avaliadores por área
@@ -79,6 +80,31 @@ class AdminAvaliacaoController extends Controller
         return response()->json([
             'data' => ['limite' => $limite],
             'meta' => ['message' => $limite === null ? 'Limite removido.' : "Limite definido em {$limite}."],
+        ]);
+    }
+
+    /** Marca/desmarca o avaliador como "demo" (fora do escopo real da avaliação). */
+    public function demo(Request $request, User $avaliador): JsonResponse
+    {
+        abort_unless($avaliador->isAvaliador(), 404, 'Avaliador não encontrado.');
+        $demo = $request->validate(['is_demo' => ['required', 'boolean']])['is_demo'];
+
+        $this->service->definirDemo($avaliador, $demo);
+
+        return response()->json([
+            'data' => ['is_demo' => $demo],
+            'meta' => ['message' => $demo ? 'Avaliador marcado como demo.' : 'Avaliador não é mais demo.'],
+        ]);
+    }
+
+    /** Apaga todas as avaliações dos avaliadores demo (dados de teste). */
+    public function limparTestes(): JsonResponse
+    {
+        $apagadas = $this->service->limparDadosDeTeste();
+
+        return response()->json([
+            'data' => ['apagadas' => $apagadas],
+            'meta' => ['message' => "{$apagadas} avaliação(ões) de teste apagada(s)."],
         ]);
     }
 }

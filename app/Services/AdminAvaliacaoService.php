@@ -50,6 +50,7 @@ class AdminAvaliacaoService
                 'avaliou' => $avaliou,
                 'faltam' => max(0, StatusAvaliacao::MAX_POR_AVALIADOR - $avaliou),
                 'limite' => $u->avaliadorProfile?->limite_avaliacoes,
+                'is_demo' => (bool) $u->is_demo,
             ];
         }
 
@@ -129,6 +130,22 @@ class AdminAvaliacaoService
     public function definirLimite(User $avaliador, ?int $limite): void
     {
         $avaliador->avaliadorProfile?->update(['limite_avaliacoes' => $limite]);
+    }
+
+    /** Marca/desmarca um avaliador como "demo" (fora do escopo real). */
+    public function definirDemo(User $avaliador, bool $demo): void
+    {
+        $avaliador->update(['is_demo' => $demo]);
+    }
+
+    /** Apaga todas as avaliações dos avaliadores demo. Retorna quantas foram apagadas. */
+    public function limparDadosDeTeste(): int
+    {
+        $demoIds = User::where('role', Role::Avaliador->value)
+            ->where('is_demo', true)
+            ->pluck('id');
+
+        return Avaliacao::whereIn('avaliador_id', $demoIds)->delete();
     }
 
     /** Configuração da liberação da avaliação (data + se já liberada). */

@@ -120,6 +120,8 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::get('/avaliacao/projetos', [AdminAvaliacaoController::class, 'projetos']);
             Route::post('/avaliacao/projetos/{projeto}/designar', [AdminAvaliacaoController::class, 'designar']);
             Route::patch('/avaliacao/avaliadores/{avaliador}/limite', [AdminAvaliacaoController::class, 'limitar']);
+            Route::patch('/avaliacao/avaliadores/{avaliador}/demo', [AdminAvaliacaoController::class, 'demo']);
+            Route::delete('/avaliacao/testes', [AdminAvaliacaoController::class, 'limparTestes']);
             Route::get('/projetos-por-area', [AdminController::class, 'projetosPorArea']);
             Route::get('/projetos-por-localidade', [AdminController::class, 'projetosPorLocalidade']);
             Route::post('/admins', [AdminController::class, 'store']);
