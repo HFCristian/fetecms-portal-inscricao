@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Enums\ProjetoStatus;
 use App\Enums\Role;
 use App\Enums\StatusAvaliacao;
+use App\Models\Avaliacao;
+use App\Models\AvaliadorProfile;
 use App\Models\Projeto;
 use App\Models\User;
 
@@ -63,7 +65,10 @@ class AdminAvaliacaoService
         $projetos = Projeto::query()
             ->where('status', ProjetoStatus::Submetido->value)
             ->with('area:id,nome')
-            ->withCount(['avaliacoes as avaliacoes_recebidas' => fn ($q) => $q->where('status', StatusAvaliacao::Concluida->value)])
+            ->withCount([
+                'avaliacoes as realizadas' => fn ($q) => $q->where('status', StatusAvaliacao::Concluida->value),
+                'avaliacoes as em_avaliacao' => fn ($q) => $q->where('status', StatusAvaliacao::EmAndamento->value),
+            ])
             ->orderBy('titulo')
             ->get();
 
@@ -73,14 +78,49 @@ class AdminAvaliacaoService
             $chave = $area?->id ?? 0;
             $grupos[$chave] ??= ['area_id' => (int) ($area?->id ?? 0), 'area' => $area?->nome ?? 'Sem área', 'projetos' => []];
 
+            $realizadas = (int) $p->realizadas;
             $grupos[$chave]['projetos'][] = [
                 'id' => $p->id,
                 'titulo' => $p->titulo,
-                'avaliacoes_recebidas' => (int) $p->avaliacoes_recebidas,
+                'realizadas' => $realizadas,
+                'em_avaliacao' => (int) $p->em_avaliacao,
+                // Cada projeto precisa de ao menos 3 avaliações concluídas.
+                'faltantes' => max(0, StatusAvaliacao::MAX_POR_AVALIADOR - $realizadas),
             ];
         }
 
         return $this->ordenarPorArea($grupos);
+    }
+
+    /**
+     * Designa um projeto submetido para avaliação, criando avaliações "designadas".
+     * Alvo: um avaliador específico, ou todos os avaliadores de uma área/subárea.
+     * Pula quem já tem esse projeto e pode exceder o teto de 5 (override do admin).
+     *
+     * @return int quantas designações novas foram criadas
+     */
+    public function designar(Projeto $projeto, string $tipo, int $alvoId): int
+    {
+        $avaliadorIds = match ($tipo) {
+            'avaliador' => [$alvoId],
+            'area' => AvaliadorProfile::where('area_id', $alvoId)->pluck('user_id')->all(),
+            'subarea' => AvaliadorProfile::where('subarea_id', $alvoId)->pluck('user_id')->all(),
+            default => [],
+        };
+
+        $novas = 0;
+        foreach ($avaliadorIds as $uid) {
+            $avaliacao = Avaliacao::firstOrCreate(
+                ['projeto_id' => $projeto->id, 'avaliador_id' => $uid],
+                ['status' => StatusAvaliacao::Designada],
+            );
+
+            if ($avaliacao->wasRecentlyCreated) {
+                $novas++;
+            }
+        }
+
+        return $novas;
     }
 
     /** Ordena os grupos por nome da área (mantendo "Sem área" no fim). */

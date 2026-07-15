@@ -7,6 +7,8 @@ export const getAvaliadores = () => http.get('/admin/avaliadores').then((r) => r
 // Avaliação online (E7): avaliadores por área e projetos submetidos por área.
 export const getAvaliacaoAvaliadores = () => http.get('/admin/avaliacao/avaliadores').then((r) => r.data.data);
 export const getAvaliacaoProjetos = () => http.get('/admin/avaliacao/projetos').then((r) => r.data.data);
+export const designarProjeto = (projetoId, payload) =>
+    http.post(`/admin/avaliacao/projetos/${projetoId}/designar`, payload).then((r) => r.data);
 
 export const getProjetosPorArea = () => http.get('/admin/projetos-por-area').then((r) => r.data.data);
 

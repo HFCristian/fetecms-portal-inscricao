@@ -31,6 +31,8 @@ export function useCatalogos() {
     return cat;
 }
 
+export const loadAreas = () => http.get('/catalogos/areas').then((r) => r.data.data);
+
 export const loadSubareas = (areaId) =>
     http.get('/catalogos/subareas', { params: { area_id: areaId } }).then((r) => r.data.data);
 

@@ -61,7 +61,7 @@ class AdminAvaliacaoTest extends TestCase
             ->assertJsonPath('data.1.avaliadores.0.faltam', 0);
     }
 
-    public function test_projetos_submetidos_por_area_com_avaliacoes_recebidas(): void
+    public function test_projetos_submetidos_por_area_com_metricas(): void
     {
         $a = Area::create(['nome' => 'Área A']);
         $b = Area::create(['nome' => 'Área B']);
@@ -77,7 +77,7 @@ class AdminAvaliacaoTest extends TestCase
 
         Avaliacao::create(['projeto_id' => $p1->id, 'avaliador_id' => $ana->id, 'status' => 'concluida', 'nota' => 8]);
         Avaliacao::create(['projeto_id' => $p1->id, 'avaliador_id' => $carlos->id, 'status' => 'concluida', 'nota' => 9]);
-        Avaliacao::create(['projeto_id' => $p2->id, 'avaliador_id' => $ana->id, 'status' => 'em_andamento']); // não conta
+        Avaliacao::create(['projeto_id' => $p2->id, 'avaliador_id' => $ana->id, 'status' => 'em_andamento']);
 
         Sanctum::actingAs(User::factory()->admin()->create());
 
@@ -85,9 +85,67 @@ class AdminAvaliacaoTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.0.area', 'Área A')
             ->assertJsonPath('data.0.projetos.0.titulo', 'Projeto A1')
-            ->assertJsonPath('data.0.projetos.0.avaliacoes_recebidas', 2)
+            ->assertJsonPath('data.0.projetos.0.realizadas', 2)
+            ->assertJsonPath('data.0.projetos.0.em_avaliacao', 0)
+            ->assertJsonPath('data.0.projetos.0.faltantes', 1)
             ->assertJsonPath('data.1.area', 'Área B')
-            ->assertJsonPath('data.1.projetos.0.avaliacoes_recebidas', 0);
+            ->assertJsonPath('data.1.projetos.0.realizadas', 0)
+            ->assertJsonPath('data.1.projetos.0.em_avaliacao', 1)
+            ->assertJsonPath('data.1.projetos.0.faltantes', 3);
+    }
+
+    public function test_admin_designa_projeto_a_avaliador_especifico(): void
+    {
+        $a = Area::create(['nome' => 'Área A']);
+        $ana = $this->avaliador($a->id, 'Ana');
+        $proj = Projeto::factory()->submetido()->create(['user_id' => User::factory()->create()->id, 'area_id' => $a->id]);
+
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->postJson("/api/v1/admin/avaliacao/projetos/{$proj->id}/designar", [
+            'tipo' => 'avaliador', 'alvo_id' => $ana->id,
+        ])->assertOk()->assertJsonPath('data.designadas', 1);
+
+        $this->assertDatabaseHas('avaliacoes', [
+            'projeto_id' => $proj->id, 'avaliador_id' => $ana->id, 'status' => 'designada',
+        ]);
+
+        // Idempotente: designar de novo não duplica.
+        $this->postJson("/api/v1/admin/avaliacao/projetos/{$proj->id}/designar", [
+            'tipo' => 'avaliador', 'alvo_id' => $ana->id,
+        ])->assertOk()->assertJsonPath('data.designadas', 0);
+    }
+
+    public function test_admin_designa_projeto_a_todos_de_uma_area(): void
+    {
+        $a = Area::create(['nome' => 'Área A']);
+        $b = Area::create(['nome' => 'Área B']);
+        $this->avaliador($a->id, 'Ana');
+        $this->avaliador($a->id, 'Bruno');
+        $this->avaliador($b->id, 'Carlos'); // outra área: não designa
+
+        $proj = Projeto::factory()->submetido()->create(['user_id' => User::factory()->create()->id, 'area_id' => $a->id]);
+
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->postJson("/api/v1/admin/avaliacao/projetos/{$proj->id}/designar", [
+            'tipo' => 'area', 'alvo_id' => $a->id,
+        ])->assertOk()->assertJsonPath('data.designadas', 2);
+
+        $this->assertSame(2, Avaliacao::where('projeto_id', $proj->id)->count());
+    }
+
+    public function test_nao_designa_projeto_nao_submetido(): void
+    {
+        $a = Area::create(['nome' => 'Área A']);
+        $ana = $this->avaliador($a->id, 'Ana');
+        $rascunho = Projeto::factory()->create(['user_id' => User::factory()->create()->id, 'area_id' => $a->id]);
+
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->postJson("/api/v1/admin/avaliacao/projetos/{$rascunho->id}/designar", [
+            'tipo' => 'avaliador', 'alvo_id' => $ana->id,
+        ])->assertStatus(422);
     }
 
     public function test_nao_admin_nao_acessa_avaliacao_online(): void
