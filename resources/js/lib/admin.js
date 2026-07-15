@@ -17,6 +17,7 @@ export const limparDadosDeTeste = () => http.delete('/admin/avaliacao/testes').t
 export const getAvaliacaoProjetos = () => http.get('/admin/avaliacao/projetos').then((r) => r.data.data);
 export const designarProjeto = (projetoId, payload) =>
     http.post(`/admin/avaliacao/projetos/${projetoId}/designar`, payload).then((r) => r.data);
+export const distribuirAvaliacoes = () => http.post('/admin/avaliacao/distribuir').then((r) => r.data);
 
 export const getProjetosPorArea = () => http.get('/admin/projetos-por-area').then((r) => r.data.data);
 

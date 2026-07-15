@@ -10,6 +10,7 @@ use App\Http\Requests\Admin\LimiteAvaliadorRequest;
 use App\Models\Projeto;
 use App\Models\User;
 use App\Services\AdminAvaliacaoService;
+use App\Services\DistribuicaoService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -19,7 +20,10 @@ use Illuminate\Http\Request;
  */
 class AdminAvaliacaoController extends Controller
 {
-    public function __construct(private readonly AdminAvaliacaoService $service) {}
+    public function __construct(
+        private readonly AdminAvaliacaoService $service,
+        private readonly DistribuicaoService $distribuicao,
+    ) {}
 
     /** Avaliadores agrupados por área, com o progresso de avaliação de cada um. */
     public function avaliadores(): JsonResponse
@@ -105,6 +109,17 @@ class AdminAvaliacaoController extends Controller
         return response()->json([
             'data' => ['apagadas' => $apagadas],
             'meta' => ['message' => "{$apagadas} avaliação(ões) de teste apagada(s)."],
+        ]);
+    }
+
+    /** Roda a distribuição automática (idempotente) e devolve o relatório. */
+    public function distribuir(): JsonResponse
+    {
+        $relatorio = $this->distribuicao->distribuir();
+
+        return response()->json([
+            'data' => $relatorio,
+            'meta' => ['message' => "{$relatorio['designadas_criadas']} designação(ões) criada(s)."],
         ]);
     }
 }

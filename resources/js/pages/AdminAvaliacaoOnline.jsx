@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
-import { Button, Alert } from '../components/ui.jsx';
-import { getAvaliacaoConfig, definirLiberacaoAvaliacao } from '../lib/admin.js';
+import { Button, Alert, useConfirm } from '../components/ui.jsx';
+import { getAvaliacaoConfig, definirLiberacaoAvaliacao, distribuirAvaliacoes } from '../lib/admin.js';
 
 // ISO -> valor de <input type="datetime-local"> (hora local).
 function isoParaInput(iso) {
@@ -72,6 +72,73 @@ function LiberacaoConfig() {
     );
 }
 
+// Distribuição automática (idempotente) + relatório de sub-cobertura.
+function DistribuicaoCard() {
+    const [confirm, dialogo] = useConfirm();
+    const [rodando, setRodando] = useState(false);
+    const [relatorio, setRelatorio] = useState(null);
+    const [msg, setMsg] = useState('');
+    const [erro, setErro] = useState('');
+
+    async function distribuir() {
+        const ok = await confirm({
+            title: 'Distribuir avaliações', confirmLabel: 'Distribuir',
+            message: 'Vou completar cada projeto submetido até 3 avaliadores (por subárea/área), respeitando os limites e ignorando avaliadores demo. É seguro rodar mais de uma vez. Continuar?',
+        });
+        if (!ok) return;
+        setRodando(true); setMsg(''); setErro(''); setRelatorio(null);
+        try {
+            const resp = await distribuirAvaliacoes();
+            setRelatorio(resp.data);
+            setMsg(resp.meta?.message || 'Distribuição concluída.');
+        } catch {
+            setErro('Não foi possível distribuir. Tente novamente.');
+        } finally {
+            setRodando(false);
+        }
+    }
+
+    const subs = relatorio?.sub_cobertos ?? [];
+
+    return (
+        <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-6 mb-6 max-w-3xl">
+            <h2 className="font-display text-primary font-semibold mb-1">Distribuição automática</h2>
+            <p className="text-sm text-on-surface-variant mb-3">
+                Completa cada projeto submetido até 3 avaliadores, casando por subárea (preferencial) ou
+                área. Idempotente: pode rodar quantas vezes quiser — só completa o que falta.
+            </p>
+            {msg && <div className="mb-3"><Alert type="info">{msg}</Alert></div>}
+            {erro && <div className="mb-3"><Alert>{erro}</Alert></div>}
+            <Button type="button" loading={rodando} onClick={distribuir}>
+                <span className="material-symbols-outlined text-[18px]">shuffle</span>
+                Distribuir avaliações
+            </Button>
+
+            {relatorio && subs.length === 0 && (
+                <p className="mt-3 text-sm text-secondary font-semibold">
+                    Todos os projetos submetidos têm ao menos 3 avaliadores.
+                </p>
+            )}
+            {subs.length > 0 && (
+                <div className="mt-4">
+                    <p className="text-sm font-semibold text-on-surface mb-2">
+                        {subs.length} projeto(s) ainda precisam de avaliadores — complete manualmente na tela de projetos:
+                    </p>
+                    <ul className="text-sm text-on-surface-variant space-y-1 max-h-56 overflow-auto">
+                        {subs.map((s) => (
+                            <li key={s.projeto_id} className="flex justify-between gap-2">
+                                <span className="truncate">{s.titulo}{s.area ? ` — ${s.area}` : ''}</span>
+                                <span className="shrink-0 text-error font-semibold">faltam {s.faltam}</span>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+            {dialogo}
+        </div>
+    );
+}
+
 // Card de acesso a uma tela da avaliação online.
 function CardAvaliacao({ to, icon, titulo, descricao }) {
     return (
@@ -102,6 +169,7 @@ export default function AdminAvaliacaoOnline() {
             </p>
 
             <LiberacaoConfig />
+            <DistribuicaoCard />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl">
                 <CardAvaliacao
