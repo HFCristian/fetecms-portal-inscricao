@@ -96,8 +96,13 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
         Route::get('documentos/{documento}/preview', [DocumentoController::class, 'preview']);
         Route::delete('documentos/{documento}', [DocumentoController::class, 'destroy']);
 
-        // Avaliação online — lado do avaliador (projetos designados, após liberação)
-        Route::middleware('role:avaliador')->get('/avaliacao', [AvaliadorAvaliacaoController::class, 'index']);
+        // Avaliação online — lado do avaliador (E7): ler, iniciar e concluir com nota
+        Route::middleware('role:avaliador')->prefix('avaliacao')->group(function () {
+            Route::get('/', [AvaliadorAvaliacaoController::class, 'index']);
+            Route::get('/{avaliacao}', [AvaliadorAvaliacaoController::class, 'show']);
+            Route::post('/{avaliacao}/iniciar', [AvaliadorAvaliacaoController::class, 'iniciar']);
+            Route::post('/{avaliacao}/concluir', [AvaliadorAvaliacaoController::class, 'concluir']);
+        });
 
         // Chat de suporte — orientador/avaliador falam com o suporte (admin)
         Route::middleware('role:orientador,avaliador')->prefix('chat')->group(function () {

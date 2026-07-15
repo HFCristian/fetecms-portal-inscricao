@@ -20,7 +20,13 @@ class ProjetoPolicy
 
     public function view(User $user, Projeto $projeto): bool
     {
-        return $projeto->user_id === $user->id;
+        if ($projeto->user_id === $user->id) {
+            return true;
+        }
+
+        // Avaliador designado pode ler o projeto (e baixar seus documentos) para avaliar.
+        return $user->isAvaliador()
+            && $projeto->avaliacoes()->where('avaliador_id', $user->id)->exists();
     }
 
     public function create(User $user): bool

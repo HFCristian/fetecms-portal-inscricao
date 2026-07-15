@@ -20,11 +20,25 @@ class ChatController extends Controller
     /** Conversa do usuário autenticado, com todo o histórico de mensagens. */
     public function show(Request $request): JsonResponse
     {
-        $conversa = $this->chat->obterOuCriar($request->user());
+        $conversa = $this->chat->obter($request->user());
+
+        // Abrir o chat NÃO cria conversa nem notifica o suporte — só o envio da
+        // primeira mensagem cria. Sem conversa, devolve um "casco" vazio.
+        if ($conversa === null) {
+            return response()->json(['data' => [
+                'id' => null,
+                'status' => null,
+                'status_label' => null,
+                'nao_respondida' => false,
+                'ultima_mensagem_em' => null,
+                'usuario_visto_em' => null,
+                'suporte_visto_em' => null,
+                'mensagens' => [],
+            ]]);
+        }
+
         $this->chat->marcarVistoPeloUsuario($conversa);
 
-        // setStatusCode(200): firstOrCreate marca o model como "recém-criado" e o
-        // Laravel responderia 201 num GET na primeira vez que o chat é aberto.
         return ConversaResource::make($conversa->load('mensagens'))
             ->response()
             ->setStatusCode(200);
