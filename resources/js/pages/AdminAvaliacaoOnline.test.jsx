@@ -4,8 +4,8 @@ import { describe, it, expect, vi } from 'vitest';
 vi.mock('../components/AppShell.jsx', () => ({ default: ({ children }) => <div>{children}</div> }));
 vi.mock('react-router-dom', () => ({ Link: ({ children }) => <a>{children}</a> }));
 vi.mock('../lib/admin.js', () => ({
-    getAvaliacaoConfig: vi.fn(() => Promise.resolve({ liberada: false, liberada_em: null })),
-    definirLiberacaoAvaliacao: vi.fn(() => Promise.resolve({ liberada: false, liberada_em: null })),
+    getAvaliacaoConfig: vi.fn(() => Promise.resolve({ liberada: false, liberada_em_input: null, liberada_em_label: null })),
+    definirLiberacaoAvaliacao: vi.fn(() => Promise.resolve({ liberada: false, liberada_em_input: null, liberada_em_label: null })),
     distribuirAvaliacoes: vi.fn(() => Promise.resolve({ data: { designadas_criadas: 0, sub_cobertos: [] }, meta: { message: '0 designações' } })),
 }));
 

@@ -168,14 +168,6 @@ export default function AvaliacaoAvaliadores() {
                                                         Limite {a.limite}
                                                     </span>
                                                 )}
-                                                {a.is_demo && (
-                                                    <span
-                                                        title="Avaliador de teste (fora do escopo real)"
-                                                        className="text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap bg-primary-fixed text-primary-container"
-                                                    >
-                                                        Demo
-                                                    </span>
-                                                )}
                                             </div>
                                             <div className="flex items-center gap-2 shrink-0">
                                                 <Metrica valor={a.em_avaliacao} rotulo="Em avaliação" cor="text-primary-container" />
@@ -186,9 +178,14 @@ export default function AvaliacaoAvaliadores() {
                                                 type="button"
                                                 onClick={() => alternarDemo(a)}
                                                 title={a.is_demo ? 'Remover marca de teste (demo)' : 'Marcar como avaliador de teste (demo)'}
-                                                className={`shrink-0 p-1.5 rounded-lg hover:bg-surface-variant transition-colors ${a.is_demo ? 'text-primary-container' : 'text-on-surface-variant'}`}
+                                                className={`shrink-0 inline-flex items-center gap-1 text-xs font-semibold rounded-lg px-2.5 py-1.5 border transition-colors ${
+                                                    a.is_demo
+                                                        ? 'bg-primary-fixed text-primary-container border-primary-container/30'
+                                                        : 'text-on-surface-variant border-outline-variant hover:bg-surface-variant'
+                                                }`}
                                             >
-                                                <span className="material-symbols-outlined text-[20px]">science</span>
+                                                <span className="material-symbols-outlined text-[18px]">science</span>
+                                                Demo
                                             </button>
                                             <button
                                                 type="button"

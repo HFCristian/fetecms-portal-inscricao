@@ -4,32 +4,25 @@ import AppShell from '../components/AppShell.jsx';
 import { Button, Alert, useConfirm } from '../components/ui.jsx';
 import { getAvaliacaoConfig, definirLiberacaoAvaliacao, distribuirAvaliacoes } from '../lib/admin.js';
 
-// ISO -> valor de <input type="datetime-local"> (hora local).
-function isoParaInput(iso) {
-    if (!iso) return '';
-    const d = new Date(iso);
-    const p = (n) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
-}
-
 function LiberacaoConfig() {
     const [config, setConfig] = useState(null);
-    const [valor, setValor] = useState('');
+    const [valor, setValor] = useState(''); // "AAAA-MM-DDTHH:mm" (hora de parede local do app)
     const [salvando, setSalvando] = useState(false);
     const [msg, setMsg] = useState('');
     const [erro, setErro] = useState('');
 
     useEffect(() => {
         getAvaliacaoConfig()
-            .then((c) => { setConfig(c); setValor(isoParaInput(c.liberada_em)); })
-            .catch(() => setConfig({ liberada: false, liberada_em: null }));
+            .then((c) => { setConfig(c); setValor(c.liberada_em_input || ''); })
+            .catch(() => setConfig({ liberada: false, liberada_em_input: null, liberada_em_label: null }));
     }, []);
 
+    // Envia a hora de parede como está (sem converter para UTC no navegador).
     async function salvar(liberadaEm) {
         setSalvando(true); setMsg(''); setErro('');
         try {
             const c = await definirLiberacaoAvaliacao(liberadaEm);
-            setConfig(c); setValor(isoParaInput(c.liberada_em));
+            setConfig(c); setValor(c.liberada_em_input || '');
             setMsg(liberadaEm ? 'Data de liberação salva.' : 'Liberação removida.');
         } catch {
             setErro('Não foi possível salvar. Tente novamente.');
@@ -40,7 +33,7 @@ function LiberacaoConfig() {
 
     const status = !config ? null
         : config.liberada ? { txt: 'Avaliação liberada', cor: 'bg-secondary text-on-secondary' }
-            : config.liberada_em ? { txt: `Libera em ${new Date(config.liberada_em).toLocaleString('pt-BR')}`, cor: 'bg-primary-fixed text-primary-container' }
+            : config.liberada_em_label ? { txt: `Libera em ${config.liberada_em_label}`, cor: 'bg-primary-fixed text-primary-container' }
                 : { txt: 'Sem data definida', cor: 'bg-surface-variant text-on-surface-variant' };
 
     return (
@@ -50,7 +43,8 @@ function LiberacaoConfig() {
                 {status && <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${status.cor}`}>{status.txt}</span>}
             </div>
             <p className="text-sm text-on-surface-variant mb-3">
-                Antes desta data/hora os avaliadores não acessam os projetos. Deixe em branco para não liberar.
+                Data/hora (horário de Campo Grande) a partir da qual os avaliadores acessam os projetos.
+                Deixe em branco para não liberar.
             </p>
             {msg && <div className="mb-3"><Alert type="info">{msg}</Alert></div>}
             {erro && <div className="mb-3"><Alert>{erro}</Alert></div>}
@@ -61,10 +55,10 @@ function LiberacaoConfig() {
                     onChange={(e) => setValor(e.target.value)}
                     className="bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 outline-none"
                 />
-                <Button type="button" loading={salvando} disabled={!valor} onClick={() => salvar(valor ? new Date(valor).toISOString() : null)}>
+                <Button type="button" loading={salvando} disabled={!valor} onClick={() => salvar(valor || null)}>
                     Salvar data
                 </Button>
-                {config?.liberada_em && (
+                {config?.liberada_em_input && (
                     <Button type="button" variant="outline" onClick={() => salvar(null)}>Remover</Button>
                 )}
             </div>

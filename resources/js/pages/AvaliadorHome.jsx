@@ -23,7 +23,9 @@ export default function AvaliadorHome() {
     const area = user?.avaliador_profile?.area;
 
     const [dados, setDados] = useState(null);
-    const [modoTeste, setModoTeste] = useState(false);
+    // Demo já entra em "modo teste" (ignora a data). Para avaliador real, o backend
+    // ignora o flag — ele continua travado pela data. O toggle só aparece para demo.
+    const [modoTeste, setModoTeste] = useState(true);
     const [avaliando, setAvaliando] = useState(null); // avaliacao_id em avaliação
 
     const carregar = useCallback((teste) => {
@@ -64,8 +66,8 @@ export default function AvaliadorHome() {
                     <span className="material-symbols-outlined text-[48px] text-primary-container">event_upcoming</span>
                     <p className="text-on-surface mt-3 font-semibold">As avaliações ainda não foram liberadas</p>
                     <p className="text-on-surface-variant text-sm mt-1 max-w-md mx-auto">
-                        {dados.liberada_em
-                            ? <>Serão liberadas em <strong>{new Date(dados.liberada_em).toLocaleString('pt-BR')}</strong>. Os projetos designados para você aparecerão aqui.</>
+                        {dados.liberada_em_label
+                            ? <>Serão liberadas em <strong>{dados.liberada_em_label}</strong>. Os projetos designados para você aparecerão aqui.</>
                             : 'A partir da data definida pela organização, os projetos designados aparecerão aqui para leitura e nota (1 a 10).'}
                     </p>
                 </div>

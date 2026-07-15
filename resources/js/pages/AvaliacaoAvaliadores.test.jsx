@@ -27,7 +27,8 @@ describe('AvaliacaoAvaliadores', () => {
         render(<AvaliacaoAvaliadores />);
         expect(await screen.findByText('Ana')).toBeInTheDocument();
         expect(screen.getByText('Limite 2')).toBeInTheDocument();
-        expect(screen.getByText('Demo')).toBeInTheDocument();
+        // Botão "Demo" em cada linha de avaliador (controle discreto e rotulado).
+        expect(screen.getAllByText('Demo')).toHaveLength(2);
         expect(screen.getByText('Limpar dados de teste')).toBeInTheDocument();
     });
 
