@@ -10,6 +10,7 @@ use App\Models\AvaliadorProfile;
 use App\Models\Edicao;
 use App\Models\Projeto;
 use App\Models\User;
+use Illuminate\Support\Carbon;
 
 /**
  * Telas de "Avaliação online" do admin (E7). O algoritmo de distribuição ainda
@@ -152,17 +153,27 @@ class AdminAvaliacaoService
     public function config(): array
     {
         $edicao = Edicao::atual();
+        $data = $edicao?->avaliacao_liberada_em; // Carbon no fuso do app
 
         return [
-            'liberada_em' => $edicao?->avaliacao_liberada_em?->toIso8601String(),
             'liberada' => (bool) $edicao?->avaliacaoLiberada(),
+            // Valor para <input type="datetime-local"> e rótulo dd/MM/aaaa HH:mm,
+            // ambos no fuso do app (evita o shift de UTC do navegador).
+            'liberada_em_input' => $data?->format('Y-m-d\TH:i'),
+            'liberada_em_label' => $data?->format('d/m/Y H:i'),
         ];
     }
 
     /** Define a data de liberação (ou remove, com null) na edição atual. */
-    public function definirLiberacao(?string $dataIso): array
+    public function definirLiberacao(?string $data): array
     {
-        Edicao::atual()?->update(['avaliacao_liberada_em' => $dataIso ?: null]);
+        // A data chega como "hora de parede" local (ex.: 2026-08-17T07:00) e é
+        // interpretada no fuso do app — 07:00 é 07:00 em Campo Grande, sem shift.
+        $valor = ($data !== null && $data !== '')
+            ? Carbon::parse($data, config('app.timezone'))
+            : null;
+
+        Edicao::atual()?->update(['avaliacao_liberada_em' => $valor]);
 
         return $this->config();
     }

@@ -40,7 +40,7 @@ class AvaliadorAvaliacaoController extends Controller
 
         return response()->json(['data' => [
             'liberada' => (bool) $edicao?->avaliacaoLiberada(),
-            'liberada_em' => $edicao?->avaliacao_liberada_em?->toIso8601String(),
+            'liberada_em_label' => $edicao?->avaliacao_liberada_em?->format('d/m/Y H:i'),
             'pode_avaliar' => $pode,
             'is_demo' => (bool) $user->is_demo,
             'modo_teste' => $teste && (bool) $user->is_demo,

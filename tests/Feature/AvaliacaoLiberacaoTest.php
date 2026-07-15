@@ -47,7 +47,8 @@ class AvaliacaoLiberacaoTest extends TestCase
         $this->getJson('/api/v1/admin/avaliacao/config')
             ->assertOk()
             ->assertJsonPath('data.liberada', false)
-            ->assertJsonPath('data.liberada_em', fn ($v) => $v !== null);
+            ->assertJsonPath('data.liberada_em_input', fn ($v) => $v !== null)
+            ->assertJsonPath('data.liberada_em_label', fn ($v) => $v !== null);
     }
 
     public function test_liberada_quando_a_data_ja_passou(): void
@@ -84,6 +85,37 @@ class AvaliacaoLiberacaoTest extends TestCase
             ->assertJsonCount(1, 'data.projetos')
             ->assertJsonPath('data.projetos.0.titulo', 'Projeto X')
             ->assertJsonPath('data.projetos.0.status', 'designada');
+    }
+
+    public function test_data_e_interpretada_no_fuso_do_app_sem_shift(): void
+    {
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->patchJson('/api/v1/admin/avaliacao/config', ['liberada_em' => '2026-08-17T07:00'])
+            ->assertOk()
+            ->assertJsonPath('data.liberada_em_input', '2026-08-17T07:00')
+            ->assertJsonPath('data.liberada_em_label', '17/08/2026 07:00');
+
+        // 07:00 continua 07:00 (não vira 11:00).
+        $this->assertSame('07:00', Edicao::atual()->avaliacao_liberada_em->format('H:i'));
+    }
+
+    public function test_demo_ve_projetos_no_indice_com_teste_antes_da_liberacao(): void
+    {
+        [$av] = $this->avaliadorDesignado(); // designado, sem liberação
+        $av->update(['is_demo' => true]);
+        Sanctum::actingAs($av);
+
+        $this->getJson('/api/v1/avaliacao')
+            ->assertOk()
+            ->assertJsonPath('data.is_demo', true)
+            ->assertJsonPath('data.pode_avaliar', false)
+            ->assertJsonCount(0, 'data.projetos');
+
+        $this->getJson('/api/v1/avaliacao?teste=1')
+            ->assertOk()
+            ->assertJsonPath('data.pode_avaliar', true)
+            ->assertJsonCount(1, 'data.projetos');
     }
 
     public function test_permissoes_de_papel(): void
