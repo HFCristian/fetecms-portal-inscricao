@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Enums\ProjetoStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\DesignarAvaliacaoRequest;
+use App\Http\Requests\Admin\LiberacaoAvaliacaoRequest;
 use App\Http\Requests\Admin\LimiteAvaliadorRequest;
 use App\Models\Projeto;
 use App\Models\User;
@@ -23,6 +24,20 @@ class AdminAvaliacaoController extends Controller
     public function avaliadores(): JsonResponse
     {
         return response()->json(['data' => $this->service->avaliadoresPorArea()]);
+    }
+
+    /** Configuração da liberação da avaliação (data + se já liberada). */
+    public function config(): JsonResponse
+    {
+        return response()->json(['data' => $this->service->config()]);
+    }
+
+    /** Define/remove a data de liberação da avaliação (edição atual). */
+    public function definirLiberacao(LiberacaoAvaliacaoRequest $request): JsonResponse
+    {
+        $config = $this->service->definirLiberacao($request->validated('liberada_em'));
+
+        return response()->json(['data' => $config, 'meta' => ['message' => 'Liberação atualizada.']]);
     }
 
     /** Projetos submetidos por área, com realizadas/em avaliação/faltantes. */

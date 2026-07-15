@@ -4,7 +4,10 @@ export const getDashboard = () => http.get('/admin/dashboard').then((r) => r.dat
 
 export const getAvaliadores = () => http.get('/admin/avaliadores').then((r) => r.data.data);
 
-// Avaliação online (E7): avaliadores por área e projetos submetidos por área.
+// Avaliação online (E7): configuração de liberação, avaliadores e projetos por área.
+export const getAvaliacaoConfig = () => http.get('/admin/avaliacao/config').then((r) => r.data.data);
+export const definirLiberacaoAvaliacao = (liberadaEm) =>
+    http.patch('/admin/avaliacao/config', { liberada_em: liberadaEm }).then((r) => r.data.data);
 export const getAvaliacaoAvaliadores = () => http.get('/admin/avaliacao/avaliadores').then((r) => r.data.data);
 export const definirLimiteAvaliador = (avaliadorId, limite) =>
     http.patch(`/admin/avaliacao/avaliadores/${avaliadorId}/limite`, { limite }).then((r) => r.data);
