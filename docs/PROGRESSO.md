@@ -10,7 +10,7 @@ branch da sprint N−1, para nada se perder enquanto os PRs não são mergeados)
 |--------|--------|--------|--------|
 | 1 | **E1** Atualização de dependências (dependabot) · **E2** Login: aviso de bloqueio + contador | `feat/sprint1-deps-login-bloqueio` | ✅ concluída |
 | 2 | **E3** Dashboard: card "Projetos por categoria" · **E4** Rubrica de avaliação (3 notas + comentários) | `feat/sprint2-dashboard-rubrica` | ✅ concluída |
-| 3 | **E5** Conferência de classificação (área/subárea) · **E6** Rascunho da avaliação | `feat/sprint3-classificacao-rascunho` | ⏳ a fazer |
+| 3 | **E5** Conferência de classificação (área/subárea) · **E6** Rascunho da avaliação | `feat/sprint3-classificacao-rascunho` | ✅ concluída |
 
 ### Decisões travadas (definidas com o Pedro antes de começar)
 
@@ -194,3 +194,94 @@ comentário em branco → nulo, obrigatoriedade e faixa dos quesitos),
 - **Relatório para o orientador.** Os comentários por quesito são um retorno valioso; vale
   decidir se e quando o orientador poderá lê-los (hoje ficam só para a organização).
 - **Coluna "Sem categoria"** no card novo, caso queira que as três colunas fechem com o total.
+
+---
+
+## Sprint 3 — Conferência de classificação + rascunho
+
+**Branch:** `feat/sprint3-classificacao-rascunho` (a partir de `feat/sprint2-dashboard-rubrica`)
+
+### E5 — Conferência da classificação (área e subárea)
+
+O avaliador agora também confere se o projeto está classificado no lugar certo:
+
+| Pergunta | Obrigatoriedade | Sugestão |
+|----------|-----------------|----------|
+| A **área do conhecimento** está correta? | **Obrigatória** para enviar | Se responder "não", **sugerir a área correta é obrigatório** |
+| A **subárea** está correta? | **Opcional** (pode deixar em branco) | Se responder "não", **sugerir a subárea correta é obrigatório** |
+
+- As listas são as **do catálogo global**, exatamente os controles dos formulários do orientador:
+  `Select` de áreas e `SubareaCombobox` (com "digite/crie", que cria a subárea global na hora).
+- As subáreas listadas seguem a **área que vale para o projeto** — a sugerida, se houver; senão
+  a atual. Trocar a área sugerida limpa a subárea escolhida, para não sobrar combinação inválida.
+- **A sugestão precisa ser diferente da classificação atual** (sugerir a mesma área não corrige
+  nada) — validado no servidor e a área atual nem aparece na lista.
+- Marcar como "correta" **descarta a sugestão** salva antes em rascunho, então não sobra
+  sugestão órfã de uma resposta que o avaliador mudou de ideia.
+- As sugestões apontam para o catálogo com `nullOnDelete`: se o admin mesclar/excluir uma área
+  em Parametrização, as avaliações já feitas não são derrubadas.
+
+### E6 — Rascunho da avaliação
+
+- Novo endpoint **`POST /api/v1/avaliacao/{id}/rascunho`**: salva o preenchimento parcial sem
+  enviar. **Nada é obrigatório** no rascunho, mas o que vier é validado (nota de 0 a 10,
+  comentário até 2000 caracteres, sugestão existente no catálogo).
+- A avaliação continua **`em_andamento`**; `rascunho_em` guarda o último salvamento e é
+  **zerado ao enviar**. Reabrir o modal traz tudo preenchido de volta.
+- No modal, o botão **"Salvar rascunho"** fica ao lado de "Enviar avaliação" e funciona mesmo
+  com o formulário incompleto (o de enviar continua bloqueado até completar).
+- Não dá para salvar rascunho antes de iniciar nem depois de enviada.
+- Os dois `FormRequest` (rascunho e conclusão) herdam de `AvaliacaoRequest`, que alterna entre
+  "tudo opcional" e "quesitos + área obrigatórios" — regras de faixa e consistência escritas uma vez só.
+
+**Arquivos principais:** `database/migrations/2026_08_08_110000_add_classificacao_e_rascunho_to_avaliacoes_table.php`,
+`app/Http/Requests/Avaliador/AvaliacaoRequest.php` (novo, base),
+`app/Http/Requests/Avaliador/RascunhoAvaliacaoRequest.php` (novo),
+`app/Http/Requests/Avaliador/ConcluirAvaliacaoRequest.php`, `app/Services/AvaliacaoFluxoService.php`,
+`app/Models/Avaliacao.php`, `app/Http/Controllers/Api/V1/AvaliadorAvaliacaoController.php`,
+`routes/api.php`, `resources/js/components/AvaliacaoModal.jsx`, `resources/js/lib/avaliacao.js`.
+
+### Resultado dos testes
+
+| Verificação | Sprint 2 | Sprint 3 |
+|-------------|----------|----------|
+| Backend (PHPUnit) | 239/239 | **254/254** (809 asserções) |
+| Frontend (Vitest) | 46/46 | **54/54** (17 arquivos) |
+| Pint | limpo | **limpo** |
+| `npm run build` | OK | **OK** |
+
+Novos testes: `AvaliacaoFluxoTest` (+15: sugestão obrigatória quando incorreta, sugestão
+diferente da atual, sugestão precisa existir no catálogo, subárea opcional, descarte de sugestão
+órfã, rascunho parcial/recuperado/validado/barrado antes de iniciar e depois de enviado, marca de
+rascunho limpa ao enviar, rascunho de outro avaliador barrado) e `AvaliacaoModal.test.jsx` (+8).
+
+**Verificação extra:** rodei a migration num banco SQLite com uma avaliação antiga já gravada.
+Como o SQLite reconstrói a tabela para criar as FKs, confirmei que a linha sobrevive intacta
+(`nota`, `status`, `projeto_id`) e que as 6 colunas novas aparecem.
+
+### O que o Pedro precisa fazer
+
+1. **Push das três branches** (nesta ordem, são cumulativas):
+   ```
+   git push -u origin feat/sprint1-deps-login-bloqueio
+   git push -u origin feat/sprint2-dashboard-rubrica
+   git push -u origin feat/sprint3-classificacao-rascunho
+   ```
+   Se preferir um PR só, o da Sprint 3 já contém tudo.
+2. **Rodar `php artisan migrate`** ao subir (duas migrations novas).
+3. **Decidir sobre as avaliações antigas** (ver Sprint 2, item 2): se houver alguma concluída no
+   banco, ela fica com `nota` na escala velha (1–10), sem quesitos e sem conferência de área.
+4. **Validar o fluxo com a comissão avaliadora** — vale abrir a tela com um avaliador de teste e
+   conferir se os textos das perguntas ("A área do conhecimento está correta?") estão como eles
+   esperam.
+
+### Sugestões (fora do escopo, para você decidir)
+
+- **Tela do admin para as sugestões de reclassificação.** O avaliador agora sinaliza área/subárea
+  erradas, mas ninguém vê isso reunido em lugar nenhum. Uma lista "projetos com reclassificação
+  sugerida" (com quantos avaliadores concordam) fecharia o ciclo — e casaria com a Parametrização
+  que já existe.
+- **Autosalvar o rascunho** a cada N segundos, além do botão manual, para o avaliador não perder
+  o preenchimento se a sessão cair no meio de uma leitura longa.
+- **Distribuição por subárea:** se muitos projetos vierem reclassificados, vale reprocessar a
+  designação de avaliadores depois da correção.
