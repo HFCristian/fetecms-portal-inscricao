@@ -68,7 +68,7 @@ export default function AvaliadorHome() {
                     <p className="text-on-surface-variant text-sm mt-1 max-w-md mx-auto">
                         {dados.liberada_em_label
                             ? <>Serão liberadas em <strong>{dados.liberada_em_label}</strong>. Os projetos designados para você aparecerão aqui.</>
-                            : 'A partir da data definida pela organização, os projetos designados aparecerão aqui para leitura e nota (1 a 10).'}
+                            : 'A partir da data definida pela organização, os projetos designados aparecerão aqui para leitura e avaliação.'}
                     </p>
                 </div>
             ) : dados.projetos.length === 0 ? (
@@ -90,7 +90,10 @@ export default function AvaliadorHome() {
                                     {p.area && <p className="text-xs text-on-surface-variant truncate">{p.area}</p>}
                                 </div>
                                 {p.status === 'concluida' && (
-                                    <span className="text-xs text-on-surface-variant shrink-0">nota <strong className="text-secondary">{p.nota}</strong></span>
+                                    <span className="text-xs text-on-surface-variant shrink-0">
+                                        nota <strong className="text-secondary">{p.nota}</strong>
+                                        <span className="text-on-surface-variant/70">/{dados.nota_maxima}</span>
+                                    </span>
                                 )}
                                 <span className={`text-xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${PILL[p.status] ?? 'bg-surface-variant'}`}>
                                     {p.status_label}

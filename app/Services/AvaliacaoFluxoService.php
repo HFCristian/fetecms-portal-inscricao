@@ -51,8 +51,14 @@ class AvaliacaoFluxoService
         $avaliacao->update(['status' => StatusAvaliacao::EmAndamento]);
     }
 
-    /** Conclui a avaliação (em_andamento → concluida) com a nota. */
-    public function concluir(Avaliacao $avaliacao, int $nota): void
+    /**
+     * Conclui a avaliação (em_andamento → concluida) com a rubrica preenchida.
+     * A nota final é a SOMA dos três quesitos (0 a 30) — calculada aqui, nunca
+     * enviada pelo cliente.
+     *
+     * @param  array<string, mixed>  $rubrica  Já validado pelo ConcluirAvaliacaoRequest.
+     */
+    public function concluir(Avaliacao $avaliacao, array $rubrica): void
     {
         if ($avaliacao->status !== StatusAvaliacao::EmAndamento) {
             throw ValidationException::withMessages([
@@ -60,7 +66,34 @@ class AvaliacaoFluxoService
             ]);
         }
 
-        $avaliacao->update(['status' => StatusAvaliacao::Concluida, 'nota' => $nota]);
+        $avaliacao->fill($this->camposRubrica($rubrica));
+
+        $avaliacao->update([
+            'status' => StatusAvaliacao::Concluida,
+            'nota' => $avaliacao->somaDosQuesitos(),
+        ]);
+    }
+
+    /**
+     * Só os campos da rubrica, para o preenchimento nunca carregar `status`,
+     * `nota` ou qualquer outra chave vinda do cliente.
+     *
+     * @param  array<string, mixed>  $dados
+     * @return array<string, mixed>
+     */
+    private function camposRubrica(array $dados): array
+    {
+        $campos = [];
+
+        foreach (Avaliacao::QUESITOS as $quesito) {
+            foreach (["nota_{$quesito}", "comentario_{$quesito}"] as $campo) {
+                if (array_key_exists($campo, $dados)) {
+                    $campos[$campo] = $dados[$campo];
+                }
+            }
+        }
+
+        return $campos;
     }
 
     /** Conteúdo do projeto para leitura do avaliador. */

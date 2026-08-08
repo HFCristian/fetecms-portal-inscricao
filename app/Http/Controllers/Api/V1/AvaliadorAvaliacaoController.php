@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Avaliador\ConcluirAvaliacaoRequest;
 use App\Models\Avaliacao;
 use App\Models\Edicao;
 use App\Services\AvaliacaoFluxoService;
@@ -44,6 +45,7 @@ class AvaliadorAvaliacaoController extends Controller
             'pode_avaliar' => $pode,
             'is_demo' => (bool) $user->is_demo,
             'modo_teste' => $teste && (bool) $user->is_demo,
+            'nota_maxima' => Avaliacao::notaMaxima(),
             'projetos' => $projetos,
         ]]);
     }
@@ -68,12 +70,11 @@ class AvaliadorAvaliacaoController extends Controller
         return response()->json(['data' => $this->avaliacao($avaliacao->fresh())]);
     }
 
-    /** Conclui a avaliação com a nota (1–10). */
-    public function concluir(Request $request, Avaliacao $avaliacao): JsonResponse
+    /** Conclui a avaliação com a rubrica (3 quesitos de 0 a 10 + comentários). */
+    public function concluir(ConcluirAvaliacaoRequest $request, Avaliacao $avaliacao): JsonResponse
     {
         $this->garantirAcesso($request, $avaliacao);
-        $nota = (int) $request->validate(['nota' => ['required', 'integer', 'min:1', 'max:10']])['nota'];
-        $this->fluxo->concluir($avaliacao, $nota);
+        $this->fluxo->concluir($avaliacao, $request->validated());
 
         return response()->json([
             'data' => $this->avaliacao($avaliacao->fresh()),
@@ -106,11 +107,21 @@ class AvaliadorAvaliacaoController extends Controller
 
     private function avaliacao(Avaliacao $a): array
     {
+        $rubrica = [];
+
+        foreach (Avaliacao::QUESITOS as $quesito) {
+            $rubrica["nota_{$quesito}"] = $a->{"nota_{$quesito}"};
+            $rubrica["comentario_{$quesito}"] = $a->{"comentario_{$quesito}"};
+        }
+
         return [
             'id' => $a->id,
             'status' => $a->status->value,
             'status_label' => $a->status->label(),
             'nota' => $a->nota,
+            'nota_maxima' => Avaliacao::notaMaxima(),
+            'nota_maxima_quesito' => Avaliacao::NOTA_MAXIMA_QUESITO,
+            ...$rubrica,
         ];
     }
 }
