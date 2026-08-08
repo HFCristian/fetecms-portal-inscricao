@@ -3,6 +3,6 @@
 return [
     'failed' => 'E-mail ou senha incorretos.',
     'password' => 'A senha informada está incorreta.',
-    'throttle' => 'Tentativas de login em excesso. Tente novamente em :seconds segundos.',
+    'throttle' => 'Tentativas de login em excesso. Tente novamente em :tempo.',
     'inactive' => 'Esta conta está inativa. Procure a organização do evento.',
 ];

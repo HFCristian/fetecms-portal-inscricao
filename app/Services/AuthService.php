@@ -3,22 +3,39 @@
 namespace App\Services;
 
 use App\Models\User;
+use App\Support\Tempo;
 use Illuminate\Auth\Events\PasswordReset;
+use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class AuthService
 {
+    /** Falhas de login seguidas toleradas (por e-mail + IP) antes do bloqueio. */
+    public const MAX_TENTATIVAS = 5;
+
+    /** Duração do bloqueio — e da janela de contagem das falhas — em segundos. */
+    public const BLOQUEIO_SEGUNDOS = 60;
+
     /**
      * Autentica pelo guard de sessão (Sanctum SPA). Lança ValidationException
-     * (422) em credenciais inválidas ou conta inativa.
+     * (422) em credenciais inválidas ou conta inativa e ThrottleRequestsException
+     * (429, com Retry-After) quando a conta está bloqueada por excesso de tentativas.
+     *
+     * `$chaveTentativas` vem do LoginRequest (e-mail + IP); vazia desliga o
+     * bloqueio (útil em chamadas internas que não vêm de uma requisição HTTP).
      */
-    public function attempt(string $email, string $password, bool $remember = false): User
+    public function attempt(string $email, string $password, bool $remember = false, string $chaveTentativas = ''): User
     {
+        $this->garantirSemBloqueio($chaveTentativas);
+
         if (! Auth::attempt(['email' => $email, 'password' => $password], $remember)) {
+            $this->registrarFalha($chaveTentativas);
+
             throw ValidationException::withMessages([
                 'email' => __('auth.failed'),
             ]);
@@ -35,7 +52,41 @@ class AuthService
             ]);
         }
 
+        // Login válido zera o contador: só falhas seguidas levam ao bloqueio.
+        if ($chaveTentativas !== '') {
+            RateLimiter::clear($chaveTentativas);
+        }
+
         return $user;
+    }
+
+    /**
+     * Barra a tentativa enquanto o bloqueio durar. O 429 carrega Retry-After
+     * para o front informar a espera e mostrar a contagem regressiva.
+     */
+    private function garantirSemBloqueio(string $chave): void
+    {
+        if ($chave === '' || ! RateLimiter::tooManyAttempts($chave, self::MAX_TENTATIVAS)) {
+            return;
+        }
+
+        $segundos = RateLimiter::availableIn($chave);
+
+        throw new ThrottleRequestsException(
+            __('auth.throttle', ['tempo' => Tempo::humanizar($segundos), 'seconds' => $segundos]),
+            null,
+            [
+                'Retry-After' => $segundos,
+                'X-RateLimit-Reset' => now()->addSeconds($segundos)->getTimestamp(),
+            ],
+        );
+    }
+
+    private function registrarFalha(string $chave): void
+    {
+        if ($chave !== '') {
+            RateLimiter::hit($chave, self::BLOQUEIO_SEGUNDOS);
+        }
     }
 
     /**

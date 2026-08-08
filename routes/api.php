@@ -38,8 +38,12 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
         ->middleware('throttle:10,1');
     Route::post('/avaliadores', [AvaliadorController::class, 'store'])
         ->middleware('throttle:10,1');
+    // O bloqueio por excesso de tentativas é feito no AuthService, por e-mail+IP e
+    // só contando FALHAS (ver AuthService::MAX_TENTATIVAS). Este throttle por IP é
+    // apenas a rede de proteção contra abuso automatizado — folgado o bastante para
+    // não punir vários usuários legítimos atrás do mesmo IP (escola com NAT).
     Route::post('/auth/login', [AuthController::class, 'login'])
-        ->middleware('throttle:6,1');
+        ->middleware('throttle:30,1');
 
     // Recuperação de senha (link temporário por e-mail) — rate limit contra abuso.
     Route::post('/auth/esqueci-senha', [AuthController::class, 'esqueciSenha'])

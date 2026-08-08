@@ -64,11 +64,22 @@ export function useAuth() {
     return ctx;
 }
 
-/** Extrai mensagens de erro de validação (422) ou genéricas do axios. */
+/**
+ * Extrai mensagens de erro de validação (422) ou genéricas do axios.
+ * Em 429 (excesso de tentativas), `retryAfter` traz os segundos de espera —
+ * do corpo da resposta ou do header Retry-After — para a tela mostrar o
+ * tempo restante e a contagem regressiva.
+ */
 export function extractErrors(error) {
     const res = error?.response?.data;
+    const status = error?.response?.status;
+    const retryAfter =
+        status === 429
+            ? Number(res?.retry_after ?? error?.response?.headers?.['retry-after']) || 60
+            : null;
+
     if (res?.errors) {
-        return { message: res.message, fields: res.errors };
+        return { message: res.message, fields: res.errors, status, retryAfter };
     }
-    return { message: res?.message || 'Ocorreu um erro inesperado.', fields: {} };
+    return { message: res?.message || 'Ocorreu um erro inesperado.', fields: {}, status, retryAfter };
 }
