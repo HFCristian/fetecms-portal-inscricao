@@ -3,10 +3,12 @@ import { Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { getDashboard } from '../lib/admin.js';
 
-// Cards do painel. `status` = submetidos/rascunho; `genero` = mulheres/homens/outros.
+// Cards do painel. `status` = submetidos/rascunho; `genero` = mulheres/homens/outros;
+// `categoria` = quantos projetos em cada categoria da feira.
 const CARDS = [
     { key: 'projetos_total', label: 'Projetos (total)', icon: 'folder', verMais: '/admin/projetos-por-area' },
     { type: 'status', label: 'Projetos por status', icon: 'donut_large' },
+    { type: 'categoria', label: 'Projetos por categoria', icon: 'category' },
     { type: 'genero', generoKey: 'orientadores_genero', label: 'Orientadores', icon: 'person' },
     { type: 'genero', generoKey: 'alunos_genero', label: 'Alunos', icon: 'school' },
     { type: 'genero', generoKey: 'coorientadores_genero', label: 'Coorientadores', icon: 'group' },
@@ -27,26 +29,45 @@ function VerMais({ to }) {
     );
 }
 
-// Recorte por gênero: mulheres (F), homens (M) e outros/não informado.
-function GeneroBreakdown({ dados, label }) {
-    const g = dados ?? { f: 0, m: 0, outros: 0 };
-    const colunas = [
-        { valor: g.f, rotulo: 'Mulheres', cor: 'text-primary-container' },
-        { valor: g.m, rotulo: 'Homens', cor: 'text-primary-container' },
-        { valor: g.outros, rotulo: 'Outros/N.I.', cor: 'text-primary-container' },
-    ];
+// Card de contagens lado a lado + legenda embaixo (usado por gênero e por categoria).
+function Breakdown({ colunas, label }) {
     return (
         <>
             <div className="flex gap-3 py-2">
                 {colunas.map((c) => (
-                    <div key={c.rotulo}>
-                        <div className={`text-3xl font-bold ${c.cor}`}>{c.valor ?? 0}</div>
+                    <div key={c.rotulo} className="flex-1 min-w-0">
+                        <div className="text-3xl font-bold text-primary-container">{c.valor ?? 0}</div>
                         <div className="text-xs text-on-surface-variant leading-tight">{c.rotulo}</div>
                     </div>
                 ))}
             </div>
             <div className="text-sm text-on-surface-variant">{label}</div>
         </>
+    );
+}
+
+// Recorte por gênero: mulheres (F), homens (M) e outros/não informado.
+function GeneroBreakdown({ dados, label }) {
+    const g = dados ?? { f: 0, m: 0, outros: 0 };
+    return (
+        <Breakdown
+            label={label}
+            colunas={[
+                { valor: g.f, rotulo: 'Mulheres' },
+                { valor: g.m, rotulo: 'Homens' },
+                { valor: g.outros, rotulo: 'Outros/N.I.' },
+            ]}
+        />
+    );
+}
+
+// Projetos cadastrados em cada categoria da feira (ordem vinda do backend).
+function CategoriaBreakdown({ dados, label }) {
+    return (
+        <Breakdown
+            label={label}
+            colunas={(dados ?? []).map((c) => ({ valor: c.total, rotulo: c.label }))}
+        />
     );
 }
 
@@ -84,6 +105,8 @@ export default function AdminHome() {
                                     </div>
                                     <div className="text-sm text-on-surface-variant">{c.label}</div>
                                 </>
+                            ) : c.type === 'categoria' ? (
+                                <CategoriaBreakdown dados={m.projetos_categoria} label={c.label} />
                             ) : c.type === 'genero' ? (
                                 <GeneroBreakdown dados={m[c.generoKey]} label={c.label} />
                             ) : (
