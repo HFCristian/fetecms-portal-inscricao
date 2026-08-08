@@ -9,7 +9,7 @@ branch da sprint N−1, para nada se perder enquanto os PRs não são mergeados)
 | Sprint | Épicos | Branch | Status |
 |--------|--------|--------|--------|
 | 1 | **E1** Atualização de dependências (dependabot) · **E2** Login: aviso de bloqueio + contador | `feat/sprint1-deps-login-bloqueio` | ✅ concluída |
-| 2 | **E3** Dashboard: card "Projetos por categoria" · **E4** Rubrica de avaliação (3 notas + comentários) | `feat/sprint2-dashboard-rubrica` | ⏳ a fazer |
+| 2 | **E3** Dashboard: card "Projetos por categoria" · **E4** Rubrica de avaliação (3 notas + comentários) | `feat/sprint2-dashboard-rubrica` | ✅ concluída |
 | 3 | **E5** Conferência de classificação (área/subárea) · **E6** Rascunho da avaliação | `feat/sprint3-classificacao-rascunho` | ⏳ a fazer |
 
 ### Decisões travadas (definidas com o Pedro antes de começar)
@@ -115,3 +115,82 @@ Novos testes: `LoginTest` (4 de bloqueio), `ErrosPtBrTest` (2 de 429 em pt_BR),
   só errou a senha.
 - **Aplicar o mesmo painel de contagem** na tela de "Esqueci minha senha", que também tem
   `throttle:6,1` — o componente e o hook já estão prontos e reutilizáveis.
+
+---
+
+## Sprint 2 — Card por categoria + rubrica de avaliação
+
+**Branch:** `feat/sprint2-dashboard-rubrica` (a partir de `feat/sprint1-deps-login-bloqueio`)
+
+### E3 — Dashboard: card "Projetos por categoria"
+
+Novo card no painel do admin, **no mesmo formato do card de orientadores** (contagens lado a
+lado + legenda embaixo) e posicionado **logo antes dele**. Mostra quantos projetos cadastrados
+existem em cada categoria da feira: **FETEC Jr**, **FETECMS** e **FETECMS FUNDECT**.
+
+- `AdminDashboardService::porCategoria()` agrupa por `categoria` e devolve **sempre as três
+  categorias na ordem do enum**, inclusive as zeradas — o card não "encolhe" no começo da feira.
+- Conta rascunho **e** submetido (mesmo critério do card "Projetos (total)").
+- ⚠️ **Rascunho ainda sem categoria escolhida não entra em nenhuma coluna**, então a soma das
+  três pode ficar abaixo do "Projetos (total)". Se preferir, dá para acrescentar uma coluna
+  "Sem categoria" — é só pedir.
+- O bloco de contagens do card de gênero virou o componente `Breakdown`, reaproveitado pelos dois.
+
+### E4 — Rubrica de avaliação (3 quesitos + comentários, nota 0–30)
+
+A avaliação deixou de ser uma nota única 1–10:
+
+| Quesito | Nota | Comentários |
+|---------|------|-------------|
+| Vídeo de apresentação | 0–10, **obrigatório** | opcional |
+| Resumo do projeto | 0–10, **obrigatório** | opcional |
+| Projeto de pesquisa | 0–10, **obrigatório** | opcional |
+
+- **Nota final = soma dos três (0 a 30)**, calculada no `AvaliacaoFluxoService`. O cliente não
+  envia a nota final: um POST tentando forçar `nota: 30` é ignorado (tem teste para isso).
+- A coluna `nota` **não mudou de tipo** — `unsignedTinyInteger` vai até 255, então 30 cabe. A
+  migration só acrescenta os 6 campos novos da rubrica.
+- **Modal do avaliador:** formulário dos três quesitos com total ao vivo ("Nota final 24 de 30"),
+  botão de envio liberado só com os três preenchidos, **confirmação antes do envio irreversível**
+  e visão em leitura depois de concluída (notas + comentários).
+- `AvaliadorHome` passa a exibir **"nota x/30"**, com o máximo vindo da API (`nota_maxima`).
+
+**Arquivos principais:** `database/migrations/2026_08_08_100000_add_rubrica_to_avaliacoes_table.php`,
+`app/Models/Avaliacao.php`, `app/Services/AvaliacaoFluxoService.php`,
+`app/Http/Requests/Avaliador/ConcluirAvaliacaoRequest.php` (novo),
+`app/Http/Controllers/Api/V1/AvaliadorAvaliacaoController.php`,
+`app/Services/AdminDashboardService.php`, `resources/js/components/AvaliacaoModal.jsx`,
+`resources/js/pages/AdminHome.jsx`, `resources/js/pages/AvaliadorHome.jsx`.
+
+### Resultado dos testes
+
+| Verificação | Sprint 1 | Sprint 2 |
+|-------------|----------|----------|
+| Backend (PHPUnit) | 232/232 | **239/239** (752 asserções) |
+| Frontend (Vitest) | 39/39 | **46/46** (17 arquivos) |
+| Pint | limpo | **limpo** |
+| `npm run build` | OK | **OK** |
+
+Novos testes: `AdminTest` (contagem por categoria, com ordem do enum e categoria zerada),
+`AdminHome.test.jsx` (colunas do card + posição antes de Orientadores),
+`AvaliacaoFluxoTest` (soma, nota final imune ao cliente, nota 0 válida, comentários opcionais,
+comentário em branco → nulo, obrigatoriedade e faixa dos quesitos),
+`AvaliacaoModal.test.jsx` (novo: rubrica, liberação do envio, payload enviado, leitura).
+
+### O que o Pedro precisa fazer
+
+1. **Rodar a migration** ao subir o código: `php artisan migrate`.
+2. **Avaliações antigas.** Se já existir alguma avaliação concluída no banco de produção, ela
+   ficará com `nota` na escala velha (1–10) e sem os quesitos. Como a avaliação ainda não foi
+   liberada para valer, o mais simples é limpar as de teste. Se preferir manter, me avise que
+   escrevo a migration de conversão.
+3. **Conferir os rótulos dos quesitos** ("Vídeo de apresentação", "Resumo do projeto",
+   "Projeto de pesquisa") — são o texto que o avaliador vê.
+
+### Sugestões (fora do escopo, para você decidir)
+
+- **Peso por quesito.** Hoje os três valem igual (soma simples, 0–30). Se a comissão quiser dar
+  mais peso ao projeto de pesquisa, dá para parametrizar sem mexer na tela do avaliador.
+- **Relatório para o orientador.** Os comentários por quesito são um retorno valioso; vale
+  decidir se e quando o orientador poderá lê-los (hoje ficam só para a organização).
+- **Coluna "Sem categoria"** no card novo, caso queira que as três colunas fechem com o total.
