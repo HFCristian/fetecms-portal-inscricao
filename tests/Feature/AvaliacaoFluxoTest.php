@@ -7,6 +7,7 @@ use App\Models\Avaliacao;
 use App\Models\AvaliadorProfile;
 use App\Models\Edicao;
 use App\Models\Projeto;
+use App\Models\Subarea;
 use App\Models\User;
 use Database\Seeders\CatalogoSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -55,6 +56,8 @@ class AvaliacaoFluxoTest extends TestCase
             'comentario_resumo' => null,
             'nota_pesquisa' => $pesquisa,
             'comentario_pesquisa' => 'Metodologia bem descrita.',
+            // Conferência da classificação: área é obrigatória ao concluir.
+            'area_correta' => true,
         ];
     }
 
@@ -112,7 +115,7 @@ class AvaliacaoFluxoTest extends TestCase
         $this->postJson("/api/v1/avaliacao/{$aval->id}/iniciar")->assertOk();
 
         $this->postJson("/api/v1/avaliacao/{$aval->id}/concluir", [
-            'nota_video' => 5, 'nota_resumo' => 5, 'nota_pesquisa' => 5,
+            'nota_video' => 5, 'nota_resumo' => 5, 'nota_pesquisa' => 5, 'area_correta' => true,
         ])->assertOk()->assertJsonPath('data.nota', 15);
     }
 
@@ -147,7 +150,7 @@ class AvaliacaoFluxoTest extends TestCase
         $this->postJson("/api/v1/avaliacao/{$aval->id}/concluir", $this->rubrica())->assertStatus(422);
     }
 
-    public function test_os_tres_quesitos_sao_obrigatorios(): void
+    public function test_os_tres_quesitos_e_a_conferencia_da_area_sao_obrigatorios(): void
     {
         [$av, $aval] = $this->cenario();
         Sanctum::actingAs($av);
@@ -155,7 +158,7 @@ class AvaliacaoFluxoTest extends TestCase
 
         $this->postJson("/api/v1/avaliacao/{$aval->id}/concluir", [])
             ->assertStatus(422)
-            ->assertJsonValidationErrors(['nota_video', 'nota_resumo', 'nota_pesquisa']);
+            ->assertJsonValidationErrors(['nota_video', 'nota_resumo', 'nota_pesquisa', 'area_correta']);
     }
 
     public function test_cada_quesito_precisa_estar_entre_0_e_10(): void
@@ -234,5 +237,194 @@ class AvaliacaoFluxoTest extends TestCase
         Sanctum::actingAs(User::factory()->avaliador()->create());
 
         $this->getJson("/api/v1/avaliacao/{$aval->id}")->assertStatus(403);
+    }
+
+    // --- Conferência da classificação (área obrigatória, subárea opcional) ---
+
+    public function test_area_incorreta_exige_a_sugestao(): void
+    {
+        [$av, $aval] = $this->cenario();
+        Sanctum::actingAs($av);
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/iniciar")->assertOk();
+
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/concluir", [
+            ...$this->rubrica(), 'area_correta' => false,
+        ])->assertStatus(422)->assertJsonValidationErrors('area_sugerida_id');
+    }
+
+    public function test_conclui_sugerindo_area_e_subarea_corretas(): void
+    {
+        [$av, $aval] = $this->cenario();
+        $outraArea = Area::create(['nome' => 'Área B']);
+        $outraSubarea = Subarea::create(['area_id' => $outraArea->id, 'nome' => 'Subárea B1']);
+        Sanctum::actingAs($av);
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/iniciar")->assertOk();
+
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/concluir", [
+            ...$this->rubrica(),
+            'area_correta' => false, 'area_sugerida_id' => $outraArea->id,
+            'subarea_correta' => false, 'subarea_sugerida_id' => $outraSubarea->id,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.area_correta', false)
+            ->assertJsonPath('data.area_sugerida', 'Área B')
+            ->assertJsonPath('data.subarea_sugerida', 'Subárea B1');
+    }
+
+    public function test_a_sugestao_precisa_ser_diferente_da_classificacao_atual(): void
+    {
+        [$av, $aval] = $this->cenario();
+        Sanctum::actingAs($av);
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/iniciar")->assertOk();
+
+        // Sugerir a MESMA área do projeto não corrige nada.
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/concluir", [
+            ...$this->rubrica(),
+            'area_correta' => false, 'area_sugerida_id' => $aval->projeto->area_id,
+        ])->assertStatus(422)->assertJsonValidationErrors('area_sugerida_id');
+    }
+
+    public function test_marcar_area_como_correta_descarta_a_sugestao_salva_antes(): void
+    {
+        [$av, $aval] = $this->cenario();
+        $outraArea = Area::create(['nome' => 'Área B']);
+        Sanctum::actingAs($av);
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/iniciar")->assertOk();
+
+        // Rascunho com a área marcada como errada...
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/rascunho", [
+            'area_correta' => false, 'area_sugerida_id' => $outraArea->id,
+        ])->assertOk()->assertJsonPath('data.area_sugerida_id', $outraArea->id);
+
+        // ...e depois o avaliador muda de ideia: a sugestão órfã some.
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/concluir", $this->rubrica())
+            ->assertOk()
+            ->assertJsonPath('data.area_correta', true)
+            ->assertJsonPath('data.area_sugerida_id', null);
+    }
+
+    public function test_conferir_a_subarea_e_opcional(): void
+    {
+        [$av, $aval] = $this->cenario();
+        Sanctum::actingAs($av);
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/iniciar")->assertOk();
+
+        // Sem nenhuma resposta sobre a subárea, a avaliação é enviada normalmente.
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/concluir", $this->rubrica())
+            ->assertOk()
+            ->assertJsonPath('data.subarea_correta', null);
+    }
+
+    public function test_subarea_incorreta_exige_a_sugestao(): void
+    {
+        [$av, $aval] = $this->cenario();
+        Sanctum::actingAs($av);
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/iniciar")->assertOk();
+
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/concluir", [
+            ...$this->rubrica(), 'subarea_correta' => false,
+        ])->assertStatus(422)->assertJsonValidationErrors('subarea_sugerida_id');
+    }
+
+    public function test_sugestao_precisa_existir_no_catalogo(): void
+    {
+        [$av, $aval] = $this->cenario();
+        Sanctum::actingAs($av);
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/iniciar")->assertOk();
+
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/concluir", [
+            ...$this->rubrica(), 'area_correta' => false, 'area_sugerida_id' => 99999,
+        ])->assertStatus(422)->assertJsonValidationErrors('area_sugerida_id');
+    }
+
+    // --- Rascunho da avaliação ---
+
+    public function test_salva_rascunho_parcial_e_continua_em_andamento(): void
+    {
+        [$av, $aval] = $this->cenario();
+        Sanctum::actingAs($av);
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/iniciar")->assertOk();
+
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/rascunho", [
+            'nota_video' => 6, 'comentario_video' => 'Faltou legenda.',
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'em_andamento')
+            ->assertJsonPath('data.nota_video', 6)
+            ->assertJsonPath('data.nota', null); // sem nota final enquanto não envia
+
+        $this->assertNotNull($aval->fresh()->rascunho_em);
+    }
+
+    public function test_rascunho_e_recuperado_ao_reabrir_a_avaliacao(): void
+    {
+        [$av, $aval] = $this->cenario();
+        Sanctum::actingAs($av);
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/iniciar")->assertOk();
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/rascunho", [
+            'nota_resumo' => 4, 'comentario_resumo' => 'Objetivo pouco claro.',
+        ])->assertOk();
+
+        $this->getJson("/api/v1/avaliacao/{$aval->id}")
+            ->assertOk()
+            ->assertJsonPath('data.avaliacao.nota_resumo', 4)
+            ->assertJsonPath('data.avaliacao.comentario_resumo', 'Objetivo pouco claro.');
+    }
+
+    public function test_rascunho_valida_a_faixa_das_notas(): void
+    {
+        [$av, $aval] = $this->cenario();
+        Sanctum::actingAs($av);
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/iniciar")->assertOk();
+
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/rascunho", ['nota_video' => 11])
+            ->assertStatus(422)->assertJsonValidationErrors('nota_video');
+    }
+
+    public function test_rascunho_nao_exige_nada(): void
+    {
+        [$av, $aval] = $this->cenario();
+        Sanctum::actingAs($av);
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/iniciar")->assertOk();
+
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/rascunho", [])->assertOk();
+    }
+
+    public function test_nao_salva_rascunho_sem_iniciar(): void
+    {
+        [$av, $aval] = $this->cenario();
+        Sanctum::actingAs($av);
+
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/rascunho", ['nota_video' => 6])->assertStatus(422);
+    }
+
+    public function test_nao_salva_rascunho_de_avaliacao_ja_enviada(): void
+    {
+        [$av, $aval] = $this->cenario();
+        Sanctum::actingAs($av);
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/iniciar")->assertOk();
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/concluir", $this->rubrica())->assertOk();
+
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/rascunho", ['nota_video' => 1])->assertStatus(422);
+    }
+
+    public function test_enviar_limpa_a_marca_de_rascunho(): void
+    {
+        [$av, $aval] = $this->cenario();
+        Sanctum::actingAs($av);
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/iniciar")->assertOk();
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/rascunho", ['nota_video' => 6])->assertOk();
+
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/concluir", $this->rubrica())
+            ->assertOk()
+            ->assertJsonPath('data.rascunho_em', null);
+    }
+
+    public function test_rascunho_de_outro_avaliador_e_barrado(): void
+    {
+        [, $aval] = $this->cenario();
+        Sanctum::actingAs(User::factory()->avaliador()->create());
+
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/rascunho", ['nota_video' => 6])->assertStatus(403);
     }
 }

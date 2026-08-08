@@ -105,6 +105,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::get('/', [AvaliadorAvaliacaoController::class, 'index']);
             Route::get('/{avaliacao}', [AvaliadorAvaliacaoController::class, 'show']);
             Route::post('/{avaliacao}/iniciar', [AvaliadorAvaliacaoController::class, 'iniciar']);
+            Route::post('/{avaliacao}/rascunho', [AvaliadorAvaliacaoController::class, 'rascunho']);
             Route::post('/{avaliacao}/concluir', [AvaliadorAvaliacaoController::class, 'concluir']);
         });
 

@@ -22,11 +22,20 @@ class Avaliacao extends Model
 
     protected $table = 'avaliacoes';
 
+    /** Campos da conferência de classificação (área obrigatória, subárea opcional). */
+    public const CAMPOS_CLASSIFICACAO = [
+        'area_correta', 'area_sugerida_id',
+        'subarea_correta', 'subarea_sugerida_id',
+    ];
+
     protected $fillable = [
         'projeto_id', 'avaliador_id', 'status', 'nota',
         'nota_video', 'comentario_video',
         'nota_resumo', 'comentario_resumo',
         'nota_pesquisa', 'comentario_pesquisa',
+        'area_correta', 'area_sugerida_id',
+        'subarea_correta', 'subarea_sugerida_id',
+        'rascunho_em',
     ];
 
     /** Nota máxima da avaliação: a soma dos quesitos (3 × 10 = 30). */
@@ -52,7 +61,20 @@ class Avaliacao extends Model
             'nota_video' => 'integer',
             'nota_resumo' => 'integer',
             'nota_pesquisa' => 'integer',
+            'area_correta' => 'boolean',
+            'subarea_correta' => 'boolean',
+            'rascunho_em' => 'datetime',
         ];
+    }
+
+    public function areaSugerida(): BelongsTo
+    {
+        return $this->belongsTo(Area::class, 'area_sugerida_id');
+    }
+
+    public function subareaSugerida(): BelongsTo
+    {
+        return $this->belongsTo(Subarea::class, 'subarea_sugerida_id');
     }
 
     public function projeto(): BelongsTo
