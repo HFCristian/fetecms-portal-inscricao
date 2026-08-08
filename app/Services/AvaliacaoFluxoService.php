@@ -86,6 +86,7 @@ class AvaliacaoFluxoService
             'nota' => $avaliacao->somaDosQuesitos(),
             // A avaliação foi enviada: não é mais um rascunho.
             'rascunho_em' => null,
+            'concluida_em' => now(),
         ]);
     }
 

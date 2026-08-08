@@ -35,7 +35,7 @@ class Avaliacao extends Model
         'nota_pesquisa', 'comentario_pesquisa',
         'area_correta', 'area_sugerida_id',
         'subarea_correta', 'subarea_sugerida_id',
-        'rascunho_em',
+        'rascunho_em', 'concluida_em',
     ];
 
     /** Nota máxima da avaliação: a soma dos quesitos (3 × 10 = 30). */
@@ -64,6 +64,7 @@ class Avaliacao extends Model
             'area_correta' => 'boolean',
             'subarea_correta' => 'boolean',
             'rascunho_em' => 'datetime',
+            'concluida_em' => 'datetime',
         ];
     }
 

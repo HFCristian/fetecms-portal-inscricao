@@ -46,6 +46,29 @@ class AdminAvaliacaoController extends Controller
     }
 
     /** Projetos submetidos por área, com realizadas/em avaliação/faltantes. */
+    /** Projetos com sugestão de reclassificação de área/subárea (com filtros). */
+    public function reclassificacoes(Request $request): JsonResponse
+    {
+        $filtros = $request->validate([
+            'area_id' => ['nullable', 'integer', 'exists:areas,id'],
+            'q' => ['nullable', 'string', 'max:120'],
+            'de' => ['nullable', 'date'],
+            'ate' => ['nullable', 'date', 'after_or_equal:de'],
+        ]);
+
+        return response()->json(['data' => $this->service->reclassificacoesSugeridas($filtros)]);
+    }
+
+    /** Ranking dos projetos já avaliados, pela média das notas finais. */
+    public function ranking(Request $request): JsonResponse
+    {
+        $filtros = $request->validate([
+            'area_id' => ['nullable', 'integer', 'exists:areas,id'],
+        ]);
+
+        return response()->json(['data' => $this->service->rankingProjetos($filtros)]);
+    }
+
     public function projetos(): JsonResponse
     {
         return response()->json(['data' => $this->service->projetosSubmetidosPorArea()]);

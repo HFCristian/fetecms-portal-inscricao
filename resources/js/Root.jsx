@@ -27,6 +27,8 @@ import AdminAvaliadores from './pages/AdminAvaliadores.jsx';
 import AdminAvaliacaoOnline from './pages/AdminAvaliacaoOnline.jsx';
 import AvaliacaoAvaliadores from './pages/AvaliacaoAvaliadores.jsx';
 import AvaliacaoProjetos from './pages/AvaliacaoProjetos.jsx';
+import AvaliacaoReclassificacoes from './pages/AvaliacaoReclassificacoes.jsx';
+import AvaliacaoRanking from './pages/AvaliacaoRanking.jsx';
 import AlterarSenha from './pages/AlterarSenha.jsx';
 
 function Spinner() {
@@ -86,6 +88,8 @@ export default function Root() {
                             <Route path="/admin/avaliacao" element={<AdminAvaliacaoOnline />} />
                             <Route path="/admin/avaliacao/avaliadores" element={<AvaliacaoAvaliadores />} />
                             <Route path="/admin/avaliacao/projetos" element={<AvaliacaoProjetos />} />
+                            <Route path="/admin/avaliacao/reclassificacoes" element={<AvaliacaoReclassificacoes />} />
+                            <Route path="/admin/avaliacao/ranking" element={<AvaliacaoRanking />} />
                             <Route path="/admin/projetos-por-area" element={<AdminProjetosPorArea />} />
                             <Route path="/admin/projetos-por-estado" element={<AdminProjetosPorEstado />} />
                             <Route path="/admin/projetos-por-cidade" element={<AdminProjetosPorCidade />} />
