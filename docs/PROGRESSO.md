@@ -4,6 +4,13 @@ Registro das sprints deste ciclo. Cada épico é um MVP; cada sprint junta dois 
 e vira uma branch a partir da `main` (encadeamento cumulativo: a sprint N parte da
 branch da sprint N−1, para nada se perder enquanto os PRs não são mergeados).
 
+> **Branch única para o push:** `feat/ciclo-ago2026` contém **todo** o ciclo (sprints 1–4).
+> As branches por sprint continuam existindo como histórico, mas basta subir essa.
+>
+> ```
+> git push -u origin feat/ciclo-ago2026
+> ```
+
 ## Escopo do ciclo
 
 | Sprint | Épicos | Branch | Status |
@@ -11,6 +18,7 @@ branch da sprint N−1, para nada se perder enquanto os PRs não são mergeados)
 | 1 | **E1** Atualização de dependências (dependabot) · **E2** Login: aviso de bloqueio + contador | `feat/sprint1-deps-login-bloqueio` | ✅ concluída |
 | 2 | **E3** Dashboard: card "Projetos por categoria" · **E4** Rubrica de avaliação (3 notas + comentários) | `feat/sprint2-dashboard-rubrica` | ✅ concluída |
 | 3 | **E5** Conferência de classificação (área/subárea) · **E6** Rascunho da avaliação | `feat/sprint3-classificacao-rascunho` | ✅ concluída |
+| 4 | **E7** Painel de reclassificações sugeridas · **E8** Ranking dos projetos avaliados | `feat/ciclo-ago2026` | ✅ concluída |
 
 ### Decisões travadas (definidas com o Pedro antes de começar)
 
@@ -285,3 +293,105 @@ Como o SQLite reconstrói a tabela para criar as FKs, confirmei que a linha sobr
   o preenchimento se a sessão cair no meio de uma leitura longa.
 - **Distribuição por subárea:** se muitos projetos vierem reclassificados, vale reprocessar a
   designação de avaliadores depois da correção.
+
+---
+
+## Sprint 4 — Painéis do admin: reclassificações e ranking
+
+**Branch:** `feat/ciclo-ago2026` (consolidada — contém as sprints 1, 2 e 3)
+
+Dois cards novos em **Avaliação online**, no mesmo padrão dos de "Avaliadores por área" e
+"Projetos submetidos" (a grade virou 2×2).
+
+### E7 — Reclassificações sugeridas (`/admin/avaliacao/reclassificacoes`)
+
+Fecha o ciclo aberto na Sprint 3: o avaliador aponta área/subárea errada e agora o admin vê isso
+reunido num lugar só.
+
+- Lista os projetos em que **algum avaliador concluiu a avaliação marcando área ou subárea como
+  incorreta**, agrupados por projeto e ordenados por quem tem mais sugestões.
+- Mostra a classificação **atual** do projeto, cada sugestão individual (avaliador + data) e,
+  em destaque, o **consenso**: a opção mais votada com a contagem (ex.: *Área: Ciências
+  Biológicas (2)*).
+- **Filtros:** nome do projeto (trecho do título), área do conhecimento atual e período da
+  **data de avaliação** (de/até, ambos inclusivos). Período invertido é rejeitado com 422.
+- Avaliações ainda **em andamento não aparecem** — um rascunho que marcou a área como errada não
+  vira sugestão até ser enviado.
+
+### E8 — Ranking dos projetos (`/admin/avaliacao/ranking`)
+
+- Projetos com **ao menos uma avaliação concluída**, ordenados pela **média das notas finais**
+  (0 a 30), com as médias de cada quesito (vídeo, resumo, pesquisa) ao lado.
+- **Empate na média** divide a posição e é desfeito por quem tem **mais avaliações** (média mais
+  confiável); o último critério é o título.
+- Quem ainda não chegou a **3 avaliações** aparece marcado como **parcial**, com um aviso no topo
+  dizendo quantos são — a posição desses ainda vai mudar.
+- **Filtro por área**, porque projetos de áreas diferentes não competem entre si. (Isso não estava
+  no pedido; incluí porque um ranking geral misturando áreas não serve para premiação — se
+  preferir sem, é só remover o select.)
+- Pódio com medalhas 🥇🥈🥉; do 4º em diante, o número.
+
+### Data da avaliação
+
+Para o filtro por período existir de verdade, criei **`concluida_em`** na tabela `avaliacoes`,
+preenchida no envio. `updated_at` não servia como "data da avaliação" porque muda em qualquer
+escrita posterior. A migration preenche o histórico das já concluídas com o `updated_at` delas.
+
+Também separei `StatusAvaliacao::MIN_POR_PROJETO` de `MAX_POR_AVALIADOR`: mesmo valor (3), mas
+"mínimo de avaliações por projeto" e "teto de avaliações por avaliador" são regras diferentes e
+estavam compartilhando a mesma constante.
+
+**Arquivos principais:** `database/migrations/2026_08_08_120000_add_concluida_em_to_avaliacoes_table.php`,
+`app/Services/AdminAvaliacaoService.php`, `app/Http/Controllers/Api/V1/AdminAvaliacaoController.php`,
+`app/Enums/StatusAvaliacao.php`, `routes/api.php`, `resources/js/lib/admin.js`,
+`resources/js/pages/AvaliacaoReclassificacoes.jsx` (novo), `resources/js/pages/AvaliacaoRanking.jsx` (novo),
+`resources/js/pages/AdminAvaliacaoOnline.jsx`, `resources/js/Root.jsx`.
+
+### Resultado dos testes
+
+| Verificação | Sprint 3 | Sprint 4 |
+|-------------|----------|----------|
+| Backend (PHPUnit) | 254/254 | **270/270** (869 asserções) |
+| Frontend (Vitest) | 54/54 | **65/65** (19 arquivos) |
+| Pint | limpo | **limpo** |
+| `npm run build` | OK | **OK** |
+
+Novos testes: `AdminReclassificacaoRankingTest` (16 — consenso, sugestão de subárea, projeto sem
+sugestão fora da lista, avaliação em andamento fora da lista, os três filtros, período invertido,
+ordenação, médias por quesito, marca de parcial, desempate, filtro de área e restrição ao admin),
+`AvaliacaoReclassificacoes.test.jsx` (5) e `AvaliacaoRanking.test.jsx` (6).
+
+### Verificação com o app rodando
+
+Subi o projeto localmente e dirigi a interface com Chromium headless, logado como admin:
+dashboard com o card de categoria, os 4 cards em Avaliação online, a lista de reclassificações
+com o consenso, os filtros de nome e de área, o ranking com pódio e o selo "parcial", o filtro de
+área do ranking e o bloqueio de login com o contador em 00:57. Nenhum erro de console além dos
+401 esperados do `/auth/me` na tela de login sem sessão.
+
+> **Portas:** 8000 e 5173 estavam ocupadas por outro app na máquina, então rodei em
+> `http://127.0.0.1:8001` (Vite subiu sozinho na 5174). Para a sessão do Sanctum funcionar nessa
+> porta, subi com `SANCTUM_STATEFUL_DOMAINS` e `APP_URL` apontando para a 8001 — no seu ambiente,
+> com as portas livres, o `.env` normal funciona sem nenhum ajuste.
+
+### O que o Pedro precisa fazer
+
+1. **Push único:** `git push -u origin feat/ciclo-ago2026`.
+2. **`php artisan migrate`** — agora são **três** migrations do ciclo (rubrica, classificação +
+   rascunho, `concluida_em`).
+3. **Limpar os dados de demonstração**, se quiser. Para conferir as telas eu semeei 4 projetos
+   `[DEMO]`, 5 avaliadores `*.demo@fetecms.test` e 10 avaliações no seu SQLite local, e **redefini
+   a senha do `admin@fetecms.test` para `password`** (a antiga era desconhecida). O banco de antes
+   está salvo em `database.pos-migrations.bak` no scratchpad da sessão; para zerar só os demos:
+   ```
+   php artisan tinker --execute="App\Models\Projeto::where('titulo','like','[DEMO]%')->delete(); App\Models\User::where('email','like','%.demo@fetecms.test')->delete();"
+   ```
+
+### Sugestões (fora do escopo, para você decidir)
+
+- **Ação a partir da reclassificação:** hoje a tela informa, mas não age. Um botão "aplicar
+  sugestão" que reclassifica o projeto direto (e opcionalmente redistribui os avaliadores) evitaria
+  o trabalho manual quando o consenso é claro.
+- **Exportar o ranking em CSV/PDF** para a comissão premiadora.
+- **Empate no ranking:** hoje projetos com a mesma média dividem a posição. Se o edital exigir
+  desempate, vale definir o critério (nota do projeto de pesquisa? menor desvio entre avaliadores?).
