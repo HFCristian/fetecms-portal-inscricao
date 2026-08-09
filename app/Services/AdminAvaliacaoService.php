@@ -9,8 +9,11 @@ use App\Models\Avaliacao;
 use App\Models\AvaliadorProfile;
 use App\Models\Edicao;
 use App\Models\Projeto;
+use App\Models\Subarea;
 use App\Models\User;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Telas de "Avaliação online" do admin (E7). O algoritmo de distribuição ainda
@@ -135,13 +138,27 @@ class AdminAvaliacaoService
 
         $projetos = [];
         foreach ($avaliacoes as $a) {
-            $id = $a->projeto->id;
+            $projeto = $a->projeto;
+
+            // Sugestão que aponta para a classificação ATUAL já foi aplicada pelo
+            // admin — deixa de ser uma troca pendente e some da lista.
+            $areaId = $a->area_correta === false && $a->area_sugerida_id
+                && $a->area_sugerida_id !== $projeto->area_id ? $a->area_sugerida_id : null;
+            $subareaId = $a->subarea_correta === false && $a->subarea_sugerida_id
+                && $a->subarea_sugerida_id !== $projeto->subarea_id ? $a->subarea_sugerida_id : null;
+
+            if ($areaId === null && $subareaId === null) {
+                continue;
+            }
+
+            $id = $projeto->id;
             $projetos[$id] ??= [
                 'projeto_id' => $id,
-                'titulo' => $a->projeto->titulo,
-                'area_id' => $a->projeto->area_id,
-                'area' => $a->projeto->area?->nome,
-                'subarea' => $a->projeto->subarea?->nome,
+                'titulo' => $projeto->titulo,
+                'area_id' => $projeto->area_id,
+                'area' => $projeto->area?->nome,
+                'subarea_id' => $projeto->subarea_id,
+                'subarea' => $projeto->subarea?->nome,
                 'sugestoes' => [],
             ];
 
@@ -150,15 +167,20 @@ class AdminAvaliacaoService
                 'avaliador' => $a->avaliador?->name,
                 'avaliada_em' => $a->concluida_em?->format('d/m/Y H:i'),
                 'avaliada_em_iso' => $a->concluida_em?->toIso8601String(),
-                'area_sugerida' => $a->area_correta === false ? $a->areaSugerida?->nome : null,
-                'subarea_sugerida' => $a->subarea_correta === false ? $a->subareaSugerida?->nome : null,
+                'area_sugerida_id' => $areaId,
+                'area_sugerida' => $areaId ? $a->areaSugerida?->nome : null,
+                'subarea_sugerida_id' => $subareaId,
+                'subarea_sugerida' => $subareaId ? $a->subareaSugerida?->nome : null,
             ];
         }
 
         $lista = array_map(function (array $p) {
             $p['total_sugestoes'] = count($p['sugestoes']);
-            $p['area_mais_sugerida'] = $this->maisVotada($p['sugestoes'], 'area_sugerida');
-            $p['subarea_mais_sugerida'] = $this->maisVotada($p['sugestoes'], 'subarea_sugerida');
+            // Opções distintas com a contagem de votos — o admin escolhe qual aceitar.
+            $p['opcoes_area'] = $this->opcoes($p['sugestoes'], 'area_sugerida');
+            $p['opcoes_subarea'] = $this->opcoes($p['sugestoes'], 'subarea_sugerida');
+            $p['area_mais_sugerida'] = $p['opcoes_area'][0] ?? null;
+            $p['subarea_mais_sugerida'] = $p['opcoes_subarea'][0] ?? null;
 
             return $p;
         }, array_values($projetos));
@@ -170,22 +192,129 @@ class AdminAvaliacaoService
     }
 
     /**
-     * Opção mais repetida entre as sugestões (consenso dos avaliadores).
+     * Opções distintas sugeridas para um campo, com os votos de cada uma e a mais
+     * votada primeiro (empate desfeito pelo nome, para a ordem ser estável).
      *
      * @param  list<array<string, mixed>>  $sugestoes
-     * @return array{nome:string, votos:int}|null
+     * @return list<array{id:int, nome:string, votos:int}>
      */
-    private function maisVotada(array $sugestoes, string $campo): ?array
+    private function opcoes(array $sugestoes, string $campo): array
     {
-        $votos = array_count_values(array_filter(array_column($sugestoes, $campo)));
+        $contagem = [];
 
-        if ($votos === []) {
-            return null;
+        foreach ($sugestoes as $s) {
+            $id = $s[$campo.'_id'] ?? null;
+
+            if ($id === null) {
+                continue;
+            }
+
+            $contagem[$id] ??= ['id' => (int) $id, 'nome' => (string) $s[$campo], 'votos' => 0];
+            $contagem[$id]['votos']++;
         }
 
-        arsort($votos);
+        $lista = array_values($contagem);
+        usort($lista, fn ($a, $b) => [$b['votos'], $a['nome']] <=> [$a['votos'], $b['nome']]);
 
-        return ['nome' => (string) array_key_first($votos), 'votos' => reset($votos)];
+        return $lista;
+    }
+
+    /**
+     * Aplica sugestões de reclassificação em lote: troca a área e/ou a subárea dos
+     * projetos indicados. Só aceita valores que algum avaliador realmente sugeriu
+     * para aquele projeto — este endpoint é "aceitar sugestão", não edição livre.
+     *
+     * Tudo numa transação: ou o lote inteiro vale, ou nada muda.
+     *
+     * @param  list<array{projeto_id:int, area_id?:int|null, subarea_id?:int|null}>  $itens
+     * @return list<array<string, mixed>> o que mudou em cada projeto
+     */
+    public function aplicarReclassificacoes(array $itens): array
+    {
+        return DB::transaction(function () use ($itens) {
+            $aplicados = [];
+
+            foreach ($itens as $item) {
+                $projeto = Projeto::with(['area:id,nome', 'subarea:id,nome'])->find($item['projeto_id']);
+
+                if (! $projeto) {
+                    throw ValidationException::withMessages([
+                        'itens' => 'Um dos projetos selecionados não existe mais.',
+                    ]);
+                }
+
+                $aplicados[] = $this->aplicarNoProjeto(
+                    $projeto,
+                    $item['area_id'] ?? null,
+                    $item['subarea_id'] ?? null,
+                );
+            }
+
+            return $aplicados;
+        });
+    }
+
+    /**
+     * Troca a classificação de um projeto validando cada sugestão contra o que
+     * foi realmente sugerido nas avaliações concluídas.
+     *
+     * @return array<string, mixed>
+     */
+    private function aplicarNoProjeto(Projeto $projeto, ?int $areaId, ?int $subareaId): array
+    {
+        if ($areaId === null && $subareaId === null) {
+            throw ValidationException::withMessages([
+                'itens' => "Nenhuma sugestão foi escolhida para \"{$projeto->titulo}\".",
+            ]);
+        }
+
+        $antes = ['area' => $projeto->area?->nome, 'subarea' => $projeto->subarea?->nome];
+
+        if ($areaId !== null) {
+            $this->garantirSugerido($projeto, 'area_sugerida_id', $areaId, 'área');
+        }
+
+        if ($subareaId !== null) {
+            $this->garantirSugerido($projeto, 'subarea_sugerida_id', $subareaId, 'subárea');
+        }
+
+        $novaArea = $areaId ?? $projeto->area_id;
+        $novaSubarea = $subareaId ?? $projeto->subarea_id;
+
+        // Subárea pertence a uma área só: trocar a área sem trocar a subárea
+        // deixaria o projeto numa combinação inexistente no catálogo.
+        if ($novaSubarea !== null && ! Subarea::where('id', $novaSubarea)->where('area_id', $novaArea)->exists()) {
+            $novaSubarea = null;
+        }
+
+        $projeto->update(['area_id' => $novaArea, 'subarea_id' => $novaSubarea]);
+        $projeto->load(['area:id,nome', 'subarea:id,nome']);
+
+        return [
+            'projeto_id' => $projeto->id,
+            'titulo' => $projeto->titulo,
+            'area_anterior' => $antes['area'],
+            'area' => $projeto->area?->nome,
+            'subarea_anterior' => $antes['subarea'],
+            'subarea' => $projeto->subarea?->nome,
+            // Avisa quando a subárea caiu junto por não pertencer à nova área.
+            'subarea_limpa' => $antes['subarea'] !== null && $projeto->subarea_id === null,
+        ];
+    }
+
+    /** Barra qualquer valor que não tenha sido sugerido por um avaliador do projeto. */
+    private function garantirSugerido(Projeto $projeto, string $coluna, int $valor, string $rotulo): void
+    {
+        $sugerido = Avaliacao::where('projeto_id', $projeto->id)
+            ->where('status', StatusAvaliacao::Concluida->value)
+            ->where($coluna, $valor)
+            ->exists();
+
+        if (! $sugerido) {
+            throw ValidationException::withMessages([
+                'itens' => "A {$rotulo} escolhida para \"{$projeto->titulo}\" não consta nas sugestões dos avaliadores.",
+            ]);
+        }
     }
 
     /**

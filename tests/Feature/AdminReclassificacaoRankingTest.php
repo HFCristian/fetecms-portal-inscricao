@@ -205,6 +205,222 @@ class AdminReclassificacaoRankingTest extends TestCase
         $this->getJson('/api/v1/admin/avaliacao/reclassificacoes')->assertForbidden();
     }
 
+    public function test_traz_as_opcoes_distintas_com_votos_para_o_admin_escolher(): void
+    {
+        $saude = Area::create(['nome' => 'Saúde']);
+        $agua = $this->projeto('Purificação de água', $this->exatas);
+
+        // 2 votos em Biológicas, 1 em Saúde.
+        $this->avaliacaoConcluida($agua, $this->avaliador('Ana'), [9, 8, 10], ['area_correta' => false, 'area_sugerida_id' => $this->bio->id]);
+        $this->avaliacaoConcluida($agua, $this->avaliador('Bruno'), [8, 9, 9], ['area_correta' => false, 'area_sugerida_id' => $this->bio->id]);
+        $this->avaliacaoConcluida($agua, $this->avaliador('Carla'), [7, 7, 7], ['area_correta' => false, 'area_sugerida_id' => $saude->id]);
+
+        $this->comoAdmin();
+
+        $this->getJson('/api/v1/admin/avaliacao/reclassificacoes')
+            ->assertOk()
+            ->assertJsonCount(2, 'data.0.opcoes_area')
+            // Mais votada primeiro, cada uma com o id para aplicar.
+            ->assertJsonPath('data.0.opcoes_area.0.id', $this->bio->id)
+            ->assertJsonPath('data.0.opcoes_area.0.votos', 2)
+            ->assertJsonPath('data.0.opcoes_area.1.id', $saude->id)
+            ->assertJsonPath('data.0.opcoes_area.1.votos', 1);
+    }
+
+    // --- Aplicar sugestões ---
+
+    public function test_aplica_a_sugestao_de_area_de_um_projeto(): void
+    {
+        $agua = $this->projeto('Purificação de água', $this->exatas);
+        $this->avaliacaoConcluida($agua, $this->avaliador('Ana'), [9, 8, 10],
+            ['area_correta' => false, 'area_sugerida_id' => $this->bio->id]);
+
+        $this->comoAdmin();
+
+        $this->postJson('/api/v1/admin/avaliacao/reclassificacoes/aplicar', [
+            'itens' => [['projeto_id' => $agua->id, 'area_id' => $this->bio->id]],
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.0.area_anterior', 'Exatas')
+            ->assertJsonPath('data.0.area', 'Biológicas')
+            ->assertJsonPath('meta.message', 'Reclassificação aplicada em 1 projeto.');
+
+        $this->assertSame($this->bio->id, $agua->fresh()->area_id);
+    }
+
+    public function test_aplica_area_e_subarea_do_mesmo_projeto(): void
+    {
+        $projeto = $this->projeto('Abelhas', $this->exatas);
+        $this->avaliacaoConcluida($projeto, $this->avaliador('Ana'), [8, 8, 8], [
+            'area_correta' => false, 'area_sugerida_id' => $this->bio->id,
+            'subarea_correta' => false, 'subarea_sugerida_id' => $this->ecologia->id,
+        ]);
+
+        $this->comoAdmin();
+
+        $this->postJson('/api/v1/admin/avaliacao/reclassificacoes/aplicar', [
+            'itens' => [[
+                'projeto_id' => $projeto->id,
+                'area_id' => $this->bio->id,
+                'subarea_id' => $this->ecologia->id,
+            ]],
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.0.area', 'Biológicas')
+            ->assertJsonPath('data.0.subarea', 'Ecologia');
+
+        $projeto->refresh();
+        $this->assertSame($this->bio->id, $projeto->area_id);
+        $this->assertSame($this->ecologia->id, $projeto->subarea_id);
+    }
+
+    public function test_aplica_varios_projetos_de_uma_vez(): void
+    {
+        $this->criarDoisComSugestao();
+        $agua = Projeto::where('titulo', 'Purificação de água')->first();
+        $abelhas = Projeto::where('titulo', 'Abelhas nativas')->first();
+
+        $this->comoAdmin();
+
+        $this->postJson('/api/v1/admin/avaliacao/reclassificacoes/aplicar', [
+            'itens' => [
+                ['projeto_id' => $agua->id, 'area_id' => $this->bio->id],
+                ['projeto_id' => $abelhas->id, 'subarea_id' => $this->ecologia->id],
+            ],
+        ])
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('meta.message', 'Reclassificação aplicada em 2 projetos.');
+
+        $this->assertSame($this->bio->id, $agua->fresh()->area_id);
+        $this->assertSame($this->ecologia->id, $abelhas->fresh()->subarea_id);
+    }
+
+    public function test_trocar_a_area_limpa_a_subarea_que_nao_pertence_a_ela(): void
+    {
+        $botanica = Subarea::create(['area_id' => $this->bio->id, 'nome' => 'Botânica']);
+        // Projeto em Biológicas/Botânica que os avaliadores querem em Exatas.
+        $projeto = $this->projeto('Sensor de umidade', $this->bio, $botanica);
+        $this->avaliacaoConcluida($projeto, $this->avaliador('Ana'), [8, 8, 8],
+            ['area_correta' => false, 'area_sugerida_id' => $this->exatas->id]);
+
+        $this->comoAdmin();
+
+        $this->postJson('/api/v1/admin/avaliacao/reclassificacoes/aplicar', [
+            'itens' => [['projeto_id' => $projeto->id, 'area_id' => $this->exatas->id]],
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.0.subarea', null)
+            ->assertJsonPath('data.0.subarea_limpa', true);
+
+        $this->assertNull($projeto->fresh()->subarea_id);
+    }
+
+    public function test_sugestao_aplicada_some_da_lista(): void
+    {
+        $agua = $this->projeto('Purificação de água', $this->exatas);
+        $this->avaliacaoConcluida($agua, $this->avaliador('Ana'), [9, 8, 10],
+            ['area_correta' => false, 'area_sugerida_id' => $this->bio->id]);
+
+        $this->comoAdmin();
+        $this->getJson('/api/v1/admin/avaliacao/reclassificacoes')->assertJsonCount(1, 'data');
+
+        $this->postJson('/api/v1/admin/avaliacao/reclassificacoes/aplicar', [
+            'itens' => [['projeto_id' => $agua->id, 'area_id' => $this->bio->id]],
+        ])->assertOk();
+
+        // A sugestão agora aponta para a área atual: não é mais uma troca pendente.
+        $this->getJson('/api/v1/admin/avaliacao/reclassificacoes')->assertOk()->assertJsonCount(0, 'data');
+    }
+
+    public function test_sugestao_divergente_continua_pendente_depois_de_aplicar_a_outra(): void
+    {
+        $saude = Area::create(['nome' => 'Saúde']);
+        $agua = $this->projeto('Purificação de água', $this->exatas);
+        $this->avaliacaoConcluida($agua, $this->avaliador('Ana'), [9, 8, 10], ['area_correta' => false, 'area_sugerida_id' => $this->bio->id]);
+        $this->avaliacaoConcluida($agua, $this->avaliador('Bruno'), [7, 7, 7], ['area_correta' => false, 'area_sugerida_id' => $saude->id]);
+
+        $this->comoAdmin();
+
+        $this->postJson('/api/v1/admin/avaliacao/reclassificacoes/aplicar', [
+            'itens' => [['projeto_id' => $agua->id, 'area_id' => $this->bio->id]],
+        ])->assertOk();
+
+        // Quem sugeriu Saúde continua discordando da classificação nova.
+        $this->getJson('/api/v1/admin/avaliacao/reclassificacoes')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.area', 'Biológicas')
+            ->assertJsonPath('data.0.total_sugestoes', 1)
+            ->assertJsonPath('data.0.area_mais_sugerida.nome', 'Saúde');
+    }
+
+    public function test_nao_aplica_area_que_ninguem_sugeriu(): void
+    {
+        $saude = Area::create(['nome' => 'Saúde']);
+        $agua = $this->projeto('Purificação de água', $this->exatas);
+        $this->avaliacaoConcluida($agua, $this->avaliador('Ana'), [9, 8, 10],
+            ['area_correta' => false, 'area_sugerida_id' => $this->bio->id]);
+
+        $this->comoAdmin();
+
+        // Saúde existe no catálogo, mas nenhum avaliador sugeriu para este projeto.
+        $this->postJson('/api/v1/admin/avaliacao/reclassificacoes/aplicar', [
+            'itens' => [['projeto_id' => $agua->id, 'area_id' => $saude->id]],
+        ])->assertStatus(422)->assertJsonValidationErrors('itens');
+
+        $this->assertSame($this->exatas->id, $agua->fresh()->area_id);
+    }
+
+    public function test_lote_invalido_nao_aplica_nada(): void
+    {
+        $saude = Area::create(['nome' => 'Saúde']);
+        $this->criarDoisComSugestao();
+        $agua = Projeto::where('titulo', 'Purificação de água')->first();
+        $abelhas = Projeto::where('titulo', 'Abelhas nativas')->first();
+
+        $this->comoAdmin();
+
+        // O primeiro item é válido; o segundo não. A transação desfaz os dois.
+        $this->postJson('/api/v1/admin/avaliacao/reclassificacoes/aplicar', [
+            'itens' => [
+                ['projeto_id' => $agua->id, 'area_id' => $this->bio->id],
+                ['projeto_id' => $abelhas->id, 'area_id' => $saude->id],
+            ],
+        ])->assertStatus(422);
+
+        $this->assertSame($this->exatas->id, $agua->fresh()->area_id);
+    }
+
+    public function test_item_sem_area_nem_subarea_e_rejeitado(): void
+    {
+        $agua = $this->projeto('Purificação de água', $this->exatas);
+
+        $this->comoAdmin();
+
+        $this->postJson('/api/v1/admin/avaliacao/reclassificacoes/aplicar', [
+            'itens' => [['projeto_id' => $agua->id]],
+        ])->assertStatus(422)->assertJsonValidationErrors('itens.0.area_id');
+    }
+
+    public function test_lista_vazia_e_rejeitada(): void
+    {
+        $this->comoAdmin();
+
+        $this->postJson('/api/v1/admin/avaliacao/reclassificacoes/aplicar', ['itens' => []])
+            ->assertStatus(422)->assertJsonValidationErrors('itens');
+    }
+
+    public function test_aplicar_e_restrito_ao_admin(): void
+    {
+        $agua = $this->projeto('Purificação de água', $this->exatas);
+        Sanctum::actingAs(User::factory()->create()); // orientador
+
+        $this->postJson('/api/v1/admin/avaliacao/reclassificacoes/aplicar', [
+            'itens' => [['projeto_id' => $agua->id, 'area_id' => $this->bio->id]],
+        ])->assertForbidden();
+    }
+
     // --- Ranking ---
 
     public function test_ranking_ordena_pela_media_das_notas_finais(): void

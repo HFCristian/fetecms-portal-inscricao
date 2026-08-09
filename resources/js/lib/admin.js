@@ -23,6 +23,11 @@ export const distribuirAvaliacoes = () => http.post('/admin/avaliacao/distribuir
 export const getReclassificacoes = (filtros = {}) =>
     http.get('/admin/avaliacao/reclassificacoes', { params: limpar(filtros) }).then((r) => r.data.data);
 
+// Aceita sugestões de reclassificação em lote.
+// `itens`: [{ projeto_id, area_id?, subarea_id? }] — ao menos um dos dois por item.
+export const aplicarReclassificacoes = (itens) =>
+    http.post('/admin/avaliacao/reclassificacoes/aplicar', { itens }).then((r) => r.data);
+
 // Ranking dos projetos avaliados (média das notas finais). `filtros`: { area_id }.
 export const getRankingAvaliacao = (filtros = {}) =>
     http.get('/admin/avaliacao/ranking', { params: limpar(filtros) }).then((r) => r.data.data);

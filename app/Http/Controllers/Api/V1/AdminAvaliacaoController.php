@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Enums\ProjetoStatus;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\AplicarReclassificacaoRequest;
 use App\Http\Requests\Admin\DesignarAvaliacaoRequest;
 use App\Http\Requests\Admin\LiberacaoAvaliacaoRequest;
 use App\Http\Requests\Admin\LimiteAvaliadorRequest;
@@ -57,6 +58,20 @@ class AdminAvaliacaoController extends Controller
         ]);
 
         return response()->json(['data' => $this->service->reclassificacoesSugeridas($filtros)]);
+    }
+
+    /** Aceita as sugestões escolhidas, trocando a área/subárea dos projetos. */
+    public function aplicarReclassificacoes(AplicarReclassificacaoRequest $request): JsonResponse
+    {
+        $aplicados = $this->service->aplicarReclassificacoes($request->validated('itens'));
+        $total = count($aplicados);
+
+        return response()->json([
+            'data' => $aplicados,
+            'meta' => ['message' => $total === 1
+                ? 'Reclassificação aplicada em 1 projeto.'
+                : "Reclassificação aplicada em {$total} projetos."],
+        ]);
     }
 
     /** Ranking dos projetos já avaliados, pela média das notas finais. */
