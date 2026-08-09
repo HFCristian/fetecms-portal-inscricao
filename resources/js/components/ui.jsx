@@ -287,3 +287,35 @@ export function useConfirm() {
 
     return [confirm, dialogo];
 }
+
+const segundosAte = (ate) => (ate ? Math.max(0, Math.ceil((ate - Date.now()) / 1000)) : 0);
+
+/**
+ * Contagem regressiva até um instante absoluto (timestamp em ms; null desliga).
+ * Devolve os segundos restantes, sempre recalculados do relógio — assim o valor
+ * continua correto mesmo se o navegador atrasar o timer (aba em segundo plano).
+ */
+export function useContagemRegressiva(ate) {
+    const [restante, setRestante] = useState(() => segundosAte(ate));
+
+    useEffect(() => {
+        setRestante(segundosAte(ate));
+        if (!ate) return undefined;
+
+        const id = setInterval(() => {
+            const s = segundosAte(ate);
+            setRestante(s);
+            if (s === 0) clearInterval(id);
+        }, 500);
+
+        return () => clearInterval(id);
+    }, [ate]);
+
+    return restante;
+}
+
+/** Segundos → mm:ss (ex.: 65 -> "01:05"), para o mostrador da contagem regressiva. */
+export function formatarMmSs(segundos) {
+    const s = Math.max(0, Math.floor(segundos || 0));
+    return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+}

@@ -38,8 +38,12 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
         ->middleware('throttle:10,1');
     Route::post('/avaliadores', [AvaliadorController::class, 'store'])
         ->middleware('throttle:10,1');
+    // O bloqueio por excesso de tentativas é feito no AuthService, por e-mail+IP e
+    // só contando FALHAS (ver AuthService::MAX_TENTATIVAS). Este throttle por IP é
+    // apenas a rede de proteção contra abuso automatizado — folgado o bastante para
+    // não punir vários usuários legítimos atrás do mesmo IP (escola com NAT).
     Route::post('/auth/login', [AuthController::class, 'login'])
-        ->middleware('throttle:6,1');
+        ->middleware('throttle:30,1');
 
     // Recuperação de senha (link temporário por e-mail) — rate limit contra abuso.
     Route::post('/auth/esqueci-senha', [AuthController::class, 'esqueciSenha'])
@@ -101,6 +105,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::get('/', [AvaliadorAvaliacaoController::class, 'index']);
             Route::get('/{avaliacao}', [AvaliadorAvaliacaoController::class, 'show']);
             Route::post('/{avaliacao}/iniciar', [AvaliadorAvaliacaoController::class, 'iniciar']);
+            Route::post('/{avaliacao}/rascunho', [AvaliadorAvaliacaoController::class, 'rascunho']);
             Route::post('/{avaliacao}/concluir', [AvaliadorAvaliacaoController::class, 'concluir']);
         });
 
@@ -123,6 +128,9 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::patch('/avaliacao/config', [AdminAvaliacaoController::class, 'definirLiberacao']);
             Route::get('/avaliacao/avaliadores', [AdminAvaliacaoController::class, 'avaliadores']);
             Route::get('/avaliacao/projetos', [AdminAvaliacaoController::class, 'projetos']);
+            Route::get('/avaliacao/reclassificacoes', [AdminAvaliacaoController::class, 'reclassificacoes']);
+            Route::post('/avaliacao/reclassificacoes/aplicar', [AdminAvaliacaoController::class, 'aplicarReclassificacoes']);
+            Route::get('/avaliacao/ranking', [AdminAvaliacaoController::class, 'ranking']);
             Route::post('/avaliacao/projetos/{projeto}/designar', [AdminAvaliacaoController::class, 'designar']);
             Route::post('/avaliacao/distribuir', [AdminAvaliacaoController::class, 'distribuir']);
             Route::patch('/avaliacao/avaliadores/{avaliador}/limite', [AdminAvaliacaoController::class, 'limitar']);

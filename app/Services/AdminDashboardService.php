@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\Categoria;
 use App\Enums\ProjetoStatus;
 use App\Enums\Role;
 use App\Models\Aluno;
@@ -27,6 +28,7 @@ class AdminDashboardService
             'projetos_total' => Projeto::count(),
             'projetos_submetidos' => Projeto::where('status', ProjetoStatus::Submetido->value)->count(),
             'projetos_rascunho' => Projeto::where('status', ProjetoStatus::Rascunho->value)->count(),
+            'projetos_categoria' => $this->porCategoria(),
             'orientadores' => $orientadores,
             'alunos' => $alunos,
             'coorientadores' => $coorientadores,
@@ -39,6 +41,29 @@ class AdminDashboardService
             'cidades_com_projeto' => $submetidos()->whereNotNull('cidade_id')->distinct()->count('cidade_id'),
             'estados_com_projeto' => $submetidos()->whereNotNull('estado_id')->distinct()->count('estado_id'),
         ];
+    }
+
+    /**
+     * Projetos cadastrados (rascunho + submetido) por categoria da feira. Sai
+     * sempre com todas as categorias, na ordem do enum, mesmo as zeradas.
+     * Rascunho ainda sem categoria escolhida não entra em nenhuma coluna — por
+     * isso a soma pode ficar abaixo de `projetos_total`.
+     *
+     * @return list<array{value: string, label: string, total: int}>
+     */
+    private function porCategoria(): array
+    {
+        $totais = Projeto::query()
+            ->whereNotNull('categoria')
+            ->groupBy('categoria')
+            ->selectRaw('categoria, count(*) as total')
+            ->pluck('total', 'categoria');
+
+        return array_map(fn (Categoria $c) => [
+            'value' => $c->value,
+            'label' => $c->label(),
+            'total' => (int) ($totais[$c->value] ?? 0),
+        ], Categoria::cases());
     }
 
     /**

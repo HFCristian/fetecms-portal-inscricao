@@ -25,6 +25,7 @@ class AuthController extends Controller
             $data['email'],
             $data['password'],
             (bool) ($data['remember'] ?? false),
+            $request->throttleKey(),
         );
 
         // Sessão nova após login previne fixation (Sanctum SPA).

@@ -58,15 +58,21 @@ Tabela `users` única com coluna `role`: **`orientador`**, **`avaliador`**, **`a
   - Após uma **data definida pelo admin**, o avaliador acessa e vê a tela com os projetos **designados** a ele.
   - Vê **até 3 projetos** designados automaticamente; ao **iniciar** uma avaliação **não pode cancelar**
     e trocar de projeto — só o **admin** pode cancelar/reverter.
-  - A avaliação permite **ler o projeto inteiro** e dar uma **nota de 1 a 10**.
+  - A avaliação permite **ler o projeto inteiro** e preencher uma **rubrica de 3 quesitos**
+    (vídeo de apresentação, resumo, projeto de pesquisa), cada um de **0 a 10** e com campo
+    opcional de sugestões/comentários. A **nota final é a soma dos três (0 a 30)**, calculada
+    no servidor. O avaliador também **confere a classificação**: se a **área** está correta
+    (obrigatório; se não, sugere a correta) e se a **subárea** está correta (opcional; quem
+    marcar como incorreta precisa sugerir a correta). A avaliação pode ser **salva como
+    rascunho** antes do envio; o envio continua irreversível.
   - Cada projeto passa por **≥ 3 avaliadores**, com *match* por **subárea** (preferencial) ou **área**.
   - **Distribuição automática**: casa subárea do projeto ↔ subárea do avaliador; se não houver,
     cai para a **mesma área**. (Algoritmo ainda a refinar.)
   - Cada projeto fica visível para **no máximo 5 avaliadores**.
   - O **admin pode designar manualmente** projetos a avaliadores, podendo **exceder o limite de 3**.
 - **Admin**: criado **somente por outro admin** (cadastro simples: nome, e-mail, senha). Dashboard
-  com 9 métricas: projetos totais / submetidos / em rascunho; orientadores; alunos; coorientadores;
-  escolas, cidades e estados **com projeto cadastrado**.
+  com as métricas: projetos totais / submetidos / em rascunho; **projetos por categoria**;
+  orientadores; alunos; coorientadores; escolas, cidades e estados **com projeto cadastrado**.
 
 Regras-chave:
 - **Equipe: 1 a 4 alunos por projeto, condicionado à categoria** — *FETEC Jr* permite até 4;
@@ -151,6 +157,9 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 8 | Admin Parametrização: renomear/mesclar/excluir áreas e subáreas (reatribui referências) | ✅ sim | ✅ sim (Pedro) | 0 |
 | 9 | Erros 100% em pt_BR + favicon (logo2026.png) + rodapé com e-mail de suporte | ✅ sim | ✅ sim (Pedro) | 0 |
 | 10 | Instituições: importar escolas_ms.csv + combobox "digite/crie" (criação global) no orientador e projeto | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 11 | E1 Dependências (dependabot: 9 PRs) + E2 Login: aviso de bloqueio + contador regressivo | ✅ sim | ❌ não (sem credencial no ambiente) | 1 |
+| 12 | E3 Dashboard: card projetos por categoria + E4 Rubrica de avaliação (3 quesitos, nota 0–30) | ✅ sim | ❌ não (sem credencial no ambiente) | 2 |
+| 13 | E5 Conferência de área/subárea + E6 Rascunho da avaliação | ✅ sim | ❌ não (sem credencial no ambiente) | 3 |
 
 > **Estado atual:** ciclo de ajustes pós-v1 (Sprints 6–10) **concluído e verde** — back 110/110,
 > front 11/11, Pint limpo, build OK (estado integrado, já com a refatoração visual do Pedro).

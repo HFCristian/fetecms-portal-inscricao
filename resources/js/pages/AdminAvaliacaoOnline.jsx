@@ -178,6 +178,18 @@ export default function AdminAvaliacaoOnline() {
                     titulo="Projetos submetidos"
                     descricao="Projetos submetidos por área, quantas avaliações cada um recebeu e designação manual."
                 />
+                <CardAvaliacao
+                    to="/admin/avaliacao/reclassificacoes"
+                    icon="rule"
+                    titulo="Reclassificações sugeridas"
+                    descricao="Projetos em que avaliadores apontaram área ou subárea incorreta, com o consenso das sugestões."
+                />
+                <CardAvaliacao
+                    to="/admin/avaliacao/ranking"
+                    icon="trophy"
+                    titulo="Ranking dos projetos"
+                    descricao="Projetos já avaliados, ordenados pela média das notas finais, com as médias de cada quesito."
+                />
             </div>
         </AppShell>
     );

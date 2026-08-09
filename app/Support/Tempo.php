@@ -1,0 +1,32 @@
+<?php
+
+namespace App\Support;
+
+/**
+ * Formatação de tempo por extenso em pt_BR para mensagens ao usuário
+ * (ex.: espera de bloqueio por excesso de tentativas de login).
+ */
+class Tempo
+{
+    /** Segundos → texto pt_BR ("45 segundos", "1 minuto", "2 minutos e 5 segundos"). */
+    public static function humanizar(int $segundos): string
+    {
+        $segundos = max(0, $segundos);
+
+        if ($segundos < 60) {
+            return self::plural($segundos, 'segundo');
+        }
+
+        $minutos = intdiv($segundos, 60);
+        $resto = $segundos % 60;
+
+        return $resto === 0
+            ? self::plural($minutos, 'minuto')
+            : self::plural($minutos, 'minuto').' e '.self::plural($resto, 'segundo');
+    }
+
+    private static function plural(int $valor, string $unidade): string
+    {
+        return $valor.' '.($valor === 1 ? $unidade : $unidade.'s');
+    }
+}

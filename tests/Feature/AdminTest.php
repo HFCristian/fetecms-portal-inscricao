@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\Categoria;
 use App\Models\Aluno;
 use App\Models\Area;
 use App\Models\Coorientador;
@@ -59,6 +60,30 @@ class AdminTest extends TestCase
             ->assertJsonPath('data.escolas_com_projeto', 2)
             ->assertJsonPath('data.cidades_com_projeto', 2)
             ->assertJsonPath('data.estados_com_projeto', 2);
+    }
+
+    public function test_dashboard_conta_projetos_por_categoria(): void
+    {
+        $orient = User::factory()->create();
+
+        Projeto::factory()->count(2)->create(['user_id' => $orient->id, 'categoria' => Categoria::FetecJr->value]);
+        Projeto::factory()->submetido()->create(['user_id' => $orient->id, 'categoria' => Categoria::Fetecms->value]);
+        // Rascunho ainda sem categoria: não entra em nenhuma coluna.
+        Projeto::factory()->create(['user_id' => $orient->id, 'categoria' => null]);
+
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->getJson('/api/v1/admin/dashboard')
+            ->assertOk()
+            // Sai na ordem do enum, com as categorias zeradas presentes.
+            ->assertJsonPath('data.projetos_categoria.0.value', 'fetec_jr')
+            ->assertJsonPath('data.projetos_categoria.0.label', 'FETEC Jr')
+            ->assertJsonPath('data.projetos_categoria.0.total', 2)
+            ->assertJsonPath('data.projetos_categoria.1.value', 'fetecms')
+            ->assertJsonPath('data.projetos_categoria.1.total', 1)
+            ->assertJsonPath('data.projetos_categoria.2.value', 'fetecms_fundect')
+            ->assertJsonPath('data.projetos_categoria.2.total', 0)
+            ->assertJsonCount(count(Categoria::cases()), 'data.projetos_categoria');
     }
 
     public function test_dashboard_recorta_pessoas_por_genero(): void

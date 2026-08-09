@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Enums\ProjetoStatus;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\AplicarReclassificacaoRequest;
 use App\Http\Requests\Admin\DesignarAvaliacaoRequest;
 use App\Http\Requests\Admin\LiberacaoAvaliacaoRequest;
 use App\Http\Requests\Admin\LimiteAvaliadorRequest;
@@ -46,6 +47,43 @@ class AdminAvaliacaoController extends Controller
     }
 
     /** Projetos submetidos por área, com realizadas/em avaliação/faltantes. */
+    /** Projetos com sugestão de reclassificação de área/subárea (com filtros). */
+    public function reclassificacoes(Request $request): JsonResponse
+    {
+        $filtros = $request->validate([
+            'area_id' => ['nullable', 'integer', 'exists:areas,id'],
+            'q' => ['nullable', 'string', 'max:120'],
+            'de' => ['nullable', 'date'],
+            'ate' => ['nullable', 'date', 'after_or_equal:de'],
+        ]);
+
+        return response()->json(['data' => $this->service->reclassificacoesSugeridas($filtros)]);
+    }
+
+    /** Aceita as sugestões escolhidas, trocando a área/subárea dos projetos. */
+    public function aplicarReclassificacoes(AplicarReclassificacaoRequest $request): JsonResponse
+    {
+        $aplicados = $this->service->aplicarReclassificacoes($request->validated('itens'));
+        $total = count($aplicados);
+
+        return response()->json([
+            'data' => $aplicados,
+            'meta' => ['message' => $total === 1
+                ? 'Reclassificação aplicada em 1 projeto.'
+                : "Reclassificação aplicada em {$total} projetos."],
+        ]);
+    }
+
+    /** Ranking dos projetos já avaliados, pela média das notas finais. */
+    public function ranking(Request $request): JsonResponse
+    {
+        $filtros = $request->validate([
+            'area_id' => ['nullable', 'integer', 'exists:areas,id'],
+        ]);
+
+        return response()->json(['data' => $this->service->rankingProjetos($filtros)]);
+    }
+
     public function projetos(): JsonResponse
     {
         return response()->json(['data' => $this->service->projetosSubmetidosPorArea()]);

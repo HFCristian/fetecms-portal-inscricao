@@ -28,4 +28,7 @@ enum StatusAvaliacao: string
 
     /** Nº máximo de avaliações que cada avaliador realiza (regra do edital). */
     public const MAX_POR_AVALIADOR = 3;
+
+    /** Nº mínimo de avaliações concluídas que cada projeto precisa receber. */
+    public const MIN_POR_PROJETO = 3;
 }

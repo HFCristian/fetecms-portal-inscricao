@@ -19,6 +19,26 @@ export const designarProjeto = (projetoId, payload) =>
     http.post(`/admin/avaliacao/projetos/${projetoId}/designar`, payload).then((r) => r.data);
 export const distribuirAvaliacoes = () => http.post('/admin/avaliacao/distribuir').then((r) => r.data);
 
+// Projetos com sugestão de reclassificação. `filtros`: { area_id, q, de, ate }.
+export const getReclassificacoes = (filtros = {}) =>
+    http.get('/admin/avaliacao/reclassificacoes', { params: limpar(filtros) }).then((r) => r.data.data);
+
+// Aceita sugestões de reclassificação em lote.
+// `itens`: [{ projeto_id, area_id?, subarea_id? }] — ao menos um dos dois por item.
+export const aplicarReclassificacoes = (itens) =>
+    http.post('/admin/avaliacao/reclassificacoes/aplicar', { itens }).then((r) => r.data);
+
+// Ranking dos projetos avaliados (média das notas finais). `filtros`: { area_id }.
+export const getRankingAvaliacao = (filtros = {}) =>
+    http.get('/admin/avaliacao/ranking', { params: limpar(filtros) }).then((r) => r.data.data);
+
+/** Remove chaves vazias para não mandar `?q=&area_id=` na query. */
+function limpar(filtros) {
+    return Object.fromEntries(
+        Object.entries(filtros).filter(([, v]) => v !== '' && v !== null && v !== undefined),
+    );
+}
+
 export const getProjetosPorArea = () => http.get('/admin/projetos-por-area').then((r) => r.data.data);
 
 export const getProjetosPorLocalidade = () => http.get('/admin/projetos-por-localidade').then((r) => r.data.data);

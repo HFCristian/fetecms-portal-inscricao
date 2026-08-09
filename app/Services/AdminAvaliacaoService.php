@@ -9,8 +9,11 @@ use App\Models\Avaliacao;
 use App\Models\AvaliadorProfile;
 use App\Models\Edicao;
 use App\Models\Projeto;
+use App\Models\Subarea;
 use App\Models\User;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Telas de "Avaliação online" do admin (E7). O algoritmo de distribuição ainda
@@ -89,11 +92,289 @@ class AdminAvaliacaoService
                 'realizadas' => $realizadas,
                 'em_avaliacao' => (int) $p->em_avaliacao,
                 // Cada projeto precisa de ao menos 3 avaliações concluídas.
-                'faltantes' => max(0, StatusAvaliacao::MAX_POR_AVALIADOR - $realizadas),
+                'faltantes' => max(0, StatusAvaliacao::MIN_POR_PROJETO - $realizadas),
             ];
         }
 
         return $this->ordenarPorArea($grupos);
+    }
+
+    /**
+     * Projetos que receberam sugestão de reclassificação: pelo menos um avaliador
+     * marcou a área e/ou a subárea como incorreta ao concluir. Cada projeto vem
+     * com as sugestões individuais e o consenso (opção mais votada).
+     *
+     * Filtros (todos opcionais): `area_id` (área ATUAL do projeto), `q` (trecho do
+     * título) e `de`/`ate` (período da data de avaliação, inclusive).
+     *
+     * @param  array{area_id?:int|null, q?:string|null, de?:string|null, ate?:string|null}  $filtros
+     * @return list<array<string, mixed>>
+     */
+    public function reclassificacoesSugeridas(array $filtros = []): array
+    {
+        $avaliacoes = Avaliacao::query()
+            ->where('status', StatusAvaliacao::Concluida->value)
+            ->where(fn ($q) => $q->where('area_correta', false)->orWhere('subarea_correta', false))
+            ->with([
+                'avaliador:id,name',
+                'areaSugerida:id,nome',
+                'subareaSugerida:id,nome',
+                'projeto:id,titulo,area_id,subarea_id',
+                'projeto.area:id,nome',
+                'projeto.subarea:id,nome',
+            ])
+            ->when($filtros['area_id'] ?? null, fn ($q, $areaId) => $q->whereHas(
+                'projeto', fn ($p) => $p->where('area_id', $areaId)
+            ))
+            ->when($filtros['q'] ?? null, fn ($q, $termo) => $q->whereHas(
+                'projeto', fn ($p) => $p->where('titulo', 'like', '%'.$termo.'%')
+            ))
+            ->when($filtros['de'] ?? null, fn ($q, $de) => $q->whereDate('concluida_em', '>=', $de))
+            ->when($filtros['ate'] ?? null, fn ($q, $ate) => $q->whereDate('concluida_em', '<=', $ate))
+            ->orderByDesc('concluida_em')
+            ->get()
+            // Uma avaliação sem projeto (exclusão em cascata em andamento) não tem o que exibir.
+            ->filter(fn (Avaliacao $a) => $a->projeto !== null);
+
+        $projetos = [];
+        foreach ($avaliacoes as $a) {
+            $projeto = $a->projeto;
+
+            // Sugestão que aponta para a classificação ATUAL já foi aplicada pelo
+            // admin — deixa de ser uma troca pendente e some da lista.
+            $areaId = $a->area_correta === false && $a->area_sugerida_id
+                && $a->area_sugerida_id !== $projeto->area_id ? $a->area_sugerida_id : null;
+            $subareaId = $a->subarea_correta === false && $a->subarea_sugerida_id
+                && $a->subarea_sugerida_id !== $projeto->subarea_id ? $a->subarea_sugerida_id : null;
+
+            if ($areaId === null && $subareaId === null) {
+                continue;
+            }
+
+            $id = $projeto->id;
+            $projetos[$id] ??= [
+                'projeto_id' => $id,
+                'titulo' => $projeto->titulo,
+                'area_id' => $projeto->area_id,
+                'area' => $projeto->area?->nome,
+                'subarea_id' => $projeto->subarea_id,
+                'subarea' => $projeto->subarea?->nome,
+                'sugestoes' => [],
+            ];
+
+            $projetos[$id]['sugestoes'][] = [
+                'avaliacao_id' => $a->id,
+                'avaliador' => $a->avaliador?->name,
+                'avaliada_em' => $a->concluida_em?->format('d/m/Y H:i'),
+                'avaliada_em_iso' => $a->concluida_em?->toIso8601String(),
+                'area_sugerida_id' => $areaId,
+                'area_sugerida' => $areaId ? $a->areaSugerida?->nome : null,
+                'subarea_sugerida_id' => $subareaId,
+                'subarea_sugerida' => $subareaId ? $a->subareaSugerida?->nome : null,
+            ];
+        }
+
+        $lista = array_map(function (array $p) {
+            $p['total_sugestoes'] = count($p['sugestoes']);
+            // Opções distintas com a contagem de votos — o admin escolhe qual aceitar.
+            $p['opcoes_area'] = $this->opcoes($p['sugestoes'], 'area_sugerida');
+            $p['opcoes_subarea'] = $this->opcoes($p['sugestoes'], 'subarea_sugerida');
+            $p['area_mais_sugerida'] = $p['opcoes_area'][0] ?? null;
+            $p['subarea_mais_sugerida'] = $p['opcoes_subarea'][0] ?? null;
+
+            return $p;
+        }, array_values($projetos));
+
+        // Mais sugestões primeiro: é onde o admin deve olhar antes.
+        usort($lista, fn ($a, $b) => [$b['total_sugestoes'], $a['titulo']] <=> [$a['total_sugestoes'], $b['titulo']]);
+
+        return $lista;
+    }
+
+    /**
+     * Opções distintas sugeridas para um campo, com os votos de cada uma e a mais
+     * votada primeiro (empate desfeito pelo nome, para a ordem ser estável).
+     *
+     * @param  list<array<string, mixed>>  $sugestoes
+     * @return list<array{id:int, nome:string, votos:int}>
+     */
+    private function opcoes(array $sugestoes, string $campo): array
+    {
+        $contagem = [];
+
+        foreach ($sugestoes as $s) {
+            $id = $s[$campo.'_id'] ?? null;
+
+            if ($id === null) {
+                continue;
+            }
+
+            $contagem[$id] ??= ['id' => (int) $id, 'nome' => (string) $s[$campo], 'votos' => 0];
+            $contagem[$id]['votos']++;
+        }
+
+        $lista = array_values($contagem);
+        usort($lista, fn ($a, $b) => [$b['votos'], $a['nome']] <=> [$a['votos'], $b['nome']]);
+
+        return $lista;
+    }
+
+    /**
+     * Aplica sugestões de reclassificação em lote: troca a área e/ou a subárea dos
+     * projetos indicados. Só aceita valores que algum avaliador realmente sugeriu
+     * para aquele projeto — este endpoint é "aceitar sugestão", não edição livre.
+     *
+     * Tudo numa transação: ou o lote inteiro vale, ou nada muda.
+     *
+     * @param  list<array{projeto_id:int, area_id?:int|null, subarea_id?:int|null}>  $itens
+     * @return list<array<string, mixed>> o que mudou em cada projeto
+     */
+    public function aplicarReclassificacoes(array $itens): array
+    {
+        return DB::transaction(function () use ($itens) {
+            $aplicados = [];
+
+            foreach ($itens as $item) {
+                $projeto = Projeto::with(['area:id,nome', 'subarea:id,nome'])->find($item['projeto_id']);
+
+                if (! $projeto) {
+                    throw ValidationException::withMessages([
+                        'itens' => 'Um dos projetos selecionados não existe mais.',
+                    ]);
+                }
+
+                $aplicados[] = $this->aplicarNoProjeto(
+                    $projeto,
+                    $item['area_id'] ?? null,
+                    $item['subarea_id'] ?? null,
+                );
+            }
+
+            return $aplicados;
+        });
+    }
+
+    /**
+     * Troca a classificação de um projeto validando cada sugestão contra o que
+     * foi realmente sugerido nas avaliações concluídas.
+     *
+     * @return array<string, mixed>
+     */
+    private function aplicarNoProjeto(Projeto $projeto, ?int $areaId, ?int $subareaId): array
+    {
+        if ($areaId === null && $subareaId === null) {
+            throw ValidationException::withMessages([
+                'itens' => "Nenhuma sugestão foi escolhida para \"{$projeto->titulo}\".",
+            ]);
+        }
+
+        $antes = ['area' => $projeto->area?->nome, 'subarea' => $projeto->subarea?->nome];
+
+        if ($areaId !== null) {
+            $this->garantirSugerido($projeto, 'area_sugerida_id', $areaId, 'área');
+        }
+
+        if ($subareaId !== null) {
+            $this->garantirSugerido($projeto, 'subarea_sugerida_id', $subareaId, 'subárea');
+        }
+
+        $novaArea = $areaId ?? $projeto->area_id;
+        $novaSubarea = $subareaId ?? $projeto->subarea_id;
+
+        // Subárea pertence a uma área só: trocar a área sem trocar a subárea
+        // deixaria o projeto numa combinação inexistente no catálogo.
+        if ($novaSubarea !== null && ! Subarea::where('id', $novaSubarea)->where('area_id', $novaArea)->exists()) {
+            $novaSubarea = null;
+        }
+
+        $projeto->update(['area_id' => $novaArea, 'subarea_id' => $novaSubarea]);
+        $projeto->load(['area:id,nome', 'subarea:id,nome']);
+
+        return [
+            'projeto_id' => $projeto->id,
+            'titulo' => $projeto->titulo,
+            'area_anterior' => $antes['area'],
+            'area' => $projeto->area?->nome,
+            'subarea_anterior' => $antes['subarea'],
+            'subarea' => $projeto->subarea?->nome,
+            // Avisa quando a subárea caiu junto por não pertencer à nova área.
+            'subarea_limpa' => $antes['subarea'] !== null && $projeto->subarea_id === null,
+        ];
+    }
+
+    /** Barra qualquer valor que não tenha sido sugerido por um avaliador do projeto. */
+    private function garantirSugerido(Projeto $projeto, string $coluna, int $valor, string $rotulo): void
+    {
+        $sugerido = Avaliacao::where('projeto_id', $projeto->id)
+            ->where('status', StatusAvaliacao::Concluida->value)
+            ->where($coluna, $valor)
+            ->exists();
+
+        if (! $sugerido) {
+            throw ValidationException::withMessages([
+                'itens' => "A {$rotulo} escolhida para \"{$projeto->titulo}\" não consta nas sugestões dos avaliadores.",
+            ]);
+        }
+    }
+
+    /**
+     * Ranking dos projetos que já receberam ao menos uma avaliação concluída,
+     * pela MÉDIA das notas finais (0 a 30). Desempate: mais avaliações primeiro
+     * (média mais confiável) e, por fim, título.
+     *
+     * `completo` marca quem já atingiu o mínimo de avaliações — abaixo disso a
+     * média ainda é parcial e não deve valer como classificação final.
+     *
+     * @param  array{area_id?:int|null}  $filtros
+     * @return list<array<string, mixed>>
+     */
+    public function rankingProjetos(array $filtros = []): array
+    {
+        $projetos = Projeto::query()
+            ->whereHas('avaliacoes', fn ($q) => $q->where('status', StatusAvaliacao::Concluida->value))
+            ->when($filtros['area_id'] ?? null, fn ($q, $areaId) => $q->where('area_id', $areaId))
+            ->with([
+                'area:id,nome',
+                'avaliacoes' => fn ($q) => $q->where('status', StatusAvaliacao::Concluida->value),
+            ])
+            ->get();
+
+        $lista = $projetos->map(function (Projeto $p) {
+            $concluidas = $p->avaliacoes;
+            $total = $concluidas->count();
+
+            return [
+                'projeto_id' => $p->id,
+                'titulo' => $p->titulo,
+                'area' => $p->area?->nome,
+                'categoria' => $p->categoria?->label(),
+                'avaliacoes' => $total,
+                'media' => round($concluidas->avg('nota'), 1),
+                'medias_quesitos' => [
+                    'video' => round($concluidas->avg('nota_video'), 1),
+                    'resumo' => round($concluidas->avg('nota_resumo'), 1),
+                    'pesquisa' => round($concluidas->avg('nota_pesquisa'), 1),
+                ],
+                'completo' => $total >= StatusAvaliacao::MIN_POR_PROJETO,
+                'nota_maxima' => Avaliacao::notaMaxima(),
+            ];
+        })->all();
+
+        usort($lista, fn ($a, $b) => [$b['media'], $b['avaliacoes'], $a['titulo']]
+            <=> [$a['media'], $a['avaliacoes'], $b['titulo']]);
+
+        // Posição atribuída depois da ordenação; empate na média divide o lugar.
+        $posicao = 0;
+        $anterior = null;
+        foreach ($lista as $i => &$linha) {
+            if ($linha['media'] !== $anterior) {
+                $posicao = $i + 1;
+                $anterior = $linha['media'];
+            }
+            $linha['posicao'] = $posicao;
+        }
+
+        return $lista;
     }
 
     /**

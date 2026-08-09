@@ -7,21 +7,75 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * Avaliação de um projeto submetido por um avaliador (E7). O preenchimento
- * (distribuição/nota) virá com o algoritmo de avaliação; o model já existe.
+ * Avaliação de um projeto submetido por um avaliador (E7). A nota sai de uma
+ * rubrica de três quesitos (vídeo de apresentação, resumo e projeto de
+ * pesquisa), cada um de 0 a 10 e com comentários opcionais; `nota` guarda a
+ * soma dos três (0 a 30).
  */
 class Avaliacao extends Model
 {
+    /** Nota máxima de cada quesito da rubrica. */
+    public const NOTA_MAXIMA_QUESITO = 10;
+
+    /** Quesitos da rubrica, na ordem em que aparecem para o avaliador. */
+    public const QUESITOS = ['video', 'resumo', 'pesquisa'];
+
     protected $table = 'avaliacoes';
 
-    protected $fillable = ['projeto_id', 'avaliador_id', 'status', 'nota'];
+    /** Campos da conferência de classificação (área obrigatória, subárea opcional). */
+    public const CAMPOS_CLASSIFICACAO = [
+        'area_correta', 'area_sugerida_id',
+        'subarea_correta', 'subarea_sugerida_id',
+    ];
+
+    protected $fillable = [
+        'projeto_id', 'avaliador_id', 'status', 'nota',
+        'nota_video', 'comentario_video',
+        'nota_resumo', 'comentario_resumo',
+        'nota_pesquisa', 'comentario_pesquisa',
+        'area_correta', 'area_sugerida_id',
+        'subarea_correta', 'subarea_sugerida_id',
+        'rascunho_em', 'concluida_em',
+    ];
+
+    /** Nota máxima da avaliação: a soma dos quesitos (3 × 10 = 30). */
+    public static function notaMaxima(): int
+    {
+        return count(self::QUESITOS) * self::NOTA_MAXIMA_QUESITO;
+    }
+
+    /** Soma dos quesitos preenchidos — o valor gravado em `nota` ao concluir. */
+    public function somaDosQuesitos(): int
+    {
+        return array_sum(array_map(
+            fn (string $q) => (int) $this->{"nota_{$q}"},
+            self::QUESITOS,
+        ));
+    }
 
     protected function casts(): array
     {
         return [
             'status' => StatusAvaliacao::class,
             'nota' => 'integer',
+            'nota_video' => 'integer',
+            'nota_resumo' => 'integer',
+            'nota_pesquisa' => 'integer',
+            'area_correta' => 'boolean',
+            'subarea_correta' => 'boolean',
+            'rascunho_em' => 'datetime',
+            'concluida_em' => 'datetime',
         ];
+    }
+
+    public function areaSugerida(): BelongsTo
+    {
+        return $this->belongsTo(Area::class, 'area_sugerida_id');
+    }
+
+    public function subareaSugerida(): BelongsTo
+    {
+        return $this->belongsTo(Subarea::class, 'subarea_sugerida_id');
     }
 
     public function projeto(): BelongsTo

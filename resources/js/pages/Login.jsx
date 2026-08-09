@@ -2,7 +2,41 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth, extractErrors, homeFor } from '../lib/auth.jsx';
 import AuthCard from '../components/AuthCard.jsx';
-import { Field, Input, Button, Alert } from '../components/ui.jsx';
+import { Field, Input, Button, Alert, useContagemRegressiva, formatarMmSs } from '../components/ui.jsx';
+
+/**
+ * Aviso de bloqueio por excesso de tentativas: mostra o motivo, quanto falta
+ * para liberar e uma contagem regressiva até 00:00 (com barra de progresso).
+ */
+function BloqueioTentativas({ mensagem, restante, total }) {
+    const pct = total > 0 ? Math.min(100, (restante / total) * 100) : 0;
+
+    return (
+        <div className="rounded-lg bg-error-container text-on-error-container p-4" role="alert">
+            <div className="flex items-start gap-2">
+                <span className="material-symbols-outlined text-[20px] shrink-0">lock_clock</span>
+                <div className="text-sm">
+                    <p className="font-semibold">Acesso bloqueado temporariamente</p>
+                    <p className="mt-0.5">{mensagem}</p>
+                </div>
+            </div>
+
+            <div className="mt-3 flex items-baseline justify-center gap-2">
+                <span className="text-xs uppercase tracking-wide">Tente novamente em</span>
+                <span role="timer" aria-label={`Aguarde ${restante} segundos`} className="text-2xl font-bold tabular-nums">
+                    {formatarMmSs(restante)}
+                </span>
+            </div>
+
+            <div className="mt-2 h-1.5 rounded-full bg-on-error-container/15 overflow-hidden">
+                <div
+                    className="h-full bg-on-error-container/60 transition-[width] duration-500 ease-linear"
+                    style={{ width: `${pct}%` }}
+                />
+            </div>
+        </div>
+    );
+}
 
 export default function Login() {
     const { login } = useAuth();
@@ -12,16 +46,27 @@ export default function Login() {
     const [showPass, setShowPass] = useState(false);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    // { ate: timestamp ms, total: segundos } enquanto houver bloqueio (429).
+    const [bloqueio, setBloqueio] = useState(null);
+
+    const restante = useContagemRegressiva(bloqueio?.ate ?? null);
+    const bloqueado = restante > 0;
+    const liberado = !!bloqueio && restante === 0;
 
     async function onSubmit(e) {
         e.preventDefault();
+        if (bloqueado) return;
+
         setError('');
+        setBloqueio(null);
         setLoading(true);
         try {
             const user = await login(email, password);
             navigate(homeFor(user.role), { replace: true });
         } catch (err) {
-            setError(extractErrors(err).message);
+            const { message, retryAfter } = extractErrors(err);
+            setError(message);
+            if (retryAfter) setBloqueio({ ate: Date.now() + retryAfter * 1000, total: retryAfter });
         } finally {
             setLoading(false);
         }
@@ -36,7 +81,13 @@ export default function Login() {
                 </p>
 
                 <div className="mb-4">
-                    <Alert>{error}</Alert>
+                    {bloqueado ? (
+                        <BloqueioTentativas mensagem={error} restante={restante} total={bloqueio.total} />
+                    ) : liberado ? (
+                        <Alert type="info">A espera terminou. Você já pode tentar entrar novamente.</Alert>
+                    ) : (
+                        <Alert>{error}</Alert>
+                    )}
                 </div>
 
                 <form onSubmit={onSubmit} className="space-y-5">
@@ -82,9 +133,11 @@ export default function Login() {
                         </Link>
                     </div>
 
-                    <Button type="submit" loading={loading} className="w-full">
-                        <span className="material-symbols-outlined text-[20px]">login</span>
-                        ENTRAR
+                    <Button type="submit" loading={loading} disabled={bloqueado} className="w-full">
+                        <span className="material-symbols-outlined text-[20px]">
+                            {bloqueado ? 'lock_clock' : 'login'}
+                        </span>
+                        {bloqueado ? `AGUARDE ${formatarMmSs(restante)}` : 'ENTRAR'}
                     </Button>
                 </form>
 

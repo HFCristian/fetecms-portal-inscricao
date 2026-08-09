@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\EnsureRole;
 use App\Http\Middleware\SecurityHeaders;
+use App\Support\Tempo;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -64,8 +65,25 @@ return Application::configure(basePath: dirname(__DIR__))
             };
         };
 
+        // 429: devolve `retry_after` (segundos) além da mensagem e preserva o
+        // Retry-After original, para o front avisar quanto falta e rodar a
+        // contagem regressiva até a liberação.
+        $excedeuLimite = function (ThrottleRequestsException $e) {
+            $headers = $e->getHeaders();
+            $segundos = max(1, (int) ($headers['Retry-After'] ?? 60));
+            $mensagem = trim($e->getMessage());
+
+            // O middleware `throttle` lança a mensagem padrão em inglês; as nossas
+            // (ex.: bloqueio de login) já vêm prontas em pt_BR e são preservadas.
+            if ($mensagem === '' || $mensagem === 'Too Many Attempts.') {
+                $mensagem = 'Muitas requisições em pouco tempo. Tente novamente em '.Tempo::humanizar($segundos).'.';
+            }
+
+            return response()->json(['message' => $mensagem, 'retry_after' => $segundos], 429, $headers);
+        };
+
         // Toda a API responde erros em pt_BR. Validação (422) já vem traduzida.
-        $exceptions->render(function (Throwable $e, Request $request) use ($mensagemHttp) {
+        $exceptions->render(function (Throwable $e, Request $request) use ($mensagemHttp, $excedeuLimite) {
             if (! $request->is('api/*') || $e instanceof ValidationException) {
                 return null;
             }
@@ -74,7 +92,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
             return match (true) {
                 $e instanceof AuthenticationException => $json(401, 'Não autenticado. Faça login para continuar.'),
-                $e instanceof ThrottleRequestsException => $json(429, 'Muitas requisições em pouco tempo. Aguarde um instante e tente novamente.'),
+                $e instanceof ThrottleRequestsException => $excedeuLimite($e),
                 $e instanceof TokenMismatchException => $json(419, 'Sua sessão expirou. Atualize a página e tente novamente.'),
                 $e instanceof ModelNotFoundException => $json(404, 'Recurso não encontrado.'),
                 $e instanceof AuthorizationException => $json(403, 'Você não tem permissão para esta ação.'),
