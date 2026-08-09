@@ -4,7 +4,7 @@ Registro das sprints deste ciclo. Cada épico é um MVP; cada sprint junta dois 
 e vira uma branch a partir da `main` (encadeamento cumulativo: a sprint N parte da
 branch da sprint N−1, para nada se perder enquanto os PRs não são mergeados).
 
-> **Branch única para o push:** `feat/ciclo-ago2026` contém **todo** o ciclo (sprints 1–4).
+> **Branch única para o push:** `feat/ciclo-ago2026` contém **todo** o ciclo (sprints 1–5).
 > As branches por sprint continuam existindo como histórico, mas basta subir essa.
 >
 > ```
@@ -19,6 +19,7 @@ branch da sprint N−1, para nada se perder enquanto os PRs não são mergeados)
 | 2 | **E3** Dashboard: card "Projetos por categoria" · **E4** Rubrica de avaliação (3 notas + comentários) | `feat/sprint2-dashboard-rubrica` | ✅ concluída |
 | 3 | **E5** Conferência de classificação (área/subárea) · **E6** Rascunho da avaliação | `feat/sprint3-classificacao-rascunho` | ✅ concluída |
 | 4 | **E7** Painel de reclassificações sugeridas · **E8** Ranking dos projetos avaliados | `feat/ciclo-ago2026` | ✅ concluída |
+| 5 | **E9** Aceitar sugestão por projeto · **E10** Aceite em lote com seleção múltipla | `feat/ciclo-ago2026` | ✅ concluída |
 
 ### Decisões travadas (definidas com o Pedro antes de começar)
 
@@ -395,3 +396,83 @@ com o consenso, os filtros de nome e de área, o ranking com pódio e o selo "pa
 - **Exportar o ranking em CSV/PDF** para a comissão premiadora.
 - **Empate no ranking:** hoje projetos com a mesma média dividem a posição. Se o edital exigir
   desempate, vale definir o critério (nota do projeto de pesquisa? menor desvio entre avaliadores?).
+
+---
+
+## Sprint 5 — Aceitar as reclassificações
+
+**Branch:** `feat/ciclo-ago2026` (mesma branch consolidada)
+
+A tela de reclassificações deixa de só informar e passa a **agir** — era a sugestão que eu tinha
+deixado no fim da Sprint 4.
+
+### E9 — Aplicar a sugestão de um projeto
+
+- Botão **"Aplicar sugestão"** em cada projeto, ao lado do consenso. Aplica **área e/ou subárea**
+  (o que houver de consenso) e pede confirmação mostrando exatamente a troca: *"Área → Ciências
+  Biológicas"*.
+- Só o botão acionado entra em carregamento; os demais ficam desabilitados até terminar.
+
+### E10 — Aceite em lote
+
+- Caixa **"Aceitar várias sugestões de uma vez"** troca os botões individuais por caixas de
+  seleção.
+- Por projeto, **área e subárea são independentes** — dá para marcar as duas no mesmo projeto,
+  como você pediu.
+- **"Selecionar todos"** marca a sugestão mais votada de cada campo em todos os projetos da lista
+  (respeitando os filtros ativos); desmarcar limpa tudo.
+- Quando um projeto tem **sugestões divergentes** (ex.: 2 avaliadores dizem Biológicas, 1 diz
+  Saúde), aparece um **select para escolher qual aceitar**, com a contagem de votos e a mais
+  votada pré-selecionada.
+- O lote inteiro vai numa **única transação**: se um item for inválido, nada é aplicado.
+
+### Regras que valem a pena saber
+
+- O endpoint **só aceita valores que algum avaliador realmente sugeriu** para aquele projeto.
+  É "aceitar sugestão", não edição livre — para reclassificar à mão, o caminho continua sendo a
+  edição do projeto.
+- **Trocar a área limpa a subárea** quando ela não pertence à nova área (subárea vive sob uma área
+  só). A resposta avisa: *"A subárea de N projeto(s) foi limpa por não pertencer à nova área."*
+- **A sugestão aplicada some da lista sem precisar de flag no banco:** ela passa a apontar para a
+  classificação atual do projeto, então deixa de ser uma troca pendente. Sugestões **divergentes
+  continuam listadas** — se 2 pediram Biológicas e 1 pediu Saúde, aplicar Biológicas mantém o
+  projeto na tela com a sugestão de Saúde ainda em aberto.
+
+**Arquivos principais:** `app/Services/AdminAvaliacaoService.php` (`aplicarReclassificacoes`),
+`app/Http/Requests/Admin/AplicarReclassificacaoRequest.php` (novo),
+`app/Http/Controllers/Api/V1/AdminAvaliacaoController.php`, `routes/api.php`,
+`resources/js/lib/admin.js`, `resources/js/pages/AvaliacaoReclassificacoes.jsx`.
+
+### Resultado dos testes
+
+| Verificação | Sprint 4 | Sprint 5 |
+|-------------|----------|----------|
+| Backend (PHPUnit) | 270/270 | **282/282** (917 asserções) |
+| Frontend (Vitest) | 65/65 | **77/77** (19 arquivos) |
+| Pint | limpo | **limpo** |
+| `npm run build` | OK | **OK** |
+
+Novos testes: `AdminReclassificacaoRankingTest` (+12 — aplica área, aplica área+subárea juntas,
+lote com vários projetos, limpeza da subárea incompatível, sugestão aplicada some da lista,
+divergente continua pendente, recusa área não sugerida, lote inválido não aplica nada, item vazio,
+lista vazia, restrição ao admin, opções distintas com votos) e `AvaliacaoReclassificacoes.test.jsx`
+(+12 — botão por projeto, cancelar, erro da API, carregamento isolado por botão, modo lote,
+escolha entre opções divergentes, selecionar todos, área+subárea juntas, botão bloqueado sem
+seleção, desmarcar todos, aviso de subárea limpa).
+
+**Verificado no app rodando:** apliquei a sugestão de subárea do projeto de abelhas pela interface
+— a mensagem confirmou, o projeto saiu da lista e o banco passou de *Botânica* para *Ecologia*.
+
+### O que o Pedro precisa fazer
+
+1. **Push único:** `git push -u origin feat/ciclo-ago2026` (nada mudou aqui — a Sprint 5 entrou na
+   mesma branch).
+2. Nada de migration nova nesta sprint.
+
+### Sugestões (fora do escopo, para você decidir)
+
+- **Redistribuir avaliadores depois de reclassificar.** Se um projeto muda de área, os avaliadores
+  designados podem não ser mais os certos. Hoje a designação fica como está; um aviso na tela (ou
+  um `avaliacao:distribuir` sugerido depois do lote) fecharia essa ponta.
+- **Registrar quem aplicou e quando.** Hoje a troca não deixa rastro além do próprio projeto. Um
+  log simples ajudaria a auditar reclassificações em ano de feira movimentado.
