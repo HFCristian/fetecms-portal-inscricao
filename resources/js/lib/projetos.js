@@ -11,3 +11,7 @@ export const atualizarProjeto = (id, data) =>
     http.put(`/projetos/${id}`, data).then((r) => r.data.data);
 
 export const removerProjeto = (id) => http.delete(`/projetos/${id}`);
+
+/** Desfaz a submissão: o projeto volta a rascunho, editável e submissível de novo. */
+export const cancelarSubmissao = (id) =>
+    http.post(`/projetos/${id}/cancelar-submissao`).then((r) => r.data.data);

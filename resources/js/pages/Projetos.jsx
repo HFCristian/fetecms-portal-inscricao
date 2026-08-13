@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { Alert, useConfirm } from '../components/ui.jsx';
-import { listarProjetos, removerProjeto } from '../lib/projetos.js';
+import { listarProjetos, removerProjeto, cancelarSubmissao } from '../lib/projetos.js';
 
 const FILTROS = [
     { key: 'all', label: 'Todos' },
@@ -38,16 +38,48 @@ export default function Projetos() {
 
     useEffect(() => carregar(), [carregar]);
 
-    async function excluir(id) {
+    /** Mensagem do 422 quando a janela para desfazer a submissão já fechou. */
+    function avisarBloqueio(error) {
+        const dados = error?.response?.data;
+        const motivos = dados?.motivos?.map((m) => m.message).join(' ');
+        setError(motivos || dados?.message || 'Não foi possível concluir a ação.');
+    }
+
+    async function excluir(projeto) {
+        const submetido = projeto.status !== 'rascunho';
         const ok = await confirm({
-            title: 'Excluir rascunho',
-            message: 'Excluir este rascunho? Esta ação não pode ser desfeita.',
+            title: submetido ? 'Excluir inscrição' : 'Excluir rascunho',
+            message: submetido
+                ? 'Excluir esta inscrição submetida? O projeto sai da feira junto com alunos, coorientador e anexos. Esta ação não pode ser desfeita.'
+                : 'Excluir este rascunho? Esta ação não pode ser desfeita.',
             confirmLabel: 'Excluir',
             danger: true,
         });
         if (!ok) return;
-        await removerProjeto(id);
-        carregar();
+        setError('');
+        try {
+            await removerProjeto(projeto.id);
+            carregar();
+        } catch (error) {
+            avisarBloqueio(error);
+        }
+    }
+
+    async function cancelar(projeto) {
+        const ok = await confirm({
+            title: 'Cancelar submissão',
+            message: 'A inscrição volta para rascunho e sai da fila de avaliação. Você poderá editar e submeter de novo enquanto as inscrições estiverem abertas.',
+            confirmLabel: 'Cancelar submissão',
+            danger: true,
+        });
+        if (!ok) return;
+        setError('');
+        try {
+            await cancelarSubmissao(projeto.id);
+            carregar();
+        } catch (error) {
+            avisarBloqueio(error);
+        }
     }
 
     const visiveis = projetos.filter((p) => filtro === 'all' || p.status === filtro);
@@ -157,7 +189,7 @@ export default function Projetos() {
                                             Revisar e submeter
                                         </button>
                                         <button
-                                            onClick={() => excluir(p.id)}
+                                            onClick={() => excluir(p)}
                                             className="max-w-80 md:w-auto w-[70vw] md:mx-0 mx-auto inline-flex items-center gap-1 text-sm border border-outline-variant rounded-lg px-3 py-2 text-error hover:bg-error-container/40"
                                         >
                                             <span className="material-symbols-outlined text-[16px]">delete</span>
@@ -173,6 +205,26 @@ export default function Projetos() {
                                         <span className="material-symbols-outlined text-[16px]">visibility</span>
                                         Ver resumo
                                     </button>
+                                )}
+                                {/* Desfazer a submissão: só enquanto ninguém começou a avaliar
+                                    e o período de avaliação não abriu. */}
+                                {p.status === 'submetido' && p.pode_desfazer && (
+                                    <>
+                                        <button
+                                            onClick={() => cancelar(p)}
+                                            className="max-w-80 md:w-auto w-[70vw] md:mx-0 mx-auto inline-flex items-center gap-1 text-sm border border-outline-variant rounded-lg px-3 py-2 hover:bg-surface-variant"
+                                        >
+                                            <span className="material-symbols-outlined text-[16px]">undo</span>
+                                            Cancelar submissão
+                                        </button>
+                                        <button
+                                            onClick={() => excluir(p)}
+                                            className="max-w-80 md:w-auto w-[70vw] md:mx-0 mx-auto inline-flex items-center gap-1 text-sm border border-outline-variant rounded-lg px-3 py-2 text-error hover:bg-error-container/40"
+                                        >
+                                            <span className="material-symbols-outlined text-[16px]">delete</span>
+                                            Excluir inscrição
+                                        </button>
+                                    </>
                                 )}
                             </div>
                         </article>

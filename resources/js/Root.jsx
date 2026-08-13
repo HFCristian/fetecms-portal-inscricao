@@ -30,6 +30,8 @@ import AvaliacaoProjetos from './pages/AvaliacaoProjetos.jsx';
 import AvaliacaoReclassificacoes from './pages/AvaliacaoReclassificacoes.jsx';
 import AvaliacaoRanking from './pages/AvaliacaoRanking.jsx';
 import AlterarSenha from './pages/AlterarSenha.jsx';
+import AlterarEmail from './pages/AlterarEmail.jsx';
+import AdminRegistros from './pages/AdminRegistros.jsx';
 
 function Spinner() {
     return (
@@ -64,6 +66,7 @@ export default function Root() {
                         {/* Disponível a qualquer usuário autenticado */}
                         <Route element={<RoleRoute />}>
                             <Route path="/alterar-senha" element={<AlterarSenha />} />
+                            <Route path="/alterar-email" element={<AlterarEmail />} />
                         </Route>
 
                         {/* Área do orientador */}
@@ -97,6 +100,7 @@ export default function Root() {
                             <Route path="/admin/parametrizacao" element={<Parametrizacao />} />
                             <Route path="/admin/parametrizacao/areas" element={<ParametrizacaoAreas />} />
                             <Route path="/admin/parametrizacao/escolas" element={<ParametrizacaoEscolas />} />
+                            <Route path="/admin/registros" element={<AdminRegistros />} />
                             <Route path="/admin/gerir-admins" element={<AdminManager />} />
                             <Route path="/admin/suporte" element={<AdminSuporte />} />
                         </Route>

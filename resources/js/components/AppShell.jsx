@@ -41,6 +41,10 @@ function NavLinks({ role, onNavigate, suporteBadge = 0 }) {
                     <span className="material-symbols-outlined">grading</span>
                     Avaliação online
                 </NavLink>
+                <NavLink to="/admin/registros" className={navClass} onClick={onNavigate}>
+                    <span className="material-symbols-outlined">history</span>
+                    Registros
+                </NavLink>
                 <NavLink to="/admin/parametrizacao" className={navClass} onClick={onNavigate}>
                     <span className="material-symbols-outlined">tune</span>
                     Parametrização
@@ -135,6 +139,10 @@ export default function AppShell({ children }) {
                 <div className="flex-1 flex flex-col gap-1">
                     <NavLinks role={user?.role} suporteBadge={suporteBadge} />
                     <div className="flex flex-col gap-1 mt-auto mb-4">
+                        <NavLink to="/alterar-email" className={navClass}>
+                            <span className="material-symbols-outlined">alternate_email</span>
+                            Alterar e-mail
+                        </NavLink>
                         <NavLink to="/alterar-senha" className={navClass}>
                             <span className="material-symbols-outlined">lock</span>
                             Alterar senha
@@ -179,6 +187,10 @@ export default function AppShell({ children }) {
                         <NavLinks role={user?.role} onNavigate={() => setMenuOpen(false)} suporteBadge={suporteBadge} />
                     </div>
                     <div className="p-4 border-t border-outline-variant/30 flex flex-col gap-1 shrink-0">
+                        <NavLink to="/alterar-email" className={navClass} onClick={() => setMenuOpen(false)}>
+                            <span className="material-symbols-outlined">alternate_email</span>
+                            Alterar e-mail
+                        </NavLink>
                         <NavLink to="/alterar-senha" className={navClass} onClick={() => setMenuOpen(false)}>
                             <span className="material-symbols-outlined">lock</span>
                             Alterar senha

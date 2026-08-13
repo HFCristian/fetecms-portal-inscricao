@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Auth\AlterarEmailRequest;
 use App\Http\Requests\Auth\AlterarSenhaRequest;
 use App\Http\Requests\Auth\EsqueciSenhaRequest;
 use App\Http\Requests\Auth\LoginRequest;
@@ -66,6 +67,17 @@ class AuthController extends Controller
         );
 
         return response()->json(['data' => ['message' => 'Senha alterada com sucesso.']]);
+    }
+
+    /**
+     * Troca o e-mail de acesso do próprio usuário (orientador, avaliador ou
+     * admin). Fica registrado na trilha de auditoria do admin.
+     */
+    public function alterarEmail(AlterarEmailRequest $request): UserResource
+    {
+        $user = $this->auth->alterarEmail($request->user(), $request->validated('email'));
+
+        return UserResource::make($user->fresh()->load(['orientadorProfile', 'avaliadorProfile.area', 'avaliadorProfile.subarea']));
     }
 
     /**

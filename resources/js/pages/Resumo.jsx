@@ -4,6 +4,7 @@ import AppShell from '../components/AppShell.jsx';
 import { Button, Alert, useConfirm } from '../components/ui.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import { getResumo, submeterProjeto } from '../lib/submissao.js';
+import { cancelarSubmissao, removerProjeto } from '../lib/projetos.js';
 
 function Linha({ label, valor }) {
     return (
@@ -21,6 +22,7 @@ export default function Resumo() {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
+    const [desfazendo, setDesfazendo] = useState(false);
     const [alert, setAlert] = useState('');
 
     const carregar = useCallback(() => {
@@ -50,6 +52,52 @@ export default function Resumo() {
         }
     }
 
+    /** Mensagem do 422 quando a janela para desfazer a submissão já fechou. */
+    function avisarBloqueio(e) {
+        const dados = e?.response?.data;
+        const motivos = dados?.motivos?.map((m) => m.message).join(' ');
+        setAlert(motivos || extractErrors(e).message);
+    }
+
+    async function cancelar() {
+        const ok = await confirm({
+            title: 'Cancelar submissão',
+            message: 'A inscrição volta para rascunho e sai da fila de avaliação. Você poderá editar e submeter de novo enquanto as inscrições estiverem abertas.',
+            confirmLabel: 'Cancelar submissão',
+            danger: true,
+        });
+        if (!ok) return;
+        setAlert('');
+        setDesfazendo(true);
+        try {
+            await cancelarSubmissao(id);
+            carregar();
+        } catch (e) {
+            avisarBloqueio(e);
+        } finally {
+            setDesfazendo(false);
+        }
+    }
+
+    async function excluir() {
+        const ok = await confirm({
+            title: 'Excluir inscrição',
+            message: 'Excluir esta inscrição submetida? O projeto sai da feira junto com alunos, coorientador e anexos. Esta ação não pode ser desfeita.',
+            confirmLabel: 'Excluir',
+            danger: true,
+        });
+        if (!ok) return;
+        setAlert('');
+        setDesfazendo(true);
+        try {
+            await removerProjeto(id);
+            navigate('/projetos', { replace: true });
+        } catch (e) {
+            avisarBloqueio(e);
+            setDesfazendo(false);
+        }
+    }
+
     if (loading || !data) {
         return (
             <AppShell>
@@ -60,7 +108,7 @@ export default function Resumo() {
         );
     }
 
-    const { projeto, integrantes, documentos, pendencias, pode_submeter } = data;
+    const { projeto, integrantes, documentos, pendencias, pode_submeter, pode_desfazer } = data;
     const jaSubmetido = projeto.status === 'submetido';
 
     return (
@@ -149,6 +197,21 @@ export default function Resumo() {
                             <span className="material-symbols-outlined text-[20px]">groups</span>
                             Ver integrantes
                         </Button>
+                        {/* Desfazer: só enquanto ninguém começou a avaliar e o
+                            período de avaliação não abriu. */}
+                        {pode_desfazer && (
+                            <>
+                                <Button variant="outline" type="button" loading={desfazendo} onClick={cancelar}>
+                                    <span className="material-symbols-outlined text-[20px]">undo</span>
+                                    Cancelar submissão
+                                </Button>
+                                <Button variant="outline" type="button" loading={desfazendo} onClick={excluir}
+                                    className="text-error border-error/40 hover:bg-error-container/40">
+                                    <span className="material-symbols-outlined text-[20px]">delete</span>
+                                    Excluir inscrição
+                                </Button>
+                            </>
+                        )}
                     </div>
                 ) : (
                     <>

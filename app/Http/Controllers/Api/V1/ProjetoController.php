@@ -8,6 +8,7 @@ use App\Http\Resources\ProjetoListResource;
 use App\Http\Resources\ProjetoResource;
 use App\Models\Projeto;
 use App\Services\ProjetoService;
+use App\Services\SubmissaoService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -55,12 +56,30 @@ class ProjetoController extends Controller
         return ProjetoResource::make($projeto);
     }
 
-    public function destroy(Projeto $projeto): JsonResponse
+    /**
+     * Descarta o rascunho ou exclui a inscrição já submetida. No segundo caso a
+     * janela é verificada (avaliação não iniciada e período de avaliação não
+     * começado) e a exclusão entra na trilha de auditoria do admin.
+     */
+    public function destroy(Request $request, Projeto $projeto, SubmissaoService $submissoes): JsonResponse
     {
         $this->authorize('delete', $projeto);
 
-        $projeto->delete();
+        $submetido = ! $projeto->status->editavel();
+        $motivos = $submissoes->impedimentosPara($projeto, $request->user());
 
-        return response()->json(['data' => ['message' => 'Projeto removido.']]);
+        if (! empty($motivos)) {
+            return response()->json([
+                'message' => 'Não é mais possível excluir esta inscrição.',
+                'motivos' => $motivos,
+                'code' => 'SUBMISSAO_BLOQUEADA',
+            ], 422);
+        }
+
+        $submissoes->excluir($projeto, $request->user());
+
+        return response()->json(['data' => [
+            'message' => $submetido ? 'Inscrição excluída.' : 'Projeto removido.',
+        ]]);
     }
 }

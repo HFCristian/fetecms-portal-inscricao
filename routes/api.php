@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\AdminAvaliacaoController;
 use App\Http\Controllers\Api\V1\AdminController;
+use App\Http\Controllers\Api\V1\AdminRegistroController;
 use App\Http\Controllers\Api\V1\AlunoController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\AvaliadorAvaliacaoController;
@@ -70,6 +71,9 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
         // Troca de senha (qualquer papel); rate limit contra brute force da senha atual.
         Route::put('/auth/senha', [AuthController::class, 'alterarSenha'])
             ->middleware('throttle:6,1');
+        // Troca do e-mail de acesso (qualquer papel) — registrada na trilha do admin.
+        Route::put('/auth/email', [AuthController::class, 'alterarEmail'])
+            ->middleware('throttle:6,1');
 
         Route::get('/perfil', [PerfilController::class, 'show']);
         Route::put('/perfil', [PerfilController::class, 'update']);
@@ -85,6 +89,8 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
         // Submissão (E6) — resumo/checklist e envio irreversível
         Route::get('projetos/{projeto}/resumo', [ProjetoSubmissaoController::class, 'resumo']);
         Route::post('projetos/{projeto}/submeter', [ProjetoSubmissaoController::class, 'submeter']);
+        // Desfazer a submissão (volta a rascunho) enquanto a avaliação não começou
+        Route::post('projetos/{projeto}/cancelar-submissao', [ProjetoSubmissaoController::class, 'cancelar']);
 
         // Integrantes do projeto (E4)
         Route::get('projetos/{projeto}/integrantes', [IntegranteController::class, 'index']);
@@ -136,6 +142,10 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::patch('/avaliacao/avaliadores/{avaliador}/limite', [AdminAvaliacaoController::class, 'limitar']);
             Route::patch('/avaliacao/avaliadores/{avaliador}/demo', [AdminAvaliacaoController::class, 'demo']);
             Route::delete('/avaliacao/testes', [AdminAvaliacaoController::class, 'limparTestes']);
+            // Trilha de registros (submissões, cancelamentos, exclusões, e-mails)
+            Route::get('/registros', [AdminRegistroController::class, 'index']);
+            Route::get('/registros/exportar', [AdminRegistroController::class, 'exportar']);
+
             Route::get('/projetos-por-area', [AdminController::class, 'projetosPorArea']);
             Route::get('/projetos-por-localidade', [AdminController::class, 'projetosPorLocalidade']);
             Route::post('/admins', [AdminController::class, 'store']);
