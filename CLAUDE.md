@@ -160,6 +160,7 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 11 | E1 Dependências (dependabot: 9 PRs) + E2 Login: aviso de bloqueio + contador regressivo | ✅ sim | ❌ não (sem credencial no ambiente) | 1 |
 | 12 | E3 Dashboard: card projetos por categoria + E4 Rubrica de avaliação (3 quesitos, nota 0–30) | ✅ sim | ❌ não (sem credencial no ambiente) | 2 |
 | 13 | E5 Conferência de área/subárea + E6 Rascunho da avaliação | ✅ sim | ❌ não (sem credencial no ambiente) | 3 |
+| 14 | E7 Troca de e-mail (todos os papéis) + E8 Desfazer submissão & trilha de registros | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
 > **Estado atual:** ciclo de ajustes pós-v1 (Sprints 6–10) **concluído e verde** — back 110/110,
 > front 11/11, Pint limpo, build OK (estado integrado, já com a refatoração visual do Pedro).
@@ -178,6 +179,21 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > **Pendências do Pedro:** (1) `git push origin changes`; (2) popular as escolas com
 > `php artisan instituicoes:importar` (lê `database/data/instituicoes/escolas_ms.csv`; 1888 escolas
 > de MS, todos os 79 municípios casam com o catálogo IBGE).
+>
+> **Sprint 14 (branch `feat/conta-email-e-registros`, saída da `origin/main`):**
+> (a) **Troca de e-mail** em `PUT /auth/email` para orientador, avaliador e admin, com tela
+> `/alterar-email` no menu de todos os papéis; o perfil do orientador não edita mais o campo
+> (aponta para a tela dedicada) para toda troca passar pelo caminho auditado.
+> (b) **Desfazer a submissão**: o orientador **cancela** (`POST /projetos/{id}/cancelar-submissao`,
+> volta a rascunho) ou **exclui** (`DELETE /projetos/{id}`, soft delete) — só enquanto **nenhuma
+> avaliação foi iniciada** (`em_andamento`/`concluida`) e o **período de avaliação não começou**
+> (`Edicao::avaliacaoLiberada()`); fora da janela, 422 com o motivo. Regras no `SubmissaoService`;
+> o admin passa por cima (escape do edital) e a ação fica registrada no nome dele.
+> (c) **Trilha de registros** (`registros_atividade` + `RegistroAtividadeService`): submissão,
+> cancelamento, exclusão e troca de e-mail, com autor/projeto **desnormalizados** para sobreviver
+> ao delete. A migration **reconstrói o histórico** pelo `submitted_at`. Painel `/admin/registros`
+> filtra por tipo, período e busca, e exporta **CSV** (UTF-8 com BOM, separador `;`) do mesmo recorte.
+> Back **311/311**, front **88/88**, Pint limpo, build OK.
 
 ### Roadmap de sprints (proposto)
 
