@@ -68,6 +68,41 @@ const instParams = ({ search, ordenar, page } = {}) => ({
     params: { ...(search ? { search } : {}), ordenar: ordenar ?? 'nome', page: page ?? 1 },
 });
 export const getInstituicoesAdmin = (opts) => http.get('/admin/instituicoes', instParams(opts)).then((r) => r.data);
+
 export const renomearInstituicao = (id, nome, opts) => http.put(`/admin/instituicoes/${id}`, { nome }, instParams(opts)).then((r) => r.data);
 export const mesclarInstituicao = (id, destinoId, opts) => http.post(`/admin/instituicoes/${id}/mesclar`, { destino_id: destinoId }, instParams(opts)).then((r) => r.data);
 export const excluirInstituicao = (id, opts) => http.delete(`/admin/instituicoes/${id}`, instParams(opts)).then((r) => r.data);
+
+// Trilha de registros (submissões, cancelamentos, exclusões e trocas de e-mail).
+// `filtros`: { tipos: string[], de, ate, busca, page }. A resposta traz { data, meta }
+// (meta com paginação, totais por tipo e a lista de tipos disponíveis).
+const registroParams = ({ tipos, de, ate, busca, page } = {}) => ({
+    params: {
+        ...(tipos?.length ? { tipos: tipos.join(',') } : {}),
+        ...(de ? { de } : {}),
+        ...(ate ? { ate } : {}),
+        ...(busca ? { busca } : {}),
+        page: page ?? 1,
+    },
+});
+
+export const getRegistros = (filtros) =>
+    http.get('/admin/registros', registroParams(filtros)).then((r) => r.data);
+
+/** Baixa o CSV do mesmo recorte que está na tela (a sessão vai no cookie). */
+export async function exportarRegistrosCsv(filtros) {
+    const r = await http.get('/admin/registros/exportar', {
+        ...registroParams(filtros),
+        responseType: 'blob',
+    });
+    const nome = /filename="([^"]+)"/.exec(r.headers['content-disposition'] ?? '')?.[1]
+        ?? 'registros.csv';
+    const url = URL.createObjectURL(r.data);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = nome;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+}

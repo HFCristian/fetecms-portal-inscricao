@@ -21,6 +21,9 @@ class ProjetoListResource extends JsonResource
             'max_alunos' => $this->maxAlunos(),
             'instituicao' => $this->whenLoaded('instituicao', fn () => $this->instituicao?->nome),
             'area' => $this->whenLoaded('area', fn () => $this->area?->nome),
+            // Submissão ainda reversível (nenhuma avaliação iniciada e período de
+            // avaliação não começado) — habilita cancelar/excluir na listagem.
+            'pode_desfazer' => (bool) $this->resource->getAttribute('pode_desfazer'),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];
     }

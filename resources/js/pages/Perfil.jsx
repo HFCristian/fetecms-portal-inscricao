@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth, extractErrors } from '../lib/auth.jsx';
 import AppShell from '../components/AppShell.jsx';
 import http from '../lib/http.js';
@@ -20,7 +21,6 @@ export default function Perfil() {
 
     const [form, setForm] = useState({
         name: user?.name ?? '',
-        email: user?.email ?? '',
         telefone: profile.telefone ?? '',
         instituicao_id: profile.instituicao_id ?? '',
         instituicao_nome: profile.instituicao ?? '',
@@ -116,8 +116,13 @@ export default function Perfil() {
                 <Field label="Nome Completo" error={err('name')}>
                     <Input value={form.name} onChange={set('name')} error={err('name')} />
                 </Field>
-                <Field label="E-mail" error={err('email')}>
-                    <Input type="email" value={form.email} onChange={set('email')} error={err('email')} />
+                {/* A troca de e-mail tem tela própria (e vira registro para a organização). */}
+                <Field label="E-mail">
+                    <Input type="email" value={user?.email ?? ''} disabled readOnly />
+                    <Link to="/alterar-email" className="inline-flex items-center gap-1 text-sm font-semibold text-primary mt-2 hover:underline">
+                        <span className="material-symbols-outlined text-[16px]">alternate_email</span>
+                        Alterar e-mail
+                    </Link>
                 </Field>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Field label="Telefone" error={err('telefone')}>

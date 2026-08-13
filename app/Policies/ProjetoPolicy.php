@@ -40,9 +40,21 @@ class ProjetoPolicy
         return $projeto->user_id === $user->id && $projeto->status->editavel();
     }
 
+    /**
+     * Só o dono exclui. Rascunho pode sempre; projeto submetido depende ainda da
+     * janela (nenhuma avaliação iniciada e período de avaliação não começado),
+     * checada no SubmissaoService — que responde 422 com o motivo, em vez de um
+     * 403 mudo.
+     */
     public function delete(User $user, Projeto $projeto): bool
     {
-        return $projeto->user_id === $user->id && $projeto->status->editavel();
+        return $projeto->user_id === $user->id;
+    }
+
+    /** Cancelar a submissão (volta a rascunho): só o dono, mesma janela do delete. */
+    public function cancelSubmission(User $user, Projeto $projeto): bool
+    {
+        return $projeto->user_id === $user->id;
     }
 
     /**

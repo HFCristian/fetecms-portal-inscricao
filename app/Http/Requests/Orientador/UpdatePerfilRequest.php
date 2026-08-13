@@ -5,7 +5,6 @@ namespace App\Http\Requests\Orientador;
 use App\Rules\CidadeDoEstado;
 use App\Rules\SubareaDaArea;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class UpdatePerfilRequest extends FormRequest
 {
@@ -31,12 +30,11 @@ class UpdatePerfilRequest extends FormRequest
 
     public function rules(): array
     {
-        $userId = $this->user()->id;
-
         return [
             // CPF/e-mail não editáveis aqui (mudança sensível); demais campos sim.
+            // A troca de e-mail tem endpoint próprio (PUT /auth/email), que a
+            // grava na trilha de auditoria do admin.
             'name' => ['sometimes', 'string', 'max:255'],
-            'email' => ['sometimes', 'email', 'max:255', Rule::unique('users', 'email')->ignore($userId)],
             'telefone' => ['sometimes', 'string', 'max:20'],
             'data_nascimento' => ['sometimes', 'date', 'before:today'],
             'genero' => ['nullable', 'string', 'max:30'],

@@ -54,7 +54,9 @@ class OrientadorService
     }
 
     /**
-     * Atualiza dados do usuário (name/email) e do perfil do orientador.
+     * Atualiza o nome do usuário e os campos do perfil do orientador. O e-mail
+     * NÃO passa por aqui: tem endpoint próprio (PUT /auth/email), que registra a
+     * troca na trilha de auditoria.
      */
     public function updatePerfil(User $user, array $data): User
     {
@@ -62,7 +64,7 @@ class OrientadorService
             $data = $this->resolverSubarea($data);
             $data = $this->resolverInstituicao($data);
 
-            $userData = Arr::only($data, ['name', 'email']);
+            $userData = Arr::only($data, ['name']);
             if (! empty($userData)) {
                 $user->fill($userData)->save();
             }

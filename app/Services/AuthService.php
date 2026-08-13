@@ -15,6 +15,8 @@ use Illuminate\Validation\ValidationException;
 
 class AuthService
 {
+    public function __construct(private readonly RegistroAtividadeService $registros) {}
+
     /** Falhas de login seguidas toleradas (por e-mail + IP) antes do bloqueio. */
     public const MAX_TENTATIVAS = 5;
 
@@ -103,6 +105,29 @@ class AuthService
         }
 
         $user->update(['password' => $novaSenha]);
+    }
+
+    /**
+     * Altera o e-mail de acesso do próprio usuário (qualquer papel). O e-mail é
+     * a identidade da conta no portal, então toda troca vira registro na trilha
+     * de auditoria — com o valor antigo e o novo.
+     *
+     * `$autor` é quem executou a ação (o próprio dono hoje; um admin no futuro).
+     * Trocar para o mesmo e-mail é no-op: não gera registro nem escrita.
+     */
+    public function alterarEmail(User $user, string $novoEmail, ?User $autor = null): User
+    {
+        $anterior = $user->email;
+        $novoEmail = trim($novoEmail);
+
+        if (mb_strtolower($anterior) === mb_strtolower($novoEmail)) {
+            return $user;
+        }
+
+        $user->update(['email' => $novoEmail]);
+        $this->registros->trocaEmail($user, $anterior, $novoEmail, $autor ?? $user);
+
+        return $user;
     }
 
     /**

@@ -11,14 +11,25 @@ use Illuminate\Database\Eloquent\Collection;
 
 class ProjetoService
 {
-    /** Lista os projetos do orientador, com filtro opcional por status. */
+    public function __construct(private readonly SubmissaoService $submissoes) {}
+
+    /**
+     * Lista os projetos do orientador, com filtro opcional por status. Carrega
+     * edição e avaliações junto para marcar, sem consulta extra por projeto, se
+     * a submissão ainda pode ser desfeita (cancelada/excluída).
+     */
     public function listarDoOrientador(User $user, ?string $status = null): Collection
     {
-        return $user->projetos()
-            ->with(['instituicao', 'area'])
+        $projetos = $user->projetos()
+            ->with(['instituicao', 'area', 'edicao', 'avaliacoes:id,projeto_id,status'])
             ->when($status, fn ($q) => $q->where('status', $status))
             ->orderByDesc('updated_at')
             ->get();
+
+        return $projetos->each(fn (Projeto $projeto) => $projeto->setAttribute(
+            'pode_desfazer',
+            ! $projeto->status->editavel() && $this->submissoes->podeDesfazer($projeto, $user),
+        ));
     }
 
     /** Cria um projeto em rascunho para o orientador autenticado. */
