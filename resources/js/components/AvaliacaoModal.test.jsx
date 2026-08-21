@@ -392,7 +392,9 @@ describe('AvaliacaoModal — rascunho', () => {
         expect(screen.getAllByLabelText(/Sugestões e comentários/)[0]).toHaveValue('Faltou legenda.');
         // A resposta "área incorreta" volta marcada, com o select da sugestão aberto.
         expect(screen.getAllByRole('radio', { name: /Não, está incorreta/i })[0]).toBeChecked();
-        expect(await screen.findByLabelText(/Área correta/)).toHaveValue('2');
+        // O valor só cola depois que o catálogo de áreas chega (carga assíncrona).
+        const sugestao = await screen.findByLabelText(/Área correta/);
+        await waitFor(() => expect(sugestao).toHaveValue('2'));
     });
 
     it('não mostra o botão de rascunho depois de enviada', async () => {
