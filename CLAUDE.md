@@ -211,6 +211,12 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > (d) **Escala Likert de 5 pontos** (1 = muito insatisfeito … 5 = muito satisfeito) no lugar
 > do 0–10; a escala vem do backend (`Avaliacao::ESCALA`) e o front só desenha. **Nota final
 > 3–15**. A migration **reescala proporcionalmente** as avaliações já concluídas.
+> (e) **Dependências**: as **9 branches do dependabot** foram mescladas nesta mesma branch —
+> composer (`laravel/framework` 13.25.0, `laravel/pao` 1.1.4, `laravel/pint` 1.30.5,
+> `mockery/mockery` 1.6.13) e npm (`axios` 1.19.0, `react` 19.2.8, `tailwindcss` 4.3.3,
+> `vitest` 4.1.10, `@testing-library/jest-dom` **7.0.0**, único major). Dois pares foram
+> alinhados à mão porque andam juntos: `react-dom` → 19.2.8 e `@tailwindcss/vite` → 4.3.3
+> (o plugin fixa a versão exata do `tailwindcss`).
 > Back **320/320**, front **96/96**, Pint limpo, build OK.
 
 ### Roadmap de sprints (proposto)
