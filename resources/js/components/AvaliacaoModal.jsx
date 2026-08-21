@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Button, Alert, Select, useConfirm } from './ui.jsx';
 import SubareaCombobox from './SubareaCombobox.jsx';
+import VideoPreview from './VideoPreview.jsx';
+import EscalaLikert from './EscalaLikert.jsx';
 import { getAvaliacao, iniciarAvaliacao, concluirAvaliacao, salvarRascunhoAvaliacao } from '../lib/avaliacao.js';
 import { loadAreas, loadSubareas, criarSubarea } from '../lib/catalogos.js';
 
@@ -10,15 +12,28 @@ const PILL = {
     concluida: 'bg-secondary text-on-secondary',
 };
 
-// Rubrica: cada quesito vale de 0 a 10 (obrigatório) e aceita sugestões e
-// comentários (opcional). A nota final é a soma dos três, calculada no backend.
-const QUESITOS = [
+// Rubrica: cada quesito é pontuado numa escala Likert de 5 pontos (obrigatório)
+// e aceita sugestões e comentários (opcional). A nota final é a soma dos
+// quesitos, calculada no backend.
+const QUESITOS_BASE = [
     { key: 'video', titulo: 'Vídeo de apresentação', icon: 'movie' },
     { key: 'resumo', titulo: 'Resumo do projeto', icon: 'description' },
     { key: 'pesquisa', titulo: 'Projeto de pesquisa', icon: 'science' },
 ];
 
-const NOTA_MAXIMA_QUESITO = 10;
+// Quarto quesito, só para projetos que anexaram o documento de continuação.
+// Ele não soma à parte: o projeto de pesquisa entra na nota pela MÉDIA entre os
+// dois documentos, então o teto da avaliação é o mesmo para todo projeto.
+const QUESITO_CONTINUIDADE = { key: 'continuidade', titulo: 'Projeto de continuação', icon: 'restart_alt' };
+
+const TODOS_QUESITOS = [...QUESITOS_BASE, QUESITO_CONTINUIDADE];
+
+/** Quesitos que o avaliador precisa pontuar neste projeto. */
+const quesitosDe = (projeto) => (projeto?.avalia_continuidade ? TODOS_QUESITOS : QUESITOS_BASE);
+
+/** Nota com no máximo uma casa decimal, no formato pt_BR (ex.: 12,5). */
+const formatarNota = (valor) =>
+    valor === null || valor === undefined ? '—' : String(Math.round(valor * 10) / 10).replace('.', ',');
 
 // Conferência da classificação: '' = ainda não respondeu, 'sim' | 'nao'.
 const CLASSIFICACAO_VAZIA = {
@@ -31,7 +46,7 @@ const paraBooleano = (resposta) => (resposta === 'sim' ? true : resposta === 'na
 
 const rubricaVazia = () => ({
     ...CLASSIFICACAO_VAZIA,
-    ...Object.fromEntries(QUESITOS.flatMap((q) => [[`nota_${q.key}`, ''], [`comentario_${q.key}`, '']])),
+    ...Object.fromEntries(TODOS_QUESITOS.flatMap((q) => [[`nota_${q.key}`, ''], [`comentario_${q.key}`, '']])),
 });
 
 /** Preenche o formulário com o que já estiver gravado (inclusive rascunho). */
@@ -41,12 +56,29 @@ const rubricaDe = (avaliacao) => ({
     subarea_correta: paraResposta(avaliacao?.subarea_correta),
     subarea_sugerida_id: avaliacao?.subarea_sugerida_id ?? '',
     ...Object.fromEntries(
-        QUESITOS.flatMap((q) => [
+        TODOS_QUESITOS.flatMap((q) => [
             [`nota_${q.key}`, avaliacao?.[`nota_${q.key}`] ?? ''],
             [`comentario_${q.key}`, avaliacao?.[`comentario_${q.key}`] ?? ''],
         ]),
     ),
 });
+
+/**
+ * Nota parcial enquanto o avaliador preenche. Vídeo e resumo somam direto; o
+ * projeto de pesquisa entra pela média com o de continuação quando o projeto
+ * tem esse documento (contando só o que já foi pontuado).
+ */
+function notaParcial(rubrica, avaliaContinuidade) {
+    const nota = (key) => (rubrica[`nota_${key}`] === '' ? null : Number(rubrica[`nota_${key}`]));
+
+    const documentos = [nota('pesquisa'), ...(avaliaContinuidade ? [nota('continuidade')] : [])]
+        .filter((v) => v !== null);
+    const pesquisa = documentos.length
+        ? documentos.reduce((soma, v) => soma + v, 0) / documentos.length
+        : 0;
+
+    return (nota('video') ?? 0) + (nota('resumo') ?? 0) + pesquisa;
+}
 
 function Campo({ label, children }) {
     if (!children || (Array.isArray(children) && children.length === 0)) return null;
@@ -58,8 +90,8 @@ function Campo({ label, children }) {
     );
 }
 
-// Um quesito da rubrica: nota obrigatória de 0 a 10 + comentário opcional.
-function Quesito({ quesito, nota, comentario, onNota, onComentario, erros }) {
+// Um quesito da rubrica: escala Likert obrigatória + comentário opcional.
+function Quesito({ quesito, escala, nota, comentario, onNota, onComentario, erros }) {
     const erroNota = erros?.[`nota_${quesito.key}`]?.[0];
 
     return (
@@ -69,25 +101,14 @@ function Quesito({ quesito, nota, comentario, onNota, onComentario, erros }) {
                 <h4 className="font-semibold text-on-surface">{quesito.titulo}</h4>
             </div>
 
-            <div className="flex items-center gap-3">
-                <label className="text-sm text-on-surface-variant" htmlFor={`nota-${quesito.key}`}>
-                    Nota (0 a {NOTA_MAXIMA_QUESITO}) <span className="text-error">*</span>
-                </label>
-                <div className="w-24">
-                    <Select
-                        id={`nota-${quesito.key}`}
-                        value={nota}
-                        error={erroNota}
-                        onChange={(e) => onNota(e.target.value)}
-                    >
-                        <option value="">—</option>
-                        {Array.from({ length: NOTA_MAXIMA_QUESITO + 1 }, (_, n) => (
-                            <option key={n} value={n}>{n}</option>
-                        ))}
-                    </Select>
-                </div>
-            </div>
-            {erroNota && <p className="text-xs text-error">{erroNota}</p>}
+            <EscalaLikert
+                nome={`nota-${quesito.key}`}
+                escala={escala}
+                valor={nota}
+                onChange={onNota}
+                erro={erroNota}
+                legenda={`Sua avaliação de "${quesito.titulo.toLowerCase()}"`}
+            />
 
             <div>
                 <label className="block text-sm text-on-surface-variant mb-1" htmlFor={`comentario-${quesito.key}`}>
@@ -218,18 +239,24 @@ function Classificacao({ projeto, valores, areas, subareas, onChange, erros }) {
 }
 
 // Rubrica já enviada, em leitura (avaliação concluída).
-function RubricaConcluida({ avaliacao }) {
+function RubricaConcluida({ avaliacao, quesitos }) {
+    const rotulo = (valor) => avaliacao.escala?.find((p) => p.valor === valor)?.rotulo;
+    const avaliouContinuidade = avaliacao.nota_continuidade !== null && avaliacao.nota_continuidade !== undefined;
+
     return (
         <div className="space-y-3">
-            {QUESITOS.map((q) => (
+            {quesitos.map((q) => (
                 <div key={q.key} className="rounded-xl border border-outline-variant/40 p-4">
                     <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2">
                             <span className="material-symbols-outlined text-primary-container text-[20px]">{q.icon}</span>
                             <h4 className="font-semibold text-on-surface">{q.titulo}</h4>
                         </div>
-                        <span className="text-lg font-bold text-secondary shrink-0">
-                            {avaliacao[`nota_${q.key}`]}/{NOTA_MAXIMA_QUESITO}
+                        <span className="text-right shrink-0">
+                            <span className="block text-lg font-bold text-secondary">
+                                {avaliacao[`nota_${q.key}`]}/{avaliacao.nota_maxima_quesito}
+                            </span>
+                            <span className="block text-xs text-on-surface-variant">{rotulo(avaliacao[`nota_${q.key}`])}</span>
                         </span>
                     </div>
                     {avaliacao[`comentario_${q.key}`] && (
@@ -239,6 +266,14 @@ function RubricaConcluida({ avaliacao }) {
                     )}
                 </div>
             ))}
+
+            {avaliouContinuidade && (
+                <p className="text-xs text-on-surface-variant">
+                    Projeto de pesquisa e projeto de continuação entram na nota pela média:
+                    {' '}({avaliacao.nota_pesquisa} + {avaliacao.nota_continuidade}) ÷ 2 ={' '}
+                    <strong>{formatarNota((avaliacao.nota_pesquisa + avaliacao.nota_continuidade) / 2)}</strong>.
+                </p>
+            )}
 
             <div className="rounded-xl border border-outline-variant/40 p-4 space-y-1 text-sm">
                 <p className="font-semibold text-on-surface">Classificação</p>
@@ -261,8 +296,8 @@ function RubricaConcluida({ avaliacao }) {
     );
 }
 
-// Modal de avaliação: lê o projeto inteiro, inicia (sem cancelar) e conclui
-// preenchendo a rubrica (3 quesitos de 0 a 10 + comentários), nota final 0–30.
+// Modal de avaliação: lê o projeto inteiro (com o vídeo embutido), inicia (sem
+// cancelar) e conclui preenchendo a rubrica em escala Likert.
 export default function AvaliacaoModal({ avaliacaoId, teste, onFechar, onAtualizado }) {
     const [dados, setDados] = useState(null); // { avaliacao, projeto } | false (erro)
     const [rubrica, setRubrica] = useState(rubricaVazia);
@@ -341,7 +376,7 @@ export default function AvaliacaoModal({ avaliacaoId, teste, onFechar, onAtualiz
     async function concluir() {
         const ok = await confirm({
             title: 'Enviar avaliação', confirmLabel: 'Enviar',
-            message: `Nota final: ${total} de ${notaMaxima}. Depois de enviada, a avaliação não pode ser alterada. Continuar?`,
+            message: `Nota final: ${formatarNota(total)} de ${notaMaxima}. Depois de enviada, a avaliação não pode ser alterada. Continuar?`,
         });
         if (!ok) return;
 
@@ -364,7 +399,7 @@ export default function AvaliacaoModal({ avaliacaoId, teste, onFechar, onAtualiz
 
         return {
             ...Object.fromEntries(
-                QUESITOS.flatMap((q) => [
+                quesitos.flatMap((q) => [
                     [`nota_${q.key}`, numero(rubrica[`nota_${q.key}`])],
                     [`comentario_${q.key}`, rubrica[`comentario_${q.key}`].trim() || null],
                 ]),
@@ -378,14 +413,16 @@ export default function AvaliacaoModal({ avaliacaoId, teste, onFechar, onAtualiz
 
     const av = dados && dados.avaliacao;
     const p = dados && dados.projeto;
-    const notaMaxima = av?.nota_maxima ?? QUESITOS.length * NOTA_MAXIMA_QUESITO;
-    const notasPreenchidas = QUESITOS.filter((q) => rubrica[`nota_${q.key}`] !== '');
-    const total = notasPreenchidas.reduce((s, q) => s + Number(rubrica[`nota_${q.key}`]), 0);
+    const quesitos = quesitosDe(p);
+    const escala = av?.escala ?? [];
+    const notaMaxima = av?.nota_maxima ?? QUESITOS_BASE.length * (av?.nota_maxima_quesito ?? 0);
+    const notasPreenchidas = quesitos.filter((q) => rubrica[`nota_${q.key}`] !== '');
+    const total = notaParcial(rubrica, !!p?.avalia_continuidade);
 
-    // Para enviar: as 3 notas, a conferência da área (+ sugestão se incorreta) e,
-    // se marcou a subárea como incorreta, a subárea sugerida.
+    // Para enviar: a nota de cada quesito, a conferência da área (+ sugestão se
+    // incorreta) e, se marcou a subárea como incorreta, a subárea sugerida.
     const completa =
-        notasPreenchidas.length === QUESITOS.length &&
+        notasPreenchidas.length === quesitos.length &&
         rubrica.area_correta !== '' &&
         (rubrica.area_correta === 'sim' || rubrica.area_sugerida_id !== '') &&
         (rubrica.subarea_correta !== 'nao' || rubrica.subarea_sugerida_id !== '');
@@ -423,6 +460,11 @@ export default function AvaliacaoModal({ avaliacaoId, teste, onFechar, onAtualiz
                                 <Campo label="Área">{p.area}{p.subarea ? ` · ${p.subarea}` : ''}</Campo>
                                 <Campo label="Instituição">{p.instituicao}</Campo>
                                 <Campo label="Coorientador">{p.coorientador}</Campo>
+                                {p.continuacao && (
+                                    <Campo label="Projeto de continuação">
+                                        Sim{p.tempo_pesquisa_meses ? ` · ${p.tempo_pesquisa_meses} meses de pesquisa` : ''}
+                                    </Campo>
+                                )}
                             </div>
                             <Campo label="Estudantes">{p.alunos?.length ? p.alunos.join(', ') : null}</Campo>
                             <Campo label="Palavras-chave">
@@ -440,6 +482,8 @@ export default function AvaliacaoModal({ avaliacaoId, teste, onFechar, onAtualiz
                             {p.link_video && (
                                 <Campo label="Vídeo">
                                     <a href={p.link_video} target="_blank" rel="noreferrer" className="text-primary-container hover:underline break-all">{p.link_video}</a>
+                                    {/* Assista aqui mesmo: abrir o link é opcional. */}
+                                    <VideoPreview url={p.link_video} />
                                 </Campo>
                             )}
                             {p.documentos?.length > 0 && (
@@ -464,10 +508,18 @@ export default function AvaliacaoModal({ avaliacaoId, teste, onFechar, onAtualiz
                             <h4 className="font-display text-primary font-semibold border-b border-surface-variant pb-2">
                                 Avaliação
                             </h4>
-                            {QUESITOS.map((q) => (
+                            <p className="text-sm text-on-surface-variant">
+                                Pontue cada quesito de 1 (muito insatisfeito) a {av.nota_maxima_quesito} (muito satisfeito).
+                                {p?.avalia_continuidade && (
+                                    <> Este projeto tem documento de continuação: a nota do projeto de pesquisa
+                                    entra na soma pela <strong>média</strong> entre os dois documentos.</>
+                                )}
+                            </p>
+                            {quesitos.map((q) => (
                                 <Quesito
                                     key={q.key}
                                     quesito={q}
+                                    escala={escala}
                                     erros={erros}
                                     nota={rubrica[`nota_${q.key}`]}
                                     comentario={rubrica[`comentario_${q.key}`]}
@@ -494,7 +546,7 @@ export default function AvaliacaoModal({ avaliacaoId, teste, onFechar, onAtualiz
                             <h4 className="font-display text-primary font-semibold border-b border-surface-variant pb-2">
                                 Avaliação enviada
                             </h4>
-                            <RubricaConcluida avaliacao={av} />
+                            <RubricaConcluida avaliacao={av} quesitos={quesitos} />
                         </section>
                     )}
                 </div>
@@ -512,11 +564,11 @@ export default function AvaliacaoModal({ avaliacaoId, teste, onFechar, onAtualiz
                             <div className="flex items-center justify-between gap-3 flex-wrap">
                                 <p className="text-sm text-on-surface-variant">
                                     Nota final{' '}
-                                    <strong className="text-lg text-primary-container">{total}</strong>
+                                    <strong className="text-lg text-primary-container">{formatarNota(total)}</strong>
                                     <span className="text-on-surface-variant/70"> de {notaMaxima}</span>
                                     {!completa && (
                                         <span className="block text-xs">
-                                            Preencha os três quesitos e confira a área para enviar.
+                                            Pontue todos os quesitos e confira a área para enviar.
                                         </span>
                                     )}
                                 </p>
@@ -534,7 +586,7 @@ export default function AvaliacaoModal({ avaliacaoId, teste, onFechar, onAtualiz
                         {av.status === 'concluida' && (
                             <p className="text-sm text-on-surface text-right">
                                 Avaliação concluída — nota{' '}
-                                <strong className="text-secondary">{av.nota} de {notaMaxima}</strong>.
+                                <strong className="text-secondary">{formatarNota(av.nota)} de {notaMaxima}</strong>.
                             </p>
                         )}
                     </div>

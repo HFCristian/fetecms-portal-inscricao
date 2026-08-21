@@ -15,9 +15,16 @@ no **Windows**.
 |-----------|--------|------------|
 | PHP | **8.4+** | com extensões: `sqlite3`, `mbstring`, `xml`, `curl`, `bcmath`, `intl`, `zip` |
 | Composer | 2.x | gerenciador de dependências PHP |
-| Node.js | **22+** | Vite 8 exige Node 20.19+/22+ |
-| npm | 10+ | vem com o Node |
+| Node.js | **22** (veja `.nvmrc`) | Vite 8 exige Node 20.19+; o CI e o servidor de build usam **22** |
+| npm | **10** | vem com o Node 22 |
 | Git | qualquer | — |
+
+> ⚠️ **Use a versão do `.nvmrc` (Node 22 / npm 10).** O npm 11 (que vem com o Node 24)
+> **poda** do `package-lock.json` as dependências wasm opcionais do `@tailwindcss/oxide`
+> (`@emnapi/core`, `@emnapi/runtime`) — o lock continua funcionando na sua máquina, mas o
+> `npm ci` do CI, que roda no npm 10, falha com *"Missing: @emnapi/core… from lock file"*.
+> Se você estiver em outra versão do Node, use **`npm ci`** (não reescreve o lock) em vez de
+> `npm install`. Para regerar o lock de propósito: `npx npm@10 install --package-lock-only`.
 
 No **Windows** usamos o **Laravel Herd** (traz PHP + Composer). **No Linux não há Herd** —
 instale PHP/Composer/Node manualmente (passo 2). Depois do passo 2, o resto (passo 3 em diante)

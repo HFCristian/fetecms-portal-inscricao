@@ -10,9 +10,9 @@ use Illuminate\Validation\Rule;
 
 /**
  * Base do preenchimento da avaliação (rubrica + conferência da classificação).
- * O rascunho não exige nada; a conclusão exige as três notas e a conferência da
- * área. As regras comuns — faixa das notas, tamanho dos comentários e
- * consistência das sugestões — valem nos dois casos.
+ * O rascunho não exige nada; a conclusão exige as notas dos quesitos e a
+ * conferência da área. As regras comuns — faixa Likert das notas, tamanho dos
+ * comentários e consistência das sugestões — valem nos dois casos.
  */
 abstract class AvaliacaoRequest extends FormRequest
 {
@@ -45,12 +45,30 @@ abstract class AvaliacaoRequest extends FormRequest
             ],
         ];
 
-        foreach (Avaliacao::QUESITOS as $quesito) {
-            $regras["nota_{$quesito}"] = [...$exigido, 'integer', 'min:0', 'max:'.Avaliacao::NOTA_MAXIMA_QUESITO];
+        foreach ($this->quesitos() as $quesito) {
+            $regras["nota_{$quesito}"] = [
+                // O quesito de continuidade só é exigido quando o projeto tem o documento.
+                ...($quesito === Avaliacao::QUESITO_CONTINUIDADE && ! $this->avaliaContinuidade() ? ['sometimes', 'nullable'] : $exigido),
+                'integer',
+                'min:'.Avaliacao::NOTA_MINIMA_QUESITO,
+                'max:'.Avaliacao::NOTA_MAXIMA_QUESITO,
+            ];
             $regras["comentario_{$quesito}"] = ['sometimes', 'nullable', 'string', 'max:2000'];
         }
 
         return $regras;
+    }
+
+    /** Quesitos da rubrica, com o de continuidade no fim. */
+    private function quesitos(): array
+    {
+        return [...Avaliacao::QUESITOS, Avaliacao::QUESITO_CONTINUIDADE];
+    }
+
+    /** O projeto tem documento de continuação — e portanto o quarto quesito. */
+    private function avaliaContinuidade(): bool
+    {
+        return (bool) $this->projeto()?->temProjetoDeContinuacao();
     }
 
     /** O avaliador respondeu explicitamente "não está correta". */
@@ -81,7 +99,7 @@ abstract class AvaliacaoRequest extends FormRequest
     {
         $limpos = [];
 
-        foreach (Avaliacao::QUESITOS as $quesito) {
+        foreach ($this->quesitos() as $quesito) {
             $campo = "comentario_{$quesito}";
 
             if ($this->has($campo)) {
@@ -104,6 +122,8 @@ abstract class AvaliacaoRequest extends FormRequest
             'comentario_resumo' => 'comentário sobre o resumo do projeto',
             'nota_pesquisa' => 'nota do projeto de pesquisa',
             'comentario_pesquisa' => 'comentário sobre o projeto de pesquisa',
+            'nota_continuidade' => 'nota do projeto de continuação',
+            'comentario_continuidade' => 'comentário sobre o projeto de continuação',
             'area_correta' => 'conferência da área do conhecimento',
             'area_sugerida_id' => 'área correta sugerida',
             'subarea_correta' => 'conferência da subárea',

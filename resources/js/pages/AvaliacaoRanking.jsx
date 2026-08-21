@@ -22,10 +22,14 @@ function Posicao({ n }) {
     );
 }
 
+/** Média com no máximo uma casa decimal, no formato pt_BR (ex.: 4,5). */
+const formatarMedia = (valor) =>
+    valor === null || valor === undefined ? '—' : String(Math.round(valor * 10) / 10).replace('.', ',');
+
 function MediaQuesito({ rotulo, valor }) {
     return (
         <div className="text-center w-14">
-            <div className="text-sm font-semibold text-on-surface">{valor ?? '—'}</div>
+            <div className="text-sm font-semibold text-on-surface">{formatarMedia(valor)}</div>
             <div className="text-[10px] text-on-surface-variant leading-tight">{rotulo}</div>
         </div>
     );
@@ -47,11 +51,15 @@ function Linha({ p }) {
                 <MediaQuesito rotulo="Vídeo" valor={p.medias_quesitos.video} />
                 <MediaQuesito rotulo="Resumo" valor={p.medias_quesitos.resumo} />
                 <MediaQuesito rotulo="Pesquisa" valor={p.medias_quesitos.pesquisa} />
+                {/* Só projetos com documento de continuação têm este quesito. */}
+                {p.medias_quesitos.continuidade !== null && p.medias_quesitos.continuidade !== undefined && (
+                    <MediaQuesito rotulo="Continuação" valor={p.medias_quesitos.continuidade} />
+                )}
             </div>
 
             <div className="text-right shrink-0 w-24">
                 <div className="text-xl font-bold text-secondary">
-                    {p.media}
+                    {formatarMedia(p.media)}
                     <span className="text-xs font-normal text-on-surface-variant">/{p.nota_maxima}</span>
                 </div>
                 <div className="text-[10px] text-on-surface-variant leading-tight">

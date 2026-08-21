@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Avaliador;
 
+use App\Models\AvaliadorProfile;
 use App\Models\Coorientador;
 use App\Models\OrientadorProfile;
 use App\Rules\Cpf;
@@ -42,11 +43,22 @@ class RegisterAvaliadorRequest extends FormRequest
                     }
                 },
             ],
-            'titulacao' => ['nullable', 'string', 'max:60'],
+            // Pós-graduação em andamento também habilita: a lista traz os dois casos.
+            'titulacao' => ['required', 'string', Rule::in(AvaliadorProfile::TITULACOES)],
             'area_id' => ['required', 'integer', 'exists:areas,id'],
             // subarea_nome cria uma subárea global nova (resolvida no service).
             'subarea_id' => ['nullable', 'integer', 'exists:subareas,id', new SubareaDaArea($this->input('area_id'))],
             'subarea_nome' => ['nullable', 'string', 'min:2', 'max:120'],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'titulacao.in' => 'Selecione uma titulação da lista. Pós-graduação em andamento também habilita.',
         ];
     }
 }

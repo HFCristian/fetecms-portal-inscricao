@@ -11,6 +11,10 @@ const PILL = {
     concluida: 'bg-secondary text-on-secondary',
 };
 
+/** A nota final pode ter meio ponto (média com o projeto de continuação). */
+const formatarNota = (valor) =>
+    valor === null || valor === undefined ? '—' : String(Math.round(valor * 10) / 10).replace('.', ',');
+
 function botaoLabel(status) {
     if (status === 'em_andamento') return 'Continuar';
     if (status === 'concluida') return 'Ver';
@@ -91,7 +95,7 @@ export default function AvaliadorHome() {
                                 </div>
                                 {p.status === 'concluida' && (
                                     <span className="text-xs text-on-surface-variant shrink-0">
-                                        nota <strong className="text-secondary">{p.nota}</strong>
+                                        nota <strong className="text-secondary">{formatarNota(p.nota)}</strong>
                                         <span className="text-on-surface-variant/70">/{dados.nota_maxima}</span>
                                     </span>
                                 )}

@@ -14,8 +14,9 @@ use Illuminate\Http\Request;
 /**
  * Avaliação online — lado do avaliador (E7). Antes da liberação nada aparece;
  * depois, o avaliador vê os projetos designados, lê cada um, inicia e conclui
- * com nota 1–10. O avaliador demo em "modo teste" ignora a data de liberação
- * (suas avaliações são dados de teste, limpáveis pelo admin).
+ * preenchendo a rubrica em escala Likert. O avaliador demo em "modo teste"
+ * ignora a data de liberação (suas avaliações são dados de teste, limpáveis
+ * pelo admin).
  */
 class AvaliadorAvaliacaoController extends Controller
 {
@@ -83,7 +84,7 @@ class AvaliadorAvaliacaoController extends Controller
         ]);
     }
 
-    /** Conclui a avaliação com a rubrica (3 quesitos de 0 a 10 + comentários). */
+    /** Conclui a avaliação com a rubrica (quesitos em escala Likert + comentários). */
     public function concluir(ConcluirAvaliacaoRequest $request, Avaliacao $avaliacao): JsonResponse
     {
         $this->garantirAcesso($request, $avaliacao);
@@ -122,7 +123,7 @@ class AvaliadorAvaliacaoController extends Controller
     {
         $rubrica = [];
 
-        foreach (Avaliacao::QUESITOS as $quesito) {
+        foreach ([...Avaliacao::QUESITOS, Avaliacao::QUESITO_CONTINUIDADE] as $quesito) {
             $rubrica["nota_{$quesito}"] = $a->{"nota_{$quesito}"};
             $rubrica["comentario_{$quesito}"] = $a->{"comentario_{$quesito}"};
         }
@@ -135,7 +136,10 @@ class AvaliadorAvaliacaoController extends Controller
             'status_label' => $a->status->label(),
             'nota' => $a->nota,
             'nota_maxima' => Avaliacao::notaMaxima(),
+            'nota_minima_quesito' => Avaliacao::NOTA_MINIMA_QUESITO,
             'nota_maxima_quesito' => Avaliacao::NOTA_MAXIMA_QUESITO,
+            // Escala Likert como o avaliador a vê (fonte única no back).
+            'escala' => $this->escala(),
             ...$rubrica,
             'area_correta' => $a->area_correta,
             'area_sugerida_id' => $a->area_sugerida_id,
@@ -145,5 +149,19 @@ class AvaliadorAvaliacaoController extends Controller
             'subarea_sugerida' => $a->subareaSugerida?->nome,
             'rascunho_em' => $a->rascunho_em?->toIso8601String(),
         ];
+    }
+
+    /**
+     * Escala Likert em formato de lista, na ordem em que aparece para o avaliador.
+     *
+     * @return list<array{valor:int, rotulo:string}>
+     */
+    private function escala(): array
+    {
+        return array_map(
+            fn (int $valor, string $rotulo) => ['valor' => $valor, 'rotulo' => $rotulo],
+            array_keys(Avaliacao::ESCALA),
+            array_values(Avaliacao::ESCALA),
+        );
     }
 }

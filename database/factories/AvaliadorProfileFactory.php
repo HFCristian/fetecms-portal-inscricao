@@ -16,7 +16,7 @@ class AvaliadorProfileFactory extends Factory
         return [
             'user_id' => User::factory()->avaliador(),
             'cpf' => fake()->unique()->numerify('###########'),
-            'titulacao' => fake()->randomElement(['Mestrado', 'Doutorado', 'Especialização']),
+            'titulacao' => fake()->randomElement(AvaliadorProfile::TITULACOES),
         ];
     }
 }

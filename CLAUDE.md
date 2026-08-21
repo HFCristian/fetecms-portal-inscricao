@@ -161,6 +161,7 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 12 | E3 Dashboard: card projetos por categoria + E4 Rubrica de avaliação (3 quesitos, nota 0–30) | ✅ sim | ❌ não (sem credencial no ambiente) | 2 |
 | 13 | E5 Conferência de área/subárea + E6 Rascunho da avaliação | ✅ sim | ❌ não (sem credencial no ambiente) | 3 |
 | 14 | E7 Troca de e-mail (todos os papéis) + E8 Desfazer submissão & trilha de registros | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 15 | E9 Cadastro do avaliador (pós-graduação em andamento) + E10 Card de avaliação (preview do vídeo, quesito de continuidade, escala Likert) | ✅ sim | ❌ não (manual do Pedro) | 2 |
 
 > **Estado atual:** ciclo de ajustes pós-v1 (Sprints 6–10) **concluído e verde** — back 110/110,
 > front 11/11, Pint limpo, build OK (estado integrado, já com a refatoração visual do Pedro).
@@ -194,6 +195,29 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > ao delete. A migration **reconstrói o histórico** pelo `submitted_at`. Painel `/admin/registros`
 > filtra por tipo, período e busca, e exporta **CSV** (UTF-8 com BOM, separador `;`) do mesmo recorte.
 > Back **311/311**, front **88/88**, Pint limpo, build OK.
+>
+> **Sprint 15 (branch `feat/avaliador-likert-continuidade`, saída da `main`):**
+> (a) **Cadastro do avaliador**: a titulação passa a trazer a **situação** (`Especialização/
+> Mestrado/Doutorado` × `em andamento`/`concluído`) e é validada contra
+> `AvaliadorProfile::TITULACOES`; aviso no formulário e no login deixam explícito que
+> **pós-graduação em curso já habilita**.
+> (b) **Card de avaliação**: o **vídeo é embutido** logo abaixo do link (mesmo `VideoPreview`
+> do orientador), então o avaliador não precisa abrir o link.
+> (c) **Projeto de continuação**: quando o projeto tem o documento anexado
+> (`Projeto::temProjetoDeContinuacao()`), a rubrica ganha um **4º quesito**. Ele não soma à
+> parte — o quesito "projeto de pesquisa" entra na nota pela **média** entre os dois
+> documentos, então o **teto continua 15** para todo projeto e o ranking segue comparável
+> (a coluna `nota` virou `decimal(4,1)` por causa do meio ponto).
+> (d) **Escala Likert de 5 pontos** (1 = muito insatisfeito … 5 = muito satisfeito) no lugar
+> do 0–10; a escala vem do backend (`Avaliacao::ESCALA`) e o front só desenha. **Nota final
+> 3–15**. A migration **reescala proporcionalmente** as avaliações já concluídas.
+> (e) **Dependências**: as **9 branches do dependabot** foram mescladas nesta mesma branch —
+> composer (`laravel/framework` 13.25.0, `laravel/pao` 1.1.4, `laravel/pint` 1.30.5,
+> `mockery/mockery` 1.6.13) e npm (`axios` 1.19.0, `react` 19.2.8, `tailwindcss` 4.3.3,
+> `vitest` 4.1.10, `@testing-library/jest-dom` **7.0.0**, único major). Dois pares foram
+> alinhados à mão porque andam juntos: `react-dom` → 19.2.8 e `@tailwindcss/vite` → 4.3.3
+> (o plugin fixa a versão exata do `tailwindcss`).
+> Back **320/320**, front **96/96**, Pint limpo, build OK.
 
 ### Roadmap de sprints (proposto)
 

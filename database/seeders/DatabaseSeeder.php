@@ -34,7 +34,7 @@ class DatabaseSeeder extends Seeder
         );
         $avaliador->avaliadorProfile()->firstOrCreate([], [
             'cpf' => '71428793860',
-            'titulacao' => 'Doutorado',
+            'titulacao' => 'Doutorado (concluído)',
             'area_id' => Area::query()->value('id'),
         ]);
     }
