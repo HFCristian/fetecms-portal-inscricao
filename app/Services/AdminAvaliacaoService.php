@@ -12,6 +12,7 @@ use App\Models\Projeto;
 use App\Models\Subarea;
 use App\Models\User;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -319,7 +320,7 @@ class AdminAvaliacaoService
 
     /**
      * Ranking dos projetos que já receberam ao menos uma avaliação concluída,
-     * pela MÉDIA das notas finais (0 a 30). Desempate: mais avaliações primeiro
+     * pela MÉDIA das notas finais (3 a 15). Desempate: mais avaliações primeiro
      * (média mais confiável) e, por fim, título.
      *
      * `completo` marca quem já atingiu o mínimo de avaliações — abaixo disso a
@@ -354,6 +355,8 @@ class AdminAvaliacaoService
                     'video' => round($concluidas->avg('nota_video'), 1),
                     'resumo' => round($concluidas->avg('nota_resumo'), 1),
                     'pesquisa' => round($concluidas->avg('nota_pesquisa'), 1),
+                    // Só os projetos com documento de continuação têm esse quesito.
+                    'continuidade' => $this->media($concluidas, 'nota_continuidade'),
                 ],
                 'completo' => $total >= StatusAvaliacao::MIN_POR_PROJETO,
                 'nota_maxima' => Avaliacao::notaMaxima(),
@@ -375,6 +378,19 @@ class AdminAvaliacaoService
         }
 
         return $lista;
+    }
+
+    /**
+     * Média de um quesito contando só quem o preencheu — null quando nenhuma
+     * avaliação o tem (caso do quesito de continuidade em projeto comum).
+     *
+     * @param  Collection<int, Avaliacao>  $avaliacoes
+     */
+    private function media(Collection $avaliacoes, string $coluna): ?float
+    {
+        $preenchidas = $avaliacoes->whereNotNull($coluna);
+
+        return $preenchidas->isEmpty() ? null : round($preenchidas->avg($coluna), 1);
     }
 
     /**

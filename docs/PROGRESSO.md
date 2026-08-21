@@ -28,6 +28,10 @@ branch da sprint N−1, para nada se perder enquanto os PRs não são mergeados)
   formulários: `Select` de áreas do catálogo e `SubareaCombobox`.
 - **Nota final da avaliação** = **soma dos 3 quesitos**, escala **0 a 30** (vídeo + resumo +
   projeto de pesquisa, cada um 0–10). A coluna `nota` passa a guardar a soma.
+  > **Revisto depois (Sprint 15):** cada quesito virou uma **escala Likert de 5 pontos**
+  > (1 = muito insatisfeito … 5 = muito satisfeito), com nota final **3 a 15**, e projetos
+  > com documento de continuação ganharam um 4º quesito que entra pela **média** com o
+  > projeto de pesquisa. Ver o registro da Sprint 15 no `CLAUDE.md`.
 - **Dependabot** entrou como Épico 1 da Sprint 1, na própria branch da sprint.
 - **Branches cumulativas** entre sprints.
 

@@ -10,6 +10,17 @@ import { validarObrigatorios } from '../lib/validacao.js';
 // Obrigatórios do avaliador (todos menos a subárea).
 const AVALIADOR_OBRIGATORIOS = ['name', 'email', 'cpf', 'titulacao', 'area_id', 'password', 'password_confirmation'];
 
+// Titulação com a situação explícita: quem está CURSANDO a pós-graduação já
+// pode avaliar, não precisa ter concluído (espelha AvaliadorProfile::TITULACOES).
+const TITULACOES = [
+    'Especialização (em andamento)',
+    'Especialização (concluída)',
+    'Mestrado (em andamento)',
+    'Mestrado (concluído)',
+    'Doutorado (em andamento)',
+    'Doutorado (concluído)',
+];
+
 export default function CadastroAvaliador() {
     const { registerAvaliador } = useAuth();
     const navigate = useNavigate();
@@ -81,9 +92,17 @@ export default function CadastroAvaliador() {
             <div className="flex flex-col grow justify-center pt-8 w-full mx-auto">
                 <div className="px-6 sm:px-10">
                     <h2 className="font-display text-2xl font-semibold text-on-surface mb-1">Cadastro de Avaliador</h2>
-                    <p className="text-sm text-on-surface-variant mb-6">
+                    <p className="text-sm text-on-surface-variant mb-4">
                         Avaliadores analisam projetos submetidos. Quem é orientador (ou coorientador) não pode ser avaliador.
                     </p>
+                    <div className="mb-6 flex items-start gap-2 rounded-lg bg-primary-fixed/60 border border-primary-container/30 p-3 text-sm text-on-surface">
+                        <span className="material-symbols-outlined text-primary-container text-[20px]">school</span>
+                        <p>
+                            <strong>Quem está cursando pós-graduação já pode se cadastrar.</strong>{' '}
+                            Especialização, mestrado ou doutorado <strong>em andamento</strong> habilitam a
+                            avaliar — não é preciso ter concluído.
+                        </p>
+                    </div>
 
                     {alert && <div className="mb-4"><Alert>{alert}</Alert></div>}
                 </div>
@@ -101,12 +120,15 @@ export default function CadastroAvaliador() {
                         <Field label="CPF" required error={err('cpf')}>
                             <CpfInput value={form.cpf ?? ''} onChange={set('cpf')} error={err('cpf')} />
                         </Field>
-                        <Field label="Titulação" required error={err('titulacao')}>
+                        <Field
+                            label="Titulação"
+                            required
+                            error={err('titulacao')}
+                            hint="Basta estar cursando: pós-graduação em andamento já habilita."
+                        >
                             <Select value={form.titulacao ?? ''} onChange={set('titulacao')} error={err('titulacao')}>
                                 <option value="">Selecione</option>
-                                <option value="Especialização">Especialização</option>
-                                <option value="Mestrado">Mestrado</option>
-                                <option value="Doutorado">Doutorado</option>
+                                {TITULACOES.map((t) => <option key={t} value={t}>{t}</option>)}
                             </Select>
                         </Field>
                         <div className="md:col-span-2">

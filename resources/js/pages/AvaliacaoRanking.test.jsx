@@ -18,18 +18,18 @@ import AvaliacaoRanking from './AvaliacaoRanking.jsx';
 const RANKING = [
     {
         projeto_id: 1, posicao: 1, titulo: 'Secador solar', area: 'Exatas', categoria: 'FETECMS FUNDECT',
-        avaliacoes: 3, media: 29, nota_maxima: 30, completo: true,
-        medias_quesitos: { video: 9.7, resumo: 9.7, pesquisa: 9.7 },
+        avaliacoes: 3, media: 14.5, nota_maxima: 15, completo: true,
+        medias_quesitos: { video: 5, resumo: 5, pesquisa: 4.5, continuidade: null },
     },
     {
         projeto_id: 2, posicao: 2, titulo: 'Purificação de água', area: 'Exatas', categoria: 'FETECMS',
-        avaliacoes: 3, media: 26.7, nota_maxima: 30, completo: true,
-        medias_quesitos: { video: 8.7, resumo: 8.7, pesquisa: 9.3 },
+        avaliacoes: 3, media: 12.7, nota_maxima: 15, completo: true,
+        medias_quesitos: { video: 4.3, resumo: 4.3, pesquisa: 4.7, continuidade: null },
     },
     {
         projeto_id: 3, posicao: 3, titulo: 'Aplicativo de triagem', area: 'Saúde', categoria: 'FETECMS',
-        avaliacoes: 1, media: 19, nota_maxima: 30, completo: false,
-        medias_quesitos: { video: 6, resumo: 7, pesquisa: 6 },
+        avaliacoes: 1, media: 9, nota_maxima: 15, completo: false,
+        medias_quesitos: { video: 3, resumo: 3, pesquisa: 3, continuidade: null },
     },
 ];
 
@@ -43,8 +43,8 @@ describe('AvaliacaoRanking', () => {
         render(<AvaliacaoRanking />);
 
         expect(await screen.findByText('Secador solar')).toBeInTheDocument();
-        expect(screen.getByText('29')).toBeInTheDocument();
-        expect(screen.getAllByText('/30')).toHaveLength(3);
+        expect(screen.getByText('14,5')).toBeInTheDocument();
+        expect(screen.getAllByText('/15')).toHaveLength(3);
         expect(screen.getAllByText('3 avaliações')).toHaveLength(2);
 
         // Ordem no DOM segue a classificação do backend.
@@ -60,7 +60,23 @@ describe('AvaliacaoRanking', () => {
         expect(screen.getAllByText('Vídeo')).toHaveLength(3);
         expect(screen.getAllByText('Resumo')).toHaveLength(3);
         expect(screen.getAllByText('Pesquisa')).toHaveLength(3);
-        expect(screen.getByText('9.3')).toBeInTheDocument();
+        expect(screen.getByText('4,7')).toBeInTheDocument();
+        // Nenhum destes tem projeto de continuação.
+        expect(screen.queryByText('Continuação')).not.toBeInTheDocument();
+    });
+
+    it('mostra a média da continuação só para quem tem esse quesito', async () => {
+        getRankingAvaliacao.mockResolvedValue([
+            {
+                ...RANKING[0],
+                medias_quesitos: { video: 5, resumo: 5, pesquisa: 4.5, continuidade: 4 },
+            },
+            RANKING[1],
+        ]);
+        render(<AvaliacaoRanking />);
+
+        await screen.findByText('Secador solar');
+        expect(screen.getAllByText('Continuação')).toHaveLength(1);
     });
 
     it('sinaliza os projetos com média parcial', async () => {
@@ -77,8 +93,8 @@ describe('AvaliacaoRanking', () => {
             ...RANKING,
             {
                 projeto_id: 4, posicao: 4, titulo: 'Quarto colocado', area: 'Exatas', categoria: 'FETECMS',
-                avaliacoes: 3, media: 15, nota_maxima: 30, completo: true,
-                medias_quesitos: { video: 5, resumo: 5, pesquisa: 5 },
+                avaliacoes: 3, media: 8, nota_maxima: 15, completo: true,
+                medias_quesitos: { video: 3, resumo: 2.5, pesquisa: 2.5, continuidade: null },
             },
         ]);
         render(<AvaliacaoRanking />);

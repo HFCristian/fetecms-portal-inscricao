@@ -30,7 +30,7 @@ class AvaliadorTest extends TestCase
             'password' => 'Senha@123',
             'password_confirmation' => 'Senha@123',
             'cpf' => '529.982.247-25',
-            'titulacao' => 'Doutorado',
+            'titulacao' => 'Doutorado (concluído)',
             'area_id' => Area::first()->id,
         ], $over);
     }
@@ -44,6 +44,23 @@ class AvaliadorTest extends TestCase
 
         $this->assertDatabaseHas('users', ['email' => 'carla@avaliadora.com', 'role' => 'avaliador']);
         $this->assertDatabaseHas('avaliador_profiles', ['cpf' => '52998224725']);
+    }
+
+    public function test_pos_graduacao_em_andamento_habilita_o_cadastro(): void
+    {
+        // Regra do edital: basta estar cursando — não precisa ter concluído.
+        $this->postJson('/api/v1/avaliadores', $this->payload(['titulacao' => 'Mestrado (em andamento)']))
+            ->assertCreated()
+            ->assertJsonPath('data.avaliador_profile.titulacao', 'Mestrado (em andamento)');
+    }
+
+    public function test_titulacao_precisa_ser_uma_das_opcoes(): void
+    {
+        $this->postJson('/api/v1/avaliadores', $this->payload(['titulacao' => 'Graduação']))
+            ->assertStatus(422)->assertJsonValidationErrors('titulacao');
+
+        $this->postJson('/api/v1/avaliadores', $this->payload(['titulacao' => null]))
+            ->assertStatus(422)->assertJsonValidationErrors('titulacao');
     }
 
     public function test_cpf_de_orientador_nao_pode_ser_avaliador(): void

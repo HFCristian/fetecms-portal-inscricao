@@ -12,6 +12,20 @@ class AvaliadorProfile extends Model
     /** @use HasFactory<AvaliadorProfileFactory> */
     use HasFactory;
 
+    /**
+     * Titulações aceitas no cadastro do avaliador. Quem está CURSANDO a
+     * pós-graduação já pode avaliar — por isso cada nível aparece nas duas
+     * situações, e não só como concluído.
+     */
+    public const TITULACOES = [
+        'Especialização (em andamento)',
+        'Especialização (concluída)',
+        'Mestrado (em andamento)',
+        'Mestrado (concluído)',
+        'Doutorado (em andamento)',
+        'Doutorado (concluído)',
+    ];
+
     protected $fillable = ['cpf', 'titulacao', 'area_id', 'subarea_id', 'limite_avaliacoes'];
 
     protected function casts(): array

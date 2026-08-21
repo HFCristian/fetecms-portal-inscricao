@@ -2,11 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Enums\TipoDocumento;
 use App\Models\Area;
 use App\Models\Avaliacao;
 use App\Models\AvaliadorProfile;
 use App\Models\Edicao;
 use App\Models\Projeto;
+use App\Models\ProjetoDocumento;
 use App\Models\Subarea;
 use App\Models\User;
 use Database\Seeders\CatalogoSeeder;
@@ -43,11 +45,11 @@ class AvaliacaoFluxoTest extends TestCase
     }
 
     /**
-     * Rubrica válida: 3 quesitos de 0 a 10 + comentários opcionais.
+     * Rubrica válida: 3 quesitos na escala Likert (1 a 5) + comentários opcionais.
      *
      * @return array<string, mixed>
      */
-    private function rubrica(int $video = 8, int $resumo = 7, int $pesquisa = 9): array
+    private function rubrica(int $video = 4, int $resumo = 3, int $pesquisa = 5): array
     {
         return [
             'nota_video' => $video,
@@ -69,18 +71,18 @@ class AvaliacaoFluxoTest extends TestCase
         $this->postJson("/api/v1/avaliacao/{$aval->id}/iniciar")
             ->assertOk()->assertJsonPath('data.status', 'em_andamento');
 
-        $this->postJson("/api/v1/avaliacao/{$aval->id}/concluir", $this->rubrica(8, 7, 9))
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/concluir", $this->rubrica(4, 3, 5))
             ->assertOk()
             ->assertJsonPath('data.status', 'concluida')
-            ->assertJsonPath('data.nota', 24) // 8 + 7 + 9
-            ->assertJsonPath('data.nota_maxima', 30)
-            ->assertJsonPath('data.nota_video', 8)
+            ->assertJsonPath('data.nota', 12) // 4 + 3 + 5
+            ->assertJsonPath('data.nota_maxima', 15)
+            ->assertJsonPath('data.nota_video', 4)
             ->assertJsonPath('data.comentario_video', 'Bom ritmo, mas o áudio oscila.')
             ->assertJsonPath('data.comentario_resumo', null);
 
         $this->assertDatabaseHas('avaliacoes', [
-            'id' => $aval->id, 'status' => 'concluida', 'nota' => 24,
-            'nota_video' => 8, 'nota_resumo' => 7, 'nota_pesquisa' => 9,
+            'id' => $aval->id, 'status' => 'concluida', 'nota' => 12,
+            'nota_video' => 4, 'nota_resumo' => 3, 'nota_pesquisa' => 5,
             'comentario_pesquisa' => 'Metodologia bem descrita.',
         ]);
     }
@@ -93,19 +95,20 @@ class AvaliacaoFluxoTest extends TestCase
 
         $this->postJson("/api/v1/avaliacao/{$aval->id}/concluir", [
             ...$this->rubrica(1, 1, 1),
-            'nota' => 30, // tentativa de forçar a nota final
+            'nota' => 15, // tentativa de forçar a nota final
         ])->assertOk()->assertJsonPath('data.nota', 3);
     }
 
-    public function test_nota_zero_em_um_quesito_e_valida(): void
+    public function test_ponta_da_escala_em_um_quesito_e_valida(): void
     {
         [$av, $aval] = $this->cenario();
         Sanctum::actingAs($av);
         $this->postJson("/api/v1/avaliacao/{$aval->id}/iniciar")->assertOk();
 
-        $this->postJson("/api/v1/avaliacao/{$aval->id}/concluir", $this->rubrica(0, 10, 10))
+        // 1 = muito insatisfeito, 5 = muito satisfeito: os dois extremos valem.
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/concluir", $this->rubrica(1, 5, 5))
             ->assertOk()
-            ->assertJsonPath('data.nota', 20);
+            ->assertJsonPath('data.nota', 11);
     }
 
     public function test_comentarios_sao_opcionais(): void
@@ -115,8 +118,8 @@ class AvaliacaoFluxoTest extends TestCase
         $this->postJson("/api/v1/avaliacao/{$aval->id}/iniciar")->assertOk();
 
         $this->postJson("/api/v1/avaliacao/{$aval->id}/concluir", [
-            'nota_video' => 5, 'nota_resumo' => 5, 'nota_pesquisa' => 5, 'area_correta' => true,
-        ])->assertOk()->assertJsonPath('data.nota', 15);
+            'nota_video' => 3, 'nota_resumo' => 3, 'nota_pesquisa' => 3, 'area_correta' => true,
+        ])->assertOk()->assertJsonPath('data.nota', 9);
     }
 
     public function test_comentario_em_branco_vira_nulo(): void
@@ -161,16 +164,17 @@ class AvaliacaoFluxoTest extends TestCase
             ->assertJsonValidationErrors(['nota_video', 'nota_resumo', 'nota_pesquisa', 'area_correta']);
     }
 
-    public function test_cada_quesito_precisa_estar_entre_0_e_10(): void
+    public function test_cada_quesito_precisa_estar_dentro_da_escala_likert(): void
     {
         [$av, $aval] = $this->cenario();
         Sanctum::actingAs($av);
         $this->postJson("/api/v1/avaliacao/{$aval->id}/iniciar")->assertOk();
 
-        $this->postJson("/api/v1/avaliacao/{$aval->id}/concluir", [...$this->rubrica(), 'nota_video' => 11])
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/concluir", [...$this->rubrica(), 'nota_video' => 6])
             ->assertStatus(422)->assertJsonValidationErrors('nota_video');
 
-        $this->postJson("/api/v1/avaliacao/{$aval->id}/concluir", [...$this->rubrica(), 'nota_resumo' => -1])
+        // A escala começa em 1: zero não é um ponto dela.
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/concluir", [...$this->rubrica(), 'nota_resumo' => 0])
             ->assertStatus(422)->assertJsonValidationErrors('nota_resumo');
     }
 
@@ -180,7 +184,7 @@ class AvaliacaoFluxoTest extends TestCase
         Sanctum::actingAs($av);
         $this->postJson("/api/v1/avaliacao/{$aval->id}/iniciar")->assertOk();
 
-        $this->postJson("/api/v1/avaliacao/{$aval->id}/concluir", [...$this->rubrica(), 'nota_video' => 11])
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/concluir", [...$this->rubrica(), 'nota_video' => 6])
             ->assertStatus(422);
 
         $this->assertDatabaseHas('avaliacoes', [
@@ -346,11 +350,11 @@ class AvaliacaoFluxoTest extends TestCase
         $this->postJson("/api/v1/avaliacao/{$aval->id}/iniciar")->assertOk();
 
         $this->postJson("/api/v1/avaliacao/{$aval->id}/rascunho", [
-            'nota_video' => 6, 'comentario_video' => 'Faltou legenda.',
+            'nota_video' => 4, 'comentario_video' => 'Faltou legenda.',
         ])
             ->assertOk()
             ->assertJsonPath('data.status', 'em_andamento')
-            ->assertJsonPath('data.nota_video', 6)
+            ->assertJsonPath('data.nota_video', 4)
             ->assertJsonPath('data.nota', null); // sem nota final enquanto não envia
 
         $this->assertNotNull($aval->fresh()->rascunho_em);
@@ -362,12 +366,12 @@ class AvaliacaoFluxoTest extends TestCase
         Sanctum::actingAs($av);
         $this->postJson("/api/v1/avaliacao/{$aval->id}/iniciar")->assertOk();
         $this->postJson("/api/v1/avaliacao/{$aval->id}/rascunho", [
-            'nota_resumo' => 4, 'comentario_resumo' => 'Objetivo pouco claro.',
+            'nota_resumo' => 2, 'comentario_resumo' => 'Objetivo pouco claro.',
         ])->assertOk();
 
         $this->getJson("/api/v1/avaliacao/{$aval->id}")
             ->assertOk()
-            ->assertJsonPath('data.avaliacao.nota_resumo', 4)
+            ->assertJsonPath('data.avaliacao.nota_resumo', 2)
             ->assertJsonPath('data.avaliacao.comentario_resumo', 'Objetivo pouco claro.');
     }
 
@@ -377,7 +381,7 @@ class AvaliacaoFluxoTest extends TestCase
         Sanctum::actingAs($av);
         $this->postJson("/api/v1/avaliacao/{$aval->id}/iniciar")->assertOk();
 
-        $this->postJson("/api/v1/avaliacao/{$aval->id}/rascunho", ['nota_video' => 11])
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/rascunho", ['nota_video' => 6])
             ->assertStatus(422)->assertJsonValidationErrors('nota_video');
     }
 
@@ -395,7 +399,7 @@ class AvaliacaoFluxoTest extends TestCase
         [$av, $aval] = $this->cenario();
         Sanctum::actingAs($av);
 
-        $this->postJson("/api/v1/avaliacao/{$aval->id}/rascunho", ['nota_video' => 6])->assertStatus(422);
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/rascunho", ['nota_video' => 4])->assertStatus(422);
     }
 
     public function test_nao_salva_rascunho_de_avaliacao_ja_enviada(): void
@@ -413,7 +417,7 @@ class AvaliacaoFluxoTest extends TestCase
         [$av, $aval] = $this->cenario();
         Sanctum::actingAs($av);
         $this->postJson("/api/v1/avaliacao/{$aval->id}/iniciar")->assertOk();
-        $this->postJson("/api/v1/avaliacao/{$aval->id}/rascunho", ['nota_video' => 6])->assertOk();
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/rascunho", ['nota_video' => 4])->assertOk();
 
         $this->postJson("/api/v1/avaliacao/{$aval->id}/concluir", $this->rubrica())
             ->assertOk()
@@ -425,6 +429,114 @@ class AvaliacaoFluxoTest extends TestCase
         [, $aval] = $this->cenario();
         Sanctum::actingAs(User::factory()->avaliador()->create());
 
-        $this->postJson("/api/v1/avaliacao/{$aval->id}/rascunho", ['nota_video' => 6])->assertStatus(403);
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/rascunho", ['nota_video' => 4])->assertStatus(403);
+    }
+
+    // --- Projeto de continuação (quesito extra da rubrica) ---
+
+    /**
+     * Mesmo cenário, com o projeto marcado como continuação e o documento
+     * anexado — é o anexo que faz o quarto quesito aparecer.
+     *
+     * @return array{0: User, 1: Avaliacao}
+     */
+    private function cenarioComContinuidade(): array
+    {
+        [$av, $aval] = $this->cenario();
+
+        $aval->projeto->update(['continuacao' => true, 'tempo_pesquisa_meses' => 18]);
+        ProjetoDocumento::factory()->create([
+            'projeto_id' => $aval->projeto_id,
+            'tipo' => TipoDocumento::ProjetoContinuacao,
+            'nome_original' => 'projeto-de-continuacao.pdf',
+        ]);
+
+        return [$av, $aval];
+    }
+
+    public function test_show_avisa_que_ha_projeto_de_continuacao_a_avaliar(): void
+    {
+        [$av, $aval] = $this->cenarioComContinuidade();
+        Sanctum::actingAs($av);
+
+        $this->getJson("/api/v1/avaliacao/{$aval->id}")
+            ->assertOk()
+            ->assertJsonPath('data.projeto.continuacao', true)
+            ->assertJsonPath('data.projeto.avalia_continuidade', true)
+            ->assertJsonPath('data.projeto.tempo_pesquisa_meses', 18);
+    }
+
+    public function test_projeto_com_continuacao_exige_a_nota_do_quesito_extra(): void
+    {
+        [$av, $aval] = $this->cenarioComContinuidade();
+        Sanctum::actingAs($av);
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/iniciar")->assertOk();
+
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/concluir", $this->rubrica())
+            ->assertStatus(422)->assertJsonValidationErrors('nota_continuidade');
+    }
+
+    public function test_pesquisa_e_continuacao_entram_na_nota_pela_media(): void
+    {
+        [$av, $aval] = $this->cenarioComContinuidade();
+        Sanctum::actingAs($av);
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/iniciar")->assertOk();
+
+        // 4 (vídeo) + 3 (resumo) + média de 5 (pesquisa) com 4 (continuação) = 11,5.
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/concluir", [
+            ...$this->rubrica(4, 3, 5),
+            'nota_continuidade' => 4,
+            'comentario_continuidade' => 'A etapa anterior está bem delimitada.',
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.nota', 11.5)
+            ->assertJsonPath('data.nota_maxima', 15) // o teto não muda
+            ->assertJsonPath('data.nota_continuidade', 4)
+            ->assertJsonPath('data.comentario_continuidade', 'A etapa anterior está bem delimitada.');
+    }
+
+    public function test_projeto_sem_continuacao_descarta_a_nota_do_quesito_extra(): void
+    {
+        [$av, $aval] = $this->cenario();
+        Sanctum::actingAs($av);
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/iniciar")->assertOk();
+
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/concluir", [
+            ...$this->rubrica(4, 3, 5),
+            'nota_continuidade' => 1,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.nota', 12) // a pesquisa entra sozinha
+            ->assertJsonPath('data.nota_continuidade', null);
+    }
+
+    public function test_continuacao_sem_documento_nao_vira_quesito(): void
+    {
+        [$av, $aval] = $this->cenario();
+        // Marcado como continuação, mas sem o anexo: não há o que avaliar.
+        $aval->projeto->update(['continuacao' => true]);
+        Sanctum::actingAs($av);
+
+        $this->getJson("/api/v1/avaliacao/{$aval->id}")
+            ->assertOk()
+            ->assertJsonPath('data.projeto.avalia_continuidade', false);
+
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/iniciar")->assertOk();
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/concluir", $this->rubrica())->assertOk();
+    }
+
+    public function test_a_escala_likert_acompanha_a_avaliacao(): void
+    {
+        [$av, $aval] = $this->cenario();
+        Sanctum::actingAs($av);
+
+        $this->getJson("/api/v1/avaliacao/{$aval->id}")
+            ->assertOk()
+            ->assertJsonPath('data.avaliacao.nota_minima_quesito', 1)
+            ->assertJsonPath('data.avaliacao.nota_maxima_quesito', 5)
+            ->assertJsonCount(5, 'data.avaliacao.escala')
+            ->assertJsonPath('data.avaliacao.escala.0.valor', 1)
+            ->assertJsonPath('data.avaliacao.escala.0.rotulo', 'Muito insatisfeito')
+            ->assertJsonPath('data.avaliacao.escala.4.rotulo', 'Muito satisfeito');
     }
 }

@@ -12,8 +12,9 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * Fluxo de avaliação do avaliador (E7): ler o projeto, iniciar (não pode
- * cancelar), concluir com nota 1–10. O avaliador demo, em modo teste, ignora a
- * data de liberação; suas avaliações são dados de teste (limpáveis pelo admin).
+ * cancelar), concluir com a rubrica em escala Likert. O avaliador demo, em modo
+ * teste, ignora a data de liberação; suas avaliações são dados de teste
+ * (limpáveis pelo admin).
  */
 class AvaliacaoFluxoService
 {
@@ -63,15 +64,16 @@ class AvaliacaoFluxoService
         $this->garantirEmAndamento($avaliacao, 'Inicie a avaliação antes de salvar o rascunho.');
 
         $avaliacao->update([
-            ...$this->camposPreenchiveis($dados),
+            ...$this->camposPreenchiveis($dados, $avaliacao),
             'rascunho_em' => now(),
         ]);
     }
 
     /**
      * Conclui a avaliação (em_andamento → concluida) com a rubrica preenchida.
-     * A nota final é a SOMA dos três quesitos (0 a 30) — calculada aqui, nunca
-     * enviada pelo cliente.
+     * A nota final é a SOMA dos três quesitos (3 a 15) — calculada aqui, nunca
+     * enviada pelo cliente. Havendo projeto de continuação, o quesito de
+     * pesquisa entra pela média com ele.
      *
      * @param  array<string, mixed>  $dados  Já validado pelo ConcluirAvaliacaoRequest.
      */
@@ -79,7 +81,7 @@ class AvaliacaoFluxoService
     {
         $this->garantirEmAndamento($avaliacao, 'Inicie a avaliação antes de concluir.');
 
-        $avaliacao->fill($this->camposPreenchiveis($dados));
+        $avaliacao->fill($this->camposPreenchiveis($dados, $avaliacao));
 
         $avaliacao->update([
             'status' => StatusAvaliacao::Concluida,
@@ -108,16 +110,25 @@ class AvaliacaoFluxoService
      * @param  array<string, mixed>  $dados
      * @return array<string, mixed>
      */
-    private function camposPreenchiveis(array $dados): array
+    private function camposPreenchiveis(array $dados, Avaliacao $avaliacao): array
     {
         $permitidos = [...Avaliacao::CAMPOS_CLASSIFICACAO];
+        $quesitos = [...Avaliacao::QUESITOS, Avaliacao::QUESITO_CONTINUIDADE];
 
-        foreach (Avaliacao::QUESITOS as $quesito) {
+        foreach ($quesitos as $quesito) {
             $permitidos[] = "nota_{$quesito}";
             $permitidos[] = "comentario_{$quesito}";
         }
 
         $campos = array_intersect_key($dados, array_flip($permitidos));
+
+        // Projeto sem documento de continuação não tem esse quesito: o que vier
+        // do cliente é descartado e as colunas ficam nulas (inclusive se um
+        // rascunho anterior chegou a gravá-las).
+        if (! $avaliacao->projeto?->temProjetoDeContinuacao()) {
+            $campos['nota_continuidade'] = null;
+            $campos['comentario_continuidade'] = null;
+        }
 
         if (($campos['area_correta'] ?? null) === true) {
             $campos['area_sugerida_id'] = null;
@@ -147,6 +158,10 @@ class AvaliacaoFluxoService
             'resumo' => $projeto->resumo,
             'palavras_chave' => $projeto->palavras_chave ?? [],
             'link_video' => $projeto->link_video,
+            // Projeto de continuação: rende um quesito a mais na rubrica.
+            'continuacao' => (bool) $projeto->continuacao,
+            'tempo_pesquisa_meses' => $projeto->tempo_pesquisa_meses,
+            'avalia_continuidade' => $projeto->temProjetoDeContinuacao(),
             'instituicao' => $projeto->instituicao?->nome,
             'alunos' => $projeto->alunos->pluck('nome')->values()->all(),
             'coorientador' => $projeto->coorientador?->nome,

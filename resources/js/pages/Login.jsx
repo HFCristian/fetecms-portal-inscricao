@@ -161,6 +161,10 @@ export default function Login() {
                             Avaliador
                         </Link>
                     </div>
+                    <p className="mt-4 text-xs text-on-surface-variant text-center">
+                        Para avaliar basta estar cursando pós-graduação — especialização, mestrado ou
+                        doutorado em andamento já habilita.
+                    </p>
                 </div>
             </div>
         </AuthCard>
