@@ -8,6 +8,7 @@ use App\Models\AvaliadorProfile;
 use App\Models\Projeto;
 use App\Models\Subarea;
 use App\Models\User;
+use App\Support\Rubrica;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -54,16 +55,23 @@ class AdminReclassificacaoRankingTest extends TestCase
     }
 
     /**
-     * @param  array{0:int,1:int,2:int}  $notas
+     * Avaliação concluída com a rubrica respondida por igual: todas as
+     * perguntas de escala no mesmo ponto e as de Sim/Não em "Sim". A nota sai
+     * dos pesos, como no envio de verdade.
+     *
      * @param  array<string, mixed>  $classificacao
      */
-    private function avaliacaoConcluida(Projeto $p, User $avaliador, array $notas, array $classificacao = [], ?string $em = null): Avaliacao
+    private function avaliacaoConcluida(Projeto $p, User $avaliador, int $ponto = 10, array $classificacao = [], ?string $em = null): Avaliacao
     {
-        [$v, $r, $q] = $notas;
+        $respostas = [];
+
+        foreach (Rubrica::perguntas() as $pergunta) {
+            $respostas[$pergunta['chave']] = $pergunta['tipo'] === Rubrica::TIPO_SIM_NAO ? true : $ponto;
+        }
 
         return Avaliacao::create([
             'projeto_id' => $p->id, 'avaliador_id' => $avaliador->id, 'status' => 'concluida',
-            'nota_video' => $v, 'nota_resumo' => $r, 'nota_pesquisa' => $q, 'nota' => $v + $r + $q,
+            'respostas' => $respostas, 'nota' => Rubrica::nota($respostas),
             'concluida_em' => $em ? now()->parse($em) : now(),
             ...$classificacao,
         ]);
@@ -84,9 +92,9 @@ class AdminReclassificacaoRankingTest extends TestCase
         $carla = $this->avaliador('Carla');
 
         // Dois avaliadores sugerem Biológicas; o terceiro acha que está certo.
-        $this->avaliacaoConcluida($agua, $ana, [4, 4, 5], ['area_correta' => false, 'area_sugerida_id' => $this->bio->id]);
-        $this->avaliacaoConcluida($agua, $bruno, [4, 4, 4], ['area_correta' => false, 'area_sugerida_id' => $this->bio->id]);
-        $this->avaliacaoConcluida($agua, $carla, [4, 4, 4], ['area_correta' => true]);
+        $this->avaliacaoConcluida($agua, $ana, 10, ['area_correta' => false, 'area_sugerida_id' => $this->bio->id]);
+        $this->avaliacaoConcluida($agua, $bruno, 10, ['area_correta' => false, 'area_sugerida_id' => $this->bio->id]);
+        $this->avaliacaoConcluida($agua, $carla, 10, ['area_correta' => true]);
 
         $this->comoAdmin();
 
@@ -105,7 +113,7 @@ class AdminReclassificacaoRankingTest extends TestCase
     public function test_sugestao_de_subarea_tambem_entra(): void
     {
         $abelhas = $this->projeto('Abelhas nativas', $this->bio, Subarea::create(['area_id' => $this->bio->id, 'nome' => 'Botânica']));
-        $this->avaliacaoConcluida($abelhas, $this->avaliador('Ana'), [3, 4, 4], [
+        $this->avaliacaoConcluida($abelhas, $this->avaliador('Ana'), 10, [
             'area_correta' => true, 'subarea_correta' => false, 'subarea_sugerida_id' => $this->ecologia->id,
         ]);
 
@@ -121,7 +129,7 @@ class AdminReclassificacaoRankingTest extends TestCase
     public function test_projeto_sem_sugestao_nao_aparece(): void
     {
         $ok = $this->projeto('Tudo certo', $this->exatas);
-        $this->avaliacaoConcluida($ok, $this->avaliador('Ana'), [4, 4, 4], ['area_correta' => true, 'subarea_correta' => true]);
+        $this->avaliacaoConcluida($ok, $this->avaliador('Ana'), 10, ['area_correta' => true, 'subarea_correta' => true]);
 
         $this->comoAdmin();
 
@@ -167,9 +175,9 @@ class AdminReclassificacaoRankingTest extends TestCase
     public function test_filtra_por_periodo_da_data_de_avaliacao(): void
     {
         $p = $this->projeto('Purificação de água', $this->exatas);
-        $this->avaliacaoConcluida($p, $this->avaliador('Ana'), [4, 4, 5],
+        $this->avaliacaoConcluida($p, $this->avaliador('Ana'), 10,
             ['area_correta' => false, 'area_sugerida_id' => $this->bio->id], '2026-08-01 10:00');
-        $this->avaliacaoConcluida($p, $this->avaliador('Bruno'), [4, 4, 4],
+        $this->avaliacaoConcluida($p, $this->avaliador('Bruno'), 10,
             ['area_correta' => false, 'area_sugerida_id' => $this->bio->id], '2026-08-20 10:00');
 
         $this->comoAdmin();
@@ -211,9 +219,9 @@ class AdminReclassificacaoRankingTest extends TestCase
         $agua = $this->projeto('Purificação de água', $this->exatas);
 
         // 2 votos em Biológicas, 1 em Saúde.
-        $this->avaliacaoConcluida($agua, $this->avaliador('Ana'), [4, 4, 5], ['area_correta' => false, 'area_sugerida_id' => $this->bio->id]);
-        $this->avaliacaoConcluida($agua, $this->avaliador('Bruno'), [4, 4, 4], ['area_correta' => false, 'area_sugerida_id' => $this->bio->id]);
-        $this->avaliacaoConcluida($agua, $this->avaliador('Carla'), [3, 3, 3], ['area_correta' => false, 'area_sugerida_id' => $saude->id]);
+        $this->avaliacaoConcluida($agua, $this->avaliador('Ana'), 10, ['area_correta' => false, 'area_sugerida_id' => $this->bio->id]);
+        $this->avaliacaoConcluida($agua, $this->avaliador('Bruno'), 10, ['area_correta' => false, 'area_sugerida_id' => $this->bio->id]);
+        $this->avaliacaoConcluida($agua, $this->avaliador('Carla'), 10, ['area_correta' => false, 'area_sugerida_id' => $saude->id]);
 
         $this->comoAdmin();
 
@@ -232,7 +240,7 @@ class AdminReclassificacaoRankingTest extends TestCase
     public function test_aplica_a_sugestao_de_area_de_um_projeto(): void
     {
         $agua = $this->projeto('Purificação de água', $this->exatas);
-        $this->avaliacaoConcluida($agua, $this->avaliador('Ana'), [4, 4, 5],
+        $this->avaliacaoConcluida($agua, $this->avaliador('Ana'), 10,
             ['area_correta' => false, 'area_sugerida_id' => $this->bio->id]);
 
         $this->comoAdmin();
@@ -251,7 +259,7 @@ class AdminReclassificacaoRankingTest extends TestCase
     public function test_aplica_area_e_subarea_do_mesmo_projeto(): void
     {
         $projeto = $this->projeto('Abelhas', $this->exatas);
-        $this->avaliacaoConcluida($projeto, $this->avaliador('Ana'), [4, 4, 4], [
+        $this->avaliacaoConcluida($projeto, $this->avaliador('Ana'), 10, [
             'area_correta' => false, 'area_sugerida_id' => $this->bio->id,
             'subarea_correta' => false, 'subarea_sugerida_id' => $this->ecologia->id,
         ]);
@@ -301,7 +309,7 @@ class AdminReclassificacaoRankingTest extends TestCase
         $botanica = Subarea::create(['area_id' => $this->bio->id, 'nome' => 'Botânica']);
         // Projeto em Biológicas/Botânica que os avaliadores querem em Exatas.
         $projeto = $this->projeto('Sensor de umidade', $this->bio, $botanica);
-        $this->avaliacaoConcluida($projeto, $this->avaliador('Ana'), [4, 4, 4],
+        $this->avaliacaoConcluida($projeto, $this->avaliador('Ana'), 10,
             ['area_correta' => false, 'area_sugerida_id' => $this->exatas->id]);
 
         $this->comoAdmin();
@@ -319,7 +327,7 @@ class AdminReclassificacaoRankingTest extends TestCase
     public function test_sugestao_aplicada_some_da_lista(): void
     {
         $agua = $this->projeto('Purificação de água', $this->exatas);
-        $this->avaliacaoConcluida($agua, $this->avaliador('Ana'), [4, 4, 5],
+        $this->avaliacaoConcluida($agua, $this->avaliador('Ana'), 10,
             ['area_correta' => false, 'area_sugerida_id' => $this->bio->id]);
 
         $this->comoAdmin();
@@ -337,8 +345,8 @@ class AdminReclassificacaoRankingTest extends TestCase
     {
         $saude = Area::create(['nome' => 'Saúde']);
         $agua = $this->projeto('Purificação de água', $this->exatas);
-        $this->avaliacaoConcluida($agua, $this->avaliador('Ana'), [4, 4, 5], ['area_correta' => false, 'area_sugerida_id' => $this->bio->id]);
-        $this->avaliacaoConcluida($agua, $this->avaliador('Bruno'), [3, 3, 3], ['area_correta' => false, 'area_sugerida_id' => $saude->id]);
+        $this->avaliacaoConcluida($agua, $this->avaliador('Ana'), 10, ['area_correta' => false, 'area_sugerida_id' => $this->bio->id]);
+        $this->avaliacaoConcluida($agua, $this->avaliador('Bruno'), 10, ['area_correta' => false, 'area_sugerida_id' => $saude->id]);
 
         $this->comoAdmin();
 
@@ -359,7 +367,7 @@ class AdminReclassificacaoRankingTest extends TestCase
     {
         $saude = Area::create(['nome' => 'Saúde']);
         $agua = $this->projeto('Purificação de água', $this->exatas);
-        $this->avaliacaoConcluida($agua, $this->avaliador('Ana'), [4, 4, 5],
+        $this->avaliacaoConcluida($agua, $this->avaliador('Ana'), 10,
             ['area_correta' => false, 'area_sugerida_id' => $this->bio->id]);
 
         $this->comoAdmin();
@@ -430,10 +438,11 @@ class AdminReclassificacaoRankingTest extends TestCase
         $ana = $this->avaliador('Ana');
         $bruno = $this->avaliador('Bruno');
 
-        $this->avaliacaoConcluida($alto, $ana, [5, 5, 5]);      // 15
-        $this->avaliacaoConcluida($alto, $bruno, [4, 5, 4]);    // 13  -> média 14
-        $this->avaliacaoConcluida($medio, $ana, [3, 3, 3]);     // 9
-        $this->avaliacaoConcluida($medio, $bruno, [4, 3, 4]);   // 11  -> média 10
+        // Toda a escala no topo fecha 10,00; em "Regular" (6), 6,11.
+        $this->avaliacaoConcluida($alto, $ana, 10);
+        $this->avaliacaoConcluida($alto, $bruno, 10);
+        $this->avaliacaoConcluida($medio, $ana, 6);
+        $this->avaliacaoConcluida($medio, $bruno, 6);
 
         $this->comoAdmin();
 
@@ -442,42 +451,49 @@ class AdminReclassificacaoRankingTest extends TestCase
             ->assertJsonCount(2, 'data')
             ->assertJsonPath('data.0.posicao', 1)
             ->assertJsonPath('data.0.titulo', 'Secador solar')
-            ->assertJsonPath('data.0.media', 14)
-            ->assertJsonPath('data.0.nota_maxima', 15)
+            ->assertJsonPath('data.0.media', 10)
+            ->assertJsonPath('data.0.nota_maxima', 10)
             ->assertJsonPath('data.0.avaliacoes', 2)
             ->assertJsonPath('data.1.posicao', 2)
-            ->assertJsonPath('data.1.media', 10);
+            ->assertJsonPath('data.1.media', 6.11);
     }
 
-    public function test_ranking_traz_a_media_de_cada_quesito(): void
+    public function test_ranking_traz_a_media_de_cada_secao_da_rubrica(): void
     {
         $p = $this->projeto('Secador solar', $this->exatas);
-        $this->avaliacaoConcluida($p, $this->avaliador('Ana'), [5, 2, 4]);
-        $this->avaliacaoConcluida($p, $this->avaliador('Bruno'), [4, 3, 4]);
+        $this->avaliacaoConcluida($p, $this->avaliador('Ana'), 10);
+        $this->avaliacaoConcluida($p, $this->avaliador('Bruno'), 6);
 
         $this->comoAdmin();
 
         $this->getJson('/api/v1/admin/avaliacao/ranking')
             ->assertOk()
-            ->assertJsonPath('data.0.medias_quesitos.video', 4.5)
-            ->assertJsonPath('data.0.medias_quesitos.resumo', 2.5)
-            ->assertJsonPath('data.0.medias_quesitos.pesquisa', 4)
-            // Projeto comum não tem o quesito de continuação.
-            ->assertJsonPath('data.0.medias_quesitos.continuidade', null);
+            // Uma linha por seção pontuada do documento, na ordem dele.
+            ->assertJsonCount(10, 'data.0.medias_secoes')
+            // Título é Sim/Não: "Sim" nas duas avaliações rende o peso cheio.
+            ->assertJsonPath('data.0.medias_secoes.0.chave', 'titulo')
+            ->assertJsonPath('data.0.medias_secoes.0.maximo', 0.15)
+            ->assertJsonPath('data.0.medias_secoes.0.media', 0.15)
+            // Introdução vale 1,075: média entre 1,075 e 60% disso (0,645).
+            ->assertJsonPath('data.0.medias_secoes.2.chave', 'introducao')
+            ->assertJsonPath('data.0.medias_secoes.2.media', 0.86)
+            // Vídeo vale 2,0: média entre 2,0 e 1,2.
+            ->assertJsonPath('data.0.medias_secoes.9.chave', 'video')
+            ->assertJsonPath('data.0.medias_secoes.9.maximo', 2)
+            ->assertJsonPath('data.0.medias_secoes.9.media', 1.6);
     }
 
-    public function test_ranking_traz_a_media_do_quesito_de_continuacao(): void
+    public function test_avaliacao_da_rubrica_antiga_entra_so_na_media_geral(): void
     {
         $p = $this->projeto('Secador solar', $this->exatas);
 
-        // Projeto de continuação: a pesquisa entra pela média com ele
-        // (4 + 4 + (5 + 4) / 2 = 12,5), sem mudar o teto de 15.
+        // Avaliação anterior à rubrica atual: a migration guardou a nota
+        // reescalada, mas não há respostas para distribuir por seção.
         Avaliacao::create([
             'projeto_id' => $p->id,
             'avaliador_id' => $this->avaliador('Ana')->id,
             'status' => 'concluida',
-            'nota_video' => 4, 'nota_resumo' => 4, 'nota_pesquisa' => 5, 'nota_continuidade' => 4,
-            'nota' => 12.5,
+            'nota' => 7.5,
             'concluida_em' => now(),
         ]);
 
@@ -485,9 +501,9 @@ class AdminReclassificacaoRankingTest extends TestCase
 
         $this->getJson('/api/v1/admin/avaliacao/ranking')
             ->assertOk()
-            ->assertJsonPath('data.0.media', 12.5)
-            ->assertJsonPath('data.0.nota_maxima', 15)
-            ->assertJsonPath('data.0.medias_quesitos.continuidade', 4);
+            ->assertJsonPath('data.0.media', 7.5)
+            ->assertJsonPath('data.0.nota_maxima', 10)
+            ->assertJsonPath('data.0.medias_secoes.0.media', null);
     }
 
     public function test_ranking_marca_como_parcial_quem_nao_tem_3_avaliacoes(): void
@@ -496,14 +512,14 @@ class AdminReclassificacaoRankingTest extends TestCase
         $parcial = $this->projeto('Parcial', $this->exatas);
 
         foreach (['Ana', 'Bruno', 'Carla'] as $nome) {
-            $this->avaliacaoConcluida($completo, $this->avaliador($nome), [3, 3, 3]);
+            $this->avaliacaoConcluida($completo, $this->avaliador($nome), 6);
         }
-        $this->avaliacaoConcluida($parcial, $this->avaliador('Diego'), [5, 5, 5]);
+        $this->avaliacaoConcluida($parcial, $this->avaliador('Diego'), 10);
 
         $this->comoAdmin();
 
         $resposta = $this->getJson('/api/v1/admin/avaliacao/ranking')->assertOk();
-        // O parcial lidera na média (15 > 9), mas vem sinalizado.
+        // O parcial lidera na média (10,00 > 6,11), mas vem sinalizado.
         $resposta->assertJsonPath('data.0.titulo', 'Parcial')
             ->assertJsonPath('data.0.completo', false)
             ->assertJsonPath('data.1.titulo', 'Completo')
@@ -516,9 +532,9 @@ class AdminReclassificacaoRankingTest extends TestCase
         $menosAvaliado = $this->projeto('Menos avaliado', $this->exatas);
 
         foreach (['Ana', 'Bruno', 'Carla'] as $nome) {
-            $this->avaliacaoConcluida($maisAvaliado, $this->avaliador($nome), [4, 4, 4]);
+            $this->avaliacaoConcluida($maisAvaliado, $this->avaliador($nome), 10);
         }
-        $this->avaliacaoConcluida($menosAvaliado, $this->avaliador('Diego'), [4, 4, 4]);
+        $this->avaliacaoConcluida($menosAvaliado, $this->avaliador('Diego'), 10);
 
         $this->comoAdmin();
 
@@ -544,8 +560,8 @@ class AdminReclassificacaoRankingTest extends TestCase
     {
         $exatas = $this->projeto('De exatas', $this->exatas);
         $bio = $this->projeto('De biológicas', $this->bio);
-        $this->avaliacaoConcluida($exatas, $this->avaliador('Ana'), [4, 4, 4]);
-        $this->avaliacaoConcluida($bio, $this->avaliador('Bruno'), [4, 4, 4]);
+        $this->avaliacaoConcluida($exatas, $this->avaliador('Ana'), 10);
+        $this->avaliacaoConcluida($bio, $this->avaliador('Bruno'), 10);
 
         $this->comoAdmin();
 
@@ -567,9 +583,9 @@ class AdminReclassificacaoRankingTest extends TestCase
         $agua = $this->projeto('Purificação de água', $this->exatas);
         $abelhas = $this->projeto('Abelhas nativas', $this->bio);
 
-        $this->avaliacaoConcluida($agua, $this->avaliador('Ana'), [4, 4, 5],
+        $this->avaliacaoConcluida($agua, $this->avaliador('Ana'), 10,
             ['area_correta' => false, 'area_sugerida_id' => $this->bio->id]);
-        $this->avaliacaoConcluida($abelhas, $this->avaliador('Bruno'), [3, 4, 4],
+        $this->avaliacaoConcluida($abelhas, $this->avaliador('Bruno'), 10,
             ['area_correta' => true, 'subarea_correta' => false, 'subarea_sugerida_id' => $this->ecologia->id]);
     }
 }

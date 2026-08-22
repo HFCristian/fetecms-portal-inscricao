@@ -58,13 +58,19 @@ Tabela `users` única com coluna `role`: **`orientador`**, **`avaliador`**, **`a
   - Após uma **data definida pelo admin**, o avaliador acessa e vê a tela com os projetos **designados** a ele.
   - Vê **até 3 projetos** designados automaticamente; ao **iniciar** uma avaliação **não pode cancelar**
     e trocar de projeto — só o **admin** pode cancelar/reverter.
-  - A avaliação permite **ler o projeto inteiro** e preencher uma **rubrica de 3 quesitos**
-    (vídeo de apresentação, resumo, projeto de pesquisa), cada um de **0 a 10** e com campo
-    opcional de sugestões/comentários. A **nota final é a soma dos três (0 a 30)**, calculada
-    no servidor. O avaliador também **confere a classificação**: se a **área** está correta
-    (obrigatório; se não, sugere a correta) e se a **subárea** está correta (opcional; quem
-    marcar como incorreta precisa sugerir a correta). A avaliação pode ser **salva como
-    rascunho** antes do envio; o envio continua irreversível.
+  - A avaliação permite **ler o projeto inteiro** e responder à **rubrica oficial da FETECMS**
+    (documento "Perguntas de Avaliação"): **17 perguntas pontuadas** em **10 seções**, cada
+    uma com **peso próprio**, respondidas por **escala de 0 a 10 de dois em dois** (Não possui,
+    Muito ruim, Ruim, Regular, Bom, Muito bom) ou por **Sim/Não** (Sim = peso cheio). A **nota
+    final é a soma ponderada (0 a 10)**, calculada no servidor — 8,0 do projeto de pesquisa e
+    2,0 do vídeo. Cada pergunta traz as *Orientações para o Avaliador* num **balão de dúvida
+    ("?")**, e a tela é um **wizard: um passo por seção**. O avaliador também **confere a
+    classificação**: se a **área** está correta (obrigatório; se não, sugere a correta) e se a
+    **subárea** está correta (opcional; quem marcar como incorreta precisa sugerir a correta).
+    Fecha com **dois campos descritivos opcionais** (recomendações sobre o vídeo e sobre o
+    projeto). A avaliação pode ser **salva como rascunho** a qualquer momento; o envio continua
+    irreversível. As perguntas moram em `app/Support/Rubrica.php` e as respostas na coluna
+    JSON `avaliacoes.respostas` — mexer na rubrica não pede migration.
   - Cada projeto passa por **≥ 3 avaliadores**, com *match* por **subárea** (preferencial) ou **área**.
   - **Distribuição automática**: casa subárea do projeto ↔ subárea do avaliador; se não houver,
     cai para a **mesma área**. (Algoritmo ainda a refinar.)
@@ -161,7 +167,8 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 12 | E3 Dashboard: card projetos por categoria + E4 Rubrica de avaliação (3 quesitos, nota 0–30) | ✅ sim | ❌ não (sem credencial no ambiente) | 2 |
 | 13 | E5 Conferência de área/subárea + E6 Rascunho da avaliação | ✅ sim | ❌ não (sem credencial no ambiente) | 3 |
 | 14 | E7 Troca de e-mail (todos os papéis) + E8 Desfazer submissão & trilha de registros | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 15 | E9 Cadastro do avaliador (pós-graduação em andamento) + E10 Card de avaliação (preview do vídeo, quesito de continuidade, escala Likert) | ✅ sim | ❌ não (manual do Pedro) | 2 |
+| 15 | E9 Cadastro do avaliador (pós-graduação em andamento) + E10 Card de avaliação (preview do vídeo, quesito de continuidade, escala Likert) | ✅ sim | ✅ sim (Pedro, PR #53 → v1.13) | 0 |
+| 16 | Rubrica oficial da FETECMS (17 perguntas em 10 seções, pesos, balão "?", wizard) + remoção da avaliação do projeto de continuidade | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
 > **Estado atual:** ciclo de ajustes pós-v1 (Sprints 6–10) **concluído e verde** — back 110/110,
 > front 11/11, Pint limpo, build OK (estado integrado, já com a refatoração visual do Pedro).
@@ -218,6 +225,30 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > alinhados à mão porque andam juntos: `react-dom` → 19.2.8 e `@tailwindcss/vite` → 4.3.3
 > (o plugin fixa a versão exata do `tailwindcss`).
 > Back **320/320**, front **96/96**, Pint limpo, build OK.
+> A Sprint 15 entrou na `main` pelo PR **#53** (v1.13).
+>
+> **Sprint 16 (branch `feat/rubrica-fetecms-2025`, saída da `origin/main` @ `227377c`):**
+> a tela de avaliação passou a ser o documento **"Perguntas de Avaliação FETECMS"**.
+> (a) **17 perguntas pontuadas em 10 seções**, com o peso de cada uma; a nota final virou a
+> **soma ponderada de 0 a 10** (8,0 projeto de pesquisa + 2,0 vídeo). A seção *Resultados e
+> discussão* usa **1/3 por pergunta** (e não os 0,33 da coluna do PDF) para fechar 1,00 na
+> seção e 10,00 no total, como manda a tabela da última página.
+> (b) **Duas métricas**: escala **0–10 de dois em dois** (Não possui … Muito bom) e **Sim/Não**
+> (Sim = peso cheio). A Likert de 5 pontos da Sprint 15 saiu.
+> (c) **Balão de dúvida "?"** por pergunta com as *Orientações para o Avaliador*; a pergunta de
+> "domínio do tema" no vídeo ficou **sem balão** (o PDF traz `????` nessa linha).
+> (d) **Wizard**: um passo por seção, com atalhos no topo, nota parcial e contagem de
+> respondidas no rodapé — e **rascunho salvável em qualquer passo**.
+> (e) **Recomendações em dois campos opcionais**: sobre o **vídeo** (junto das perguntas do
+> vídeo) e sobre o **projeto** (passo final).
+> (f) **A avaliação do projeto de continuidade foi removida**: o documento segue na leitura do
+> avaliador, mas não é pontuado à parte — o teto é o mesmo para todo projeto, sem média.
+> (g) **Banco**: `respostas` (JSON) substitui `nota_video`/`nota_resumo`/`nota_pesquisa`/
+> `nota_continuidade`; `comentario_video` virou a recomendação do vídeo e `comentario_projeto`
+> nasceu; `nota` virou `decimal(5,2)`. A migration **reescala de 0–15 para 0–10** as avaliações
+> já concluídas (as respostas antigas não têm tradução para as perguntas novas).
+> (h) **Ranking do admin**: médias por **seção** no lugar das médias por quesito.
+> Back **322/322**, front **98/98**, Pint limpo, build OK.
 
 ### Roadmap de sprints (proposto)
 

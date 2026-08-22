@@ -4,7 +4,6 @@ namespace App\Models;
 
 use App\Enums\Categoria;
 use App\Enums\ProjetoStatus;
-use App\Enums\TipoDocumento;
 use Database\Factories\ProjetoFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -114,24 +113,5 @@ class Projeto extends Model
     public function maxAlunos(): ?int
     {
         return $this->categoria?->maxAlunos((bool) $this->pictec_ms);
-    }
-
-    /**
-     * Projeto de continuação COM o documento anexado — é o que o avaliador lê
-     * para pontuar o quesito extra da rubrica. Sem o documento não há o que
-     * avaliar, então o quesito não aparece (o checklist de submissão já exige o
-     * anexo de quem marca a continuação).
-     */
-    public function temProjetoDeContinuacao(): bool
-    {
-        if (! $this->continuacao) {
-            return false;
-        }
-
-        $this->loadMissing('documentos');
-
-        return $this->documentos->contains(
-            fn (ProjetoDocumento $d) => $d->tipo === TipoDocumento::ProjetoContinuacao,
-        );
     }
 }

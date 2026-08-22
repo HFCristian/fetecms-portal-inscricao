@@ -32,6 +32,11 @@ branch da sprint N−1, para nada se perder enquanto os PRs não são mergeados)
   > (1 = muito insatisfeito … 5 = muito satisfeito), com nota final **3 a 15**, e projetos
   > com documento de continuação ganharam um 4º quesito que entra pela **média** com o
   > projeto de pesquisa. Ver o registro da Sprint 15 no `CLAUDE.md`.
+  >
+  > **Revisto de novo (Sprint 16):** os 3 quesitos deram lugar às **17 perguntas do
+  > documento oficial** ("Perguntas de Avaliação FETECMS"), em 10 seções com **pesos
+  > diferentes**, e a nota final passou a **0 a 10**. O quesito do projeto de continuação
+  > **deixou de existir**. Ver a seção do ajuste no fim deste arquivo.
 - **Dependabot** entrou como Épico 1 da Sprint 1, na própria branch da sprint.
 - **Branches cumulativas** entre sprints.
 
@@ -480,3 +485,93 @@ seleção, desmarcar todos, aviso de subárea limpa).
   um `avaliacao:distribuir` sugerido depois do lote) fecharia essa ponta.
 - **Registrar quem aplicou e quando.** Hoje a troca não deixa rastro além do próprio projeto. Um
   log simples ajudaria a auditar reclassificações em ano de feira movimentado.
+
+
+---
+
+## Ajuste pós-ciclo — rubrica oficial da FETECMS
+
+**Branch:** `feat/rubrica-fetecms-2025` (a partir de `origin/main` @ `227377c`, v1.13)
+
+A comissão entregou o documento **"Perguntas de Avaliação FETECMS"** com as perguntas, as
+orientações ao avaliador, a métrica de cada uma e a nota máxima por pergunta. A tela de
+avaliação passou a ser exatamente esse documento.
+
+### O que mudou
+
+- **A rubrica de 3 quesitos saiu.** No lugar entraram **17 perguntas pontuadas** distribuídas
+  em **10 seções** (Título, Resumo, Introdução, Objetivos, Metodologia, Resultados e discussão,
+  Conclusão, Referências, Geral — projeto e Vídeo), mais a conferência de área/subárea
+  ("Geral — início", que não vale ponto) e o passo final de recomendações.
+- **Duas métricas**, como no documento: escala de **0 a 10 de dois em dois** (Não possui,
+  Muito ruim, Ruim, Regular, Bom, Muito bom) e **Sim/Não** (Sim vale o peso cheio, Não vale 0).
+- **Peso por pergunta.** A nota final é a **soma ponderada**: cada pergunta rende a fração da
+  resposta vezes o seu peso. O total fecha **10,00** — 8,0 do projeto de pesquisa e 2,0 do
+  vídeo, como a tabela de fechamento do documento.
+- **Balão de dúvida ("?")** ao lado de cada pergunta com a coluna *Orientações para o Avaliador*.
+- **Wizard por seção:** o avaliador percorre um passo por seção, com Voltar/Avançar, atalhos
+  para qualquer seção no topo, nota parcial e contagem de respondidas no rodapé. **Salvar
+  rascunho continua disponível em qualquer passo.**
+- **Recomendações em dois campos** (a pergunta descritiva do documento): um sobre o **vídeo**,
+  junto das perguntas do vídeo, e um sobre o **projeto**, no passo final. Ambos opcionais.
+- **A avaliação do projeto de continuação foi removida** — o documento continua na leitura do
+  avaliador (lista de anexos), mas não é pontuado à parte, então o teto é o mesmo para todo
+  projeto sem precisar de média.
+- **Ranking do admin:** as médias por quesito viraram **médias por seção**, cada uma com o teto
+  da seção ao lado.
+
+### Como ficou no banco
+
+`respostas` (JSON, `chave da pergunta => valor`) substitui as colunas `nota_video`,
+`nota_resumo`, `nota_pesquisa` e `nota_continuidade`. O conjunto de perguntas mora no catálogo
+`App\Support\Rubrica`, não na estrutura da tabela — mexer na rubrica não pede migration.
+`comentario_video` sobreviveu (virou a recomendação sobre o vídeo) e `comentario_projeto`
+nasceu para a recomendação final. A coluna `nota` virou `decimal(5,2)`.
+
+**Avaliações já concluídas** ficam só com a nota final, **reescalada de 0–15 para 0–10**: não há
+tradução possível das respostas antigas para as perguntas novas. Elas entram na média geral do
+ranking, mas não nas médias por seção.
+
+### Decisões tomadas na implementação
+
+- **Resultados e discussão usa 1/3 por pergunta**, e não os 0,33 da coluna do documento. Com
+  0,33 a seção fecharia 0,99 e o total 9,99; a tabela da última página diz **1,0** e **10,00**.
+- **A conferência de área/subárea continua em duas perguntas** (área obrigatória com sugestão,
+  subárea opcional com sugestão), como já era — é o que alimenta o painel de reclassificações
+  do admin. O documento junta as duas numa pergunta só, que vale 0 de qualquer forma.
+- **"A partir do vídeo, de que modo os integrantes demonstram domínio do tema?" ficou sem balão
+  de ajuda**: a coluna de orientações do documento traz `????` nessa linha.
+
+**Arquivos principais:** `app/Support/Rubrica.php` (novo — o documento em código),
+`app/Models/Avaliacao.php`, `app/Http/Requests/Avaliador/AvaliacaoRequest.php`,
+`app/Services/AvaliacaoFluxoService.php`, `app/Services/AdminAvaliacaoService.php`,
+`app/Http/Controllers/Api/V1/AvaliadorAvaliacaoController.php`,
+`database/migrations/2026_08_21_100000_substituir_rubrica_pelas_perguntas_fetecms.php`,
+`resources/js/components/AvaliacaoModal.jsx`, `resources/js/components/AjudaBalao.jsx` (novo),
+`resources/js/components/EscalaResposta.jsx` (era `EscalaLikert.jsx`),
+`resources/js/pages/AvaliacaoRanking.jsx`.
+
+### Resultado dos testes
+
+| Verificação | Antes | Agora |
+|-------------|-------|-------|
+| Backend (PHPUnit) | 320/320 | **322/322** (1083 asserções) |
+| Frontend (Vitest) | 96/96 | **98/98** (23 arquivos) |
+| Pint | limpo | **limpo** |
+| `npm run build` | OK | **OK** |
+
+Migration verificada com dados da rubrica antiga: uma avaliação concluída com nota 15 virou
+**10,00**, o rascunho continuou sem nota e o comentário do vídeo foi preservado. O `down()`
+recria as colunas antigas e desfaz a reescala.
+
+### O que o Pedro precisa fazer
+
+1. **Rodar a migration:** `php artisan migrate` (as avaliações concluídas serão reescaladas).
+2. **Push:** `git push -u origin feat/rubrica-fetecms-2025`.
+3. **Conferir os textos das perguntas** com a comissão — foram transcritos do PDF sem edição,
+   inclusive a pontuação e a concordância originais.
+
+### Pendências vindas do próprio documento
+
+- **Falta a orientação da pergunta de "domínio do tema" no vídeo** (`????` no PDF). Assim que a
+  comissão mandar o texto, é uma linha em `Rubrica::SECOES` — sem migration.

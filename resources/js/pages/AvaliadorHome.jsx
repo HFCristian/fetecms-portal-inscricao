@@ -11,9 +11,9 @@ const PILL = {
     concluida: 'bg-secondary text-on-secondary',
 };
 
-/** A nota final pode ter meio ponto (média com o projeto de continuação). */
+/** A nota final é a soma ponderada da rubrica (0 a 10), com duas casas. */
 const formatarNota = (valor) =>
-    valor === null || valor === undefined ? '—' : String(Math.round(valor * 10) / 10).replace('.', ',');
+    valor === null || valor === undefined ? '—' : Number(valor).toFixed(2).replace('.', ',');
 
 function botaoLabel(status) {
     if (status === 'em_andamento') return 'Continuar';

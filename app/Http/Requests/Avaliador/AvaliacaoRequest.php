@@ -4,15 +4,17 @@ namespace App\Http\Requests\Avaliador;
 
 use App\Models\Avaliacao;
 use App\Models\Projeto;
+use App\Support\Rubrica;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 /**
- * Base do preenchimento da avaliação (rubrica + conferência da classificação).
- * O rascunho não exige nada; a conclusão exige as notas dos quesitos e a
- * conferência da área. As regras comuns — faixa Likert das notas, tamanho dos
- * comentários e consistência das sugestões — valem nos dois casos.
+ * Base do preenchimento da avaliação (respostas da rubrica, conferência da
+ * classificação e recomendações). O rascunho não exige nada; a conclusão exige
+ * todas as perguntas pontuadas e a conferência da área. As regras comuns —
+ * valores dentro da escala, tamanho dos textos e consistência das sugestões —
+ * valem nos dois casos.
  */
 abstract class AvaliacaoRequest extends FormRequest
 {
@@ -22,7 +24,7 @@ abstract class AvaliacaoRequest extends FormRequest
         return true;
     }
 
-    /** No rascunho tudo é opcional; ao concluir, os quesitos e a área são exigidos. */
+    /** No rascunho tudo é opcional; ao concluir, as perguntas e a área são exigidas. */
     abstract protected function obrigatorio(): bool;
 
     public function rules(): array
@@ -30,6 +32,7 @@ abstract class AvaliacaoRequest extends FormRequest
         $exigido = $this->obrigatorio() ? ['required'] : ['sometimes', 'nullable'];
 
         $regras = [
+            'respostas' => [...$exigido, 'array', $this->somenteChavesDaRubrica()],
             'area_correta' => [...$exigido, 'boolean'],
             'area_sugerida_id' => [
                 Rule::requiredIf(fn () => $this->obrigatorio() && $this->marcouIncorreta('area_correta')),
@@ -45,30 +48,32 @@ abstract class AvaliacaoRequest extends FormRequest
             ],
         ];
 
-        foreach ($this->quesitos() as $quesito) {
-            $regras["nota_{$quesito}"] = [
-                // O quesito de continuidade só é exigido quando o projeto tem o documento.
-                ...($quesito === Avaliacao::QUESITO_CONTINUIDADE && ! $this->avaliaContinuidade() ? ['sometimes', 'nullable'] : $exigido),
-                'integer',
-                'min:'.Avaliacao::NOTA_MINIMA_QUESITO,
-                'max:'.Avaliacao::NOTA_MAXIMA_QUESITO,
+        foreach (Rubrica::COMENTARIOS as $campo) {
+            $regras[$campo] = ['sometimes', 'nullable', 'string', 'max:2000'];
+        }
+
+        foreach (Rubrica::perguntas() as $pergunta) {
+            $regras["respostas.{$pergunta['chave']}"] = [
+                ...$exigido,
+                ...($pergunta['tipo'] === Rubrica::TIPO_SIM_NAO
+                    ? ['boolean']
+                    : ['integer', Rule::in(array_keys(Rubrica::ESCALA))]),
             ];
-            $regras["comentario_{$quesito}"] = ['sometimes', 'nullable', 'string', 'max:2000'];
         }
 
         return $regras;
     }
 
-    /** Quesitos da rubrica, com o de continuidade no fim. */
-    private function quesitos(): array
+    /** Resposta de pergunta que não existe na rubrica não entra. */
+    private function somenteChavesDaRubrica(): Closure
     {
-        return [...Avaliacao::QUESITOS, Avaliacao::QUESITO_CONTINUIDADE];
-    }
+        return function (string $atributo, mixed $valor, Closure $falhar) {
+            $desconhecidas = array_diff(array_keys((array) $valor), Rubrica::chaves());
 
-    /** O projeto tem documento de continuação — e portanto o quarto quesito. */
-    private function avaliaContinuidade(): bool
-    {
-        return (bool) $this->projeto()?->temProjetoDeContinuacao();
+            if ($desconhecidas !== []) {
+                $falhar('Há respostas de perguntas que não fazem parte da rubrica.');
+            }
+        };
     }
 
     /** O avaliador respondeu explicitamente "não está correta". */
@@ -94,17 +99,26 @@ abstract class AvaliacaoRequest extends FormRequest
         return $avaliacao instanceof Avaliacao ? $avaliacao->projeto : null;
     }
 
-    /** Comentário só de espaços entra como nulo, não como string vazia. */
+    /**
+     * Texto só de espaços entra como nulo, não como string vazia; e resposta
+     * vazia some do array, para o rascunho não gravar buraco nem quebrar a
+     * validação de escala.
+     */
     protected function prepareForValidation(): void
     {
         $limpos = [];
 
-        foreach ($this->quesitos() as $quesito) {
-            $campo = "comentario_{$quesito}";
-
+        foreach (Rubrica::COMENTARIOS as $campo) {
             if ($this->has($campo)) {
                 $limpos[$campo] = trim((string) $this->input($campo)) ?: null;
             }
+        }
+
+        if (is_array($this->input('respostas'))) {
+            $limpos['respostas'] = array_filter(
+                $this->input('respostas'),
+                fn (mixed $valor) => $valor !== null && $valor !== '',
+            );
         }
 
         $this->merge($limpos);
@@ -115,19 +129,20 @@ abstract class AvaliacaoRequest extends FormRequest
      */
     public function attributes(): array
     {
-        return [
-            'nota_video' => 'nota do vídeo de apresentação',
-            'comentario_video' => 'comentário sobre o vídeo de apresentação',
-            'nota_resumo' => 'nota do resumo do projeto',
-            'comentario_resumo' => 'comentário sobre o resumo do projeto',
-            'nota_pesquisa' => 'nota do projeto de pesquisa',
-            'comentario_pesquisa' => 'comentário sobre o projeto de pesquisa',
-            'nota_continuidade' => 'nota do projeto de continuação',
-            'comentario_continuidade' => 'comentário sobre o projeto de continuação',
+        $atributos = [
+            'respostas' => 'respostas',
+            'comentario_video' => 'recomendações sobre o vídeo',
+            'comentario_projeto' => 'recomendações sobre o projeto',
             'area_correta' => 'conferência da área do conhecimento',
             'area_sugerida_id' => 'área correta sugerida',
             'subarea_correta' => 'conferência da subárea',
             'subarea_sugerida_id' => 'subárea correta sugerida',
         ];
+
+        foreach (Rubrica::perguntas() as $pergunta) {
+            $atributos["respostas.{$pergunta['chave']}"] = "resposta sobre {$pergunta['rotulo']}";
+        }
+
+        return $atributos;
     }
 }
