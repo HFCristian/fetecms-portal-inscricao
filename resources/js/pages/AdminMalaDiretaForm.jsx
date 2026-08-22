@@ -328,8 +328,9 @@ export default function AdminMalaDiretaForm() {
                     <div>
                         <h2 className="font-display text-lg font-semibold text-on-surface mb-1">3. A mensagem</h2>
                         <p className="text-sm text-on-surface-variant">
-                            No texto, <code>{'{{nome}}'}</code> vira o primeiro nome de quem recebe e
-                            <code> {'{{email}}'}</code> vira o endereço.
+                            No texto, <code>{'{{nome}}'}</code> vira o primeiro nome de quem recebe,
+                            <code> {'{{nome_completo}}'}</code> o nome inteiro e <code>{'{{email}}'}</code> o
+                            endereço. Sem nome no cadastro, o tratamento vira “participante”.
                         </p>
                     </div>
                     <Field label="Nome da mala" required error={erros.nome?.[0]}>

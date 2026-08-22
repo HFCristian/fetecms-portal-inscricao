@@ -94,8 +94,9 @@ Tabela `users` única com coluna `role`: **`orientador`**, **`avaliador`**, **`a
     O envio vai para a **fila** (um job por destinatário) com **tela de progresso**; o relatório traz
     a situação de cada endereço, o motivo das falhas e o **reenvio só das falhas**. E-mail malformado
     entra como `invalido` no relatório em vez de barrar o disparo. Campos da mala: nome, justificativa,
-    solicitante (opcional — metadado interno, não vai no e-mail), assunto e texto (aceita `{{nome}}`
-    e `{{email}}`).
+    solicitante (opcional — metadado interno, não vai no e-mail), assunto e texto (aceita as
+    variáveis `{{nome}}` — primeiro nome —, `{{nome_completo}}` e `{{email}}`, com ou sem espaços
+    dentro das chaves; sem nome conhecido, o tratamento vira "participante").
 
 Regras-chave:
 - **Equipe: 1 a 4 alunos por projeto, condicionado à categoria** — *FETEC Jr* permite até 4;
@@ -299,7 +300,7 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > recusa de um servidor vira uma linha de falha e não derruba o resto.
 > (d) **Progresso** por polling e **relatório** por situação (`enviado`/`falha`/`invalido`),
 > com o motivo de cada problema, **reenvio só das falhas** e export CSV.
-> (e) O corpo aceita `{{nome}}` (primeiro nome) e `{{email}}`; o **solicitante é metadado
+> (e) O corpo aceita `{{nome}}` (primeiro nome), `{{nome_completo}}` e `{{email}}`; o **solicitante é metadado
 > interno** e não aparece para o destinatário. Layout próprio em `emails/mala-direta`
 > (HTML + versão texto), sem o tema markdown do Laravel.
 > (f) **Exige `php artisan queue:work` no deploy** — sem worker a mala fica em "Enviando".
