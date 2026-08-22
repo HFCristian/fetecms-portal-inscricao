@@ -84,6 +84,18 @@ Tabela `users` única com coluna `role`: **`orientador`**, **`avaliador`**, **`a
 - **Admin**: criado **somente por outro admin** (cadastro simples: nome, e-mail, senha). Dashboard
   com as métricas: projetos totais / submetidos / em rascunho; **projetos por categoria**;
   orientadores; alunos; coorientadores; escolas, cidades e estados **com projeto cadastrado**.
+  - **Mala direta** (`/admin/mala-direta`): comunicado por e-mail para um recorte da base.
+    O admin combina quantos **públicos** quiser (todos, orientadores, avaliadores, orientadores
+    com rascunho, com submetido, avaliadores com avaliação **em andamento** ou **concluída**) e/ou
+    cola uma **lista personalizada** (digitada ou importada de `.csv` com as colunas `email`/`nome`).
+    A união é **deduplicada por e-mail**; contas de admin, inativas e demo ficam fora dos públicos.
+    Antes de disparar ele vê **quantos recebem**, pode **listar** e **exportar CSV** (nome, e-mail,
+    papel, origem, títulos e quantidade de projetos do orientador) e precisa **confirmar a mensagem**.
+    O envio vai para a **fila** (um job por destinatário) com **tela de progresso**; o relatório traz
+    a situação de cada endereço, o motivo das falhas e o **reenvio só das falhas**. E-mail malformado
+    entra como `invalido` no relatório em vez de barrar o disparo. Campos da mala: nome, justificativa,
+    solicitante (opcional — metadado interno, não vai no e-mail), assunto e texto (aceita `{{nome}}`
+    e `{{email}}`).
 
 Regras-chave:
 - **Equipe: 1 a 4 alunos por projeto, condicionado à categoria** — *FETEC Jr* permite até 4;
@@ -110,6 +122,7 @@ php artisan migrate               # roda migrations (SQLite local)
 php artisan migrate:fresh --seed  # recria o banco e roda seeders
 php artisan test                  # testes (Pest/PHPUnit)
 php artisan test --filter=Nome    # roda um teste específico
+php artisan queue:work            # processa a fila (envio da mala direta) — exigido no deploy
 
 # Frontend (Vite)
 npm run dev                       # dev server com HMR
@@ -175,6 +188,7 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 15 | E9 Cadastro do avaliador (pós-graduação em andamento) + E10 Card de avaliação (preview do vídeo, quesito de continuidade, escala Likert) | ✅ sim | ✅ sim (Pedro, PR #53 → v1.13) | 0 |
 | 16 | Rubrica oficial da FETECMS (17 perguntas em 10 seções, pesos, balão "?", wizard) + remoção da avaliação do projeto de continuidade | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 17 | Perfil do avaliador: cards de estatística (avaliados, certificado 2h30/avaliação, posição no ranking) + troca da própria área fora do período de avaliação | ✅ sim | ❌ não (mesma branch da 16) | 2 |
+| 18 | Mala direta: públicos + lista personalizada (CSV), prévia com contagem/listagem/export, disparo pela fila com progresso e relatório de falhas | ✅ sim | ❌ não (manual do Pedro) | 3 |
 
 > **Estado atual:** ciclo de ajustes pós-v1 (Sprints 6–10) **concluído e verde** — back 110/110,
 > front 11/11, Pint limpo, build OK (estado integrado, já com a refatoração visual do Pedro).
@@ -269,6 +283,26 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > admin — a tela avisa quando há projetos designados.
 > (c) `GET /avaliador/perfil` e `PUT /avaliador/perfil/classificacao`.
 > Back **337/337**, front **108/108**, Pint limpo, build OK.
+>
+> **Sprint 18 (branch `feat/mala-direta`, saída da `origin/main` @ `912761a`):** o admin ganhou
+> a seção **Mala direta** no menu.
+> (a) **Públicos combináveis** (`PublicoMala`) + **lista personalizada** digitada (aceita
+> `Nome <email>`) ou importada de `.csv` (`email`/`nome`, separador `;`, `,` ou tab, com ou
+> sem cabeçalho). A união é deduplicada por e-mail guardando **todas as origens**; admin,
+> conta inativa e conta demo nunca entram nos públicos.
+> (b) **Prévia** (`POST /admin/mala-direta/previa`): quantos recebem, quantos são inválidos,
+> o total de cada público, listagem paginada e **export CSV** com os projetos do orientador.
+> (c) **Disparo** com confirmação da mensagem na tela. A lista vira **snapshot**
+> (`mala_direta_destinatarios`) — o relatório precisa dizer para quem foi mesmo que a pessoa
+> troque de e-mail depois. **Um job por destinatário** (`EnviarMalaDireta`, 3 tentativas): a
+> recusa de um servidor vira uma linha de falha e não derruba o resto.
+> (d) **Progresso** por polling e **relatório** por situação (`enviado`/`falha`/`invalido`),
+> com o motivo de cada problema, **reenvio só das falhas** e export CSV.
+> (e) O corpo aceita `{{nome}}` (primeiro nome) e `{{email}}`; o **solicitante é metadado
+> interno** e não aparece para o destinatário. Layout próprio em `emails/mala-direta`
+> (HTML + versão texto), sem o tema markdown do Laravel.
+> (f) **Exige `php artisan queue:work` no deploy** — sem worker a mala fica em "Enviando".
+> Back **354/354**, front **136/136**, Pint limpo, build OK.
 
 ### Roadmap de sprints (proposto)
 
@@ -293,6 +327,11 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
   particulares) de `escolas_ms.csv` (colunas `MUNICÍPIO, ZONA, CÓDIGO DO INEP, UNIDADE ESCOLAR,
   TIPO`) + **combobox "digite/crie"** de instituição no cadastro do orientador e no projeto
   (criação global, como as subáreas).
+
+#### Ciclo pós-avaliação
+
+- **Sprint 18** — Mala direta do admin (públicos, lista personalizada/CSV, prévia, disparo pela
+  fila, progresso e relatório de falhas).
 
 **Decisões travadas (deste ciclo):** endereço sempre por FK no Brasil (texto livre só fora do
 Brasil); área/subárea sempre do **mesmo catálogo** em todos os formulários; subárea criada por

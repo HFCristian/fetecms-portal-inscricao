@@ -98,9 +98,17 @@ php artisan serve            # http://localhost:8000
 
 # Terminal 2 — Vite (HMR do React)
 npm run dev
+
+# Terminal 3 — fila (só se for testar a mala direta / e-mails em massa)
+php artisan queue:work
 ```
 
 Acesse **http://localhost:8000**.
+
+> 📬 **E-mails em desenvolvimento:** com `MAIL_MAILER=log` (padrão do `.env.example`) nada sai
+> de verdade — cada mensagem é escrita em `storage/logs/laravel.log`. A **mala direta** do admin
+> envia pela fila, então precisa do `php artisan queue:work` rodando; sem ele a mala fica em
+> "Enviando" para sempre. Em produção o worker precisa ser um serviço (supervisor/systemd).
 
 > ⚠️ **Use `localhost`, não `127.0.0.1`.** O cookie de sessão do Sanctum está amarrado ao
 > domínio `localhost` (`SESSION_DOMAIN`). Acessar por `127.0.0.1:8000` quebra o login.
@@ -130,6 +138,8 @@ npm test             # frontend (Vitest) — componentes React
 php artisan migrate:fresh --seed   # recria o banco do zero + dados demo
 php artisan migrate                # aplica migrations novas
 php artisan test --filter=Nome     # roda um teste específico
+php artisan queue:work             # processa a fila (envio da mala direta)
+php artisan queue:failed           # jobs que falharam depois de todas as tentativas
 npm run build                      # build de produção do front (gera public/build)
 ./vendor/bin/pint --dirty          # padroniza o estilo do PHP alterado
 ```
