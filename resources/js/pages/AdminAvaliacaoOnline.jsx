@@ -188,7 +188,7 @@ export default function AdminAvaliacaoOnline() {
                     to="/admin/avaliacao/ranking"
                     icon="trophy"
                     titulo="Ranking dos projetos"
-                    descricao="Projetos já avaliados, ordenados pela média das notas finais, com as médias de cada quesito."
+                    descricao="Projetos já avaliados, ordenados pela média das notas finais, com as médias de cada seção da rubrica."
                 />
             </div>
         </AppShell>

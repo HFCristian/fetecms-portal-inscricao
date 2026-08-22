@@ -11,6 +11,7 @@ use App\Models\Edicao;
 use App\Models\Projeto;
 use App\Models\Subarea;
 use App\Models\User;
+use App\Support\Rubrica;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -320,7 +321,7 @@ class AdminAvaliacaoService
 
     /**
      * Ranking dos projetos que já receberam ao menos uma avaliação concluída,
-     * pela MÉDIA das notas finais (3 a 15). Desempate: mais avaliações primeiro
+     * pela MÉDIA das notas finais (0 a 10). Desempate: mais avaliações primeiro
      * (média mais confiável) e, por fim, título.
      *
      * `completo` marca quem já atingiu o mínimo de avaliações — abaixo disso a
@@ -350,14 +351,8 @@ class AdminAvaliacaoService
                 'area' => $p->area?->nome,
                 'categoria' => $p->categoria?->label(),
                 'avaliacoes' => $total,
-                'media' => round($concluidas->avg('nota'), 1),
-                'medias_quesitos' => [
-                    'video' => round($concluidas->avg('nota_video'), 1),
-                    'resumo' => round($concluidas->avg('nota_resumo'), 1),
-                    'pesquisa' => round($concluidas->avg('nota_pesquisa'), 1),
-                    // Só os projetos com documento de continuação têm esse quesito.
-                    'continuidade' => $this->media($concluidas, 'nota_continuidade'),
-                ],
+                'media' => round($concluidas->avg('nota'), 2),
+                'medias_secoes' => $this->mediasPorSecao($concluidas),
                 'completo' => $total >= StatusAvaliacao::MIN_POR_PROJETO,
                 'nota_maxima' => Avaliacao::notaMaxima(),
             ];
@@ -381,16 +376,25 @@ class AdminAvaliacaoService
     }
 
     /**
-     * Média de um quesito contando só quem o preencheu — null quando nenhuma
-     * avaliação o tem (caso do quesito de continuidade em projeto comum).
+     * Média de cada seção pontuada da rubrica, com o teto da seção — mostra em
+     * que o projeto foi bem ou mal, e não só a nota final. Conta apenas as
+     * avaliações que já têm respostas: as anteriores à rubrica atual entram
+     * somente na média geral.
      *
      * @param  Collection<int, Avaliacao>  $avaliacoes
+     * @return list<array{chave:string, titulo:string, media:float|null, maximo:float}>
      */
-    private function media(Collection $avaliacoes, string $coluna): ?float
+    private function mediasPorSecao(Collection $avaliacoes): array
     {
-        $preenchidas = $avaliacoes->whereNotNull($coluna);
+        $respondidas = $avaliacoes->filter(fn (Avaliacao $a) => ! empty($a->respostas));
 
-        return $preenchidas->isEmpty() ? null : round($preenchidas->avg($coluna), 1);
+        return array_map(function (array $secao) use ($respondidas) {
+            $pontos = $respondidas->map(
+                fn (Avaliacao $a) => Rubrica::pontosDaSecao($secao['chave'], $a->respostas ?? []),
+            );
+
+            return [...$secao, 'media' => $pontos->isEmpty() ? null : round($pontos->avg(), 2)];
+        }, Rubrica::secoesPontuadas());
     }
 
     /**

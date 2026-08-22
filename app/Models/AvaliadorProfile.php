@@ -26,6 +26,12 @@ class AvaliadorProfile extends Model
         'Doutorado (concluído)',
     ];
 
+    /**
+     * Carga horária que cada avaliação concluída rende no certificado do
+     * avaliador (2h30, definida pela organização).
+     */
+    public const MINUTOS_POR_AVALIACAO = 150;
+
     protected $fillable = ['cpf', 'titulacao', 'area_id', 'subarea_id', 'limite_avaliacoes'];
 
     protected function casts(): array

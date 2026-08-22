@@ -15,21 +15,28 @@ vi.mock('../lib/catalogos.js', () => ({
 
 import AvaliacaoRanking from './AvaliacaoRanking.jsx';
 
+// Médias por seção da rubrica, como o backend as entrega (na ordem do documento).
+const secoes = (titulo, resumo, video) => [
+    { chave: 'titulo', titulo: 'Título', media: titulo, maximo: 0.15 },
+    { chave: 'resumo', titulo: 'Resumo', media: resumo, maximo: 0.25 },
+    { chave: 'video', titulo: 'Vídeo', media: video, maximo: 2 },
+];
+
 const RANKING = [
     {
         projeto_id: 1, posicao: 1, titulo: 'Secador solar', area: 'Exatas', categoria: 'FETECMS FUNDECT',
-        avaliacoes: 3, media: 14.5, nota_maxima: 15, completo: true,
-        medias_quesitos: { video: 5, resumo: 5, pesquisa: 4.5, continuidade: null },
+        avaliacoes: 3, media: 9.4, nota_maxima: 10, completo: true,
+        medias_secoes: secoes(0.15, 0.25, 1.8),
     },
     {
         projeto_id: 2, posicao: 2, titulo: 'Purificação de água', area: 'Exatas', categoria: 'FETECMS',
-        avaliacoes: 3, media: 12.7, nota_maxima: 15, completo: true,
-        medias_quesitos: { video: 4.3, resumo: 4.3, pesquisa: 4.7, continuidade: null },
+        avaliacoes: 3, media: 8.05, nota_maxima: 10, completo: true,
+        medias_secoes: secoes(0.15, 0.2, 1.47),
     },
     {
         projeto_id: 3, posicao: 3, titulo: 'Aplicativo de triagem', area: 'Saúde', categoria: 'FETECMS',
-        avaliacoes: 1, media: 9, nota_maxima: 15, completo: false,
-        medias_quesitos: { video: 3, resumo: 3, pesquisa: 3, continuidade: null },
+        avaliacoes: 1, media: 6.11, nota_maxima: 10, completo: false,
+        medias_secoes: secoes(0.15, 0.2, 1.2),
     },
 ];
 
@@ -43,8 +50,8 @@ describe('AvaliacaoRanking', () => {
         render(<AvaliacaoRanking />);
 
         expect(await screen.findByText('Secador solar')).toBeInTheDocument();
-        expect(screen.getByText('14,5')).toBeInTheDocument();
-        expect(screen.getAllByText('/15')).toHaveLength(3);
+        expect(screen.getByText('9,40')).toBeInTheDocument();
+        expect(screen.getAllByText('/10')).toHaveLength(3);
         expect(screen.getAllByText('3 avaliações')).toHaveLength(2);
 
         // Ordem no DOM segue a classificação do backend.
@@ -53,30 +60,17 @@ describe('AvaliacaoRanking', () => {
         expect(linhas[2]).toHaveTextContent('Aplicativo de triagem');
     });
 
-    it('mostra as médias de cada quesito', async () => {
+    it('mostra a média de cada seção da rubrica, com o teto da seção', async () => {
         render(<AvaliacaoRanking />);
         await screen.findByText('Secador solar');
 
-        expect(screen.getAllByText('Vídeo')).toHaveLength(3);
+        expect(screen.getAllByText('Título')).toHaveLength(3);
         expect(screen.getAllByText('Resumo')).toHaveLength(3);
-        expect(screen.getAllByText('Pesquisa')).toHaveLength(3);
-        expect(screen.getByText('4,7')).toBeInTheDocument();
-        // Nenhum destes tem projeto de continuação.
-        expect(screen.queryByText('Continuação')).not.toBeInTheDocument();
-    });
-
-    it('mostra a média da continuação só para quem tem esse quesito', async () => {
-        getRankingAvaliacao.mockResolvedValue([
-            {
-                ...RANKING[0],
-                medias_quesitos: { video: 5, resumo: 5, pesquisa: 4.5, continuidade: 4 },
-            },
-            RANKING[1],
-        ]);
-        render(<AvaliacaoRanking />);
-
-        await screen.findByText('Secador solar');
-        expect(screen.getAllByText('Continuação')).toHaveLength(1);
+        expect(screen.getAllByText('Vídeo')).toHaveLength(3);
+        expect(screen.getByText('1,80')).toBeInTheDocument();
+        // O teto acompanha a média, para "1,80" ser lido como 1,80 de 2.
+        expect(screen.getAllByText('de 2')).toHaveLength(3);
+        expect(screen.getAllByText('de 0,15')).toHaveLength(3);
     });
 
     it('sinaliza os projetos com média parcial', async () => {
@@ -93,8 +87,8 @@ describe('AvaliacaoRanking', () => {
             ...RANKING,
             {
                 projeto_id: 4, posicao: 4, titulo: 'Quarto colocado', area: 'Exatas', categoria: 'FETECMS',
-                avaliacoes: 3, media: 8, nota_maxima: 15, completo: true,
-                medias_quesitos: { video: 3, resumo: 2.5, pesquisa: 2.5, continuidade: null },
+                avaliacoes: 3, media: 4.2, nota_maxima: 10, completo: true,
+                medias_secoes: secoes(0, 0.1, 0.8),
             },
         ]);
         render(<AvaliacaoRanking />);

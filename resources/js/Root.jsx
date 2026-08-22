@@ -13,6 +13,7 @@ import Integrantes from './pages/Integrantes.jsx';
 import Resumo from './pages/Resumo.jsx';
 import Perfil from './pages/Perfil.jsx';
 import AvaliadorHome from './pages/AvaliadorHome.jsx';
+import AvaliadorPerfil from './pages/AvaliadorPerfil.jsx';
 import AdminHome from './pages/AdminHome.jsx';
 import AdminProjetosPorArea from './pages/AdminProjetosPorArea.jsx';
 import AdminProjetosPorEstado from './pages/AdminProjetosPorEstado.jsx';
@@ -82,6 +83,7 @@ export default function Root() {
                         {/* Área do avaliador */}
                         <Route element={<RoleRoute allow={['avaliador']} />}>
                             <Route path="/avaliador" element={<AvaliadorHome />} />
+                            <Route path="/avaliador/perfil" element={<AvaliadorPerfil />} />
                         </Route>
 
                         {/* Área do admin */}

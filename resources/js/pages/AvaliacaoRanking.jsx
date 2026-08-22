@@ -22,15 +22,22 @@ function Posicao({ n }) {
     );
 }
 
-/** Média com no máximo uma casa decimal, no formato pt_BR (ex.: 4,5). */
+/** Média no formato pt_BR com duas casas (ex.: 6,74). */
 const formatarMedia = (valor) =>
-    valor === null || valor === undefined ? '—' : String(Math.round(valor * 10) / 10).replace('.', ',');
+    valor === null || valor === undefined ? '—' : Number(valor).toFixed(2).replace('.', ',');
 
-function MediaQuesito({ rotulo, valor }) {
+/** Teto sem casas à toa (0,15 · 1,075 · 2). */
+const formatarMaximo = (valor) => String(Math.round(Number(valor) * 10000) / 10000).replace('.', ',');
+
+// Média de uma seção da rubrica: quanto o projeto tirou do que a seção vale.
+function MediaSecao({ secao }) {
     return (
-        <div className="text-center w-14">
-            <div className="text-sm font-semibold text-on-surface">{formatarMedia(valor)}</div>
-            <div className="text-[10px] text-on-surface-variant leading-tight">{rotulo}</div>
+        <div className="text-center w-16" title={`${secao.titulo}: média de ${formatarMedia(secao.media)} de ${formatarMaximo(secao.maximo)}`}>
+            <div className="text-sm font-semibold text-on-surface">{formatarMedia(secao.media)}</div>
+            <div className="text-[10px] text-on-surface-variant leading-tight">
+                {secao.titulo}
+                <span className="block text-on-surface-variant/70">de {formatarMaximo(secao.maximo)}</span>
+            </div>
         </div>
     );
 }
@@ -47,20 +54,17 @@ function Linha({ p }) {
                 </p>
             </div>
 
-            <div className="hidden sm:flex items-center gap-1 shrink-0">
-                <MediaQuesito rotulo="Vídeo" valor={p.medias_quesitos.video} />
-                <MediaQuesito rotulo="Resumo" valor={p.medias_quesitos.resumo} />
-                <MediaQuesito rotulo="Pesquisa" valor={p.medias_quesitos.pesquisa} />
-                {/* Só projetos com documento de continuação têm este quesito. */}
-                {p.medias_quesitos.continuidade !== null && p.medias_quesitos.continuidade !== undefined && (
-                    <MediaQuesito rotulo="Continuação" valor={p.medias_quesitos.continuidade} />
-                )}
+            {/* Uma coluna por seção pontuada da rubrica — rola na horizontal quando não cabe. */}
+            <div className="hidden sm:flex items-center gap-1 shrink-0 overflow-x-auto max-w-full">
+                {(p.medias_secoes ?? []).map((secao) => (
+                    <MediaSecao key={secao.chave} secao={secao} />
+                ))}
             </div>
 
             <div className="text-right shrink-0 w-24">
                 <div className="text-xl font-bold text-secondary">
                     {formatarMedia(p.media)}
-                    <span className="text-xs font-normal text-on-surface-variant">/{p.nota_maxima}</span>
+                    <span className="text-xs font-normal text-on-surface-variant">/{formatarMaximo(p.nota_maxima)}</span>
                 </div>
                 <div className="text-[10px] text-on-surface-variant leading-tight">
                     {p.avaliacoes} {p.avaliacoes === 1 ? 'avaliação' : 'avaliações'}
