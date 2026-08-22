@@ -75,6 +75,11 @@ export default function AdminMalaDiretaForm() {
     const [confirmar, dialogo] = useConfirm();
     const arquivoRef = useRef(null);
 
+    const corpoRef = useRef(null);
+    // Posição em que o cursor deve ficar depois que o React redesenhar o textarea
+    // (o campo é controlado: inserir texto não move o cursor sozinho).
+    const [cursorCorpo, setCursorCorpo] = useState(null);
+
     const [opcoes, setOpcoes] = useState(null);
     const [publicos, setPublicos] = useState([]);
     const [personalizados, setPersonalizados] = useState([]);
@@ -114,6 +119,28 @@ export default function AdminMalaDiretaForm() {
         }, 400);
         return () => { clearTimeout(t); setCarregandoPrevia(false); };
     }, [criterio, temCriterio, paginaLista]);
+
+    /** Insere a variável onde o cursor está (ou no fim, se o campo nunca teve foco). */
+    function inserirVariavel(chave) {
+        const marcador = `{{${chave}}}`;
+        const campo = corpoRef.current;
+        const corpo = form.corpo ?? '';
+        const inicio = campo?.selectionStart ?? corpo.length;
+        const fim = campo?.selectionEnd ?? corpo.length;
+
+        setForm({ ...form, corpo: corpo.slice(0, inicio) + marcador + corpo.slice(fim) });
+        setCursorCorpo(inicio + marcador.length);
+    }
+
+    useEffect(() => {
+        if (cursorCorpo === null) return;
+        const campo = corpoRef.current;
+        if (campo) {
+            campo.focus();
+            campo.setSelectionRange(cursorCorpo, cursorCorpo);
+        }
+        setCursorCorpo(null);
+    }, [cursorCorpo]);
 
     const alternarPublico = useCallback((valor) => {
         setPaginaLista(1);
@@ -328,9 +355,8 @@ export default function AdminMalaDiretaForm() {
                     <div>
                         <h2 className="font-display text-lg font-semibold text-on-surface mb-1">3. A mensagem</h2>
                         <p className="text-sm text-on-surface-variant">
-                            No texto, <code>{'{{nome}}'}</code> vira o primeiro nome de quem recebe,
-                            <code> {'{{nome_completo}}'}</code> o nome inteiro e <code>{'{{email}}'}</code> o
-                            endereço. Sem nome no cadastro, o tratamento vira “participante”.
+                            Os botões abaixo do texto inserem dados de quem recebe no ponto onde o
+                            cursor estiver. Sem nome no cadastro, o tratamento vira “participante”.
                         </p>
                     </div>
                     <Field label="Nome da mala" required error={erros.nome?.[0]}>
@@ -372,6 +398,7 @@ export default function AdminMalaDiretaForm() {
                     </Field>
                     <Field label="Texto da mensagem" required error={erros.corpo?.[0]}>
                         <textarea
+                            ref={corpoRef}
                             rows={10}
                             maxLength={20000}
                             className={TEXTAREA}
@@ -379,6 +406,21 @@ export default function AdminMalaDiretaForm() {
                             value={form.corpo}
                             onChange={(e) => setForm({ ...form, corpo: e.target.value })}
                         />
+                        <div className="flex flex-wrap items-center gap-2 pt-1">
+                            <span className="text-xs text-on-surface-variant">Inserir variável:</span>
+                            {(opcoes?.variaveis ?? []).map((variavel) => (
+                                <button
+                                    key={variavel.chave}
+                                    type="button"
+                                    title={`${variavel.rotulo} — ${variavel.descricao}`}
+                                    onClick={() => inserirVariavel(variavel.chave)}
+                                    className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold border border-outline-variant text-on-surface-variant hover:bg-primary-fixed hover:text-primary-container hover:border-primary-container transition-colors"
+                                >
+                                    <span className="material-symbols-outlined text-[14px]">add</span>
+                                    {`{{${variavel.chave}}}`}
+                                </button>
+                            ))}
+                        </div>
                     </Field>
                 </section>
 

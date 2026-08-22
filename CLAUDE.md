@@ -94,9 +94,12 @@ Tabela `users` única com coluna `role`: **`orientador`**, **`avaliador`**, **`a
     O envio vai para a **fila** (um job por destinatário) com **tela de progresso**; o relatório traz
     a situação de cada endereço, o motivo das falhas e o **reenvio só das falhas**. E-mail malformado
     entra como `invalido` no relatório em vez de barrar o disparo. Campos da mala: nome, justificativa,
-    solicitante (opcional — metadado interno, não vai no e-mail), assunto e texto (aceita as
-    variáveis `{{nome}}` — primeiro nome —, `{{nome_completo}}` e `{{email}}`, com ou sem espaços
-    dentro das chaves; sem nome conhecido, o tratamento vira "participante").
+    solicitante (opcional — metadado interno, não vai no e-mail), assunto e texto. O texto aceita as
+    variáveis `{{nome}}` — primeiro nome —, `{{nome_completo}}` e `{{email}}` (com ou sem espaços
+    dentro das chaves; sem nome conhecido, o tratamento vira "participante"), inseridas por **botões
+    abaixo do campo, na posição do cursor**. A lista mora em `MalaDiretaService::VARIAVEIS` e chega à
+    tela por `GET /admin/mala-direta/opcoes` — é a mesma que o `personalizar()` percorre, então
+    acrescentar uma variável lá já a faz aparecer no formulário.
 
 Regras-chave:
 - **Equipe: 1 a 4 alunos por projeto, condicionado à categoria** — *FETEC Jr* permite até 4;

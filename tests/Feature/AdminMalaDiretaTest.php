@@ -13,6 +13,7 @@ use App\Models\MalaDireta;
 use App\Models\MalaDiretaDestinatario;
 use App\Models\Projeto;
 use App\Models\User;
+use App\Services\MalaDiretaService;
 use Database\Seeders\CatalogoSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
@@ -353,6 +354,43 @@ class AdminMalaDiretaTest extends TestCase
         $this->assertStringContainsString('Beto Lima', $csv);
         $this->assertStringContainsString('Enviado', $csv);
         $this->assertStringContainsString('Lista personalizada', $csv);
+    }
+
+    public function test_opcoes_traz_publicos_situacoes_e_variaveis_da_mensagem(): void
+    {
+        $this->admin();
+
+        $resposta = $this->getJson('/api/v1/admin/mala-direta/opcoes')->assertOk();
+
+        $this->assertCount(count(PublicoMala::cases()), $resposta->json('data.publicos'));
+        $this->assertCount(count(StatusDestinatario::cases()), $resposta->json('data.situacoes'));
+        // A tela desenha os botões de variável a partir desta lista.
+        $this->assertSame(
+            ['nome', 'nome_completo', 'email'],
+            array_column($resposta->json('data.variaveis'), 'chave'),
+        );
+    }
+
+    public function test_corpo_aceita_as_tres_variaveis_com_ou_sem_espacos(): void
+    {
+        $destinatario = new MalaDiretaDestinatario(['email' => 'ana@escola.test', 'nome' => 'Ana Souza']);
+
+        $texto = app(MalaDiretaService::class)->personalizar(
+            '{{nome}} · {{ nome_completo }} · {{email}} · {{Nome}}',
+            $destinatario,
+        );
+
+        // A troca diferencia maiúsculas: {{Nome}} não é variável e sai literal.
+        $this->assertSame('Ana · Ana Souza · ana@escola.test · {{Nome}}', $texto);
+    }
+
+    public function test_sem_nome_conhecido_a_mensagem_usa_o_tratamento_padrao(): void
+    {
+        $destinatario = new MalaDiretaDestinatario(['email' => 'externo@parceiro.test', 'nome' => null]);
+
+        $texto = app(MalaDiretaService::class)->personalizar('Olá, {{nome}}!', $destinatario);
+
+        $this->assertSame('Olá, participante!', $texto);
     }
 
     public function test_orientador_nao_acessa_a_mala_direta(): void

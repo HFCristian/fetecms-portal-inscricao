@@ -16,6 +16,11 @@ const OPCOES = {
         { value: 'orientadores_rascunho', label: 'Orientadores com projeto em rascunho', descricao: 'Tem ao menos um projeto ainda em rascunho.' },
     ],
     situacoes: [],
+    variaveis: [
+        { chave: 'nome', rotulo: 'Primeiro nome', descricao: 'De "Ana Souza", vira "Ana".' },
+        { chave: 'nome_completo', rotulo: 'Nome completo', descricao: 'O nome como está no cadastro.' },
+        { chave: 'email', rotulo: 'E-mail', descricao: 'O endereço de quem recebe.' },
+    ],
     max_personalizados: 5000,
 };
 
@@ -155,6 +160,35 @@ describe('AdminMalaDiretaForm', () => {
         await waitFor(() => expect(screen.queryByText('Confirmar o envio')).not.toBeInTheDocument());
         expect(dispararMala).not.toHaveBeenCalled();
         expect(navigate).not.toHaveBeenCalled();
+    });
+
+    it('insere a variável na posição do cursor do texto', async () => {
+        render(<AdminMalaDiretaForm />);
+        await waitFor(() => expect(screen.getByText('{{nome}}')).toBeInTheDocument());
+
+        const corpo = screen.getByPlaceholderText(/Escreva aqui o comunicado/);
+        fireEvent.change(corpo, { target: { value: 'Olá, ! Tudo bem?' } });
+        corpo.setSelectionRange(5, 5); // logo antes do "!"
+
+        fireEvent.click(screen.getByText('{{nome}}'));
+
+        await waitFor(() => expect(corpo.value).toBe('Olá, {{nome}}! Tudo bem?'));
+        // O cursor fica depois da variável, pronto para continuar digitando.
+        expect(corpo.selectionStart).toBe(13);
+        expect(document.activeElement).toBe(corpo);
+    });
+
+    it('substitui o trecho selecionado ao inserir a variável', async () => {
+        render(<AdminMalaDiretaForm />);
+        await waitFor(() => expect(screen.getByText('{{email}}')).toBeInTheDocument());
+
+        const corpo = screen.getByPlaceholderText(/Escreva aqui o comunicado/);
+        fireEvent.change(corpo, { target: { value: 'Escreva para XXX hoje' } });
+        corpo.setSelectionRange(13, 16); // seleciona "XXX"
+
+        fireEvent.click(screen.getByText('{{email}}'));
+
+        await waitFor(() => expect(corpo.value).toBe('Escreva para {{email}} hoje'));
     });
 
     it('lista os destinatários da prévia sob demanda', async () => {
