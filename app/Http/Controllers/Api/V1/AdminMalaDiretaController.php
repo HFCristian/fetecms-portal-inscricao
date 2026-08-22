@@ -48,6 +48,7 @@ class AdminMalaDiretaController extends Controller
             'data' => [
                 'publicos' => PublicoMala::opcoes(),
                 'situacoes' => StatusDestinatario::opcoes(),
+                'variaveis' => MalaDiretaService::VARIAVEIS,
                 'max_personalizados' => MalaDiretaService::MAX_PERSONALIZADOS,
             ],
         ]);

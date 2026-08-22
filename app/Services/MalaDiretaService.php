@@ -34,6 +34,22 @@ class MalaDiretaService
     /** Teto de e-mails colados/importados de uma vez (evita CSV monstro). */
     public const MAX_PERSONALIZADOS = 5000;
 
+    /** Como o comunicado trata quem não tem nome conhecido. */
+    public const TRATAMENTO_PADRAO = 'participante';
+
+    /**
+     * Variáveis aceitas no corpo da mensagem, na ordem em que a tela as oferece.
+     * Esta lista é a fonte única: alimenta os botões do formulário e o laço de
+     * substituição do `personalizar()`.
+     *
+     * @var array<int, array{chave: string, rotulo: string, descricao: string}>
+     */
+    public const VARIAVEIS = [
+        ['chave' => 'nome', 'rotulo' => 'Primeiro nome', 'descricao' => 'De "Ana Souza", vira "Ana".'],
+        ['chave' => 'nome_completo', 'rotulo' => 'Nome completo', 'descricao' => 'O nome como está no cadastro.'],
+        ['chave' => 'email', 'rotulo' => 'E-mail', 'descricao' => 'O endereço de quem recebe.'],
+    ];
+
     /** Colunas do CSV de destinatários, na ordem em que aparecem. */
     private const CABECALHO_CSV = [
         'Nome', 'E-mail', 'Papel', 'Origem',
@@ -191,13 +207,14 @@ class MalaDiretaService
     public function personalizar(string $corpo, MalaDiretaDestinatario $destinatario): string
     {
         $valores = [
-            'nome' => $destinatario->primeiroNome() ?? 'participante',
-            'nome_completo' => $destinatario->nome ?: 'participante',
+            'nome' => $destinatario->primeiroNome() ?? self::TRATAMENTO_PADRAO,
+            'nome_completo' => $destinatario->nome ?: self::TRATAMENTO_PADRAO,
             'email' => $destinatario->email,
         ];
 
-        foreach ($valores as $chave => $valor) {
-            $corpo = preg_replace('/\{\{\s*'.$chave.'\s*\}\}/u', $valor, $corpo);
+        foreach (self::VARIAVEIS as $variavel) {
+            $chave = $variavel['chave'];
+            $corpo = preg_replace('/\{\{\s*'.$chave.'\s*\}\}/u', $valores[$chave], $corpo);
         }
 
         return $corpo;
