@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\AdminAvaliacaoController;
 use App\Http\Controllers\Api\V1\AdminController;
+use App\Http\Controllers\Api\V1\AdminMalaDiretaController;
 use App\Http\Controllers\Api\V1\AdminRegistroController;
 use App\Http\Controllers\Api\V1\AlunoController;
 use App\Http\Controllers\Api\V1\AuthController;
@@ -152,6 +153,19 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             // Trilha de registros (submissões, cancelamentos, exclusões, e-mails)
             Route::get('/registros', [AdminRegistroController::class, 'index']);
             Route::get('/registros/exportar', [AdminRegistroController::class, 'exportar']);
+
+            // Mala direta: comunicado em massa para um recorte da base.
+            Route::get('/mala-direta', [AdminMalaDiretaController::class, 'index']);
+            Route::post('/mala-direta/previa', [AdminMalaDiretaController::class, 'previa']);
+            Route::post('/mala-direta/previa/exportar', [AdminMalaDiretaController::class, 'exportarPrevia']);
+            // Disparo é caro e irreversível: limita a 10 malas por minuto.
+            Route::post('/mala-direta', [AdminMalaDiretaController::class, 'store'])
+                ->middleware('throttle:10,1');
+            Route::get('/mala-direta/{mala}', [AdminMalaDiretaController::class, 'show']);
+            Route::get('/mala-direta/{mala}/destinatarios', [AdminMalaDiretaController::class, 'destinatarios']);
+            Route::get('/mala-direta/{mala}/exportar', [AdminMalaDiretaController::class, 'exportar']);
+            Route::post('/mala-direta/{mala}/reenviar-falhas', [AdminMalaDiretaController::class, 'reenviarFalhas'])
+                ->middleware('throttle:10,1');
 
             Route::get('/projetos-por-area', [AdminController::class, 'projetosPorArea']);
             Route::get('/projetos-por-localidade', [AdminController::class, 'projetosPorLocalidade']);
