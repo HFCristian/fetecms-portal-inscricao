@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\V1\AlunoController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\AvaliadorAvaliacaoController;
 use App\Http\Controllers\Api\V1\AvaliadorController;
+use App\Http\Controllers\Api\V1\AvaliadorPerfilController;
 use App\Http\Controllers\Api\V1\CatalogoAdminController;
 use App\Http\Controllers\Api\V1\CatalogoController;
 use App\Http\Controllers\Api\V1\ChatAdminController;
@@ -113,6 +114,12 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::post('/{avaliacao}/iniciar', [AvaliadorAvaliacaoController::class, 'iniciar']);
             Route::post('/{avaliacao}/rascunho', [AvaliadorAvaliacaoController::class, 'rascunho']);
             Route::post('/{avaliacao}/concluir', [AvaliadorAvaliacaoController::class, 'concluir']);
+        });
+
+        // Perfil do avaliador: estatísticas do certificado e troca da própria área
+        Route::middleware('role:avaliador')->prefix('avaliador')->group(function () {
+            Route::get('/perfil', [AvaliadorPerfilController::class, 'show']);
+            Route::put('/perfil/classificacao', [AvaliadorPerfilController::class, 'atualizarClassificacao']);
         });
 
         // Chat de suporte — orientador/avaliador falam com o suporte (admin)

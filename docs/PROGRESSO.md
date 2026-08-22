@@ -575,3 +575,74 @@ recria as colunas antigas e desfaz a reescala.
 
 - **Falta a orientação da pergunta de "domínio do tema" no vídeo** (`????` no PDF). Assim que a
   comissão mandar o texto, é uma linha em `Rubrica::SECOES` — sem migration.
+
+
+---
+
+## Perfil do avaliador
+
+**Branch:** `feat/rubrica-fetecms-2025` (mesma do ajuste da rubrica)
+
+O menu do avaliador só tinha "Avaliações". Ganhou **Perfil** (`/avaliador/perfil`), espelhando
+o que o orientador já tem.
+
+### Estatísticas (três cards)
+
+| Card | O que mostra |
+|------|--------------|
+| **Projetos avaliados** | avaliações **concluídas** (as em andamento não contam), com o total designado a ele no detalhe |
+| **Certificado** | carga horária acumulada — **2h30 por avaliação concluída** (`AvaliadorProfile::MINUTOS_POR_AVALIACAO`), formatada como `7h30` / `5h` |
+| **No ranking de avaliadores** | posição por número de projetos avaliados, entre os avaliadores que já concluíram ao menos um |
+
+Decisões do ranking:
+
+- **Só entra quem já concluiu alguma avaliação.** Uma lista de zeros não classifica ninguém, e
+  mostrar "42º de 42" para quem ainda não começou não ajuda. Sem avaliações, o card exibe `—`
+  com o convite para concluir a primeira.
+- **Empate divide a posição**, como no ranking de projetos: dois avaliadores com 3 avaliações
+  ficam ambos em 1º e o seguinte em 3º. O card diz "posição dividida" nesse caso.
+- **O avaliador demo não é tratado à parte.** As avaliações de teste dele entram na conta como
+  qualquer outra — o admin já tem "limpar testes" para zerá-las.
+
+### Troca de área/subárea
+
+Liberada **só enquanto o período de avaliação não começou** (`Edicao::avaliacaoLiberada()`),
+porque depois disso a distribuição já foi feita em cima da classificação do avaliador. A regra
+vive em `AvaliadorService::podeTrocarClassificacao()` e é checada nos dois lados: a tela some
+com o formulário e o `PUT` responde 422.
+
+- **Vale também para o avaliador demo.** O modo teste adianta a *avaliação*, não a troca de área.
+- **Trocar de área não refaz as designações** que o admin já fez. Como a troca pode acontecer
+  com projetos já designados (o admin pode designar antes da liberação), a tela avisa quando
+  isso ocorre em vez de bloquear — refazer designação é do admin.
+- **Subárea continua opcional** e pode ser criada na hora pelo combobox, como no cadastro.
+  Trocar de área **limpa** a subárea anterior, que era de outra área.
+
+**Arquivos principais:** `app/Http/Controllers/Api/V1/AvaliadorPerfilController.php` (novo),
+`app/Http/Requests/Avaliador/AtualizarClassificacaoRequest.php` (novo),
+`app/Services/AvaliadorService.php` (`estatisticas`, `podeTrocarClassificacao`,
+`atualizarClassificacao`), `app/Support/Tempo.php` (`cargaHoraria`),
+`app/Models/AvaliadorProfile.php` (`MINUTOS_POR_AVALIACAO`), `routes/api.php`,
+`resources/js/pages/AvaliadorPerfil.jsx` (novo), `resources/js/lib/avaliador.js` (novo),
+`resources/js/components/AppShell.jsx`, `resources/js/Root.jsx`.
+
+### Resultado dos testes
+
+| Verificação | Antes | Agora |
+|-------------|-------|-------|
+| Backend (PHPUnit) | 322/322 | **337/337** (1141 asserções) |
+| Frontend (Vitest) | 98/98 | **108/108** (24 arquivos) |
+| Pint | limpo | **limpo** |
+| `npm run build` | OK | **OK** |
+
+Novos testes: `AvaliadorPerfilTest` (+15 — contagem e carga horária, hora cheia sem minutos,
+em andamento fora da conta, posição, empate, quem não avaliou, dados do perfil, restrição por
+papel, troca de área, limpeza da subárea, subárea de outra área, área obrigatória/inexistente,
+trava depois da liberação, demo também travado) e `AvaliadorPerfil.test.jsx` (+10).
+
+### Sugestões (fora do escopo, para você decidir)
+
+- **Emitir o certificado em PDF.** A carga horária já está calculada; falta o documento com o
+  nome do avaliador, as horas e a assinatura da organização.
+- **Ranking visível para o avaliador.** Hoje ele vê só a própria posição. Um quadro com os
+  primeiros colocados (com ou sem nomes) pode estimular a conclusão das avaliações.

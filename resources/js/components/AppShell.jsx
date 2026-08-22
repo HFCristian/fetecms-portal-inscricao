@@ -63,10 +63,16 @@ function NavLinks({ role, onNavigate, suporteBadge = 0 }) {
     }
     if (role === 'avaliador') {
         return (
-            <NavLink to="/avaliador" className={navClass} onClick={onNavigate}>
-                <span className="material-symbols-outlined">fact_check</span>
-                Avaliações
-            </NavLink>
+            <>
+                <NavLink to="/avaliador" end className={navClass} onClick={onNavigate}>
+                    <span className="material-symbols-outlined">fact_check</span>
+                    Avaliações
+                </NavLink>
+                <NavLink to="/avaliador/perfil" className={navClass} onClick={onNavigate}>
+                    <span className="material-symbols-outlined">account_circle</span>
+                    Perfil
+                </NavLink>
+            </>
         );
     }
     return (

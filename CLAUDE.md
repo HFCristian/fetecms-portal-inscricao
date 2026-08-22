@@ -71,6 +71,11 @@ Tabela `users` única com coluna `role`: **`orientador`**, **`avaliador`**, **`a
     projeto). A avaliação pode ser **salva como rascunho** a qualquer momento; o envio continua
     irreversível. As perguntas moram em `app/Support/Rubrica.php` e as respostas na coluna
     JSON `avaliacoes.respostas` — mexer na rubrica não pede migration.
+  - **Perfil do avaliador** (`/avaliador/perfil`): cards com **projetos avaliados**, **carga
+    horária do certificado** (**2h30 por avaliação concluída**) e **posição no ranking** de quem
+    mais avaliou (só entra quem já concluiu ao menos uma; empate divide a posição). Na mesma
+    tela ele **troca a própria área/subárea — só enquanto o período de avaliação não começou**
+    (`Edicao::avaliacaoLiberada()`), porque depois a distribuição já foi feita em cima dela.
   - Cada projeto passa por **≥ 3 avaliadores**, com *match* por **subárea** (preferencial) ou **área**.
   - **Distribuição automática**: casa subárea do projeto ↔ subárea do avaliador; se não houver,
     cai para a **mesma área**. (Algoritmo ainda a refinar.)
@@ -169,6 +174,7 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 14 | E7 Troca de e-mail (todos os papéis) + E8 Desfazer submissão & trilha de registros | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 15 | E9 Cadastro do avaliador (pós-graduação em andamento) + E10 Card de avaliação (preview do vídeo, quesito de continuidade, escala Likert) | ✅ sim | ✅ sim (Pedro, PR #53 → v1.13) | 0 |
 | 16 | Rubrica oficial da FETECMS (17 perguntas em 10 seções, pesos, balão "?", wizard) + remoção da avaliação do projeto de continuidade | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 17 | Perfil do avaliador: cards de estatística (avaliados, certificado 2h30/avaliação, posição no ranking) + troca da própria área fora do período de avaliação | ✅ sim | ❌ não (mesma branch da 16) | 2 |
 
 > **Estado atual:** ciclo de ajustes pós-v1 (Sprints 6–10) **concluído e verde** — back 110/110,
 > front 11/11, Pint limpo, build OK (estado integrado, já com a refatoração visual do Pedro).
@@ -249,6 +255,20 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > já concluídas (as respostas antigas não têm tradução para as perguntas novas).
 > (h) **Ranking do admin**: médias por **seção** no lugar das médias por quesito.
 > Back **322/322**, front **98/98**, Pint limpo, build OK.
+>
+> **Sprint 17 (mesma branch `feat/rubrica-fetecms-2025`):** o avaliador ganhou uma seção
+> **Perfil** no menu (`/avaliador/perfil`).
+> (a) **Três cards de estatística**: projetos avaliados (avaliações concluídas), carga horária
+> do certificado (**2h30 por avaliação**, `AvaliadorProfile::MINUTOS_POR_AVALIACAO`) e posição
+> no **ranking de avaliadores** por número de projetos avaliados. Entra no ranking quem já
+> concluiu ao menos uma; quem empata **divide a posição** (dois em 1º, ninguém em 2º).
+> (b) **Troca da própria área/subárea**, permitida **só fora do período de avaliação** — a
+> regra é `AvaliadorService::podeTrocarClassificacao()` e vale inclusive para o avaliador demo
+> (o modo teste adianta a avaliação, não a troca de área). Liberado o período, a tela mostra a
+> área em leitura com o motivo. Trocar de área **não refaz as designações** já feitas pelo
+> admin — a tela avisa quando há projetos designados.
+> (c) `GET /avaliador/perfil` e `PUT /avaliador/perfil/classificacao`.
+> Back **337/337**, front **108/108**, Pint limpo, build OK.
 
 ### Roadmap de sprints (proposto)
 
