@@ -45,6 +45,10 @@ function NavLinks({ role, onNavigate, suporteBadge = 0 }) {
                     <span className="material-symbols-outlined">history</span>
                     Registros
                 </NavLink>
+                <NavLink to="/admin/mala-direta" className={navClass} onClick={onNavigate}>
+                    <span className="material-symbols-outlined">forward_to_inbox</span>
+                    Mala direta
+                </NavLink>
                 <NavLink to="/admin/parametrizacao" className={navClass} onClick={onNavigate}>
                     <span className="material-symbols-outlined">tune</span>
                     Parametrização

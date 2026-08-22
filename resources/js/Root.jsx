@@ -33,6 +33,9 @@ import AvaliacaoRanking from './pages/AvaliacaoRanking.jsx';
 import AlterarSenha from './pages/AlterarSenha.jsx';
 import AlterarEmail from './pages/AlterarEmail.jsx';
 import AdminRegistros from './pages/AdminRegistros.jsx';
+import AdminMalaDireta from './pages/AdminMalaDireta.jsx';
+import AdminMalaDiretaForm from './pages/AdminMalaDiretaForm.jsx';
+import AdminMalaDiretaDetalhe from './pages/AdminMalaDiretaDetalhe.jsx';
 
 function Spinner() {
     return (
@@ -103,6 +106,9 @@ export default function Root() {
                             <Route path="/admin/parametrizacao/areas" element={<ParametrizacaoAreas />} />
                             <Route path="/admin/parametrizacao/escolas" element={<ParametrizacaoEscolas />} />
                             <Route path="/admin/registros" element={<AdminRegistros />} />
+                            <Route path="/admin/mala-direta" element={<AdminMalaDireta />} />
+                            <Route path="/admin/mala-direta/nova" element={<AdminMalaDiretaForm />} />
+                            <Route path="/admin/mala-direta/:id" element={<AdminMalaDiretaDetalhe />} />
                             <Route path="/admin/gerir-admins" element={<AdminManager />} />
                             <Route path="/admin/suporte" element={<AdminSuporte />} />
                         </Route>

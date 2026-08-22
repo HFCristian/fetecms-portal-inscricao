@@ -156,6 +156,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
 
             // Mala direta: comunicado em massa para um recorte da base.
             Route::get('/mala-direta', [AdminMalaDiretaController::class, 'index']);
+            Route::get('/mala-direta/opcoes', [AdminMalaDiretaController::class, 'opcoes']);
             Route::post('/mala-direta/previa', [AdminMalaDiretaController::class, 'previa']);
             Route::post('/mala-direta/previa/exportar', [AdminMalaDiretaController::class, 'exportarPrevia']);
             // Disparo é caro e irreversível: limita a 10 malas por minuto.

@@ -41,6 +41,18 @@ class AdminMalaDiretaController extends Controller
         ]);
     }
 
+    /** Opções de público e de situação — é o que a tela de composição desenha. */
+    public function opcoes(): JsonResponse
+    {
+        return response()->json([
+            'data' => [
+                'publicos' => PublicoMala::opcoes(),
+                'situacoes' => StatusDestinatario::opcoes(),
+                'max_personalizados' => MalaDiretaService::MAX_PERSONALIZADOS,
+            ],
+        ]);
+    }
+
     /**
      * Quantos e quais e-mails receberiam a mensagem com o critério atual —
      * a contagem que o admin vê antes de confirmar o disparo.
