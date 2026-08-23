@@ -247,7 +247,11 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > e **Escolas** (`/admin/parametrizacao/escolas`): admin busca, **renomeia, mescla** (reatribui
 > projetos/alunos/orientadores) e **exclui** instituições sem uso (`InstituicaoAdminService`/Controller,
 > rotas `admin/instituicoes`). Back **117/117**, front 11/11, Pint limpo, build OK.
-> **Pendências do Pedro:** (1) `git push origin changes`; (2) popular as escolas com
+> **Pendências do Pedro:** (1) `git push origin feat/reorganizacao-abas` + PR para a `main`
+> (o ambiente do Claude não tem credencial do GitHub) e, depois do merge, o deploy pela §11 do
+> [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md) — esta release traz **uma migration aditiva**
+> (`add_janelas_de_prazo_to_edicoes`: duas colunas anuláveis em `edicoes`) e **nenhuma variável
+> nova de `.env`; a fila (`queue:work`) continua obrigatória; (2) popular as escolas com
 > `php artisan instituicoes:importar` (lê `database/data/instituicoes/escolas_ms.csv`; 1888 escolas
 > de MS, todos os 79 municípios casam com o catálogo IBGE).
 >
