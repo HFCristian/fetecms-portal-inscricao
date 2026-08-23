@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\EnsureRole;
+use App\Http\Middleware\InscricoesAbertas;
 use App\Http\Middleware\SecurityHeaders;
 use App\Support\Tempo;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -37,6 +38,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'role' => EnsureRole::class,
+            'inscricoes.abertas' => InscricoesAbertas::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

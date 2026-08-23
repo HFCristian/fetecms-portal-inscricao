@@ -9,6 +9,7 @@ use App\Http\Resources\CoorientadorResource;
 use App\Http\Resources\DocumentoResource;
 use App\Http\Resources\ProjetoResource;
 use App\Models\Projeto;
+use App\Services\InscricoesService;
 use App\Services\ProjetoChecklistService;
 use App\Services\RegistroAtividadeService;
 use App\Services\SubmissaoService;
@@ -24,6 +25,7 @@ class ProjetoSubmissaoController extends Controller
         private readonly ProjetoChecklistService $checklist,
         private readonly SubmissaoService $submissoes,
         private readonly RegistroAtividadeService $registros,
+        private readonly InscricoesService $inscricoes,
     ) {}
 
     /** Resumo da inscrição (cadastro7): projeto + integrantes + checklist de pendências. */
@@ -44,7 +46,12 @@ class ProjetoSubmissaoController extends Controller
             ],
             'documentos' => DocumentoResource::collection($projeto->documentos)->resolve(),
             'pendencias' => $pendencias,
-            'pode_submeter' => $projeto->status->editavel() && empty($pendencias),
+            // Passado o prazo, nem um projeto com checklist completo pode ser
+            // enviado — inclusive quem cancelou o envio para editar.
+            'pode_submeter' => $projeto->status->editavel()
+                && empty($pendencias)
+                && ! $this->inscricoes->bloqueadoPara($request->user()),
+            'inscricoes' => $this->inscricoes->config(),
             // Desfazer a submissão (cancelar/excluir) enquanto a janela permitir.
             'pode_desfazer' => ! $projeto->status->editavel()
                 && $this->submissoes->podeDesfazer($projeto, $request->user()),

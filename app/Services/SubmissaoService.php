@@ -18,7 +18,10 @@ use Illuminate\Validation\ValidationException;
  */
 class SubmissaoService
 {
-    public function __construct(private readonly RegistroAtividadeService $registros) {}
+    public function __construct(
+        private readonly RegistroAtividadeService $registros,
+        private readonly InscricoesService $inscricoes,
+    ) {}
 
     /** Avaliações que já saíram do "designada" — ou seja, alguém começou a avaliar. */
     private const INICIADAS = [
@@ -54,18 +57,27 @@ class SubmissaoService
     }
 
     /**
-     * Impedimentos aplicados a ESTE autor: rascunho não tem submissão a desfazer
-     * e o admin passa sempre (escape previsto no edital para casos excepcionais).
+     * Impedimentos aplicados a ESTE autor: rascunho não tem submissão a desfazer,
+     * o prazo de inscrição congela qualquer escrita e o admin passa sempre
+     * (escape previsto no edital para casos excepcionais).
      *
      * @return array<int, array{code: string, message: string}>
      */
     public function impedimentosPara(Projeto $projeto, User $autor): array
     {
-        if ($projeto->status->editavel() || $autor->isAdmin()) {
+        if ($autor->isAdmin()) {
             return [];
         }
 
-        return $this->impedimentos($projeto);
+        // Rascunho não tem submissão a desfazer — mas ainda pode estar congelado
+        // pelo prazo, que vale para qualquer escrita do orientador.
+        $motivos = $projeto->status->editavel() ? [] : $this->impedimentos($projeto);
+
+        if ($this->inscricoes->encerradas()) {
+            $motivos[] = $this->inscricoes->motivo();
+        }
+
+        return $motivos;
     }
 
     /** O projeto pode ser cancelado/excluído por este usuário? */

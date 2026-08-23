@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth.jsx';
 import { getConversasNaoVistas } from '../lib/chat.js';
 import SupportFooter from './SupportFooter.jsx';
 import ChatWidget from './ChatWidget.jsx';
+import AvisoCard from './AvisoCard.jsx';
 
 function navClass({ isActive }) {
     return (
@@ -32,6 +33,10 @@ function NavLinks({ role, onNavigate, suporteBadge = 0 }) {
                 <NavLink to="/admin" end className={navClass} onClick={onNavigate}>
                     <span className="material-symbols-outlined">folder</span>
                     Projetos
+                </NavLink>
+                <NavLink to="/admin/inscricoes" className={navClass} onClick={onNavigate}>
+                    <span className="material-symbols-outlined">app_registration</span>
+                    Inscrições
                 </NavLink>
                 <NavLink to="/admin/avaliadores" className={navClass} onClick={onNavigate}>
                     <span className="material-symbols-outlined">fact_check</span>
@@ -217,6 +222,8 @@ export default function AppShell({ children }) {
                     <p className="text-sm text-on-surface-variant mb-4">
                         Olá, <strong className="text-on-surface">{user?.name}</strong>
                     </p>
+                    {/* Aviso do admin: só para o orientador, em qualquer tela dele. */}
+                    <AvisoCard ativo={user?.role === 'orientador'} />
                     {children}
                     <SupportFooter className="mt-10 pb-2 md:hidden" />
                 </div>

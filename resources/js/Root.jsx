@@ -14,6 +14,8 @@ import Resumo from './pages/Resumo.jsx';
 import Perfil from './pages/Perfil.jsx';
 import AvaliadorHome from './pages/AvaliadorHome.jsx';
 import AvaliadorPerfil from './pages/AvaliadorPerfil.jsx';
+import AdminAvisoDetalhe from './pages/AdminAvisoDetalhe.jsx';
+import AdminInscricoes from './pages/AdminInscricoes.jsx';
 import AdminHome from './pages/AdminHome.jsx';
 import AdminProjetosPorArea from './pages/AdminProjetosPorArea.jsx';
 import AdminProjetosPorEstado from './pages/AdminProjetosPorEstado.jsx';
@@ -92,6 +94,8 @@ export default function Root() {
                         {/* Área do admin */}
                         <Route element={<RoleRoute allow={['admin']} />}>
                             <Route path="/admin" element={<AdminHome />} />
+                            <Route path="/admin/inscricoes" element={<AdminInscricoes />} />
+                            <Route path="/admin/inscricoes/avisos/:id" element={<AdminAvisoDetalhe />} />
                             <Route path="/admin/avaliadores" element={<AdminAvaliadores />} />
                             <Route path="/admin/avaliacao" element={<AdminAvaliacaoOnline />} />
                             <Route path="/admin/avaliacao/avaliadores" element={<AvaliacaoAvaliadores />} />

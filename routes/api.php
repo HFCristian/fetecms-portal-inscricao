@@ -1,7 +1,9 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AdminAvaliacaoController;
+use App\Http\Controllers\Api\V1\AdminAvisoController;
 use App\Http\Controllers\Api\V1\AdminController;
+use App\Http\Controllers\Api\V1\AdminInscricoesController;
 use App\Http\Controllers\Api\V1\AdminMalaDiretaController;
 use App\Http\Controllers\Api\V1\AdminRegistroController;
 use App\Http\Controllers\Api\V1\AlunoController;
@@ -9,12 +11,14 @@ use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\AvaliadorAvaliacaoController;
 use App\Http\Controllers\Api\V1\AvaliadorController;
 use App\Http\Controllers\Api\V1\AvaliadorPerfilController;
+use App\Http\Controllers\Api\V1\AvisoController;
 use App\Http\Controllers\Api\V1\CatalogoAdminController;
 use App\Http\Controllers\Api\V1\CatalogoController;
 use App\Http\Controllers\Api\V1\ChatAdminController;
 use App\Http\Controllers\Api\V1\ChatController;
 use App\Http\Controllers\Api\V1\CoorientadorController;
 use App\Http\Controllers\Api\V1\DocumentoController;
+use App\Http\Controllers\Api\V1\InscricoesController;
 use App\Http\Controllers\Api\V1\InstituicaoAdminController;
 use App\Http\Controllers\Api\V1\IntegranteController;
 use App\Http\Controllers\Api\V1\OrientadorController;
@@ -86,27 +90,42 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
         Route::post('/catalogos/instituicoes', [CatalogoController::class, 'criarInstituicao'])
             ->middleware('throttle:30,1');
 
-        Route::apiResource('projetos', ProjetoController::class);
+        // Card de aviso publicado pelo admin: consultado de tempos em tempos
+        // pelo front, marcado como visto quando aparece e fechado pela pessoa.
+        Route::get('/avisos/ativo', [AvisoController::class, 'ativo']);
+        Route::post('/avisos/{aviso}/visto', [AvisoController::class, 'visto']);
+        Route::post('/avisos/{aviso}/fechar', [AvisoController::class, 'fechar']);
 
-        // Submissão (E6) — resumo/checklist e envio irreversível
-        Route::get('projetos/{projeto}/resumo', [ProjetoSubmissaoController::class, 'resumo']);
-        Route::post('projetos/{projeto}/submeter', [ProjetoSubmissaoController::class, 'submeter']);
-        // Desfazer a submissão (volta a rascunho) enquanto a avaliação não começou
-        Route::post('projetos/{projeto}/cancelar-submissao', [ProjetoSubmissaoController::class, 'cancelar']);
+        // Prazo de inscrição: quem está logado precisa saber se ainda dá para
+        // escrever (é o que explica os botões desabilitados na tela do orientador).
+        Route::get('/inscricoes', [InscricoesController::class, 'show']);
 
-        // Integrantes do projeto (E4)
-        Route::get('projetos/{projeto}/integrantes', [IntegranteController::class, 'index']);
-        Route::apiResource('projetos.alunos', AlunoController::class)->shallow();
-        Route::get('projetos/{projeto}/coorientador', [CoorientadorController::class, 'show']);
-        Route::put('projetos/{projeto}/coorientador', [CoorientadorController::class, 'upsert']);
-        Route::delete('projetos/{projeto}/coorientador', [CoorientadorController::class, 'destroy']);
+        // Tudo que ESCREVE em projeto passa pelo prazo de submissão: depois da
+        // data-limite a área do orientador fica só de leitura (GET passa sempre,
+        // e o admin também).
+        Route::middleware('inscricoes.abertas')->group(function () {
+            Route::apiResource('projetos', ProjetoController::class);
 
-        // Documentos do projeto (E5) — upload PDF/DOCX, download autenticado
-        Route::get('projetos/{projeto}/documentos', [DocumentoController::class, 'index']);
-        Route::post('projetos/{projeto}/documentos', [DocumentoController::class, 'store']);
-        Route::get('documentos/{documento}/download', [DocumentoController::class, 'download']);
-        Route::get('documentos/{documento}/preview', [DocumentoController::class, 'preview']);
-        Route::delete('documentos/{documento}', [DocumentoController::class, 'destroy']);
+            // Submissão (E6) — resumo/checklist e envio irreversível
+            Route::get('projetos/{projeto}/resumo', [ProjetoSubmissaoController::class, 'resumo']);
+            Route::post('projetos/{projeto}/submeter', [ProjetoSubmissaoController::class, 'submeter']);
+            // Desfazer a submissão (volta a rascunho) enquanto a avaliação não começou
+            Route::post('projetos/{projeto}/cancelar-submissao', [ProjetoSubmissaoController::class, 'cancelar']);
+
+            // Integrantes do projeto (E4)
+            Route::get('projetos/{projeto}/integrantes', [IntegranteController::class, 'index']);
+            Route::apiResource('projetos.alunos', AlunoController::class)->shallow();
+            Route::get('projetos/{projeto}/coorientador', [CoorientadorController::class, 'show']);
+            Route::put('projetos/{projeto}/coorientador', [CoorientadorController::class, 'upsert']);
+            Route::delete('projetos/{projeto}/coorientador', [CoorientadorController::class, 'destroy']);
+
+            // Documentos do projeto (E5) — upload PDF/DOCX, download autenticado
+            Route::get('projetos/{projeto}/documentos', [DocumentoController::class, 'index']);
+            Route::post('projetos/{projeto}/documentos', [DocumentoController::class, 'store']);
+            Route::get('documentos/{documento}/download', [DocumentoController::class, 'download']);
+            Route::get('documentos/{documento}/preview', [DocumentoController::class, 'preview']);
+            Route::delete('documentos/{documento}', [DocumentoController::class, 'destroy']);
+        });
 
         // Avaliação online — lado do avaliador (E7): ler, iniciar e concluir com nota
         Route::middleware('role:avaliador')->prefix('avaliacao')->group(function () {
@@ -151,6 +170,20 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::patch('/avaliacao/avaliadores/{avaliador}/demo', [AdminAvaliacaoController::class, 'demo']);
             Route::delete('/avaliacao/testes', [AdminAvaliacaoController::class, 'limparTestes']);
             // Trilha de registros (submissões, cancelamentos, exclusões, e-mails)
+            // Aba "Inscrições": prazo de submissão dos projetos.
+            Route::get('/inscricoes', [AdminInscricoesController::class, 'show']);
+            Route::patch('/inscricoes/prazo', [AdminInscricoesController::class, 'definirPrazo']);
+            // Avisos na tela dos orientadores (um ativo por vez).
+            Route::get('/avisos/opcoes', [AdminAvisoController::class, 'opcoes']);
+            Route::get('/avisos/ativo', [AdminAvisoController::class, 'ativo']);
+            Route::post('/avisos/previa', [AdminAvisoController::class, 'previa']);
+            Route::post('/avisos', [AdminAvisoController::class, 'store']);
+            Route::get('/avisos', [AdminAvisoController::class, 'index']);
+            Route::post('/avisos/{aviso}/encerrar', [AdminAvisoController::class, 'encerrar']);
+            Route::get('/avisos/{aviso}', [AdminAvisoController::class, 'show']);
+            Route::get('/avisos/{aviso}/leitores', [AdminAvisoController::class, 'leitores']);
+            Route::get('/avisos/{aviso}/exportar', [AdminAvisoController::class, 'exportar']);
+
             Route::get('/registros', [AdminRegistroController::class, 'index']);
             Route::get('/registros/exportar', [AdminRegistroController::class, 'exportar']);
 
