@@ -34,8 +34,7 @@ import AvaliacaoAvaliadores from './pages/AvaliacaoAvaliadores.jsx';
 import AvaliacaoProjetos from './pages/AvaliacaoProjetos.jsx';
 import AvaliacaoReclassificacoes from './pages/AvaliacaoReclassificacoes.jsx';
 import AvaliacaoRanking from './pages/AvaliacaoRanking.jsx';
-import AlterarSenha from './pages/AlterarSenha.jsx';
-import AlterarEmail from './pages/AlterarEmail.jsx';
+import Acesso from './pages/Acesso.jsx';
 import AdminRegistros from './pages/AdminRegistros.jsx';
 import AdminMalaDireta from './pages/AdminMalaDireta.jsx';
 import AdminMalaDiretaForm from './pages/AdminMalaDiretaForm.jsx';
@@ -73,8 +72,10 @@ export default function Root() {
 
                         {/* Disponível a qualquer usuário autenticado */}
                         <Route element={<RoleRoute />}>
-                            <Route path="/alterar-senha" element={<AlterarSenha />} />
-                            <Route path="/alterar-email" element={<AlterarEmail />} />
+                            <Route path="/acesso" element={<Acesso />} />
+                            {/* URLs antigas (links salvos, e-mails já enviados) caem na tela nova. */}
+                            <Route path="/alterar-senha" element={<Navigate to="/acesso" replace />} />
+                            <Route path="/alterar-email" element={<Navigate to="/acesso" replace />} />
                         </Route>
 
                         {/* Área do orientador */}

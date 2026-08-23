@@ -138,7 +138,7 @@ class AdminTest extends TestCase
 
         $resp = $this->getJson('/api/v1/admin/projetos-por-area')->assertOk();
 
-        $grupos = collect($resp->json('data'));
+        $grupos = collect($resp->json('data.areas'));
         $this->assertSame(2, $grupos->sum('total'));
 
         // O grupo sem área usa o rótulo de fallback e fica por último.
@@ -147,6 +147,32 @@ class AdminTest extends TestCase
         $this->assertSame('Área ainda não informada', $semArea['area']);
         $this->assertSame('Área ainda não informada', $grupos->last()['area']);
         $this->assertSame($area->nome, $grupos->firstWhere('area_id', $area->id)['area']);
+    }
+
+    public function test_projetos_por_area_traz_os_cards_por_categoria(): void
+    {
+        $orient = User::factory()->create();
+
+        Projeto::factory()->submetido()->create(['user_id' => $orient->id, 'categoria' => Categoria::FetecJr]);
+        Projeto::factory()->create(['user_id' => $orient->id, 'categoria' => Categoria::FetecJr]);   // rascunho
+        Projeto::factory()->create(['user_id' => $orient->id, 'categoria' => Categoria::Fetecms]);   // rascunho
+        Projeto::factory()->create(['user_id' => $orient->id, 'categoria' => null]);                 // fora dos cards
+
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $cards = collect($this->getJson('/api/v1/admin/projetos-por-area')->assertOk()->json('data.categorias'));
+
+        // Uma linha por categoria do enum, mesmo as zeradas.
+        $this->assertCount(count(Categoria::cases()), $cards);
+
+        $jr = $cards->firstWhere('value', Categoria::FetecJr->value);
+        $this->assertSame(1, $jr['submetidos']);
+        $this->assertSame(1, $jr['rascunho']);
+        $this->assertSame(2, $jr['total']);
+
+        $ms = $cards->firstWhere('value', Categoria::Fetecms->value);
+        $this->assertSame(0, $ms['submetidos']);
+        $this->assertSame(1, $ms['rascunho']);
     }
 
     public function test_nao_admin_nao_acessa_projetos_por_area(): void

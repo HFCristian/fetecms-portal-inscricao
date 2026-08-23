@@ -38,26 +38,26 @@ function NavLinks({ role, onNavigate, suporteBadge = 0 }) {
                     <span className="material-symbols-outlined">grading</span>
                     Avaliação online
                 </NavLink>
-                <NavLink to="/admin/registros" className={navClass} onClick={onNavigate}>
-                    <span className="material-symbols-outlined">history</span>
-                    Registros
-                </NavLink>
                 <NavLink to="/admin/comunicacao" className={navClass} onClick={onNavigate}>
                     <span className="material-symbols-outlined">campaign</span>
                     Comunicação
-                </NavLink>
-                <NavLink to="/admin/parametrizacao" className={navClass} onClick={onNavigate}>
-                    <span className="material-symbols-outlined">tune</span>
-                    Parametrização
                 </NavLink>
                 <NavLink to="/admin/suporte" className={navClass} onClick={onNavigate}>
                     <span className="material-symbols-outlined">forum</span>
                     Suporte
                     <NavBadge count={suporteBadge} />
                 </NavLink>
+                <NavLink to="/admin/parametrizacao" className={navClass} onClick={onNavigate}>
+                    <span className="material-symbols-outlined">tune</span>
+                    Parametrização
+                </NavLink>
                 <NavLink to="/admin/gerir-admins" className={navClass} onClick={onNavigate}>
                     <span className="material-symbols-outlined">people</span>
                     Administradores
+                </NavLink>
+                <NavLink to="/admin/registros" className={navClass} onClick={onNavigate}>
+                    <span className="material-symbols-outlined">history</span>
+                    Registros
                 </NavLink>
             </>
         );
@@ -146,13 +146,9 @@ export default function AppShell({ children }) {
                 <div className="flex-1 flex flex-col gap-1">
                     <NavLinks role={user?.role} suporteBadge={suporteBadge} />
                     <div className="flex flex-col gap-1 mt-auto mb-4">
-                        <NavLink to="/alterar-email" className={navClass}>
-                            <span className="material-symbols-outlined">alternate_email</span>
-                            Alterar e-mail
-                        </NavLink>
-                        <NavLink to="/alterar-senha" className={navClass}>
+                        <NavLink to="/acesso" className={navClass}>
                             <span className="material-symbols-outlined">lock</span>
-                            Alterar senha
+                            Acesso
                         </NavLink>
                         <LogoutButton onClick={handleLogout} />
                         <SupportFooter className="pb-2 mt-3" />
@@ -194,13 +190,9 @@ export default function AppShell({ children }) {
                         <NavLinks role={user?.role} onNavigate={() => setMenuOpen(false)} suporteBadge={suporteBadge} />
                     </div>
                     <div className="p-4 border-t border-outline-variant/30 flex flex-col gap-1 shrink-0">
-                        <NavLink to="/alterar-email" className={navClass} onClick={() => setMenuOpen(false)}>
-                            <span className="material-symbols-outlined">alternate_email</span>
-                            Alterar e-mail
-                        </NavLink>
-                        <NavLink to="/alterar-senha" className={navClass} onClick={() => setMenuOpen(false)}>
+                        <NavLink to="/acesso" className={navClass} onClick={() => setMenuOpen(false)}>
                             <span className="material-symbols-outlined">lock</span>
-                            Alterar senha
+                            Acesso
                         </NavLink>
                         <LogoutButton onClick={handleLogout} />
                         <SupportFooter className="mt-3" />

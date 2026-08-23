@@ -230,6 +230,8 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 25 | Avaliadores Online: cards + gráfico da aba "Avaliadores" migrados para a tela e remoção da aba | ✅ sim | ❌ não (manual do Pedro) | 3 |
 | 26 | Parametrização: janela de inscrição (abertura + prazo) e período de avaliação (início + fim) | ✅ sim | ❌ não (manual do Pedro) | 3 |
 | 27 | Aba Comunicação (mala direta + avisos) e remoção da aba Inscrições | ✅ sim | ❌ não (manual do Pedro) | 3 |
+| 28 | Projetos por área: cards por categoria (submetidos/rascunho) + áreas compactáveis | ✅ sim | ❌ não (manual do Pedro) | 4 |
+| 29 | Aba "Acesso": e-mail e senha na mesma tela + menu do admin reordenado | ✅ sim | ❌ não (manual do Pedro) | 4 |
 
 > **Estado atual:** ciclo de ajustes pós-v1 (Sprints 6–10) **concluído e verde** — back 110/110,
 > front 11/11, Pint limpo, build OK (estado integrado, já com a refatoração visual do Pedro).
@@ -400,6 +402,19 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > *Mala direta* e *Avisos*); a aba **Inscrições sumiu** e sua tela de avisos virou
 > `AdminAvisos` em `/admin/comunicacao/avisos` (relatório em `/admin/comunicacao/avisos/:id`).
 > Back **424/424**, front **187/187**, Pint limpo, build OK.
+>
+> **Sprints 28–29 (mesma branch `feat/reorganizacao-abas`):**
+> (a) **Sprint 28** — "Projetos por área" (o *Ver mais* do card de projetos) ganhou **um card por
+> categoria da feira** no topo, com **submetidos e rascunho** de cada uma, e as **áreas viraram
+> listas compactáveis** (`GrupoArea` + `BotoesExpandir`, como em "Projetos submetidos"), com os
+> projetos em ordem alfabética de título. `GET /admin/projetos-por-area` passou a devolver
+> `{ categorias, areas }` (`AdminProjetosService::painel()`).
+> (b) **Sprint 29** — "Alterar e-mail" e "Alterar senha" viraram **uma tela só**, `/acesso`
+> (`Acesso.jsx`, dois formulários), no lugar do antigo item "Alterar senha" no rodapé do menu
+> dos três papéis. `/alterar-email` e `/alterar-senha` **redirecionam** para ela. O menu do
+> admin foi reordenado para **Projetos · Avaliação online · Comunicação · Suporte ·
+> Parametrização · Administradores · Registros**.
+> Back **425/425**, front **191/191**, Pint limpo, build OK.
 
 ### Roadmap de sprints (proposto)
 
