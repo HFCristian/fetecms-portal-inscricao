@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Enums\StatusAvaliacao;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Avaliador\AtualizarClassificacaoRequest;
 use App\Models\AvaliadorProfile;
@@ -57,8 +56,6 @@ class AvaliadorPerfilController extends Controller
             'area' => $perfil?->area?->nome,
             'subarea_id' => $perfil?->subarea_id,
             'subarea' => $perfil?->subarea?->nome,
-            'limite_avaliacoes' => $perfil?->limite_avaliacoes,
-            'max_por_avaliador' => StatusAvaliacao::MAX_POR_AVALIADOR,
             'estatisticas' => $this->avaliadores->estatisticas($user),
             // Fora do período de avaliação a área ainda pode ser trocada.
             'pode_trocar_area' => $this->avaliadores->podeTrocarClassificacao(),

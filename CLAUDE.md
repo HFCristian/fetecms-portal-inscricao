@@ -193,6 +193,9 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 16 | Rubrica oficial da FETECMS (17 perguntas em 10 seções, pesos, balão "?", wizard) + remoção da avaliação do projeto de continuidade | ✅ sim | ✅ sim (Pedro, PR #54 → v1.14) | 0 |
 | 17 | Perfil do avaliador: cards de estatística (avaliados, certificado 2h30/avaliação, posição no ranking) + troca da própria área fora do período de avaliação | ✅ sim | ✅ sim (Pedro, PR #54 → v1.14) | 0 |
 | 18 | Mala direta: públicos + lista personalizada (CSV), prévia com contagem/listagem/export, disparo pela fila com progresso e relatório de falhas | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 19 | Perfil do avaliador: remoção do campo "Limite de avaliações" | ✅ sim | ❌ não (manual do Pedro) | 2 |
+| 20 | Projetos submetidos (admin): busca de avaliador por nome, lista alfabética, áreas compactáveis e ordenação por métrica | ✅ sim | ❌ não (manual do Pedro) | 2 |
+| 21 | Avaliadores por área (admin): áreas compactáveis e ordenação por métrica | ✅ sim | ❌ não (manual do Pedro) | 2 |
 
 > **Estado atual:** ciclo de ajustes pós-v1 (Sprints 6–10) **concluído e verde** — back 110/110,
 > front 11/11, Pint limpo, build OK (estado integrado, já com a refatoração visual do Pedro).
@@ -308,6 +311,23 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > (HTML + versão texto), sem o tema markdown do Laravel.
 > (f) **Exige `php artisan queue:work` no deploy** — sem worker a mala fica em "Enviando".
 > Back **354/354**, front **136/136**, Pint limpo, build OK.
+>
+> **Sprints 19–21 (branch `feat/inscricoes-e-avisos`, saída da `origin/main` @ `4980136`):**
+> (a) **Sprint 19** — o card "Seus dados" do `/avaliador/perfil` não mostra mais o
+> **limite de avaliações**, e o payload de `GET /avaliador/perfil` deixou de expor
+> `limite_avaliacoes`/`max_por_avaliador`. O recurso continua vivo para o admin
+> (botão de cadeado em "Avaliadores por área") e na distribuição automática.
+> (b) **Sprint 20** — "Projetos submetidos": a designação escolhe o alvo por **busca
+> digitada** (`BuscaCombobox`, mesma UX do `SubareaCombobox`, sem criar), com a lista de
+> avaliadores **achatada e em ordem alfabética** (`localeCompare` pt-BR — o agrupamento por
+> área da API deixava a busca fora de ordem). Cada área virou uma **lista compactável** com
+> **ordenação própria** por realizadas/em avaliação/faltantes, nos dois sentidos.
+> (c) **Sprint 21** — mesma lista compactável + ordenação em "Avaliadores por área"
+> (em avaliação/já avaliou/faltam).
+> (d) O acordeão e a ordenação moram no componente compartilhado `GrupoArea`
+> (`useAreasAbertas` + `BotoesExpandir` para "Expandir/Recolher todas"); empate na métrica
+> cai para a ordem alfabética. Áreas começam **fechadas**.
+> Back **357/357**, front **149/149**, Pint limpo, build OK.
 
 ### Roadmap de sprints (proposto)
 

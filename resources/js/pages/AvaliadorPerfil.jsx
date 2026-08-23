@@ -154,9 +154,6 @@ export default function AvaliadorPerfil() {
                             <Dado label="Nome">{dados.nome}</Dado>
                             <Dado label="E-mail">{dados.email}</Dado>
                             <Dado label="Titulação">{dados.titulacao}</Dado>
-                            <Dado label="Limite de avaliações">
-                                {dados.limite_avaliacoes ?? `${dados.max_por_avaliador} (padrão do edital)`}
-                            </Dado>
                         </div>
                     </section>
 
