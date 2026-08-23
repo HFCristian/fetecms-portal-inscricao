@@ -138,7 +138,7 @@ class AdminTest extends TestCase
 
         $resp = $this->getJson('/api/v1/admin/projetos-por-area')->assertOk();
 
-        $grupos = collect($resp->json('data.areas'));
+        $grupos = collect($resp->json('data'));
         $this->assertSame(2, $grupos->sum('total'));
 
         // O grupo sem área usa o rótulo de fallback e fica por último.
@@ -149,30 +149,28 @@ class AdminTest extends TestCase
         $this->assertSame($area->nome, $grupos->firstWhere('area_id', $area->id)['area']);
     }
 
-    public function test_projetos_por_area_traz_os_cards_por_categoria(): void
+    public function test_projetos_por_area_conta_submetidos_e_rascunhos_de_cada_area(): void
     {
         $orient = User::factory()->create();
+        $area = Area::first();
 
-        Projeto::factory()->submetido()->create(['user_id' => $orient->id, 'categoria' => Categoria::FetecJr]);
-        Projeto::factory()->create(['user_id' => $orient->id, 'categoria' => Categoria::FetecJr]);   // rascunho
-        Projeto::factory()->create(['user_id' => $orient->id, 'categoria' => Categoria::Fetecms]);   // rascunho
-        Projeto::factory()->create(['user_id' => $orient->id, 'categoria' => null]);                 // fora dos cards
+        Projeto::factory()->submetido()->create(['user_id' => $orient->id, 'area_id' => $area->id]);
+        Projeto::factory()->create(['user_id' => $orient->id, 'area_id' => $area->id]);          // rascunho
+        Projeto::factory()->create(['user_id' => $orient->id, 'area_id' => $area->id]);          // rascunho
+        Projeto::factory()->create(['user_id' => $orient->id, 'area_id' => null]);               // rascunho sem área
 
         Sanctum::actingAs(User::factory()->admin()->create());
 
-        $cards = collect($this->getJson('/api/v1/admin/projetos-por-area')->assertOk()->json('data.categorias'));
+        $grupos = collect($this->getJson('/api/v1/admin/projetos-por-area')->assertOk()->json('data'));
 
-        // Uma linha por categoria do enum, mesmo as zeradas.
-        $this->assertCount(count(Categoria::cases()), $cards);
+        $comArea = $grupos->firstWhere('area_id', $area->id);
+        $this->assertSame(1, $comArea['submetidos']);
+        $this->assertSame(2, $comArea['rascunho']);
+        $this->assertSame(3, $comArea['total']);
 
-        $jr = $cards->firstWhere('value', Categoria::FetecJr->value);
-        $this->assertSame(1, $jr['submetidos']);
-        $this->assertSame(1, $jr['rascunho']);
-        $this->assertSame(2, $jr['total']);
-
-        $ms = $cards->firstWhere('value', Categoria::Fetecms->value);
-        $this->assertSame(0, $ms['submetidos']);
-        $this->assertSame(1, $ms['rascunho']);
+        $semArea = $grupos->firstWhere('area_id', null);
+        $this->assertSame(0, $semArea['submetidos']);
+        $this->assertSame(1, $semArea['rascunho']);
     }
 
     public function test_nao_admin_nao_acessa_projetos_por_area(): void

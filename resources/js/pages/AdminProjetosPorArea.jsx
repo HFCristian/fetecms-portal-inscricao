@@ -11,37 +11,32 @@ const STATUS_PILL = {
     rejeitado: 'bg-error-container text-on-error-container',
 };
 
-// Um card por categoria da feira, no mesmo formato do "Projetos por status" do painel.
-function CardCategoria({ categoria }) {
+// Um card por área do conhecimento, no mesmo formato do "Projetos por status" do painel.
+function CardArea({ grupo }) {
     return (
         <div className="flex flex-col items-center text-center gap-2 bg-surface-container-lowest rounded-xl fetec-card-shadow p-5">
             <span className="material-symbols-outlined text-primary-container text-2xl">category</span>
             <div className="flex gap-4 py-2">
                 <div>
-                    <div className="text-3xl font-bold text-secondary">{categoria.submetidos}</div>
+                    <div className="text-3xl font-bold text-secondary">{grupo.submetidos}</div>
                     <div className="text-xs text-on-surface-variant">Submetidos</div>
                 </div>
                 <div>
-                    <div className="text-3xl font-bold text-primary-container">{categoria.rascunho}</div>
+                    <div className="text-3xl font-bold text-primary-container">{grupo.rascunho}</div>
                     <div className="text-xs text-on-surface-variant">Rascunho</div>
                 </div>
             </div>
-            <div className="text-sm text-on-surface-variant">{categoria.label}</div>
+            <div className="text-sm text-on-surface-variant">{grupo.area}</div>
         </div>
     );
 }
 
 export default function AdminProjetosPorArea() {
-    const [painel, setPainel] = useState(null);
+    const [grupos, setGrupos] = useState(null);
     const abertas = useAreasAbertas();
 
-    useEffect(() => {
-        getProjetosPorArea()
-            .then(setPainel)
-            .catch(() => setPainel({ categorias: [], areas: [] }));
-    }, []);
+    useEffect(() => { getProjetosPorArea().then(setGrupos).catch(() => setGrupos([])); }, []);
 
-    const grupos = painel?.areas ?? [];
     // O grupo "sem área" vem com area_id null: a chave do acordeão precisa ser estável.
     const chave = (g) => g.area_id ?? 0;
 
@@ -56,15 +51,15 @@ export default function AdminProjetosPorArea() {
                 área para abrir a lista.
             </p>
 
-            {painel === null ? (
+            {grupos === null ? (
                 <div className="text-center py-6 text-on-surface-variant">
                     <span className="inline-block w-8 h-8 rounded-full border-4 border-on-surface-variant/25 border-t-primary animate-spin align-[-0.2em]" role="status" aria-label="Carregando" />
                 </div>
             ) : (
                 <>
-                    {painel.categorias?.length > 0 && (
+                    {grupos.length > 0 && (
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-6">
-                            {painel.categorias.map((c) => <CardCategoria key={c.value} categoria={c} />)}
+                            {grupos.map((g) => <CardArea key={chave(g)} grupo={g} />)}
                         </div>
                     )}
 

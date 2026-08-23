@@ -4,51 +4,53 @@ import { describe, it, expect, vi } from 'vitest';
 vi.mock('../components/AppShell.jsx', () => ({ default: ({ children }) => <div>{children}</div> }));
 vi.mock('react-router-dom', () => ({ Link: ({ children, to }) => <a href={to}>{children}</a> }));
 
-const getProjetosPorArea = vi.fn(() => Promise.resolve({
-    categorias: [
-        { value: 'fetec_jr', label: 'FETEC Jr', submetidos: 3, rascunho: 1, total: 4 },
-        { value: 'fetecms', label: 'FETECMS', submetidos: 7, rascunho: 2, total: 9 },
-        { value: 'fetecms_fundect', label: 'FETECMS FUNDECT', submetidos: 0, rascunho: 0, total: 0 },
-    ],
-    areas: [
-        {
-            area_id: 1,
-            area: 'Ciências Agrárias',
-            total: 2,
-            projetos: [
-                { id: 10, titulo: 'Zebra do cerrado', status: 'submetido', status_label: 'Submetido', categoria_label: 'FETECMS' },
-                { id: 11, titulo: 'Abelha nativa', status: 'rascunho', status_label: 'Rascunho', categoria_label: 'FETEC Jr' },
-            ],
-        },
-        {
-            area_id: null,
-            area: 'Área ainda não informada',
-            total: 1,
-            projetos: [{ id: 12, titulo: 'Sem área', status: 'rascunho', status_label: 'Rascunho', categoria_label: null }],
-        },
-    ],
-}));
+const getProjetosPorArea = vi.fn(() => Promise.resolve([
+    {
+        area_id: 1,
+        area: 'Ciências Agrárias',
+        total: 2,
+        submetidos: 1,
+        rascunho: 1,
+        projetos: [
+            { id: 10, titulo: 'Zebra do cerrado', status: 'submetido', status_label: 'Submetido', categoria_label: 'FETECMS' },
+            { id: 11, titulo: 'Abelha nativa', status: 'rascunho', status_label: 'Rascunho', categoria_label: 'FETEC Jr' },
+        ],
+    },
+    {
+        area_id: null,
+        area: 'Área ainda não informada',
+        total: 1,
+        submetidos: 0,
+        rascunho: 1,
+        projetos: [{ id: 12, titulo: 'Sem área', status: 'rascunho', status_label: 'Rascunho', categoria_label: null }],
+    },
+]));
 vi.mock('../lib/admin.js', () => ({ getProjetosPorArea: (...a) => getProjetosPorArea(...a) }));
 
 import AdminProjetosPorArea from './AdminProjetosPorArea.jsx';
 
+// O nome da área aparece duas vezes (card e cabeçalho do grupo).
+const cabecalho = (area) => screen.getByRole('button', { name: new RegExp(area) });
+
 describe('AdminProjetosPorArea', () => {
-    it('mostra um card por categoria com submetidos e rascunhos', async () => {
+    it('mostra um card por área com submetidos e rascunhos', async () => {
         render(<AdminProjetosPorArea />);
 
-        expect(await screen.findByText('FETEC Jr')).toBeInTheDocument();
-        expect(screen.getByText('FETECMS FUNDECT')).toBeInTheDocument();
-        expect(screen.getByText('7')).toBeInTheDocument(); // submetidos da FETECMS
-        expect(screen.getAllByText('Submetidos')).toHaveLength(3);
+        // Uma área com projeto = um card, inclusive a dos projetos sem área.
+        expect(await screen.findAllByText('Ciências Agrárias')).toHaveLength(2);
+        expect(screen.getAllByText('Área ainda não informada')).toHaveLength(2);
+        expect(screen.getAllByText('Submetidos')).toHaveLength(2);
+        // As pílulas de status só aparecem com o grupo aberto — aqui são só os cards.
+        expect(screen.getAllByText('Rascunho')).toHaveLength(2);
     });
 
     it('começa com as áreas compactadas e abre ao clicar', async () => {
         render(<AdminProjetosPorArea />);
 
-        expect(await screen.findByText('Ciências Agrárias')).toBeInTheDocument();
+        await screen.findAllByText('Ciências Agrárias');
         expect(screen.queryByText('Zebra do cerrado')).not.toBeInTheDocument();
 
-        fireEvent.click(screen.getByText('Ciências Agrárias'));
+        fireEvent.click(cabecalho('Ciências Agrárias'));
 
         // Aberta, a lista sai em ordem alfabética de título.
         const titulos = screen.getAllByText(/Zebra do cerrado|Abelha nativa/).map((n) => n.textContent);

@@ -2,58 +2,12 @@
 
 namespace App\Services;
 
-use App\Enums\Categoria;
 use App\Enums\ProjetoStatus;
 use App\Models\Projeto;
 use Illuminate\Support\Collection;
 
 class AdminProjetosService
 {
-    /**
-     * Tela "Projetos por área": os cards por categoria da feira, no topo, e os
-     * grupos por área do conhecimento (compactáveis) embaixo.
-     *
-     * @return array{categorias: list<array<string, mixed>>, areas: array<int, array<string, mixed>>}
-     */
-    public function painel(): array
-    {
-        return [
-            'categorias' => $this->porCategoria(),
-            'areas' => $this->porArea(),
-        ];
-    }
-
-    /**
-     * Submetidos e rascunhos de cada categoria da feira. Sai sempre com todas as
-     * categorias, na ordem do enum, mesmo as zeradas. Rascunho ainda sem
-     * categoria escolhida não entra em nenhuma — por isso a soma pode ficar
-     * abaixo do total de projetos.
-     *
-     * @return list<array{value: string, label: string, submetidos: int, rascunho: int, total: int}>
-     */
-    public function porCategoria(): array
-    {
-        $totais = Projeto::query()
-            ->whereNotNull('categoria')
-            ->groupBy('categoria', 'status')
-            ->selectRaw('categoria, status, count(*) as total')
-            ->get()
-            ->groupBy('categoria');
-
-        return array_map(function (Categoria $c) use ($totais) {
-            $linhas = $totais[$c->value] ?? collect();
-            $de = fn (ProjetoStatus $s) => (int) ($linhas->firstWhere('status', $s->value)->total ?? 0);
-
-            return [
-                'value' => $c->value,
-                'label' => $c->label(),
-                'submetidos' => $de(ProjetoStatus::Submetido),
-                'rascunho' => $de(ProjetoStatus::Rascunho),
-                'total' => (int) $linhas->sum('total'),
-            ];
-        }, Categoria::cases());
-    }
-
     /**
      * Projetos agrupados pela área do conhecimento (inclui rascunhos).
      * Projetos sem área caem no grupo "Área ainda não informada", que é
@@ -74,15 +28,23 @@ class AdminProjetosService
             ->all();
     }
 
-    /** @param  Collection<int, Projeto>  $itens */
+    /**
+     * Cada grupo já traz os números do card da área: quantos submetidos e
+     * quantos ainda em rascunho (aprovado/rejeitado entram só no total).
+     *
+     * @param  Collection<int, Projeto>  $itens
+     */
     private function montarGrupo(Collection $itens): array
     {
         $area = $itens->first()->area;
+        $comStatus = fn (ProjetoStatus $s) => $itens->where('status', $s)->count();
 
         return [
             'area_id' => $area?->id,
             'area' => $area?->nome ?? 'Área ainda não informada',
             'total' => $itens->count(),
+            'submetidos' => $comStatus(ProjetoStatus::Submetido),
+            'rascunho' => $comStatus(ProjetoStatus::Rascunho),
             'projetos' => $itens->map(fn (Projeto $p) => [
                 'id' => $p->id,
                 'titulo' => $p->titulo,
