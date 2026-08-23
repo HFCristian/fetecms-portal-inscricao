@@ -42,7 +42,9 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
 
     // Públicas (com rate limiting contra brute force)
     Route::post('/orientadores', [OrientadorController::class, 'store'])
-        ->middleware('throttle:10,1');
+        ->middleware(['throttle:10,1', 'inscricoes.iniciadas']);
+    // Janela de inscrição vista por quem ainda não tem conta (tela de cadastro).
+    Route::get('/inscricoes/publico', [InscricoesController::class, 'show']);
     Route::post('/avaliadores', [AvaliadorController::class, 'store'])
         ->middleware('throttle:10,1');
     // O bloqueio por excesso de tentativas é feito no AuthService, por e-mail+IP e
@@ -159,6 +161,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             // Avaliação online (E7): visão por área de avaliadores e projetos submetidos
             Route::get('/avaliacao/config', [AdminAvaliacaoController::class, 'config']);
             Route::patch('/avaliacao/config', [AdminAvaliacaoController::class, 'definirLiberacao']);
+            Route::patch('/avaliacao/encerramento', [AdminAvaliacaoController::class, 'definirEncerramento']);
             Route::get('/avaliacao/avaliadores', [AdminAvaliacaoController::class, 'avaliadores']);
             Route::get('/avaliacao/projetos', [AdminAvaliacaoController::class, 'projetos']);
             Route::get('/avaliacao/reclassificacoes', [AdminAvaliacaoController::class, 'reclassificacoes']);
@@ -173,6 +176,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             // Aba "Inscrições": prazo de submissão dos projetos.
             Route::get('/inscricoes', [AdminInscricoesController::class, 'show']);
             Route::patch('/inscricoes/prazo', [AdminInscricoesController::class, 'definirPrazo']);
+            Route::patch('/inscricoes/inicio', [AdminInscricoesController::class, 'definirInicio']);
             // Avisos na tela dos orientadores (um ativo por vez).
             Route::get('/avisos/opcoes', [AdminAvisoController::class, 'opcoes']);
             Route::get('/avisos/ativo', [AdminAvisoController::class, 'ativo']);

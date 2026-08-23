@@ -84,15 +84,25 @@ Tabela `users` única com coluna `role`: **`orientador`**, **`avaliador`**, **`a
 - **Admin**: criado **somente por outro admin** (cadastro simples: nome, e-mail, senha). Dashboard
   com as métricas: projetos totais / submetidos / em rascunho; **projetos por categoria**;
   orientadores; alunos; coorientadores; escolas, cidades e estados **com projeto cadastrado**.
-  - **Inscrições** (`/admin/inscricoes`, 2º item do menu): **prazo de submissão** da edição
-    (`edicoes.submissoes_ate`, hora de parede de Campo Grande). Passado o prazo, a área do
+  - **Parametrização → Inscrições** (`/admin/parametrizacao/inscricoes`): a **janela de
+    inscrição** da edição — **abertura** (`edicoes.submissoes_de`) e **prazo de submissão**
+    (`edicoes.submissoes_ate`), ambos hora de parede de Campo Grande. Fora da janela a área do
     orientador fica **só de leitura** — não cria, não edita (projeto, alunos, coorientador,
     anexos), não submete, não cancela a submissão e não exclui; quem cancelou o envio para
-    editar **não reenvia** depois do prazo. O admin passa por cima (escape do edital). A regra
-    mora no `InscricoesService` e é aplicada pelo middleware `inscricoes.abertas` nas rotas que
-    escrevem (GET sempre passa) e pelo `SubmissaoService` (que também explica o motivo em
-    `pode_desfazer`/`impedimentos_desfazer`). Sem data definida, as inscrições ficam abertas.
-  - **Avisos na tela** (mesma aba): o admin publica um card com **título e mensagem livres**,
+    editar **não reenvia** depois do prazo. **Antes da abertura** o cadastro público de
+    orientador também fica fechado (o de avaliador não). O admin passa por cima (escape do
+    edital). A regra mora no `InscricoesService` e é aplicada pelos middlewares
+    `inscricoes.abertas` (rotas que escrevem em projeto; GET sempre passa) e
+    `inscricoes.iniciadas` (cadastro de orientador), além do `SubmissaoService` (que também
+    explica o motivo em `pode_desfazer`/`impedimentos_desfazer`). Cada ponta sem data fica
+    aberta; a tela de cadastro lê `GET /inscricoes/publico` para avisar antes da abertura.
+  - **Parametrização → Avaliação Online** (`/admin/parametrizacao/avaliacao`): **início**
+    (`edicoes.avaliacao_liberada_em`) e **fim** (`edicoes.avaliacao_encerrada_em`) do período.
+    Encerrado, o avaliador ainda **lê** os projetos designados e o que respondeu, mas não
+    inicia, não salva rascunho e não envia (`AvaliacaoFluxoService::podeVer()` vs
+    `podeAvaliar()`); o demo em modo teste ignora as duas datas. O "período começou" que trava
+    o cancelamento de submissão e a troca de área do avaliador continua sendo só o início.
+  - **Comunicação → Avisos** (`/admin/comunicacao/avisos`): o admin publica um card com **título e mensagem livres**,
     que aparece para os **orientadores ativos** conectados em até ~1 min (polling; não há
     WebSocket no projeto) e pode ser fechado por cada um. **Um ativo por vez** — publicar um
     novo encerra o anterior; dá para encerrar à mão. O texto aceita `{{prazo_inscricoes}}`,
@@ -102,7 +112,7 @@ Tabela `users` única com coluna `role`: **`orientador`**, **`avaliador`**, **`a
     real de quem está lendo. **Relatório** por aviso: quantos viram, fecharam e ainda não viram,
     com a lista nome a nome (filtro por situação, busca e export CSV) e o histórico dos avisos
     anteriores.
-  - **Mala direta** (`/admin/mala-direta`): comunicado por e-mail para um recorte da base.
+  - **Comunicação → Mala direta** (`/admin/mala-direta`): comunicado por e-mail para um recorte da base.
     O admin combina quantos **públicos** quiser (todos, orientadores, avaliadores, orientadores
     com rascunho, com submetido, avaliadores com avaliação **em andamento** ou **concluída**) e/ou
     cola uma **lista personalizada** (digitada ou importada de `.csv` com as colunas `email`/`nome`).
@@ -217,6 +227,9 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 22 | Aba "Inscrições" + prazo de submissão (bloqueia submeter/cancelar/editar depois da data) | ✅ sim | ❌ não (manual do Pedro) | 2 |
 | 23 | Avisos na tela: composição (título/mensagem/variáveis/modelo) + card no orientador | ✅ sim | ❌ não (manual do Pedro) | 2 |
 | 24 | Avisos: relatório de quem viu/fechou/não viu + histórico + export CSV | ✅ sim | ❌ não (manual do Pedro) | 2 |
+| 25 | Avaliadores Online: cards + gráfico da aba "Avaliadores" migrados para a tela e remoção da aba | ✅ sim | ❌ não (manual do Pedro) | 3 |
+| 26 | Parametrização: janela de inscrição (abertura + prazo) e período de avaliação (início + fim) | ✅ sim | ❌ não (manual do Pedro) | 3 |
+| 27 | Aba Comunicação (mala direta + avisos) e remoção da aba Inscrições | ✅ sim | ❌ não (manual do Pedro) | 3 |
 
 > **Estado atual:** ciclo de ajustes pós-v1 (Sprints 6–10) **concluído e verde** — back 110/110,
 > front 11/11, Pint limpo, build OK (estado integrado, já com a refatoração visual do Pedro).
@@ -368,6 +381,25 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > `/exportar` (CSV UTF-8 com BOM, separador `;`). A lista é o público de hoje **mais** quem já
 > registrou visualização, para uma conta desativada depois de ler não sumir do relatório.
 > Back **405/405**, front **180/180**, Pint limpo, build OK.
+>
+> **Sprints 25–27 (branch `feat/reorganizacao-abas`, saída da `main` @ `b13759c`):** reorganização
+> das abas do admin.
+> (a) **Sprint 25** — a aba "Avaliadores" **deixou de existir**: os três cards (total/ativos/
+> inativos) e o gráfico por área viraram o componente `PanoramaAvaliadores`, no topo de
+> "Avaliadores por área", que passou a se chamar **Avaliadores Online**. O endpoint
+> `GET /admin/avaliadores` continua o mesmo.
+> (b) **Sprint 26** — **Parametrização** ganhou os cards **Inscrições** e **Avaliação Online**.
+> Nasceram `edicoes.submissoes_de` (abertura) e `edicoes.avaliacao_encerrada_em` (fim), com
+> validação de ordem nos dois pares. Antes da abertura, além do projeto, o **cadastro de
+> orientador** fica fechado (`inscricoes.iniciadas` + `GET /inscricoes/publico` para a tela de
+> cadastro avisar). Encerrada a avaliação, o avaliador fica em **leitura** (`podeVer` ≠
+> `podeAvaliar`; `AvaliacaoModal` recebe `somenteLeitura`). Os quatro campos de data usam o
+> mesmo `CampoDataCard`. A aba "Avaliação online" só mostra um resumo das datas, com link para
+> a Parametrização.
+> (c) **Sprint 27** — a aba "Mala direta" virou **Comunicação** (landing com dois cards:
+> *Mala direta* e *Avisos*); a aba **Inscrições sumiu** e sua tela de avisos virou
+> `AdminAvisos` em `/admin/comunicacao/avisos` (relatório em `/admin/comunicacao/avisos/:id`).
+> Back **424/424**, front **187/187**, Pint limpo, build OK.
 
 ### Roadmap de sprints (proposto)
 

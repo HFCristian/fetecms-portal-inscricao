@@ -28,10 +28,11 @@ class AvaliadorAvaliacaoController extends Controller
     {
         $user = $request->user();
         $teste = $request->boolean('teste');
+        $podeVer = $this->fluxo->podeVer($user, $teste);
         $pode = $this->fluxo->podeAvaliar($user, $teste);
 
         $projetos = [];
-        if ($pode) {
+        if ($podeVer) {
             $projetos = Avaliacao::query()
                 ->where('avaliador_id', $user->id)
                 ->with(['projeto:id,titulo,area_id', 'projeto.area:id,nome'])
@@ -45,6 +46,10 @@ class AvaliadorAvaliacaoController extends Controller
         return response()->json(['data' => [
             'liberada' => (bool) $edicao?->avaliacaoLiberada(),
             'liberada_em_label' => $edicao?->avaliacao_liberada_em?->format('d/m/Y H:i'),
+            'encerrada' => (bool) $edicao?->avaliacaoEncerrada(),
+            'encerrada_em_label' => $edicao?->avaliacao_encerrada_em?->format('d/m/Y H:i'),
+            // Ver != avaliar: encerrado o período, a leitura continua liberada.
+            'pode_ver' => $podeVer,
             'pode_avaliar' => $pode,
             'is_demo' => (bool) $user->is_demo,
             'modo_teste' => $teste && (bool) $user->is_demo,
@@ -56,9 +61,10 @@ class AvaliadorAvaliacaoController extends Controller
     /** Abre um projeto designado para leitura. */
     public function show(Request $request, Avaliacao $avaliacao): JsonResponse
     {
-        $this->garantirAcesso($request, $avaliacao);
+        $this->garantirLeitura($request, $avaliacao);
 
         return response()->json(['data' => [
+            'pode_avaliar' => $this->fluxo->podeAvaliar($request->user(), $request->boolean('teste')),
             'avaliacao' => $this->avaliacao($avaliacao),
             'projeto' => $this->fluxo->detalhesProjeto($avaliacao->projeto),
             // Perguntas, escala e pesos: o front só desenha o que vem daqui.
@@ -99,13 +105,25 @@ class AvaliadorAvaliacaoController extends Controller
         ]);
     }
 
-    private function garantirAcesso(Request $request, Avaliacao $avaliacao): void
+    /** Leitura: exige ser o dono e a avaliação já liberada. */
+    private function garantirLeitura(Request $request, Avaliacao $avaliacao): void
     {
         abort_unless($avaliacao->avaliador_id === $request->user()->id, 403, 'Esta avaliação não é sua.');
         abort_unless(
-            $this->fluxo->podeAvaliar($request->user(), $request->boolean('teste')),
+            $this->fluxo->podeVer($request->user(), $request->boolean('teste')),
             403,
             'A avaliação ainda não está liberada.'
+        );
+    }
+
+    /** Escrita: além da leitura, exige o período de avaliação em aberto. */
+    private function garantirAcesso(Request $request, Avaliacao $avaliacao): void
+    {
+        $this->garantirLeitura($request, $avaliacao);
+        abort_unless(
+            $this->fluxo->podeAvaliar($request->user(), $request->boolean('teste')),
+            403,
+            $this->fluxo->motivoBloqueio()
         );
     }
 

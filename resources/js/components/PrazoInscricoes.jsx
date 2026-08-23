@@ -1,12 +1,25 @@
 import { Alert } from './ui.jsx';
 
 /**
- * Aviso do prazo de submissão na área do orientador: enquanto está aberto,
- * lembra a data; depois de encerrado, explica por que os botões sumiram.
+ * Aviso da janela de inscrição na área do orientador: antes da abertura e
+ * depois do encerramento explica por que os botões sumiram; no meio, lembra
+ * até quando dá para submeter.
  *
  * `inscricoes` é o payload de GET /inscricoes (ou o campo `inscricoes` do resumo).
  */
 export default function PrazoInscricoes({ inscricoes, className = '' }) {
+    if (inscricoes?.nao_iniciadas) {
+        return (
+            <div className={className}>
+                <Alert>
+                    As inscrições ainda não começaram
+                    {inscricoes.inicio_label ? <> — abrem em <strong>{inscricoes.inicio_label}</strong></> : null}.
+                    Você já pode conferir seus dados; o cadastro de projetos libera na abertura.
+                </Alert>
+            </div>
+        );
+    }
+
     if (!inscricoes?.prazo_label) return null;
 
     if (inscricoes.encerradas) {

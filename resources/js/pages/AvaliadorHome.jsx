@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import AppShell from '../components/AppShell.jsx';
-import { Toggle } from '../components/ui.jsx';
+import { Alert, Toggle } from '../components/ui.jsx';
 import AvaliacaoModal from '../components/AvaliacaoModal.jsx';
 import { useAuth } from '../lib/auth.jsx';
 import { getMinhaAvaliacao } from '../lib/avaliacao.js';
@@ -35,7 +35,7 @@ export default function AvaliadorHome() {
     const carregar = useCallback((teste) => {
         return getMinhaAvaliacao(teste)
             .then(setDados)
-            .catch(() => setDados({ liberada: false, pode_avaliar: false, is_demo: false, projetos: [] }));
+            .catch(() => setDados({ liberada: false, pode_ver: false, pode_avaliar: false, is_demo: false, projetos: [] }));
     }, []);
 
     useEffect(() => { carregar(modoTeste); }, [carregar, modoTeste]);
@@ -61,11 +61,23 @@ export default function AvaliadorHome() {
                 </div>
             )}
 
+            {/* Período encerrado: a leitura continua, a escrita não. */}
+            {dados?.pode_ver && !dados.pode_avaliar && (
+                <div className="mb-4 max-w-3xl">
+                    <Alert>
+                        O período de avaliação foi encerrado
+                        {dados.encerrada_em_label ? <> em <strong>{dados.encerrada_em_label}</strong></> : null}. Você
+                        ainda pode abrir os projetos e conferir o que respondeu, mas não é mais possível iniciar,
+                        salvar ou enviar avaliações.
+                    </Alert>
+                </div>
+            )}
+
             {dados === null ? (
                 <div className="text-center py-10 text-on-surface-variant">
                     <span className="inline-block w-8 h-8 rounded-full border-4 border-on-surface-variant/25 border-t-primary animate-spin align-[-0.2em]" role="status" aria-label="Carregando" />
                 </div>
-            ) : !dados.pode_avaliar ? (
+            ) : !dados.pode_ver ? (
                 <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-10 text-center max-w-3xl">
                     <span className="material-symbols-outlined text-[48px] text-primary-container">event_upcoming</span>
                     <p className="text-on-surface mt-3 font-semibold">As avaliações ainda não foram liberadas</p>
@@ -107,7 +119,7 @@ export default function AvaliadorHome() {
                                     onClick={() => setAvaliando(p.avaliacao_id)}
                                     className="shrink-0 text-sm font-semibold text-primary-container hover:text-primary border border-outline-variant rounded-lg px-3 py-1.5 hover:bg-surface-variant transition-colors"
                                 >
-                                    {botaoLabel(p.status)}
+                                    {dados.pode_avaliar ? botaoLabel(p.status) : 'Ver'}
                                 </button>
                             </li>
                         ))}
@@ -119,6 +131,7 @@ export default function AvaliadorHome() {
                 <AvaliacaoModal
                     avaliacaoId={avaliando}
                     teste={modoTeste && dados?.is_demo}
+                    somenteLeitura={!dados?.pode_avaliar}
                     onFechar={() => setAvaliando(null)}
                     onAtualizado={() => carregar(modoTeste)}
                 />

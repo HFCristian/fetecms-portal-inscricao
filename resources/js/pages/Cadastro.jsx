@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth, extractErrors, homeFor } from '../lib/auth.jsx';
 import AuthCard from '../components/AuthCard.jsx';
@@ -9,6 +9,7 @@ import { listaPaises } from '../lib/paises.js';
 import { useCatalogos, loadCidades, loadSubareas, buscarInstituicoes } from '../lib/catalogos.js';
 import { MIN_IDADE, idadeEmAnos } from '../lib/idade.js';
 import { validarObrigatorios, MSG_OBRIGATORIO } from '../lib/validacao.js';
+import { getInscricoesPublico } from '../lib/inscricoes.js';
 
 const PAISES = listaPaises();
 
@@ -41,6 +42,9 @@ export default function Cadastro() {
     const [alert, setAlert] = useState('');
     const [loading, setLoading] = useState(false);
     const catalogos = useCatalogos();
+    // Antes da abertura o cadastro de orientador fica fechado (o backend recusa).
+    const [inscricoes, setInscricoes] = useState(null);
+    useEffect(() => { getInscricoesPublico().then(setInscricoes).catch(() => setInscricoes(null)); }, []);
     const [cidades, setCidades] = useState([]);
     const [subareas, setSubareas] = useState([]);
 
@@ -174,6 +178,15 @@ export default function Cadastro() {
         <AuthCard>
             <div className="px-6 sm:px-10 pt-8 pb-4 border-b border-outline-variant/20">
                 <h2 className="font-display text-xl font-semibold text-on-surface mb-4">Cadastro do Orientador</h2>
+                {inscricoes?.nao_iniciadas && (
+                    <div className="mb-4">
+                        <Alert>
+                            As inscrições ainda não começaram
+                            {inscricoes.inicio_label ? <> — abrem em <strong>{inscricoes.inicio_label}</strong></> : null}.
+                            O cadastro de orientador só será aceito a partir dessa data.
+                        </Alert>
+                    </div>
+                )}
                 <div className="flex items-center justify-between relative">
                     <div className="absolute top-1/2 left-0 w-full h-0.5 bg-surface-variant -translate-y-1/2" />
                     <div

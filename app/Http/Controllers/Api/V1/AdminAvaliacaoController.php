@@ -6,6 +6,7 @@ use App\Enums\ProjetoStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\AplicarReclassificacaoRequest;
 use App\Http\Requests\Admin\DesignarAvaliacaoRequest;
+use App\Http\Requests\Admin\EncerramentoAvaliacaoRequest;
 use App\Http\Requests\Admin\LiberacaoAvaliacaoRequest;
 use App\Http\Requests\Admin\LimiteAvaliadorRequest;
 use App\Models\Projeto;
@@ -32,7 +33,7 @@ class AdminAvaliacaoController extends Controller
         return response()->json(['data' => $this->service->avaliadoresPorArea()]);
     }
 
-    /** Configuração da liberação da avaliação (data + se já liberada). */
+    /** Configuração do período de avaliação (liberação + encerramento). */
     public function config(): JsonResponse
     {
         return response()->json(['data' => $this->service->config()]);
@@ -44,6 +45,19 @@ class AdminAvaliacaoController extends Controller
         $config = $this->service->definirLiberacao($request->validated('liberada_em'));
 
         return response()->json(['data' => $config, 'meta' => ['message' => 'Liberação atualizada.']]);
+    }
+
+    /** Define/remove a data de encerramento da avaliação (edição atual). */
+    public function definirEncerramento(EncerramentoAvaliacaoRequest $request): JsonResponse
+    {
+        $config = $this->service->definirEncerramento($request->validated('encerrada_em'));
+
+        return response()->json([
+            'data' => $config,
+            'meta' => ['message' => $config['encerrada_em_label']
+                ? 'Encerramento da avaliação salvo.'
+                : 'Encerramento removido — a avaliação segue aberta.'],
+        ]);
     }
 
     /** Projetos submetidos por área, com realizadas/em avaliação/faltantes. */

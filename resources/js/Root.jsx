@@ -15,7 +15,8 @@ import Perfil from './pages/Perfil.jsx';
 import AvaliadorHome from './pages/AvaliadorHome.jsx';
 import AvaliadorPerfil from './pages/AvaliadorPerfil.jsx';
 import AdminAvisoDetalhe from './pages/AdminAvisoDetalhe.jsx';
-import AdminInscricoes from './pages/AdminInscricoes.jsx';
+import AdminAvisos from './pages/AdminAvisos.jsx';
+import AdminComunicacao from './pages/AdminComunicacao.jsx';
 import AdminHome from './pages/AdminHome.jsx';
 import AdminProjetosPorArea from './pages/AdminProjetosPorArea.jsx';
 import AdminProjetosPorEstado from './pages/AdminProjetosPorEstado.jsx';
@@ -24,9 +25,10 @@ import AdminProjetosPorEscola from './pages/AdminProjetosPorEscola.jsx';
 import Parametrizacao from './pages/Parametrizacao.jsx';
 import ParametrizacaoAreas from './pages/ParametrizacaoAreas.jsx';
 import ParametrizacaoEscolas from './pages/ParametrizacaoEscolas.jsx';
+import ParametrizacaoInscricoes from './pages/ParametrizacaoInscricoes.jsx';
+import ParametrizacaoAvaliacao from './pages/ParametrizacaoAvaliacao.jsx';
 import AdminManager from './pages/AdminManager.jsx';
 import AdminSuporte from './pages/AdminSuporte.jsx';
-import AdminAvaliadores from './pages/AdminAvaliadores.jsx';
 import AdminAvaliacaoOnline from './pages/AdminAvaliacaoOnline.jsx';
 import AvaliacaoAvaliadores from './pages/AvaliacaoAvaliadores.jsx';
 import AvaliacaoProjetos from './pages/AvaliacaoProjetos.jsx';
@@ -94,9 +96,6 @@ export default function Root() {
                         {/* Área do admin */}
                         <Route element={<RoleRoute allow={['admin']} />}>
                             <Route path="/admin" element={<AdminHome />} />
-                            <Route path="/admin/inscricoes" element={<AdminInscricoes />} />
-                            <Route path="/admin/inscricoes/avisos/:id" element={<AdminAvisoDetalhe />} />
-                            <Route path="/admin/avaliadores" element={<AdminAvaliadores />} />
                             <Route path="/admin/avaliacao" element={<AdminAvaliacaoOnline />} />
                             <Route path="/admin/avaliacao/avaliadores" element={<AvaliacaoAvaliadores />} />
                             <Route path="/admin/avaliacao/projetos" element={<AvaliacaoProjetos />} />
@@ -109,7 +108,12 @@ export default function Root() {
                             <Route path="/admin/parametrizacao" element={<Parametrizacao />} />
                             <Route path="/admin/parametrizacao/areas" element={<ParametrizacaoAreas />} />
                             <Route path="/admin/parametrizacao/escolas" element={<ParametrizacaoEscolas />} />
+                            <Route path="/admin/parametrizacao/inscricoes" element={<ParametrizacaoInscricoes />} />
+                            <Route path="/admin/parametrizacao/avaliacao" element={<ParametrizacaoAvaliacao />} />
                             <Route path="/admin/registros" element={<AdminRegistros />} />
+                            <Route path="/admin/comunicacao" element={<AdminComunicacao />} />
+                            <Route path="/admin/comunicacao/avisos" element={<AdminAvisos />} />
+                            <Route path="/admin/comunicacao/avisos/:id" element={<AdminAvisoDetalhe />} />
                             <Route path="/admin/mala-direta" element={<AdminMalaDireta />} />
                             <Route path="/admin/mala-direta/nova" element={<AdminMalaDiretaForm />} />
                             <Route path="/admin/mala-direta/:id" element={<AdminMalaDiretaDetalhe />} />

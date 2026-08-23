@@ -376,7 +376,7 @@ function AvaliacaoEnviada({ avaliacao, rubrica }) {
  * inicia (sem poder cancelar) e responde à rubrica da FETECMS seção por seção,
  * salvando rascunho quando quiser. A nota final sai dos pesos, no servidor.
  */
-export default function AvaliacaoModal({ avaliacaoId, teste, onFechar, onAtualizado }) {
+export default function AvaliacaoModal({ avaliacaoId, teste, somenteLeitura = false, onFechar, onAtualizado }) {
     const [dados, setDados] = useState(null); // { avaliacao, projeto, rubrica } | false (erro)
     const [form, setForm] = useState(formularioVazio);
     const [passo, setPasso] = useState(0);
@@ -662,6 +662,7 @@ export default function AvaliacaoModal({ avaliacaoId, teste, onFechar, onAtualiz
                                 </div>
                             </div>
 
+                            <fieldset disabled={somenteLeitura} className="space-y-3 border-0 p-0 m-0 min-w-0">
                             {secao.componente === 'classificacao' && (
                                 <Classificacao
                                     projeto={p}
@@ -692,6 +693,7 @@ export default function AvaliacaoModal({ avaliacaoId, teste, onFechar, onAtualiz
                                     erro={erros?.[secao.comentario.campo]?.[0]}
                                 />
                             )}
+                            </fieldset>
                         </section>
                     )}
 
@@ -709,12 +711,17 @@ export default function AvaliacaoModal({ avaliacaoId, teste, onFechar, onAtualiz
                     <div className="px-5 py-4 border-t border-outline-variant/30">
                         {erro && <div className="mb-3"><Alert>{erro}</Alert></div>}
                         {aviso && <div className="mb-3"><Alert type="info">{aviso}</Alert></div>}
-                        {av.status === 'designada' && (
+                        {somenteLeitura && av.status !== 'concluida' && (
+                            <p className="text-sm text-on-surface-variant text-right">
+                                Período de avaliação encerrado — leitura apenas.
+                            </p>
+                        )}
+                        {!somenteLeitura && av.status === 'designada' && (
                             <div className="flex justify-end">
                                 <Button type="button" loading={salvando} onClick={iniciar}>Iniciar avaliação</Button>
                             </div>
                         )}
-                        {av.status === 'em_andamento' && (
+                        {!somenteLeitura && av.status === 'em_andamento' && (
                             <div className="flex items-center justify-between gap-3 flex-wrap">
                                 <p className="text-sm text-on-surface-variant">
                                     Nota parcial{' '}

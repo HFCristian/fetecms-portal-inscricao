@@ -25,8 +25,8 @@ export default function Parametrizacao() {
         <AppShell>
             <h1 className="font-display text-2xl font-semibold text-primary mb-1">Parametrização</h1>
             <p className="text-on-surface-variant mb-6 max-w-3xl">
-                Mantenha os catálogos limpos: padronize nomes, mescle duplicatas (reatribuindo todas as
-                referências) e remova itens sem uso.
+                As datas que abrem e fecham cada etapa da feira e os catálogos do sistema: padronize
+                nomes, mescle duplicatas (reatribuindo todas as referências) e remova itens sem uso.
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl">
@@ -41,6 +41,18 @@ export default function Parametrizacao() {
                     icon="school"
                     titulo="Escolas"
                     descricao="Renomeie, mescle e exclua instituições de ensino — limpe as cadastradas em duplicidade."
+                />
+                <CardParametrizacao
+                    to="/admin/parametrizacao/inscricoes"
+                    icon="app_registration"
+                    titulo="Inscrições"
+                    descricao="Quando as inscrições abrem e até quando os orientadores podem submeter os projetos."
+                />
+                <CardParametrizacao
+                    to="/admin/parametrizacao/avaliacao"
+                    icon="grading"
+                    titulo="Avaliação Online"
+                    descricao="Quando os avaliadores passam a acessar os projetos e quando o período se encerra."
                 />
             </div>
         </AppShell>

@@ -234,8 +234,9 @@ export default function Resumo() {
                         </div>
                         <Button variant="success" type="button" loading={submitting} disabled={!pode_submeter} onClick={confirmar}
                             title={pode_submeter ? ''
+                                : inscricoes?.nao_iniciadas ? `Inscrições abrem em ${inscricoes.inicio_label}`
                                 : inscricoes?.encerradas ? `Inscrições encerradas em ${inscricoes.prazo_label}`
-                                    : 'Resolva as pendências do checklist'}>
+                                : 'Resolva as pendências do checklist'}>
                             <span className="material-symbols-outlined text-[20px]">verified</span>
                             CONFIRMAR SUBMISSÃO
                         </Button>

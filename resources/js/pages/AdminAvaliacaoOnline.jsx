@@ -2,66 +2,30 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { Button, Alert, useConfirm } from '../components/ui.jsx';
-import { getAvaliacaoConfig, definirLiberacaoAvaliacao, distribuirAvaliacoes } from '../lib/admin.js';
+import { getAvaliacaoConfig, distribuirAvaliacoes } from '../lib/admin.js';
 
-function LiberacaoConfig() {
+// Resumo das datas do período — quem muda é a Parametrização.
+function JanelaAvaliacao() {
     const [config, setConfig] = useState(null);
-    const [valor, setValor] = useState(''); // "AAAA-MM-DDTHH:mm" (hora de parede local do app)
-    const [salvando, setSalvando] = useState(false);
-    const [msg, setMsg] = useState('');
-    const [erro, setErro] = useState('');
 
-    useEffect(() => {
-        getAvaliacaoConfig()
-            .then((c) => { setConfig(c); setValor(c.liberada_em_input || ''); })
-            .catch(() => setConfig({ liberada: false, liberada_em_input: null, liberada_em_label: null }));
-    }, []);
+    useEffect(() => { getAvaliacaoConfig().then(setConfig).catch(() => setConfig(null)); }, []);
 
-    // Envia a hora de parede como está (sem converter para UTC no navegador).
-    async function salvar(liberadaEm) {
-        setSalvando(true); setMsg(''); setErro('');
-        try {
-            const c = await definirLiberacaoAvaliacao(liberadaEm);
-            setConfig(c); setValor(c.liberada_em_input || '');
-            setMsg(liberadaEm ? 'Data de liberação salva.' : 'Liberação removida.');
-        } catch {
-            setErro('Não foi possível salvar. Tente novamente.');
-        } finally {
-            setSalvando(false);
-        }
-    }
-
-    const status = !config ? null
-        : config.liberada ? { txt: 'Avaliação liberada', cor: 'bg-secondary text-on-secondary' }
-            : config.liberada_em_label ? { txt: `Libera em ${config.liberada_em_label}`, cor: 'bg-primary-fixed text-primary-container' }
-                : { txt: 'Sem data definida', cor: 'bg-surface-variant text-on-surface-variant' };
+    const estado = !config ? null
+        : config.encerrada ? `Período encerrado em ${config.encerrada_em_label}.`
+            : config.liberada
+                ? `Avaliação liberada${config.encerrada_em_label ? ` — encerra em ${config.encerrada_em_label}` : ''}.`
+                : config.liberada_em_label ? `Libera em ${config.liberada_em_label}.` : 'Sem data de liberação definida.';
 
     return (
-        <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-6 mb-6 max-w-3xl">
-            <div className="flex items-center gap-2 flex-wrap mb-3">
-                <h2 className="font-display text-primary font-semibold">Liberação da avaliação</h2>
-                {status && <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${status.cor}`}>{status.txt}</span>}
-            </div>
-            <p className="text-sm text-on-surface-variant mb-3">
-                Data/hora (horário de Campo Grande) a partir da qual os avaliadores acessam os projetos.
-                Deixe em branco para não liberar.
-            </p>
-            {msg && <div className="mb-3"><Alert type="info">{msg}</Alert></div>}
-            {erro && <div className="mb-3"><Alert>{erro}</Alert></div>}
-            <div className="flex items-end gap-2 flex-wrap">
-                <input
-                    type="datetime-local"
-                    value={valor}
-                    onChange={(e) => setValor(e.target.value)}
-                    className="bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 outline-none"
-                />
-                <Button type="button" loading={salvando} disabled={!valor} onClick={() => salvar(valor || null)}>
-                    Salvar data
-                </Button>
-                {config?.liberada_em_input && (
-                    <Button type="button" variant="outline" onClick={() => salvar(null)}>Remover</Button>
-                )}
-            </div>
+        <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-4 mb-6 max-w-3xl flex items-center gap-3 flex-wrap">
+            <span className="material-symbols-outlined text-primary-container">event</span>
+            <p className="text-sm text-on-surface flex-1 min-w-0">{estado ?? 'Carregando as datas…'}</p>
+            <Link
+                to="/admin/parametrizacao/avaliacao"
+                className="text-sm font-semibold text-primary-container hover:text-primary shrink-0"
+            >
+                Alterar datas
+            </Link>
         </div>
     );
 }
@@ -162,15 +126,15 @@ export default function AdminAvaliacaoOnline() {
                 estiver registrado.
             </p>
 
-            <LiberacaoConfig />
+            <JanelaAvaliacao />
             <DistribuicaoCard />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl">
                 <CardAvaliacao
                     to="/admin/avaliacao/avaliadores"
                     icon="groups"
-                    titulo="Avaliadores por área"
-                    descricao="Veja os avaliadores de cada área e o progresso de cada um: em avaliação, já avaliados e quantos faltam."
+                    titulo="Avaliadores Online"
+                    descricao="Panorama dos avaliadores (totais e distribuição por área) e o progresso de cada um: em avaliação, já avaliados e quantos faltam."
                 />
                 <CardAvaliacao
                     to="/admin/avaliacao/projetos"

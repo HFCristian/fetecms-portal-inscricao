@@ -96,6 +96,9 @@ export default function AdminMalaDireta() {
 
     return (
         <AppShell>
+            <Link to="/admin/comunicacao" className="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary mb-3">
+                <span className="material-symbols-outlined text-[18px]">arrow_back</span> Comunicação
+            </Link>
             <div className="flex flex-wrap items-end justify-between gap-3 mb-6">
                 <div>
                     <h1 className="font-display text-2xl font-semibold text-primary mb-1">Mala direta</h1>

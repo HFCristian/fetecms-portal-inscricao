@@ -77,8 +77,8 @@ export default function AdminAvisoDetalhe() {
 
     return (
         <AppShell>
-            <Link to="/admin/inscricoes" className="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary mb-3">
-                <span className="material-symbols-outlined text-[18px]">arrow_back</span> Inscrições
+            <Link to="/admin/comunicacao/avisos" className="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary mb-3">
+                <span className="material-symbols-outlined text-[18px]">arrow_back</span> Avisos
             </Link>
             <h1 className="font-display text-2xl font-semibold text-primary mb-1">Relatório do aviso</h1>
 

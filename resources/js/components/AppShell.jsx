@@ -34,14 +34,6 @@ function NavLinks({ role, onNavigate, suporteBadge = 0 }) {
                     <span className="material-symbols-outlined">folder</span>
                     Projetos
                 </NavLink>
-                <NavLink to="/admin/inscricoes" className={navClass} onClick={onNavigate}>
-                    <span className="material-symbols-outlined">app_registration</span>
-                    Inscrições
-                </NavLink>
-                <NavLink to="/admin/avaliadores" className={navClass} onClick={onNavigate}>
-                    <span className="material-symbols-outlined">fact_check</span>
-                    Avaliadores
-                </NavLink>
                 <NavLink to="/admin/avaliacao" className={navClass} onClick={onNavigate}>
                     <span className="material-symbols-outlined">grading</span>
                     Avaliação online
@@ -50,9 +42,9 @@ function NavLinks({ role, onNavigate, suporteBadge = 0 }) {
                     <span className="material-symbols-outlined">history</span>
                     Registros
                 </NavLink>
-                <NavLink to="/admin/mala-direta" className={navClass} onClick={onNavigate}>
-                    <span className="material-symbols-outlined">forward_to_inbox</span>
-                    Mala direta
+                <NavLink to="/admin/comunicacao" className={navClass} onClick={onNavigate}>
+                    <span className="material-symbols-outlined">campaign</span>
+                    Comunicação
                 </NavLink>
                 <NavLink to="/admin/parametrizacao" className={navClass} onClick={onNavigate}>
                     <span className="material-symbols-outlined">tune</span>
