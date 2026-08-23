@@ -84,6 +84,24 @@ Tabela `users` única com coluna `role`: **`orientador`**, **`avaliador`**, **`a
 - **Admin**: criado **somente por outro admin** (cadastro simples: nome, e-mail, senha). Dashboard
   com as métricas: projetos totais / submetidos / em rascunho; **projetos por categoria**;
   orientadores; alunos; coorientadores; escolas, cidades e estados **com projeto cadastrado**.
+  - **Inscrições** (`/admin/inscricoes`, 2º item do menu): **prazo de submissão** da edição
+    (`edicoes.submissoes_ate`, hora de parede de Campo Grande). Passado o prazo, a área do
+    orientador fica **só de leitura** — não cria, não edita (projeto, alunos, coorientador,
+    anexos), não submete, não cancela a submissão e não exclui; quem cancelou o envio para
+    editar **não reenvia** depois do prazo. O admin passa por cima (escape do edital). A regra
+    mora no `InscricoesService` e é aplicada pelo middleware `inscricoes.abertas` nas rotas que
+    escrevem (GET sempre passa) e pelo `SubmissaoService` (que também explica o motivo em
+    `pode_desfazer`/`impedimentos_desfazer`). Sem data definida, as inscrições ficam abertas.
+  - **Avisos na tela** (mesma aba): o admin publica um card com **título e mensagem livres**,
+    que aparece para os **orientadores ativos** conectados em até ~1 min (polling; não há
+    WebSocket no projeto) e pode ser fechado por cada um. **Um ativo por vez** — publicar um
+    novo encerra o anterior; dá para encerrar à mão. O texto aceita `{{prazo_inscricoes}}`,
+    `{{tempo_restante}}` e `{{inicio_avaliacoes}}` (`AvisoService::VARIAVEIS`), inseridas por
+    **botões abaixo do campo, na posição do cursor**, e o formulário abre com um **modelo
+    pronto**. As variáveis são resolvidas **na hora da leitura** — "faltam X minutos" é o tempo
+    real de quem está lendo. **Relatório** por aviso: quantos viram, fecharam e ainda não viram,
+    com a lista nome a nome (filtro por situação, busca e export CSV) e o histórico dos avisos
+    anteriores.
   - **Mala direta** (`/admin/mala-direta`): comunicado por e-mail para um recorte da base.
     O admin combina quantos **públicos** quiser (todos, orientadores, avaliadores, orientadores
     com rascunho, com submetido, avaliadores com avaliação **em andamento** ou **concluída**) e/ou
@@ -193,6 +211,12 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 16 | Rubrica oficial da FETECMS (17 perguntas em 10 seções, pesos, balão "?", wizard) + remoção da avaliação do projeto de continuidade | ✅ sim | ✅ sim (Pedro, PR #54 → v1.14) | 0 |
 | 17 | Perfil do avaliador: cards de estatística (avaliados, certificado 2h30/avaliação, posição no ranking) + troca da própria área fora do período de avaliação | ✅ sim | ✅ sim (Pedro, PR #54 → v1.14) | 0 |
 | 18 | Mala direta: públicos + lista personalizada (CSV), prévia com contagem/listagem/export, disparo pela fila com progresso e relatório de falhas | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 19 | Perfil do avaliador: remoção do campo "Limite de avaliações" | ✅ sim | ❌ não (manual do Pedro) | 2 |
+| 20 | Projetos submetidos (admin): busca de avaliador por nome, lista alfabética, áreas compactáveis e ordenação por métrica | ✅ sim | ❌ não (manual do Pedro) | 2 |
+| 21 | Avaliadores por área (admin): áreas compactáveis e ordenação por métrica | ✅ sim | ❌ não (manual do Pedro) | 2 |
+| 22 | Aba "Inscrições" + prazo de submissão (bloqueia submeter/cancelar/editar depois da data) | ✅ sim | ❌ não (manual do Pedro) | 2 |
+| 23 | Avisos na tela: composição (título/mensagem/variáveis/modelo) + card no orientador | ✅ sim | ❌ não (manual do Pedro) | 2 |
+| 24 | Avisos: relatório de quem viu/fechou/não viu + histórico + export CSV | ✅ sim | ❌ não (manual do Pedro) | 2 |
 
 > **Estado atual:** ciclo de ajustes pós-v1 (Sprints 6–10) **concluído e verde** — back 110/110,
 > front 11/11, Pint limpo, build OK (estado integrado, já com a refatoração visual do Pedro).
@@ -308,6 +332,42 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > (HTML + versão texto), sem o tema markdown do Laravel.
 > (f) **Exige `php artisan queue:work` no deploy** — sem worker a mala fica em "Enviando".
 > Back **354/354**, front **136/136**, Pint limpo, build OK.
+>
+> **Sprints 19–21 (branch `feat/inscricoes-e-avisos`, saída da `origin/main` @ `4980136`):**
+> (a) **Sprint 19** — o card "Seus dados" do `/avaliador/perfil` não mostra mais o
+> **limite de avaliações**, e o payload de `GET /avaliador/perfil` deixou de expor
+> `limite_avaliacoes`/`max_por_avaliador`. O recurso continua vivo para o admin
+> (botão de cadeado em "Avaliadores por área") e na distribuição automática.
+> (b) **Sprint 20** — "Projetos submetidos": a designação escolhe o alvo por **busca
+> digitada** (`BuscaCombobox`, mesma UX do `SubareaCombobox`, sem criar), com a lista de
+> avaliadores **achatada e em ordem alfabética** (`localeCompare` pt-BR — o agrupamento por
+> área da API deixava a busca fora de ordem). Cada área virou uma **lista compactável** com
+> **ordenação própria** por realizadas/em avaliação/faltantes, nos dois sentidos.
+> (c) **Sprint 21** — mesma lista compactável + ordenação em "Avaliadores por área"
+> (em avaliação/já avaliou/faltam).
+> (d) O acordeão e a ordenação moram no componente compartilhado `GrupoArea`
+> (`useAreasAbertas` + `BotoesExpandir` para "Expandir/Recolher todas"); empate na métrica
+> cai para a ordem alfabética. Áreas começam **fechadas**.
+> Back **357/357**, front **149/149**, Pint limpo, build OK.
+>
+> **Sprints 22–24 (mesma branch `feat/inscricoes-e-avisos`):** nasceu a aba **Inscrições**
+> (2º item do menu do admin, `/admin/inscricoes`).
+> (a) **Sprint 22** — **prazo de submissão** em `edicoes.submissoes_ate`. Depois dele a área do
+> orientador fica só de leitura: `InscricoesService` decide, o middleware `inscricoes.abertas`
+> barra tudo que escreve em projeto (422 `INSCRICOES_ENCERRADAS`; GET passa; admin passa) e o
+> `SubmissaoService` ganhou o mesmo motivo, então `pode_desfazer` já some sozinho na listagem.
+> Na tela do orientador, `PrazoInscricoes` lembra a data enquanto está aberto e explica o
+> encerramento depois — "Nova inscrição", "Continuar edição" e "Excluir" ficam desabilitados.
+> (b) **Sprint 23** — **avisos na tela** (`avisos` + `aviso_visualizacoes`). Título e mensagem
+> livres, com botões de variável e modelo pronto; as variáveis são resolvidas na leitura
+> (`AvisoService::personalizar`), então `{{tempo_restante}}` conta o tempo de quem lê. O
+> `AvisoCard` no `AppShell` só roda para orientador, faz polling de 60s, registra o "visto"
+> quando o card entra na tela e o "fechado" quando a pessoa dispensa.
+> (c) **Sprint 24** — **relatório**: `GET /admin/avisos` (histórico com contagens),
+> `/admin/avisos/{id}` (números), `/leitores` (nome a nome, filtro por situação e busca) e
+> `/exportar` (CSV UTF-8 com BOM, separador `;`). A lista é o público de hoje **mais** quem já
+> registrou visualização, para uma conta desativada depois de ler não sumir do relatório.
+> Back **405/405**, front **180/180**, Pint limpo, build OK.
 
 ### Roadmap de sprints (proposto)
 

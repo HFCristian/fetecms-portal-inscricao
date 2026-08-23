@@ -20,6 +20,9 @@ vi.mock('../lib/projetos.js', () => ({
     cancelarSubmissao: (...a) => cancelarSubmissao(...a),
 }));
 
+const getInscricoes = vi.fn(() => Promise.resolve({ encerradas: false, prazo_input: null, prazo_label: null, minutos_restantes: null }));
+vi.mock('../lib/inscricoes.js', () => ({ getInscricoes: (...a) => getInscricoes(...a) }));
+
 import Projetos from './Projetos.jsx';
 
 const submetido = (over = {}) => ({
@@ -38,6 +41,7 @@ describe('Projetos — desfazer a submissão', () => {
         listarProjetos.mockReset();
         removerProjeto.mockClear();
         cancelarSubmissao.mockClear();
+        getInscricoes.mockResolvedValue({ encerradas: false, prazo_input: null, prazo_label: null, minutos_restantes: null });
     });
 
     it('oferece cancelar e excluir enquanto a submissão pode ser desfeita', async () => {
@@ -80,5 +84,40 @@ describe('Projetos — desfazer a submissão', () => {
         fireEvent.click(await screen.findByRole('button', { name: /Excluir inscrição/ }));
 
         expect(await screen.findByText('Este projeto já tem avaliação iniciada.')).toBeInTheDocument();
+    });
+});
+
+describe('Projetos — prazo de submissão', () => {
+    beforeEach(() => {
+        listarProjetos.mockReset();
+        listarProjetos.mockResolvedValue([submetido({ status: 'rascunho', status_label: 'Rascunho', pode_desfazer: false })]);
+        getInscricoes.mockReset();
+        getInscricoes.mockResolvedValue({ encerradas: false, prazo_input: null, prazo_label: null, minutos_restantes: null });
+    });
+
+    it('lembra a data enquanto as inscrições estão abertas', async () => {
+        getInscricoes.mockResolvedValue({ encerradas: false, prazo_label: '30/09/2026 23:59', prazo_input: '2026-09-30T23:59', minutos_restantes: 120 });
+        render(<Projetos />);
+
+        expect(await screen.findByText(/Inscrições abertas até/)).toBeInTheDocument();
+        expect(screen.getByText('30/09/2026 23:59')).toBeInTheDocument();
+    });
+
+    it('explica o encerramento e desabilita o que escreve', async () => {
+        getInscricoes.mockResolvedValue({ encerradas: true, prazo_label: '30/09/2026 23:59', prazo_input: '2026-09-30T23:59', minutos_restantes: null });
+        render(<Projetos />);
+
+        expect(await screen.findByRole('alert')).toHaveTextContent(/inscrições foram encerradas/i);
+        expect(screen.getByText('NOVA INSCRIÇÃO').closest('button')).toBeDisabled();
+        expect(screen.getByText('Continuar edição').closest('button')).toBeDisabled();
+        expect(screen.getByText('Excluir').closest('button')).toBeDisabled();
+    });
+
+    it('sem prazo definido, não mostra aviso nenhum', async () => {
+        render(<Projetos />);
+
+        await screen.findByText('Bioplástico de Mandioca');
+        expect(screen.queryByText(/Inscrições abertas até/)).not.toBeInTheDocument();
+        expect(screen.getByText('NOVA INSCRIÇÃO').closest('button')).not.toBeDisabled();
     });
 });

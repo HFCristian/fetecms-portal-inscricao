@@ -4,6 +4,49 @@ export const getDashboard = () => http.get('/admin/dashboard').then((r) => r.dat
 
 export const getAvaliadores = () => http.get('/admin/avaliadores').then((r) => r.data.data);
 
+// Aba "Inscrições": data-limite para submeter os projetos.
+export const getInscricoesConfig = () => http.get('/admin/inscricoes').then((r) => r.data.data);
+export const definirPrazoInscricoes = (prazo) =>
+    http.patch('/admin/inscricoes/prazo', { prazo }).then((r) => r.data.data);
+
+// Avisos na tela dos orientadores (um ativo por vez).
+export const getAvisoOpcoes = () => http.get('/admin/avisos/opcoes').then((r) => r.data.data);
+export const getAvisoAtivoAdmin = () => http.get('/admin/avisos/ativo').then((r) => r.data.data);
+export const previaAviso = (payload) => http.post('/admin/avisos/previa', payload).then((r) => r.data.data);
+export const publicarAviso = (payload) => http.post('/admin/avisos', payload).then((r) => r.data);
+export const encerrarAviso = (id) => http.post(`/admin/avisos/${id}/encerrar`).then((r) => r.data);
+
+// Histórico e relatório de leitura dos avisos.
+const avisoParams = ({ situacao, q, page } = {}) => ({
+    params: {
+        ...(situacao ? { situacao } : {}),
+        ...(q ? { q } : {}),
+        page: page ?? 1,
+    },
+});
+
+export const getAvisos = (page = 1) => http.get('/admin/avisos', { params: { page } }).then((r) => r.data);
+export const getAviso = (id) => http.get(`/admin/avisos/${id}`).then((r) => r.data);
+export const getAvisoLeitores = (id, filtros) =>
+    http.get(`/admin/avisos/${id}/leitores`, avisoParams(filtros)).then((r) => r.data);
+
+/** Baixa o CSV do mesmo recorte que está na tela (a sessão vai no cookie). */
+export async function exportarAvisoCsv(id, filtros) {
+    const r = await http.get(`/admin/avisos/${id}/exportar`, {
+        ...avisoParams(filtros),
+        responseType: 'blob',
+    });
+    const nome = /filename="([^"]+)"/.exec(r.headers['content-disposition'] ?? '')?.[1] ?? `aviso-${id}.csv`;
+    const url = URL.createObjectURL(r.data);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = nome;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+}
+
 // Avaliação online (E7): configuração de liberação, avaliadores e projetos por área.
 export const getAvaliacaoConfig = () => http.get('/admin/avaliacao/config').then((r) => r.data.data);
 export const definirLiberacaoAvaliacao = (liberadaEm) =>

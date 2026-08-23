@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { Button, Alert, useConfirm } from '../components/ui.jsx';
+import PrazoInscricoes from '../components/PrazoInscricoes.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import { getResumo, submeterProjeto } from '../lib/submissao.js';
 import { cancelarSubmissao, removerProjeto } from '../lib/projetos.js';
@@ -108,7 +109,7 @@ export default function Resumo() {
         );
     }
 
-    const { projeto, integrantes, documentos, pendencias, pode_submeter, pode_desfazer } = data;
+    const { projeto, integrantes, documentos, pendencias, pode_submeter, pode_desfazer, inscricoes } = data;
     const jaSubmetido = projeto.status === 'submetido';
 
     return (
@@ -164,6 +165,8 @@ export default function Resumo() {
                     {documentos.map((d) => <li key={d.id}>{d.tipo_label}: {d.nome_original}</li>)}
                 </ul>
             </section>
+
+            <PrazoInscricoes inscricoes={inscricoes} className="mb-5" />
 
             {/* Checklist */}
             <section className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-6 mb-6">
@@ -230,7 +233,9 @@ export default function Resumo() {
                             </Button>
                         </div>
                         <Button variant="success" type="button" loading={submitting} disabled={!pode_submeter} onClick={confirmar}
-                            title={pode_submeter ? '' : 'Resolva as pendências do checklist'}>
+                            title={pode_submeter ? ''
+                                : inscricoes?.encerradas ? `Inscrições encerradas em ${inscricoes.prazo_label}`
+                                    : 'Resolva as pendências do checklist'}>
                             <span className="material-symbols-outlined text-[20px]">verified</span>
                             CONFIRMAR SUBMISSÃO
                         </Button>

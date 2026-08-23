@@ -37,7 +37,6 @@ import AvaliadorPerfil from './AvaliadorPerfil.jsx';
 const PERFIL = {
     nome: 'Ana', email: 'ana@fetecms.test', titulacao: 'Mestrado (em andamento)',
     area_id: 1, area: 'Ciências Exatas e da Terra', subarea_id: null, subarea: null,
-    limite_avaliacoes: null, max_por_avaliador: 3,
     estatisticas: {
         avaliacoes_concluidas: 3,
         certificado_minutos: 450, certificado_label: '7h30', por_avaliacao_label: '2h30',
@@ -113,7 +112,13 @@ describe('AvaliadorPerfil — estatísticas', () => {
 
         expect(await screen.findByText('ana@fetecms.test')).toBeInTheDocument();
         expect(screen.getByText('Mestrado (em andamento)')).toBeInTheDocument();
-        expect(screen.getByText('3 (padrão do edital)')).toBeInTheDocument();
+    });
+
+    it('não mostra mais o limite de avaliações', async () => {
+        renderPerfil();
+
+        await screen.findByText('ana@fetecms.test');
+        expect(screen.queryByText('Limite de avaliações')).not.toBeInTheDocument();
     });
 
     it('avisa quando não consegue carregar', async () => {

@@ -2,7 +2,12 @@ import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { Alert, useConfirm } from '../components/ui.jsx';
+import PrazoInscricoes from '../components/PrazoInscricoes.jsx';
 import { listarProjetos, removerProjeto, cancelarSubmissao } from '../lib/projetos.js';
+import { getInscricoes } from '../lib/inscricoes.js';
+
+// Classe dos botões de linha que escrevem — desabilitados depois do prazo.
+const desabilitado = ' disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent';
 
 const FILTROS = [
     { key: 'all', label: 'Todos' },
@@ -27,6 +32,7 @@ export default function Projetos() {
     const [filtro, setFiltro] = useState('all');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [inscricoes, setInscricoes] = useState(null);
 
     const carregar = useCallback(() => {
         setLoading(true);
@@ -37,6 +43,9 @@ export default function Projetos() {
     }, []);
 
     useEffect(() => carregar(), [carregar]);
+
+    // Prazo de submissão: depois dele a área fica só de leitura.
+    useEffect(() => { getInscricoes().then(setInscricoes).catch(() => setInscricoes(null)); }, []);
 
     /** Mensagem do 422 quando a janela para desfazer a submissão já fechou. */
     function avisarBloqueio(error) {
@@ -82,6 +91,9 @@ export default function Projetos() {
         }
     }
 
+    const bloqueado = !!inscricoes?.encerradas;
+    const motivo = bloqueado ? `Inscrições encerradas em ${inscricoes.prazo_label}` : '';
+
     const visiveis = projetos.filter((p) => filtro === 'all' || p.status === filtro);
     const total = projetos.length;
     const rascunhos = projetos.filter((p) => p.status === 'rascunho').length;
@@ -96,12 +108,16 @@ export default function Projetos() {
                 </div>
                 <button
                     onClick={() => navigate('/projetos/novo')}
-                    className="inline-flex items-center gap-2 rounded-lg px-5 py-2.5 font-semibold bg-primary-container text-on-primary hover:bg-primary transition-colors"
+                    disabled={bloqueado}
+                    title={motivo}
+                    className="inline-flex items-center gap-2 rounded-lg px-5 py-2.5 font-semibold bg-primary-container text-on-primary hover:bg-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-primary-container"
                 >
                     <span className="material-symbols-outlined text-[20px]">add</span>
                     NOVA INSCRIÇÃO
                 </button>
             </div>
+
+            <PrazoInscricoes inscricoes={inscricoes} className="mb-5" />
 
             <div className="grid grid-cols-3 gap-3 mb-6">
                 {[
@@ -166,7 +182,9 @@ export default function Projetos() {
                                 {p.status === 'rascunho' && (
                                     <button
                                         onClick={() => navigate(`/projetos/${p.id}/editar`)}
-                                        className="max-w-80 md:w-auto w-[70vw] md:mx-0 mx-auto inline-flex items-center gap-1 text-sm border border-outline-variant rounded-lg px-3 py-2 hover:bg-surface-variant"
+                                        disabled={bloqueado}
+                                        title={motivo}
+                                        className={'max-w-80 md:w-auto w-[70vw] md:mx-0 mx-auto inline-flex items-center gap-1 text-sm border border-outline-variant rounded-lg px-3 py-2 hover:bg-surface-variant' + desabilitado}
                                     >
                                         <span className="material-symbols-outlined text-[16px]">edit</span>
                                         Continuar edição
@@ -190,7 +208,9 @@ export default function Projetos() {
                                         </button>
                                         <button
                                             onClick={() => excluir(p)}
-                                            className="max-w-80 md:w-auto w-[70vw] md:mx-0 mx-auto inline-flex items-center gap-1 text-sm border border-outline-variant rounded-lg px-3 py-2 text-error hover:bg-error-container/40"
+                                            disabled={bloqueado}
+                                            title={motivo}
+                                            className={'max-w-80 md:w-auto w-[70vw] md:mx-0 mx-auto inline-flex items-center gap-1 text-sm border border-outline-variant rounded-lg px-3 py-2 text-error hover:bg-error-container/40' + desabilitado}
                                         >
                                             <span className="material-symbols-outlined text-[16px]">delete</span>
                                             Excluir
@@ -219,7 +239,9 @@ export default function Projetos() {
                                         </button>
                                         <button
                                             onClick={() => excluir(p)}
-                                            className="max-w-80 md:w-auto w-[70vw] md:mx-0 mx-auto inline-flex items-center gap-1 text-sm border border-outline-variant rounded-lg px-3 py-2 text-error hover:bg-error-container/40"
+                                            disabled={bloqueado}
+                                            title={motivo}
+                                            className={'max-w-80 md:w-auto w-[70vw] md:mx-0 mx-auto inline-flex items-center gap-1 text-sm border border-outline-variant rounded-lg px-3 py-2 text-error hover:bg-error-container/40' + desabilitado}
                                         >
                                             <span className="material-symbols-outlined text-[16px]">delete</span>
                                             Excluir inscrição

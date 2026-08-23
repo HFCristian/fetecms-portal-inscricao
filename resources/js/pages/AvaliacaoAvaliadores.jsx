@@ -2,8 +2,16 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { Button, Alert, useConfirm } from '../components/ui.jsx';
+import GrupoArea, { BotoesExpandir, useAreasAbertas } from '../components/GrupoArea.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import { getAvaliacaoAvaliadores, definirLimiteAvaliador, definirDemoAvaliador, limparDadosDeTeste } from '../lib/admin.js';
+
+// Métricas do avaliador — também são os critérios de ordenação de cada área.
+const METRICAS = [
+    { key: 'em_avaliacao', label: 'Em avaliação', cor: 'text-primary-container' },
+    { key: 'avaliou', label: 'Já avaliou', cor: 'text-secondary' },
+    { key: 'faltam', label: 'Faltam', cor: 'text-on-surface' },
+];
 
 function Metrica({ valor, rotulo, cor }) {
     return (
@@ -60,6 +68,7 @@ export default function AvaliacaoAvaliadores() {
     const [alert, setAlert] = useState('');
     const [success, setSuccess] = useState('');
     const [confirm, dialogo] = useConfirm();
+    const abertas = useAreasAbertas();
 
     function carregar() {
         return getAvaliacaoAvaliadores().then(setAreas).catch(() => setAreas([]));
@@ -114,8 +123,9 @@ export default function AvaliacaoAvaliadores() {
             </Link>
             <h1 className="font-display text-2xl font-semibold text-primary mb-1">Avaliadores por área</h1>
             <p className="text-on-surface-variant mb-4 max-w-3xl">
-                Progresso de cada avaliador - no máximo 3 projetos por avaliador. Você pode limitar
-                individualmente quantas avaliações cada um pode assumir e marcar avaliadores de teste (demo).
+                Progresso de cada avaliador - no máximo 3 projetos por avaliador. Clique na área para
+                abrir a lista. Você pode limitar individualmente quantas avaliações cada um pode assumir
+                e marcar avaliadores de teste (demo).
             </p>
 
             <div className="mb-4 max-w-3xl">
@@ -141,17 +151,23 @@ export default function AvaliacaoAvaliadores() {
                     Nenhum avaliador cadastrado ainda.
                 </div>
             ) : (
-                <div className="space-y-6 max-w-3xl">
-                    {areas.map((grupo) => (
-                        <div key={grupo.area_id} className="bg-surface-container-lowest rounded-xl fetec-card-shadow overflow-hidden">
-                            <div className="px-4 py-3 bg-surface-variant/40 flex items-center justify-between gap-2">
-                                <h2 className="font-display font-semibold text-on-surface truncate">{grupo.area}</h2>
-                                <span className="text-xs text-on-surface-variant shrink-0">
-                                    {grupo.avaliadores.length} {grupo.avaliadores.length === 1 ? 'avaliador' : 'avaliadores'}
-                                </span>
-                            </div>
-                            <ul className="divide-y divide-outline-variant/30">
-                                {grupo.avaliadores.map((a) => {
+                <>
+                    <div className="mb-4 max-w-3xl">
+                        <BotoesExpandir ids={areas.map((g) => g.area_id)} controle={abertas} />
+                    </div>
+                    <div className="space-y-4 max-w-3xl">
+                        {areas.map((grupo) => (
+                            <GrupoArea
+                                key={grupo.area_id}
+                                titulo={grupo.area}
+                                itens={grupo.avaliadores}
+                                singular="avaliador"
+                                plural="avaliadores"
+                                metricas={METRICAS}
+                                ordemPadraoLabel="Nome (A–Z)"
+                                aberto={abertas.estaAberto(grupo.area_id)}
+                                onToggle={() => abertas.alternar(grupo.area_id)}
+                                renderItem={(a) => {
                                     const atingido = a.limite != null && (a.em_avaliacao + a.avaliou) >= a.limite;
                                     return (
                                         <li key={a.id} className="px-4 py-3 flex items-center gap-3 flex-wrap">
@@ -170,9 +186,9 @@ export default function AvaliacaoAvaliadores() {
                                                 )}
                                             </div>
                                             <div className="flex items-center gap-2 shrink-0">
-                                                <Metrica valor={a.em_avaliacao} rotulo="Em avaliação" cor="text-primary-container" />
-                                                <Metrica valor={a.avaliou} rotulo="Já avaliou" cor="text-secondary" />
-                                                <Metrica valor={a.faltam} rotulo="Faltam" cor="text-on-surface" />
+                                                {METRICAS.map((m) => (
+                                                    <Metrica key={m.key} valor={a[m.key]} rotulo={m.label} cor={m.cor} />
+                                                ))}
                                             </div>
                                             <button
                                                 type="button"
@@ -197,11 +213,11 @@ export default function AvaliacaoAvaliadores() {
                                             </button>
                                         </li>
                                     );
-                                })}
-                            </ul>
-                        </div>
-                    ))}
-                </div>
+                                }}
+                            />
+                        ))}
+                    </div>
+                </>
             )}
 
             {limitando && (

@@ -174,7 +174,9 @@ class AvaliadorPerfilTest extends TestCase
             ->assertJsonPath('data.titulacao', 'Mestrado (em andamento)')
             ->assertJsonPath('data.area', 'Ciências Exatas e da Terra')
             ->assertJsonPath('data.subarea', 'Astronomia')
-            ->assertJsonPath('data.max_por_avaliador', 3);
+            // O limite individual saiu da tela do avaliador (Sprint 19): não vaza mais no payload.
+            ->assertJsonMissingPath('data.limite_avaliacoes')
+            ->assertJsonMissingPath('data.max_por_avaliador');
     }
 
     public function test_perfil_de_avaliador_e_so_do_avaliador(): void
