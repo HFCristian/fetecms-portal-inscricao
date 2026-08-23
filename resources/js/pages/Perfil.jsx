@@ -119,7 +119,7 @@ export default function Perfil() {
                 {/* A troca de e-mail tem tela própria (e vira registro para a organização). */}
                 <Field label="E-mail">
                     <Input type="email" value={user?.email ?? ''} disabled readOnly />
-                    <Link to="/alterar-email" className="inline-flex items-center gap-1 text-sm font-semibold text-primary mt-2 hover:underline">
+                    <Link to="/acesso" className="inline-flex items-center gap-1 text-sm font-semibold text-primary mt-2 hover:underline">
                         <span className="material-symbols-outlined text-[16px]">alternate_email</span>
                         Alterar e-mail
                     </Link>

@@ -2,6 +2,8 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 
 vi.mock('../components/AppShell.jsx', () => ({ default: ({ children }) => <div>{children}</div> }));
+// O panorama tem teste próprio e repetiria os nomes das áreas nesta tela.
+vi.mock('../components/PanoramaAvaliadores.jsx', () => ({ default: () => <div>panorama</div> }));
 vi.mock('react-router-dom', () => ({ Link: ({ children }) => <a>{children}</a> }));
 vi.mock('../lib/auth.jsx', () => ({ extractErrors: () => ({ message: '', fields: {} }) }));
 vi.mock('../lib/admin.js', () => ({

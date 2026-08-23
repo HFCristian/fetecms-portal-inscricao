@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { Button, Alert, useConfirm } from '../components/ui.jsx';
 import GrupoArea, { BotoesExpandir, useAreasAbertas } from '../components/GrupoArea.jsx';
+import PanoramaAvaliadores from '../components/PanoramaAvaliadores.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import { getAvaliacaoAvaliadores, definirLimiteAvaliador, definirDemoAvaliador, limparDadosDeTeste } from '../lib/admin.js';
 
@@ -121,12 +122,14 @@ export default function AvaliacaoAvaliadores() {
             <Link to="/admin/avaliacao" className="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary mb-3">
                 <span className="material-symbols-outlined text-[18px]">arrow_back</span> Avaliação online
             </Link>
-            <h1 className="font-display text-2xl font-semibold text-primary mb-1">Avaliadores por área</h1>
+            <h1 className="font-display text-2xl font-semibold text-primary mb-1">Avaliadores Online</h1>
             <p className="text-on-surface-variant mb-4 max-w-3xl">
-                Progresso de cada avaliador - no máximo 3 projetos por avaliador. Clique na área para
+                Panorama do corpo de avaliadores e o progresso de cada avaliador — no máximo 3 projetos por avaliador. Clique na área para
                 abrir a lista. Você pode limitar individualmente quantas avaliações cada um pode assumir
                 e marcar avaliadores de teste (demo).
             </p>
+
+            <PanoramaAvaliadores />
 
             <div className="mb-4 max-w-3xl">
                 <button

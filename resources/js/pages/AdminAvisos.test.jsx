@@ -5,8 +5,6 @@ vi.mock('../components/AppShell.jsx', () => ({ default: ({ children }) => <div>{
 vi.mock('../lib/auth.jsx', () => ({ extractErrors: () => ({ message: 'Falhou.', fields: {} }) }));
 vi.mock('react-router-dom', () => ({ Link: ({ children, to }) => <a href={to}>{children}</a> }));
 
-const getInscricoesConfig = vi.fn();
-const definirPrazoInscricoes = vi.fn();
 const getAvisoOpcoes = vi.fn();
 const getAvisoAtivoAdmin = vi.fn();
 const previaAviso = vi.fn();
@@ -14,8 +12,6 @@ const publicarAviso = vi.fn();
 const encerrarAviso = vi.fn();
 const getAvisos = vi.fn();
 vi.mock('../lib/admin.js', () => ({
-    getInscricoesConfig: (...a) => getInscricoesConfig(...a),
-    definirPrazoInscricoes: (...a) => definirPrazoInscricoes(...a),
     getAvisoOpcoes: (...a) => getAvisoOpcoes(...a),
     getAvisoAtivoAdmin: (...a) => getAvisoAtivoAdmin(...a),
     previaAviso: (...a) => previaAviso(...a),
@@ -35,98 +31,15 @@ const OPCOES = {
     destinatarios: 42,
 };
 
-import AdminInscricoes from './AdminInscricoes.jsx';
+import AdminAvisos from './AdminAvisos.jsx';
 
-const semPrazo = { encerradas: false, prazo_input: null, prazo_label: null, minutos_restantes: null };
-const comPrazo = { encerradas: false, prazo_input: '2026-09-30T23:59', prazo_label: '30/09/2026 23:59', minutos_restantes: 120 };
-const encerradas = { ...comPrazo, encerradas: true, minutos_restantes: null };
-
-describe('AdminInscricoes', () => {
+describe('AdminAvisos — aviso na tela', () => {
     beforeEach(() => {
-        getInscricoesConfig.mockReset();
-        definirPrazoInscricoes.mockReset();
         getAvisoOpcoes.mockReset();
         getAvisoAtivoAdmin.mockReset();
         previaAviso.mockReset();
         publicarAviso.mockReset();
         encerrarAviso.mockReset();
-        getInscricoesConfig.mockResolvedValue(semPrazo);
-        getAvisoOpcoes.mockResolvedValue(OPCOES);
-        getAvisoAtivoAdmin.mockResolvedValue(null);
-        getAvisos.mockReset();
-        getAvisos.mockResolvedValue({ data: [], meta: { pagina: 1, ultima_pagina: 1, total: 0 } });
-    });
-
-    it('mostra "sem prazo definido" quando as inscrições não têm data-limite', async () => {
-        render(<AdminInscricoes />);
-
-        expect(await screen.findByText('Sem prazo definido')).toBeInTheDocument();
-        // Sem data preenchida não há o que salvar nem o que remover.
-        expect(screen.getByText('Salvar prazo').closest('button')).toBeDisabled();
-        expect(screen.queryByText('Remover')).not.toBeInTheDocument();
-    });
-
-    it('mostra a data marcada enquanto o prazo não venceu', async () => {
-        getInscricoesConfig.mockResolvedValue(comPrazo);
-        render(<AdminInscricoes />);
-
-        expect(await screen.findByText('Encerra em 30/09/2026 23:59')).toBeInTheDocument();
-        expect(screen.getByLabelText('Data-limite de submissão')).toHaveValue('2026-09-30T23:59');
-    });
-
-    it('avisa quando o prazo já venceu', async () => {
-        getInscricoesConfig.mockResolvedValue(encerradas);
-        render(<AdminInscricoes />);
-
-        expect(await screen.findByText('Inscrições encerradas')).toBeInTheDocument();
-    });
-
-    it('salva a data-limite digitada', async () => {
-        definirPrazoInscricoes.mockResolvedValue(comPrazo);
-        render(<AdminInscricoes />);
-
-        const campo = await screen.findByLabelText('Data-limite de submissão');
-        fireEvent.change(campo, { target: { value: '2026-09-30T23:59' } });
-        fireEvent.click(screen.getByText('Salvar prazo'));
-
-        await waitFor(() => expect(definirPrazoInscricoes).toHaveBeenCalledWith('2026-09-30T23:59'));
-        expect(await screen.findByText('Prazo de inscrição salvo.')).toBeInTheDocument();
-        expect(screen.getByText('Encerra em 30/09/2026 23:59')).toBeInTheDocument();
-    });
-
-    it('remove o prazo e volta a deixar as inscrições abertas', async () => {
-        getInscricoesConfig.mockResolvedValue(comPrazo);
-        definirPrazoInscricoes.mockResolvedValue(semPrazo);
-        render(<AdminInscricoes />);
-
-        fireEvent.click(await screen.findByText('Remover'));
-
-        await waitFor(() => expect(definirPrazoInscricoes).toHaveBeenCalledWith(null));
-        expect(await screen.findByText('Sem prazo definido')).toBeInTheDocument();
-    });
-
-    it('avisa quando não consegue salvar', async () => {
-        definirPrazoInscricoes.mockRejectedValue(new Error('falhou'));
-        render(<AdminInscricoes />);
-
-        const campo = await screen.findByLabelText('Data-limite de submissão');
-        fireEvent.change(campo, { target: { value: '2026-09-30T23:59' } });
-        fireEvent.click(screen.getByText('Salvar prazo'));
-
-        expect(await screen.findByText('Não foi possível salvar. Tente novamente.')).toBeInTheDocument();
-    });
-});
-
-describe('AdminInscricoes — aviso na tela', () => {
-    beforeEach(() => {
-        getInscricoesConfig.mockReset();
-        definirPrazoInscricoes.mockReset();
-        getAvisoOpcoes.mockReset();
-        getAvisoAtivoAdmin.mockReset();
-        previaAviso.mockReset();
-        publicarAviso.mockReset();
-        encerrarAviso.mockReset();
-        getInscricoesConfig.mockResolvedValue(semPrazo);
         getAvisoOpcoes.mockResolvedValue(OPCOES);
         getAvisoAtivoAdmin.mockResolvedValue(null);
         getAvisos.mockReset();
@@ -134,7 +47,7 @@ describe('AdminInscricoes — aviso na tela', () => {
     });
 
     it('abre com o modelo pronto e diz quantos recebem', async () => {
-        render(<AdminInscricoes />);
+        render(<AdminAvisos />);
 
         expect(await screen.findByLabelText('Título')).toHaveValue('As inscrições estão se encerrando');
         expect(screen.getByLabelText('Mensagem')).toHaveValue('Faltam {{tempo_restante}}.');
@@ -143,7 +56,7 @@ describe('AdminInscricoes — aviso na tela', () => {
     });
 
     it('insere a variável na posição do cursor', async () => {
-        render(<AdminInscricoes />);
+        render(<AdminAvisos />);
 
         const campo = await screen.findByLabelText('Mensagem');
         fireEvent.change(campo, { target: { value: 'Encerra em .' } });
@@ -156,7 +69,7 @@ describe('AdminInscricoes — aviso na tela', () => {
 
     it('mostra a prévia com as variáveis resolvidas', async () => {
         previaAviso.mockResolvedValue({ titulo: 'Atenção', mensagem: 'Faltam 45 minutos.', destinatarios: 42 });
-        render(<AdminInscricoes />);
+        render(<AdminAvisos />);
 
         fireEvent.click(await screen.findByText('Ver prévia'));
 
@@ -169,7 +82,7 @@ describe('AdminInscricoes — aviso na tela', () => {
             data: { id: 3, titulo: 'Atenção', mensagem: 'Faltam 45 minutos.', publicado_em: '22/08/2026 19:00' },
             meta: { message: 'Aviso publicado. Ele aparece para os orientadores conectados.' },
         });
-        render(<AdminInscricoes />);
+        render(<AdminAvisos />);
 
         fireEvent.click(await screen.findByText('Publicar aviso'));
         // Confirmação antes de ir para a tela de todo mundo.
@@ -186,7 +99,7 @@ describe('AdminInscricoes — aviso na tela', () => {
     it('encerra o aviso que está no ar', async () => {
         getAvisoAtivoAdmin.mockResolvedValue({ id: 3, titulo: 'Atenção', mensagem: 'Faltam 45 minutos.', publicado_em: '22/08/2026 19:00' });
         encerrarAviso.mockResolvedValue({ meta: { message: 'Aviso encerrado.' } });
-        render(<AdminInscricoes />);
+        render(<AdminAvisos />);
 
         fireEvent.click(await screen.findByText('Encerrar aviso'));
         fireEvent.click(await screen.findByText('Encerrar'));
@@ -197,7 +110,7 @@ describe('AdminInscricoes — aviso na tela', () => {
     });
 
     it('não deixa publicar com título ou mensagem em branco', async () => {
-        render(<AdminInscricoes />);
+        render(<AdminAvisos />);
 
         fireEvent.change(await screen.findByLabelText('Título'), { target: { value: '   ' } });
 
@@ -206,14 +119,12 @@ describe('AdminInscricoes — aviso na tela', () => {
     });
 });
 
-describe('AdminInscricoes — histórico de avisos', () => {
+describe('AdminAvisos — histórico de avisos', () => {
     beforeEach(() => {
-        getInscricoesConfig.mockReset();
         getAvisoOpcoes.mockReset();
         getAvisoAtivoAdmin.mockReset();
         publicarAviso.mockReset();
         getAvisos.mockReset();
-        getInscricoesConfig.mockResolvedValue(semPrazo);
         getAvisoOpcoes.mockResolvedValue(OPCOES);
         getAvisoAtivoAdmin.mockResolvedValue(null);
         getAvisos.mockResolvedValue({
@@ -226,7 +137,7 @@ describe('AdminInscricoes — histórico de avisos', () => {
     });
 
     it('lista os avisos publicados com quem viu e quem fechou', async () => {
-        render(<AdminInscricoes />);
+        render(<AdminAvisos />);
 
         expect(await screen.findByText('Segundo aviso')).toBeInTheDocument();
         expect(screen.getByText('Primeiro aviso')).toBeInTheDocument();
@@ -236,10 +147,10 @@ describe('AdminInscricoes — histórico de avisos', () => {
     });
 
     it('leva ao relatório de cada aviso', async () => {
-        render(<AdminInscricoes />);
+        render(<AdminAvisos />);
 
         const link = (await screen.findByText('Segundo aviso')).closest('a');
-        expect(link).toHaveAttribute('href', '/admin/inscricoes/avisos/9');
+        expect(link).toHaveAttribute('href', '/admin/comunicacao/avisos/9');
     });
 
     it('recarrega o histórico depois de publicar', async () => {
@@ -247,7 +158,7 @@ describe('AdminInscricoes — histórico de avisos', () => {
             data: { id: 10, titulo: 'Novo', mensagem: 'Texto', publicado_em: '22/08/2026 21:00' },
             meta: { message: 'Aviso publicado.' },
         });
-        render(<AdminInscricoes />);
+        render(<AdminAvisos />);
 
         await screen.findByText('Segundo aviso');
         expect(getAvisos).toHaveBeenCalledTimes(1);

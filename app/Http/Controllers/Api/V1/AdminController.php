@@ -37,7 +37,7 @@ class AdminController extends Controller
         return response()->json(['data' => $this->avaliadores->metricas()]);
     }
 
-    /** Projetos agrupados por área do conhecimento (inclui rascunhos). */
+    /** Projetos agrupados por área do conhecimento, com submetidos/rascunho (inclui rascunhos). */
     public function projetosPorArea(): JsonResponse
     {
         return response()->json(['data' => $this->projetos->porArea()]);

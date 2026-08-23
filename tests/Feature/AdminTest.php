@@ -149,6 +149,30 @@ class AdminTest extends TestCase
         $this->assertSame($area->nome, $grupos->firstWhere('area_id', $area->id)['area']);
     }
 
+    public function test_projetos_por_area_conta_submetidos_e_rascunhos_de_cada_area(): void
+    {
+        $orient = User::factory()->create();
+        $area = Area::first();
+
+        Projeto::factory()->submetido()->create(['user_id' => $orient->id, 'area_id' => $area->id]);
+        Projeto::factory()->create(['user_id' => $orient->id, 'area_id' => $area->id]);          // rascunho
+        Projeto::factory()->create(['user_id' => $orient->id, 'area_id' => $area->id]);          // rascunho
+        Projeto::factory()->create(['user_id' => $orient->id, 'area_id' => null]);               // rascunho sem área
+
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $grupos = collect($this->getJson('/api/v1/admin/projetos-por-area')->assertOk()->json('data'));
+
+        $comArea = $grupos->firstWhere('area_id', $area->id);
+        $this->assertSame(1, $comArea['submetidos']);
+        $this->assertSame(2, $comArea['rascunho']);
+        $this->assertSame(3, $comArea['total']);
+
+        $semArea = $grupos->firstWhere('area_id', null);
+        $this->assertSame(0, $semArea['submetidos']);
+        $this->assertSame(1, $semArea['rascunho']);
+    }
+
     public function test_nao_admin_nao_acessa_projetos_por_area(): void
     {
         Sanctum::actingAs(User::factory()->create()); // orientador

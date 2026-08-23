@@ -450,18 +450,22 @@ class AdminAvaliacaoService
         return Avaliacao::whereIn('avaliador_id', $demoIds)->delete();
     }
 
-    /** Configuração da liberação da avaliação (data + se já liberada). */
+    /** Configuração do período de avaliação (liberação + encerramento). */
     public function config(): array
     {
         $edicao = Edicao::atual();
-        $data = $edicao?->avaliacao_liberada_em; // Carbon no fuso do app
+        $data = $edicao?->avaliacao_liberada_em;   // Carbon no fuso do app
+        $fim = $edicao?->avaliacao_encerrada_em;
 
         return [
             'liberada' => (bool) $edicao?->avaliacaoLiberada(),
-            // Valor para <input type="datetime-local"> e rótulo dd/MM/aaaa HH:mm,
+            'encerrada' => (bool) $edicao?->avaliacaoEncerrada(),
+            // Valores para <input type="datetime-local"> e rótulos dd/MM/aaaa HH:mm,
             // ambos no fuso do app (evita o shift de UTC do navegador).
             'liberada_em_input' => $data?->format('Y-m-d\TH:i'),
             'liberada_em_label' => $data?->format('d/m/Y H:i'),
+            'encerrada_em_input' => $fim?->format('Y-m-d\TH:i'),
+            'encerrada_em_label' => $fim?->format('d/m/Y H:i'),
         ];
     }
 
@@ -474,7 +478,33 @@ class AdminAvaliacaoService
             ? Carbon::parse($data, config('app.timezone'))
             : null;
 
+        $fim = Edicao::atual()?->avaliacao_encerrada_em;
+        if ($valor && $fim && $valor->greaterThanOrEqualTo($fim)) {
+            throw ValidationException::withMessages([
+                'liberada_em' => 'A liberação precisa ser antes do encerramento da avaliação ('.$fim->format('d/m/Y H:i').').',
+            ]);
+        }
+
         Edicao::atual()?->update(['avaliacao_liberada_em' => $valor]);
+
+        return $this->config();
+    }
+
+    /** Define a data de encerramento da avaliação (ou remove, com null). */
+    public function definirEncerramento(?string $data): array
+    {
+        $valor = ($data !== null && $data !== '')
+            ? Carbon::parse($data, config('app.timezone'))
+            : null;
+
+        $inicio = Edicao::atual()?->avaliacao_liberada_em;
+        if ($valor && $inicio && $valor->lessThanOrEqualTo($inicio)) {
+            throw ValidationException::withMessages([
+                'encerrada_em' => 'O encerramento precisa ser depois da liberação da avaliação ('.$inicio->format('d/m/Y H:i').').',
+            ]);
+        }
+
+        Edicao::atual()?->update(['avaliacao_encerrada_em' => $valor]);
 
         return $this->config();
     }

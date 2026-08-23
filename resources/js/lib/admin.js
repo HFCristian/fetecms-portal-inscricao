@@ -4,10 +4,13 @@ export const getDashboard = () => http.get('/admin/dashboard').then((r) => r.dat
 
 export const getAvaliadores = () => http.get('/admin/avaliadores').then((r) => r.data.data);
 
-// Aba "Inscrições": data-limite para submeter os projetos.
+// Parametrização → Inscrições: a janela de inscrição (abertura + prazo).
+// Estas devolvem { data, meta } — o CampoDataCard mostra a mensagem do backend.
 export const getInscricoesConfig = () => http.get('/admin/inscricoes').then((r) => r.data.data);
 export const definirPrazoInscricoes = (prazo) =>
-    http.patch('/admin/inscricoes/prazo', { prazo }).then((r) => r.data.data);
+    http.patch('/admin/inscricoes/prazo', { prazo }).then((r) => r.data);
+export const definirInicioInscricoes = (inicio) =>
+    http.patch('/admin/inscricoes/inicio', { inicio }).then((r) => r.data);
 
 // Avisos na tela dos orientadores (um ativo por vez).
 export const getAvisoOpcoes = () => http.get('/admin/avisos/opcoes').then((r) => r.data.data);
@@ -50,7 +53,9 @@ export async function exportarAvisoCsv(id, filtros) {
 // Avaliação online (E7): configuração de liberação, avaliadores e projetos por área.
 export const getAvaliacaoConfig = () => http.get('/admin/avaliacao/config').then((r) => r.data.data);
 export const definirLiberacaoAvaliacao = (liberadaEm) =>
-    http.patch('/admin/avaliacao/config', { liberada_em: liberadaEm }).then((r) => r.data.data);
+    http.patch('/admin/avaliacao/config', { liberada_em: liberadaEm }).then((r) => r.data);
+export const definirEncerramentoAvaliacao = (encerradaEm) =>
+    http.patch('/admin/avaliacao/encerramento', { encerrada_em: encerradaEm }).then((r) => r.data);
 export const getAvaliacaoAvaliadores = () => http.get('/admin/avaliacao/avaliadores').then((r) => r.data.data);
 export const definirLimiteAvaliador = (avaliadorId, limite) =>
     http.patch(`/admin/avaliacao/avaliadores/${avaliadorId}/limite`, { limite }).then((r) => r.data);

@@ -91,8 +91,12 @@ export default function Projetos() {
         }
     }
 
-    const bloqueado = !!inscricoes?.encerradas;
-    const motivo = bloqueado ? `Inscrições encerradas em ${inscricoes.prazo_label}` : '';
+    // Fora da janela (antes de abrir ou depois do prazo) a área fica só de leitura.
+    const bloqueado = !!inscricoes && inscricoes.abertas === false;
+    const motivo = !bloqueado ? ''
+        : inscricoes.nao_iniciadas
+            ? `Inscrições abrem em ${inscricoes.inicio_label}`
+            : `Inscrições encerradas em ${inscricoes.prazo_label}`;
 
     const visiveis = projetos.filter((p) => filtro === 'all' || p.status === filtro);
     const total = projetos.length;

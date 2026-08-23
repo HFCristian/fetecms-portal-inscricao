@@ -73,7 +73,7 @@ class SubmissaoService
         // pelo prazo, que vale para qualquer escrita do orientador.
         $motivos = $projeto->status->editavel() ? [] : $this->impedimentos($projeto);
 
-        if ($this->inscricoes->encerradas()) {
+        if (! $this->inscricoes->abertas()) {
             $motivos[] = $this->inscricoes->motivo();
         }
 

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\ProjetoStatus;
 use App\Models\Projeto;
 use Illuminate\Support\Collection;
 
@@ -27,15 +28,23 @@ class AdminProjetosService
             ->all();
     }
 
-    /** @param  Collection<int, Projeto>  $itens */
+    /**
+     * Cada grupo já traz os números do card da área: quantos submetidos e
+     * quantos ainda em rascunho (aprovado/rejeitado entram só no total).
+     *
+     * @param  Collection<int, Projeto>  $itens
+     */
     private function montarGrupo(Collection $itens): array
     {
         $area = $itens->first()->area;
+        $comStatus = fn (ProjetoStatus $s) => $itens->where('status', $s)->count();
 
         return [
             'area_id' => $area?->id,
             'area' => $area?->nome ?? 'Área ainda não informada',
             'total' => $itens->count(),
+            'submetidos' => $comStatus(ProjetoStatus::Submetido),
+            'rascunho' => $comStatus(ProjetoStatus::Rascunho),
             'projetos' => $itens->map(fn (Projeto $p) => [
                 'id' => $p->id,
                 'titulo' => $p->titulo,

@@ -4,75 +4,12 @@ import AppShell from '../components/AppShell.jsx';
 import { Button, Alert, useConfirm } from '../components/ui.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import {
-    getInscricoesConfig, definirPrazoInscricoes,
     getAvisoOpcoes, getAvisoAtivoAdmin, previaAviso, publicarAviso, encerrarAviso, getAvisos,
 } from '../lib/admin.js';
 
 const campoClass =
     'w-full bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface ' +
     'focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 outline-none';
-
-// Data-limite de submissão. Espelha a "Liberação da avaliação": a hora de parede
-// vai como está e é interpretada no fuso de Campo Grande pelo servidor.
-function PrazoConfig({ config, onConfig }) {
-    // Só monta com o config já carregado — daí o valor inicial vir direto dele,
-    // sem risco de um efeito tardio apagar o que o admin acabou de digitar.
-    const [valor, setValor] = useState(config.prazo_input || '');
-    const [salvando, setSalvando] = useState(false);
-    const [msg, setMsg] = useState('');
-    const [erro, setErro] = useState('');
-
-    useEffect(() => { setValor(config.prazo_input || ''); }, [config.prazo_input]);
-
-    async function salvar(prazo) {
-        setSalvando(true); setMsg(''); setErro('');
-        try {
-            const c = await definirPrazoInscricoes(prazo);
-            onConfig(c);
-            setMsg(prazo ? 'Prazo de inscrição salvo.' : 'Prazo removido — as inscrições ficam abertas.');
-        } catch {
-            setErro('Não foi possível salvar. Tente novamente.');
-        } finally {
-            setSalvando(false);
-        }
-    }
-
-    const status = config.encerradas ? { txt: 'Inscrições encerradas', cor: 'bg-error-container text-on-error-container' }
-        : config.prazo_label ? { txt: `Encerra em ${config.prazo_label}`, cor: 'bg-primary-fixed text-primary-container' }
-            : { txt: 'Sem prazo definido', cor: 'bg-surface-variant text-on-surface-variant' };
-
-    return (
-        <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-6 mb-6 max-w-3xl">
-            <div className="flex items-center gap-2 flex-wrap mb-3">
-                <h2 className="font-display text-primary font-semibold">Prazo de submissão</h2>
-                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${status.cor}`}>{status.txt}</span>
-            </div>
-            <p className="text-sm text-on-surface-variant mb-3">
-                Data/hora (horário de Campo Grande) em que as inscrições se encerram. Passado o prazo,
-                a área do orientador fica <strong>só de leitura</strong>: ninguém cria, edita, submete
-                ou cancela projeto — nem quem tinha cancelado o envio para editar. Você, como admin,
-                continua podendo agir por fora do prazo. Deixe em branco para manter as inscrições abertas.
-            </p>
-            {msg && <div className="mb-3"><Alert type="info">{msg}</Alert></div>}
-            {erro && <div className="mb-3"><Alert>{erro}</Alert></div>}
-            <div className="flex items-end gap-2 flex-wrap">
-                <input
-                    type="datetime-local"
-                    aria-label="Data-limite de submissão"
-                    value={valor}
-                    onChange={(e) => setValor(e.target.value)}
-                    className="bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 outline-none"
-                />
-                <Button type="button" loading={salvando} disabled={!valor} onClick={() => salvar(valor || null)}>
-                    Salvar prazo
-                </Button>
-                {config.prazo_input && (
-                    <Button type="button" variant="outline" onClick={() => salvar(null)}>Remover</Button>
-                )}
-            </div>
-        </div>
-    );
-}
 
 // Aviso publicado para os orientadores conectados. Um por vez: publicar um novo
 // encerra o anterior.
@@ -297,7 +234,7 @@ function HistoricoAvisos({ recarregar }) {
                 <ul className="divide-y divide-outline-variant/30">
                     {avisos.map((a) => (
                         <li key={a.id} className="py-3">
-                            <Link to={`/admin/inscricoes/avisos/${a.id}`} className="group flex items-center gap-3 flex-wrap">
+                            <Link to={`/admin/comunicacao/avisos/${a.id}`} className="group flex items-center gap-3 flex-wrap">
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 flex-wrap">
                                         <span className="text-sm font-semibold text-on-surface group-hover:text-primary truncate">{a.titulo}</span>
@@ -347,28 +284,29 @@ function HistoricoAvisos({ recarregar }) {
     );
 }
 
-export default function AdminInscricoes() {
-    const [config, setConfig] = useState(null);
+export default function AdminAvisos() {
     const [opcoes, setOpcoes] = useState(null);
     const [ativo, setAtivo] = useState(null);
     // Publicar ou encerrar muda os números do histórico: este contador o recarrega.
     const [versao, setVersao] = useState(0);
 
     useEffect(() => {
-        getInscricoesConfig()
-            .then(setConfig)
-            .catch(() => setConfig({ encerradas: false, prazo_input: null, prazo_label: null, minutos_restantes: null }));
         getAvisoOpcoes().then(setOpcoes).catch(() => setOpcoes(null));
         getAvisoAtivoAdmin().then(setAtivo).catch(() => setAtivo(null));
     }, []);
 
-    const carregando = config === null || opcoes === null;
+    const carregando = opcoes === null;
 
     return (
         <AppShell>
-            <h1 className="font-display text-2xl font-semibold text-primary mb-1">Inscrições</h1>
+            <Link to="/admin/comunicacao" className="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary mb-3">
+                <span className="material-symbols-outlined text-[18px]">arrow_back</span> Comunicação
+            </Link>
+            <h1 className="font-display text-2xl font-semibold text-primary mb-1">Avisos</h1>
             <p className="text-on-surface-variant mb-6 max-w-3xl">
-                Até quando os orientadores podem submeter os projetos, e o aviso que aparece na tela deles.
+                O card que aparece na tela dos orientadores conectados, e o relatório de quem viu,
+                fechou ou ainda não viu cada aviso. As datas de inscrição ficam em
+                Parametrização → Inscrições.
             </p>
 
             {carregando ? (
@@ -377,7 +315,6 @@ export default function AdminInscricoes() {
                 </div>
             ) : (
                 <>
-                    <PrazoConfig config={config} onConfig={setConfig} />
                     <AvisoSection
                         opcoes={opcoes}
                         ativo={ativo}

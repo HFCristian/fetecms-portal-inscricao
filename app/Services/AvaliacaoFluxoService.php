@@ -19,14 +19,48 @@ use Illuminate\Validation\ValidationException;
  */
 class AvaliacaoFluxoService
 {
-    /** Pode avaliar agora? Demo em modo teste ignora a data; senão, exige liberação. */
-    public function podeAvaliar(User $user, bool $teste): bool
+    /**
+     * Pode ler os projetos designados? Depois de liberada, a leitura continua
+     * valendo mesmo com o período encerrado — o avaliador ainda consulta o que
+     * avaliou. Demo em modo teste ignora as datas.
+     */
+    public function podeVer(User $user, bool $teste): bool
     {
         if ($user->is_demo && $teste) {
             return true;
         }
 
         return (bool) Edicao::atual()?->avaliacaoLiberada();
+    }
+
+    /**
+     * Pode avaliar agora (iniciar, salvar rascunho, enviar)? Exige a liberação
+     * e que o período ainda não tenha se encerrado. Demo em modo teste ignora
+     * as datas.
+     */
+    public function podeAvaliar(User $user, bool $teste): bool
+    {
+        if ($user->is_demo && $teste) {
+            return true;
+        }
+
+        $edicao = Edicao::atual();
+
+        return (bool) $edicao?->avaliacaoLiberada() && ! $edicao->avaliacaoEncerrada();
+    }
+
+    /** Por que a avaliação está fechada agora (para a mensagem de erro/tela). */
+    public function motivoBloqueio(): string
+    {
+        $edicao = Edicao::atual();
+
+        if ($edicao?->avaliacaoEncerrada()) {
+            return 'O período de avaliação foi encerrado em '
+                .$edicao->avaliacao_encerrada_em->format('d/m/Y H:i')
+                .'. Você ainda pode consultar os projetos, mas não é mais possível iniciar, salvar ou enviar avaliações.';
+        }
+
+        return 'A avaliação ainda não está liberada.';
     }
 
     /** Inicia a avaliação (designada → em_andamento). Só uma em andamento por vez. */
