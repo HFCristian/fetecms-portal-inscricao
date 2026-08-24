@@ -17,16 +17,25 @@ class AdminDashboardService
     /** As métricas do painel do admin (+ recorte por gênero de pessoas). */
     public function metricas(): array
     {
-        // Escolas/cidades/estados: contam apenas entre projetos SUBMETIDOS.
+        // Quase todo card do painel olha apenas para projetos SUBMETIDOS: quem
+        // está em rascunho ainda pode desistir, então não entra na contagem de
+        // categoria, de pessoas nem de escolas/cidades/estados. As exceções são
+        // os dois primeiros cards ("Projetos (total)" e "Projetos por status"),
+        // que existem justamente para mostrar o rascunho.
+        $submetido = fn (Builder $q) => $q->where('status', ProjetoStatus::Submetido->value);
         $submetidos = fn () => Projeto::where('status', ProjetoStatus::Submetido->value);
 
-        $orientadores = User::where('role', Role::Orientador->value)->count();
-        $alunos = Aluno::count();
-        $coorientadores = Coorientador::count();
+        // Orientador conta uma vez só, tenha ele um ou vários projetos submetidos.
+        $orientadoresSubmetidos = User::where('role', Role::Orientador->value)
+            ->whereHas('projetos', $submetido);
+
+        $orientadores = (clone $orientadoresSubmetidos)->count();
+        $alunos = Aluno::whereHas('projeto', $submetido)->count();
+        $coorientadores = Coorientador::whereHas('projeto', $submetido)->count();
 
         return [
             'projetos_total' => Projeto::count(),
-            'projetos_submetidos' => Projeto::where('status', ProjetoStatus::Submetido->value)->count(),
+            'projetos_submetidos' => $submetidos()->count(),
             'projetos_rascunho' => Projeto::where('status', ProjetoStatus::Rascunho->value)->count(),
             'projetos_categoria' => $this->porCategoria(),
             'orientadores' => $orientadores,
@@ -34,9 +43,13 @@ class AdminDashboardService
             'coorientadores' => $coorientadores,
             // Recorte por gênero: F (mulheres), M (homens) e "outros" (NB/O/P/nulo),
             // calculado como total − F − M para a soma sempre fechar com o total.
-            'orientadores_genero' => $this->porGenero(OrientadorProfile::query(), $orientadores),
-            'alunos_genero' => $this->porGenero(Aluno::query(), $alunos),
-            'coorientadores_genero' => $this->porGenero(Coorientador::query(), $coorientadores),
+            // Cada query cobre exatamente o mesmo conjunto contado acima.
+            'orientadores_genero' => $this->porGenero(
+                OrientadorProfile::whereIn('user_id', (clone $orientadoresSubmetidos)->select('id')),
+                $orientadores
+            ),
+            'alunos_genero' => $this->porGenero(Aluno::whereHas('projeto', $submetido), $alunos),
+            'coorientadores_genero' => $this->porGenero(Coorientador::whereHas('projeto', $submetido), $coorientadores),
             'escolas_com_projeto' => $submetidos()->whereNotNull('instituicao_id')->distinct()->count('instituicao_id'),
             'cidades_com_projeto' => $submetidos()->whereNotNull('cidade_id')->distinct()->count('cidade_id'),
             'estados_com_projeto' => $submetidos()->whereNotNull('estado_id')->distinct()->count('estado_id'),
@@ -44,16 +57,17 @@ class AdminDashboardService
     }
 
     /**
-     * Projetos cadastrados (rascunho + submetido) por categoria da feira. Sai
-     * sempre com todas as categorias, na ordem do enum, mesmo as zeradas.
-     * Rascunho ainda sem categoria escolhida não entra em nenhuma coluna — por
-     * isso a soma pode ficar abaixo de `projetos_total`.
+     * Projetos SUBMETIDOS por categoria da feira. Sai sempre com todas as
+     * categorias, na ordem do enum, mesmo as zeradas. Projeto submetido sempre
+     * tem categoria (é item do checklist), então a soma fecha com
+     * `projetos_submetidos`.
      *
      * @return list<array{value: string, label: string, total: int}>
      */
     private function porCategoria(): array
     {
         $totais = Projeto::query()
+            ->where('status', ProjetoStatus::Submetido->value)
             ->whereNotNull('categoria')
             ->groupBy('categoria')
             ->selectRaw('categoria, count(*) as total')
