@@ -84,6 +84,9 @@ Tabela `users` única com coluna `role`: **`orientador`**, **`avaliador`**, **`a
 - **Admin**: criado **somente por outro admin** (cadastro simples: nome, e-mail, senha). Dashboard
   com as métricas: projetos totais / submetidos / em rascunho; **projetos por categoria**;
   orientadores; alunos; coorientadores; escolas, cidades e estados **com projeto cadastrado**.
+  Fora dos dois primeiros cards (que existem para mostrar o rascunho), **todo card conta só
+  projetos submetidos** — categoria, pessoas e localidades. Orientador entra **uma vez**, tenha
+  um ou vários submetidos (`AdminDashboardService`).
   - **Parametrização → Inscrições** (`/admin/parametrizacao/inscricoes`): a **janela de
     inscrição** da edição — **abertura** (`edicoes.submissoes_de`) e **prazo de submissão**
     (`edicoes.submissoes_ate`), ambos hora de parede de Campo Grande. Fora da janela a área do
@@ -232,6 +235,7 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 27 | Aba Comunicação (mala direta + avisos) e remoção da aba Inscrições | ✅ sim | ❌ não (manual do Pedro) | 3 |
 | 28 | Projetos por área: cards por área (submetidos/rascunho) + áreas compactáveis | ✅ sim | ❌ não (manual do Pedro) | 4 |
 | 29 | Aba "Acesso": e-mail e senha na mesma tela + menu do admin reordenado | ✅ sim | ❌ não (manual do Pedro) | 4 |
+| 30 | Painel do admin: categoria, orientadores, alunos e coorientadores contam só projetos submetidos | ✅ sim | ❌ não (manual do Pedro) | 0 |
 
 > **Estado atual:** ciclo de ajustes pós-v1 (Sprints 6–10) **concluído e verde** — back 110/110,
 > front 11/11, Pint limpo, build OK (estado integrado, já com a refatoração visual do Pedro).
@@ -247,11 +251,12 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > e **Escolas** (`/admin/parametrizacao/escolas`): admin busca, **renomeia, mescla** (reatribui
 > projetos/alunos/orientadores) e **exclui** instituições sem uso (`InstituicaoAdminService`/Controller,
 > rotas `admin/instituicoes`). Back **117/117**, front 11/11, Pint limpo, build OK.
-> **Pendências do Pedro:** (1) `git push origin feat/reorganizacao-abas` + PR para a `main`
-> (o ambiente do Claude não tem credencial do GitHub) e, depois do merge, o deploy pela §11 do
-> [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md) — esta release traz **uma migration aditiva**
-> (`add_janelas_de_prazo_to_edicoes`: duas colunas anuláveis em `edicoes`) e **nenhuma variável
-> nova de `.env`; a fila (`queue:work`) continua obrigatória; (2) popular as escolas com
+> **Pendências do Pedro:** (1) `git push origin fix/cards-admin-somente-submetidos` + PR para a
+> `main` (o ambiente do Claude não tem credencial do GitHub) e, depois do merge, o deploy pela §11
+> do [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md) — esta release **não tem migration nem variável nova
+> de `.env`** (só muda consulta do painel); a fila (`queue:work`) continua obrigatória.
+> A pendência anterior (`feat/reorganizacao-abas`) já entrou na `main` pelos PRs **#57** (v1.16) e
+> **#58** (v1.16.2); (2) popular as escolas com
 > `php artisan instituicoes:importar` (lê `database/data/instituicoes/escolas_ms.csv`; 1888 escolas
 > de MS, todos os 79 municípios casam com o catálogo IBGE).
 >
@@ -420,6 +425,21 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > admin foi reordenado para **Projetos · Avaliação online · Comunicação · Suporte ·
 > Parametrização · Administradores · Registros**.
 > Back **425/425**, front **191/191**, Pint limpo, build OK.
+>
+> **Sprint 30 (branch `fix/cards-admin-somente-submetidos`, saída da `origin/main` @ `35b6561`):**
+> os cards **Projetos por categoria**, **Orientadores**, **Alunos** e **Coorientadores** do painel
+> passaram a contar **apenas projetos submetidos**, como os de escolas/cidades/estados já faziam.
+> (a) `projetos_categoria` filtra `status = submetido` (só `submetido` mesmo — `aprovado`/
+> `rejeitado` ficam de fora, igual ao card "Projetos por status").
+> (b) **Orientadores** virou a contagem **distinta** de quem tem ≥ 1 submetido (`whereHas`), então
+> quem só tem rascunho ou nenhum projeto sai do card, e quem tem vários continua valendo 1.
+> (c) **Alunos**/**Coorientadores** contam por `whereHas('projeto', submetido)` — de quebra, gente
+> de projeto excluído (soft delete) deixou de contar.
+> (d) O recorte por **gênero** usa exatamente o mesmo conjunto de cada card, então a soma
+> F + M + outros continua fechando com o número grande.
+> (e) **Sem mudança de contrato nem de tela**: o payload de `GET /admin/dashboard` tem as mesmas
+> chaves e os rótulos dos cards ficaram como estavam (decisão do Pedro).
+> Back **426/426**, front **191/191**, Pint limpo, build OK.
 
 ### Roadmap de sprints (proposto)
 

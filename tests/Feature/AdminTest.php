@@ -34,7 +34,7 @@ class AdminTest extends TestCase
         $insts = Instituicao::take(2)->get();
 
         // 2 submetidos em escolas/cidades/estados distintos
-        Projeto::factory()->submetido()->create([
+        $submetido = Projeto::factory()->submetido()->create([
             'user_id' => $orient->id, 'instituicao_id' => $insts[0]->id,
             'estado_id' => $ms->id, 'cidade_id' => $ms->cidades()->first()->id,
         ]);
@@ -42,8 +42,12 @@ class AdminTest extends TestCase
             'user_id' => $orient->id, 'instituicao_id' => $insts[1]->id,
             'estado_id' => $sp->id, 'cidade_id' => $sp->cidades()->first()->id,
         ]);
-        // 1 rascunho (não conta nas métricas escolas/cidades/estados)
-        $rascunho = Projeto::factory()->create(['user_id' => $orient->id]);
+        // 2 alunos + 1 coorientador no primeiro submetido: entram nos cards.
+        Aluno::factory()->count(2)->create(['projeto_id' => $submetido->id]);
+        Coorientador::factory()->create(['projeto_id' => $submetido->id]);
+
+        // 1 rascunho, de outro orientador: nada dele conta em card nenhum.
+        $rascunho = Projeto::factory()->create(['user_id' => User::factory()->create()->id]);
         Aluno::factory()->count(3)->create(['projeto_id' => $rascunho->id]);
         Coorientador::factory()->create(['projeto_id' => $rascunho->id]);
 
@@ -54,8 +58,9 @@ class AdminTest extends TestCase
             ->assertJsonPath('data.projetos_total', 3)
             ->assertJsonPath('data.projetos_submetidos', 2)
             ->assertJsonPath('data.projetos_rascunho', 1)
+            // Orientador com 2 submetidos conta 1; o do rascunho não conta.
             ->assertJsonPath('data.orientadores', 1)
-            ->assertJsonPath('data.alunos', 3)
+            ->assertJsonPath('data.alunos', 2)
             ->assertJsonPath('data.coorientadores', 1)
             ->assertJsonPath('data.escolas_com_projeto', 2)
             ->assertJsonPath('data.cidades_com_projeto', 2)
@@ -66,9 +71,11 @@ class AdminTest extends TestCase
     {
         $orient = User::factory()->create();
 
-        Projeto::factory()->count(2)->create(['user_id' => $orient->id, 'categoria' => Categoria::FetecJr->value]);
+        // Só os submetidos entram no card.
+        Projeto::factory()->submetido()->count(2)->create(['user_id' => $orient->id, 'categoria' => Categoria::FetecJr->value]);
         Projeto::factory()->submetido()->create(['user_id' => $orient->id, 'categoria' => Categoria::Fetecms->value]);
-        // Rascunho ainda sem categoria: não entra em nenhuma coluna.
+        // Rascunhos ficam de fora, tenham categoria escolhida ou não.
+        Projeto::factory()->create(['user_id' => $orient->id, 'categoria' => Categoria::FetecmsFundect->value]);
         Projeto::factory()->create(['user_id' => $orient->id, 'categoria' => null]);
 
         Sanctum::actingAs(User::factory()->admin()->create());
@@ -81,6 +88,7 @@ class AdminTest extends TestCase
             ->assertJsonPath('data.projetos_categoria.0.total', 2)
             ->assertJsonPath('data.projetos_categoria.1.value', 'fetecms')
             ->assertJsonPath('data.projetos_categoria.1.total', 1)
+            // Zerada: o único projeto FETECMS FUNDECT está em rascunho.
             ->assertJsonPath('data.projetos_categoria.2.value', 'fetecms_fundect')
             ->assertJsonPath('data.projetos_categoria.2.total', 0)
             ->assertJsonCount(count(Categoria::cases()), 'data.projetos_categoria');
@@ -88,12 +96,12 @@ class AdminTest extends TestCase
 
     public function test_dashboard_recorta_pessoas_por_genero(): void
     {
-        // Orientadores: 2 F, 1 M (com profile).
+        // Orientadores: 2 F, 1 M (com profile e projeto submetido).
         $o1 = $this->orientadorComGenero('F');
         $this->orientadorComGenero('F');
         $this->orientadorComGenero('M');
 
-        $proj = Projeto::factory()->create(['user_id' => $o1->id]);
+        $proj = Projeto::factory()->submetido()->create(['user_id' => $o1->id]);
 
         // Alunos: 1 F, 1 M, 1 NB (→ outros).
         Aluno::factory()->create(['projeto_id' => $proj->id, 'genero' => 'F']);
@@ -121,8 +129,48 @@ class AdminTest extends TestCase
     {
         $user = User::factory()->create(); // role orientador
         OrientadorProfile::factory()->create(['user_id' => $user->id, 'genero' => $genero]);
+        // Só entra nos cards do painel quem tem projeto submetido.
+        Projeto::factory()->submetido()->create(['user_id' => $user->id]);
 
         return $user;
+    }
+
+    public function test_dashboard_ignora_pessoas_de_projetos_em_rascunho(): void
+    {
+        $comSubmetido = User::factory()->create();
+        OrientadorProfile::factory()->create(['user_id' => $comSubmetido->id, 'genero' => 'F']);
+        $soRascunho = User::factory()->create();
+        OrientadorProfile::factory()->create(['user_id' => $soRascunho->id, 'genero' => 'M']);
+
+        $submetido = Projeto::factory()->submetido()->create([
+            'user_id' => $comSubmetido->id, 'categoria' => Categoria::Fetecms->value,
+        ]);
+        Aluno::factory()->create(['projeto_id' => $submetido->id, 'genero' => 'F']);
+        Coorientador::factory()->create(['projeto_id' => $submetido->id, 'genero' => 'M']);
+
+        // Mesmo com mais gente, o rascunho não aparece em card nenhum.
+        $rascunho = Projeto::factory()->create([
+            'user_id' => $soRascunho->id, 'categoria' => Categoria::Fetecms->value,
+        ]);
+        Aluno::factory()->count(4)->create(['projeto_id' => $rascunho->id, 'genero' => 'F']);
+        Coorientador::factory()->create(['projeto_id' => $rascunho->id, 'genero' => 'M']);
+
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->getJson('/api/v1/admin/dashboard')
+            ->assertOk()
+            ->assertJsonPath('data.projetos_total', 2)
+            ->assertJsonPath('data.orientadores', 1)
+            ->assertJsonPath('data.orientadores_genero.f', 1)
+            ->assertJsonPath('data.orientadores_genero.m', 0)
+            ->assertJsonPath('data.orientadores_genero.outros', 0)
+            ->assertJsonPath('data.alunos', 1)
+            ->assertJsonPath('data.alunos_genero.f', 1)
+            ->assertJsonPath('data.coorientadores', 1)
+            ->assertJsonPath('data.coorientadores_genero.m', 1)
+            // FETECMS tem 1 submetido e 1 rascunho: o card mostra só o submetido.
+            ->assertJsonPath('data.projetos_categoria.1.value', 'fetecms')
+            ->assertJsonPath('data.projetos_categoria.1.total', 1);
     }
 
     public function test_projetos_por_area_agrupa_incluindo_rascunhos(): void
