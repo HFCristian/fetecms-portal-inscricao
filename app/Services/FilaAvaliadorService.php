@@ -20,6 +20,9 @@ use Illuminate\Support\Facades\DB;
  *   1. mesma ÁREA e mesma SUBÁREA do avaliador;
  *   2. mesma ÁREA;
  *   3. área CORRELATA (o grupo de áreas irmãs da área do avaliador);
+ *
+ * "Área do avaliador" inclui as áreas extras que o admin liberou para ele.
+ *
  *   4. sorteio, quando tudo que se encaixa em 1–3 já alcançou o mínimo de
  *      avaliações — aí vale qualquer projeto submetido, com os que ainda estão
  *      abaixo do mínimo na frente.
@@ -41,9 +44,9 @@ class FilaAvaliadorService
     {
         $perfil = $avaliador->avaliadorProfile;
 
-        // Sem área não há como casar projeto; conta demo ou inativa fica de fora
-        // da reposição automática, como já acontece na distribuição.
-        if (! $perfil?->area_id || $avaliador->is_demo || ! $avaliador->is_active) {
+        // Sem área (nem própria nem extra) não há como casar projeto; conta demo
+        // ou inativa fica de fora da reposição, como já acontece na distribuição.
+        if (($perfil?->areasAtendidas() ?? []) === [] || $avaliador->is_demo || ! $avaliador->is_active) {
             return 0;
         }
 
@@ -125,7 +128,10 @@ class FilaAvaliadorService
     public function proximo(User $avaliador, array $ignorar = []): ?int
     {
         $perfil = $avaliador->avaliadorProfile;
-        if (! $perfil?->area_id) {
+        // A própria área do avaliador mais as que o admin liberou para ele.
+        $areas = $perfil?->areasAtendidas() ?? [];
+
+        if ($areas === []) {
             return null;
         }
 
@@ -150,15 +156,16 @@ class FilaAvaliadorService
             return null;
         }
 
-        $correlatas = $this->areasCorrelatas($perfil->area_id);
+        $correlatas = $this->areasCorrelatas($areas);
+        $pares = $perfil->paresAtendidos();
         $precisa = fn (Projeto $p) => $p->total_count < $minPorProjeto;
 
         $faixas = [
-            // 1. área e subárea do avaliador
-            fn (Projeto $p) => $precisa($p) && $p->area_id === $perfil->area_id
-                && $perfil->subarea_id !== null && $p->subarea_id === $perfil->subarea_id,
-            // 2. área do avaliador
-            fn (Projeto $p) => $precisa($p) && $p->area_id === $perfil->area_id,
+            // 1. área e subárea que o avaliador atende
+            fn (Projeto $p) => $precisa($p) && $p->subarea_id !== null
+                && in_array([$p->area_id, $p->subarea_id], $pares, true),
+            // 2. área que o avaliador atende
+            fn (Projeto $p) => $precisa($p) && in_array($p->area_id, $areas, true),
             // 3. área correlata
             fn (Projeto $p) => $precisa($p) && in_array($p->area_id, $correlatas, true),
         ];
@@ -195,21 +202,26 @@ class FilaAvaliadorService
     }
 
     /**
-     * Áreas irmãs da área do avaliador (mesmo grupo de correlação). Área sem
-     * grupo não tem irmã.
+     * Áreas irmãs das áreas do avaliador (mesmo grupo de correlação), sem
+     * repetir as que ele já atende. Área sem grupo não tem irmã.
      *
+     * @param  list<int>  $areas
      * @return list<int>
      */
-    private function areasCorrelatas(int $areaId): array
+    private function areasCorrelatas(array $areas): array
     {
-        $grupo = Area::whereKey($areaId)->value('grupo_correlato');
+        $grupos = Area::whereIn('id', $areas)
+            ->whereNotNull('grupo_correlato')
+            ->pluck('grupo_correlato')
+            ->unique()
+            ->all();
 
-        if ($grupo === null) {
+        if ($grupos === []) {
             return [];
         }
 
-        return Area::where('grupo_correlato', $grupo)
-            ->whereKeyNot($areaId)
+        return Area::whereIn('grupo_correlato', $grupos)
+            ->whereNotIn('id', $areas)
             ->pluck('id')
             ->all();
     }

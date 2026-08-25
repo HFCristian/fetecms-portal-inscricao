@@ -161,7 +161,7 @@ class AdminAvaliacaoTest extends TestCase
             ->assertJsonPath('data.1.nome', 'Zilda');
     }
 
-    public function test_projetos_submetidos_por_area_com_metricas(): void
+    public function test_tabela_de_projetos_submetidos_com_metricas(): void
     {
         $a = Area::create(['nome' => 'Área A']);
         $b = Area::create(['nome' => 'Área B']);
@@ -181,17 +181,90 @@ class AdminAvaliacaoTest extends TestCase
 
         Sanctum::actingAs(User::factory()->admin()->create());
 
+        // Uma tabela só, por título; o rascunho não entra.
         $this->getJson('/api/v1/admin/avaliacao/projetos')
             ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.0.titulo', 'Projeto A1')
             ->assertJsonPath('data.0.area', 'Área A')
-            ->assertJsonPath('data.0.projetos.0.titulo', 'Projeto A1')
-            ->assertJsonPath('data.0.projetos.0.realizadas', 2)
-            ->assertJsonPath('data.0.projetos.0.em_avaliacao', 0)
-            ->assertJsonPath('data.0.projetos.0.faltantes', 1)
-            ->assertJsonPath('data.1.area', 'Área B')
-            ->assertJsonPath('data.1.projetos.0.realizadas', 0)
-            ->assertJsonPath('data.1.projetos.0.em_avaliacao', 1)
-            ->assertJsonPath('data.1.projetos.0.faltantes', 3);
+            ->assertJsonPath('data.0.realizadas', 2)
+            ->assertJsonPath('data.0.em_avaliacao', 0)
+            ->assertJsonPath('data.0.faltantes', 1)
+            ->assertJsonPath('data.1.titulo', 'Projeto B1')
+            ->assertJsonPath('data.1.realizadas', 0)
+            ->assertJsonPath('data.1.em_avaliacao', 1)
+            ->assertJsonPath('data.1.faltantes', 3)
+            ->assertJsonPath('meta.total', 2);
+    }
+
+    public function test_tabela_de_projetos_busca_filtra_ordena_e_exporta(): void
+    {
+        $a = Area::create(['nome' => 'Área A']);
+        $b = Area::create(['nome' => 'Área B']);
+        $ana = $this->avaliador($a->id, 'Ana');
+        $orient = User::factory()->create();
+
+        $p1 = Projeto::factory()->submetido()->create([
+            'user_id' => $orient->id, 'area_id' => $a->id, 'titulo' => 'Bioplástico de mandioca',
+            'categoria' => 'fetec_jr',
+        ]);
+        Projeto::factory()->submetido()->create([
+            'user_id' => $orient->id, 'area_id' => $b->id, 'titulo' => 'Zebrafish e poluentes',
+            'categoria' => 'fetecms',
+        ]);
+        Avaliacao::create(['projeto_id' => $p1->id, 'avaliador_id' => $ana->id, 'status' => 'concluida', 'nota' => 8]);
+
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        // Busca por título.
+        $this->getJson('/api/v1/admin/avaliacao/projetos?q=mandioca')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.titulo', 'Bioplástico de mandioca');
+
+        // Filtro por área e por categoria.
+        $this->getJson("/api/v1/admin/avaliacao/projetos?area_id={$b->id}")
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.titulo', 'Zebrafish e poluentes');
+
+        $this->getJson('/api/v1/admin/avaliacao/projetos?categoria=fetec_jr')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.categoria_label', 'FETEC Jr');
+
+        // Ordenação: "faltantes" é o espelho de "realizadas".
+        $this->getJson('/api/v1/admin/avaliacao/projetos?ordenar=faltantes&direcao=asc')
+            ->assertOk()
+            ->assertJsonPath('data.0.titulo', 'Bioplástico de mandioca');
+
+        $this->getJson('/api/v1/admin/avaliacao/projetos?ordenar=titulo&direcao=desc')
+            ->assertOk()
+            ->assertJsonPath('data.0.titulo', 'Zebrafish e poluentes');
+
+        // As opções dos filtros vêm no meta.
+        $this->getJson('/api/v1/admin/avaliacao/projetos')
+            ->assertJsonPath('meta.areas.0.nome', 'Área A')
+            ->assertJsonCount(3, 'meta.categorias');
+
+        // CSV do mesmo recorte.
+        $csv = $this->get('/api/v1/admin/avaliacao/projetos/exportar?categoria=fetec_jr')
+            ->assertOk()
+            ->assertHeader('Content-Type', 'text/csv; charset=UTF-8')
+            ->getContent();
+
+        $this->assertStringContainsString('Título;Área;Subárea;Categoria', $csv);
+        $this->assertStringContainsString('Bioplástico de mandioca', $csv);
+        $this->assertStringNotContainsString('Zebrafish', $csv);
+    }
+
+    public function test_ordenacao_invalida_de_projetos_e_recusada(): void
+    {
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->getJson('/api/v1/admin/avaliacao/projetos?ordenar=nota')
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('ordenar');
     }
 
     public function test_admin_designa_projeto_a_avaliador_especifico(): void

@@ -6,6 +6,7 @@ use Database\Factories\AvaliadorProfileFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class AvaliadorProfile extends Model
 {
@@ -32,11 +33,52 @@ class AvaliadorProfile extends Model
      */
     public const MINUTOS_POR_AVALIACAO = 150;
 
-    protected $fillable = ['cpf', 'titulacao', 'area_id', 'subarea_id', 'limite_avaliacoes'];
+    protected $fillable = ['cpf', 'titulacao', 'area_id', 'subarea_id', 'limite_avaliacoes', 'comissao_especial'];
 
     protected function casts(): array
     {
-        return ['limite_avaliacoes' => 'integer'];
+        return [
+            'limite_avaliacoes' => 'integer',
+            'comissao_especial' => 'boolean',
+        ];
+    }
+
+    /**
+     * Todas as áreas que este avaliador atende: a própria e as que o admin
+     * liberou. Sem área no cadastro, só valem as extras.
+     *
+     * @return list<int>
+     */
+    public function areasAtendidas(): array
+    {
+        $extras = $this->relationLoaded('areasExtras')
+            ? $this->areasExtras->pluck('area_id')->all()
+            : $this->areasExtras()->pluck('area_id')->all();
+
+        return array_values(array_unique(array_filter([$this->area_id, ...$extras])));
+    }
+
+    /**
+     * Pares área+subárea que este avaliador atende, só onde há subárea — é o
+     * casamento mais específico da distribuição.
+     *
+     * @return list<array{0:int, 1:int}>
+     */
+    public function paresAtendidos(): array
+    {
+        $extras = $this->relationLoaded('areasExtras') ? $this->areasExtras : $this->areasExtras()->get();
+
+        $pares = [];
+        if ($this->area_id && $this->subarea_id) {
+            $pares[] = [$this->area_id, $this->subarea_id];
+        }
+        foreach ($extras as $extra) {
+            if ($extra->subarea_id) {
+                $pares[] = [$extra->area_id, $extra->subarea_id];
+            }
+        }
+
+        return $pares;
     }
 
     /**
@@ -48,6 +90,11 @@ class AvaliadorProfile extends Model
     public function atingiuLimite(int $assumidas): bool
     {
         return $this->limite_avaliacoes !== null && $assumidas >= $this->limite_avaliacoes;
+    }
+
+    public function areasExtras(): HasMany
+    {
+        return $this->hasMany(AvaliadorAreaExtra::class, 'avaliador_profile_id');
     }
 
     public function user(): BelongsTo

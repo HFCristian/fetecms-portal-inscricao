@@ -169,6 +169,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::get('/avaliacao/avaliadores/opcoes', [AdminAvaliacaoController::class, 'avaliadoresOpcoes']);
             Route::get('/avaliacao/avaliadores/exportar', [AdminAvaliacaoController::class, 'exportarAvaliadores']);
             Route::get('/avaliacao/projetos', [AdminAvaliacaoController::class, 'projetos']);
+            Route::get('/avaliacao/projetos/exportar', [AdminAvaliacaoController::class, 'exportarProjetos']);
             Route::get('/avaliacao/reclassificacoes', [AdminAvaliacaoController::class, 'reclassificacoes']);
             Route::post('/avaliacao/reclassificacoes/aplicar', [AdminAvaliacaoController::class, 'aplicarReclassificacoes']);
             Route::get('/avaliacao/ranking', [AdminAvaliacaoController::class, 'ranking']);
@@ -176,6 +177,9 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::post('/avaliacao/distribuir', [AdminAvaliacaoController::class, 'distribuir']);
             Route::patch('/avaliacao/avaliadores/{avaliador}/limite', [AdminAvaliacaoController::class, 'limitar']);
             Route::patch('/avaliacao/avaliadores/{avaliador}/demo', [AdminAvaliacaoController::class, 'demo']);
+            Route::patch('/avaliacao/avaliadores/{avaliador}/comissao', [AdminAvaliacaoController::class, 'comissao']);
+            Route::post('/avaliacao/avaliadores/{avaliador}/areas-extras', [AdminAvaliacaoController::class, 'adicionarAreaExtra']);
+            Route::delete('/avaliacao/avaliadores/{avaliador}/areas-extras/{extra}', [AdminAvaliacaoController::class, 'removerAreaExtra']);
             Route::delete('/avaliacao/testes', [AdminAvaliacaoController::class, 'limparTestes']);
             // Trilha de registros (submissões, cancelamentos, exclusões, e-mails)
             // Aba "Inscrições": prazo de submissão dos projetos.

@@ -2,17 +2,18 @@
 
 namespace App\Http\Requests\Admin;
 
+use App\Enums\Categoria;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 /**
- * Filtros da tabela de avaliadores do admin. A mesma validação serve à listagem
- * e ao export CSV, para os dois enxergarem sempre o mesmo recorte.
+ * Filtros da tabela de projetos submetidos do admin. A mesma validação serve à
+ * listagem, aos cards de resumo e ao export CSV.
  */
-class ListarAvaliadoresRequest extends FormRequest
+class ListarProjetosAvaliacaoRequest extends FormRequest
 {
     /** Colunas pelas quais a tabela pode ser ordenada. */
-    public const ORDENACOES = ['nome', 'area', 'em_avaliacao', 'avaliou', 'faltam', 'criado_em'];
+    public const ORDENACOES = ['titulo', 'area', 'categoria', 'em_avaliacao', 'realizadas', 'faltantes'];
 
     public function authorize(): bool
     {
@@ -22,9 +23,9 @@ class ListarAvaliadoresRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'q' => ['nullable', 'string', 'max:120'],
+            'q' => ['nullable', 'string', 'max:160'],
             'area_id' => ['nullable', 'integer', 'exists:areas,id'],
-            'situacao' => ['nullable', Rule::in(['comissao', 'demo', 'bloqueados'])],
+            'categoria' => ['nullable', Rule::enum(Categoria::class)],
             'ordenar' => ['nullable', Rule::in(self::ORDENACOES)],
             'direcao' => ['nullable', Rule::in(['asc', 'desc'])],
             'por_pagina' => ['nullable', 'integer', 'min:5', 'max:200'],
@@ -37,8 +38,8 @@ class ListarAvaliadoresRequest extends FormRequest
         return [
             'q' => $this->validated('q'),
             'area_id' => $this->validated('area_id'),
-            'situacao' => $this->validated('situacao'),
-            'ordenar' => $this->validated('ordenar') ?? 'nome',
+            'categoria' => $this->validated('categoria'),
+            'ordenar' => $this->validated('ordenar') ?? 'titulo',
             'direcao' => $this->validated('direcao') ?? 'asc',
         ];
     }

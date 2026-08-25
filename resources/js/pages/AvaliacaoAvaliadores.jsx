@@ -4,9 +4,11 @@ import AppShell from '../components/AppShell.jsx';
 import { Button, Alert, Select, useConfirm } from '../components/ui.jsx';
 import PanoramaAvaliadores from '../components/PanoramaAvaliadores.jsx';
 import { extractErrors } from '../lib/auth.jsx';
+import { loadAreas, loadSubareas } from '../lib/catalogos.js';
 import {
     getAvaliacaoAvaliadores, exportarAvaliadoresCsv,
     definirLimiteAvaliador, definirDemoAvaliador, limparDadosDeTeste,
+    definirComissaoAvaliador, adicionarAreaExtra, removerAreaExtra,
 } from '../lib/admin.js';
 
 // Colunas da tabela. `ordenar` é a chave que o backend entende.
@@ -83,17 +85,124 @@ function LimiteModal({ avaliador, onFechar, onSalvar, salvando }) {
 }
 
 /**
+ * Áreas extras do avaliador: só o admin amplia o alcance de quem avalia. A
+ * subárea é opcional — sem ela, o avaliador atende a área inteira.
+ */
+function AreasExtrasModal({ avaliador, onFechar, onMudou }) {
+    const [areas, setAreas] = useState([]);
+    const [subareas, setSubareas] = useState([]);
+    const [areaId, setAreaId] = useState('');
+    const [subareaId, setSubareaId] = useState('');
+    const [salvando, setSalvando] = useState(false);
+    const [erro, setErro] = useState('');
+
+    useEffect(() => { loadAreas().then(setAreas).catch(() => setAreas([])); }, []);
+
+    useEffect(() => {
+        setSubareaId('');
+        if (!areaId) { setSubareas([]); return; }
+        loadSubareas(areaId).then(setSubareas).catch(() => setSubareas([]));
+    }, [areaId]);
+
+    const extras = avaliador.areas_extras ?? [];
+
+    async function executar(fn) {
+        setSalvando(true); setErro('');
+        try {
+            const resp = await fn();
+            onMudou(resp.data);
+            setAreaId('');
+        } catch (e) {
+            setErro(extractErrors(e).message || 'Não foi possível salvar.');
+        } finally {
+            setSalvando(false);
+        }
+    }
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
+            <div className="bg-surface-container-lowest rounded-2xl fetec-card-shadow w-full max-w-lg p-6 space-y-4">
+                <div>
+                    <h3 className="font-display text-lg font-semibold text-on-surface">Áreas do avaliador</h3>
+                    <p className="text-sm text-on-surface-variant truncate">{avaliador.nome}</p>
+                </div>
+
+                <div className="text-sm text-on-surface-variant">
+                    Classificação do cadastro: <strong>{avaliador.area ?? 'Sem área'}</strong>
+                    {avaliador.subarea ? <> · {avaliador.subarea}</> : null}. As áreas abaixo são liberações
+                    do admin — elas valem na distribuição e na reposição da fila como se fossem dele.
+                </div>
+
+                {erro && <Alert>{erro}</Alert>}
+
+                {extras.length === 0 ? (
+                    <p className="text-sm text-on-surface-variant">Nenhuma área extra liberada.</p>
+                ) : (
+                    <ul className="divide-y divide-outline-variant/30 border border-outline-variant/40 rounded-lg">
+                        {extras.map((extra) => (
+                            <li key={extra.id} className="flex items-center gap-2 px-3 py-2">
+                                <span className="material-symbols-outlined text-[18px] text-primary-container">add_circle</span>
+                                <span className="flex-1 min-w-0 text-sm text-on-surface truncate">
+                                    {extra.area}{extra.subarea ? ` · ${extra.subarea}` : ''}
+                                </span>
+                                <button
+                                    type="button"
+                                    aria-label={`Remover ${extra.area}`}
+                                    disabled={salvando}
+                                    onClick={() => executar(() => removerAreaExtra(avaliador.id, extra.id))}
+                                    className="p-1.5 rounded-lg text-error hover:bg-error-container transition-colors disabled:opacity-40"
+                                >
+                                    <span className="material-symbols-outlined text-[20px]">delete</span>
+                                </button>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+
+                <div className="flex flex-wrap items-end gap-2">
+                    <div className="flex-1 min-w-[10rem]">
+                        <Select aria-label="Área a liberar" value={areaId} onChange={(e) => setAreaId(e.target.value)}>
+                            <option value="">Escolha a área</option>
+                            {areas.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
+                        </Select>
+                    </div>
+                    <div className="flex-1 min-w-[10rem]">
+                        <Select aria-label="Subárea a liberar (opcional)" value={subareaId} disabled={!areaId} onChange={(e) => setSubareaId(e.target.value)}>
+                            <option value="">Área inteira</option>
+                            {subareas.map((sub) => <option key={sub.id} value={sub.id}>{sub.nome}</option>)}
+                        </Select>
+                    </div>
+                    <Button
+                        type="button"
+                        loading={salvando}
+                        disabled={!areaId}
+                        onClick={() => executar(() => adicionarAreaExtra(avaliador.id, Number(areaId), subareaId ? Number(subareaId) : null))}
+                    >
+                        Liberar
+                    </Button>
+                </div>
+
+                <div className="flex justify-end pt-1">
+                    <Button type="button" variant="outline" onClick={onFechar}>Fechar</Button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+/**
  * Avaliadores Online: uma tabela única com todos os avaliadores — busca por nome
  * ou e-mail, filtro por área, ordenação por qualquer coluna e export CSV do
  * mesmo recorte. Busca, filtro e ordenação são resolvidos no servidor.
  */
 export default function AvaliacaoAvaliadores() {
     const [busca, setBusca] = useState('');
-    const [filtros, setFiltros] = useState({ q: '', areaId: '', ordenar: 'nome', direcao: 'asc' });
+    const [filtros, setFiltros] = useState({ q: '', areaId: '', situacao: '', ordenar: 'nome', direcao: 'asc' });
     const [page, setPage] = useState(1);
     const [lista, setLista] = useState(null);
     const [meta, setMeta] = useState(null);
     const [limitando, setLimitando] = useState(null);
+    const [editandoAreas, setEditandoAreas] = useState(null);
     const [salvando, setSalvando] = useState(false);
     const [exportando, setExportando] = useState(false);
     const [alert, setAlert] = useState('');
@@ -136,6 +245,23 @@ export default function AvaliacaoAvaliadores() {
         } catch (e) {
             setAlert(extractErrors(e).message);
         }
+    }
+
+    async function alternarComissao(a) {
+        setAlert(''); setSuccess('');
+        try {
+            const resp = await definirComissaoAvaliador(a.id, !a.comissao_especial);
+            setSuccess(resp.meta?.message || 'Atualizado.');
+            await carregar();
+        } catch (e) {
+            setAlert(extractErrors(e).message);
+        }
+    }
+
+    // O modal devolve a linha já atualizada: troca só ela, sem recarregar a tabela.
+    function aplicarLinha(linha) {
+        setLista((atual) => (atual ?? []).map((item) => (item.id === linha.id ? linha : item)));
+        setEditandoAreas(linha);
     }
 
     async function limparTestes() {
@@ -181,7 +307,7 @@ export default function AvaliacaoAvaliadores() {
     }
 
     const areas = meta?.areas ?? [];
-    const temFiltro = filtros.q !== '' || filtros.areaId !== '';
+    const temFiltro = filtros.q !== '' || filtros.areaId !== '' || filtros.situacao !== '';
 
     return (
         <AppShell>
@@ -192,7 +318,9 @@ export default function AvaliacaoAvaliadores() {
             <p className="text-on-surface-variant mb-4 max-w-4xl">
                 Panorama do corpo de avaliadores e o progresso de cada um. Busque por nome ou e-mail,
                 filtre por área, ordene por qualquer coluna e exporte o recorte em CSV. Você pode limitar
-                individualmente quantas avaliações cada um assume e marcar avaliadores de teste (demo).
+                individualmente quantas avaliações cada um assume, marcar avaliadores de teste (demo),
+                incluir alguém na <strong>comissão especial</strong> e liberar <strong>outras áreas</strong>
+                para um avaliador receber projetos além da que ele escolheu.
             </p>
 
             <PanoramaAvaliadores />
@@ -228,6 +356,18 @@ export default function AvaliacaoAvaliadores() {
                             onChange={(e) => setBusca(e.target.value)}
                         />
                     </div>
+                    <div className="w-full md:w-56">
+                        <Select
+                            aria-label="Filtrar por situação"
+                            value={filtros.situacao}
+                            onChange={(e) => { setFiltros((f) => ({ ...f, situacao: e.target.value })); setPage(1); }}
+                        >
+                            <option value="">Todas as situações</option>
+                            <option value="comissao">Comissão especial</option>
+                            <option value="demo">Avaliadores de teste</option>
+                            <option value="bloqueados">Com limite definido</option>
+                        </Select>
+                    </div>
                     <div className="w-full md:w-72">
                         <Select
                             aria-label="Filtrar por área do conhecimento"
@@ -247,7 +387,7 @@ export default function AvaliacaoAvaliadores() {
                     {temFiltro && (
                         <button
                             type="button"
-                            onClick={() => { setBusca(''); setFiltros((f) => ({ ...f, q: '', areaId: '' })); setPage(1); }}
+                            onClick={() => { setBusca(''); setFiltros((f) => ({ ...f, q: '', areaId: '', situacao: '' })); setPage(1); }}
                             className="text-xs font-semibold text-primary hover:underline"
                         >
                             Limpar filtros
@@ -293,6 +433,14 @@ export default function AvaliacaoAvaliadores() {
                                                             <p className="text-on-surface truncate">{a.nome}</p>
                                                             <p className="text-xs text-on-surface-variant truncate">{a.email}</p>
                                                         </div>
+                                                        {a.comissao_especial && (
+                                                            <span
+                                                                title="Comissão especial"
+                                                                className="text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap bg-secondary-container text-on-secondary-container"
+                                                            >
+                                                                Comissão
+                                                            </span>
+                                                        )}
                                                         {a.limite != null && (
                                                             <span
                                                                 title={atingido ? 'Limite atingido' : 'Limite definido'}
@@ -308,6 +456,11 @@ export default function AvaliacaoAvaliadores() {
                                                 <td className="px-3 py-2 text-on-surface-variant">
                                                     <p className="truncate">{a.area ?? 'Sem área'}</p>
                                                     {a.subarea && <p className="text-xs truncate">{a.subarea}</p>}
+                                                    {(a.areas_extras ?? []).length > 0 && (
+                                                        <p className="text-xs text-primary-container truncate" title={(a.areas_extras ?? []).map((e) => e.area + (e.subarea ? ` · ${e.subarea}` : '')).join(', ')}>
+                                                            + {a.areas_extras.length} área{a.areas_extras.length === 1 ? '' : 's'} liberada{a.areas_extras.length === 1 ? '' : 's'}
+                                                        </p>
+                                                    )}
                                                 </td>
                                                 <td className="px-3 py-2 text-center font-bold text-primary-container">{a.em_avaliacao}</td>
                                                 <td className="px-3 py-2 text-center font-bold text-secondary">{a.avaliou}</td>
@@ -329,6 +482,31 @@ export default function AvaliacaoAvaliadores() {
                                                         >
                                                             <span className="material-symbols-outlined text-[18px]">science</span>
                                                             Demo
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => alternarComissao(a)}
+                                                            title={a.comissao_especial ? 'Tirar da comissão especial' : 'Incluir na comissão especial'}
+                                                            aria-label={`Comissão especial de ${a.nome}`}
+                                                            aria-pressed={a.comissao_especial}
+                                                            className={`shrink-0 p-1.5 rounded-lg transition-colors ${
+                                                                a.comissao_especial
+                                                                    ? 'text-secondary hover:bg-secondary-container'
+                                                                    : 'text-on-surface-variant hover:bg-surface-variant'
+                                                            }`}
+                                                        >
+                                                            <span className="material-symbols-outlined text-[20px]">
+                                                                {a.comissao_especial ? 'star' : 'star_border'}
+                                                            </span>
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setEditandoAreas(a)}
+                                                            title="Liberar outras áreas para este avaliador"
+                                                            aria-label={`Áreas de ${a.nome}`}
+                                                            className="shrink-0 p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-variant transition-colors"
+                                                        >
+                                                            <span className="material-symbols-outlined text-[20px]">library_add</span>
                                                         </button>
                                                         <button
                                                             type="button"
@@ -360,6 +538,14 @@ export default function AvaliacaoAvaliadores() {
                     </>
                 )}
             </div>
+
+            {editandoAreas && (
+                <AreasExtrasModal
+                    avaliador={editandoAreas}
+                    onFechar={() => setEditandoAreas(null)}
+                    onMudou={aplicarLinha}
+                />
+            )}
 
             {limitando && (
                 <LimiteModal

@@ -69,10 +69,11 @@ export const definirMinimoPorProjeto = (valor) =>
     http.patch('/admin/avaliacao/minimos', { min_por_projeto: valor }).then((r) => r.data);
 // Tabela de avaliadores: { q, area_id, ordenar, direcao, page }. A resposta traz
 // { data, meta } (paginação, áreas para o filtro e a ordenação em vigor).
-const avaliadorParams = ({ q, areaId, ordenar, direcao, page } = {}) => ({
+const avaliadorParams = ({ q, areaId, situacao, ordenar, direcao, page } = {}) => ({
     params: {
         ...(q ? { q } : {}),
         ...(areaId ? { area_id: areaId } : {}),
+        ...(situacao ? { situacao } : {}),
         ...(ordenar ? { ordenar } : {}),
         ...(direcao ? { direcao } : {}),
         page: page ?? 1,
@@ -99,8 +100,39 @@ export const definirLimiteAvaliador = (avaliadorId, limite) =>
     http.patch(`/admin/avaliacao/avaliadores/${avaliadorId}/limite`, { limite }).then((r) => r.data);
 export const definirDemoAvaliador = (avaliadorId, isDemo) =>
     http.patch(`/admin/avaliacao/avaliadores/${avaliadorId}/demo`, { is_demo: isDemo }).then((r) => r.data);
+export const definirComissaoAvaliador = (avaliadorId, comissao) =>
+    http.patch(`/admin/avaliacao/avaliadores/${avaliadorId}/comissao`, { comissao_especial: comissao }).then((r) => r.data);
+// Áreas extras: só o admin amplia o alcance de um avaliador. As duas rotas
+// devolvem a linha atualizada do avaliador.
+export const adicionarAreaExtra = (avaliadorId, areaId, subareaId) =>
+    http.post(`/admin/avaliacao/avaliadores/${avaliadorId}/areas-extras`, { area_id: areaId, subarea_id: subareaId || null }).then((r) => r.data);
+export const removerAreaExtra = (avaliadorId, extraId) =>
+    http.delete(`/admin/avaliacao/avaliadores/${avaliadorId}/areas-extras/${extraId}`).then((r) => r.data);
 export const limparDadosDeTeste = () => http.delete('/admin/avaliacao/testes').then((r) => r.data);
-export const getAvaliacaoProjetos = () => http.get('/admin/avaliacao/projetos').then((r) => r.data.data);
+// Tabela de projetos submetidos: { q, areaId, categoria, ordenar, direcao, page }.
+const projetoParams = ({ q, areaId, categoria, ordenar, direcao, page } = {}) => ({
+    params: {
+        ...(q ? { q } : {}),
+        ...(areaId ? { area_id: areaId } : {}),
+        ...(categoria ? { categoria } : {}),
+        ...(ordenar ? { ordenar } : {}),
+        ...(direcao ? { direcao } : {}),
+        page: page ?? 1,
+    },
+});
+
+export const getAvaliacaoProjetos = (filtros) =>
+    http.get('/admin/avaliacao/projetos', projetoParams(filtros)).then((r) => r.data);
+
+/** Baixa o CSV da tabela de projetos no recorte atual. */
+export async function exportarProjetosAvaliacaoCsv(filtros) {
+    const r = await http.get('/admin/avaliacao/projetos/exportar', {
+        ...projetoParams(filtros),
+        responseType: 'blob',
+    });
+    const nome = /filename="([^"]+)"/.exec(r.headers['content-disposition'] ?? '')?.[1] ?? 'projetos-submetidos.csv';
+    baixarBlob(r.data, nome);
+}
 export const designarProjeto = (projetoId, payload) =>
     http.post(`/admin/avaliacao/projetos/${projetoId}/designar`, payload).then((r) => r.data);
 export const distribuirAvaliacoes = () => http.post('/admin/avaliacao/distribuir').then((r) => r.data);

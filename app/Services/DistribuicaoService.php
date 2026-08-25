@@ -36,11 +36,14 @@ class DistribuicaoService
         $avaliadores = $this->carregarAvaliadores(Edicao::minPorAvaliador());
         [$cargaInicial, $projetoInfo] = $this->estadoAtual($avaliadores);
 
-        // Aplica a carga já existente e monta índice de avaliadores por área.
+        // Aplica a carga já existente e monta índice de avaliadores por área. O
+        // avaliador aparece na sua área e em cada área extra liberada pelo admin.
         $porArea = [];
         foreach ($avaliadores as $id => $av) {
             $avaliadores[$id]['carga'] = $cargaInicial[$id] ?? 0;
-            $porArea[$av['area_id']][] = $id;
+            foreach ($av['areas'] as $areaId) {
+                $porArea[$areaId][] = $id;
+            }
         }
 
         $projetos = $this->carregarProjetos($projetoInfo);
@@ -89,11 +92,12 @@ class DistribuicaoService
                 }
 
                 // Preferência: subárea igual → menor carga → id (desempate estável).
-                usort($cands, function ($x, $y) use (&$avaliadores, $proj) {
-                    $tx = ($avaliadores[$x]['subarea_id'] !== null && $avaliadores[$x]['subarea_id'] === $proj['subarea_id']) ? 1 : 0;
-                    $ty = ($avaliadores[$y]['subarea_id'] !== null && $avaliadores[$y]['subarea_id'] === $proj['subarea_id']) ? 1 : 0;
+                $casaSubarea = fn ($id) => $proj['subarea_id'] !== null
+                    && in_array([$proj['area_id'], $proj['subarea_id']], $avaliadores[$id]['pares'], true) ? 1 : 0;
 
-                    return ($ty <=> $tx) ?: (($avaliadores[$x]['carga'] <=> $avaliadores[$y]['carga']) ?: ($x <=> $y));
+                usort($cands, function ($x, $y) use (&$avaliadores, $casaSubarea) {
+                    return ($casaSubarea($y) <=> $casaSubarea($x))
+                        ?: (($avaliadores[$x]['carga'] <=> $avaliadores[$y]['carga']) ?: ($x <=> $y));
                 });
 
                 $escolhido = $cands[0];
@@ -157,8 +161,9 @@ class DistribuicaoService
     }
 
     /**
-     * Avaliadores elegíveis: ativos, não-demo, com área. A capacidade é o limite
-     * individual do avaliador ou, sem limite, o mínimo por avaliador da edição.
+     * Avaliadores elegíveis: ativos, não-demo e com ao menos uma área (a própria
+     * ou uma liberada pelo admin). A capacidade é o limite individual do
+     * avaliador ou, sem limite, o mínimo por avaliador da edição.
      */
     private function carregarAvaliadores(int $minPorAvaliador): array
     {
@@ -168,18 +173,21 @@ class DistribuicaoService
             ->where('role', Role::Avaliador->value)
             ->where('is_active', true)
             ->where('is_demo', false)
-            ->with('avaliadorProfile:id,user_id,area_id,subarea_id,limite_avaliacoes')
+            ->with(['avaliadorProfile:id,user_id,area_id,subarea_id,limite_avaliacoes', 'avaliadorProfile.areasExtras'])
             ->get(['id'])
             ->each(function (User $u) use (&$avaliadores, $minPorAvaliador) {
                 $perfil = $u->avaliadorProfile;
-                if (! $perfil || ! $perfil->area_id) {
-                    return; // sem área não participa da distribuição automática
+                $areas = $perfil?->areasAtendidas() ?? [];
+
+                if ($areas === []) {
+                    return; // sem área nenhuma não participa da distribuição automática
                 }
 
                 $avaliadores[$u->id] = [
                     'id' => $u->id,
-                    'area_id' => $perfil->area_id,
-                    'subarea_id' => $perfil->subarea_id,
+                    // A própria área mais as extras liberadas pelo admin.
+                    'areas' => $areas,
+                    'pares' => $perfil->paresAtendidos(),
                     'capacidade' => $perfil->limite_avaliacoes ?? $minPorAvaliador,
                     'carga' => 0,
                 ];
