@@ -6,3 +6,10 @@
 # uma string de baixa entropia em commit posterior; este fingerprint apenas
 # ignora a detecção no commit histórico que a introduziu.
 26a1613163030147c82b85252649a1bb8f378781:tests/Feature/Auth/AlterarSenhaTest.php:generic-api-key:71
+
+# 'senha-forte-123' era a senha-fixture do cadastro de avaliador em
+# RankingAvaliadoresTest (Sprint 43), não um segredo real. O valor já foi
+# trocado pelo 'Senha@123' do resto da suíte em fda7aee; estes fingerprints
+# ignoram a detecção no commit que a introduziu, que o scan do PR ainda varre.
+3c110e364f74d2c993b459d70d4d43982c12a38a:tests/Feature/RankingAvaliadoresTest.php:generic-api-key:159
+3c110e364f74d2c993b459d70d4d43982c12a38a:tests/Feature/RankingAvaliadoresTest.php:generic-api-key:160
