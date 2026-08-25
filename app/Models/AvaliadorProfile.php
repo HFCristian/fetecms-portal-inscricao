@@ -33,7 +33,10 @@ class AvaliadorProfile extends Model
      */
     public const MINUTOS_POR_AVALIACAO = 150;
 
-    protected $fillable = ['cpf', 'titulacao', 'area_id', 'subarea_id', 'limite_avaliacoes', 'comissao_especial'];
+    protected $fillable = [
+        'cpf', 'titulacao', 'area_id', 'subarea_id', 'limite_avaliacoes', 'comissao_especial',
+        'estado_id', 'cidade_id',
+    ];
 
     protected function casts(): array
     {
@@ -110,5 +113,15 @@ class AvaliadorProfile extends Model
     public function subarea(): BelongsTo
     {
         return $this->belongsTo(Subarea::class);
+    }
+
+    public function estado(): BelongsTo
+    {
+        return $this->belongsTo(Estado::class);
+    }
+
+    public function cidade(): BelongsTo
+    {
+        return $this->belongsTo(Cidade::class);
     }
 }

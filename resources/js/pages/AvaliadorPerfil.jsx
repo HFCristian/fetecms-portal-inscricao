@@ -3,8 +3,8 @@ import AppShell from '../components/AppShell.jsx';
 import { Field, Select, Button, Alert } from '../components/ui.jsx';
 import SubareaCombobox from '../components/SubareaCombobox.jsx';
 import { useAuth, extractErrors } from '../lib/auth.jsx';
-import { getPerfilAvaliador, salvarClassificacaoAvaliador } from '../lib/avaliador.js';
-import { loadAreas, loadSubareas, criarSubarea } from '../lib/catalogos.js';
+import { getPerfilAvaliador, salvarClassificacaoAvaliador, atualizarLocalidadeAvaliador } from '../lib/avaliador.js';
+import { loadAreas, loadSubareas, criarSubarea, loadEstados, loadCidades } from '../lib/catalogos.js';
 
 /** Um número do perfil, em card. */
 function Estatistica({ icone, valor, rotulo, detalhe }) {
@@ -34,6 +34,86 @@ const plural = (n, singular, pluralForma) => `${n} ${n === 1 ? singular : plural
  * carga horária do certificado e posição no ranking de quem mais avaliou) e a
  * troca da própria área/subárea — liberada só antes do período de avaliação.
  */
+// De onde o avaliador é. Diferente da área, pode ser trocado a qualquer momento:
+// a localidade não entra na distribuição — ela aparece no ranking de avaliadores.
+function LocalidadeCard({ dados, onAtualizado }) {
+    const [estados, setEstados] = useState([]);
+    const [cidades, setCidades] = useState([]);
+    const [estadoId, setEstadoId] = useState(dados.estado_id ?? '');
+    const [cidadeId, setCidadeId] = useState(dados.cidade_id ?? '');
+    const [salvando, setSalvando] = useState(false);
+    const [msg, setMsg] = useState('');
+    const [erro, setErro] = useState('');
+
+    useEffect(() => { loadEstados().then(setEstados).catch(() => setEstados([])); }, []);
+
+    useEffect(() => {
+        if (!estadoId) { setCidades([]); return; }
+        loadCidades(estadoId).then(setCidades).catch(() => setCidades([]));
+    }, [estadoId]);
+
+    function trocarEstado(valor) {
+        setEstadoId(valor);
+        setCidadeId('');
+    }
+
+    const mudou = String(estadoId) !== String(dados.estado_id ?? '')
+        || String(cidadeId) !== String(dados.cidade_id ?? '');
+
+    async function salvar(e) {
+        e.preventDefault();
+        setSalvando(true); setMsg(''); setErro('');
+        try {
+            const resp = await atualizarLocalidadeAvaliador({
+                estado_id: estadoId || null,
+                cidade_id: cidadeId || null,
+            });
+            onAtualizado(resp.data);
+            setMsg(resp.meta?.message || 'Localidade atualizada.');
+        } catch (e2) {
+            setErro(extractErrors(e2).message || 'Não foi possível salvar.');
+        } finally {
+            setSalvando(false);
+        }
+    }
+
+    return (
+        <section className="bg-surface-container-lowest rounded-xl fetec-card-shadow overflow-hidden">
+            <div className="px-4 py-3 bg-surface-variant/40">
+                <h2 className="font-display font-semibold text-on-surface">De onde você é</h2>
+            </div>
+            <form className="p-4 space-y-3" onSubmit={salvar}>
+                <p className="text-sm text-on-surface-variant">
+                    Usada nos relatórios e no ranking de avaliadores da organização. Não interfere na
+                    distribuição dos projetos, e você pode alterá-la quando quiser.
+                </p>
+
+                {msg && <Alert type="info">{msg}</Alert>}
+                {erro && <Alert>{erro}</Alert>}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <Field label="Estado">
+                        <Select aria-label="Estado" value={estadoId} onChange={(e) => trocarEstado(e.target.value)}>
+                            <option value="">Não informado</option>
+                            {estados.map((e2) => <option key={e2.id} value={e2.id}>{e2.nome}</option>)}
+                        </Select>
+                    </Field>
+                    <Field label="Cidade">
+                        <Select aria-label="Cidade" value={cidadeId} disabled={!estadoId} onChange={(e) => setCidadeId(e.target.value)}>
+                            <option value="">{estadoId ? 'Não informada' : 'Escolha o estado primeiro'}</option>
+                            {cidades.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                        </Select>
+                    </Field>
+                </div>
+
+                <div className="flex justify-end">
+                    <Button type="submit" loading={salvando} disabled={!mudou}>Salvar localidade</Button>
+                </div>
+            </form>
+        </section>
+    );
+}
+
 export default function AvaliadorPerfil() {
     const { user, setUser } = useAuth();
     const [dados, setDados] = useState(null); // perfil da API | false (erro)
@@ -156,6 +236,8 @@ export default function AvaliadorPerfil() {
                             <Dado label="Titulação">{dados.titulacao}</Dado>
                         </div>
                     </section>
+
+                    <LocalidadeCard dados={dados} onAtualizado={setDados} />
 
                     <section className="bg-surface-container-lowest rounded-xl fetec-card-shadow overflow-hidden">
                         <div className="px-4 py-3 bg-surface-variant/40">

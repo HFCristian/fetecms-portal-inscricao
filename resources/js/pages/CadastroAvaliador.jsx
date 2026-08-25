@@ -4,7 +4,7 @@ import { useAuth, extractErrors, homeFor } from '../lib/auth.jsx';
 import AuthCard from '../components/AuthCard.jsx';
 import { Field, Input, CpfInput, Select, Button, Alert } from '../components/ui.jsx';
 import SubareaCombobox from '../components/SubareaCombobox.jsx';
-import { useCatalogos, loadSubareas } from '../lib/catalogos.js';
+import { useCatalogos, loadSubareas, loadCidades } from '../lib/catalogos.js';
 import { validarObrigatorios } from '../lib/validacao.js';
 
 // Obrigatórios do avaliador (todos menos a subárea).
@@ -27,6 +27,7 @@ export default function CadastroAvaliador() {
     const catalogos = useCatalogos();
     const [form, setForm] = useState({});
     const [subareas, setSubareas] = useState([]);
+    const [cidades, setCidades] = useState([]);
     const [errors, setErrors] = useState({});
     const [alert, setAlert] = useState('');
     const [loading, setLoading] = useState(false);
@@ -35,6 +36,13 @@ export default function CadastroAvaliador() {
 
     const set = (name) => (e) => setForm((f) => ({ ...f, [name]: e.target.value }));
     const err = (name) => errors[name]?.[0];
+
+    // Cascata estado → cidade, como no cadastro do orientador. Os dois são
+    // opcionais aqui: servem ao ranking e aos relatórios da organização.
+    async function onEstadoChange(estadoId) {
+        setForm((f) => ({ ...f, estado_id: estadoId, cidade_id: '' }));
+        setCidades(estadoId ? await loadCidades(estadoId) : []);
+    }
 
     async function onAreaChange(areaId) {
         setForm((f) => ({ ...f, area_id: areaId, subarea_id: '', subarea_nome: '' }));
@@ -139,6 +147,18 @@ export default function CadastroAvaliador() {
                                 </Select>
                             </Field>
                         </div>
+                        <Field label="Estado" error={err('estado_id')} hint="Opcional — de onde você é.">
+                            <Select value={form.estado_id ?? ''} onChange={(e) => onEstadoChange(e.target.value)} error={err('estado_id')}>
+                                <option value="">Selecione</option>
+                                {(catalogos.estados ?? []).map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
+                            </Select>
+                        </Field>
+                        <Field label="Cidade" error={err('cidade_id')}>
+                            <Select value={form.cidade_id ?? ''} onChange={set('cidade_id')} error={err('cidade_id')} disabled={!form.estado_id}>
+                                <option value="">{form.estado_id ? 'Selecione' : 'Escolha o estado primeiro'}</option>
+                                {cidades.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                            </Select>
+                        </Field>
                         <div className="md:col-span-2">
                             <Field label="Subárea (preferencial para o match)" hint="Opcional. Digite para buscar; se não existir, você pode criar e ela passa a valer para todos.">
                                 <SubareaCombobox

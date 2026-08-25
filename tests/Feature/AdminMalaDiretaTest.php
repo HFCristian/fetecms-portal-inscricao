@@ -8,7 +8,9 @@ use App\Enums\StatusDestinatario;
 use App\Enums\StatusMala;
 use App\Jobs\EnviarMalaDireta;
 use App\Mail\MalaDiretaMensagem;
+use App\Models\Area;
 use App\Models\Avaliacao;
+use App\Models\AvaliadorProfile;
 use App\Models\MalaDireta;
 use App\Models\MalaDiretaDestinatario;
 use App\Models\Projeto;
@@ -405,5 +407,30 @@ class AdminMalaDiretaTest extends TestCase
     public function test_visitante_nao_acessa_a_mala_direta(): void
     {
         $this->getJson('/api/v1/admin/mala-direta')->assertUnauthorized();
+    }
+
+    public function test_publico_da_comissao_especial(): void
+    {
+        $area = Area::create(['nome' => 'Área A']);
+
+        $daComissao = User::factory()->avaliador()->create(['name' => 'Comissionada', 'email' => 'comissao@teste.test']);
+        AvaliadorProfile::factory()->create([
+            'user_id' => $daComissao->id, 'area_id' => $area->id, 'comissao_especial' => true,
+        ]);
+
+        $comum = User::factory()->avaliador()->create(['name' => 'Comum', 'email' => 'comum@teste.test']);
+        AvaliadorProfile::factory()->create(['user_id' => $comum->id, 'area_id' => $area->id]);
+
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $previa = $this->postJson('/api/v1/admin/mala-direta/previa', ['publicos' => ['avaliadores_comissao']])
+            ->assertOk();
+
+        $this->assertSame([$daComissao->email], collect($previa->json('data'))->pluck('email')->all());
+        $this->assertSame(1, $previa->json('meta.total'));
+
+        $this->getJson('/api/v1/admin/mala-direta/opcoes')
+            ->assertOk()
+            ->assertJsonFragment(['value' => 'avaliadores_comissao', 'label' => 'Avaliadores da comissão especial', 'descricao' => 'Marcado pelo admin como comissão especial.']);
     }
 }

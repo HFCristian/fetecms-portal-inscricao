@@ -18,9 +18,11 @@ const salvarClassificacaoAvaliador = vi.fn();
 vi.mock('../lib/avaliador.js', () => ({
     getPerfilAvaliador: (...a) => getPerfilAvaliador(...a),
     salvarClassificacaoAvaliador: (...a) => salvarClassificacaoAvaliador(...a),
+    atualizarLocalidadeAvaliador: (...a) => atualizarLocalidadeAvaliador(...a),
 }));
 
 const criarSubarea = vi.fn();
+const atualizarLocalidadeAvaliador = vi.fn();
 vi.mock('../lib/catalogos.js', () => ({
     loadAreas: vi.fn(() => Promise.resolve([
         { id: 1, nome: 'Ciências Exatas e da Terra' },
@@ -30,6 +32,8 @@ vi.mock('../lib/catalogos.js', () => ({
         String(areaId) === '2' ? [{ id: 5, nome: 'Botânica', area_id: 2 }] : [{ id: 9, nome: 'Astronomia', area_id: 1 }],
     )),
     criarSubarea: (...a) => criarSubarea(...a),
+    loadEstados: vi.fn(() => Promise.resolve([{ id: 1, nome: 'Mato Grosso do Sul' }])),
+    loadCidades: vi.fn(() => Promise.resolve([{ id: 10, nome: 'Campo Grande' }])),
 }));
 
 import AvaliadorPerfil from './AvaliadorPerfil.jsx';
@@ -197,5 +201,28 @@ describe('AvaliadorPerfil — área de atuação', () => {
         expect(screen.getByText('Astronomia')).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: /Salvar área/i })).not.toBeInTheDocument();
         expect(screen.queryByLabelText(/Área do conhecimento/)).not.toBeInTheDocument();
+    });
+
+    it('deixa informar de onde o avaliador é', async () => {
+        atualizarLocalidadeAvaliador.mockResolvedValue({
+            data: { ...PERFIL, estado_id: 1, estado: 'Mato Grosso do Sul', cidade_id: 10, cidade: 'Campo Grande' },
+            meta: { message: 'Localidade atualizada.' },
+        });
+        renderPerfil();
+        await screen.findByText('De onde você é');
+
+        // Sem estado, a cidade fica travada.
+        expect(screen.getByLabelText('Cidade')).toBeDisabled();
+
+        // A opção precisa existir antes: um select ignora um value sem option.
+        await screen.findByRole('option', { name: 'Mato Grosso do Sul' });
+        fireEvent.change(screen.getByLabelText('Estado'), { target: { value: '1' } });
+        // A cidade só aparece depois que a lista do estado carrega.
+        await screen.findByRole('option', { name: 'Campo Grande' });
+        fireEvent.change(screen.getByLabelText('Cidade'), { target: { value: '10' } });
+        fireEvent.click(screen.getByText('Salvar localidade'));
+
+        await waitFor(() => expect(atualizarLocalidadeAvaliador).toHaveBeenCalledWith({ estado_id: '1', cidade_id: '10' }));
+        expect(await screen.findByText('Localidade atualizada.')).toBeInTheDocument();
     });
 });

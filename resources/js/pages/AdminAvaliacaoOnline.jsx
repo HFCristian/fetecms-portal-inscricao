@@ -154,6 +154,12 @@ export default function AdminAvaliacaoOnline() {
                     titulo="Ranking dos projetos"
                     descricao="Projetos já avaliados, ordenados pela média das notas finais, com as médias de cada seção da rubrica."
                 />
+                <CardAvaliacao
+                    to="/admin/avaliacao/ranking-avaliadores"
+                    icon="social_leaderboard"
+                    titulo="Ranking dos avaliadores"
+                    descricao="Quem mais avaliou: nome, área, avaliações concluídas, projetos em avaliação e de onde a pessoa é."
+                />
             </div>
         </AppShell>
     );

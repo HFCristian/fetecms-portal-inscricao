@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Enums\Role;
+use App\Enums\PublicoMala;
 use App\Models\Aviso;
 use App\Models\AvisoVisualizacao;
 use App\Models\Edicao;
@@ -11,6 +11,7 @@ use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -52,29 +53,73 @@ class AvisoService
 
     private const SEM_DATA = 'uma data ainda a definir';
 
-    public function __construct(private readonly InscricoesService $inscricoes) {}
+    public function __construct(
+        private readonly InscricoesService $inscricoes,
+        private readonly PublicoUsuariosService $publicos,
+    ) {}
 
-    /** O aviso no ar, se houver. */
+    /** Público usado quando o admin não escolhe nenhum (o de sempre). */
+    public const PUBLICO_PADRAO = [PublicoMala::Orientadores];
+
+    /** O aviso mais recente no ar, se houver. */
     public function ativo(): ?Aviso
     {
-        return Aviso::whereNull('encerrado_em')->latest('id')->first();
+        return Aviso::vigente()->latest('id')->first();
     }
 
     /**
-     * Publica um aviso novo, encerrando o anterior: só um card por vez na tela
-     * de quem lê.
+     * Todos os avisos no ar, do mais novo para o mais antigo. Podem ser vários:
+     * um por público.
+     *
+     * @return Collection<int, Aviso>
      */
-    public function publicar(User $admin, string $titulo, string $mensagem): Aviso
+    public function vigentes()
     {
-        return DB::transaction(function () use ($admin, $titulo, $mensagem) {
-            Aviso::whereNull('encerrado_em')->update(['encerrado_em' => now()]);
+        return Aviso::vigente()->latest('id')->get();
+    }
+
+    /**
+     * Publica um aviso novo. Republicar para a MESMA seleção de públicos encerra
+     * o anterior daquele recorte — quem lê não recebe dois cards do mesmo
+     * assunto. Avisos de públicos diferentes convivem.
+     *
+     * @param  array<int, PublicoMala>  $publicos
+     */
+    public function publicar(
+        User $admin,
+        string $titulo,
+        string $mensagem,
+        array $publicos = [],
+        ?CarbonInterface $expiraEm = null,
+    ): Aviso {
+        $alvo = $publicos !== [] ? $publicos : self::PUBLICO_PADRAO;
+        $valores = array_map(fn (PublicoMala $p) => $p->value, $alvo);
+
+        return DB::transaction(function () use ($admin, $titulo, $mensagem, $valores, $expiraEm) {
+            $this->encerrarMesmoPublico($valores);
 
             return Aviso::create([
                 'titulo' => $titulo,
                 'mensagem' => $mensagem,
                 'user_id' => $admin->id,
                 'autor_nome' => $admin->name,
+                'publicos' => $valores,
+                'expira_em' => $expiraEm,
             ]);
+        });
+    }
+
+    /** Encerra os avisos no ar que miram exatamente a mesma seleção de públicos. */
+    private function encerrarMesmoPublico(array $valores): void
+    {
+        $mesmos = collect($valores)->sort()->values()->all();
+
+        Aviso::vigente()->get()->each(function (Aviso $aviso) use ($mesmos) {
+            $atual = collect($aviso->publicos ?? [])->sort()->values()->all();
+
+            if ($atual === $mesmos) {
+                $aviso->update(['encerrado_em' => now()]);
+            }
         });
     }
 
@@ -89,27 +134,32 @@ class AvisoService
     }
 
     /**
-     * O aviso que ESTE usuário deve ver agora: só orientadores ativos, só o
-     * aviso no ar e só enquanto ele não tiver fechado o card.
+     * O aviso que ESTE usuário deve ver agora: entre os que estão no ar, o mais
+     * recente cujo público o alcança e que ele ainda não fechou. Um card por
+     * vez, mesmo com vários avisos publicados.
      */
     public function paraUsuario(?User $user): ?Aviso
     {
-        if (! $user || ! $user->isOrientador() || ! $user->is_active) {
+        if (! $user || ! $user->is_active) {
             return null;
         }
 
-        $aviso = $this->ativo();
-
-        if (! $aviso) {
-            return null;
-        }
-
-        $fechou = $aviso->visualizacoes()
-            ->where('user_id', $user->id)
+        $fechados = AvisoVisualizacao::where('user_id', $user->id)
             ->whereNotNull('fechado_em')
-            ->exists();
+            ->pluck('aviso_id')
+            ->all();
 
-        return $fechou ? null : $aviso;
+        foreach ($this->vigentes() as $aviso) {
+            if (in_array($aviso->id, $fechados, true)) {
+                continue;
+            }
+
+            if ($this->publicos->alcanca($user, $aviso->publicosAlvo() ?: self::PUBLICO_PADRAO)) {
+                return $aviso;
+            }
+        }
+
+        return null;
     }
 
     /** Marca que o card chegou à tela desta pessoa (a primeira vez é a que vale). */
@@ -162,13 +212,25 @@ class AvisoService
             'titulo' => $this->personalizar($aviso->titulo),
             'mensagem' => $this->personalizar($aviso->mensagem),
             'publicado_em' => $aviso->created_at?->format('d/m/Y H:i'),
+            'expira_em_label' => $aviso->expira_em?->format('d/m/Y H:i'),
         ];
     }
 
-    /** Quantos orientadores ativos existem hoje — a base do relatório do aviso. */
-    public function totalDeDestinatarios(): int
+    /**
+     * Quantas pessoas estes públicos alcançam hoje — usado na prévia, antes de
+     * o aviso existir.
+     *
+     * @param  array<int, PublicoMala>  $publicos
+     */
+    public function alcancados(array $publicos): int
     {
-        return User::where('role', Role::Orientador->value)->where('is_active', true)->count();
+        return $this->publicos->queryUniao($publicos !== [] ? $publicos : self::PUBLICO_PADRAO)->count();
+    }
+
+    /** Quantas pessoas o público deste aviso alcança hoje — a base do relatório. */
+    public function totalDeDestinatarios(Aviso $aviso): int
+    {
+        return $this->publicos->queryUniao($aviso->publicosAlvo() ?: self::PUBLICO_PADRAO)->count();
     }
 
     /** Cabeçalho do CSV do relatório, na ordem em que as colunas aparecem. */
@@ -205,7 +267,7 @@ class AvisoService
     {
         $vistos = (int) ($aviso->vistos ?? $aviso->visualizacoes()->count());
         $fechados = (int) ($aviso->fechados ?? $aviso->visualizacoes()->whereNotNull('fechado_em')->count());
-        $destinatarios = $this->totalDeDestinatarios();
+        $destinatarios = $this->totalDeDestinatarios($aviso);
 
         return [
             'id' => $aviso->id,
@@ -218,6 +280,13 @@ class AvisoService
             'autor_nome' => $aviso->autor_nome,
             'publicado_em' => $aviso->created_at?->format('d/m/Y H:i'),
             'encerrado_em' => $aviso->encerrado_em?->format('d/m/Y H:i'),
+            'expira_em' => $aviso->expira_em?->format('Y-m-d\TH:i'),
+            'expira_em_label' => $aviso->expira_em?->format('d/m/Y H:i'),
+            'expirado' => $aviso->expirado(),
+            'publicos' => array_map(fn (PublicoMala $p) => [
+                'value' => $p->value,
+                'label' => $p->label(),
+            ], $aviso->publicosAlvo() ?: self::PUBLICO_PADRAO),
             'ativo' => $aviso->ativo(),
             'destinatarios' => $destinatarios,
             'vistos' => $vistos,
@@ -230,7 +299,7 @@ class AvisoService
     /**
      * Quem viu, quem fechou e quem ainda não viu este aviso.
      *
-     * A lista é o público de hoje (orientadores ativos) MAIS quem já registrou
+     * A lista é o público de hoje (o que o aviso mira) MAIS quem já registrou
      * visualização — assim uma conta desativada depois de ler não some do
      * relatório nem faz as contagens baterem errado.
      */
@@ -278,11 +347,14 @@ class AvisoService
             ->leftJoin('aviso_visualizacoes as v', function ($join) use ($aviso) {
                 $join->on('v.user_id', '=', 'users.id')->where('v.aviso_id', '=', $aviso->id);
             })
-            ->where(function (Builder $q) {
-                $q->where(fn (Builder $publico) => $publico
-                    ->where('users.role', Role::Orientador->value)
-                    ->where('users.is_active', true))
-                    ->orWhereNotNull('v.visto_em');
+            ->where(function (Builder $q) use ($aviso) {
+                // O público de hoje MAIS quem já registrou visualização: conta
+                // desativada depois de ler não some do relatório.
+                $ids = $this->publicos
+                    ->queryUniao($aviso->publicosAlvo() ?: self::PUBLICO_PADRAO)
+                    ->select('users.id');
+
+                $q->whereIn('users.id', $ids)->orWhereNotNull('v.visto_em');
             })
             ->when($busca, fn (Builder $q, string $termo) => $q->where(fn (Builder $b) => $b
                 ->where('users.name', 'like', "%{$termo}%")

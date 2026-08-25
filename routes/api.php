@@ -144,6 +144,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
         Route::middleware('role:avaliador')->prefix('avaliador')->group(function () {
             Route::get('/perfil', [AvaliadorPerfilController::class, 'show']);
             Route::put('/perfil/classificacao', [AvaliadorPerfilController::class, 'atualizarClassificacao']);
+            Route::put('/perfil/localidade', [AvaliadorPerfilController::class, 'atualizarLocalidade']);
         });
 
         // Chat de suporte — orientador/avaliador falam com o suporte (admin)
@@ -173,6 +174,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::get('/avaliacao/reclassificacoes', [AdminAvaliacaoController::class, 'reclassificacoes']);
             Route::post('/avaliacao/reclassificacoes/aplicar', [AdminAvaliacaoController::class, 'aplicarReclassificacoes']);
             Route::get('/avaliacao/ranking', [AdminAvaliacaoController::class, 'ranking']);
+            Route::get('/avaliacao/ranking-avaliadores', [AdminAvaliacaoController::class, 'rankingAvaliadores']);
             Route::post('/avaliacao/projetos/{projeto}/designar', [AdminAvaliacaoController::class, 'designar']);
             Route::post('/avaliacao/distribuir', [AdminAvaliacaoController::class, 'distribuir']);
             Route::patch('/avaliacao/avaliadores/{avaliador}/limite', [AdminAvaliacaoController::class, 'limitar']);

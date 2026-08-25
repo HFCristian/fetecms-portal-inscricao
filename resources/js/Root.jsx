@@ -34,6 +34,7 @@ import AvaliacaoAvaliadores from './pages/AvaliacaoAvaliadores.jsx';
 import AvaliacaoProjetos from './pages/AvaliacaoProjetos.jsx';
 import AvaliacaoReclassificacoes from './pages/AvaliacaoReclassificacoes.jsx';
 import AvaliacaoRanking from './pages/AvaliacaoRanking.jsx';
+import AvaliacaoRankingAvaliadores from './pages/AvaliacaoRankingAvaliadores.jsx';
 import Acesso from './pages/Acesso.jsx';
 import AdminRegistros from './pages/AdminRegistros.jsx';
 import AdminRegistrosHome from './pages/AdminRegistrosHome.jsx';
@@ -103,6 +104,7 @@ export default function Root() {
                             <Route path="/admin/avaliacao/projetos" element={<AvaliacaoProjetos />} />
                             <Route path="/admin/avaliacao/reclassificacoes" element={<AvaliacaoReclassificacoes />} />
                             <Route path="/admin/avaliacao/ranking" element={<AvaliacaoRanking />} />
+                            <Route path="/admin/avaliacao/ranking-avaliadores" element={<AvaliacaoRankingAvaliadores />} />
                             <Route path="/admin/projetos-por-area" element={<AdminProjetosPorArea />} />
                             <Route path="/admin/projetos-por-estado" element={<AdminProjetosPorEstado />} />
                             <Route path="/admin/projetos-por-cidade" element={<AdminProjetosPorCidade />} />

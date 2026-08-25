@@ -151,6 +151,12 @@ class AdminAvaliacaoController extends Controller
         ]);
     }
 
+    /** Ranking dos avaliadores que mais concluíram avaliações. */
+    public function rankingAvaliadores(): JsonResponse
+    {
+        return response()->json(['data' => $this->service->rankingAvaliadores()]);
+    }
+
     public function projetos(ListarProjetosAvaliacaoRequest $request): JsonResponse
     {
         $filtros = $request->filtros();

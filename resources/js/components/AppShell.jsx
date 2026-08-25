@@ -206,8 +206,10 @@ export default function AppShell({ children }) {
                     <p className="text-sm text-on-surface-variant mb-4">
                         Olá, <strong className="text-on-surface">{user?.name}</strong>
                     </p>
-                    {/* Aviso do admin: só para o orientador, em qualquer tela dele. */}
-                    <AvisoCard ativo={user?.role === 'orientador'} />
+                    {/* Aviso do admin: o público é escolhido na publicação, então
+                        orientador e avaliador consultam — o backend decide se há
+                        card para esta pessoa. */}
+                    <AvisoCard ativo={user?.role === 'orientador' || user?.role === 'avaliador'} />
                     {children}
                     <SupportFooter className="mt-10 pb-2 md:hidden" />
                 </div>

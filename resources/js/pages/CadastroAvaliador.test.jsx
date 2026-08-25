@@ -13,8 +13,9 @@ vi.mock('../lib/auth.jsx', () => ({
     homeFor: () => '/avaliador',
 }));
 vi.mock('../lib/catalogos.js', () => ({
-    useCatalogos: () => ({ areas: [{ id: 1, nome: 'Engenharias' }] }),
+    useCatalogos: () => ({ areas: [{ id: 1, nome: 'Engenharias' }], estados: [{ id: 1, nome: 'Mato Grosso do Sul' }] }),
     loadSubareas: vi.fn(() => Promise.resolve([])),
+    loadCidades: vi.fn(() => Promise.resolve([{ id: 10, nome: 'Campo Grande' }])),
 }));
 
 import CadastroAvaliador from './CadastroAvaliador.jsx';

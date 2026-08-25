@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Avaliador\AtualizarClassificacaoRequest;
 use App\Models\AvaliadorProfile;
 use App\Models\Edicao;
+use App\Rules\CidadeDoEstado;
 use App\Services\AvaliadorService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -23,7 +24,7 @@ class AvaliadorPerfilController extends Controller
     public function show(Request $request): JsonResponse
     {
         $user = $request->user();
-        $user->loadMissing('avaliadorProfile.area', 'avaliadorProfile.subarea');
+        $user->loadMissing('avaliadorProfile.area', 'avaliadorProfile.subarea', 'avaliadorProfile.estado', 'avaliadorProfile.cidade');
 
         return response()->json(['data' => $this->perfil($user)]);
     }
@@ -37,6 +38,29 @@ class AvaliadorPerfilController extends Controller
         return response()->json([
             'data' => $this->perfil($user->fresh(['avaliadorProfile.area', 'avaliadorProfile.subarea'])),
             'meta' => ['message' => 'Área de atuação atualizada.'],
+        ]);
+    }
+
+    /**
+     * Atualiza de onde o avaliador é. Diferente da área, pode ser trocado a
+     * qualquer momento — a localidade não entra na distribuição.
+     */
+    public function atualizarLocalidade(Request $request): JsonResponse
+    {
+        $dados = $request->validate([
+            'estado_id' => ['nullable', 'integer', 'exists:estados,id'],
+            'cidade_id' => ['nullable', 'integer', 'exists:cidades,id', new CidadeDoEstado($request->input('estado_id'))],
+        ]);
+
+        $user = $request->user();
+        $this->avaliadores->atualizarLocalidade($user, $dados);
+
+        return response()->json([
+            'data' => $this->perfil($user->fresh([
+                'avaliadorProfile.area', 'avaliadorProfile.subarea',
+                'avaliadorProfile.estado', 'avaliadorProfile.cidade',
+            ])),
+            'meta' => ['message' => 'Localidade atualizada.'],
         ]);
     }
 
@@ -56,6 +80,10 @@ class AvaliadorPerfilController extends Controller
             'area' => $perfil?->area?->nome,
             'subarea_id' => $perfil?->subarea_id,
             'subarea' => $perfil?->subarea?->nome,
+            'estado_id' => $perfil?->estado_id,
+            'estado' => $perfil?->estado?->nome,
+            'cidade_id' => $perfil?->cidade_id,
+            'cidade' => $perfil?->cidade?->nome,
             'estatisticas' => $this->avaliadores->estatisticas($user),
             // Fora do período de avaliação a área ainda pode ser trocada.
             'pode_trocar_area' => $this->avaliadores->podeTrocarClassificacao(),

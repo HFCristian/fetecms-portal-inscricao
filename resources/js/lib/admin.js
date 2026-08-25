@@ -27,7 +27,8 @@ export const definirInicioInscricoes = (inicio) =>
 
 // Avisos na tela dos orientadores (um ativo por vez).
 export const getAvisoOpcoes = () => http.get('/admin/avisos/opcoes').then((r) => r.data.data);
-export const getAvisoAtivoAdmin = () => http.get('/admin/avisos/ativo').then((r) => r.data.data);
+// Avisos no ar agora: podem ser vários, um por público.
+export const getAvisosVigentes = () => http.get('/admin/avisos/ativo').then((r) => r.data.data);
 export const previaAviso = (payload) => http.post('/admin/avisos/previa', payload).then((r) => r.data.data);
 export const publicarAviso = (payload) => http.post('/admin/avisos', payload).then((r) => r.data);
 export const encerrarAviso = (id) => http.post(`/admin/avisos/${id}/encerrar`).then((r) => r.data);
@@ -151,6 +152,10 @@ export const aplicarReclassificacoes = (itens) =>
 // `filtros`: { area_id, categoria }. Devolve { data, meta } — meta traz as categorias.
 export const getRankingAvaliacao = (filtros = {}) =>
     http.get('/admin/avaliacao/ranking', { params: limpar(filtros) }).then((r) => r.data);
+
+// Ranking dos avaliadores que mais concluíram avaliações.
+export const getRankingAvaliadores = () =>
+    http.get('/admin/avaliacao/ranking-avaliadores').then((r) => r.data.data);
 
 /** Remove chaves vazias para não mandar `?q=&area_id=` na query. */
 function limpar(filtros) {

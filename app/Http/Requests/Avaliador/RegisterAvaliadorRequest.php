@@ -5,6 +5,7 @@ namespace App\Http\Requests\Avaliador;
 use App\Models\AvaliadorProfile;
 use App\Models\Coorientador;
 use App\Models\OrientadorProfile;
+use App\Rules\CidadeDoEstado;
 use App\Rules\Cpf;
 use App\Rules\SubareaDaArea;
 use Illuminate\Foundation\Http\FormRequest;
@@ -49,6 +50,9 @@ class RegisterAvaliadorRequest extends FormRequest
             // subarea_nome cria uma subárea global nova (resolvida no service).
             'subarea_id' => ['nullable', 'integer', 'exists:subareas,id', new SubareaDaArea($this->input('area_id'))],
             'subarea_nome' => ['nullable', 'string', 'min:2', 'max:120'],
+            // De onde o avaliador é: opcional no cadastro, completável no perfil.
+            'estado_id' => ['nullable', 'integer', 'exists:estados,id'],
+            'cidade_id' => ['nullable', 'integer', 'exists:cidades,id', new CidadeDoEstado($this->input('estado_id'))],
         ];
     }
 

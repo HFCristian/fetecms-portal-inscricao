@@ -16,7 +16,7 @@ use Illuminate\Validation\ValidationException;
 
 class AvaliadorService
 {
-    private const PROFILE_FIELDS = ['cpf', 'titulacao', 'area_id', 'subarea_id'];
+    private const PROFILE_FIELDS = ['cpf', 'titulacao', 'area_id', 'subarea_id', 'estado_id', 'cidade_id'];
 
     public function __construct(private readonly SubareaService $subareas) {}
 
@@ -98,6 +98,25 @@ class AvaliadorService
 
             return $perfil->fresh(['area', 'subarea']);
         });
+    }
+
+    /**
+     * Atualiza de onde o avaliador é (estado/cidade). Diferente da área, isso
+     * pode ser mudado a qualquer momento: não interfere na distribuição.
+     *
+     * @param  array{estado_id?:int|null, cidade_id?:int|null}  $dados
+     */
+    public function atualizarLocalidade(User $user, array $dados): AvaliadorProfile
+    {
+        $perfil = $user->avaliadorProfile;
+
+        $perfil->update([
+            'estado_id' => $dados['estado_id'] ?? null,
+            // Sem estado não há cidade: os dois andam juntos.
+            'cidade_id' => empty($dados['estado_id']) ? null : ($dados['cidade_id'] ?? null),
+        ]);
+
+        return $perfil->fresh(['estado', 'cidade']);
     }
 
     /** Cria o usuário (role avaliador) e o perfil de avaliador numa transação. */

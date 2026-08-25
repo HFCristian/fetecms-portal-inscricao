@@ -268,6 +268,69 @@ class AdminAvaliacaoService
         return $this->ordenarPorArea($grupos);
     }
 
+    /**
+     * Ranking de avaliadores: quem mais concluiu avaliações. Traz nome, área,
+     * quantas concluiu, quantas estão em avaliação agora e de onde a pessoa é.
+     *
+     * Só entra quem já concluiu ao menos uma — uma lista de zeros não classifica
+     * ninguém. Empate divide a posição (dois em 1º, ninguém em 2º), como no
+     * perfil do avaliador. Avaliador demo fica de fora.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function rankingAvaliadores(int $limite = 100): array
+    {
+        $avaliadores = User::query()
+            ->where('role', Role::Avaliador->value)
+            ->where('is_demo', false)
+            ->with([
+                'avaliadorProfile.area:id,nome',
+                'avaliadorProfile.estado:id,nome,uf',
+                'avaliadorProfile.cidade:id,nome',
+            ])
+            ->withCount([
+                'avaliacoes as concluidas_count' => fn ($q) => $q->where('status', StatusAvaliacao::Concluida->value),
+                'avaliacoes as em_avaliacao_count' => fn ($q) => $q->where('status', StatusAvaliacao::EmAndamento->value),
+            ])
+            ->get(['id', 'name'])
+            ->filter(fn (User $u) => $u->concluidas_count > 0)
+            ->sortBy([
+                fn (User $a, User $b) => $b->concluidas_count <=> $a->concluidas_count,
+                fn (User $a, User $b) => $b->em_avaliacao_count <=> $a->em_avaliacao_count,
+                fn (User $a, User $b) => strcmp($a->name, $b->name),
+            ])
+            ->take($limite)
+            ->values();
+
+        $posicao = 0;
+        $anterior = null;
+
+        return $avaliadores->map(function (User $u, int $indice) use (&$posicao, &$anterior) {
+            $concluidas = (int) $u->concluidas_count;
+
+            // Mesmo número de avaliações = mesma posição; a próxima diferente
+            // pula para o índice real (dois em 1º, o seguinte em 3º).
+            if ($concluidas !== $anterior) {
+                $posicao = $indice + 1;
+                $anterior = $concluidas;
+            }
+
+            $perfil = $u->avaliadorProfile;
+
+            return [
+                'posicao' => $posicao,
+                'avaliador_id' => $u->id,
+                'nome' => $u->name,
+                'area' => $perfil?->area?->nome,
+                'concluidas' => $concluidas,
+                'em_avaliacao' => (int) $u->em_avaliacao_count,
+                'estado' => $perfil?->estado?->uf,
+                'estado_nome' => $perfil?->estado?->nome,
+                'cidade' => $perfil?->cidade?->nome,
+            ];
+        })->all();
+    }
+
     /** Como a tabela de projetos pode ser ordenada (coluna => expressão SQL). */
     private const ORDENACOES_PROJETO = [
         'titulo' => 'projetos.titulo',

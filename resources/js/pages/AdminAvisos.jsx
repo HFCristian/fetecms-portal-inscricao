@@ -4,19 +4,22 @@ import AppShell from '../components/AppShell.jsx';
 import { Button, Alert, useConfirm } from '../components/ui.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import {
-    getAvisoOpcoes, getAvisoAtivoAdmin, previaAviso, publicarAviso, encerrarAviso, getAvisos,
+    getAvisoOpcoes, getAvisosVigentes, previaAviso, publicarAviso, encerrarAviso, getAvisos,
 } from '../lib/admin.js';
 
 const campoClass =
     'w-full bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface ' +
     'focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 outline-none';
 
-// Aviso publicado para os orientadores conectados. Um por vez: publicar um novo
-// encerra o anterior.
-function AvisoSection({ opcoes, ativo, onAtivo }) {
+// Aviso publicado para um recorte da base. Vários podem estar no ar ao mesmo
+// tempo — um por público; cada pessoa vê o mais recente que a alcança.
+function AvisoSection({ opcoes, vigentes, onPublicado, onEncerrado }) {
     const [confirm, dialogo] = useConfirm();
     const [titulo, setTitulo] = useState(opcoes.modelo.titulo);
     const [mensagem, setMensagem] = useState(opcoes.modelo.mensagem);
+    const [publicos, setPublicos] = useState(opcoes.publico_padrao ?? []);
+    const [expiraEm, setExpiraEm] = useState('');
+    const [alcance, setAlcance] = useState(opcoes.destinatarios);
     const [previa, setPrevia] = useState(null);
     const [publicando, setPublicando] = useState(false);
     const [msg, setMsg] = useState('');
@@ -46,14 +49,20 @@ function AvisoSection({ opcoes, ativo, onAtivo }) {
     }, [cursor]);
 
     // Qualquer edição invalida a prévia: ela é do texto que foi conferido.
-    useEffect(() => { setPrevia(null); }, [titulo, mensagem]);
+    useEffect(() => { setPrevia(null); }, [titulo, mensagem, publicos, expiraEm]);
 
-    const preenchido = titulo.trim() !== '' && mensagem.trim() !== '';
+    const preenchido = titulo.trim() !== '' && mensagem.trim() !== '' && publicos.length > 0;
+
+    const alternarPublico = (valor) => setPublicos((atual) => (
+        atual.includes(valor) ? atual.filter((p) => p !== valor) : [...atual, valor]
+    ));
 
     async function verPrevia() {
         setErro(''); setMsg('');
         try {
-            setPrevia(await previaAviso({ titulo, mensagem }));
+            const resp = await previaAviso({ titulo, mensagem, publicos });
+            setPrevia(resp);
+            setAlcance(resp.destinatarios);
         } catch (e) {
             setErro(extractErrors(e).message);
         }
@@ -63,16 +72,15 @@ function AvisoSection({ opcoes, ativo, onAtivo }) {
         const ok = await confirm({
             title: 'Publicar aviso',
             confirmLabel: 'Publicar',
-            message: ativo
-                ? 'O aviso que está no ar sai e este entra no lugar, aparecendo para os orientadores conectados em até 1 minuto. Continuar?'
-                : 'O aviso aparece para os orientadores conectados em até 1 minuto. Continuar?',
+            message: 'O aviso aparece em até 1 minuto para quem está no público escolhido. Se já houver '
+                + 'um aviso no ar para exatamente esse público, ele sai e este entra no lugar. Continuar?',
         });
         if (!ok) return;
 
         setPublicando(true); setErro(''); setMsg('');
         try {
-            const resp = await publicarAviso({ titulo, mensagem });
-            onAtivo(resp.data);
+            const resp = await publicarAviso({ titulo, mensagem, publicos, expira_em: expiraEm || null });
+            onPublicado(resp.data);
             setMsg(resp.meta?.message || 'Aviso publicado.');
             setPrevia(null);
         } catch (e) {
@@ -82,17 +90,17 @@ function AvisoSection({ opcoes, ativo, onAtivo }) {
         }
     }
 
-    async function encerrar() {
+    async function encerrar(aviso) {
         const ok = await confirm({
             title: 'Encerrar aviso', confirmLabel: 'Encerrar', danger: true,
-            message: 'O card some da tela dos orientadores. O aviso continua no histórico, com quem viu e quem fechou. Continuar?',
+            message: 'O card some da tela de quem o recebia. O aviso continua no histórico, com quem viu e quem fechou. Continuar?',
         });
         if (!ok) return;
 
         setErro(''); setMsg('');
         try {
-            const resp = await encerrarAviso(ativo.id);
-            onAtivo(null);
+            const resp = await encerrarAviso(aviso.id);
+            onEncerrado(aviso.id);
             setMsg(resp.meta?.message || 'Aviso encerrado.');
         } catch (e) {
             setErro(extractErrors(e).message);
@@ -104,34 +112,45 @@ function AvisoSection({ opcoes, ativo, onAtivo }) {
             <div className="flex items-center gap-2 flex-wrap mb-3">
                 <h2 className="font-display text-primary font-semibold">Aviso na tela</h2>
                 <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                    ativo ? 'bg-secondary-container text-on-secondary-container' : 'bg-surface-variant text-on-surface-variant'
+                    vigentes.length > 0 ? 'bg-secondary-container text-on-secondary-container' : 'bg-surface-variant text-on-surface-variant'
                 }`}>
-                    {ativo ? 'Um aviso no ar' : 'Nenhum aviso no ar'}
+                    {vigentes.length === 0 ? 'Nenhum aviso no ar'
+                        : vigentes.length === 1 ? 'Um aviso no ar' : `${vigentes.length} avisos no ar`}
                 </span>
             </div>
             <p className="text-sm text-on-surface-variant mb-4">
-                O card aparece para os <strong>{opcoes.destinatarios}</strong> orientador(es) ativo(s)
-                que estiverem no sistema, em até 1 minuto, e cada um pode fechá-lo. Só um aviso fica no
-                ar por vez — publicar um novo encerra o anterior.
+                O card aparece em até 1 minuto para quem está no público escolhido, e cada pessoa pode
+                fechá-lo. Avisos de públicos diferentes convivem no ar; cada pessoa vê no máximo um card
+                — o mais recente que a alcança. O público escolhido alcança hoje <strong>{alcance}</strong> pessoa(s).
             </p>
 
             {msg && <div className="mb-4"><Alert type="info">{msg}</Alert></div>}
             {erro && <div className="mb-4"><Alert>{erro}</Alert></div>}
 
-            {ativo && (
-                <div className="mb-5 rounded-xl border border-primary-container/40 bg-primary-fixed p-4">
+            {vigentes.map((aviso) => (
+                <div key={aviso.id} className="mb-5 rounded-xl border border-primary-container/40 bg-primary-fixed p-4">
                     <p className="text-xs font-semibold text-primary-container mb-1">No ar agora</p>
-                    <h3 className="font-display font-semibold text-primary">{ativo.titulo}</h3>
-                    <p className="text-sm text-on-surface mt-1 whitespace-pre-line">{ativo.mensagem}</p>
+                    <h3 className="font-display font-semibold text-primary">{aviso.titulo}</h3>
+                    <p className="text-sm text-on-surface mt-1 whitespace-pre-line">{aviso.mensagem}</p>
+                    <div className="flex flex-wrap gap-1 mt-2">
+                        {(aviso.publicos ?? []).map((p) => (
+                            <span key={p.value} className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-surface-variant text-on-surface-variant">
+                                {p.label}
+                            </span>
+                        ))}
+                    </div>
                     <div className="flex items-center gap-3 flex-wrap mt-3">
-                        <span className="text-xs text-on-surface-variant">Publicado em {ativo.publicado_em}</span>
-                        <Button type="button" variant="outline" onClick={encerrar}>
+                        <span className="text-xs text-on-surface-variant">Publicado em {aviso.publicado_em}</span>
+                        {aviso.expira_em_label && (
+                            <span className="text-xs text-on-surface-variant">Expira em {aviso.expira_em_label}</span>
+                        )}
+                        <Button type="button" variant="outline" onClick={() => encerrar(aviso)}>
                             <span className="material-symbols-outlined text-[18px]">stop_circle</span>
                             Encerrar aviso
                         </Button>
                     </div>
                 </div>
-            )}
+            ))}
 
             <div className="space-y-4">
                 <div className="space-y-1">
@@ -178,6 +197,50 @@ function AvisoSection({ opcoes, ativo, onAtivo }) {
                     </p>
                 </div>
 
+                <fieldset className="space-y-1">
+                    <legend className="text-sm font-semibold text-on-surface">Quem recebe</legend>
+                    <p className="text-xs text-on-surface-variant">
+                        Combine quantos públicos quiser — os mesmos da mala direta. Contas inativas e de
+                        teste nunca recebem.
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 pt-1">
+                        {(opcoes.publicos ?? []).map((p) => (
+                            <label key={p.value} className="flex items-start gap-2 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-surface-variant/40">
+                                <input
+                                    type="checkbox"
+                                    checked={publicos.includes(p.value)}
+                                    onChange={() => alternarPublico(p.value)}
+                                    className="mt-0.5 accent-[color:var(--color-primary-container,#43157A)]"
+                                />
+                                <span className="min-w-0">
+                                    <span className="block text-sm text-on-surface">{p.label}</span>
+                                    <span className="block text-xs text-on-surface-variant">{p.descricao}</span>
+                                </span>
+                            </label>
+                        ))}
+                    </div>
+                    {publicos.length === 0 && (
+                        <p className="text-xs text-error pt-1">Escolha ao menos um público.</p>
+                    )}
+                </fieldset>
+
+                <div className="space-y-1">
+                    <label className="text-sm font-semibold text-on-surface" htmlFor="aviso-expira">
+                        Expira em (opcional)
+                    </label>
+                    <input
+                        id="aviso-expira"
+                        type="datetime-local"
+                        className={campoClass}
+                        value={expiraEm}
+                        onChange={(e) => setExpiraEm(e.target.value)}
+                    />
+                    <p className="text-xs text-on-surface-variant">
+                        Passada a data (hora de Campo Grande), o card sai da tela sozinho — sem precisar
+                        encerrar à mão. Em branco, fica no ar até você encerrar.
+                    </p>
+                </div>
+
                 {previa && (
                     <div className="rounded-xl border border-outline-variant bg-surface p-4">
                         <p className="text-xs font-semibold text-on-surface-variant mb-1">Prévia (como aparece agora)</p>
@@ -220,8 +283,8 @@ function HistoricoAvisos({ recarregar }) {
         <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-6 mt-6 max-w-3xl">
             <h2 className="font-display text-primary font-semibold mb-1">Avisos publicados</h2>
             <p className="text-sm text-on-surface-variant mb-4">
-                Quantos orientadores viram e quantos fecharam cada aviso. Abra um deles para ver
-                nome por nome — inclusive quem ainda não viu.
+                Quantas pessoas viram e quantas fecharam cada aviso. Abra um deles para ver nome por
+                nome — inclusive quem ainda não viu.
             </p>
 
             {lista === null ? (
@@ -286,13 +349,13 @@ function HistoricoAvisos({ recarregar }) {
 
 export default function AdminAvisos() {
     const [opcoes, setOpcoes] = useState(null);
-    const [ativo, setAtivo] = useState(null);
+    const [vigentes, setVigentes] = useState([]);
     // Publicar ou encerrar muda os números do histórico: este contador o recarrega.
     const [versao, setVersao] = useState(0);
 
     useEffect(() => {
         getAvisoOpcoes().then(setOpcoes).catch(() => setOpcoes(null));
-        getAvisoAtivoAdmin().then(setAtivo).catch(() => setAtivo(null));
+        getAvisosVigentes().then(setVigentes).catch(() => setVigentes([]));
     }, []);
 
     const carregando = opcoes === null;
@@ -304,9 +367,9 @@ export default function AdminAvisos() {
             </Link>
             <h1 className="font-display text-2xl font-semibold text-primary mb-1">Avisos</h1>
             <p className="text-on-surface-variant mb-6 max-w-3xl">
-                O card que aparece na tela dos orientadores conectados, e o relatório de quem viu,
-                fechou ou ainda não viu cada aviso. As datas de inscrição ficam em
-                Parametrização → Inscrições.
+                O card que aparece na tela de quem está conectado, para o público que você escolher,
+                e o relatório de quem viu, fechou ou ainda não viu cada aviso. As datas de inscrição
+                ficam em Parametrização → Inscrições.
             </p>
 
             {carregando ? (
@@ -317,8 +380,17 @@ export default function AdminAvisos() {
                 <>
                     <AvisoSection
                         opcoes={opcoes}
-                        ativo={ativo}
-                        onAtivo={(a) => { setAtivo(a); setVersao((v) => v + 1); }}
+                        vigentes={vigentes}
+                        onPublicado={(aviso) => {
+                            // O publicado entra na frente; o do mesmo público sai do ar.
+                            setVigentes((atual) => [aviso, ...atual.filter((a) => a.ativo !== false && a.id !== aviso.id)]);
+                            getAvisosVigentes().then(setVigentes).catch(() => {});
+                            setVersao((v) => v + 1);
+                        }}
+                        onEncerrado={(id) => {
+                            setVigentes((atual) => atual.filter((a) => a.id !== id));
+                            setVersao((v) => v + 1);
+                        }}
                     />
                     <HistoricoAvisos recarregar={versao} />
                 </>
