@@ -84,8 +84,9 @@ export const getAvaliacaoAvaliadores = (filtros) =>
     http.get('/admin/avaliacao/avaliadores', avaliadorParams(filtros)).then((r) => r.data);
 
 /** Lista enxuta (id, nome, área) para os seletores de designação. */
-export const getOpcoesAvaliadores = () =>
-    http.get('/admin/avaliacao/avaliadores/opcoes').then((r) => r.data.data);
+export const getOpcoesAvaliadores = (somenteComissao = false) =>
+    http.get('/admin/avaliacao/avaliadores/opcoes', { params: somenteComissao ? { comissao: 1 } : {} })
+        .then((r) => r.data.data);
 
 /** Baixa o CSV da tabela de avaliadores no recorte atual. */
 export async function exportarAvaliadoresCsv(filtros) {
@@ -146,9 +147,10 @@ export const getReclassificacoes = (filtros = {}) =>
 export const aplicarReclassificacoes = (itens) =>
     http.post('/admin/avaliacao/reclassificacoes/aplicar', { itens }).then((r) => r.data);
 
-// Ranking dos projetos avaliados (média das notas finais). `filtros`: { area_id }.
+// Ranking dos projetos avaliados (média das notas finais).
+// `filtros`: { area_id, categoria }. Devolve { data, meta } — meta traz as categorias.
 export const getRankingAvaliacao = (filtros = {}) =>
-    http.get('/admin/avaliacao/ranking', { params: limpar(filtros) }).then((r) => r.data.data);
+    http.get('/admin/avaliacao/ranking', { params: limpar(filtros) }).then((r) => r.data);
 
 /** Remove chaves vazias para não mandar `?q=&area_id=` na query. */
 function limpar(filtros) {

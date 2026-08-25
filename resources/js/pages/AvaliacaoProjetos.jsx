@@ -19,6 +19,38 @@ const COLUNAS = [
     { key: 'faltantes', label: 'Faltantes', alinhamento: 'text-center' },
 ];
 
+// Card de resumo de uma área: quantos projetos estão com 0, 1, 2 e 3+ avaliações
+// concluídas. Responde aos mesmos filtros da tabela.
+function CardArea({ resumo, minPorProjeto }) {
+    const faixas = [
+        { key: 'zero', label: '0', cor: 'text-error' },
+        { key: 'uma', label: '1', cor: 'text-on-surface' },
+        { key: 'duas', label: '2', cor: 'text-primary-container' },
+        { key: 'tres_ou_mais', label: '3+', cor: 'text-secondary' },
+    ];
+
+    return (
+        <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-4">
+            <h3 className="font-display text-sm font-semibold text-on-surface truncate" title={resumo.area}>
+                {resumo.area}
+            </h3>
+            <p className="text-xs text-on-surface-variant mb-2">
+                {resumo.total} {resumo.total === 1 ? 'projeto' : 'projetos'} · {resumo.completos} com o mínimo
+                de {minPorProjeto}
+            </p>
+            <div className="grid grid-cols-4 gap-1">
+                {faixas.map((f) => (
+                    <div key={f.key} className="text-center">
+                        <div className={`text-lg font-bold ${f.cor}`}>{resumo[f.key]}</div>
+                        <div className="text-[10px] text-on-surface-variant leading-tight" aria-hidden="true">{f.label}</div>
+                        <span className="sr-only">{`${resumo[f.key]} projetos com ${f.label} avaliações`}</span>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
 // Cabeçalho clicável: alterna asc/desc na própria coluna, começa asc numa nova.
 function Cabecalho({ coluna, ordenar, direcao, onOrdenar }) {
     const ativo = ordenar === coluna.key;
@@ -50,6 +82,8 @@ function DesignarModal({ projeto, avaliadores, areas, onFechar, onDesignar, salv
     const [tipo, setTipo] = useState('avaliador');
     const [alvo, setAlvo] = useState(null);
     const [subareas, setSubareas] = useState([]);
+    const [comissao, setComissao] = useState([]);
+    const [selecionados, setSelecionados] = useState([]);
 
     // Ao escolher "subárea", carrega as subáreas da área do projeto.
     useEffect(() => {
@@ -59,11 +93,44 @@ function DesignarModal({ projeto, avaliadores, areas, onFechar, onDesignar, salv
         }
     }, [tipo, projeto.area_id]);
 
+    // Comissão especial: a lista dos membros só é buscada quando o admin escolhe
+    // designar para ela.
+    useEffect(() => {
+        setSelecionados([]);
+        if (tipo === 'comissao' || tipo === 'comissao_selecionada') {
+            getOpcoesAvaliadores(true).then(setComissao).catch(() => setComissao([]));
+        }
+    }, [tipo]);
+
+    const ehComissao = tipo === 'comissao' || tipo === 'comissao_selecionada';
+
     const opcoes = tipo === 'avaliador' ? avaliadores
         : tipo === 'area' ? areas.map((a) => ({ id: a.id, nome: a.nome }))
             : subareas.map((s) => ({ id: s.id, nome: s.nome }));
 
     const rotulo = tipo === 'avaliador' ? 'Avaliador' : tipo === 'area' ? 'Área' : 'Subárea';
+
+    const alternar = (id) => setSelecionados((atual) => (
+        atual.includes(id) ? atual.filter((x) => x !== id) : [...atual, id]
+    ));
+
+    const podeDesignar = ehComissao
+        ? (tipo === 'comissao' ? comissao.length > 0 : selecionados.length > 0)
+        : Boolean(alvo);
+
+    function confirmar() {
+        if (ehComissao) {
+            onDesignar({
+                tipo: 'comissao',
+                // Comissão inteira manda a lista vazia; a seleção manda os marcados.
+                avaliador_ids: tipo === 'comissao_selecionada' ? selecionados : [],
+            });
+            return;
+        }
+        if (alvo) {
+            onDesignar({ tipo, alvo_id: Number(alvo.id) });
+        }
+    }
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
@@ -79,30 +146,61 @@ function DesignarModal({ projeto, avaliadores, areas, onFechar, onDesignar, salv
                         <option value="avaliador">Um avaliador específico</option>
                         <option value="area">Todos os avaliadores de uma área</option>
                         <option value="subarea">Todos os avaliadores de uma subárea</option>
+                        <option value="comissao">Comissão especial (todos)</option>
+                        <option value="comissao_selecionada">Comissão especial (selecionar)</option>
                     </select>
                 </div>
 
-                <div className="space-y-1">
-                    <label className="text-sm font-semibold text-on-surface">{rotulo}</label>
-                    <BuscaCombobox
-                        options={opcoes}
-                        value={alvo}
-                        onChange={setAlvo}
-                        placeholder={tipo === 'avaliador' ? 'Digite o nome do avaliador…' : `Digite o nome da ${rotulo.toLowerCase()}…`}
-                    />
-                    {tipo === 'subarea' && subareas.length === 0 && (
-                        <p className="text-xs text-on-surface-variant">Nenhuma subárea na área deste projeto.</p>
-                    )}
-                </div>
+                {ehComissao ? (
+                    <div className="space-y-1">
+                        <p className="text-sm font-semibold text-on-surface">Comissão especial</p>
+                        {comissao.length === 0 ? (
+                            <p className="text-xs text-on-surface-variant">
+                                Nenhum avaliador está marcado como comissão especial. Marque em
+                                “Avaliadores Online”.
+                            </p>
+                        ) : tipo === 'comissao' ? (
+                            <p className="text-sm text-on-surface-variant">
+                                O projeto será designado aos <strong>{comissao.length}</strong> membros da
+                                comissão especial.
+                            </p>
+                        ) : (
+                            <ul className="max-h-52 overflow-y-auto divide-y divide-outline-variant/30 border border-outline-variant/40 rounded-lg">
+                                {comissao.map((membro) => (
+                                    <li key={membro.id}>
+                                        <label className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-surface-variant/40">
+                                            <input
+                                                type="checkbox"
+                                                checked={selecionados.includes(membro.id)}
+                                                onChange={() => alternar(membro.id)}
+                                                className="accent-[color:var(--color-primary-container,#43157A)]"
+                                            />
+                                            <span className="text-sm text-on-surface truncate">{membro.nome}</span>
+                                            {membro.area && <span className="text-xs text-on-surface-variant truncate">{membro.area}</span>}
+                                        </label>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+                ) : (
+                    <div className="space-y-1">
+                        <label className="text-sm font-semibold text-on-surface">{rotulo}</label>
+                        <BuscaCombobox
+                            options={opcoes}
+                            value={alvo}
+                            onChange={setAlvo}
+                            placeholder={tipo === 'avaliador' ? 'Digite o nome do avaliador…' : `Digite o nome da ${rotulo.toLowerCase()}…`}
+                        />
+                        {tipo === 'subarea' && subareas.length === 0 && (
+                            <p className="text-xs text-on-surface-variant">Nenhuma subárea na área deste projeto.</p>
+                        )}
+                    </div>
+                )}
 
                 <div className="flex justify-end gap-2 pt-1">
                     <Button type="button" variant="outline" onClick={onFechar}>Cancelar</Button>
-                    <Button
-                        type="button"
-                        loading={salvando}
-                        disabled={!alvo}
-                        onClick={() => alvo && onDesignar({ tipo, alvo_id: Number(alvo.id) })}
-                    >
+                    <Button type="button" loading={salvando} disabled={!podeDesignar} onClick={confirmar}>
                         Designar
                     </Button>
                 </div>
@@ -188,6 +286,8 @@ export default function AvaliacaoProjetos() {
         }
     }
 
+    const resumoAreas = meta?.resumo_areas ?? [];
+    const minPorProjeto = meta?.min_por_projeto ?? 3;
     const areasFiltro = meta?.areas ?? [];
     const categorias = meta?.categorias ?? [];
     const temFiltro = filtros.q !== '' || filtros.areaId !== '' || filtros.categoria !== '';
@@ -203,6 +303,20 @@ export default function AvaliacaoProjetos() {
                 filtre por área e categoria, ordene por qualquer coluna e exporte o recorte em CSV. Designe
                 manualmente um projeto para um avaliador ou para todos de uma área/subárea.
             </p>
+
+            {resumoAreas.length > 0 && (
+                <section aria-label="Resumo por área do conhecimento" className="mb-4 max-w-4xl">
+                    <p className="text-xs text-on-surface-variant mb-2">
+                        Projetos por número de avaliações concluídas (0, 1, 2 e 3 ou mais), por área.
+                        Os filtros da tabela valem aqui também.
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {resumoAreas.map((r) => (
+                            <CardArea key={r.area_id ?? 'sem-area'} resumo={r} minPorProjeto={minPorProjeto} />
+                        ))}
+                    </div>
+                </section>
+            )}
 
             <div className="mb-4 flex flex-wrap gap-2 max-w-4xl">
                 <Button type="button" variant="outline" loading={exportando} onClick={exportar}>

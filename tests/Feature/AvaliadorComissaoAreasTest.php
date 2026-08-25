@@ -213,4 +213,84 @@ class AvaliadorComissaoAreasTest extends TestCase
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.nome', 'Ana');
     }
+
+    public function test_designa_o_projeto_para_a_comissao_inteira(): void
+    {
+        $area = Area::create(['nome' => 'Área A']);
+        $projeto = $this->projeto($area->id, null, 'Projeto da comissão');
+
+        $membro1 = $this->avaliador($area->id, null, 'Membro 1');
+        $membro2 = $this->avaliador($area->id, null, 'Membro 2');
+        $foraDaComissao = $this->avaliador($area->id, null, 'Fora');
+        $membro1->avaliadorProfile->update(['comissao_especial' => true]);
+        $membro2->avaliadorProfile->update(['comissao_especial' => true]);
+
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->postJson("/api/v1/admin/avaliacao/projetos/{$projeto->id}/designar", ['tipo' => 'comissao'])
+            ->assertOk()
+            ->assertJsonPath('data.designadas', 2);
+
+        $this->assertDatabaseHas('avaliacoes', ['projeto_id' => $projeto->id, 'avaliador_id' => $membro1->id, 'designacao_manual' => true]);
+        $this->assertDatabaseHas('avaliacoes', ['projeto_id' => $projeto->id, 'avaliador_id' => $membro2->id]);
+        $this->assertDatabaseMissing('avaliacoes', ['projeto_id' => $projeto->id, 'avaliador_id' => $foraDaComissao->id]);
+    }
+
+    public function test_designa_o_projeto_so_para_os_membros_selecionados(): void
+    {
+        $area = Area::create(['nome' => 'Área A']);
+        $projeto = $this->projeto($area->id, null, 'Projeto da comissão');
+
+        $escolhido = $this->avaliador($area->id, null, 'Escolhido');
+        $outro = $this->avaliador($area->id, null, 'Outro');
+        $escolhido->avaliadorProfile->update(['comissao_especial' => true]);
+        $outro->avaliadorProfile->update(['comissao_especial' => true]);
+
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->postJson("/api/v1/admin/avaliacao/projetos/{$projeto->id}/designar", [
+            'tipo' => 'comissao',
+            'avaliador_ids' => [$escolhido->id],
+        ])->assertOk()->assertJsonPath('data.designadas', 1);
+
+        $this->assertDatabaseHas('avaliacoes', ['projeto_id' => $projeto->id, 'avaliador_id' => $escolhido->id]);
+        $this->assertDatabaseMissing('avaliacoes', ['projeto_id' => $projeto->id, 'avaliador_id' => $outro->id]);
+    }
+
+    public function test_designar_para_comissao_vazia_explica_o_motivo(): void
+    {
+        $area = Area::create(['nome' => 'Área A']);
+        $projeto = $this->projeto($area->id, null, 'Projeto');
+        $comum = $this->avaliador($area->id, null, 'Comum');
+
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->postJson("/api/v1/admin/avaliacao/projetos/{$projeto->id}/designar", ['tipo' => 'comissao'])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('tipo');
+
+        // Selecionar quem não é da comissão também não passa.
+        $this->postJson("/api/v1/admin/avaliacao/projetos/{$projeto->id}/designar", [
+            'tipo' => 'comissao', 'avaliador_ids' => [$comum->id],
+        ])->assertStatus(422)->assertJsonValidationErrors('tipo');
+    }
+
+    public function test_opcoes_de_avaliadores_filtra_pela_comissao(): void
+    {
+        $area = Area::create(['nome' => 'Área A']);
+        $membro = $this->avaliador($area->id, null, 'Membro');
+        $this->avaliador($area->id, null, 'Comum');
+        $membro->avaliadorProfile->update(['comissao_especial' => true]);
+
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->getJson('/api/v1/admin/avaliacao/avaliadores/opcoes?comissao=1')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.nome', 'Membro');
+
+        $this->getJson('/api/v1/admin/avaliacao/avaliadores/opcoes')
+            ->assertOk()
+            ->assertJsonCount(2, 'data');
+    }
 }

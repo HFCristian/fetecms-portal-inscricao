@@ -438,4 +438,71 @@ class AdminAvaliacaoTest extends TestCase
         $this->getJson('/api/v1/admin/avaliacao/avaliadores')->assertStatus(403);
         $this->getJson('/api/v1/admin/avaliacao/projetos')->assertStatus(403);
     }
+
+    public function test_resumo_por_area_conta_projetos_por_faixa_de_avaliacoes(): void
+    {
+        $a = Area::create(['nome' => 'Área A']);
+        $b = Area::create(['nome' => 'Área B']);
+        $orient = User::factory()->create();
+
+        $avaliadores = [
+            $this->avaliador($a->id, 'Av1'),
+            $this->avaliador($a->id, 'Av2'),
+            $this->avaliador($a->id, 'Av3'),
+        ];
+
+        // Área A: um com 0, um com 2 e um com 3 avaliações concluídas.
+        $semAvaliacao = Projeto::factory()->submetido()->create(['user_id' => $orient->id, 'area_id' => $a->id, 'titulo' => 'A-zero']);
+        $comDuas = Projeto::factory()->submetido()->create(['user_id' => $orient->id, 'area_id' => $a->id, 'titulo' => 'A-duas']);
+        $comTres = Projeto::factory()->submetido()->create(['user_id' => $orient->id, 'area_id' => $a->id, 'titulo' => 'A-tres']);
+        // Área B: um com 1.
+        $comUma = Projeto::factory()->submetido()->create(['user_id' => $orient->id, 'area_id' => $b->id, 'titulo' => 'B-uma']);
+
+        foreach (array_slice($avaliadores, 0, 2) as $av) {
+            Avaliacao::create(['projeto_id' => $comDuas->id, 'avaliador_id' => $av->id, 'status' => 'concluida', 'nota' => 8]);
+        }
+        foreach ($avaliadores as $av) {
+            Avaliacao::create(['projeto_id' => $comTres->id, 'avaliador_id' => $av->id, 'status' => 'concluida', 'nota' => 8]);
+        }
+        Avaliacao::create(['projeto_id' => $comUma->id, 'avaliador_id' => $avaliadores[0]->id, 'status' => 'concluida', 'nota' => 8]);
+        // Em andamento não conta como concluída.
+        Avaliacao::create(['projeto_id' => $semAvaliacao->id, 'avaliador_id' => $avaliadores[0]->id, 'status' => 'em_andamento']);
+
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->getJson('/api/v1/admin/avaliacao/projetos')
+            ->assertOk()
+            ->assertJsonPath('meta.min_por_projeto', 3)
+            ->assertJsonPath('meta.resumo_areas.0.area', 'Área A')
+            ->assertJsonPath('meta.resumo_areas.0.zero', 1)
+            ->assertJsonPath('meta.resumo_areas.0.uma', 0)
+            ->assertJsonPath('meta.resumo_areas.0.duas', 1)
+            ->assertJsonPath('meta.resumo_areas.0.tres_ou_mais', 1)
+            ->assertJsonPath('meta.resumo_areas.0.total', 3)
+            ->assertJsonPath('meta.resumo_areas.0.completos', 1)
+            ->assertJsonPath('meta.resumo_areas.1.area', 'Área B')
+            ->assertJsonPath('meta.resumo_areas.1.uma', 1);
+    }
+
+    public function test_resumo_por_area_respeita_os_filtros_da_tabela(): void
+    {
+        $a = Area::create(['nome' => 'Área A']);
+        $b = Area::create(['nome' => 'Área B']);
+        $orient = User::factory()->create();
+
+        Projeto::factory()->submetido()->create(['user_id' => $orient->id, 'area_id' => $a->id, 'titulo' => 'Da A']);
+        Projeto::factory()->submetido()->create(['user_id' => $orient->id, 'area_id' => $b->id, 'titulo' => 'Da B', 'categoria' => 'fetecms']);
+
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->getJson("/api/v1/admin/avaliacao/projetos?area_id={$b->id}")
+            ->assertOk()
+            ->assertJsonCount(1, 'meta.resumo_areas')
+            ->assertJsonPath('meta.resumo_areas.0.area', 'Área B');
+
+        $this->getJson('/api/v1/admin/avaliacao/projetos?categoria=fetecms')
+            ->assertOk()
+            ->assertJsonCount(1, 'meta.resumo_areas')
+            ->assertJsonPath('meta.resumo_areas.0.area', 'Área B');
+    }
 }

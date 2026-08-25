@@ -588,4 +588,38 @@ class AdminReclassificacaoRankingTest extends TestCase
         $this->avaliacaoConcluida($abelhas, $this->avaliador('Bruno'), 10,
             ['area_correta' => true, 'subarea_correta' => false, 'subarea_sugerida_id' => $this->ecologia->id]);
     }
+
+    public function test_ranking_filtra_por_categoria(): void
+    {
+        $jr = $this->projeto('Do FETEC Jr', $this->exatas);
+        $jr->update(['categoria' => 'fetec_jr']);
+        $ms = $this->projeto('Do FETECMS', $this->exatas);
+        $ms->update(['categoria' => 'fetecms']);
+
+        $this->avaliacaoConcluida($jr, $this->avaliador('Ana'), 10);
+        $this->avaliacaoConcluida($ms, $this->avaliador('Bruno'), 10);
+
+        $this->comoAdmin();
+
+        $this->getJson('/api/v1/admin/avaliacao/ranking?categoria=fetec_jr')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.titulo', 'Do FETEC Jr')
+            // As opções do filtro vêm junto, para a tela montar o select.
+            ->assertJsonCount(3, 'meta.categorias');
+
+        // Área e categoria se somam.
+        $this->getJson("/api/v1/admin/avaliacao/ranking?area_id={$this->bio->id}&categoria=fetec_jr")
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+    }
+
+    public function test_ranking_recusa_categoria_desconhecida(): void
+    {
+        $this->comoAdmin();
+
+        $this->getJson('/api/v1/admin/avaliacao/ranking?categoria=pictec')
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('categoria');
+    }
 }

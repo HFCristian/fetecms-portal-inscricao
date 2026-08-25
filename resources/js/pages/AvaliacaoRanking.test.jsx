@@ -40,10 +40,19 @@ const RANKING = [
     },
 ];
 
+const CATEGORIAS = [
+    { value: 'fetec_jr', label: 'FETEC Jr' },
+    { value: 'fetecms', label: 'FETECMS' },
+    { value: 'fetecms_fundect', label: 'FETECMS FUNDECT' },
+];
+
+/** A API devolve { data, meta } — meta traz as categorias do filtro. */
+const resposta = (data) => ({ data, meta: { categorias: CATEGORIAS } });
+
 describe('AvaliacaoRanking', () => {
     beforeEach(() => {
         getRankingAvaliacao.mockReset();
-        getRankingAvaliacao.mockResolvedValue(RANKING);
+        getRankingAvaliacao.mockResolvedValue(resposta(RANKING));
     });
 
     it('lista os projetos na ordem recebida, com média sobre o total e nº de avaliações', async () => {
@@ -83,14 +92,14 @@ describe('AvaliacaoRanking', () => {
     });
 
     it('marca o pódio e numera do 4º em diante', async () => {
-        getRankingAvaliacao.mockResolvedValue([
+        getRankingAvaliacao.mockResolvedValue(resposta([
             ...RANKING,
             {
                 projeto_id: 4, posicao: 4, titulo: 'Quarto colocado', area: 'Exatas', categoria: 'FETECMS',
                 avaliacoes: 3, media: 4.2, nota_maxima: 10, completo: true,
                 medias_secoes: secoes(0, 0.1, 0.8),
             },
-        ]);
+        ]));
         render(<AvaliacaoRanking />);
 
         await screen.findByText('Quarto colocado');
@@ -106,11 +115,33 @@ describe('AvaliacaoRanking', () => {
         fireEvent.change(screen.getByLabelText('Área do conhecimento'), { target: { value: '2' } });
 
         await waitFor(() => expect(getRankingAvaliacao).toHaveBeenCalledTimes(2));
-        expect(getRankingAvaliacao).toHaveBeenLastCalledWith({ area_id: '2' });
+        expect(getRankingAvaliacao).toHaveBeenLastCalledWith({ area_id: '2', categoria: '' });
+    });
+
+    it('filtra por categoria', async () => {
+        render(<AvaliacaoRanking />);
+        await screen.findByText('Secador solar');
+
+        expect(screen.getByRole('option', { name: 'FETEC Jr' })).toBeInTheDocument();
+        fireEvent.change(screen.getByLabelText('Categoria'), { target: { value: 'fetecms' } });
+
+        await waitFor(() => expect(getRankingAvaliacao).toHaveBeenLastCalledWith({ area_id: '', categoria: 'fetecms' }));
+    });
+
+    it('cruza área e categoria', async () => {
+        render(<AvaliacaoRanking />);
+        await screen.findByText('Secador solar');
+
+        fireEvent.change(screen.getByLabelText('Área do conhecimento'), { target: { value: '1' } });
+        await waitFor(() => expect(getRankingAvaliacao).toHaveBeenCalledTimes(2));
+
+        fireEvent.change(screen.getByLabelText('Categoria'), { target: { value: 'fetec_jr' } });
+
+        await waitFor(() => expect(getRankingAvaliacao).toHaveBeenLastCalledWith({ area_id: '1', categoria: 'fetec_jr' }));
     });
 
     it('mostra estado vazio quando ninguém foi avaliado', async () => {
-        getRankingAvaliacao.mockResolvedValue([]);
+        getRankingAvaliacao.mockResolvedValue(resposta([]));
         render(<AvaliacaoRanking />);
 
         expect(await screen.findByText('Nenhum projeto avaliado ainda.')).toBeInTheDocument();

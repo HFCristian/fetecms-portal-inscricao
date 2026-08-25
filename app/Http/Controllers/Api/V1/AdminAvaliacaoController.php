@@ -14,12 +14,14 @@ use App\Http\Requests\Admin\LimiteAvaliadorRequest;
 use App\Http\Requests\Admin\ListarAvaliadoresRequest;
 use App\Http\Requests\Admin\ListarProjetosAvaliacaoRequest;
 use App\Http\Requests\Admin\MinimosAvaliacaoRequest;
+use App\Models\Edicao;
 use App\Models\Projeto;
 use App\Models\User;
 use App\Services\AdminAvaliacaoService;
 use App\Services\DistribuicaoService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -54,9 +56,11 @@ class AdminAvaliacaoController extends Controller
     }
 
     /** Lista enxuta (id, nome, área) para os seletores de designação. */
-    public function avaliadoresOpcoes(): JsonResponse
+    public function avaliadoresOpcoes(Request $request): JsonResponse
     {
-        return response()->json(['data' => $this->service->opcoesAvaliadores()]);
+        return response()->json([
+            'data' => $this->service->opcoesAvaliadores($request->boolean('comissao')),
+        ]);
     }
 
     /** CSV da tabela de avaliadores, no mesmo recorte de filtros da tela. */
@@ -138,9 +142,13 @@ class AdminAvaliacaoController extends Controller
     {
         $filtros = $request->validate([
             'area_id' => ['nullable', 'integer', 'exists:areas,id'],
+            'categoria' => ['nullable', Rule::enum(Categoria::class)],
         ]);
 
-        return response()->json(['data' => $this->service->rankingProjetos($filtros)]);
+        return response()->json([
+            'data' => $this->service->rankingProjetos($filtros),
+            'meta' => ['categorias' => Categoria::opcoes()],
+        ]);
     }
 
     public function projetos(ListarProjetosAvaliacaoRequest $request): JsonResponse
@@ -157,6 +165,9 @@ class AdminAvaliacaoController extends Controller
                 'total' => $pagina->total(),
                 'areas' => $this->service->areasComProjeto(),
                 'categorias' => Categoria::opcoes(),
+                // Cards do topo da tela: mesmo recorte de filtros da tabela.
+                'resumo_areas' => $this->service->resumoProjetosPorArea($filtros),
+                'min_por_projeto' => Edicao::minPorProjeto(),
                 'ordenar' => $filtros['ordenar'],
                 'direcao' => $filtros['direcao'],
             ],
@@ -183,10 +194,13 @@ class AdminAvaliacaoController extends Controller
             'Só é possível designar avaliações de projetos submetidos.'
         );
 
+        $alvoId = $request->validated('alvo_id');
+
         $novas = $this->service->designar(
             $projeto,
             $request->validated('tipo'),
-            (int) $request->validated('alvo_id'),
+            $alvoId === null ? null : (int) $alvoId,
+            $request->avaliadorIds(),
         );
 
         return response()->json([

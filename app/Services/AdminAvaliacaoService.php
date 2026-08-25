@@ -96,10 +96,14 @@ class AdminAvaliacaoService
      *
      * @return list<array{id:int, nome:string, area:?string}>
      */
-    public function opcoesAvaliadores(): array
+    public function opcoesAvaliadores(bool $somenteComissao = false): array
     {
         return User::query()
             ->where('role', Role::Avaliador->value)
+            ->when($somenteComissao, fn ($q) => $q->whereHas(
+                'avaliadorProfile',
+                fn ($perfil) => $perfil->where('comissao_especial', true),
+            ))
             ->with('avaliadorProfile.area:id,nome')
             ->orderBy('name')
             ->get(['id', 'name'])
@@ -308,6 +312,51 @@ class AdminAvaliacaoService
             'em_avaliacao' => (int) $p->em_avaliacao_count,
             'faltantes' => max(0, $min - $realizadas),
         ];
+    }
+
+    /**
+     * Resumo dos projetos por área do conhecimento: quantos estão com 0, 1, 2 e
+     * 3 ou mais avaliações concluídas. Responde aos MESMOS filtros da tabela —
+     * os cards e a lista mostram sempre o mesmo recorte.
+     *
+     * @param  array<string, mixed>  $filtros
+     * @return list<array<string, mixed>>
+     */
+    public function resumoProjetosPorArea(array $filtros = []): array
+    {
+        $min = Edicao::minPorProjeto();
+
+        $grupos = [];
+        $this->queryProjetos($filtros)
+            ->reorder()
+            ->get(['projetos.id', 'projetos.area_id'])
+            ->each(function (Projeto $p) use (&$grupos, $min) {
+                $chave = $p->area_id ?? 0;
+                $grupos[$chave] ??= [
+                    'area_id' => $p->area_id,
+                    'area' => $p->area?->nome ?? 'Sem área',
+                    'zero' => 0, 'uma' => 0, 'duas' => 0, 'tres_ou_mais' => 0,
+                    'total' => 0, 'completos' => 0,
+                ];
+
+                $realizadas = (int) $p->realizadas_count;
+                $faixa = match (true) {
+                    $realizadas === 0 => 'zero',
+                    $realizadas === 1 => 'uma',
+                    $realizadas === 2 => 'duas',
+                    default => 'tres_ou_mais',
+                };
+
+                $grupos[$chave][$faixa]++;
+                $grupos[$chave]['total']++;
+                $grupos[$chave]['completos'] += $realizadas >= $min ? 1 : 0;
+            });
+
+        $lista = array_values($grupos);
+        usort($lista, fn ($x, $y) => ($x['area_id'] === null ? 1 : 0) <=> ($y['area_id'] === null ? 1 : 0)
+            ?: strcmp($x['area'], $y['area']));
+
+        return $lista;
     }
 
     /** Áreas que têm ao menos um projeto submetido — as opções do filtro. */
@@ -658,7 +707,7 @@ class AdminAvaliacaoService
      * `completo` marca quem já atingiu o mínimo de avaliações — abaixo disso a
      * média ainda é parcial e não deve valer como classificação final.
      *
-     * @param  array{area_id?:int|null}  $filtros
+     * @param  array{area_id?:int|null, categoria?:string|null}  $filtros
      * @return list<array<string, mixed>>
      */
     public function rankingProjetos(array $filtros = []): array
@@ -666,6 +715,9 @@ class AdminAvaliacaoService
         $projetos = Projeto::query()
             ->whereHas('avaliacoes', fn ($q) => $q->where('status', StatusAvaliacao::Concluida->value))
             ->when($filtros['area_id'] ?? null, fn ($q, $areaId) => $q->where('area_id', $areaId))
+            // Categorias não competem entre si: FETEC Jr, FETECMS e FETECMS FUNDECT
+            // têm regras próprias de equipe e de premiação.
+            ->when($filtros['categoria'] ?? null, fn ($q, $categoria) => $q->where('categoria', $categoria))
             ->with([
                 'area:id,nome',
                 'avaliacoes' => fn ($q) => $q->where('status', StatusAvaliacao::Concluida->value),
@@ -737,12 +789,13 @@ class AdminAvaliacaoService
      *
      * @return int quantas designações novas foram criadas
      */
-    public function designar(Projeto $projeto, string $tipo, int $alvoId): int
+    public function designar(Projeto $projeto, string $tipo, ?int $alvoId, array $selecionados = []): int
     {
         $avaliadorIds = match ($tipo) {
             'avaliador' => [$alvoId],
             'area' => AvaliadorProfile::where('area_id', $alvoId)->pluck('user_id')->all(),
             'subarea' => AvaliadorProfile::where('subarea_id', $alvoId)->pluck('user_id')->all(),
+            'comissao' => $this->idsDaComissao($selecionados),
             default => [],
         };
 
@@ -761,6 +814,31 @@ class AdminAvaliacaoService
         }
 
         return $novas;
+    }
+
+    /**
+     * Membros da comissão especial. Sem seleção, vai a comissão inteira; com
+     * seleção, só os marcados — e quem não é da comissão é descartado.
+     *
+     * @param  list<int>  $selecionados
+     * @return list<int>
+     */
+    private function idsDaComissao(array $selecionados): array
+    {
+        $ids = AvaliadorProfile::where('comissao_especial', true)
+            ->when($selecionados !== [], fn ($q) => $q->whereIn('user_id', $selecionados))
+            ->pluck('user_id')
+            ->all();
+
+        if ($ids === []) {
+            throw ValidationException::withMessages([
+                'tipo' => $selecionados === []
+                    ? 'Nenhum avaliador está marcado como comissão especial.'
+                    : 'Nenhum dos avaliadores selecionados é da comissão especial.',
+            ]);
+        }
+
+        return $ids;
     }
 
     /** Define (ou remove, com null) o limite individual de avaliações do avaliador. */
