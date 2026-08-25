@@ -56,6 +56,11 @@ export const definirLiberacaoAvaliacao = (liberadaEm) =>
     http.patch('/admin/avaliacao/config', { liberada_em: liberadaEm }).then((r) => r.data);
 export const definirEncerramentoAvaliacao = (encerradaEm) =>
     http.patch('/admin/avaliacao/encerramento', { encerrada_em: encerradaEm }).then((r) => r.data);
+// Mínimos do edital: cada card manda só o seu número.
+export const definirMinimoPorAvaliador = (valor) =>
+    http.patch('/admin/avaliacao/minimos', { min_por_avaliador: valor }).then((r) => r.data);
+export const definirMinimoPorProjeto = (valor) =>
+    http.patch('/admin/avaliacao/minimos', { min_por_projeto: valor }).then((r) => r.data);
 export const getAvaliacaoAvaliadores = () => http.get('/admin/avaliacao/avaliadores').then((r) => r.data.data);
 export const definirLimiteAvaliador = (avaliadorId, limite) =>
     http.patch(`/admin/avaliacao/avaliadores/${avaliadorId}/limite`, { limite }).then((r) => r.data);
@@ -100,10 +105,14 @@ export const definirStatusAdmin = (id, isActive) =>
     http.patch(`/admin/admins/${id}/status`, { is_active: isActive }).then((r) => r.data.data);
 
 // Parametrização do catálogo (áreas/subáreas). Toda mutação devolve a árvore atualizada.
-export const getCatalogo = () => http.get('/admin/catalogo').then((r) => r.data.data);
+// A árvore vem em `data` e os grupos de áreas correlatas em `meta.grupos` — as
+// mutações devolvem só a árvore, então os grupos são lidos uma vez, na carga.
+export const getCatalogo = () => http.get('/admin/catalogo')
+    .then((r) => ({ areas: r.data.data, grupos: r.data.meta?.grupos ?? [] }));
 export const renomearArea = (id, nome) => http.put(`/admin/areas/${id}`, { nome }).then((r) => r.data.data);
 export const mesclarArea = (id, destinoId) => http.post(`/admin/areas/${id}/mesclar`, { destino_id: destinoId }).then((r) => r.data.data);
 export const excluirArea = (id) => http.delete(`/admin/areas/${id}`).then((r) => r.data.data);
+export const definirCorrelacaoArea = (id, grupo) => http.patch(`/admin/areas/${id}/correlacao`, { grupo_correlato: grupo || null }).then((r) => r.data.data);
 export const renomearSubarea = (id, nome) => http.put(`/admin/subareas/${id}`, { nome }).then((r) => r.data.data);
 export const mesclarSubarea = (id, destinoId) => http.post(`/admin/subareas/${id}/mesclar`, { destino_id: destinoId }).then((r) => r.data.data);
 export const excluirSubarea = (id) => http.delete(`/admin/subareas/${id}`).then((r) => r.data.data);

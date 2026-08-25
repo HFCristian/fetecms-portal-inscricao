@@ -4,9 +4,32 @@ import AppShell from '../components/AppShell.jsx';
 import { Input, Select, Button, Alert, useConfirm } from '../components/ui.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import {
-    getCatalogo, renomearArea, mesclarArea, excluirArea,
+    getCatalogo, renomearArea, mesclarArea, excluirArea, definirCorrelacaoArea,
     renomearSubarea, mesclarSubarea, excluirSubarea,
 } from '../lib/admin.js';
+
+// Seletor do grupo de áreas correlatas ("áreas irmãs"): quando a própria área do
+// projeto fica sem avaliador disponível, a distribuição procura nas outras áreas
+// do mesmo grupo.
+function CorrelacaoRow({ area, grupos, onChange }) {
+    return (
+        <div className="flex flex-wrap items-center gap-2 py-1.5">
+            <span className="material-symbols-outlined text-[18px] text-on-surface-variant">hub</span>
+            <label className="text-sm text-on-surface-variant" htmlFor={`correlacao-${area.id}`}>Áreas correlatas:</label>
+            <Select
+                id={`correlacao-${area.id}`}
+                aria-label={`Áreas correlatas de ${area.nome}`}
+                value={area.grupo_correlato ?? ''}
+                onChange={(e) => onChange(area.id, e.target.value)}
+            >
+                <option value="">Sem correlação</option>
+                {grupos.map((g) => (
+                    <option key={g.value} value={g.value}>{g.label} — {g.descricao}</option>
+                ))}
+            </Select>
+        </div>
+    );
+}
 
 function IconBtn({ icon, title, onClick, disabled, danger }) {
     return (
@@ -78,11 +101,16 @@ function ItemRow({ item, irmaos, isArea = false, onRename, onMerge, onDelete }) 
 
 export default function ParametrizacaoAreas() {
     const [arvore, setArvore] = useState(null);
+    const [grupos, setGrupos] = useState([]);
     const [alert, setAlert] = useState('');
     const [success, setSuccess] = useState('');
     const [confirm, confirmDialog] = useConfirm();
 
-    useEffect(() => { getCatalogo().then(setArvore).catch(() => setArvore([])); }, []);
+    useEffect(() => {
+        getCatalogo()
+            .then(({ areas, grupos: gs }) => { setArvore(areas); setGrupos(gs); })
+            .catch(() => setArvore([]));
+    }, []);
 
     // Aplica uma mutação: substitui a árvore pela versão atualizada do servidor.
     function aplicar(promise, okMsg) {
@@ -94,6 +122,7 @@ export default function ParametrizacaoAreas() {
 
     const onRenameArea = (id, nome) => aplicar(renomearArea(id, nome), 'Área renomeada.');
     const onRenameSub = (id, nome) => aplicar(renomearSubarea(id, nome), 'Subárea renomeada.');
+    const onCorrelacao = (id, grupo) => aplicar(definirCorrelacaoArea(id, grupo), 'Áreas correlatas atualizadas.').catch(() => {});
 
     async function onMergeArea(id, destinoId) {
         const ok = await confirm({ title: 'Mesclar áreas', danger: true, confirmLabel: 'Mesclar',
@@ -125,7 +154,9 @@ export default function ParametrizacaoAreas() {
             <p className="text-on-surface-variant mb-6 max-w-3xl">
                 Gerencie o catálogo de áreas e subáreas. <strong>Mesclar</strong> move todas as referências
                 (projetos, avaliadores e orientadores) para o destino e remove a original. Só é possível
-                <strong> excluir</strong> itens sem uso.
+                <strong> excluir</strong> itens sem uso. As <strong>áreas correlatas</strong> são o plano B da
+                distribuição: um projeto sem avaliador disponível na própria área é encaminhado para
+                avaliadores das outras áreas do mesmo grupo.
             </p>
 
             {alert && <div className="mb-4 max-w-3xl"><Alert>{alert}</Alert></div>}
@@ -140,6 +171,7 @@ export default function ParametrizacaoAreas() {
                     {areas.map((area) => (
                         <div key={area.id} className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-5">
                             <ItemRow item={area} irmaos={areas} isArea onRename={onRenameArea} onMerge={onMergeArea} onDelete={onDeleteArea} />
+                            <CorrelacaoRow area={area} grupos={grupos} onChange={onCorrelacao} />
                             <div className="mt-2 pl-4 border-l-2 border-outline-variant/40">
                                 {area.subareas.length === 0 ? (
                                     <p className="text-xs text-on-surface-variant py-1">Sem subáreas.</p>

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\GrupoCorrelato;
 use App\Enums\Role;
 use App\Models\Area;
 use App\Models\Projeto;
@@ -162,5 +163,56 @@ class CatalogoAdminTest extends TestCase
 
         $this->deleteJson("/api/v1/admin/areas/{$area->id}")->assertStatus(422);
         $this->assertDatabaseHas('areas', ['id' => $area->id]);
+    }
+
+    public function test_admin_define_e_remove_o_grupo_de_areas_correlatas(): void
+    {
+        $area = Area::create(['nome' => 'Ciências Agrárias']);
+        Sanctum::actingAs($this->admin());
+
+        $this->patchJson("/api/v1/admin/areas/{$area->id}/correlacao", ['grupo_correlato' => 'vida'])
+            ->assertOk()
+            ->assertJsonPath('data.0.grupo_correlato', 'vida')
+            ->assertJsonPath('data.0.grupo_correlato_label', 'Ciências da vida');
+
+        $this->assertSame(GrupoCorrelato::Vida, $area->fresh()->grupo_correlato);
+
+        // Voltar para "Sem correlação" tira o grupo.
+        $this->patchJson("/api/v1/admin/areas/{$area->id}/correlacao", ['grupo_correlato' => ''])
+            ->assertOk()
+            ->assertJsonPath('data.0.grupo_correlato', null);
+
+        $this->assertNull($area->fresh()->grupo_correlato);
+    }
+
+    public function test_grupo_correlato_invalido_e_recusado(): void
+    {
+        $area = Area::create(['nome' => 'Engenharias']);
+        Sanctum::actingAs($this->admin());
+
+        $this->patchJson("/api/v1/admin/areas/{$area->id}/correlacao", ['grupo_correlato' => 'inexistente'])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('grupo_correlato');
+    }
+
+    public function test_arvore_traz_as_opcoes_de_correlacao(): void
+    {
+        Area::create(['nome' => 'Engenharias']);
+        Sanctum::actingAs($this->admin());
+
+        $this->getJson('/api/v1/admin/catalogo')
+            ->assertOk()
+            ->assertJsonCount(3, 'meta.grupos')
+            ->assertJsonPath('meta.grupos.0.value', 'vida')
+            ->assertJsonPath('meta.grupos.0.descricao', 'Agrárias, Biológicas e Saúde');
+    }
+
+    public function test_correlacao_e_so_para_admin(): void
+    {
+        $area = Area::create(['nome' => 'Engenharias']);
+        Sanctum::actingAs(User::factory()->create(['role' => Role::Avaliador]));
+
+        $this->patchJson("/api/v1/admin/areas/{$area->id}/correlacao", ['grupo_correlato' => 'vida'])
+            ->assertForbidden();
     }
 }

@@ -9,6 +9,7 @@ use App\Http\Requests\Admin\DesignarAvaliacaoRequest;
 use App\Http\Requests\Admin\EncerramentoAvaliacaoRequest;
 use App\Http\Requests\Admin\LiberacaoAvaliacaoRequest;
 use App\Http\Requests\Admin\LimiteAvaliadorRequest;
+use App\Http\Requests\Admin\MinimosAvaliacaoRequest;
 use App\Models\Projeto;
 use App\Models\User;
 use App\Services\AdminAvaliacaoService;
@@ -58,6 +59,14 @@ class AdminAvaliacaoController extends Controller
                 ? 'Encerramento da avaliação salvo.'
                 : 'Encerramento removido — a avaliação segue aberta.'],
         ]);
+    }
+
+    /** Define os mínimos de avaliações (por avaliador e por projeto). */
+    public function definirMinimos(MinimosAvaliacaoRequest $request): JsonResponse
+    {
+        $config = $this->service->definirMinimos($request->validated());
+
+        return response()->json(['data' => $config, 'meta' => ['message' => 'Mínimos atualizados.']]);
     }
 
     /** Projetos submetidos por área, com realizadas/em avaliação/faltantes. */

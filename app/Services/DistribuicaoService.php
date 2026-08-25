@@ -5,7 +5,9 @@ namespace App\Services;
 use App\Enums\ProjetoStatus;
 use App\Enums\Role;
 use App\Enums\StatusAvaliacao;
+use App\Models\Area;
 use App\Models\Avaliacao;
+use App\Models\Edicao;
 use App\Models\Projeto;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -15,15 +17,17 @@ use Illuminate\Support\Facades\DB;
  *
  * Guloso com balanceamento de carga, idempotente (re-executável): só COMPLETA
  * cada projeto até o alvo, sem tocar em avaliações já existentes. Casa por
- * subárea (preferencial) → área (fallback). Ignora avaliadores demo, inativos
- * e sem área; respeita o limite individual de cada avaliador. Projetos que não
+ * subárea (preferencial) → área → área IRMÃ (mesmo grupo de correlação, só
+ * quando a própria área se esgota). Ignora avaliadores demo, inativos e sem
+ * área; respeita o limite individual de cada avaliador. Projetos que não
  * fecham o alvo entram no relatório de "sub-cobertos" para o admin resolver.
  */
 class DistribuicaoService
 {
-    /** Alvo de avaliadores por projeto e teto de visibilidade. */
-    private const ALVO = 3;
-
+    /**
+     * Teto de visibilidade: um projeto nunca fica visível para mais avaliadores
+     * do que isso — a não ser que o próprio mínimo do edital seja maior.
+     */
     private const TETO = 5;
 
     /**
@@ -31,7 +35,11 @@ class DistribuicaoService
      */
     public function distribuir(): array
     {
-        $avaliadores = $this->carregarAvaliadores();
+        // Mínimos parametrizados pelo admin (Parametrização → Avaliação Online).
+        $alvo = Edicao::minPorProjeto();
+        $teto = max(self::TETO, $alvo);
+
+        $avaliadores = $this->carregarAvaliadores(Edicao::minPorAvaliador());
         [$cargaInicial, $projetoInfo] = $this->estadoAtual($avaliadores);
 
         // Aplica a carga já existente e monta índice de avaliadores por área.
@@ -42,11 +50,10 @@ class DistribuicaoService
         }
 
         $projetos = $this->carregarProjetos($projetoInfo);
+        $correlatas = $this->mapaCorrelatas();
 
-        // Elegíveis de um projeto: mesma área, com folga no limite, ainda não designado.
-        $elegiveis = function (array $proj) use (&$avaliadores, $porArea): array {
-            $ids = $porArea[$proj['area_id']] ?? [];
-
+        // Disponíveis dentre uma lista: com folga no limite e ainda não designados.
+        $disponiveis = function (array $ids, array $proj) use (&$avaliadores): array {
             return array_values(array_filter(
                 $ids,
                 fn ($id) => $avaliadores[$id]['carga'] < $avaliadores[$id]['capacidade']
@@ -54,9 +61,25 @@ class DistribuicaoService
             ));
         };
 
-        // Ordena os projetos por escassez (menos elegíveis primeiro; empate: menor cobertura).
+        // Avaliadores das áreas irmãs do projeto (vazio quando a área não tem grupo).
+        $irmaos = fn (array $proj) => array_merge(
+            ...array_map(fn ($areaId) => $porArea[$areaId] ?? [], $correlatas[$proj['area_id']] ?? []),
+        );
+
+        // Elegíveis de um projeto: a própria área manda; só quando ela se esgota
+        // o projeto cai para as áreas irmãs (mesmo grupo de correlação).
+        $elegiveis = function (array $proj) use ($disponiveis, $irmaos, $porArea): array {
+            $proprios = $disponiveis($porArea[$proj['area_id']] ?? [], $proj);
+
+            return $proprios !== [] ? $proprios : $disponiveis($irmaos($proj), $proj);
+        };
+
+        // Ordena os projetos por escassez (menos elegíveis primeiro; empate: menor
+        // cobertura). A escassez olha o pool inteiro — própria área + irmãs —, que é
+        // de onde o projeto pode de fato ser servido.
         foreach ($projetos as &$p) {
-            $p['elegiveis_ini'] = count($elegiveis($p));
+            $p['elegiveis_ini'] = count($disponiveis($porArea[$p['area_id']] ?? [], $p))
+                + count($disponiveis($irmaos($p), $p));
         }
         unset($p);
         usort($projetos, fn ($a, $b) => ($a['elegiveis_ini'] <=> $b['elegiveis_ini']) ?: ($a['coverage'] <=> $b['coverage']));
@@ -65,7 +88,7 @@ class DistribuicaoService
         $subCobertos = [];
 
         foreach ($projetos as &$proj) {
-            while ($proj['coverage'] < self::ALVO && $proj['coverage'] < self::TETO) {
+            while ($proj['coverage'] < $alvo && $proj['coverage'] < $teto) {
                 $cands = $elegiveis($proj);
                 if ($cands === []) {
                     break;
@@ -93,12 +116,12 @@ class DistribuicaoService
                 ];
             }
 
-            if ($proj['coverage'] < self::ALVO) {
+            if ($proj['coverage'] < $alvo) {
                 $subCobertos[] = [
                     'projeto_id' => $proj['id'],
                     'titulo' => $proj['titulo'],
                     'area' => $proj['area_nome'],
-                    'faltam' => self::ALVO - $proj['coverage'],
+                    'faltam' => $alvo - $proj['coverage'],
                 ];
             }
         }
@@ -114,8 +137,36 @@ class DistribuicaoService
         ];
     }
 
-    /** Avaliadores elegíveis: ativos, não-demo, com área. capacidade = limite ?? 3. */
-    private function carregarAvaliadores(): array
+    /**
+     * Mapa área → áreas IRMÃS (as outras do mesmo grupo de correlação). Área sem
+     * grupo não aparece no mapa: ela nunca recebe avaliador de fora.
+     *
+     * @return array<int, list<int>>
+     */
+    private function mapaCorrelatas(): array
+    {
+        $mapa = [];
+
+        Area::query()
+            ->whereNotNull('grupo_correlato')
+            ->get(['id', 'grupo_correlato'])
+            ->groupBy(fn (Area $a) => $a->grupo_correlato->value)
+            ->each(function ($areas) use (&$mapa) {
+                $ids = $areas->pluck('id')->all();
+
+                foreach ($ids as $id) {
+                    $mapa[$id] = array_values(array_diff($ids, [$id]));
+                }
+            });
+
+        return $mapa;
+    }
+
+    /**
+     * Avaliadores elegíveis: ativos, não-demo, com área. A capacidade é o limite
+     * individual do avaliador ou, sem limite, o mínimo por avaliador da edição.
+     */
+    private function carregarAvaliadores(int $minPorAvaliador): array
     {
         $avaliadores = [];
 
@@ -125,7 +176,7 @@ class DistribuicaoService
             ->where('is_demo', false)
             ->with('avaliadorProfile:id,user_id,area_id,subarea_id,limite_avaliacoes')
             ->get(['id'])
-            ->each(function (User $u) use (&$avaliadores) {
+            ->each(function (User $u) use (&$avaliadores, $minPorAvaliador) {
                 $perfil = $u->avaliadorProfile;
                 if (! $perfil || ! $perfil->area_id) {
                     return; // sem área não participa da distribuição automática
@@ -135,7 +186,7 @@ class DistribuicaoService
                     'id' => $u->id,
                     'area_id' => $perfil->area_id,
                     'subarea_id' => $perfil->subarea_id,
-                    'capacidade' => $perfil->limite_avaliacoes ?? self::ALVO,
+                    'capacidade' => $perfil->limite_avaliacoes ?? $minPorAvaliador,
                     'carga' => 0,
                 ];
             });

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\StatusAvaliacao;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Avaliador\ConcluirAvaliacaoRequest;
 use App\Http\Requests\Avaliador\RascunhoAvaliacaoRequest;
@@ -31,13 +32,27 @@ class AvaliadorAvaliacaoController extends Controller
         $podeVer = $this->fluxo->podeVer($user, $teste);
         $pode = $this->fluxo->podeAvaliar($user, $teste);
 
+        // Quantos projetos o avaliador enxerga de uma vez: o mínimo por avaliador
+        // definido pelo admin. O teto vale só para o que ele ainda tem a fazer —
+        // o que já concluiu continua listado.
+        $minPorAvaliador = Edicao::minPorAvaliador();
+
         $projetos = [];
         if ($podeVer) {
-            $projetos = Avaliacao::query()
+            $avaliacoes = Avaliacao::query()
                 ->where('avaliador_id', $user->id)
                 ->with(['projeto:id,titulo,area_id', 'projeto.area:id,nome'])
-                ->get()
+                ->orderBy('id')
+                ->get();
+
+            [$concluidas, $pendentes] = $avaliacoes->partition(
+                fn (Avaliacao $a) => $a->status === StatusAvaliacao::Concluida,
+            );
+
+            $projetos = $pendentes->take($minPorAvaliador)
+                ->concat($concluidas)
                 ->map(fn (Avaliacao $a) => $this->linha($a))
+                ->values()
                 ->all();
         }
 
@@ -54,6 +69,7 @@ class AvaliadorAvaliacaoController extends Controller
             'is_demo' => (bool) $user->is_demo,
             'modo_teste' => $teste && (bool) $user->is_demo,
             'nota_maxima' => Avaliacao::notaMaxima(),
+            'min_por_avaliador' => $minPorAvaliador,
             'projetos' => $projetos,
         ]]);
     }

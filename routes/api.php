@@ -162,6 +162,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::get('/avaliacao/config', [AdminAvaliacaoController::class, 'config']);
             Route::patch('/avaliacao/config', [AdminAvaliacaoController::class, 'definirLiberacao']);
             Route::patch('/avaliacao/encerramento', [AdminAvaliacaoController::class, 'definirEncerramento']);
+            Route::patch('/avaliacao/minimos', [AdminAvaliacaoController::class, 'definirMinimos']);
             Route::get('/avaliacao/avaliadores', [AdminAvaliacaoController::class, 'avaliadores']);
             Route::get('/avaliacao/projetos', [AdminAvaliacaoController::class, 'projetos']);
             Route::get('/avaliacao/reclassificacoes', [AdminAvaliacaoController::class, 'reclassificacoes']);
@@ -215,6 +216,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             // Parametrização do catálogo (áreas/subáreas)
             Route::get('/catalogo', [CatalogoAdminController::class, 'index']);
             Route::put('/areas/{area}', [CatalogoAdminController::class, 'updateArea']);
+            Route::patch('/areas/{area}/correlacao', [CatalogoAdminController::class, 'correlacao']);
             Route::post('/areas/{area}/mesclar', [CatalogoAdminController::class, 'mergeArea']);
             Route::delete('/areas/{area}', [CatalogoAdminController::class, 'destroyArea']);
             Route::put('/subareas/{subarea}', [CatalogoAdminController::class, 'updateSubarea']);

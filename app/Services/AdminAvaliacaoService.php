@@ -32,6 +32,8 @@ class AdminAvaliacaoService
      */
     public function avaliadoresPorArea(): array
     {
+        $minPorAvaliador = Edicao::minPorAvaliador();
+
         $avaliadores = User::query()
             ->where('role', Role::Avaliador->value)
             ->with('avaliadorProfile.area:id,nome')
@@ -54,7 +56,7 @@ class AdminAvaliacaoService
                 'nome' => $u->name,
                 'em_avaliacao' => (int) $u->em_avaliacao_count,
                 'avaliou' => $avaliou,
-                'faltam' => max(0, StatusAvaliacao::MAX_POR_AVALIADOR - $avaliou),
+                'faltam' => max(0, $minPorAvaliador - $avaliou),
                 'limite' => $u->avaliadorProfile?->limite_avaliacoes,
                 'is_demo' => (bool) $u->is_demo,
             ];
@@ -71,6 +73,8 @@ class AdminAvaliacaoService
      */
     public function projetosSubmetidosPorArea(): array
     {
+        $minPorProjeto = Edicao::minPorProjeto();
+
         $projetos = Projeto::query()
             ->where('status', ProjetoStatus::Submetido->value)
             ->with('area:id,nome')
@@ -93,8 +97,8 @@ class AdminAvaliacaoService
                 'titulo' => $p->titulo,
                 'realizadas' => $realizadas,
                 'em_avaliacao' => (int) $p->em_avaliacao,
-                // Cada projeto precisa de ao menos 3 avaliações concluídas.
-                'faltantes' => max(0, StatusAvaliacao::MIN_POR_PROJETO - $realizadas),
+                // Cada projeto precisa do mínimo de avaliações concluídas da edição.
+                'faltantes' => max(0, $minPorProjeto - $realizadas),
             ];
         }
 
@@ -341,7 +345,9 @@ class AdminAvaliacaoService
             ])
             ->get();
 
-        $lista = $projetos->map(function (Projeto $p) {
+        $minPorProjeto = Edicao::minPorProjeto();
+
+        $lista = $projetos->map(function (Projeto $p) use ($minPorProjeto) {
             $concluidas = $p->avaliacoes;
             $total = $concluidas->count();
 
@@ -353,7 +359,7 @@ class AdminAvaliacaoService
                 'avaliacoes' => $total,
                 'media' => round($concluidas->avg('nota'), 2),
                 'medias_secoes' => $this->mediasPorSecao($concluidas),
-                'completo' => $total >= StatusAvaliacao::MIN_POR_PROJETO,
+                'completo' => $total >= $minPorProjeto,
                 'nota_maxima' => Avaliacao::notaMaxima(),
             ];
         })->all();
@@ -466,7 +472,31 @@ class AdminAvaliacaoService
             'liberada_em_label' => $data?->format('d/m/Y H:i'),
             'encerrada_em_input' => $fim?->format('Y-m-d\TH:i'),
             'encerrada_em_label' => $fim?->format('d/m/Y H:i'),
+            // Mínimos do edital: quantas avaliações cada avaliador conclui (e
+            // quantos projetos ele vê na tela) e quantas cada projeto recebe.
+            'min_por_avaliador' => $edicao?->avaliacoes_min_por_avaliador ?? Edicao::PADRAO_MIN_POR_AVALIADOR,
+            'min_por_projeto' => $edicao?->avaliacoes_min_por_projeto ?? Edicao::PADRAO_MIN_POR_PROJETO,
         ];
+    }
+
+    /**
+     * Grava os mínimos da avaliação online. Só as chaves enviadas mudam — cada
+     * card da tela salva o seu número.
+     *
+     * @param  array{min_por_avaliador?:int, min_por_projeto?:int}  $dados
+     */
+    public function definirMinimos(array $dados): array
+    {
+        $colunas = array_filter([
+            'avaliacoes_min_por_avaliador' => $dados['min_por_avaliador'] ?? null,
+            'avaliacoes_min_por_projeto' => $dados['min_por_projeto'] ?? null,
+        ], fn ($v) => $v !== null);
+
+        if ($colunas !== []) {
+            Edicao::atual()?->update($colunas);
+        }
+
+        return $this->config();
     }
 
     /** Define a data de liberação (ou remove, com null) na edição atual. */
