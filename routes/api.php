@@ -132,6 +132,8 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
         // Avaliação online — lado do avaliador (E7): ler, iniciar e concluir com nota
         Route::middleware('role:avaliador')->prefix('avaliacao')->group(function () {
             Route::get('/', [AvaliadorAvaliacaoController::class, 'index']);
+            Route::post('/roletar', [AvaliadorAvaliacaoController::class, 'roletar'])
+                ->middleware('throttle:20,1');
             Route::get('/{avaliacao}', [AvaliadorAvaliacaoController::class, 'show']);
             Route::post('/{avaliacao}/iniciar', [AvaliadorAvaliacaoController::class, 'iniciar']);
             Route::post('/{avaliacao}/rascunho', [AvaliadorAvaliacaoController::class, 'rascunho']);

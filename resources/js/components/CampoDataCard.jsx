@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button, Alert } from './ui.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 
@@ -20,7 +20,15 @@ export default function CampoDataCard({
     const [msg, setMsg] = useState('');
     const [erro, setErro] = useState('');
 
-    useEffect(() => { setCampo(valor || ''); }, [valor]);
+    // Só sincroniza quando a data do servidor MUDA: o efeito de montagem não pode
+    // sobrescrever o que a pessoa acabou de digitar.
+    const anterior = useRef(valor);
+    useEffect(() => {
+        if (anterior.current !== valor) {
+            anterior.current = valor;
+            setCampo(valor || '');
+        }
+    }, [valor]);
 
     async function salvar(data) {
         setSalvando(true); setMsg(''); setErro('');

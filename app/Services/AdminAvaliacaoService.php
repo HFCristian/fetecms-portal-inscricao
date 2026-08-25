@@ -421,9 +421,11 @@ class AdminAvaliacaoService
 
         $novas = 0;
         foreach ($avaliadorIds as $uid) {
+            // `designacao_manual` protege a designação: o avaliador não consegue
+            // sortear para fora um projeto que o admin colocou na fila dele.
             $avaliacao = Avaliacao::firstOrCreate(
                 ['projeto_id' => $projeto->id, 'avaliador_id' => $uid],
-                ['status' => StatusAvaliacao::Designada],
+                ['status' => StatusAvaliacao::Designada, 'designacao_manual' => true],
             );
 
             if ($avaliacao->wasRecentlyCreated) {

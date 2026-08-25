@@ -20,6 +20,12 @@ class Avaliacao extends Model
 {
     protected $table = 'avaliacoes';
 
+    /**
+     * Teto de avaliadores por projeto: um projeto nunca fica visível para mais
+     * gente do que isso — salvo se o próprio mínimo do edital for maior.
+     */
+    public const TETO_POR_PROJETO = 5;
+
     /** Campos da conferência de classificação (área obrigatória, subárea opcional). */
     public const CAMPOS_CLASSIFICACAO = [
         'area_correta', 'area_sugerida_id',
@@ -33,6 +39,7 @@ class Avaliacao extends Model
         'area_correta', 'area_sugerida_id',
         'subarea_correta', 'subarea_sugerida_id',
         'rascunho_em', 'concluida_em',
+        'designacao_manual',
     ];
 
     /** Nota máxima da avaliação: a soma dos pesos da rubrica (10,00). */
@@ -61,6 +68,7 @@ class Avaliacao extends Model
             'subarea_correta' => 'boolean',
             'rascunho_em' => 'datetime',
             'concluida_em' => 'datetime',
+            'designacao_manual' => 'boolean',
         ];
     }
 

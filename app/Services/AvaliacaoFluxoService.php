@@ -19,6 +19,8 @@ use Illuminate\Validation\ValidationException;
  */
 class AvaliacaoFluxoService
 {
+    public function __construct(private readonly FilaAvaliadorService $fila) {}
+
     /**
      * Pode ler os projetos designados? Depois de liberada, a leitura continua
      * valendo mesmo com o período encerrado — o avaliador ainda consulta o que
@@ -109,6 +111,9 @@ class AvaliacaoFluxoService
      * A nota final é a soma PONDERADA das respostas (0 a 10, pelos pesos do
      * documento) — calculada aqui, nunca enviada pelo cliente.
      *
+     * Enviada a avaliação, a fila do avaliador é reposta na hora: sai um projeto
+     * da lista de trabalho, entra outro no lugar.
+     *
      * @param  array<string, mixed>  $dados  Já validado pelo ConcluirAvaliacaoRequest.
      */
     public function concluir(Avaliacao $avaliacao, array $dados): void
@@ -124,6 +129,10 @@ class AvaliacaoFluxoService
             'rascunho_em' => null,
             'concluida_em' => now(),
         ]);
+
+        if ($avaliador = $avaliacao->avaliador) {
+            $this->fila->repor($avaliador);
+        }
     }
 
     private function garantirEmAndamento(Avaliacao $avaliacao, string $mensagem): void

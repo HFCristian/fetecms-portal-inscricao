@@ -136,7 +136,8 @@ class MinimosAvaliacaoTest extends TestCase
         $area = Area::create(['nome' => 'Área A']);
         $avaliador = $this->avaliador($area->id);
 
-        // Quatro designadas + uma concluída: vê as 2 primeiras pendentes e a concluída.
+        // Quatro designadas + uma concluída: a fila mostra as 2 primeiras pendentes
+        // e a concluída vai para a seção de avaliados.
         foreach (range(1, 4) as $i) {
             Avaliacao::create([
                 'projeto_id' => $this->projetoSubmetido($area->id, "P{$i}")->id,
@@ -157,9 +158,10 @@ class MinimosAvaliacaoTest extends TestCase
         $resposta = $this->getJson('/api/v1/avaliacao')
             ->assertOk()
             ->assertJsonPath('data.min_por_avaliador', 2)
-            ->assertJsonCount(3, 'data.projetos');
+            ->assertJsonCount(2, 'data.projetos')
+            ->assertJsonCount(1, 'data.concluidos');
 
-        $titulos = array_column($resposta->json('data.projetos'), 'titulo');
-        $this->assertSame(['P1', 'P2', 'Concluído'], $titulos);
+        $this->assertSame(['P1', 'P2'], array_column($resposta->json('data.projetos'), 'titulo'));
+        $this->assertSame(['Concluído'], array_column($resposta->json('data.concluidos'), 'titulo'));
     }
 }

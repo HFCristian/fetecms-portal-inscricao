@@ -14,3 +14,8 @@ export const concluirAvaliacao = (id, preenchimento, teste = false) =>
 // Salva o preenchimento parcial sem enviar: nada é obrigatório no rascunho.
 export const salvarRascunhoAvaliacao = (id, preenchimento, teste = false) =>
     http.post(`/avaliacao/${id}/rascunho`, preenchimento, qs(teste)).then((r) => r.data.data);
+
+// Sorteia outros projetos para a fila: o que está em avaliação e o que o admin
+// designou permanecem. Devolve { data: { trocados, recebidos }, meta }.
+export const roletarFila = (teste = false) =>
+    http.post('/avaliacao/roletar', {}, qs(teste)).then((r) => r.data);

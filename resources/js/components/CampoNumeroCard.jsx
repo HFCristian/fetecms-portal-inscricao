@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button, Alert } from './ui.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 
@@ -17,7 +17,15 @@ export default function CampoNumeroCard({
     const [msg, setMsg] = useState('');
     const [erro, setErro] = useState('');
 
-    useEffect(() => { setCampo(valor ?? ''); }, [valor]);
+    // Sincroniza só quando o valor do servidor MUDA. Sem a guarda, o efeito de
+    // montagem chega depois do primeiro toque e apaga o que a pessoa digitou.
+    const anterior = useRef(valor);
+    useEffect(() => {
+        if (anterior.current !== valor) {
+            anterior.current = valor;
+            setCampo(valor ?? '');
+        }
+    }, [valor]);
 
     const numero = Number(campo);
     const valido = campo !== '' && Number.isInteger(numero) && numero >= min && numero <= max;

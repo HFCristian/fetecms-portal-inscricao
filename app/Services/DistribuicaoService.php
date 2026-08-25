@@ -25,19 +25,13 @@ use Illuminate\Support\Facades\DB;
 class DistribuicaoService
 {
     /**
-     * Teto de visibilidade: um projeto nunca fica visível para mais avaliadores
-     * do que isso — a não ser que o próprio mínimo do edital seja maior.
-     */
-    private const TETO = 5;
-
-    /**
      * @return array{designadas_criadas:int, sub_cobertos: array<int, array{projeto_id:int, titulo:string, area:?string, faltam:int}>}
      */
     public function distribuir(): array
     {
         // Mínimos parametrizados pelo admin (Parametrização → Avaliação Online).
         $alvo = Edicao::minPorProjeto();
-        $teto = max(self::TETO, $alvo);
+        $teto = max(Avaliacao::TETO_POR_PROJETO, $alvo);
 
         $avaliadores = $this->carregarAvaliadores(Edicao::minPorAvaliador());
         [$cargaInicial, $projetoInfo] = $this->estadoAtual($avaliadores);
