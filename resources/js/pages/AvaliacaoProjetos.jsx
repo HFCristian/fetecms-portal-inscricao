@@ -3,9 +3,9 @@ import { Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { Button, Alert } from '../components/ui.jsx';
 import BuscaCombobox from '../components/BuscaCombobox.jsx';
-import GrupoArea, { BotoesExpandir, compararTexto, useAreasAbertas } from '../components/GrupoArea.jsx';
+import GrupoArea, { BotoesExpandir, useAreasAbertas } from '../components/GrupoArea.jsx';
 import { extractErrors } from '../lib/auth.jsx';
-import { getAvaliacaoProjetos, getAvaliacaoAvaliadores, designarProjeto } from '../lib/admin.js';
+import { getAvaliacaoProjetos, getOpcoesAvaliadores, designarProjeto } from '../lib/admin.js';
 import { loadAreas, loadSubareas } from '../lib/catalogos.js';
 
 // Métricas do projeto — também são os critérios de ordenação de cada área.
@@ -111,13 +111,10 @@ export default function AvaliacaoProjetos() {
 
     useEffect(() => {
         carregar();
-        // Opções da designação: lista plana de avaliadores em ordem alfabética
-        // (o agrupamento por área da API deixaria a busca fora de ordem).
-        getAvaliacaoAvaliadores()
-            .then((grupos) => setAvaliadores(
-                grupos
-                    .flatMap((g) => g.avaliadores.map((a) => ({ id: a.id, nome: a.nome, detalhe: g.area })))
-                    .sort((a, b) => compararTexto(a.nome, b.nome)),
+        // Opções da designação: lista plana de avaliadores em ordem alfabética.
+        getOpcoesAvaliadores()
+            .then((opcoes) => setAvaliadores(
+                opcoes.map((a) => ({ id: a.id, nome: a.nome, detalhe: a.area })),
             ))
             .catch(() => setAvaliadores([]));
         loadAreas().then(setAreas).catch(() => setAreas([]));

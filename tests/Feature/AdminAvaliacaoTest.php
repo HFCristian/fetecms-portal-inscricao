@@ -8,6 +8,7 @@ use App\Models\AvaliadorProfile;
 use App\Models\Projeto;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -17,13 +18,17 @@ class AdminAvaliacaoTest extends TestCase
 
     private function avaliador(int $areaId, string $nome): User
     {
-        $user = User::factory()->avaliador()->create(['name' => $nome]);
+        $user = User::factory()->avaliador()->create([
+            'name' => $nome,
+            // E-mail derivado do nome: a busca por texto fica previsível nos testes.
+            'email' => Str::slug($nome).'-'.Str::random(6).'@avaliadores.test',
+        ]);
         AvaliadorProfile::factory()->create(['user_id' => $user->id, 'area_id' => $areaId]);
 
         return $user;
     }
 
-    public function test_avaliadores_por_area_com_progresso(): void
+    public function test_tabela_de_avaliadores_com_progresso(): void
     {
         $a = Area::create(['nome' => 'Área A']);
         $b = Area::create(['nome' => 'Área B']);
@@ -46,19 +51,114 @@ class AdminAvaliacaoTest extends TestCase
 
         Sanctum::actingAs(User::factory()->admin()->create());
 
+        // Uma tabela só, em ordem alfabética por padrão.
         $this->getJson('/api/v1/admin/avaliacao/avaliadores')
             ->assertOk()
+            ->assertJsonCount(3, 'data')
+            ->assertJsonPath('data.0.nome', 'Ana')
             ->assertJsonPath('data.0.area', 'Área A')
-            ->assertJsonPath('data.0.avaliadores.0.nome', 'Ana')
-            ->assertJsonPath('data.0.avaliadores.0.em_avaliacao', 1)
-            ->assertJsonPath('data.0.avaliadores.0.avaliou', 2)
-            ->assertJsonPath('data.0.avaliadores.0.faltam', 1)
-            ->assertJsonPath('data.0.avaliadores.1.nome', 'Bruno')
-            ->assertJsonPath('data.0.avaliadores.1.avaliou', 0)
-            ->assertJsonPath('data.0.avaliadores.1.faltam', 3)
-            ->assertJsonPath('data.1.area', 'Área B')
-            ->assertJsonPath('data.1.avaliadores.0.avaliou', 3)
-            ->assertJsonPath('data.1.avaliadores.0.faltam', 0);
+            ->assertJsonPath('data.0.em_avaliacao', 1)
+            ->assertJsonPath('data.0.avaliou', 2)
+            ->assertJsonPath('data.0.faltam', 1)
+            ->assertJsonPath('data.1.nome', 'Bruno')
+            ->assertJsonPath('data.1.avaliou', 0)
+            ->assertJsonPath('data.1.faltam', 3)
+            ->assertJsonPath('data.2.nome', 'Carlos')
+            ->assertJsonPath('data.2.area', 'Área B')
+            ->assertJsonPath('data.2.avaliou', 3)
+            ->assertJsonPath('data.2.faltam', 0)
+            ->assertJsonPath('meta.total', 3);
+    }
+
+    public function test_tabela_de_avaliadores_busca_filtra_e_ordena(): void
+    {
+        $a = Area::create(['nome' => 'Área A']);
+        $b = Area::create(['nome' => 'Área B']);
+
+        $ana = $this->avaliador($a->id, 'Ana');
+        $this->avaliador($a->id, 'Bruno');
+        $this->avaliador($b->id, 'Carlos');
+
+        $orient = User::factory()->create();
+        $p1 = Projeto::factory()->submetido()->create(['user_id' => $orient->id, 'area_id' => $a->id, 'titulo' => 'P1']);
+        Avaliacao::create(['projeto_id' => $p1->id, 'avaliador_id' => $ana->id, 'status' => 'concluida', 'nota' => 8]);
+
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        // Busca por nome (e também acha por e-mail).
+        $this->getJson('/api/v1/admin/avaliacao/avaliadores?q=bru')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.nome', 'Bruno');
+
+        $this->getJson('/api/v1/admin/avaliacao/avaliadores?q='.urlencode($ana->email))
+            ->assertOk()
+            ->assertJsonPath('data.0.nome', 'Ana');
+
+        // Filtro por área.
+        $this->getJson("/api/v1/admin/avaliacao/avaliadores?area_id={$b->id}")
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.nome', 'Carlos');
+
+        // Ordenação por nome, decrescente.
+        $this->getJson('/api/v1/admin/avaliacao/avaliadores?ordenar=nome&direcao=desc')
+            ->assertOk()
+            ->assertJsonPath('data.0.nome', 'Carlos')
+            ->assertJsonPath('data.2.nome', 'Ana');
+
+        // "Faltam" é o espelho de "avaliadas": quem avaliou mais falta menos.
+        $this->getJson('/api/v1/admin/avaliacao/avaliadores?ordenar=faltam&direcao=asc')
+            ->assertOk()
+            ->assertJsonPath('data.0.nome', 'Ana');
+
+        // As áreas do filtro vêm no meta.
+        $this->getJson('/api/v1/admin/avaliacao/avaliadores')
+            ->assertJsonPath('meta.areas.0.nome', 'Área A')
+            ->assertJsonPath('meta.areas.1.nome', 'Área B');
+    }
+
+    public function test_ordenacao_invalida_e_recusada(): void
+    {
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->getJson('/api/v1/admin/avaliacao/avaliadores?ordenar=senha')
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('ordenar');
+    }
+
+    public function test_exporta_a_tabela_de_avaliadores_em_csv(): void
+    {
+        $a = Area::create(['nome' => 'Área A']);
+        $this->avaliador($a->id, 'Ana');
+        $this->avaliador($a->id, 'Bruno');
+
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $csv = $this->get('/api/v1/admin/avaliacao/avaliadores/exportar?q=ana')
+            ->assertOk()
+            ->assertHeader('Content-Type', 'text/csv; charset=UTF-8')
+            ->getContent();
+
+        $this->assertStringContainsString('Nome;E-mail;Área', $csv);
+        $this->assertStringContainsString('Ana', $csv);
+        $this->assertStringNotContainsString('Bruno', $csv); // respeita o filtro da tela
+    }
+
+    public function test_opcoes_de_avaliadores_para_a_designacao(): void
+    {
+        $a = Area::create(['nome' => 'Área A']);
+        $this->avaliador($a->id, 'Zilda');
+        $this->avaliador($a->id, 'Ana');
+
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->getJson('/api/v1/admin/avaliacao/avaliadores/opcoes')
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.0.nome', 'Ana')
+            ->assertJsonPath('data.0.area', 'Área A')
+            ->assertJsonPath('data.1.nome', 'Zilda');
     }
 
     public function test_projetos_submetidos_por_area_com_metricas(): void
@@ -157,7 +257,7 @@ class AdminAvaliacaoTest extends TestCase
 
         $this->getJson('/api/v1/admin/avaliacao/avaliadores')
             ->assertOk()
-            ->assertJsonPath('data.0.avaliadores.0.limite', null);
+            ->assertJsonPath('data.0.limite', null);
     }
 
     public function test_admin_define_e_remove_limite_do_avaliador(): void
@@ -174,7 +274,7 @@ class AdminAvaliacaoTest extends TestCase
 
         // A lista passa a exibir o limite.
         $this->getJson('/api/v1/admin/avaliacao/avaliadores')
-            ->assertJsonPath('data.0.avaliadores.0.limite', 2);
+            ->assertJsonPath('data.0.limite', 2);
 
         // Remover o limite (null).
         $this->patchJson("/api/v1/admin/avaliacao/avaliadores/{$ana->id}/limite", ['limite' => null])
@@ -215,7 +315,7 @@ class AdminAvaliacaoTest extends TestCase
         Sanctum::actingAs(User::factory()->admin()->create());
 
         $this->getJson('/api/v1/admin/avaliacao/avaliadores')
-            ->assertJsonPath('data.0.avaliadores.0.is_demo', false);
+            ->assertJsonPath('data.0.is_demo', false);
 
         $this->patchJson("/api/v1/admin/avaliacao/avaliadores/{$ana->id}/demo", ['is_demo' => true])
             ->assertOk()
@@ -223,7 +323,7 @@ class AdminAvaliacaoTest extends TestCase
         $this->assertDatabaseHas('users', ['id' => $ana->id, 'is_demo' => true]);
 
         $this->getJson('/api/v1/admin/avaliacao/avaliadores')
-            ->assertJsonPath('data.0.avaliadores.0.is_demo', true);
+            ->assertJsonPath('data.0.is_demo', true);
     }
 
     public function test_limpar_dados_de_teste_apaga_so_dos_demo(): void

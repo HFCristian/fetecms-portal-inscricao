@@ -195,4 +195,72 @@ class AdminRegistrosTest extends TestCase
         $resposta->assertJsonPath('data.0.projeto_titulo', $projeto->titulo);
         $resposta->assertJsonPath('data.0.por_terceiro', false);
     }
+
+    public function test_mudar_os_parametros_da_avaliacao_vira_registro(): void
+    {
+        $this->seed(CatalogoSeeder::class); // edição atual
+        $admin = User::factory()->admin()->create();
+        Sanctum::actingAs($admin);
+
+        $this->patchJson('/api/v1/admin/avaliacao/minimos', ['min_por_avaliador' => 5])->assertOk();
+        $this->patchJson('/api/v1/admin/avaliacao/config', ['liberada_em' => '2026-10-01T08:00'])->assertOk();
+
+        $this->assertDatabaseHas('registros_atividade', [
+            'tipo' => 'avaliacao_min_avaliador',
+            'autor_email' => $admin->email,
+        ]);
+        $this->assertDatabaseHas('registros_atividade', ['tipo' => 'avaliacao_liberacao']);
+
+        // Salvar o mesmo valor de novo não gera registro repetido.
+        $this->patchJson('/api/v1/admin/avaliacao/minimos', ['min_por_avaliador' => 5])->assertOk();
+        $this->assertSame(1, RegistroAtividade::where('tipo', 'avaliacao_min_avaliador')->count());
+    }
+
+    public function test_secao_separa_inscricoes_de_avaliacao_online(): void
+    {
+        $this->seed(CatalogoSeeder::class);
+        $admin = User::factory()->admin()->create();
+        Sanctum::actingAs($admin);
+
+        $this->patchJson('/api/v1/admin/avaliacao/minimos', ['min_por_projeto' => 4])->assertOk();
+
+        // A seção "avaliacao" só traz a parametrização, com as tags daquela seção.
+        $avaliacao = $this->getJson('/api/v1/admin/registros?secao=avaliacao')->assertOk();
+        $this->assertSame(1, $avaliacao->json('meta.total'));
+        $this->assertSame('avaliacao_min_projeto', $avaliacao->json('data.0.tipo'));
+        $this->assertSame(
+            ['avaliacao_liberacao', 'avaliacao_encerramento', 'avaliacao_min_avaliador', 'avaliacao_min_projeto'],
+            array_column($avaliacao->json('meta.tipos'), 'value'),
+        );
+
+        // A seção "inscricoes" não enxerga a parametrização.
+        $inscricoes = $this->getJson('/api/v1/admin/registros?secao=inscricoes')->assertOk();
+        $this->assertSame(0, $inscricoes->json('meta.total'));
+        $this->assertSame(
+            ['submissao', 'cancelamento', 'exclusao', 'troca_email'],
+            array_column($inscricoes->json('meta.tipos'), 'value'),
+        );
+    }
+
+    public function test_registro_de_parametro_mostra_o_de_para(): void
+    {
+        $this->seed(CatalogoSeeder::class);
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->patchJson('/api/v1/admin/avaliacao/minimos', ['min_por_avaliador' => 7])->assertOk();
+
+        $this->getJson('/api/v1/admin/registros?secao=avaliacao')
+            ->assertOk()
+            ->assertJsonPath('data.0.tipo_label', 'Mínimo por avaliador')
+            ->assertJsonPath('data.0.detalhes_texto', '3 → 7');
+    }
+
+    public function test_secao_invalida_e_recusada(): void
+    {
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->getJson('/api/v1/admin/registros?secao=inexistente')
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('secao');
+    }
 }

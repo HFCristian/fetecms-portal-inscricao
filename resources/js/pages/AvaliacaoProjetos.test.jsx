@@ -24,10 +24,11 @@ vi.mock('../lib/admin.js', () => ({
             projetos: [{ id: 3, titulo: 'Projeto Z', realizadas: 3, em_avaliacao: 0, faltantes: 0 }],
         },
     ])),
-    // Vem agrupado por área e fora de ordem alfabética de propósito.
-    getAvaliacaoAvaliadores: vi.fn(() => Promise.resolve([
-        { area_id: 2, area: 'Ciências Exatas', avaliadores: [{ id: 20, nome: 'Zilda Rocha' }, { id: 21, nome: 'Bruno Alves' }] },
-        { area_id: 1, area: 'Ciências Agrárias', avaliadores: [{ id: 10, nome: 'Ana Lima' }] },
+    // Lista plana em ordem alfabética, como a API de opções devolve.
+    getOpcoesAvaliadores: vi.fn(() => Promise.resolve([
+        { id: 10, nome: 'Ana Lima', area: 'Ciências Agrárias' },
+        { id: 21, nome: 'Bruno Alves', area: 'Ciências Exatas' },
+        { id: 20, nome: 'Zilda Rocha', area: 'Ciências Exatas' },
     ])),
     designarProjeto: vi.fn(() => Promise.resolve({ data: { designadas: 1 }, meta: { message: '1 designação criada.' } })),
 }));

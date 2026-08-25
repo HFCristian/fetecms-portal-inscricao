@@ -29,6 +29,9 @@ class ListarRegistrosRequest extends FormRequest
     public function rules(): array
     {
         return [
+            // Seção da tela: "inscricoes" (submissões e contas) ou "avaliacao"
+            // (parametrização do período). Sem seção, a trilha vem inteira.
+            'secao' => ['nullable', Rule::in(TipoRegistro::secoes())],
             'tipos' => ['sometimes', 'array'],
             'tipos.*' => [Rule::enum(TipoRegistro::class)],
             'de' => ['nullable', 'date'],
@@ -42,6 +45,7 @@ class ListarRegistrosRequest extends FormRequest
     {
         return [
             'ate.after_or_equal' => 'A data final deve ser igual ou posterior à inicial.',
+            'secao.in' => 'Seção de registros desconhecida.',
         ];
     }
 
@@ -49,6 +53,7 @@ class ListarRegistrosRequest extends FormRequest
     public function filtros(): array
     {
         return [
+            'secao' => $this->validated('secao'),
             'tipos' => $this->validated('tipos') ?: null,
             'de' => $this->validated('de'),
             'ate' => $this->validated('ate'),

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { Button, Alert, Field, DateInput } from '../components/ui.jsx';
 import { extractErrors } from '../lib/auth.jsx';
@@ -10,6 +11,10 @@ const TAG = {
     cancelamento: 'bg-primary-fixed text-primary-container',
     exclusao: 'bg-error-container text-on-error-container',
     troca_email: 'bg-surface-variant text-on-surface-variant',
+    avaliacao_liberacao: 'bg-secondary-container text-on-secondary-container',
+    avaliacao_encerramento: 'bg-error-container text-on-error-container',
+    avaliacao_min_avaliador: 'bg-primary-fixed text-primary-container',
+    avaliacao_min_projeto: 'bg-surface-variant text-on-surface-variant',
 };
 
 const ICONE = {
@@ -17,6 +22,28 @@ const ICONE = {
     cancelamento: 'undo',
     exclusao: 'delete',
     troca_email: 'alternate_email',
+    avaliacao_liberacao: 'play_circle',
+    avaliacao_encerramento: 'stop_circle',
+    avaliacao_min_avaliador: 'person_check',
+    avaliacao_min_projeto: 'fact_check',
+};
+
+/** Título, texto e placeholder de busca de cada seção da trilha. */
+const SECOES = {
+    inscricoes: {
+        titulo: 'Registros · Inscrições',
+        descricao: 'Tudo o que aconteceu com as inscrições: submissões, cancelamentos, exclusões e '
+            + 'trocas de e-mail — com quem fez, quando e de qual projeto.',
+        placeholder: 'Buscar por e-mail, nome ou título do projeto…',
+        vazio: 'Nenhum registro por enquanto.',
+    },
+    avaliacao: {
+        titulo: 'Registros · Avaliação Online',
+        descricao: 'As mudanças de parâmetro do período de avaliação — início, fim e os mínimos de '
+            + 'avaliações por avaliador e por projeto —, com o valor anterior e o novo.',
+        placeholder: 'Buscar pelo e-mail ou nome de quem alterou…',
+        vazio: 'Nenhuma mudança de parâmetro registrada por enquanto.',
+    },
 };
 
 const PAPEL = { orientador: 'Orientador', avaliador: 'Avaliador', admin: 'Administrador' };
@@ -64,10 +91,11 @@ function Registro({ item }) {
 }
 
 /**
- * Trilha de registros das submissões: submissão, cancelamento, exclusão e troca
- * de e-mail — com filtro por tipo, período e busca, e export CSV do mesmo recorte.
+ * Uma seção da trilha de registros ("inscricoes" ou "avaliacao"), com filtro por
+ * tipo, período e busca, e export CSV do mesmo recorte que está na tela.
  */
-export default function AdminRegistros() {
+export default function AdminRegistros({ secao = 'inscricoes' }) {
+    const textos = SECOES[secao] ?? SECOES.inscricoes;
     const [filtros, setFiltros] = useState(SEM_FILTRO);
     const [busca, setBusca] = useState('');
     const [page, setPage] = useState(1);
@@ -88,10 +116,10 @@ export default function AdminRegistros() {
     const carregar = useCallback(() => {
         setLista(null);
         setAlert('');
-        getRegistros({ ...filtros, page })
+        getRegistros({ ...filtros, secao, page })
             .then((resp) => { setLista(resp.data); setMeta(resp.meta); })
             .catch((e) => { setLista([]); setAlert(extractErrors(e).message); });
-    }, [filtros, page]);
+    }, [filtros, page, secao]);
 
     useEffect(() => carregar(), [carregar]);
 
@@ -118,7 +146,7 @@ export default function AdminRegistros() {
         setAlert('');
         setExportando(true);
         try {
-            await exportarRegistrosCsv(filtros);
+            await exportarRegistrosCsv({ ...filtros, secao });
         } catch {
             setAlert('Não foi possível gerar o CSV. Tente novamente.');
         } finally {
@@ -134,11 +162,11 @@ export default function AdminRegistros() {
         <AppShell>
             <div className="flex flex-wrap items-end justify-between gap-3 mb-6">
                 <div>
-                    <h1 className="font-display text-2xl font-semibold text-primary mb-1">Registros</h1>
-                    <p className="text-on-surface-variant max-w-3xl">
-                        Tudo o que aconteceu com as inscrições: submissões, cancelamentos, exclusões e
-                        trocas de e-mail — com quem fez, quando e de qual projeto.
-                    </p>
+                    <Link to="/admin/registros" className="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary mb-2">
+                        <span className="material-symbols-outlined text-[18px]">arrow_back</span> Registros
+                    </Link>
+                    <h1 className="font-display text-2xl font-semibold text-primary mb-1">{textos.titulo}</h1>
+                    <p className="text-on-surface-variant max-w-3xl">{textos.descricao}</p>
                 </div>
                 <Button type="button" variant="outline" loading={exportando} onClick={exportar}>
                     <span className="material-symbols-outlined text-[20px]">download</span>
@@ -181,7 +209,7 @@ export default function AdminRegistros() {
                             type="text"
                             aria-label="Buscar nos registros"
                             className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg pl-10 pr-3 py-2.5 text-on-surface placeholder:text-outline focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 transition-all outline-none"
-                            placeholder="Buscar por e-mail, nome ou título do projeto…"
+                            placeholder={textos.placeholder}
                             value={busca}
                             onChange={(e) => setBusca(e.target.value)}
                         />
@@ -217,7 +245,7 @@ export default function AdminRegistros() {
                     </div>
                 ) : lista.length === 0 ? (
                     <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-6 text-center text-on-surface-variant text-sm">
-                        {temFiltro ? 'Nenhum registro neste filtro.' : 'Nenhum registro por enquanto.'}
+                        {temFiltro ? 'Nenhum registro neste filtro.' : textos.vazio}
                     </div>
                 ) : (
                     <>

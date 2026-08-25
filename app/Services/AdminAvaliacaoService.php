@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\ProjetoStatus;
 use App\Enums\Role;
 use App\Enums\StatusAvaliacao;
+use App\Enums\TipoRegistro;
 use App\Models\Avaliacao;
 use App\Models\AvaliadorProfile;
 use App\Models\Edicao;
@@ -12,6 +13,8 @@ use App\Models\Projeto;
 use App\Models\Subarea;
 use App\Models\User;
 use App\Support\Rubrica;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -23,10 +26,178 @@ use Illuminate\Validation\ValidationException;
  */
 class AdminAvaliacaoService
 {
+    public function __construct(private readonly RegistroAtividadeService $registros) {}
+
+    /** Como a tabela de avaliadores pode ser ordenada (coluna => expressão SQL). */
+    private const ORDENACOES_AVALIADOR = [
+        'nome' => 'users.name',
+        'area' => 'areas.nome',
+        'em_avaliacao' => 'em_avaliacao_count',
+        'avaliou' => 'avaliou_count',
+        'faltam' => 'avaliou_count', // menos avaliadas = mais faltantes: direção invertida
+        'criado_em' => 'users.created_at',
+    ];
+
+    /**
+     * Tabela de avaliadores do admin: uma lista só, com busca por nome/e-mail,
+     * filtro por área e ordenação por qualquer coluna.
+     *
+     * Filtros: `q`, `area_id`, `ordenar` (chave de ORDENACOES_AVALIADOR),
+     * `direcao` (asc|desc).
+     *
+     * @param  array<string, mixed>  $filtros
+     * @return LengthAwarePaginator<int, User>
+     */
+    public function avaliadores(array $filtros = [], int $porPagina = 50): LengthAwarePaginator
+    {
+        return $this->queryAvaliadores($filtros)->paginate($porPagina)->withQueryString();
+    }
+
+    /**
+     * Uma linha da tabela de avaliadores.
+     *
+     * @return array<string, mixed>
+     */
+    public function linhaAvaliador(User $u, ?int $minPorAvaliador = null): array
+    {
+        $min = $minPorAvaliador ?? Edicao::minPorAvaliador();
+        $perfil = $u->avaliadorProfile;
+        $avaliou = (int) $u->avaliou_count;
+
+        return [
+            'id' => $u->id,
+            'nome' => $u->name,
+            'email' => $u->email,
+            'area_id' => $perfil?->area_id,
+            'area' => $perfil?->area?->nome,
+            'subarea' => $perfil?->subarea?->nome,
+            'em_avaliacao' => (int) $u->em_avaliacao_count,
+            'avaliou' => $avaliou,
+            'faltam' => max(0, $min - $avaliou),
+            'limite' => $perfil?->limite_avaliacoes,
+            'is_demo' => (bool) $u->is_demo,
+            'criado_em' => $u->created_at?->toIso8601String(),
+            'criado_em_label' => $u->created_at?->format('d/m/Y'),
+        ];
+    }
+
+    /**
+     * Lista enxuta de avaliadores (id, nome, área) para os seletores de
+     * designação — sem paginação, em ordem alfabética.
+     *
+     * @return list<array{id:int, nome:string, area:?string}>
+     */
+    public function opcoesAvaliadores(): array
+    {
+        return User::query()
+            ->where('role', Role::Avaliador->value)
+            ->with('avaliadorProfile.area:id,nome')
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->map(fn (User $u) => [
+                'id' => $u->id,
+                'nome' => $u->name,
+                'area' => $u->avaliadorProfile?->area?->nome,
+            ])
+            ->all();
+    }
+
+    /** Áreas que têm ao menos um avaliador — as opções do filtro da tabela. */
+    public function areasComAvaliador(): array
+    {
+        return AvaliadorProfile::query()
+            ->join('areas', 'areas.id', '=', 'avaliador_profiles.area_id')
+            ->select('areas.id', 'areas.nome')
+            ->distinct()
+            ->orderBy('areas.nome')
+            ->get()
+            ->map(fn ($linha) => ['id' => (int) $linha->id, 'nome' => $linha->nome])
+            ->all();
+    }
+
+    /**
+     * CSV da tabela de avaliadores (UTF-8 com BOM, separador ";"), no mesmo
+     * recorte de filtros que está na tela.
+     *
+     * @param  array<string, mixed>  $filtros
+     */
+    public function exportarAvaliadoresCsv(array $filtros = []): string
+    {
+        $min = Edicao::minPorAvaliador();
+        $saida = fopen('php://temp', 'r+');
+        fwrite($saida, "\u{FEFF}");
+        fputcsv($saida, [
+            'Nome', 'E-mail', 'Área', 'Subárea', 'Em avaliação', 'Avaliadas', 'Faltantes',
+            'Limite', 'Demo', 'Cadastro',
+        ], ';');
+
+        $this->queryAvaliadores($filtros)->chunk(300, function ($avaliadores) use ($saida, $min) {
+            foreach ($avaliadores as $u) {
+                $linha = $this->linhaAvaliador($u, $min);
+                fputcsv($saida, [
+                    $linha['nome'],
+                    $linha['email'],
+                    $linha['area'] ?? '',
+                    $linha['subarea'] ?? '',
+                    $linha['em_avaliacao'],
+                    $linha['avaliou'],
+                    $linha['faltam'],
+                    $linha['limite'] ?? '',
+                    $linha['is_demo'] ? 'sim' : 'não',
+                    $linha['criado_em_label'] ?? '',
+                ], ';');
+            }
+        });
+
+        rewind($saida);
+        $csv = stream_get_contents($saida);
+        fclose($saida);
+
+        return $csv;
+    }
+
+    /**
+     * Base da tabela: avaliadores com o progresso de cada um, já filtrados e
+     * ordenados. Serve tanto à listagem paginada quanto ao CSV.
+     *
+     * @param  array<string, mixed>  $filtros
+     * @return Builder<User>
+     */
+    private function queryAvaliadores(array $filtros): Builder
+    {
+        $ordenar = $filtros['ordenar'] ?? 'nome';
+        $ordenar = isset(self::ORDENACOES_AVALIADOR[$ordenar]) ? $ordenar : 'nome';
+        $direcao = ($filtros['direcao'] ?? 'asc') === 'desc' ? 'desc' : 'asc';
+        // "Faltam" é o espelho de "avaliou": ordenar por um é ordenar pelo outro ao contrário.
+        $direcaoSql = $ordenar === 'faltam' ? ($direcao === 'asc' ? 'desc' : 'asc') : $direcao;
+        $busca = trim((string) ($filtros['q'] ?? ''));
+
+        return User::query()
+            ->where('users.role', Role::Avaliador->value)
+            ->leftJoin('avaliador_profiles', 'avaliador_profiles.user_id', '=', 'users.id')
+            ->leftJoin('areas', 'areas.id', '=', 'avaliador_profiles.area_id')
+            ->select('users.*')
+            ->with(['avaliadorProfile.area:id,nome', 'avaliadorProfile.subarea:id,nome'])
+            ->withCount([
+                'avaliacoes as em_avaliacao_count' => fn ($q) => $q->where('status', StatusAvaliacao::EmAndamento->value),
+                'avaliacoes as avaliou_count' => fn ($q) => $q->where('status', StatusAvaliacao::Concluida->value),
+            ])
+            ->when($busca !== '', function ($q) use ($busca) {
+                $termo = '%'.str_replace(['%', '_'], ['\%', '\_'], mb_strtolower($busca)).'%';
+                $q->where(function ($sub) use ($termo) {
+                    $sub->whereRaw('LOWER(users.name) LIKE ?', [$termo])
+                        ->orWhereRaw('LOWER(users.email) LIKE ?', [$termo]);
+                });
+            })
+            ->when($filtros['area_id'] ?? null, fn ($q, $areaId) => $q->where('avaliador_profiles.area_id', $areaId))
+            ->orderBy(self::ORDENACOES_AVALIADOR[$ordenar], $direcaoSql)
+            ->orderBy('users.name');
+    }
+
     /**
      * Avaliadores agrupados por área, com o progresso de cada um:
      * em_avaliacao (em andamento agora, 0 ou 1), avaliou (concluídas) e
-     * faltam (3 − avaliou, mínimo 0).
+     * faltam (mínimo por avaliador − avaliou, mínimo 0).
      *
      * @return array<int, array{area_id:int, area:string, avaliadores:array}>
      */
@@ -487,22 +658,43 @@ class AdminAvaliacaoService
      *
      * @param  array{min_por_avaliador?:int, min_por_projeto?:int}  $dados
      */
-    public function definirMinimos(array $dados): array
+    public function definirMinimos(array $dados, User $admin): array
     {
-        $colunas = array_filter([
-            'avaliacoes_min_por_avaliador' => $dados['min_por_avaliador'] ?? null,
-            'avaliacoes_min_por_projeto' => $dados['min_por_projeto'] ?? null,
-        ], fn ($v) => $v !== null);
+        $edicao = Edicao::atual();
 
-        if ($colunas !== []) {
-            Edicao::atual()?->update($colunas);
+        $mudancas = [
+            'avaliacoes_min_por_avaliador' => [TipoRegistro::AvaliacaoMinAvaliador, $dados['min_por_avaliador'] ?? null],
+            'avaliacoes_min_por_projeto' => [TipoRegistro::AvaliacaoMinProjeto, $dados['min_por_projeto'] ?? null],
+        ];
+
+        foreach ($mudancas as $coluna => [$tipo, $novo]) {
+            if ($novo === null) {
+                continue;
+            }
+
+            $anterior = $edicao?->{$coluna};
+            $edicao?->update([$coluna => $novo]);
+
+            if ((int) $anterior !== (int) $novo) {
+                $this->registrarParametro($tipo, $admin, (string) $anterior, (string) $novo);
+            }
         }
 
         return $this->config();
     }
 
+    /** Anota a mudança de parâmetro na trilha (seção "Avaliação Online"). */
+    private function registrarParametro(TipoRegistro $tipo, User $admin, ?string $de, ?string $para): void
+    {
+        if ($de === $para) {
+            return; // salvou sem mudar nada: não vira registro
+        }
+
+        $this->registros->parametroAvaliacao($tipo, $admin, $de, $para);
+    }
+
     /** Define a data de liberação (ou remove, com null) na edição atual. */
-    public function definirLiberacao(?string $data): array
+    public function definirLiberacao(?string $data, User $admin): array
     {
         // A data chega como "hora de parede" local (ex.: 2026-08-17T07:00) e é
         // interpretada no fuso do app — 07:00 é 07:00 em Campo Grande, sem shift.
@@ -517,13 +709,21 @@ class AdminAvaliacaoService
             ]);
         }
 
+        $anterior = Edicao::atual()?->avaliacao_liberada_em;
         Edicao::atual()?->update(['avaliacao_liberada_em' => $valor]);
+
+        $this->registrarParametro(
+            TipoRegistro::AvaliacaoLiberacao,
+            $admin,
+            $anterior?->format('d/m/Y H:i'),
+            $valor?->format('d/m/Y H:i'),
+        );
 
         return $this->config();
     }
 
     /** Define a data de encerramento da avaliação (ou remove, com null). */
-    public function definirEncerramento(?string $data): array
+    public function definirEncerramento(?string $data, User $admin): array
     {
         $valor = ($data !== null && $data !== '')
             ? Carbon::parse($data, config('app.timezone'))
@@ -536,7 +736,15 @@ class AdminAvaliacaoService
             ]);
         }
 
+        $anterior = Edicao::atual()?->avaliacao_encerrada_em;
         Edicao::atual()?->update(['avaliacao_encerrada_em' => $valor]);
+
+        $this->registrarParametro(
+            TipoRegistro::AvaliacaoEncerramento,
+            $admin,
+            $anterior?->format('d/m/Y H:i'),
+            $valor?->format('d/m/Y H:i'),
+        );
 
         return $this->config();
     }

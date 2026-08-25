@@ -9,6 +9,7 @@ use App\Http\Requests\Admin\DesignarAvaliacaoRequest;
 use App\Http\Requests\Admin\EncerramentoAvaliacaoRequest;
 use App\Http\Requests\Admin\LiberacaoAvaliacaoRequest;
 use App\Http\Requests\Admin\LimiteAvaliadorRequest;
+use App\Http\Requests\Admin\ListarAvaliadoresRequest;
 use App\Http\Requests\Admin\MinimosAvaliacaoRequest;
 use App\Models\Projeto;
 use App\Models\User;
@@ -16,6 +17,7 @@ use App\Services\AdminAvaliacaoService;
 use App\Services\DistribuicaoService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Telas de "Avaliação online" (somente admin): visão dos avaliadores por área
@@ -29,9 +31,40 @@ class AdminAvaliacaoController extends Controller
     ) {}
 
     /** Avaliadores agrupados por área, com o progresso de avaliação de cada um. */
-    public function avaliadores(): JsonResponse
+    public function avaliadores(ListarAvaliadoresRequest $request): JsonResponse
     {
-        return response()->json(['data' => $this->service->avaliadoresPorArea()]);
+        $filtros = $request->filtros();
+        $pagina = $this->service->avaliadores($filtros, (int) ($request->validated('por_pagina') ?? 50));
+
+        return response()->json([
+            'data' => array_map(fn ($u) => $this->service->linhaAvaliador($u), $pagina->items()),
+            'meta' => [
+                'pagina_atual' => $pagina->currentPage(),
+                'por_pagina' => $pagina->perPage(),
+                'ultima_pagina' => $pagina->lastPage(),
+                'total' => $pagina->total(),
+                'areas' => $this->service->areasComAvaliador(),
+                'ordenar' => $filtros['ordenar'],
+                'direcao' => $filtros['direcao'],
+            ],
+        ]);
+    }
+
+    /** Lista enxuta (id, nome, área) para os seletores de designação. */
+    public function avaliadoresOpcoes(): JsonResponse
+    {
+        return response()->json(['data' => $this->service->opcoesAvaliadores()]);
+    }
+
+    /** CSV da tabela de avaliadores, no mesmo recorte de filtros da tela. */
+    public function exportarAvaliadores(ListarAvaliadoresRequest $request): Response
+    {
+        $csv = $this->service->exportarAvaliadoresCsv($request->filtros());
+
+        return response($csv, 200, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="avaliadores-'.now()->format('Y-m-d-His').'.csv"',
+        ]);
     }
 
     /** Configuração do período de avaliação (liberação + encerramento). */
@@ -43,7 +76,7 @@ class AdminAvaliacaoController extends Controller
     /** Define/remove a data de liberação da avaliação (edição atual). */
     public function definirLiberacao(LiberacaoAvaliacaoRequest $request): JsonResponse
     {
-        $config = $this->service->definirLiberacao($request->validated('liberada_em'));
+        $config = $this->service->definirLiberacao($request->validated('liberada_em'), $request->user());
 
         return response()->json(['data' => $config, 'meta' => ['message' => 'Liberação atualizada.']]);
     }
@@ -51,7 +84,7 @@ class AdminAvaliacaoController extends Controller
     /** Define/remove a data de encerramento da avaliação (edição atual). */
     public function definirEncerramento(EncerramentoAvaliacaoRequest $request): JsonResponse
     {
-        $config = $this->service->definirEncerramento($request->validated('encerrada_em'));
+        $config = $this->service->definirEncerramento($request->validated('encerrada_em'), $request->user());
 
         return response()->json([
             'data' => $config,
@@ -64,7 +97,7 @@ class AdminAvaliacaoController extends Controller
     /** Define os mínimos de avaliações (por avaliador e por projeto). */
     public function definirMinimos(MinimosAvaliacaoRequest $request): JsonResponse
     {
-        $config = $this->service->definirMinimos($request->validated());
+        $config = $this->service->definirMinimos($request->validated(), $request->user());
 
         return response()->json(['data' => $config, 'meta' => ['message' => 'Mínimos atualizados.']]);
     }
