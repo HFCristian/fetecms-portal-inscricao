@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Enums\Role;
+use App\Models\Area;
+use App\Models\AvaliadorProfile;
 use App\Models\Aviso;
 use App\Models\AvisoVisualizacao;
 use App\Models\Edicao;
@@ -501,5 +503,188 @@ class AvisoTest extends TestCase
         $this->getJson("/api/v1/admin/avisos/{$aviso->id}")->assertForbidden();
         $this->getJson("/api/v1/admin/avisos/{$aviso->id}/leitores")->assertForbidden();
         $this->getJson("/api/v1/admin/avisos/{$aviso->id}/exportar")->assertForbidden();
+    }
+
+    // ------------------------------------------------ públicos e expiração
+
+    private function avaliador(array $perfil = [], array $over = []): User
+    {
+        $user = User::factory()->avaliador()->create($over);
+        AvaliadorProfile::factory()->create(array_merge([
+            'user_id' => $user->id,
+            'area_id' => Area::create(['nome' => 'Área '.$user->id])->id,
+        ], $perfil));
+
+        return $user->fresh();
+    }
+
+    public function test_aviso_alcanca_so_o_publico_escolhido(): void
+    {
+        $this->admin();
+        $orientador = $this->orientador();
+        $avaliador = $this->avaliador();
+
+        $aviso = $this->publicar(['titulo' => 'Só avaliadores', 'publicos' => ['avaliadores']]);
+
+        $servico = app(AvisoService::class);
+        $this->assertSame($aviso->id, $servico->paraUsuario($avaliador)?->id);
+        $this->assertNull($servico->paraUsuario($orientador));
+    }
+
+    public function test_sem_publico_o_aviso_vai_para_os_orientadores(): void
+    {
+        $this->admin();
+        $orientador = $this->orientador();
+        $avaliador = $this->avaliador();
+
+        $aviso = $this->publicar(['titulo' => 'Padrão']);
+
+        $servico = app(AvisoService::class);
+        $this->assertSame($aviso->id, $servico->paraUsuario($orientador)?->id);
+        $this->assertNull($servico->paraUsuario($avaliador));
+        $this->assertSame(['orientadores'], $aviso->publicos);
+    }
+
+    public function test_avisos_de_publicos_diferentes_convivem_no_ar(): void
+    {
+        $this->admin();
+        $orientador = $this->orientador();
+        $avaliador = $this->avaliador();
+
+        $paraOrientadores = $this->publicar(['titulo' => 'Aos orientadores', 'publicos' => ['orientadores']]);
+        $paraAvaliadores = $this->publicar(['titulo' => 'Aos avaliadores', 'publicos' => ['avaliadores']]);
+
+        // O primeiro não foi encerrado: o público é outro.
+        $this->assertNull($paraOrientadores->fresh()->encerrado_em);
+        $this->assertNull($paraAvaliadores->fresh()->encerrado_em);
+
+        $servico = app(AvisoService::class);
+        $this->assertSame($paraOrientadores->id, $servico->paraUsuario($orientador)?->id);
+        $this->assertSame($paraAvaliadores->id, $servico->paraUsuario($avaliador)?->id);
+        $this->assertCount(2, $servico->vigentes());
+    }
+
+    public function test_republicar_para_o_mesmo_publico_encerra_o_anterior(): void
+    {
+        $this->admin();
+
+        $primeiro = $this->publicar(['titulo' => 'Primeiro', 'publicos' => ['avaliadores']]);
+        $segundo = $this->publicar(['titulo' => 'Segundo', 'publicos' => ['avaliadores']]);
+
+        $this->assertNotNull($primeiro->fresh()->encerrado_em);
+        $this->assertNull($segundo->fresh()->encerrado_em);
+    }
+
+    public function test_comissao_especial_como_publico_do_aviso(): void
+    {
+        $this->admin();
+        $daComissao = $this->avaliador(['comissao_especial' => true]);
+        $comum = $this->avaliador();
+
+        $aviso = $this->publicar(['titulo' => 'Comissão', 'publicos' => ['avaliadores_comissao']]);
+
+        $servico = app(AvisoService::class);
+        $this->assertSame($aviso->id, $servico->paraUsuario($daComissao)?->id);
+        $this->assertNull($servico->paraUsuario($comum));
+    }
+
+    public function test_aviso_expira_sozinho_na_data(): void
+    {
+        $this->admin();
+        $orientador = $this->orientador();
+
+        $aviso = $this->publicar([
+            'titulo' => 'Com prazo',
+            'expira_em' => now()->addHour()->format('Y-m-d\TH:i'),
+        ]);
+
+        $servico = app(AvisoService::class);
+        $this->assertSame($aviso->id, $servico->paraUsuario($orientador)?->id);
+        $this->assertNotNull($aviso->fresh()->expira_em);
+
+        $this->travel(2)->hours();
+
+        $this->assertNull($servico->paraUsuario($orientador));
+        $this->assertCount(0, $servico->vigentes());
+        $this->assertFalse($aviso->fresh()->ativo());
+        // Expirar não é encerrar: a data do admin continua vazia.
+        $this->assertNull($aviso->fresh()->encerrado_em);
+
+        $this->travelBack();
+    }
+
+    public function test_expiracao_precisa_ser_no_futuro(): void
+    {
+        $this->admin();
+
+        $this->postJson('/api/v1/admin/avisos', [
+            'titulo' => 'Passado',
+            'mensagem' => 'Texto',
+            'expira_em' => now()->subHour()->format('Y-m-d\TH:i'),
+        ])->assertStatus(422)->assertJsonValidationErrors('expira_em');
+    }
+
+    public function test_publico_invalido_e_recusado(): void
+    {
+        $this->admin();
+
+        $this->postJson('/api/v1/admin/avisos', [
+            'titulo' => 'Título',
+            'mensagem' => 'Texto',
+            'publicos' => ['inexistente'],
+        ])->assertStatus(422)->assertJsonValidationErrors('publicos.0');
+    }
+
+    public function test_previa_conta_quantos_o_publico_alcanca(): void
+    {
+        $this->admin();
+        $this->orientador();
+        $this->orientador();
+        $this->avaliador();
+
+        $this->postJson('/api/v1/admin/avisos/previa', [
+            'titulo' => 'Título',
+            'mensagem' => 'Texto',
+            'publicos' => ['avaliadores'],
+        ])->assertOk()->assertJsonPath('data.destinatarios', 1);
+
+        $this->postJson('/api/v1/admin/avisos/previa', [
+            'titulo' => 'Título',
+            'mensagem' => 'Texto',
+            'publicos' => ['orientadores'],
+        ])->assertOk()->assertJsonPath('data.destinatarios', 2);
+    }
+
+    public function test_relatorio_usa_o_publico_do_aviso(): void
+    {
+        $this->admin();
+        $this->orientador();
+        $avaliador = $this->avaliador();
+
+        $aviso = $this->publicar(['titulo' => 'Aos avaliadores', 'publicos' => ['avaliadores']]);
+
+        $this->getJson("/api/v1/admin/avisos/{$aviso->id}")
+            ->assertOk()
+            // Só o avaliador entra na base: o orientador não recebeu este aviso.
+            ->assertJsonPath('data.destinatarios', 1)
+            ->assertJsonPath('data.nao_vistos', 1)
+            ->assertJsonPath('data.publicos.0.label', 'Todos os avaliadores');
+
+        $this->getJson("/api/v1/admin/avisos/{$aviso->id}/leitores")
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.email', $avaliador->email);
+    }
+
+    public function test_endpoint_de_avisos_no_ar_lista_todos(): void
+    {
+        $this->admin();
+        $this->publicar(['titulo' => 'Aos orientadores', 'publicos' => ['orientadores']]);
+        $this->publicar(['titulo' => 'Aos avaliadores', 'publicos' => ['avaliadores']]);
+
+        $this->getJson('/api/v1/admin/avisos/ativo')
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.0.titulo', 'Aos avaliadores');
     }
 }

@@ -5,13 +5,17 @@ namespace App\Services;
 use App\Enums\ProjetoStatus;
 use App\Enums\Role;
 use App\Enums\StatusAvaliacao;
+use App\Enums\TipoRegistro;
 use App\Models\Avaliacao;
+use App\Models\AvaliadorAreaExtra;
 use App\Models\AvaliadorProfile;
 use App\Models\Edicao;
 use App\Models\Projeto;
 use App\Models\Subarea;
 use App\Models\User;
 use App\Support\Rubrica;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -23,15 +27,216 @@ use Illuminate\Validation\ValidationException;
  */
 class AdminAvaliacaoService
 {
+    public function __construct(private readonly RegistroAtividadeService $registros) {}
+
+    /** Como a tabela de avaliadores pode ser ordenada (coluna => expressão SQL). */
+    private const ORDENACOES_AVALIADOR = [
+        'nome' => 'users.name',
+        'area' => 'areas.nome',
+        'em_avaliacao' => 'em_avaliacao_count',
+        'avaliou' => 'avaliou_count',
+        'faltam' => 'avaliou_count', // menos avaliadas = mais faltantes: direção invertida
+        'criado_em' => 'users.created_at',
+    ];
+
+    /**
+     * Tabela de avaliadores do admin: uma lista só, com busca por nome/e-mail,
+     * filtro por área e ordenação por qualquer coluna.
+     *
+     * Filtros: `q`, `area_id`, `ordenar` (chave de ORDENACOES_AVALIADOR),
+     * `direcao` (asc|desc).
+     *
+     * @param  array<string, mixed>  $filtros
+     * @return LengthAwarePaginator<int, User>
+     */
+    public function avaliadores(array $filtros = [], int $porPagina = 50): LengthAwarePaginator
+    {
+        return $this->queryAvaliadores($filtros)->paginate($porPagina)->withQueryString();
+    }
+
+    /**
+     * Uma linha da tabela de avaliadores.
+     *
+     * @return array<string, mixed>
+     */
+    public function linhaAvaliador(User $u, ?int $minPorAvaliador = null): array
+    {
+        $min = $minPorAvaliador ?? Edicao::minPorAvaliador();
+        $perfil = $u->avaliadorProfile;
+        $avaliou = (int) $u->avaliou_count;
+
+        return [
+            'id' => $u->id,
+            'nome' => $u->name,
+            'email' => $u->email,
+            'area_id' => $perfil?->area_id,
+            'area' => $perfil?->area?->nome,
+            'subarea' => $perfil?->subarea?->nome,
+            'em_avaliacao' => (int) $u->em_avaliacao_count,
+            'avaliou' => $avaliou,
+            'faltam' => max(0, $min - $avaliou),
+            'limite' => $perfil?->limite_avaliacoes,
+            'is_demo' => (bool) $u->is_demo,
+            'comissao_especial' => (bool) $perfil?->comissao_especial,
+            'areas_extras' => $perfil?->areasExtras->map(fn ($extra) => [
+                'id' => $extra->id,
+                'area_id' => $extra->area_id,
+                'area' => $extra->area?->nome,
+                'subarea_id' => $extra->subarea_id,
+                'subarea' => $extra->subarea?->nome,
+            ])->values()->all() ?? [],
+            'criado_em' => $u->created_at?->toIso8601String(),
+            'criado_em_label' => $u->created_at?->format('d/m/Y'),
+        ];
+    }
+
+    /**
+     * Lista enxuta de avaliadores (id, nome, área) para os seletores de
+     * designação — sem paginação, em ordem alfabética.
+     *
+     * @return list<array{id:int, nome:string, area:?string}>
+     */
+    public function opcoesAvaliadores(bool $somenteComissao = false): array
+    {
+        return User::query()
+            ->where('role', Role::Avaliador->value)
+            ->when($somenteComissao, fn ($q) => $q->whereHas(
+                'avaliadorProfile',
+                fn ($perfil) => $perfil->where('comissao_especial', true),
+            ))
+            ->with('avaliadorProfile.area:id,nome')
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->map(fn (User $u) => [
+                'id' => $u->id,
+                'nome' => $u->name,
+                'area' => $u->avaliadorProfile?->area?->nome,
+            ])
+            ->all();
+    }
+
+    /** Áreas que têm ao menos um avaliador — as opções do filtro da tabela. */
+    public function areasComAvaliador(): array
+    {
+        return AvaliadorProfile::query()
+            ->join('areas', 'areas.id', '=', 'avaliador_profiles.area_id')
+            ->select('areas.id', 'areas.nome')
+            ->distinct()
+            ->orderBy('areas.nome')
+            ->get()
+            ->map(fn ($linha) => ['id' => (int) $linha->id, 'nome' => $linha->nome])
+            ->all();
+    }
+
+    /**
+     * CSV da tabela de avaliadores (UTF-8 com BOM, separador ";"), no mesmo
+     * recorte de filtros que está na tela.
+     *
+     * @param  array<string, mixed>  $filtros
+     */
+    public function exportarAvaliadoresCsv(array $filtros = []): string
+    {
+        $min = Edicao::minPorAvaliador();
+        $saida = fopen('php://temp', 'r+');
+        fwrite($saida, "\u{FEFF}");
+        fputcsv($saida, [
+            'Nome', 'E-mail', 'Área', 'Subárea', 'Áreas extras', 'Em avaliação', 'Avaliadas',
+            'Faltantes', 'Limite', 'Demo', 'Comissão especial', 'Cadastro',
+        ], ';');
+
+        $this->queryAvaliadores($filtros)->chunk(300, function ($avaliadores) use ($saida, $min) {
+            foreach ($avaliadores as $u) {
+                $linha = $this->linhaAvaliador($u, $min);
+                fputcsv($saida, [
+                    $linha['nome'],
+                    $linha['email'],
+                    $linha['area'] ?? '',
+                    $linha['subarea'] ?? '',
+                    implode(' | ', array_map(
+                        fn ($extra) => $extra['area'].($extra['subarea'] ? ' / '.$extra['subarea'] : ''),
+                        $linha['areas_extras'],
+                    )),
+                    $linha['em_avaliacao'],
+                    $linha['avaliou'],
+                    $linha['faltam'],
+                    $linha['limite'] ?? '',
+                    $linha['is_demo'] ? 'sim' : 'não',
+                    $linha['comissao_especial'] ? 'sim' : 'não',
+                    $linha['criado_em_label'] ?? '',
+                ], ';');
+            }
+        });
+
+        rewind($saida);
+        $csv = stream_get_contents($saida);
+        fclose($saida);
+
+        return $csv;
+    }
+
+    /**
+     * Base da tabela: avaliadores com o progresso de cada um, já filtrados e
+     * ordenados. Serve tanto à listagem paginada quanto ao CSV.
+     *
+     * @param  array<string, mixed>  $filtros
+     * @return Builder<User>
+     */
+    private function queryAvaliadores(array $filtros): Builder
+    {
+        $ordenar = $filtros['ordenar'] ?? 'nome';
+        $ordenar = isset(self::ORDENACOES_AVALIADOR[$ordenar]) ? $ordenar : 'nome';
+        $direcao = ($filtros['direcao'] ?? 'asc') === 'desc' ? 'desc' : 'asc';
+        // "Faltam" é o espelho de "avaliou": ordenar por um é ordenar pelo outro ao contrário.
+        $direcaoSql = $ordenar === 'faltam' ? ($direcao === 'asc' ? 'desc' : 'asc') : $direcao;
+        $busca = trim((string) ($filtros['q'] ?? ''));
+
+        return User::query()
+            ->where('users.role', Role::Avaliador->value)
+            ->leftJoin('avaliador_profiles', 'avaliador_profiles.user_id', '=', 'users.id')
+            ->leftJoin('areas', 'areas.id', '=', 'avaliador_profiles.area_id')
+            ->select('users.*')
+            ->with([
+                'avaliadorProfile.area:id,nome',
+                'avaliadorProfile.subarea:id,nome',
+                'avaliadorProfile.areasExtras.area:id,nome',
+                'avaliadorProfile.areasExtras.subarea:id,nome',
+            ])
+            ->withCount([
+                'avaliacoes as em_avaliacao_count' => fn ($q) => $q->where('status', StatusAvaliacao::EmAndamento->value),
+                'avaliacoes as avaliou_count' => fn ($q) => $q->where('status', StatusAvaliacao::Concluida->value),
+            ])
+            ->when($busca !== '', function ($q) use ($busca) {
+                $termo = '%'.str_replace(['%', '_'], ['\%', '\_'], mb_strtolower($busca)).'%';
+                $q->where(function ($sub) use ($termo) {
+                    $sub->whereRaw('LOWER(users.name) LIKE ?', [$termo])
+                        ->orWhereRaw('LOWER(users.email) LIKE ?', [$termo]);
+                });
+            })
+            ->when($filtros['area_id'] ?? null, fn ($q, $areaId) => $q->where(function ($sub) use ($areaId) {
+                // A área do cadastro OU uma das áreas extras liberadas pelo admin.
+                $sub->where('avaliador_profiles.area_id', $areaId)
+                    ->orWhereExists(fn ($ex) => $ex->from('avaliador_areas_extras')
+                        ->whereColumn('avaliador_areas_extras.avaliador_profile_id', 'avaliador_profiles.id')
+                        ->where('avaliador_areas_extras.area_id', $areaId));
+            }))
+            ->when(($filtros['situacao'] ?? null) === 'comissao', fn ($q) => $q->where('avaliador_profiles.comissao_especial', true))
+            ->when(($filtros['situacao'] ?? null) === 'demo', fn ($q) => $q->where('users.is_demo', true))
+            ->when(($filtros['situacao'] ?? null) === 'bloqueados', fn ($q) => $q->whereNotNull('avaliador_profiles.limite_avaliacoes'))
+            ->orderBy(self::ORDENACOES_AVALIADOR[$ordenar], $direcaoSql)
+            ->orderBy('users.name');
+    }
+
     /**
      * Avaliadores agrupados por área, com o progresso de cada um:
      * em_avaliacao (em andamento agora, 0 ou 1), avaliou (concluídas) e
-     * faltam (3 − avaliou, mínimo 0).
+     * faltam (mínimo por avaliador − avaliou, mínimo 0).
      *
      * @return array<int, array{area_id:int, area:string, avaliadores:array}>
      */
     public function avaliadoresPorArea(): array
     {
+        $minPorAvaliador = Edicao::minPorAvaliador();
+
         $avaliadores = User::query()
             ->where('role', Role::Avaliador->value)
             ->with('avaliadorProfile.area:id,nome')
@@ -54,13 +259,249 @@ class AdminAvaliacaoService
                 'nome' => $u->name,
                 'em_avaliacao' => (int) $u->em_avaliacao_count,
                 'avaliou' => $avaliou,
-                'faltam' => max(0, StatusAvaliacao::MAX_POR_AVALIADOR - $avaliou),
+                'faltam' => max(0, $minPorAvaliador - $avaliou),
                 'limite' => $u->avaliadorProfile?->limite_avaliacoes,
                 'is_demo' => (bool) $u->is_demo,
             ];
         }
 
         return $this->ordenarPorArea($grupos);
+    }
+
+    /**
+     * Ranking de avaliadores: quem mais concluiu avaliações. Traz nome, área,
+     * quantas concluiu, quantas estão em avaliação agora e de onde a pessoa é.
+     *
+     * Só entra quem já concluiu ao menos uma — uma lista de zeros não classifica
+     * ninguém. Empate divide a posição (dois em 1º, ninguém em 2º), como no
+     * perfil do avaliador. Avaliador demo fica de fora.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function rankingAvaliadores(int $limite = 100): array
+    {
+        $avaliadores = User::query()
+            ->where('role', Role::Avaliador->value)
+            ->where('is_demo', false)
+            ->with([
+                'avaliadorProfile.area:id,nome',
+                'avaliadorProfile.estado:id,nome,uf',
+                'avaliadorProfile.cidade:id,nome',
+            ])
+            ->withCount([
+                'avaliacoes as concluidas_count' => fn ($q) => $q->where('status', StatusAvaliacao::Concluida->value),
+                'avaliacoes as em_avaliacao_count' => fn ($q) => $q->where('status', StatusAvaliacao::EmAndamento->value),
+            ])
+            ->get(['id', 'name'])
+            ->filter(fn (User $u) => $u->concluidas_count > 0)
+            ->sortBy([
+                fn (User $a, User $b) => $b->concluidas_count <=> $a->concluidas_count,
+                fn (User $a, User $b) => $b->em_avaliacao_count <=> $a->em_avaliacao_count,
+                fn (User $a, User $b) => strcmp($a->name, $b->name),
+            ])
+            ->take($limite)
+            ->values();
+
+        $posicao = 0;
+        $anterior = null;
+
+        return $avaliadores->map(function (User $u, int $indice) use (&$posicao, &$anterior) {
+            $concluidas = (int) $u->concluidas_count;
+
+            // Mesmo número de avaliações = mesma posição; a próxima diferente
+            // pula para o índice real (dois em 1º, o seguinte em 3º).
+            if ($concluidas !== $anterior) {
+                $posicao = $indice + 1;
+                $anterior = $concluidas;
+            }
+
+            $perfil = $u->avaliadorProfile;
+
+            return [
+                'posicao' => $posicao,
+                'avaliador_id' => $u->id,
+                'nome' => $u->name,
+                'area' => $perfil?->area?->nome,
+                'concluidas' => $concluidas,
+                'em_avaliacao' => (int) $u->em_avaliacao_count,
+                'estado' => $perfil?->estado?->uf,
+                'estado_nome' => $perfil?->estado?->nome,
+                'cidade' => $perfil?->cidade?->nome,
+            ];
+        })->all();
+    }
+
+    /** Como a tabela de projetos pode ser ordenada (coluna => expressão SQL). */
+    private const ORDENACOES_PROJETO = [
+        'titulo' => 'projetos.titulo',
+        'area' => 'areas.nome',
+        'categoria' => 'projetos.categoria',
+        'em_avaliacao' => 'em_avaliacao_count',
+        'realizadas' => 'realizadas_count',
+        'faltantes' => 'realizadas_count', // espelho de realizadas: direção invertida
+    ];
+
+    /**
+     * Tabela de projetos submetidos do admin: uma lista só, com busca por
+     * título, filtro por área e categoria e ordenação por qualquer coluna.
+     *
+     * @param  array<string, mixed>  $filtros
+     * @return LengthAwarePaginator<int, Projeto>
+     */
+    public function projetos(array $filtros = [], int $porPagina = 50): LengthAwarePaginator
+    {
+        return $this->queryProjetos($filtros)->paginate($porPagina)->withQueryString();
+    }
+
+    /**
+     * Uma linha da tabela de projetos.
+     *
+     * @return array<string, mixed>
+     */
+    public function linhaProjeto(Projeto $p, ?int $minPorProjeto = null): array
+    {
+        $min = $minPorProjeto ?? Edicao::minPorProjeto();
+        $realizadas = (int) $p->realizadas_count;
+
+        return [
+            'id' => $p->id,
+            'titulo' => $p->titulo,
+            'area_id' => $p->area_id,
+            'area' => $p->area?->nome,
+            'subarea' => $p->subarea?->nome,
+            'categoria' => $p->categoria?->value,
+            'categoria_label' => $p->categoria?->label(),
+            'realizadas' => $realizadas,
+            'em_avaliacao' => (int) $p->em_avaliacao_count,
+            'faltantes' => max(0, $min - $realizadas),
+        ];
+    }
+
+    /**
+     * Resumo dos projetos por área do conhecimento: quantos estão com 0, 1, 2 e
+     * 3 ou mais avaliações concluídas. Responde aos MESMOS filtros da tabela —
+     * os cards e a lista mostram sempre o mesmo recorte.
+     *
+     * @param  array<string, mixed>  $filtros
+     * @return list<array<string, mixed>>
+     */
+    public function resumoProjetosPorArea(array $filtros = []): array
+    {
+        $min = Edicao::minPorProjeto();
+
+        $grupos = [];
+        $this->queryProjetos($filtros)
+            ->reorder()
+            ->get(['projetos.id', 'projetos.area_id'])
+            ->each(function (Projeto $p) use (&$grupos, $min) {
+                $chave = $p->area_id ?? 0;
+                $grupos[$chave] ??= [
+                    'area_id' => $p->area_id,
+                    'area' => $p->area?->nome ?? 'Sem área',
+                    'zero' => 0, 'uma' => 0, 'duas' => 0, 'tres_ou_mais' => 0,
+                    'total' => 0, 'completos' => 0,
+                ];
+
+                $realizadas = (int) $p->realizadas_count;
+                $faixa = match (true) {
+                    $realizadas === 0 => 'zero',
+                    $realizadas === 1 => 'uma',
+                    $realizadas === 2 => 'duas',
+                    default => 'tres_ou_mais',
+                };
+
+                $grupos[$chave][$faixa]++;
+                $grupos[$chave]['total']++;
+                $grupos[$chave]['completos'] += $realizadas >= $min ? 1 : 0;
+            });
+
+        $lista = array_values($grupos);
+        usort($lista, fn ($x, $y) => ($x['area_id'] === null ? 1 : 0) <=> ($y['area_id'] === null ? 1 : 0)
+            ?: strcmp($x['area'], $y['area']));
+
+        return $lista;
+    }
+
+    /** Áreas que têm ao menos um projeto submetido — as opções do filtro. */
+    public function areasComProjeto(): array
+    {
+        return Projeto::query()
+            ->where('projetos.status', ProjetoStatus::Submetido->value)
+            ->join('areas', 'areas.id', '=', 'projetos.area_id')
+            ->select('areas.id', 'areas.nome')
+            ->distinct()
+            ->orderBy('areas.nome')
+            ->get()
+            ->map(fn ($linha) => ['id' => (int) $linha->id, 'nome' => $linha->nome])
+            ->all();
+    }
+
+    /**
+     * CSV da tabela de projetos (UTF-8 com BOM, ";"), no mesmo recorte da tela.
+     *
+     * @param  array<string, mixed>  $filtros
+     */
+    public function exportarProjetosCsv(array $filtros = []): string
+    {
+        $min = Edicao::minPorProjeto();
+        $saida = fopen('php://temp', 'r+');
+        fwrite($saida, "\u{FEFF}");
+        fputcsv($saida, ['Título', 'Área', 'Subárea', 'Categoria', 'Em avaliação', 'Realizadas', 'Faltantes'], ';');
+
+        $this->queryProjetos($filtros)->chunk(300, function ($projetos) use ($saida, $min) {
+            foreach ($projetos as $p) {
+                $linha = $this->linhaProjeto($p, $min);
+                fputcsv($saida, [
+                    $linha['titulo'],
+                    $linha['area'] ?? '',
+                    $linha['subarea'] ?? '',
+                    $linha['categoria_label'] ?? '',
+                    $linha['em_avaliacao'],
+                    $linha['realizadas'],
+                    $linha['faltantes'],
+                ], ';');
+            }
+        });
+
+        rewind($saida);
+        $csv = stream_get_contents($saida);
+        fclose($saida);
+
+        return $csv;
+    }
+
+    /**
+     * Base da tabela de projetos, já filtrada e ordenada. Serve à listagem, ao
+     * CSV e aos cards de resumo.
+     *
+     * @param  array<string, mixed>  $filtros
+     * @return Builder<Projeto>
+     */
+    private function queryProjetos(array $filtros): Builder
+    {
+        $ordenar = $filtros['ordenar'] ?? 'titulo';
+        $ordenar = isset(self::ORDENACOES_PROJETO[$ordenar]) ? $ordenar : 'titulo';
+        $direcao = ($filtros['direcao'] ?? 'asc') === 'desc' ? 'desc' : 'asc';
+        $direcaoSql = $ordenar === 'faltantes' ? ($direcao === 'asc' ? 'desc' : 'asc') : $direcao;
+        $busca = trim((string) ($filtros['q'] ?? ''));
+
+        return Projeto::query()
+            ->where('projetos.status', ProjetoStatus::Submetido->value)
+            ->leftJoin('areas', 'areas.id', '=', 'projetos.area_id')
+            ->select('projetos.*')
+            ->with(['area:id,nome', 'subarea:id,nome'])
+            ->withCount([
+                'avaliacoes as realizadas_count' => fn ($q) => $q->where('status', StatusAvaliacao::Concluida->value),
+                'avaliacoes as em_avaliacao_count' => fn ($q) => $q->where('status', StatusAvaliacao::EmAndamento->value),
+            ])
+            ->when($busca !== '', function ($q) use ($busca) {
+                $termo = '%'.str_replace(['%', '_'], ['\%', '\_'], mb_strtolower($busca)).'%';
+                $q->whereRaw('LOWER(projetos.titulo) LIKE ?', [$termo]);
+            })
+            ->when($filtros['area_id'] ?? null, fn ($q, $areaId) => $q->where('projetos.area_id', $areaId))
+            ->when($filtros['categoria'] ?? null, fn ($q, $categoria) => $q->where('projetos.categoria', $categoria))
+            ->orderBy(self::ORDENACOES_PROJETO[$ordenar], $direcaoSql)
+            ->orderBy('projetos.titulo');
     }
 
     /**
@@ -71,6 +512,8 @@ class AdminAvaliacaoService
      */
     public function projetosSubmetidosPorArea(): array
     {
+        $minPorProjeto = Edicao::minPorProjeto();
+
         $projetos = Projeto::query()
             ->where('status', ProjetoStatus::Submetido->value)
             ->with('area:id,nome')
@@ -93,8 +536,8 @@ class AdminAvaliacaoService
                 'titulo' => $p->titulo,
                 'realizadas' => $realizadas,
                 'em_avaliacao' => (int) $p->em_avaliacao,
-                // Cada projeto precisa de ao menos 3 avaliações concluídas.
-                'faltantes' => max(0, StatusAvaliacao::MIN_POR_PROJETO - $realizadas),
+                // Cada projeto precisa do mínimo de avaliações concluídas da edição.
+                'faltantes' => max(0, $minPorProjeto - $realizadas),
             ];
         }
 
@@ -327,7 +770,7 @@ class AdminAvaliacaoService
      * `completo` marca quem já atingiu o mínimo de avaliações — abaixo disso a
      * média ainda é parcial e não deve valer como classificação final.
      *
-     * @param  array{area_id?:int|null}  $filtros
+     * @param  array{area_id?:int|null, categoria?:string|null}  $filtros
      * @return list<array<string, mixed>>
      */
     public function rankingProjetos(array $filtros = []): array
@@ -335,13 +778,18 @@ class AdminAvaliacaoService
         $projetos = Projeto::query()
             ->whereHas('avaliacoes', fn ($q) => $q->where('status', StatusAvaliacao::Concluida->value))
             ->when($filtros['area_id'] ?? null, fn ($q, $areaId) => $q->where('area_id', $areaId))
+            // Categorias não competem entre si: FETEC Jr, FETECMS e FETECMS FUNDECT
+            // têm regras próprias de equipe e de premiação.
+            ->when($filtros['categoria'] ?? null, fn ($q, $categoria) => $q->where('categoria', $categoria))
             ->with([
                 'area:id,nome',
                 'avaliacoes' => fn ($q) => $q->where('status', StatusAvaliacao::Concluida->value),
             ])
             ->get();
 
-        $lista = $projetos->map(function (Projeto $p) {
+        $minPorProjeto = Edicao::minPorProjeto();
+
+        $lista = $projetos->map(function (Projeto $p) use ($minPorProjeto) {
             $concluidas = $p->avaliacoes;
             $total = $concluidas->count();
 
@@ -353,7 +801,7 @@ class AdminAvaliacaoService
                 'avaliacoes' => $total,
                 'media' => round($concluidas->avg('nota'), 2),
                 'medias_secoes' => $this->mediasPorSecao($concluidas),
-                'completo' => $total >= StatusAvaliacao::MIN_POR_PROJETO,
+                'completo' => $total >= $minPorProjeto,
                 'nota_maxima' => Avaliacao::notaMaxima(),
             ];
         })->all();
@@ -404,20 +852,23 @@ class AdminAvaliacaoService
      *
      * @return int quantas designações novas foram criadas
      */
-    public function designar(Projeto $projeto, string $tipo, int $alvoId): int
+    public function designar(Projeto $projeto, string $tipo, ?int $alvoId, array $selecionados = []): int
     {
         $avaliadorIds = match ($tipo) {
             'avaliador' => [$alvoId],
             'area' => AvaliadorProfile::where('area_id', $alvoId)->pluck('user_id')->all(),
             'subarea' => AvaliadorProfile::where('subarea_id', $alvoId)->pluck('user_id')->all(),
+            'comissao' => $this->idsDaComissao($selecionados),
             default => [],
         };
 
         $novas = 0;
         foreach ($avaliadorIds as $uid) {
+            // `designacao_manual` protege a designação: o avaliador não consegue
+            // sortear para fora um projeto que o admin colocou na fila dele.
             $avaliacao = Avaliacao::firstOrCreate(
                 ['projeto_id' => $projeto->id, 'avaliador_id' => $uid],
-                ['status' => StatusAvaliacao::Designada],
+                ['status' => StatusAvaliacao::Designada, 'designacao_manual' => true],
             );
 
             if ($avaliacao->wasRecentlyCreated) {
@@ -428,10 +879,77 @@ class AdminAvaliacaoService
         return $novas;
     }
 
+    /**
+     * Membros da comissão especial. Sem seleção, vai a comissão inteira; com
+     * seleção, só os marcados — e quem não é da comissão é descartado.
+     *
+     * @param  list<int>  $selecionados
+     * @return list<int>
+     */
+    private function idsDaComissao(array $selecionados): array
+    {
+        $ids = AvaliadorProfile::where('comissao_especial', true)
+            ->when($selecionados !== [], fn ($q) => $q->whereIn('user_id', $selecionados))
+            ->pluck('user_id')
+            ->all();
+
+        if ($ids === []) {
+            throw ValidationException::withMessages([
+                'tipo' => $selecionados === []
+                    ? 'Nenhum avaliador está marcado como comissão especial.'
+                    : 'Nenhum dos avaliadores selecionados é da comissão especial.',
+            ]);
+        }
+
+        return $ids;
+    }
+
     /** Define (ou remove, com null) o limite individual de avaliações do avaliador. */
     public function definirLimite(User $avaliador, ?int $limite): void
     {
         $avaliador->avaliadorProfile?->update(['limite_avaliacoes' => $limite]);
+    }
+
+    /** Marca/desmarca o avaliador como membro da comissão especial. */
+    public function definirComissao(User $avaliador, bool $comissao): void
+    {
+        $avaliador->avaliadorProfile?->update(['comissao_especial' => $comissao]);
+    }
+
+    /**
+     * Libera para o avaliador uma área (e, opcionalmente, uma subárea) além da
+     * que ele escolheu. Só o admin faz isso. Repetir a mesma combinação não
+     * duplica; a área do próprio cadastro é recusada (já vale por si).
+     */
+    public function adicionarAreaExtra(User $avaliador, int $areaId, ?int $subareaId): AvaliadorAreaExtra
+    {
+        $perfil = $avaliador->avaliadorProfile;
+
+        if (! $perfil) {
+            throw ValidationException::withMessages(['area_id' => 'Este avaliador ainda não tem perfil de avaliação.']);
+        }
+
+        if ($subareaId !== null && Subarea::where('id', $subareaId)->where('area_id', $areaId)->doesntExist()) {
+            throw ValidationException::withMessages(['subarea_id' => 'A subárea escolhida não pertence a essa área.']);
+        }
+
+        if ($perfil->area_id === $areaId && $perfil->subarea_id === $subareaId) {
+            throw ValidationException::withMessages(['area_id' => 'Essa já é a classificação do próprio avaliador.']);
+        }
+
+        return AvaliadorAreaExtra::firstOrCreate([
+            'avaliador_profile_id' => $perfil->id,
+            'area_id' => $areaId,
+            'subarea_id' => $subareaId,
+        ]);
+    }
+
+    /** Tira uma área extra do avaliador. */
+    public function removerAreaExtra(User $avaliador, int $extraId): void
+    {
+        AvaliadorAreaExtra::where('id', $extraId)
+            ->where('avaliador_profile_id', $avaliador->avaliadorProfile?->id)
+            ->delete();
     }
 
     /** Marca/desmarca um avaliador como "demo" (fora do escopo real). */
@@ -466,11 +984,56 @@ class AdminAvaliacaoService
             'liberada_em_label' => $data?->format('d/m/Y H:i'),
             'encerrada_em_input' => $fim?->format('Y-m-d\TH:i'),
             'encerrada_em_label' => $fim?->format('d/m/Y H:i'),
+            // Mínimos do edital: quantas avaliações cada avaliador conclui (e
+            // quantos projetos ele vê na tela) e quantas cada projeto recebe.
+            'min_por_avaliador' => $edicao?->avaliacoes_min_por_avaliador ?? Edicao::PADRAO_MIN_POR_AVALIADOR,
+            'min_por_projeto' => $edicao?->avaliacoes_min_por_projeto ?? Edicao::PADRAO_MIN_POR_PROJETO,
         ];
     }
 
+    /**
+     * Grava os mínimos da avaliação online. Só as chaves enviadas mudam — cada
+     * card da tela salva o seu número.
+     *
+     * @param  array{min_por_avaliador?:int, min_por_projeto?:int}  $dados
+     */
+    public function definirMinimos(array $dados, User $admin): array
+    {
+        $edicao = Edicao::atual();
+
+        $mudancas = [
+            'avaliacoes_min_por_avaliador' => [TipoRegistro::AvaliacaoMinAvaliador, $dados['min_por_avaliador'] ?? null],
+            'avaliacoes_min_por_projeto' => [TipoRegistro::AvaliacaoMinProjeto, $dados['min_por_projeto'] ?? null],
+        ];
+
+        foreach ($mudancas as $coluna => [$tipo, $novo]) {
+            if ($novo === null) {
+                continue;
+            }
+
+            $anterior = $edicao?->{$coluna};
+            $edicao?->update([$coluna => $novo]);
+
+            if ((int) $anterior !== (int) $novo) {
+                $this->registrarParametro($tipo, $admin, (string) $anterior, (string) $novo);
+            }
+        }
+
+        return $this->config();
+    }
+
+    /** Anota a mudança de parâmetro na trilha (seção "Avaliação Online"). */
+    private function registrarParametro(TipoRegistro $tipo, User $admin, ?string $de, ?string $para): void
+    {
+        if ($de === $para) {
+            return; // salvou sem mudar nada: não vira registro
+        }
+
+        $this->registros->parametroAvaliacao($tipo, $admin, $de, $para);
+    }
+
     /** Define a data de liberação (ou remove, com null) na edição atual. */
-    public function definirLiberacao(?string $data): array
+    public function definirLiberacao(?string $data, User $admin): array
     {
         // A data chega como "hora de parede" local (ex.: 2026-08-17T07:00) e é
         // interpretada no fuso do app — 07:00 é 07:00 em Campo Grande, sem shift.
@@ -485,13 +1048,21 @@ class AdminAvaliacaoService
             ]);
         }
 
+        $anterior = Edicao::atual()?->avaliacao_liberada_em;
         Edicao::atual()?->update(['avaliacao_liberada_em' => $valor]);
+
+        $this->registrarParametro(
+            TipoRegistro::AvaliacaoLiberacao,
+            $admin,
+            $anterior?->format('d/m/Y H:i'),
+            $valor?->format('d/m/Y H:i'),
+        );
 
         return $this->config();
     }
 
     /** Define a data de encerramento da avaliação (ou remove, com null). */
-    public function definirEncerramento(?string $data): array
+    public function definirEncerramento(?string $data, User $admin): array
     {
         $valor = ($data !== null && $data !== '')
             ? Carbon::parse($data, config('app.timezone'))
@@ -504,7 +1075,15 @@ class AdminAvaliacaoService
             ]);
         }
 
+        $anterior = Edicao::atual()?->avaliacao_encerrada_em;
         Edicao::atual()?->update(['avaliacao_encerrada_em' => $valor]);
+
+        $this->registrarParametro(
+            TipoRegistro::AvaliacaoEncerramento,
+            $admin,
+            $anterior?->format('d/m/Y H:i'),
+            $valor?->format('d/m/Y H:i'),
+        );
 
         return $this->config();
     }

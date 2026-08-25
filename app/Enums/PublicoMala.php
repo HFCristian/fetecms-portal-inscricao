@@ -19,6 +19,7 @@ enum PublicoMala: string
     case OrientadoresSubmetidos = 'orientadores_submetidos';
     case AvaliadoresPendentes = 'avaliadores_pendentes';
     case AvaliadoresConcluidas = 'avaliadores_concluidas';
+    case AvaliadoresComissao = 'avaliadores_comissao';
 
     public function label(): string
     {
@@ -30,6 +31,7 @@ enum PublicoMala: string
             self::OrientadoresSubmetidos => 'Orientadores com projetos submetidos',
             self::AvaliadoresPendentes => 'Avaliadores com avaliações pendentes',
             self::AvaliadoresConcluidas => 'Avaliadores com avaliações concluídas',
+            self::AvaliadoresComissao => 'Avaliadores da comissão especial',
         };
     }
 
@@ -43,6 +45,7 @@ enum PublicoMala: string
             self::OrientadoresSubmetidos => 'Já submeteu ao menos um projeto.',
             self::AvaliadoresPendentes => 'Abriu uma avaliação e ainda não concluiu.',
             self::AvaliadoresConcluidas => 'Já concluiu ao menos uma avaliação.',
+            self::AvaliadoresComissao => 'Marcado pelo admin como comissão especial.',
         };
     }
 
@@ -51,7 +54,8 @@ enum PublicoMala: string
     {
         return match ($this) {
             self::Orientadores, self::OrientadoresRascunho, self::OrientadoresSubmetidos => Role::Orientador,
-            self::Avaliadores, self::AvaliadoresPendentes, self::AvaliadoresConcluidas => Role::Avaliador,
+            self::Avaliadores, self::AvaliadoresPendentes, self::AvaliadoresConcluidas,
+            self::AvaliadoresComissao => Role::Avaliador,
             self::Todos => Role::Orientador,
         };
     }

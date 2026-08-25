@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\PublicoMala;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\AvisoRequest;
 use App\Models\Aviso;
@@ -31,22 +32,28 @@ class AdminAvisoController extends Controller
                 'mensagem' => AvisoService::MODELO_MENSAGEM,
             ],
             'inscricoes' => $this->inscricoes->config(),
-            'destinatarios' => $this->avisos->totalDeDestinatarios(),
+            // Públicos combináveis, os mesmos da mala direta.
+            'publicos' => PublicoMala::opcoes(),
+            'publico_padrao' => array_map(fn ($p) => $p->value, AvisoService::PUBLICO_PADRAO),
+            // Quantos o público padrão alcança — o formulário abre com esse número.
+            'destinatarios' => $this->avisos->alcancados([]),
         ]]);
     }
 
-    /** Publica um aviso — o anterior sai do ar automaticamente. */
+    /** Publica um aviso; o anterior do MESMO público sai do ar automaticamente. */
     public function store(AvisoRequest $request): JsonResponse
     {
         $aviso = $this->avisos->publicar(
             $request->user(),
             $request->validated('titulo'),
             $request->validated('mensagem'),
+            $request->publicos(),
+            $request->expiraEm(),
         );
 
         return response()->json([
-            'data' => $this->avisos->paraTela($aviso),
-            'meta' => ['message' => 'Aviso publicado. Ele aparece para os orientadores conectados.'],
+            'data' => $this->avisos->resumo($aviso),
+            'meta' => ['message' => 'Aviso publicado. Ele aparece para quem está no público escolhido.'],
         ], 201);
     }
 
@@ -67,7 +74,8 @@ class AdminAvisoController extends Controller
         return response()->json(['data' => [
             'titulo' => $this->avisos->personalizar($request->validated('titulo')),
             'mensagem' => $this->avisos->personalizar($request->validated('mensagem')),
-            'destinatarios' => $this->avisos->totalDeDestinatarios(),
+            // Quantas pessoas o público escolhido alcança hoje.
+            'destinatarios' => $this->avisos->alcancados($request->publicos()),
         ]]);
     }
 
@@ -145,8 +153,10 @@ class AdminAvisoController extends Controller
     /** Aviso no ar agora, se houver. */
     public function ativo(Request $request): JsonResponse
     {
-        $aviso = $this->avisos->ativo();
-
-        return response()->json(['data' => $aviso ? $this->avisos->paraTela($aviso) : null]);
+        // Podem ser vários — um por público. A tela lista todos, cada um com o
+        // seu botão de encerrar.
+        return response()->json([
+            'data' => $this->avisos->vigentes()->map(fn (Aviso $aviso) => $this->avisos->resumo($aviso))->all(),
+        ]);
     }
 }

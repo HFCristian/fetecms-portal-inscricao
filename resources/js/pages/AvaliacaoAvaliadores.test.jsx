@@ -1,112 +1,235 @@
-import { render, screen, fireEvent } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../components/AppShell.jsx', () => ({ default: ({ children }) => <div>{children}</div> }));
 // O panorama tem teste próprio e repetiria os nomes das áreas nesta tela.
 vi.mock('../components/PanoramaAvaliadores.jsx', () => ({ default: () => <div>panorama</div> }));
 vi.mock('react-router-dom', () => ({ Link: ({ children }) => <a>{children}</a> }));
 vi.mock('../lib/auth.jsx', () => ({ extractErrors: () => ({ message: '', fields: {} }) }));
+vi.mock('../lib/catalogos.js', () => ({
+    loadAreas: vi.fn(() => Promise.resolve([{ id: 1, nome: 'Ciências Agrárias' }, { id: 2, nome: 'Ciências Exatas' }])),
+    loadSubareas: vi.fn(() => Promise.resolve([{ id: 5, nome: 'Física' }])),
+}));
+
+const LINHAS = [
+    {
+        id: 1, nome: 'Ana', email: 'ana@teste.com', area_id: 1, area: 'Ciências Agrárias',
+        subarea: 'Agronomia', em_avaliacao: 1, avaliou: 2, faltam: 1, limite: 2, is_demo: true,
+        comissao_especial: false, areas_extras: [],
+        criado_em: '2026-03-01T10:00:00-04:00', criado_em_label: '01/03/2026',
+    },
+    {
+        id: 2, nome: 'Bruno', email: 'bruno@teste.com', area_id: 2, area: 'Ciências Exatas',
+        subarea: null, em_avaliacao: 0, avaliou: 0, faltam: 3, limite: null, is_demo: false,
+        comissao_especial: true,
+        areas_extras: [{ id: 7, area_id: 1, area: 'Ciências Agrárias', subarea_id: null, subarea: null }],
+        criado_em: '2026-04-15T10:00:00-04:00', criado_em_label: '15/04/2026',
+    },
+];
+
+const META = {
+    pagina_atual: 1, ultima_pagina: 1, total: 2, por_pagina: 50,
+    areas: [{ id: 1, nome: 'Ciências Agrárias' }, { id: 2, nome: 'Ciências Exatas' }],
+    ordenar: 'nome', direcao: 'asc',
+};
+
+const getAvaliacaoAvaliadores = vi.fn(() => Promise.resolve({ data: LINHAS, meta: META }));
+const exportarAvaliadoresCsv = vi.fn(() => Promise.resolve());
+const definirDemoAvaliador = vi.fn(() => Promise.resolve({ meta: { message: 'ok' } }));
+const definirComissaoAvaliador = vi.fn(() => Promise.resolve({ meta: { message: 'Avaliador incluído na comissão especial.' } }));
+const adicionarAreaExtra = vi.fn();
+const removerAreaExtra = vi.fn();
+
 vi.mock('../lib/admin.js', () => ({
-    getAvaliacaoAvaliadores: vi.fn(() => Promise.resolve([
-        {
-            area_id: 1,
-            area: 'Ciências Agrárias',
-            avaliadores: [
-                { id: 1, nome: 'Ana', em_avaliacao: 1, avaliou: 2, faltam: 1, limite: 2, is_demo: true },
-                { id: 2, nome: 'Bruno', em_avaliacao: 0, avaliou: 0, faltam: 3, limite: null, is_demo: false },
-            ],
-        },
-        {
-            area_id: 2,
-            area: 'Ciências Exatas',
-            avaliadores: [{ id: 3, nome: 'Carla', em_avaliacao: 0, avaliou: 3, faltam: 0, limite: null, is_demo: false }],
-        },
-    ])),
+    getAvaliacaoAvaliadores: (...a) => getAvaliacaoAvaliadores(...a),
+    exportarAvaliadoresCsv: (...a) => exportarAvaliadoresCsv(...a),
     definirLimiteAvaliador: vi.fn(() => Promise.resolve({ meta: { message: 'ok' } })),
-    definirDemoAvaliador: vi.fn(() => Promise.resolve({ meta: { message: 'ok' } })),
+    definirDemoAvaliador: (...a) => definirDemoAvaliador(...a),
     limparDadosDeTeste: vi.fn(() => Promise.resolve({ meta: { message: '0 apagadas' } })),
+    definirComissaoAvaliador: (...a) => definirComissaoAvaliador(...a),
+    adicionarAreaExtra: (...a) => adicionarAreaExtra(...a),
+    removerAreaExtra: (...a) => removerAreaExtra(...a),
 }));
 
 import AvaliacaoAvaliadores from './AvaliacaoAvaliadores.jsx';
 
-const abrirArea = async (nome) => {
-    fireEvent.click(await screen.findByText(nome));
-};
-
-describe('AvaliacaoAvaliadores', () => {
-    it('começa com as áreas compactadas', async () => {
-        render(<AvaliacaoAvaliadores />);
-        expect(await screen.findByText('Ciências Agrárias')).toBeInTheDocument();
-        expect(screen.queryByText('Ana')).not.toBeInTheDocument();
+describe('AvaliacaoAvaliadores — tabela única', () => {
+    beforeEach(() => {
+        getAvaliacaoAvaliadores.mockClear();
+        exportarAvaliadoresCsv.mockClear();
+        definirDemoAvaliador.mockClear();
+        definirComissaoAvaliador.mockClear();
+        adicionarAreaExtra.mockReset();
+        removerAreaExtra.mockReset();
     });
 
-    it('abre e fecha a lista da área ao clicar no nome dela', async () => {
+    it('mostra todos os avaliadores numa tabela só, sem acordeão por área', async () => {
         render(<AvaliacaoAvaliadores />);
 
-        await abrirArea('Ciências Agrárias');
-        expect(screen.getByText('Ana')).toBeInTheDocument();
+        expect(await screen.findByText('Ana')).toBeInTheDocument();
         expect(screen.getByText('Bruno')).toBeInTheDocument();
-        expect(screen.queryByText('Carla')).not.toBeInTheDocument();
-
-        fireEvent.click(screen.getByText('Ciências Agrárias'));
-        expect(screen.queryByText('Ana')).not.toBeInTheDocument();
+        expect(screen.getByText('2 avaliadores.')).toBeInTheDocument();
+        expect(screen.queryByText('Expandir todas')).not.toBeInTheDocument();
+        expect(screen.getByRole('table')).toBeInTheDocument();
     });
 
-    it('expande e recolhe todas as áreas de uma vez', async () => {
+    it('traz nome, área, métricas, cadastro, demo e bloqueio em cada linha', async () => {
         render(<AvaliacaoAvaliadores />);
-        fireEvent.click(await screen.findByText('Expandir todas'));
+        await screen.findByText('Ana');
 
-        expect(screen.getByText('Ana')).toBeInTheDocument();
-        expect(screen.getByText('Carla')).toBeInTheDocument();
-
-        fireEvent.click(screen.getByText('Recolher todas'));
-        expect(screen.queryByText('Ana')).not.toBeInTheDocument();
-    });
-
-    it('lista com métricas, limite e marca demo', async () => {
-        render(<AvaliacaoAvaliadores />);
-        await abrirArea('Ciências Agrárias');
-
+        // A área aparece na linha e também como opção do filtro: olha só a tabela.
+        const tabela = within(screen.getByRole('table'));
+        expect(tabela.getByText('ana@teste.com')).toBeInTheDocument();
+        expect(tabela.getByText('Ciências Agrárias')).toBeInTheDocument();
+        expect(tabela.getByText('Agronomia')).toBeInTheDocument();
+        expect(screen.getByText('01/03/2026')).toBeInTheDocument();
         expect(screen.getByText('Limite 2')).toBeInTheDocument();
-        // Botão "Demo" em cada linha de avaliador (controle discreto e rotulado).
         expect(screen.getAllByText('Demo')).toHaveLength(2);
-        expect(screen.getByText('Limpar dados de teste')).toBeInTheDocument();
-        expect(screen.getAllByText('Em avaliação').length).toBeGreaterThan(0);
-        expect(screen.getAllByText('Já avaliou').length).toBeGreaterThan(0);
-        expect(screen.getAllByText('Faltam').length).toBeGreaterThan(0);
+        expect(screen.getByLabelText('Limitar Ana')).toBeInTheDocument();
     });
 
-    it('ordena os avaliadores da área por cada métrica, nos dois sentidos', async () => {
+    it('busca por nome ou e-mail (com debounce)', async () => {
         render(<AvaliacaoAvaliadores />);
-        await abrirArea('Ciências Agrárias');
+        await screen.findByText('Ana');
 
-        const nomes = () => screen.getAllByRole('listitem').map((li) => li.querySelector('span.truncate').textContent);
-        expect(nomes()).toEqual(['Ana', 'Bruno']); // nome A–Z
+        fireEvent.change(screen.getByLabelText('Buscar avaliador'), { target: { value: 'ana' } });
 
-        const ordenar = screen.getByLabelText('Ordenar avaliadores de Ciências Agrárias');
-        fireEvent.change(ordenar, { target: { value: 'faltam:desc' } });
-        expect(nomes()).toEqual(['Bruno', 'Ana']);
-
-        fireEvent.change(ordenar, { target: { value: 'avaliou:desc' } });
-        expect(nomes()).toEqual(['Ana', 'Bruno']);
-
-        fireEvent.change(ordenar, { target: { value: 'em_avaliacao:asc' } });
-        expect(nomes()).toEqual(['Bruno', 'Ana']);
+        // 300ms de debounce + recarga: folga para a suíte cheia, que roda em paralelo.
+        await waitFor(() => {
+            expect(getAvaliacaoAvaliadores).toHaveBeenLastCalledWith(expect.objectContaining({ q: 'ana', page: 1 }));
+        }, { timeout: 3000 });
     });
 
-    it('cada área tem a sua própria ordenação', async () => {
+    it('filtra por área do conhecimento', async () => {
         render(<AvaliacaoAvaliadores />);
-        fireEvent.click(await screen.findByText('Expandir todas'));
+        await screen.findByText('Ana');
 
-        expect(screen.getByLabelText('Ordenar avaliadores de Ciências Agrárias')).toBeInTheDocument();
-        expect(screen.getByLabelText('Ordenar avaliadores de Ciências Exatas')).toBeInTheDocument();
+        fireEvent.change(screen.getByLabelText('Filtrar por área do conhecimento'), { target: { value: '2' } });
+
+        await waitFor(() => {
+            expect(getAvaliacaoAvaliadores).toHaveBeenLastCalledWith(expect.objectContaining({ areaId: '2' }));
+        });
+    });
+
+    it('ordena por coluna, alternando asc e desc', async () => {
+        render(<AvaliacaoAvaliadores />);
+        await screen.findByText('Ana');
+
+        fireEvent.click(screen.getByLabelText('Ordenar por Faltantes'));
+        await waitFor(() => {
+            expect(getAvaliacaoAvaliadores).toHaveBeenLastCalledWith(
+                expect.objectContaining({ ordenar: 'faltam', direcao: 'asc' }),
+            );
+        });
+
+        fireEvent.click(screen.getByLabelText('Ordenar por Faltantes'));
+        await waitFor(() => {
+            expect(getAvaliacaoAvaliadores).toHaveBeenLastCalledWith(
+                expect.objectContaining({ ordenar: 'faltam', direcao: 'desc' }),
+            );
+        });
+    });
+
+    it('ordena também por data de cadastro', async () => {
+        render(<AvaliacaoAvaliadores />);
+        await screen.findByText('Ana');
+
+        fireEvent.click(screen.getByLabelText('Ordenar por Cadastro'));
+
+        await waitFor(() => {
+            expect(getAvaliacaoAvaliadores).toHaveBeenLastCalledWith(expect.objectContaining({ ordenar: 'criado_em' }));
+        });
+    });
+
+    it('exporta o CSV com os filtros em vigor', async () => {
+        render(<AvaliacaoAvaliadores />);
+        await screen.findByText('Ana');
+
+        fireEvent.change(screen.getByLabelText('Filtrar por área do conhecimento'), { target: { value: '1' } });
+        fireEvent.click(screen.getByText('Exportar CSV'));
+
+        await waitFor(() => {
+            expect(exportarAvaliadoresCsv).toHaveBeenLastCalledWith(expect.objectContaining({ areaId: '1' }));
+        });
+    });
+
+    it('marca e desmarca o avaliador como demo', async () => {
+        render(<AvaliacaoAvaliadores />);
+        await screen.findByText('Ana');
+
+        fireEvent.click(screen.getByLabelText('Demo de Bruno'));
+
+        await waitFor(() => expect(definirDemoAvaliador).toHaveBeenCalledWith(2, true));
     });
 
     it('abre o modal de limitar avaliador', async () => {
         render(<AvaliacaoAvaliadores />);
-        await abrirArea('Ciências Agrárias');
+        await screen.findByText('Ana');
 
-        fireEvent.click(screen.getAllByTitle('Limitar avaliador')[0]);
-        expect(await screen.findByText('Limitar avaliador')).toBeInTheDocument();
+        fireEvent.click(screen.getByLabelText('Limitar Ana'));
+
+        expect(await screen.findByText('Máximo de avaliações que pode assumir')).toBeInTheDocument();
+    });
+
+    it('marca o avaliador como comissão especial', async () => {
+        render(<AvaliacaoAvaliadores />);
+        await screen.findByText('Ana');
+
+        // Bruno já é da comissão: a linha traz o selo.
+        expect(screen.getByText('Comissão')).toBeInTheDocument();
+
+        fireEvent.click(screen.getByLabelText('Comissão especial de Ana'));
+
+        await waitFor(() => expect(definirComissaoAvaliador).toHaveBeenCalledWith(1, true));
+    });
+
+    it('filtra por comissão especial', async () => {
+        render(<AvaliacaoAvaliadores />);
+        await screen.findByText('Ana');
+
+        fireEvent.change(screen.getByLabelText('Filtrar por situação'), { target: { value: 'comissao' } });
+
+        await waitFor(() => {
+            expect(getAvaliacaoAvaliadores).toHaveBeenLastCalledWith(expect.objectContaining({ situacao: 'comissao' }));
+        });
+    });
+
+    it('mostra quantas áreas extras o avaliador tem', async () => {
+        render(<AvaliacaoAvaliadores />);
+        await screen.findByText('Bruno');
+
+        expect(screen.getByText('+ 1 área liberada')).toBeInTheDocument();
+    });
+
+    it('libera outra área para o avaliador', async () => {
+        adicionarAreaExtra.mockResolvedValue({
+            data: { ...LINHAS[0], areas_extras: [{ id: 9, area_id: 2, area: 'Ciências Exatas', subarea_id: 5, subarea: 'Física' }] },
+            meta: { message: 'Área liberada para o avaliador.' },
+        });
+        render(<AvaliacaoAvaliadores />);
+        await screen.findByText('Ana');
+
+        fireEvent.click(screen.getByLabelText('Áreas de Ana'));
+        expect(await screen.findByText('Áreas do avaliador')).toBeInTheDocument();
+        expect(screen.getByText('Nenhuma área extra liberada.')).toBeInTheDocument();
+
+        fireEvent.change(await screen.findByLabelText('Área a liberar'), { target: { value: '2' } });
+        fireEvent.change(await screen.findByLabelText('Subárea a liberar (opcional)'), { target: { value: '5' } });
+        fireEvent.click(screen.getByText('Liberar'));
+
+        await waitFor(() => expect(adicionarAreaExtra).toHaveBeenCalledWith(1, 2, 5));
+        expect(await screen.findByText('Ciências Exatas · Física')).toBeInTheDocument();
+    });
+
+    it('remove uma área extra', async () => {
+        removerAreaExtra.mockResolvedValue({ data: { ...LINHAS[1], areas_extras: [] }, meta: { message: 'Área removida.' } });
+        render(<AvaliacaoAvaliadores />);
+        await screen.findByText('Bruno');
+
+        fireEvent.click(screen.getByLabelText('Áreas de Bruno'));
+        fireEvent.click(await screen.findByLabelText('Remover Ciências Agrárias'));
+
+        await waitFor(() => expect(removerAreaExtra).toHaveBeenCalledWith(2, 7));
+        expect(await screen.findByText('Nenhuma área extra liberada.')).toBeInTheDocument();
     });
 });

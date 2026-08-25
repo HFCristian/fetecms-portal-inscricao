@@ -132,6 +132,8 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
         // Avaliação online — lado do avaliador (E7): ler, iniciar e concluir com nota
         Route::middleware('role:avaliador')->prefix('avaliacao')->group(function () {
             Route::get('/', [AvaliadorAvaliacaoController::class, 'index']);
+            Route::post('/roletar', [AvaliadorAvaliacaoController::class, 'roletar'])
+                ->middleware('throttle:20,1');
             Route::get('/{avaliacao}', [AvaliadorAvaliacaoController::class, 'show']);
             Route::post('/{avaliacao}/iniciar', [AvaliadorAvaliacaoController::class, 'iniciar']);
             Route::post('/{avaliacao}/rascunho', [AvaliadorAvaliacaoController::class, 'rascunho']);
@@ -142,6 +144,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
         Route::middleware('role:avaliador')->prefix('avaliador')->group(function () {
             Route::get('/perfil', [AvaliadorPerfilController::class, 'show']);
             Route::put('/perfil/classificacao', [AvaliadorPerfilController::class, 'atualizarClassificacao']);
+            Route::put('/perfil/localidade', [AvaliadorPerfilController::class, 'atualizarLocalidade']);
         });
 
         // Chat de suporte — orientador/avaliador falam com o suporte (admin)
@@ -162,15 +165,23 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::get('/avaliacao/config', [AdminAvaliacaoController::class, 'config']);
             Route::patch('/avaliacao/config', [AdminAvaliacaoController::class, 'definirLiberacao']);
             Route::patch('/avaliacao/encerramento', [AdminAvaliacaoController::class, 'definirEncerramento']);
+            Route::patch('/avaliacao/minimos', [AdminAvaliacaoController::class, 'definirMinimos']);
             Route::get('/avaliacao/avaliadores', [AdminAvaliacaoController::class, 'avaliadores']);
+            Route::get('/avaliacao/avaliadores/opcoes', [AdminAvaliacaoController::class, 'avaliadoresOpcoes']);
+            Route::get('/avaliacao/avaliadores/exportar', [AdminAvaliacaoController::class, 'exportarAvaliadores']);
             Route::get('/avaliacao/projetos', [AdminAvaliacaoController::class, 'projetos']);
+            Route::get('/avaliacao/projetos/exportar', [AdminAvaliacaoController::class, 'exportarProjetos']);
             Route::get('/avaliacao/reclassificacoes', [AdminAvaliacaoController::class, 'reclassificacoes']);
             Route::post('/avaliacao/reclassificacoes/aplicar', [AdminAvaliacaoController::class, 'aplicarReclassificacoes']);
             Route::get('/avaliacao/ranking', [AdminAvaliacaoController::class, 'ranking']);
+            Route::get('/avaliacao/ranking-avaliadores', [AdminAvaliacaoController::class, 'rankingAvaliadores']);
             Route::post('/avaliacao/projetos/{projeto}/designar', [AdminAvaliacaoController::class, 'designar']);
             Route::post('/avaliacao/distribuir', [AdminAvaliacaoController::class, 'distribuir']);
             Route::patch('/avaliacao/avaliadores/{avaliador}/limite', [AdminAvaliacaoController::class, 'limitar']);
             Route::patch('/avaliacao/avaliadores/{avaliador}/demo', [AdminAvaliacaoController::class, 'demo']);
+            Route::patch('/avaliacao/avaliadores/{avaliador}/comissao', [AdminAvaliacaoController::class, 'comissao']);
+            Route::post('/avaliacao/avaliadores/{avaliador}/areas-extras', [AdminAvaliacaoController::class, 'adicionarAreaExtra']);
+            Route::delete('/avaliacao/avaliadores/{avaliador}/areas-extras/{extra}', [AdminAvaliacaoController::class, 'removerAreaExtra']);
             Route::delete('/avaliacao/testes', [AdminAvaliacaoController::class, 'limparTestes']);
             // Trilha de registros (submissões, cancelamentos, exclusões, e-mails)
             // Aba "Inscrições": prazo de submissão dos projetos.
@@ -215,6 +226,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             // Parametrização do catálogo (áreas/subáreas)
             Route::get('/catalogo', [CatalogoAdminController::class, 'index']);
             Route::put('/areas/{area}', [CatalogoAdminController::class, 'updateArea']);
+            Route::patch('/areas/{area}/correlacao', [CatalogoAdminController::class, 'correlacao']);
             Route::post('/areas/{area}/mesclar', [CatalogoAdminController::class, 'mergeArea']);
             Route::delete('/areas/{area}', [CatalogoAdminController::class, 'destroyArea']);
             Route::put('/subareas/{subarea}', [CatalogoAdminController::class, 'updateSubarea']);

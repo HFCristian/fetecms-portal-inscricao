@@ -57,6 +57,22 @@ class RegistroAtividadeService
         ]);
     }
 
+    /**
+     * Mudança de um parâmetro da avaliação online (datas e mínimos). Guarda o
+     * valor anterior e o novo já formatados para leitura.
+     */
+    public function parametroAvaliacao(TipoRegistro $tipo, User $admin, ?string $de, ?string $para): RegistroAtividade
+    {
+        return RegistroAtividade::create([
+            'tipo' => $tipo,
+            'user_id' => $admin->id,
+            'autor_email' => $admin->email,
+            'autor_nome' => $admin->name,
+            'autor_role' => $admin->role?->value,
+            'detalhes' => ['de' => $de, 'para' => $para],
+        ]);
+    }
+
     private function registrarProjeto(TipoRegistro $tipo, Projeto $projeto, User $autor): RegistroAtividade
     {
         $dono = $projeto->relationLoaded('user') ? $projeto->user : $projeto->user()->first();
@@ -89,7 +105,12 @@ class RegistroAtividadeService
     {
         $busca = trim((string) ($filtros['busca'] ?? ''));
 
+        $daSecao = ! empty($filtros['secao'])
+            ? array_map(fn (TipoRegistro $t) => $t->value, TipoRegistro::daSecao($filtros['secao']))
+            : null;
+
         return RegistroAtividade::query()
+            ->when($daSecao !== null, fn ($q) => $q->whereIn('tipo', $daSecao))
             ->when(! empty($filtros['tipos']), fn ($q) => $q->whereIn('tipo', $filtros['tipos']))
             ->when(! empty($filtros['de']), fn ($q) => $q->whereDate('created_at', '>=', $filtros['de']))
             ->when(! empty($filtros['ate']), fn ($q) => $q->whereDate('created_at', '<=', $filtros['ate']))
@@ -128,7 +149,7 @@ class RegistroAtividadeService
             ->pluck('total', 'tipo');
 
         $totais = [];
-        foreach (TipoRegistro::cases() as $tipo) {
+        foreach (TipoRegistro::daSecao($filtros['secao'] ?? null) as $tipo) {
             $totais[$tipo->value] = (int) ($contagem[$tipo->value] ?? 0);
         }
 
@@ -186,6 +207,10 @@ class RegistroAtividadeService
 
         if ($registro->tipo === TipoRegistro::TrocaEmail && isset($detalhes['de'], $detalhes['para'])) {
             $partes[] = $detalhes['de'].' → '.$detalhes['para'];
+        }
+        if ($registro->tipo->secao() === TipoRegistro::SECAO_AVALIACAO && array_key_exists('para', $detalhes)) {
+            $valor = fn ($v) => ($v === null || $v === '') ? '(sem valor)' : (string) $v;
+            $partes[] = $valor($detalhes['de'] ?? null).' → '.$valor($detalhes['para']);
         }
         if (! empty($detalhes['por_admin'])) {
             $partes[] = 'executado pelo admin';

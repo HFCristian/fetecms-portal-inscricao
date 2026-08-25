@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Enums\GrupoCorrelato;
 use App\Models\Area;
 use App\Models\Cidade;
 use App\Models\Edicao;
@@ -106,6 +107,12 @@ class CatalogoSeeder extends Seeder
 
         foreach ($arvore as $area => $subareas) {
             $a = Area::firstOrCreate(['nome' => $area]);
+
+            // Grupo de áreas correlatas (fallback da distribuição): deduzido do nome.
+            if ($a->grupo_correlato === null) {
+                $a->update(['grupo_correlato' => GrupoCorrelato::peloNome($area)]);
+            }
+
             foreach ($subareas as $sub) {
                 $a->subareas()->firstOrCreate(['nome' => $sub]);
             }

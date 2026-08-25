@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\GrupoCorrelato;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\AreaCorrelacaoRequest;
 use App\Http\Requests\Admin\AreaUpdateRequest;
 use App\Http\Requests\Admin\MesclarAreaRequest;
 use App\Http\Requests\Admin\MesclarSubareaRequest;
@@ -30,6 +32,13 @@ class CatalogoAdminController extends Controller
         $this->catalogo->renomearArea($area, $request->validated()['nome']);
 
         return $this->arvore('Área renomeada.');
+    }
+
+    public function correlacao(AreaCorrelacaoRequest $request, Area $area): JsonResponse
+    {
+        $this->catalogo->definirCorrelacao($area, $request->grupo());
+
+        return $this->arvore('Áreas correlatas atualizadas.');
     }
 
     public function mergeArea(MesclarAreaRequest $request, Area $area): JsonResponse
@@ -69,11 +78,13 @@ class CatalogoAdminController extends Controller
 
     private function arvore(?string $message = null): JsonResponse
     {
-        $payload = ['data' => $this->catalogo->arvore()];
+        // Os grupos de correlação vão em toda resposta: a tela monta o seletor de
+        // cada área a partir daí, sem precisar de uma segunda requisição.
+        $meta = ['grupos' => GrupoCorrelato::opcoes()];
         if ($message !== null) {
-            $payload['meta'] = ['message' => $message];
+            $meta['message'] = $message;
         }
 
-        return response()->json($payload);
+        return response()->json(['data' => $this->catalogo->arvore(), 'meta' => $meta]);
     }
 }

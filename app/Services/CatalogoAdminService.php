@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\GrupoCorrelato;
 use App\Models\Area;
 use App\Models\Subarea;
 use Illuminate\Support\Facades\Cache;
@@ -31,6 +32,8 @@ class CatalogoAdminService
             'id' => $a->id,
             'nome' => $a->nome,
             'usos' => $usosArea[$a->id] ?? 0,
+            'grupo_correlato' => $a->grupo_correlato?->value,
+            'grupo_correlato_label' => $a->grupo_correlato?->label(),
             'subareas' => $a->subareas->sortBy('nome', SORT_NATURAL | SORT_FLAG_CASE)
                 ->map(fn (Subarea $s) => [
                     'id' => $s->id,
@@ -43,6 +46,17 @@ class CatalogoAdminService
     public function renomearArea(Area $area, string $nome): void
     {
         $area->update(['nome' => $nome]);
+        $this->limparCache();
+    }
+
+    /**
+     * Define (ou tira) o grupo de áreas correlatas da área. É esse grupo que a
+     * distribuição usa como fallback quando a própria área do projeto não tem
+     * mais avaliador disponível.
+     */
+    public function definirCorrelacao(Area $area, ?GrupoCorrelato $grupo): void
+    {
+        $area->update(['grupo_correlato' => $grupo]);
         $this->limparCache();
     }
 

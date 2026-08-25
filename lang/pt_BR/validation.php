@@ -20,6 +20,7 @@ return [
     'digits' => 'O campo :attribute deve ter :digits dígitos.',
     'digits_between' => 'O campo :attribute deve ter entre :min e :max dígitos.',
     'email' => 'O campo :attribute deve ser um endereço de e-mail válido.',
+    'enum' => 'O :attribute selecionado é inválido.',
     'exists' => 'O :attribute selecionado é inválido.',
     'file' => 'O campo :attribute deve ser um arquivo.',
     'filled' => 'O campo :attribute é obrigatório.',

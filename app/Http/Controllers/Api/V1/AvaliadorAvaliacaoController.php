@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\StatusAvaliacao;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Avaliador\ConcluirAvaliacaoRequest;
 use App\Http\Requests\Avaliador\RascunhoAvaliacaoRequest;
 use App\Models\Avaliacao;
 use App\Models\Edicao;
 use App\Services\AvaliacaoFluxoService;
+use App\Services\FilaAvaliadorService;
 use App\Support\Rubrica;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -21,7 +23,10 @@ use Illuminate\Http\Request;
  */
 class AvaliadorAvaliacaoController extends Controller
 {
-    public function __construct(private readonly AvaliacaoFluxoService $fluxo) {}
+    public function __construct(
+        private readonly AvaliacaoFluxoService $fluxo,
+        private readonly FilaAvaliadorService $fila,
+    ) {}
 
     /** Lista os projetos designados ao avaliador (se puder avaliar agora). */
     public function index(Request $request): JsonResponse
@@ -31,13 +36,34 @@ class AvaliadorAvaliacaoController extends Controller
         $podeVer = $this->fluxo->podeVer($user, $teste);
         $pode = $this->fluxo->podeAvaliar($user, $teste);
 
+        // Quantos projetos o avaliador enxerga de uma vez: o mínimo por avaliador
+        // definido pelo admin. O teto vale só para a fila de trabalho — o que ele
+        // já avaliou fica na seção de concluídos, sem limite.
+        $minPorAvaliador = Edicao::minPorAvaliador();
+
         $projetos = [];
+        $concluidos = [];
+
         if ($podeVer) {
-            $projetos = Avaliacao::query()
+            $avaliacoes = Avaliacao::query()
                 ->where('avaliador_id', $user->id)
                 ->with(['projeto:id,titulo,area_id', 'projeto.area:id,nome'])
-                ->get()
+                ->orderBy('id')
+                ->get();
+
+            [$concluidas, $pendentes] = $avaliacoes->partition(
+                fn (Avaliacao $a) => $a->status === StatusAvaliacao::Concluida,
+            );
+
+            $projetos = $pendentes->take($minPorAvaliador)
                 ->map(fn (Avaliacao $a) => $this->linha($a))
+                ->values()
+                ->all();
+
+            // Mais recentes primeiro: o que ele acabou de enviar aparece no topo.
+            $concluidos = $concluidas->sortByDesc(fn (Avaliacao $a) => $a->concluida_em ?? $a->updated_at)
+                ->map(fn (Avaliacao $a) => $this->linha($a))
+                ->values()
                 ->all();
         }
 
@@ -54,8 +80,36 @@ class AvaliadorAvaliacaoController extends Controller
             'is_demo' => (bool) $user->is_demo,
             'modo_teste' => $teste && (bool) $user->is_demo,
             'nota_maxima' => Avaliacao::notaMaxima(),
+            'min_por_avaliador' => $minPorAvaliador,
+            // Fila de trabalho e histórico ficam em listas separadas: a tela do
+            // avaliador mostra cada uma na sua seção.
             'projetos' => $projetos,
+            'concluidos' => $concluidos,
         ]]);
+    }
+
+    /**
+     * Sorteia outros projetos para a fila do avaliador. O que já está em
+     * avaliação e o que o admin designou continuam onde estão.
+     */
+    public function roletar(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        abort_unless(
+            $this->fluxo->podeAvaliar($user, $request->boolean('teste')),
+            403,
+            $this->fluxo->motivoBloqueio()
+        );
+
+        $resultado = $this->fila->roletar($user);
+
+        return response()->json([
+            'data' => $resultado,
+            'meta' => ['message' => $resultado['trocados'] === 0
+                ? 'Não há projeto para sortear: os da sua fila já estão em avaliação ou foram designados pela organização.'
+                : "Fila sorteada de novo: {$resultado['recebidos']} projeto(s) na sua lista."],
+        ]);
     }
 
     /** Abre um projeto designado para leitura. */
@@ -137,6 +191,7 @@ class AvaliadorAvaliacaoController extends Controller
             'status' => $a->status->value,
             'status_label' => $a->status->label(),
             'nota' => $a->nota,
+            'concluida_em_label' => $a->concluida_em?->format('d/m/Y H:i'),
         ];
     }
 

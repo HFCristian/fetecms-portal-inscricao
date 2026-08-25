@@ -41,5 +41,14 @@ enum Categoria: string
         return $this === self::Fetecms;
     }
 
+    /** @return array<int, array{value: string, label: string}> */
+    public static function opcoes(): array
+    {
+        return array_map(
+            fn (self $c) => ['value' => $c->value, 'label' => $c->label()],
+            self::cases(),
+        );
+    }
+
     public const MIN_ALUNOS = 1;
 }

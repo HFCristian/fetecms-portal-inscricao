@@ -2,19 +2,27 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\Categoria;
 use App\Enums\ProjetoStatus;
+use App\Enums\StatusAvaliacao;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\AplicarReclassificacaoRequest;
 use App\Http\Requests\Admin\DesignarAvaliacaoRequest;
 use App\Http\Requests\Admin\EncerramentoAvaliacaoRequest;
 use App\Http\Requests\Admin\LiberacaoAvaliacaoRequest;
 use App\Http\Requests\Admin\LimiteAvaliadorRequest;
+use App\Http\Requests\Admin\ListarAvaliadoresRequest;
+use App\Http\Requests\Admin\ListarProjetosAvaliacaoRequest;
+use App\Http\Requests\Admin\MinimosAvaliacaoRequest;
+use App\Models\Edicao;
 use App\Models\Projeto;
 use App\Models\User;
 use App\Services\AdminAvaliacaoService;
 use App\Services\DistribuicaoService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Telas de "Avaliação online" (somente admin): visão dos avaliadores por área
@@ -28,9 +36,42 @@ class AdminAvaliacaoController extends Controller
     ) {}
 
     /** Avaliadores agrupados por área, com o progresso de avaliação de cada um. */
-    public function avaliadores(): JsonResponse
+    public function avaliadores(ListarAvaliadoresRequest $request): JsonResponse
     {
-        return response()->json(['data' => $this->service->avaliadoresPorArea()]);
+        $filtros = $request->filtros();
+        $pagina = $this->service->avaliadores($filtros, (int) ($request->validated('por_pagina') ?? 50));
+
+        return response()->json([
+            'data' => array_map(fn ($u) => $this->service->linhaAvaliador($u), $pagina->items()),
+            'meta' => [
+                'pagina_atual' => $pagina->currentPage(),
+                'por_pagina' => $pagina->perPage(),
+                'ultima_pagina' => $pagina->lastPage(),
+                'total' => $pagina->total(),
+                'areas' => $this->service->areasComAvaliador(),
+                'ordenar' => $filtros['ordenar'],
+                'direcao' => $filtros['direcao'],
+            ],
+        ]);
+    }
+
+    /** Lista enxuta (id, nome, área) para os seletores de designação. */
+    public function avaliadoresOpcoes(Request $request): JsonResponse
+    {
+        return response()->json([
+            'data' => $this->service->opcoesAvaliadores($request->boolean('comissao')),
+        ]);
+    }
+
+    /** CSV da tabela de avaliadores, no mesmo recorte de filtros da tela. */
+    public function exportarAvaliadores(ListarAvaliadoresRequest $request): Response
+    {
+        $csv = $this->service->exportarAvaliadoresCsv($request->filtros());
+
+        return response($csv, 200, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="avaliadores-'.now()->format('Y-m-d-His').'.csv"',
+        ]);
     }
 
     /** Configuração do período de avaliação (liberação + encerramento). */
@@ -42,7 +83,7 @@ class AdminAvaliacaoController extends Controller
     /** Define/remove a data de liberação da avaliação (edição atual). */
     public function definirLiberacao(LiberacaoAvaliacaoRequest $request): JsonResponse
     {
-        $config = $this->service->definirLiberacao($request->validated('liberada_em'));
+        $config = $this->service->definirLiberacao($request->validated('liberada_em'), $request->user());
 
         return response()->json(['data' => $config, 'meta' => ['message' => 'Liberação atualizada.']]);
     }
@@ -50,7 +91,7 @@ class AdminAvaliacaoController extends Controller
     /** Define/remove a data de encerramento da avaliação (edição atual). */
     public function definirEncerramento(EncerramentoAvaliacaoRequest $request): JsonResponse
     {
-        $config = $this->service->definirEncerramento($request->validated('encerrada_em'));
+        $config = $this->service->definirEncerramento($request->validated('encerrada_em'), $request->user());
 
         return response()->json([
             'data' => $config,
@@ -58,6 +99,14 @@ class AdminAvaliacaoController extends Controller
                 ? 'Encerramento da avaliação salvo.'
                 : 'Encerramento removido — a avaliação segue aberta.'],
         ]);
+    }
+
+    /** Define os mínimos de avaliações (por avaliador e por projeto). */
+    public function definirMinimos(MinimosAvaliacaoRequest $request): JsonResponse
+    {
+        $config = $this->service->definirMinimos($request->validated(), $request->user());
+
+        return response()->json(['data' => $config, 'meta' => ['message' => 'Mínimos atualizados.']]);
     }
 
     /** Projetos submetidos por área, com realizadas/em avaliação/faltantes. */
@@ -93,14 +142,53 @@ class AdminAvaliacaoController extends Controller
     {
         $filtros = $request->validate([
             'area_id' => ['nullable', 'integer', 'exists:areas,id'],
+            'categoria' => ['nullable', Rule::enum(Categoria::class)],
         ]);
 
-        return response()->json(['data' => $this->service->rankingProjetos($filtros)]);
+        return response()->json([
+            'data' => $this->service->rankingProjetos($filtros),
+            'meta' => ['categorias' => Categoria::opcoes()],
+        ]);
     }
 
-    public function projetos(): JsonResponse
+    /** Ranking dos avaliadores que mais concluíram avaliações. */
+    public function rankingAvaliadores(): JsonResponse
     {
-        return response()->json(['data' => $this->service->projetosSubmetidosPorArea()]);
+        return response()->json(['data' => $this->service->rankingAvaliadores()]);
+    }
+
+    public function projetos(ListarProjetosAvaliacaoRequest $request): JsonResponse
+    {
+        $filtros = $request->filtros();
+        $pagina = $this->service->projetos($filtros, (int) ($request->validated('por_pagina') ?? 50));
+
+        return response()->json([
+            'data' => array_map(fn ($p) => $this->service->linhaProjeto($p), $pagina->items()),
+            'meta' => [
+                'pagina_atual' => $pagina->currentPage(),
+                'por_pagina' => $pagina->perPage(),
+                'ultima_pagina' => $pagina->lastPage(),
+                'total' => $pagina->total(),
+                'areas' => $this->service->areasComProjeto(),
+                'categorias' => Categoria::opcoes(),
+                // Cards do topo da tela: mesmo recorte de filtros da tabela.
+                'resumo_areas' => $this->service->resumoProjetosPorArea($filtros),
+                'min_por_projeto' => Edicao::minPorProjeto(),
+                'ordenar' => $filtros['ordenar'],
+                'direcao' => $filtros['direcao'],
+            ],
+        ]);
+    }
+
+    /** CSV da tabela de projetos, no mesmo recorte de filtros da tela. */
+    public function exportarProjetos(ListarProjetosAvaliacaoRequest $request): Response
+    {
+        $csv = $this->service->exportarProjetosCsv($request->filtros());
+
+        return response($csv, 200, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="projetos-submetidos-'.now()->format('Y-m-d-His').'.csv"',
+        ]);
     }
 
     /** Designa um projeto submetido a um avaliador ou a todos de uma área/subárea. */
@@ -112,10 +200,13 @@ class AdminAvaliacaoController extends Controller
             'Só é possível designar avaliações de projetos submetidos.'
         );
 
+        $alvoId = $request->validated('alvo_id');
+
         $novas = $this->service->designar(
             $projeto,
             $request->validated('tipo'),
-            (int) $request->validated('alvo_id'),
+            $alvoId === null ? null : (int) $alvoId,
+            $request->avaliadorIds(),
         );
 
         return response()->json([
@@ -151,6 +242,73 @@ class AdminAvaliacaoController extends Controller
             'data' => ['is_demo' => $demo],
             'meta' => ['message' => $demo ? 'Avaliador marcado como demo.' : 'Avaliador não é mais demo.'],
         ]);
+    }
+
+    /** Marca/desmarca o avaliador como membro da comissão especial. */
+    public function comissao(Request $request, User $avaliador): JsonResponse
+    {
+        abort_unless($avaliador->isAvaliador(), 404, 'Avaliador não encontrado.');
+        $comissao = $request->validate(['comissao_especial' => ['required', 'boolean']])['comissao_especial'];
+
+        $this->service->definirComissao($avaliador, $comissao);
+
+        return response()->json([
+            'data' => ['comissao_especial' => $comissao],
+            'meta' => ['message' => $comissao
+                ? 'Avaliador incluído na comissão especial.'
+                : 'Avaliador removido da comissão especial.'],
+        ]);
+    }
+
+    /**
+     * Libera uma área (e, opcionalmente, subárea) a mais para o avaliador — só o
+     * admin pode ampliar o alcance de um avaliador.
+     */
+    public function adicionarAreaExtra(Request $request, User $avaliador): JsonResponse
+    {
+        abort_unless($avaliador->isAvaliador(), 404, 'Avaliador não encontrado.');
+
+        $dados = $request->validate([
+            'area_id' => ['required', 'integer', 'exists:areas,id'],
+            'subarea_id' => ['nullable', 'integer', 'exists:subareas,id'],
+        ]);
+
+        $this->service->adicionarAreaExtra($avaliador, (int) $dados['area_id'], $dados['subarea_id'] ?? null);
+
+        return response()->json([
+            'data' => $this->service->linhaAvaliador($this->recarregar($avaliador)),
+            'meta' => ['message' => 'Área liberada para o avaliador.'],
+        ]);
+    }
+
+    /** Remove uma área extra do avaliador. */
+    public function removerAreaExtra(User $avaliador, int $extra): JsonResponse
+    {
+        abort_unless($avaliador->isAvaliador(), 404, 'Avaliador não encontrado.');
+
+        $this->service->removerAreaExtra($avaliador, $extra);
+
+        return response()->json([
+            'data' => $this->service->linhaAvaliador($this->recarregar($avaliador)),
+            'meta' => ['message' => 'Área removida.'],
+        ]);
+    }
+
+    /** Recarrega o avaliador com o que a linha da tabela precisa mostrar. */
+    private function recarregar(User $avaliador): User
+    {
+        return User::query()
+            ->with([
+                'avaliadorProfile.area:id,nome',
+                'avaliadorProfile.subarea:id,nome',
+                'avaliadorProfile.areasExtras.area:id,nome',
+                'avaliadorProfile.areasExtras.subarea:id,nome',
+            ])
+            ->withCount([
+                'avaliacoes as em_avaliacao_count' => fn ($q) => $q->where('status', StatusAvaliacao::EmAndamento->value),
+                'avaliacoes as avaliou_count' => fn ($q) => $q->where('status', StatusAvaliacao::Concluida->value),
+            ])
+            ->findOrFail($avaliador->id);
     }
 
     /** Apaga todas as avaliações dos avaliadores demo (dados de teste). */

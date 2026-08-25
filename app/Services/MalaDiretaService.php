@@ -2,10 +2,8 @@
 
 namespace App\Services;
 
-use App\Enums\ProjetoStatus;
 use App\Enums\PublicoMala;
 use App\Enums\Role;
-use App\Enums\StatusAvaliacao;
 use App\Enums\StatusDestinatario;
 use App\Enums\StatusMala;
 use App\Jobs\EnviarMalaDireta;
@@ -440,33 +438,13 @@ class MalaDiretaService
     }
 
     /**
-     * Consulta de cada público. Sempre só contas ativas e não demo — conta de
-     * teste não recebe comunicado.
+     * Consulta de cada público. A regra mora no PublicoUsuariosService, que os
+     * avisos na tela também usam.
      *
      * @return Builder<User>
      */
     public function queryPublico(PublicoMala $publico): Builder
     {
-        $base = User::query()->where('is_active', true)->where('is_demo', false);
-
-        $submetidos = [
-            ProjetoStatus::Submetido->value,
-            ProjetoStatus::Aprovado->value,
-            ProjetoStatus::Rejeitado->value,
-        ];
-
-        return match ($publico) {
-            PublicoMala::Todos => $base->whereIn('role', [Role::Orientador, Role::Avaliador]),
-            PublicoMala::Orientadores => $base->where('role', Role::Orientador),
-            PublicoMala::Avaliadores => $base->where('role', Role::Avaliador),
-            PublicoMala::OrientadoresRascunho => $base->where('role', Role::Orientador)
-                ->whereHas('projetos', fn ($q) => $q->where('status', ProjetoStatus::Rascunho)),
-            PublicoMala::OrientadoresSubmetidos => $base->where('role', Role::Orientador)
-                ->whereHas('projetos', fn ($q) => $q->whereIn('status', $submetidos)),
-            PublicoMala::AvaliadoresPendentes => $base->where('role', Role::Avaliador)
-                ->whereHas('avaliacoes', fn ($q) => $q->where('status', StatusAvaliacao::EmAndamento)),
-            PublicoMala::AvaliadoresConcluidas => $base->where('role', Role::Avaliador)
-                ->whereHas('avaliacoes', fn ($q) => $q->where('status', StatusAvaliacao::Concluida)),
-        };
+        return app(PublicoUsuariosService::class)->query($publico);
     }
 }

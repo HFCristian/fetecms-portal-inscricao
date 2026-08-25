@@ -76,7 +76,11 @@ Tabela `users` única com coluna `role`: **`orientador`**, **`avaliador`**, **`a
     mais avaliou (só entra quem já concluiu ao menos uma; empate divide a posição). Na mesma
     tela ele **troca a própria área/subárea — só enquanto o período de avaliação não começou**
     (`Edicao::avaliacaoLiberada()`), porque depois a distribuição já foi feita em cima dela.
-  - Cada projeto passa por **≥ 3 avaliadores**, com *match* por **subárea** (preferencial) ou **área**.
+  - Cada projeto passa pelo **mínimo de avaliadores definido pelo admin** (padrão 3), com *match* por
+    **subárea** (preferencial), **área** ou **área correlata** — o grupo de áreas irmãs configurado em
+    Parametrização → Áreas. Concluída uma avaliação, o avaliador **recebe outro projeto na hora**, e
+    ele pode **sortear de novo** o que ainda não abriu (o que está em avaliação e o que o admin
+    designou permanecem).
   - **Distribuição automática**: casa subárea do projeto ↔ subárea do avaliador; se não houver,
     cai para a **mesma área**. (Algoritmo ainda a refinar.)
   - Cada projeto fica visível para **no máximo 5 avaliadores**.
@@ -235,8 +239,73 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 27 | Aba Comunicação (mala direta + avisos) e remoção da aba Inscrições | ✅ sim | ❌ não (manual do Pedro) | 3 |
 | 28 | Projetos por área: cards por área (submetidos/rascunho) + áreas compactáveis | ✅ sim | ❌ não (manual do Pedro) | 4 |
 | 29 | Aba "Acesso": e-mail e senha na mesma tela + menu do admin reordenado | ✅ sim | ❌ não (manual do Pedro) | 4 |
-| 30 | Painel do admin: categoria, orientadores, alunos e coorientadores contam só projetos submetidos | ✅ sim | ❌ não (manual do Pedro) | 0 |
+| 30 | Painel do admin: categoria, orientadores, alunos e coorientadores contam só projetos submetidos | ✅ sim | ✅ sim (Pedro, PR #59) | 0 |
+| 31 | Áreas correlatas: `areas.grupo_correlato` + fallback da distribuição para área irmã | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 32 | Parametrização → Avaliação Online: mínimo de avaliações por avaliador e por projeto | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 33 | Painel do avaliador: abas "A avaliar" e "Avaliados" | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 34 | Reposição automática da fila ao concluir (prioridades área+subárea → área → correlata → sorteio) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 35 | Botão "Sortear outros projetos" (só as designadas não iniciadas) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 36 | Registros em duas seções (Inscrições / Avaliação Online) + log das parametrizações | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 37 | Avaliadores Online: tabela única com busca, filtro, ordenação e CSV | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 38 | Avaliador: comissão especial + áreas/subáreas extras liberadas pelo admin | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 39 | Projetos submetidos: tabela única com busca, filtros, ordenação e CSV | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 40 | Projetos submetidos: cards de resumo por área (0/1/2/3+ avaliações), presos aos filtros | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 41 | Designação ao comitê especial (completa ou selecionada) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 42 | Ranking dos projetos: filtro por categoria | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 43 | Ranking dos avaliadores (nome, área, números e localidade) + estado/cidade no avaliador | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 44 | Comissão especial como público da mala direta | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 45 | Avisos com públicos combináveis (moldes da mala direta) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 46 | Avisos com data de expiração na tela | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprints 31–46 (branch `feat/designacao-e-comissao-especial`, saída da `origin/main` @ `71bafa8`):**
+> ciclo de designação, comissão especial e comunicação segmentada. Um commit a cada duas sprints.
+> (a) **Sprint 31** — **áreas correlatas**: `areas.grupo_correlato` (enum `GrupoCorrelato`: *vida*,
+> *exatas_engenharias*, *humanidades*), com backfill pelo nome e seleção pelo admin em
+> Parametrização → Áreas (`PATCH /admin/areas/{area}/correlacao`). A `DistribuicaoService` casa
+> subárea → área → **área irmã**: o projeto só sai do próprio grupo quando a área se esgota.
+> Área sem grupo não tem irmã.
+> (b) **Sprint 32** — os mínimos deixaram de ser constantes: `edicoes.avaliacoes_min_por_avaliador`
+> (que é também **quantos projetos o avaliador vê**) e `edicoes.avaliacoes_min_por_projeto` (alvo da
+> distribuição e base de "faltantes"), editáveis em Parametrização → Avaliação Online
+> (`PATCH /admin/avaliacao/minimos`, componente `CampoNumeroCard`).
+> (c) **Sprint 33** — o painel do avaliador separou **"A avaliar"** de **"Avaliados"**: a API devolve
+> `projetos` (fila limitada ao mínimo) e `concluidos` (histórico, com data e nota).
+> (d) **Sprint 34** — **`FilaAvaliadorService`**: concluída uma avaliação, a fila é completada na hora
+> pela prioridade do edital — área+subárea → área → correlata → **sorteio** (quando tudo que se
+> encaixa já bateu o mínimo, com os abaixo do mínimo na frente). Dentro da faixa entra o projeto com
+> menos avaliações recebidas e em andamento; respeita `Avaliacao::TETO_POR_PROJETO` (5) e o bloqueio
+> individual; demo e inativo ficam de fora.
+> (e) **Sprint 35** — **`POST /avaliacao/roletar`** devolve ao bolo o que o avaliador ainda não abriu e
+> puxa outros. O que está **em avaliação** e o que o **admin designou** (nova coluna
+> `avaliacoes.designacao_manual`) não entram no sorteio; sem alternativa, os mesmos voltam.
+> (f) **Sprint 36** — **Registros** virou landing com duas seções: `/admin/registros/inscricoes` e
+> `/admin/registros/avaliacao`. `TipoRegistro` ganhou seção e quatro tipos (início, fim e os dois
+> mínimos), cada mudança com o "de → para" e o autor; salvar o mesmo valor não gera registro.
+> (g) **Sprint 37** — **Avaliadores Online** virou **uma tabela só**: busca por nome/e-mail, filtro por
+> área e situação, ordenação por qualquer coluna (inclusive **data de cadastro**), paginação e CSV.
+> A designação passou a usar `GET /admin/avaliacao/avaliadores/opcoes`.
+> (h) **Sprint 38** — o item do avaliador ganhou **comissão especial**
+> (`avaliador_profiles.comissao_especial`, estilo favoritar) e **áreas extras**
+> (`avaliador_areas_extras`): o admin libera outras áreas/subáreas, que valem como próprias na
+> distribuição e na reposição. Só o admin escreve os dois.
+> (i) **Sprint 39** — **Projetos submetidos** virou tabela única (busca por título, filtro por área e
+> categoria, ordenação, CSV), com o botão Designar em cada linha.
+> (j) **Sprint 40** — **cards de resumo por área** no topo daquela tela: quantos projetos estão com
+> 0, 1, 2 e 3+ avaliações concluídas; respondem aos mesmos filtros da tabela.
+> (k) **Sprint 41** — designação **ao comitê especial**, inteira ou por seleção
+> (`tipo=comissao` + `avaliador_ids`).
+> (l) **Sprint 42** — **ranking dos projetos** com filtro por **categoria**, cruzando com o de área.
+> (m) **Sprint 43** — nova seção **Ranking dos avaliadores** (nome, área, concluídas, em avaliação,
+> cidade/UF), com empate dividindo a posição e demo fora. Para isso, o avaliador ganhou
+> **estado/cidade** (opcionais) no cadastro e em `/avaliador/perfil`.
+> (n) **Sprint 44** — **comissão especial** virou público da **mala direta**. A consulta de públicos
+> saiu para o `PublicoUsuariosService`, hoje compartilhado com os avisos.
+> (o) **Sprints 45–46** — **avisos segmentados**: `avisos.publicos` (os mesmos recortes da mala
+> direta, combináveis) e `avisos.expira_em`. Vários avisos convivem no ar, um por público, e cada
+> pessoa vê **o mais recente que a alcança**; republicar para a mesma seleção encerra o anterior.
+> O card passou a valer também para o **avaliador**, e o relatório usa o público do próprio aviso.
+> Back **501/501**, front **223/223**, Pint limpo, build OK.
+>
 > **Estado atual:** ciclo de ajustes pós-v1 (Sprints 6–10) **concluído e verde** — back 110/110,
 > front 11/11, Pint limpo, build OK (estado integrado, já com a refatoração visual do Pedro).
 > A Sprint 10 ficou versionada **junto** das correções visuais do Pedro no commit `f502e4f`
@@ -251,10 +320,12 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > e **Escolas** (`/admin/parametrizacao/escolas`): admin busca, **renomeia, mescla** (reatribui
 > projetos/alunos/orientadores) e **exclui** instituições sem uso (`InstituicaoAdminService`/Controller,
 > rotas `admin/instituicoes`). Back **117/117**, front 11/11, Pint limpo, build OK.
-> **Pendências do Pedro:** (1) `git push origin fix/cards-admin-somente-submetidos` + PR para a
+> **Pendências do Pedro:** (1) `git push origin feat/designacao-e-comissao-especial` + PR para a
 > `main` (o ambiente do Claude não tem credencial do GitHub) e, depois do merge, o deploy pela §11
-> do [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md) — esta release **não tem migration nem variável nova
-> de `.env`** (só muda consulta do painel); a fila (`queue:work`) continua obrigatória.
+> do [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). Esta release **tem migrations** (áreas correlatas,
+> mínimos da edição, designação manual, comissão/áreas extras, localidade do avaliador e públicos/
+> expiração dos avisos) e **nenhuma variável nova de `.env`**; a fila (`queue:work`) continua
+> obrigatória.
 > A pendência anterior (`feat/reorganizacao-abas`) já entrou na `main` pelos PRs **#57** (v1.16) e
 > **#58** (v1.16.2); (2) popular as escolas com
 > `php artisan instituicoes:importar` (lê `database/data/instituicoes/escolas_ms.csv`; 1888 escolas

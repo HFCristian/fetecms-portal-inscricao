@@ -78,13 +78,15 @@ function Linha({ p }) {
 export default function AvaliacaoRanking() {
     const [lista, setLista] = useState(null);
     const [areas, setAreas] = useState([]);
+    const [categorias, setCategorias] = useState([]);
     const [areaId, setAreaId] = useState('');
+    const [categoria, setCategoria] = useState('');
     const [erro, setErro] = useState('');
 
     const buscar = useCallback((filtros) => {
         setErro('');
         return getRankingAvaliacao(filtros)
-            .then(setLista)
+            .then((resp) => { setLista(resp.data); setCategorias(resp.meta?.categorias ?? []); })
             .catch(() => { setLista([]); setErro('Não foi possível carregar o ranking.'); });
     }, []);
 
@@ -93,10 +95,12 @@ export default function AvaliacaoRanking() {
         loadAreas().then(setAreas).catch(() => setAreas([]));
     }, [buscar]);
 
-    function onArea(valor) {
-        setAreaId(valor);
+    // Área e categoria são independentes: o ranking sai do cruzamento das duas.
+    function filtrar(campo, valor) {
+        const filtros = { area_id: areaId, categoria, [campo]: valor };
+        if (campo === 'area_id') setAreaId(valor); else setCategoria(valor);
         setLista(null);
-        buscar({ area_id: valor });
+        buscar(filtros);
     }
 
     const parciais = (lista ?? []).filter((p) => !p.completo).length;
@@ -113,15 +117,29 @@ export default function AvaliacaoRanking() {
             </p>
 
             <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-4 mb-6 max-w-3xl">
-                <label className="block text-sm font-semibold text-on-surface mb-1" htmlFor="ranking-area">
-                    Área do conhecimento
-                </label>
-                <select id="ranking-area" className={campoClass} value={areaId} onChange={(e) => onArea(e.target.value)}>
-                    <option value="">Todas as áreas</option>
-                    {areas.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
-                </select>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label className="block text-sm font-semibold text-on-surface mb-1" htmlFor="ranking-area">
+                            Área do conhecimento
+                        </label>
+                        <select id="ranking-area" className={campoClass} value={areaId} onChange={(e) => filtrar('area_id', e.target.value)}>
+                            <option value="">Todas as áreas</option>
+                            {areas.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-semibold text-on-surface mb-1" htmlFor="ranking-categoria">
+                            Categoria
+                        </label>
+                        <select id="ranking-categoria" className={campoClass} value={categoria} onChange={(e) => filtrar('categoria', e.target.value)}>
+                            <option value="">Todas as categorias</option>
+                            {categorias.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                        </select>
+                    </div>
+                </div>
                 <p className="text-xs text-on-surface-variant mt-2">
-                    Projetos de áreas diferentes não competem entre si — filtre por área para o ranking que vale.
+                    Projetos de áreas e categorias diferentes não competem entre si — filtre pelos dois para
+                    o ranking que vale.
                 </p>
             </div>
 

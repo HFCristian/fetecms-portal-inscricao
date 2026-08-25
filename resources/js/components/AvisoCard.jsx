@@ -61,6 +61,11 @@ export default function AvisoCard({ ativo = true }) {
                 <h2 className="font-display font-semibold text-primary">{aviso.titulo}</h2>
                 {/* A mensagem é texto puro: quebras de linha preservadas, sem HTML. */}
                 <p className="text-sm text-on-surface mt-1 whitespace-pre-line">{aviso.mensagem}</p>
+                {aviso.expira_em_label && (
+                    <p className="text-xs text-on-surface-variant mt-2">
+                        Este aviso sai da tela em <strong>{aviso.expira_em_label}</strong>.
+                    </p>
+                )}
                 {aviso.publicado_em && (
                     <p className="text-xs text-on-surface-variant mt-2">Publicado em {aviso.publicado_em}</p>
                 )}

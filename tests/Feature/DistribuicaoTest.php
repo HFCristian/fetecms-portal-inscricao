@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\GrupoCorrelato;
 use App\Models\Area;
 use App\Models\Avaliacao;
 use App\Models\AvaliadorProfile;
@@ -113,6 +114,80 @@ class DistribuicaoTest extends TestCase
         $this->distribuir();
 
         $this->assertLessThanOrEqual(1, Avaliacao::where('avaliador_id', $limitado->id)->count());
+    }
+
+    public function test_cai_para_area_irma_quando_a_propria_area_nao_tem_avaliador(): void
+    {
+        $agrarias = Area::create(['nome' => 'Ciências Agrárias', 'grupo_correlato' => GrupoCorrelato::Vida]);
+        $saude = Area::create(['nome' => 'Ciências da Saúde', 'grupo_correlato' => GrupoCorrelato::Vida]);
+        $exatas = Area::create(['nome' => 'Ciências Exatas', 'grupo_correlato' => GrupoCorrelato::ExatasEngenharias]);
+
+        // Nenhum avaliador de Agrárias: os três da área irmã assumem.
+        $irmaos = [$this->avaliador($saude->id), $this->avaliador($saude->id), $this->avaliador($saude->id)];
+        $forasteiro = $this->avaliador($exatas->id);
+
+        $p = $this->projetoSubmetido($agrarias->id);
+
+        $r = $this->distribuir();
+
+        $this->assertSame(3, $r['designadas_criadas']);
+        $this->assertSame([], $r['sub_cobertos']);
+        foreach ($irmaos as $irmao) {
+            $this->assertDatabaseHas('avaliacoes', ['projeto_id' => $p->id, 'avaliador_id' => $irmao->id]);
+        }
+        // Área de outro grupo nunca é chamada.
+        $this->assertDatabaseMissing('avaliacoes', ['avaliador_id' => $forasteiro->id]);
+    }
+
+    public function test_a_propria_area_vem_antes_da_irma(): void
+    {
+        $engenharias = Area::create(['nome' => 'Engenharias', 'grupo_correlato' => GrupoCorrelato::ExatasEngenharias]);
+        $exatas = Area::create(['nome' => 'Ciências Exatas', 'grupo_correlato' => GrupoCorrelato::ExatasEngenharias]);
+
+        $proprios = [$this->avaliador($engenharias->id), $this->avaliador($engenharias->id), $this->avaliador($engenharias->id)];
+        $irmao = $this->avaliador($exatas->id);
+
+        $p = $this->projetoSubmetido($engenharias->id);
+
+        $this->distribuir();
+
+        foreach ($proprios as $proprio) {
+            $this->assertDatabaseHas('avaliacoes', ['projeto_id' => $p->id, 'avaliador_id' => $proprio->id]);
+        }
+        $this->assertDatabaseMissing('avaliacoes', ['projeto_id' => $p->id, 'avaliador_id' => $irmao->id]);
+    }
+
+    public function test_area_sem_grupo_nao_tem_irma(): void
+    {
+        $solta = Area::create(['nome' => 'Área solta']);
+        $outra = Area::create(['nome' => 'Ciências da Saúde', 'grupo_correlato' => GrupoCorrelato::Vida]);
+
+        $this->avaliador($outra->id);
+        $p = $this->projetoSubmetido($solta->id, null, 'Projeto solto');
+
+        $r = $this->distribuir();
+
+        $this->assertSame(0, Avaliacao::where('projeto_id', $p->id)->count());
+        $this->assertCount(1, $r['sub_cobertos']);
+        $this->assertSame(3, $r['sub_cobertos'][0]['faltam']);
+    }
+
+    public function test_completa_com_a_irma_quando_a_propria_area_se_esgota(): void
+    {
+        $biologicas = Area::create(['nome' => 'Ciências Biológicas', 'grupo_correlato' => GrupoCorrelato::Vida]);
+        $saude = Area::create(['nome' => 'Ciências da Saúde', 'grupo_correlato' => GrupoCorrelato::Vida]);
+
+        $proprio = $this->avaliador($biologicas->id);
+        $irmao = $this->avaliador($saude->id);
+        $this->avaliador($saude->id);
+
+        $p = $this->projetoSubmetido($biologicas->id);
+
+        $r = $this->distribuir();
+
+        $this->assertSame(3, $r['designadas_criadas']);
+        $this->assertDatabaseHas('avaliacoes', ['projeto_id' => $p->id, 'avaliador_id' => $proprio->id]);
+        $this->assertDatabaseHas('avaliacoes', ['projeto_id' => $p->id, 'avaliador_id' => $irmao->id]);
     }
 
     public function test_endpoint_de_distribuicao_do_admin(): void

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import AppShell from '../components/AppShell.jsx';
-import { Alert, Toggle } from '../components/ui.jsx';
+import { Alert, Toggle, Button, useConfirm } from '../components/ui.jsx';
 import AvaliacaoModal from '../components/AvaliacaoModal.jsx';
 import { useAuth } from '../lib/auth.jsx';
-import { getMinhaAvaliacao } from '../lib/avaliacao.js';
+import { getMinhaAvaliacao, roletarFila } from '../lib/avaliacao.js';
 
 const PILL = {
     designada: 'bg-surface-variant text-on-surface-variant',
@@ -21,6 +21,83 @@ function botaoLabel(status) {
     return 'Avaliar';
 }
 
+// Uma lista de projetos (a fila de trabalho ou o histórico de avaliados).
+function ListaProjetos({ titulo, itens, dados, vazio, onAbrir }) {
+    return (
+        <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow overflow-hidden max-w-3xl">
+            <div className="px-4 py-3 bg-surface-variant/40">
+                <h2 className="font-display font-semibold text-on-surface">{titulo}</h2>
+            </div>
+            {itens.length === 0 ? (
+                <p className="px-4 py-8 text-center text-sm text-on-surface-variant">{vazio}</p>
+            ) : (
+                <ul className="divide-y divide-outline-variant/30">
+                    {itens.map((p) => (
+                        <li key={p.avaliacao_id} className="px-4 py-3 flex items-center gap-3">
+                            <span className="material-symbols-outlined text-primary-container">
+                                {p.status === 'concluida' ? 'task_alt' : 'description'}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-sm text-on-surface truncate">{p.titulo}</p>
+                                <p className="text-xs text-on-surface-variant truncate">
+                                    {p.area}
+                                    {p.area && p.concluida_em_label ? ' · ' : ''}
+                                    {p.concluida_em_label ? `avaliado em ${p.concluida_em_label}` : ''}
+                                </p>
+                            </div>
+                            {p.status === 'concluida' && (
+                                <span className="text-xs text-on-surface-variant shrink-0">
+                                    nota <strong className="text-secondary">{formatarNota(p.nota)}</strong>
+                                    <span className="text-on-surface-variant/70">/{dados.nota_maxima}</span>
+                                </span>
+                            )}
+                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${PILL[p.status] ?? 'bg-surface-variant'}`}>
+                                {p.status_label}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => onAbrir(p.avaliacao_id)}
+                                className="shrink-0 text-sm font-semibold text-primary-container hover:text-primary border border-outline-variant rounded-lg px-3 py-1.5 hover:bg-surface-variant transition-colors"
+                            >
+                                {dados.pode_avaliar ? botaoLabel(p.status) : 'Ver'}
+                            </button>
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </div>
+    );
+}
+
+// Abas "A avaliar" / "Avaliados": o que já foi enviado sai da fila de trabalho.
+function Abas({ aba, setAba, pendentes, concluidos }) {
+    const abas = [
+        { chave: 'pendentes', rotulo: 'A avaliar', total: pendentes },
+        { chave: 'concluidos', rotulo: 'Avaliados', total: concluidos },
+    ];
+
+    return (
+        <div className="flex gap-2 mb-4 max-w-3xl" role="tablist">
+            {abas.map((t) => (
+                <button
+                    key={t.chave}
+                    type="button"
+                    role="tab"
+                    aria-selected={aba === t.chave}
+                    onClick={() => setAba(t.chave)}
+                    className={`text-sm font-semibold px-4 py-2 rounded-lg border transition-colors ${
+                        aba === t.chave
+                            ? 'bg-primary-container text-on-primary border-primary-container'
+                            : 'bg-surface-container-lowest text-on-surface-variant border-outline-variant hover:bg-surface-variant'
+                    }`}
+                >
+                    {t.rotulo} ({t.total})
+                </button>
+            ))}
+        </div>
+    );
+}
+
 export default function AvaliadorHome() {
     const { user } = useAuth();
     const sub = user?.avaliador_profile?.subarea;
@@ -31,14 +108,44 @@ export default function AvaliadorHome() {
     // ignora o flag — ele continua travado pela data. O toggle só aparece para demo.
     const [modoTeste, setModoTeste] = useState(true);
     const [avaliando, setAvaliando] = useState(null); // avaliacao_id em avaliação
+    const [aba, setAba] = useState('pendentes');
+    const [sorteando, setSorteando] = useState(false);
+    const [avisoSorteio, setAvisoSorteio] = useState('');
+    const [confirm, confirmDialog] = useConfirm();
 
     const carregar = useCallback((teste) => {
         return getMinhaAvaliacao(teste)
             .then(setDados)
-            .catch(() => setDados({ liberada: false, pode_ver: false, pode_avaliar: false, is_demo: false, projetos: [] }));
+            .catch(() => setDados({
+                liberada: false, pode_ver: false, pode_avaliar: false, is_demo: false,
+                projetos: [], concluidos: [],
+            }));
     }, []);
 
     useEffect(() => { carregar(modoTeste); }, [carregar, modoTeste]);
+
+    // Sorteia outra fila. Só mexe no que ainda não foi aberto e não veio do admin.
+    async function sortear() {
+        const ok = await confirm({
+            title: 'Sortear outros projetos',
+            confirmLabel: 'Sortear',
+            message: 'Os projetos que você ainda não abriu voltam para a organização e outros entram no lugar. '
+                + 'O que já está em avaliação e o que foi designado pela organização continuam na sua lista.',
+        });
+        if (!ok) return;
+
+        setSorteando(true);
+        setAvisoSorteio('');
+        try {
+            const resp = await roletarFila(modoTeste && dados?.is_demo);
+            await carregar(modoTeste);
+            setAvisoSorteio(resp.meta?.message || 'Fila sorteada de novo.');
+        } catch {
+            setAvisoSorteio('Não foi possível sortear agora. Tente novamente.');
+        } finally {
+            setSorteando(false);
+        }
+    }
 
     return (
         <AppShell>
@@ -87,44 +194,47 @@ export default function AvaliadorHome() {
                             : 'A partir da data definida pela organização, os projetos designados aparecerão aqui para leitura e avaliação.'}
                     </p>
                 </div>
-            ) : dados.projetos.length === 0 ? (
-                <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-10 text-center text-on-surface-variant max-w-3xl">
-                    <span className="material-symbols-outlined text-[48px] text-primary-container">inbox</span>
-                    <p className="mt-3 text-sm">Nenhum projeto designado a você por enquanto.</p>
-                </div>
             ) : (
-                <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow overflow-hidden max-w-3xl">
-                    <div className="px-4 py-3 bg-surface-variant/40">
-                        <h2 className="font-display font-semibold text-on-surface">Projetos designados a você</h2>
-                    </div>
-                    <ul className="divide-y divide-outline-variant/30">
-                        {dados.projetos.map((p) => (
-                            <li key={p.avaliacao_id} className="px-4 py-3 flex items-center gap-3">
-                                <span className="material-symbols-outlined text-primary-container">description</span>
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-sm text-on-surface truncate">{p.titulo}</p>
-                                    {p.area && <p className="text-xs text-on-surface-variant truncate">{p.area}</p>}
+                <>
+                    <Abas
+                        aba={aba}
+                        setAba={setAba}
+                        pendentes={dados.projetos.length}
+                        concluidos={(dados.concluidos ?? []).length}
+                    />
+                    {aba === 'pendentes' ? (
+                        <>
+                            {avisoSorteio && <div className="mb-3 max-w-3xl"><Alert type="info">{avisoSorteio}</Alert></div>}
+                            <ListaProjetos
+                                titulo="Projetos designados a você"
+                                itens={dados.projetos}
+                                dados={dados}
+                                vazio="Nenhum projeto designado a você por enquanto."
+                                onAbrir={setAvaliando}
+                            />
+                            {dados.pode_avaliar && (
+                                <div className="max-w-3xl mt-3 flex items-center gap-3 flex-wrap">
+                                    <Button type="button" variant="outline" loading={sorteando} onClick={sortear}>
+                                        <span className="material-symbols-outlined text-[18px] align-[-0.2em] mr-1">casino</span>
+                                        Sortear outros projetos
+                                    </Button>
+                                    <p className="text-xs text-on-surface-variant flex-1 min-w-[16rem]">
+                                        Troca os projetos que você ainda não abriu por outros. O que já está em
+                                        avaliação e o que a organização designou permanecem na lista.
+                                    </p>
                                 </div>
-                                {p.status === 'concluida' && (
-                                    <span className="text-xs text-on-surface-variant shrink-0">
-                                        nota <strong className="text-secondary">{formatarNota(p.nota)}</strong>
-                                        <span className="text-on-surface-variant/70">/{dados.nota_maxima}</span>
-                                    </span>
-                                )}
-                                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${PILL[p.status] ?? 'bg-surface-variant'}`}>
-                                    {p.status_label}
-                                </span>
-                                <button
-                                    type="button"
-                                    onClick={() => setAvaliando(p.avaliacao_id)}
-                                    className="shrink-0 text-sm font-semibold text-primary-container hover:text-primary border border-outline-variant rounded-lg px-3 py-1.5 hover:bg-surface-variant transition-colors"
-                                >
-                                    {dados.pode_avaliar ? botaoLabel(p.status) : 'Ver'}
-                                </button>
-                            </li>
-                        ))}
-                    </ul>
-                </div>
+                            )}
+                        </>
+                    ) : (
+                        <ListaProjetos
+                            titulo="Projetos que você já avaliou"
+                            itens={dados.concluidos ?? []}
+                            dados={dados}
+                            vazio="Você ainda não concluiu nenhuma avaliação."
+                            onAbrir={setAvaliando}
+                        />
+                    )}
+                </>
             )}
 
             {avaliando && (
@@ -136,6 +246,7 @@ export default function AvaliadorHome() {
                     onAtualizado={() => carregar(modoTeste)}
                 />
             )}
+            {confirmDialog}
         </AppShell>
     );
 }

@@ -1,5 +1,18 @@
 import http from './http.js';
 
+// Dispara o download de um blob (os CSVs do painel) com o nome que o servidor mandou.
+function baixarBlob(blob, nome) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = nome;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+}
+
+
 export const getDashboard = () => http.get('/admin/dashboard').then((r) => r.data.data);
 
 export const getAvaliadores = () => http.get('/admin/avaliadores').then((r) => r.data.data);
@@ -14,7 +27,8 @@ export const definirInicioInscricoes = (inicio) =>
 
 // Avisos na tela dos orientadores (um ativo por vez).
 export const getAvisoOpcoes = () => http.get('/admin/avisos/opcoes').then((r) => r.data.data);
-export const getAvisoAtivoAdmin = () => http.get('/admin/avisos/ativo').then((r) => r.data.data);
+// Avisos no ar agora: podem ser vários, um por público.
+export const getAvisosVigentes = () => http.get('/admin/avisos/ativo').then((r) => r.data.data);
 export const previaAviso = (payload) => http.post('/admin/avisos/previa', payload).then((r) => r.data.data);
 export const publicarAviso = (payload) => http.post('/admin/avisos', payload).then((r) => r.data);
 export const encerrarAviso = (id) => http.post(`/admin/avisos/${id}/encerrar`).then((r) => r.data);
@@ -40,14 +54,7 @@ export async function exportarAvisoCsv(id, filtros) {
         responseType: 'blob',
     });
     const nome = /filename="([^"]+)"/.exec(r.headers['content-disposition'] ?? '')?.[1] ?? `aviso-${id}.csv`;
-    const url = URL.createObjectURL(r.data);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = nome;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
+    baixarBlob(r.data, nome);
 }
 
 // Avaliação online (E7): configuração de liberação, avaliadores e projetos por área.
@@ -56,13 +63,78 @@ export const definirLiberacaoAvaliacao = (liberadaEm) =>
     http.patch('/admin/avaliacao/config', { liberada_em: liberadaEm }).then((r) => r.data);
 export const definirEncerramentoAvaliacao = (encerradaEm) =>
     http.patch('/admin/avaliacao/encerramento', { encerrada_em: encerradaEm }).then((r) => r.data);
-export const getAvaliacaoAvaliadores = () => http.get('/admin/avaliacao/avaliadores').then((r) => r.data.data);
+// Mínimos do edital: cada card manda só o seu número.
+export const definirMinimoPorAvaliador = (valor) =>
+    http.patch('/admin/avaliacao/minimos', { min_por_avaliador: valor }).then((r) => r.data);
+export const definirMinimoPorProjeto = (valor) =>
+    http.patch('/admin/avaliacao/minimos', { min_por_projeto: valor }).then((r) => r.data);
+// Tabela de avaliadores: { q, area_id, ordenar, direcao, page }. A resposta traz
+// { data, meta } (paginação, áreas para o filtro e a ordenação em vigor).
+const avaliadorParams = ({ q, areaId, situacao, ordenar, direcao, page } = {}) => ({
+    params: {
+        ...(q ? { q } : {}),
+        ...(areaId ? { area_id: areaId } : {}),
+        ...(situacao ? { situacao } : {}),
+        ...(ordenar ? { ordenar } : {}),
+        ...(direcao ? { direcao } : {}),
+        page: page ?? 1,
+    },
+});
+
+export const getAvaliacaoAvaliadores = (filtros) =>
+    http.get('/admin/avaliacao/avaliadores', avaliadorParams(filtros)).then((r) => r.data);
+
+/** Lista enxuta (id, nome, área) para os seletores de designação. */
+export const getOpcoesAvaliadores = (somenteComissao = false) =>
+    http.get('/admin/avaliacao/avaliadores/opcoes', { params: somenteComissao ? { comissao: 1 } : {} })
+        .then((r) => r.data.data);
+
+/** Baixa o CSV da tabela de avaliadores no recorte atual. */
+export async function exportarAvaliadoresCsv(filtros) {
+    const r = await http.get('/admin/avaliacao/avaliadores/exportar', {
+        ...avaliadorParams(filtros),
+        responseType: 'blob',
+    });
+    const nome = /filename="([^"]+)"/.exec(r.headers['content-disposition'] ?? '')?.[1] ?? 'avaliadores.csv';
+    baixarBlob(r.data, nome);
+}
 export const definirLimiteAvaliador = (avaliadorId, limite) =>
     http.patch(`/admin/avaliacao/avaliadores/${avaliadorId}/limite`, { limite }).then((r) => r.data);
 export const definirDemoAvaliador = (avaliadorId, isDemo) =>
     http.patch(`/admin/avaliacao/avaliadores/${avaliadorId}/demo`, { is_demo: isDemo }).then((r) => r.data);
+export const definirComissaoAvaliador = (avaliadorId, comissao) =>
+    http.patch(`/admin/avaliacao/avaliadores/${avaliadorId}/comissao`, { comissao_especial: comissao }).then((r) => r.data);
+// Áreas extras: só o admin amplia o alcance de um avaliador. As duas rotas
+// devolvem a linha atualizada do avaliador.
+export const adicionarAreaExtra = (avaliadorId, areaId, subareaId) =>
+    http.post(`/admin/avaliacao/avaliadores/${avaliadorId}/areas-extras`, { area_id: areaId, subarea_id: subareaId || null }).then((r) => r.data);
+export const removerAreaExtra = (avaliadorId, extraId) =>
+    http.delete(`/admin/avaliacao/avaliadores/${avaliadorId}/areas-extras/${extraId}`).then((r) => r.data);
 export const limparDadosDeTeste = () => http.delete('/admin/avaliacao/testes').then((r) => r.data);
-export const getAvaliacaoProjetos = () => http.get('/admin/avaliacao/projetos').then((r) => r.data.data);
+// Tabela de projetos submetidos: { q, areaId, categoria, ordenar, direcao, page }.
+const projetoParams = ({ q, areaId, categoria, ordenar, direcao, page } = {}) => ({
+    params: {
+        ...(q ? { q } : {}),
+        ...(areaId ? { area_id: areaId } : {}),
+        ...(categoria ? { categoria } : {}),
+        ...(ordenar ? { ordenar } : {}),
+        ...(direcao ? { direcao } : {}),
+        page: page ?? 1,
+    },
+});
+
+export const getAvaliacaoProjetos = (filtros) =>
+    http.get('/admin/avaliacao/projetos', projetoParams(filtros)).then((r) => r.data);
+
+/** Baixa o CSV da tabela de projetos no recorte atual. */
+export async function exportarProjetosAvaliacaoCsv(filtros) {
+    const r = await http.get('/admin/avaliacao/projetos/exportar', {
+        ...projetoParams(filtros),
+        responseType: 'blob',
+    });
+    const nome = /filename="([^"]+)"/.exec(r.headers['content-disposition'] ?? '')?.[1] ?? 'projetos-submetidos.csv';
+    baixarBlob(r.data, nome);
+}
 export const designarProjeto = (projetoId, payload) =>
     http.post(`/admin/avaliacao/projetos/${projetoId}/designar`, payload).then((r) => r.data);
 export const distribuirAvaliacoes = () => http.post('/admin/avaliacao/distribuir').then((r) => r.data);
@@ -76,9 +148,14 @@ export const getReclassificacoes = (filtros = {}) =>
 export const aplicarReclassificacoes = (itens) =>
     http.post('/admin/avaliacao/reclassificacoes/aplicar', { itens }).then((r) => r.data);
 
-// Ranking dos projetos avaliados (média das notas finais). `filtros`: { area_id }.
+// Ranking dos projetos avaliados (média das notas finais).
+// `filtros`: { area_id, categoria }. Devolve { data, meta } — meta traz as categorias.
 export const getRankingAvaliacao = (filtros = {}) =>
-    http.get('/admin/avaliacao/ranking', { params: limpar(filtros) }).then((r) => r.data.data);
+    http.get('/admin/avaliacao/ranking', { params: limpar(filtros) }).then((r) => r.data);
+
+// Ranking dos avaliadores que mais concluíram avaliações.
+export const getRankingAvaliadores = () =>
+    http.get('/admin/avaliacao/ranking-avaliadores').then((r) => r.data.data);
 
 /** Remove chaves vazias para não mandar `?q=&area_id=` na query. */
 function limpar(filtros) {
@@ -100,10 +177,14 @@ export const definirStatusAdmin = (id, isActive) =>
     http.patch(`/admin/admins/${id}/status`, { is_active: isActive }).then((r) => r.data.data);
 
 // Parametrização do catálogo (áreas/subáreas). Toda mutação devolve a árvore atualizada.
-export const getCatalogo = () => http.get('/admin/catalogo').then((r) => r.data.data);
+// A árvore vem em `data` e os grupos de áreas correlatas em `meta.grupos` — as
+// mutações devolvem só a árvore, então os grupos são lidos uma vez, na carga.
+export const getCatalogo = () => http.get('/admin/catalogo')
+    .then((r) => ({ areas: r.data.data, grupos: r.data.meta?.grupos ?? [] }));
 export const renomearArea = (id, nome) => http.put(`/admin/areas/${id}`, { nome }).then((r) => r.data.data);
 export const mesclarArea = (id, destinoId) => http.post(`/admin/areas/${id}/mesclar`, { destino_id: destinoId }).then((r) => r.data.data);
 export const excluirArea = (id) => http.delete(`/admin/areas/${id}`).then((r) => r.data.data);
+export const definirCorrelacaoArea = (id, grupo) => http.patch(`/admin/areas/${id}/correlacao`, { grupo_correlato: grupo || null }).then((r) => r.data.data);
 export const renomearSubarea = (id, nome) => http.put(`/admin/subareas/${id}`, { nome }).then((r) => r.data.data);
 export const mesclarSubarea = (id, destinoId) => http.post(`/admin/subareas/${id}/mesclar`, { destino_id: destinoId }).then((r) => r.data.data);
 export const excluirSubarea = (id) => http.delete(`/admin/subareas/${id}`).then((r) => r.data.data);
@@ -121,11 +202,14 @@ export const renomearInstituicao = (id, nome, opts) => http.put(`/admin/institui
 export const mesclarInstituicao = (id, destinoId, opts) => http.post(`/admin/instituicoes/${id}/mesclar`, { destino_id: destinoId }, instParams(opts)).then((r) => r.data);
 export const excluirInstituicao = (id, opts) => http.delete(`/admin/instituicoes/${id}`, instParams(opts)).then((r) => r.data);
 
-// Trilha de registros (submissões, cancelamentos, exclusões e trocas de e-mail).
-// `filtros`: { tipos: string[], de, ate, busca, page }. A resposta traz { data, meta }
-// (meta com paginação, totais por tipo e a lista de tipos disponíveis).
-const registroParams = ({ tipos, de, ate, busca, page } = {}) => ({
+// Trilha de registros, em duas seções: `secao: 'inscricoes'` (submissões,
+// cancelamentos, exclusões e trocas de e-mail) e `secao: 'avaliacao'` (mudanças de
+// parâmetro do período). `filtros`: { secao, tipos: string[], de, ate, busca, page }.
+// A resposta traz { data, meta } (meta com paginação, totais por tipo e os tipos
+// disponíveis na seção).
+const registroParams = ({ secao, tipos, de, ate, busca, page } = {}) => ({
     params: {
+        ...(secao ? { secao } : {}),
         ...(tipos?.length ? { tipos: tipos.join(',') } : {}),
         ...(de ? { de } : {}),
         ...(ate ? { ate } : {}),
@@ -145,12 +229,5 @@ export async function exportarRegistrosCsv(filtros) {
     });
     const nome = /filename="([^"]+)"/.exec(r.headers['content-disposition'] ?? '')?.[1]
         ?? 'registros.csv';
-    const url = URL.createObjectURL(r.data);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = nome;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
+    baixarBlob(r.data, nome);
 }

@@ -6,14 +6,14 @@ vi.mock('../lib/auth.jsx', () => ({ extractErrors: () => ({ message: 'Falhou.', 
 vi.mock('react-router-dom', () => ({ Link: ({ children, to }) => <a href={to}>{children}</a> }));
 
 const getAvisoOpcoes = vi.fn();
-const getAvisoAtivoAdmin = vi.fn();
+const getAvisosVigentes = vi.fn();
 const previaAviso = vi.fn();
 const publicarAviso = vi.fn();
 const encerrarAviso = vi.fn();
 const getAvisos = vi.fn();
 vi.mock('../lib/admin.js', () => ({
     getAvisoOpcoes: (...a) => getAvisoOpcoes(...a),
-    getAvisoAtivoAdmin: (...a) => getAvisoAtivoAdmin(...a),
+    getAvisosVigentes: (...a) => getAvisosVigentes(...a),
     previaAviso: (...a) => previaAviso(...a),
     publicarAviso: (...a) => publicarAviso(...a),
     encerrarAviso: (...a) => encerrarAviso(...a),
@@ -29,19 +29,31 @@ const OPCOES = {
     modelo: { titulo: 'As inscrições estão se encerrando', mensagem: 'Faltam {{tempo_restante}}.' },
     inscricoes: { encerradas: false, prazo_label: '30/09/2026 23:59' },
     destinatarios: 42,
+    publico_padrao: ['orientadores'],
+    publicos: [
+        { value: 'orientadores', label: 'Todos os orientadores', descricao: 'Toda conta de orientador ativa.' },
+        { value: 'avaliadores_comissao', label: 'Avaliadores da comissão especial', descricao: 'Marcado pelo admin.' },
+    ],
 };
+
+/** Um aviso no ar, como o backend o devolve para a tela do admin. */
+const noAr = (over = {}) => ({
+    id: 3, titulo: 'Atenção', mensagem: 'Faltam 45 minutos.', publicado_em: '22/08/2026 19:00',
+    publicos: [{ value: 'orientadores', label: 'Todos os orientadores' }],
+    expira_em_label: null, ativo: true, ...over,
+});
 
 import AdminAvisos from './AdminAvisos.jsx';
 
 describe('AdminAvisos — aviso na tela', () => {
     beforeEach(() => {
         getAvisoOpcoes.mockReset();
-        getAvisoAtivoAdmin.mockReset();
+        getAvisosVigentes.mockReset();
         previaAviso.mockReset();
         publicarAviso.mockReset();
         encerrarAviso.mockReset();
         getAvisoOpcoes.mockResolvedValue(OPCOES);
-        getAvisoAtivoAdmin.mockResolvedValue(null);
+        getAvisosVigentes.mockResolvedValue([]);
         getAvisos.mockReset();
         getAvisos.mockResolvedValue({ data: [], meta: { pagina: 1, ultima_pagina: 1, total: 0 } });
     });
@@ -79,9 +91,10 @@ describe('AdminAvisos — aviso na tela', () => {
 
     it('publica o aviso e passa a mostrá-lo como "no ar"', async () => {
         publicarAviso.mockResolvedValue({
-            data: { id: 3, titulo: 'Atenção', mensagem: 'Faltam 45 minutos.', publicado_em: '22/08/2026 19:00' },
-            meta: { message: 'Aviso publicado. Ele aparece para os orientadores conectados.' },
+            data: noAr(),
+            meta: { message: 'Aviso publicado. Ele aparece para quem está no público escolhido.' },
         });
+        getAvisosVigentes.mockResolvedValueOnce([]).mockResolvedValue([noAr()]);
         render(<AdminAvisos />);
 
         fireEvent.click(await screen.findByText('Publicar aviso'));
@@ -91,13 +104,15 @@ describe('AdminAvisos — aviso na tela', () => {
         await waitFor(() => expect(publicarAviso).toHaveBeenCalledWith({
             titulo: 'As inscrições estão se encerrando',
             mensagem: 'Faltam {{tempo_restante}}.',
+            publicos: ['orientadores'],
+            expira_em: null,
         }));
         expect(await screen.findByText('No ar agora')).toBeInTheDocument();
         expect(screen.getByText('Um aviso no ar')).toBeInTheDocument();
     });
 
     it('encerra o aviso que está no ar', async () => {
-        getAvisoAtivoAdmin.mockResolvedValue({ id: 3, titulo: 'Atenção', mensagem: 'Faltam 45 minutos.', publicado_em: '22/08/2026 19:00' });
+        getAvisosVigentes.mockResolvedValue([noAr()]);
         encerrarAviso.mockResolvedValue({ meta: { message: 'Aviso encerrado.' } });
         render(<AdminAvisos />);
 
@@ -107,6 +122,35 @@ describe('AdminAvisos — aviso na tela', () => {
         await waitFor(() => expect(encerrarAviso).toHaveBeenCalledWith(3));
         expect(await screen.findByText('Nenhum aviso no ar')).toBeInTheDocument();
         expect(screen.queryByText('No ar agora')).not.toBeInTheDocument();
+    });
+
+    it('escolhe os públicos e a data de expiração', async () => {
+        previaAviso.mockResolvedValue({ titulo: 'Atenção', mensagem: 'Texto.', destinatarios: 7 });
+        publicarAviso.mockResolvedValue({ data: noAr(), meta: { message: 'Aviso publicado.' } });
+        render(<AdminAvisos />);
+
+        // Abre com o público padrão marcado.
+        const padrao = await screen.findByRole('checkbox', { name: /Todos os orientadores/ });
+        expect(padrao).toBeChecked();
+
+        fireEvent.click(screen.getByRole('checkbox', { name: /comissão especial/ }));
+        fireEvent.change(screen.getByLabelText('Expira em (opcional)'), { target: { value: '2026-10-01T18:00' } });
+        fireEvent.click(screen.getByText('Publicar aviso'));
+        fireEvent.click(await screen.findByText('Publicar'));
+
+        await waitFor(() => expect(publicarAviso).toHaveBeenCalledWith(expect.objectContaining({
+            publicos: ['orientadores', 'avaliadores_comissao'],
+            expira_em: '2026-10-01T18:00',
+        })));
+    });
+
+    it('não deixa publicar sem nenhum público', async () => {
+        render(<AdminAvisos />);
+
+        fireEvent.click(await screen.findByRole('checkbox', { name: /Todos os orientadores/ }));
+
+        expect(screen.getByText('Escolha ao menos um público.')).toBeInTheDocument();
+        expect(screen.getByText('Publicar aviso').closest('button')).toBeDisabled();
     });
 
     it('não deixa publicar com título ou mensagem em branco', async () => {
@@ -122,11 +166,11 @@ describe('AdminAvisos — aviso na tela', () => {
 describe('AdminAvisos — histórico de avisos', () => {
     beforeEach(() => {
         getAvisoOpcoes.mockReset();
-        getAvisoAtivoAdmin.mockReset();
+        getAvisosVigentes.mockReset();
         publicarAviso.mockReset();
         getAvisos.mockReset();
         getAvisoOpcoes.mockResolvedValue(OPCOES);
-        getAvisoAtivoAdmin.mockResolvedValue(null);
+        getAvisosVigentes.mockResolvedValue([]);
         getAvisos.mockResolvedValue({
             data: [
                 { id: 9, titulo: 'Segundo aviso', autor_nome: 'Admin', publicado_em: '22/08/2026 20:00', ativo: true, vistos: 5, fechados: 2, nao_vistos: 37 },
@@ -155,7 +199,7 @@ describe('AdminAvisos — histórico de avisos', () => {
 
     it('recarrega o histórico depois de publicar', async () => {
         publicarAviso.mockResolvedValue({
-            data: { id: 10, titulo: 'Novo', mensagem: 'Texto', publicado_em: '22/08/2026 21:00' },
+            data: noAr({ id: 10, titulo: 'Novo', mensagem: 'Texto', publicado_em: '22/08/2026 21:00' }),
             meta: { message: 'Aviso publicado.' },
         });
         render(<AdminAvisos />);

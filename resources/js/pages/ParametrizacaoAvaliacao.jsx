@@ -2,7 +2,11 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import CampoDataCard from '../components/CampoDataCard.jsx';
-import { getAvaliacaoConfig, definirLiberacaoAvaliacao, definirEncerramentoAvaliacao } from '../lib/admin.js';
+import CampoNumeroCard from '../components/CampoNumeroCard.jsx';
+import {
+    getAvaliacaoConfig, definirLiberacaoAvaliacao, definirEncerramentoAvaliacao,
+    definirMinimoPorAvaliador, definirMinimoPorProjeto,
+} from '../lib/admin.js';
 
 const PILL = {
     aberta: 'bg-secondary-container text-on-secondary-container',
@@ -21,6 +25,7 @@ export default function ParametrizacaoAvaliacao() {
                 liberada: false, encerrada: false,
                 liberada_em_input: null, liberada_em_label: null,
                 encerrada_em_input: null, encerrada_em_label: null,
+                min_por_avaliador: null, min_por_projeto: null,
             }));
     }, []);
 
@@ -41,8 +46,8 @@ export default function ParametrizacaoAvaliacao() {
             </Link>
             <h1 className="font-display text-2xl font-semibold text-primary mb-1">Avaliação Online</h1>
             <p className="text-on-surface-variant mb-6 max-w-3xl">
-                A janela em que os avaliadores trabalham. A distribuição dos projetos e o acompanhamento
-                continuam na aba <strong>Avaliação online</strong>; aqui ficam só as datas.
+                A janela em que os avaliadores trabalham e os mínimos de avaliação do edital. A
+                distribuição dos projetos e o acompanhamento continuam na aba <strong>Avaliação online</strong>.
             </p>
 
             {config === null ? (
@@ -83,6 +88,41 @@ export default function ParametrizacaoAvaliacao() {
                             </>
                         }
                         onSalvar={definirEncerramentoAvaliacao}
+                        onSalvo={setConfig}
+                    />
+
+                    <CampoNumeroCard
+                        titulo="Mínimo de avaliações por avaliador"
+                        valor={config.min_por_avaliador}
+                        ariaLabel="Mínimo de avaliações por avaliador"
+                        salvarLabel="Salvar mínimo por avaliador"
+                        descricao={
+                            <>
+                                Quantas avaliações cada avaliador precisa concluir. É também
+                                <strong> quantos projetos ele vê de uma vez</strong> no painel: concluída uma
+                                avaliação, entra outra no lugar. Vale como capacidade padrão na distribuição
+                                automática — o <strong>bloqueio individual</strong> de um avaliador, quando
+                                existe, continua valendo por cima deste número.
+                            </>
+                        }
+                        onSalvar={definirMinimoPorAvaliador}
+                        onSalvo={setConfig}
+                    />
+
+                    <CampoNumeroCard
+                        titulo="Mínimo de avaliações por projeto"
+                        valor={config.min_por_projeto}
+                        ariaLabel="Mínimo de avaliações por projeto"
+                        salvarLabel="Salvar mínimo por projeto"
+                        descricao={
+                            <>
+                                Quantas avaliações concluídas cada projeto precisa receber. É o alvo da
+                                distribuição automática e a base das colunas <strong>faltantes</strong> nas
+                                telas de acompanhamento; abaixo dele, a média do projeto no ranking ainda
+                                aparece como parcial.
+                            </>
+                        }
+                        onSalvar={definirMinimoPorProjeto}
                         onSalvo={setConfig}
                     />
                 </>

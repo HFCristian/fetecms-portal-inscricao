@@ -2,6 +2,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../components/AppShell.jsx', () => ({ default: ({ children }) => <div>{children}</div> }));
+vi.mock('react-router-dom', () => ({ Link: ({ children, to }) => <a href={to}>{children}</a> }));
 vi.mock('../lib/auth.jsx', () => ({ extractErrors: () => ({ message: 'Erro', fields: {} }) }));
 
 const REGISTROS = [
@@ -105,6 +106,55 @@ describe('AdminRegistros', () => {
 
         await waitFor(() => {
             expect(getRegistros).toHaveBeenLastCalledWith(expect.objectContaining({ busca: 'ana@' }));
+        });
+    });
+
+    it('pede a seção de inscrições por padrão', async () => {
+        render(<AdminRegistros />);
+        await screen.findByText('2 registros.');
+
+        expect(getRegistros).toHaveBeenLastCalledWith(expect.objectContaining({ secao: 'inscricoes' }));
+        expect(screen.getByText('Registros · Inscrições')).toBeInTheDocument();
+    });
+
+    it('na seção de avaliação, muda o título e pede os registros daquela seção', async () => {
+        getRegistros.mockResolvedValueOnce({
+            data: [{
+                id: 9,
+                tipo: 'avaliacao_min_projeto',
+                tipo_label: 'Mínimo por projeto',
+                ocorrido_em: '2026-08-20T10:00:00-04:00',
+                autor_email: 'admin@fetecms.test',
+                autor_nome: 'Admin',
+                autor_role: 'admin',
+                projeto_titulo: null,
+                dono_email: null,
+                por_terceiro: false,
+                detalhes_texto: '3 → 4',
+            }],
+            meta: {
+                pagina_atual: 1, ultima_pagina: 1, total: 1, por_pagina: 25,
+                totais_por_tipo: { avaliacao_min_projeto: 1 },
+                tipos: [{ value: 'avaliacao_min_projeto', label: 'Mínimo por projeto' }],
+                secao: 'avaliacao',
+            },
+        });
+
+        render(<AdminRegistros secao="avaliacao" />);
+
+        expect(await screen.findByText('Registros · Avaliação Online')).toBeInTheDocument();
+        expect(getRegistros).toHaveBeenLastCalledWith(expect.objectContaining({ secao: 'avaliacao' }));
+        expect(screen.getByText('3 → 4')).toBeInTheDocument();
+    });
+
+    it('exporta o CSV da seção aberta', async () => {
+        render(<AdminRegistros secao="avaliacao" />);
+        await screen.findByText('Registros · Avaliação Online');
+
+        fireEvent.click(screen.getByText('Exportar CSV'));
+
+        await waitFor(() => {
+            expect(exportarRegistrosCsv).toHaveBeenLastCalledWith(expect.objectContaining({ secao: 'avaliacao' }));
         });
     });
 });
