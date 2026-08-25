@@ -490,8 +490,14 @@ class AdminAvaliacaoTest extends TestCase
         $b = Area::create(['nome' => 'Área B']);
         $orient = User::factory()->create();
 
-        Projeto::factory()->submetido()->create(['user_id' => $orient->id, 'area_id' => $a->id, 'titulo' => 'Da A']);
-        Projeto::factory()->submetido()->create(['user_id' => $orient->id, 'area_id' => $b->id, 'titulo' => 'Da B', 'categoria' => 'fetecms']);
+        // As duas categorias são explícitas: a factory sorteia, e o filtro abaixo
+        // depende de os dois projetos estarem em categorias diferentes.
+        Projeto::factory()->submetido()->create([
+            'user_id' => $orient->id, 'area_id' => $a->id, 'titulo' => 'Da A', 'categoria' => 'fetec_jr',
+        ]);
+        Projeto::factory()->submetido()->create([
+            'user_id' => $orient->id, 'area_id' => $b->id, 'titulo' => 'Da B', 'categoria' => 'fetecms',
+        ]);
 
         Sanctum::actingAs(User::factory()->admin()->create());
 

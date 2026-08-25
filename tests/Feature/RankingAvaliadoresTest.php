@@ -156,8 +156,8 @@ class RankingAvaliadoresTest extends TestCase
         $this->postJson('/api/v1/avaliadores', [
             'name' => 'Nova Avaliadora',
             'email' => 'nova@avaliadores.test',
-            'password' => 'senha-forte-123',
-            'password_confirmation' => 'senha-forte-123',
+            'password' => 'Senha@123',
+            'password_confirmation' => 'Senha@123',
             'cpf' => '52998224725',
             'titulacao' => 'Mestrado (em andamento)',
             'area_id' => $this->area->id,
