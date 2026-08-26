@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
-import { Alert } from '../components/ui.jsx';
+import { Alert, Button } from '../components/ui.jsx';
+import ListaFinalDialog from '../components/ListaFinalDialog.jsx';
 import { getRankingAvaliacao } from '../lib/admin.js';
 import { loadAreas } from '../lib/catalogos.js';
 
@@ -82,6 +83,7 @@ export default function AvaliacaoRanking() {
     const [areaId, setAreaId] = useState('');
     const [categoria, setCategoria] = useState('');
     const [erro, setErro] = useState('');
+    const [listaFinal, setListaFinal] = useState(false);
 
     const buscar = useCallback((filtros) => {
         setErro('');
@@ -110,11 +112,21 @@ export default function AvaliacaoRanking() {
             <Link to="/admin/avaliacao" className="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary mb-3">
                 <span className="material-symbols-outlined text-[18px]">arrow_back</span> Avaliação online
             </Link>
-            <h1 className="font-display text-2xl font-semibold text-primary mb-1">Ranking dos projetos</h1>
-            <p className="text-on-surface-variant mb-6 max-w-3xl">
-                Projetos que já receberam ao menos uma avaliação concluída, ordenados pela média das
-                notas finais. Empate na média é desfeito por quem tem mais avaliações.
-            </p>
+            <div className="flex items-start justify-between gap-3 flex-wrap mb-6 max-w-3xl">
+                <div className="min-w-0">
+                    <h1 className="font-display text-2xl font-semibold text-primary mb-1">Ranking dos projetos</h1>
+                    <p className="text-on-surface-variant">
+                        Projetos que já receberam ao menos uma avaliação concluída, ordenados pela média das
+                        notas finais. Empate na média é desfeito por quem tem mais avaliações.
+                    </p>
+                </div>
+                <Button type="button" className="shrink-0" onClick={() => setListaFinal(true)}>
+                    <span className="material-symbols-outlined text-[18px]">list_alt</span>
+                    Gerar lista final
+                </Button>
+            </div>
+
+            <ListaFinalDialog open={listaFinal} onClose={() => setListaFinal(false)} />
 
             <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-4 mb-6 max-w-3xl">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

@@ -63,7 +63,15 @@ class FilaAvaliadorService
             return 0; // bloqueado pelo admin: não recebe projeto novo
         }
 
-        $vagas = Edicao::minPorAvaliador() - $pendentes;
+        $limites = Edicao::limites();
+
+        // A fila tem o tamanho do mínimo por avaliador e, quando a edição
+        // define um teto total, para de crescer ao alcançá-lo.
+        $vagas = $limites->minPorAvaliador() - $pendentes;
+
+        if ($limites->maxPorAvaliador() !== null) {
+            $vagas = min($vagas, $limites->maxPorAvaliador() - $status->count());
+        }
         $criadas = 0;
         $escolhidos = $ignorar;
 
@@ -140,8 +148,7 @@ class FilaAvaliadorService
             return null;
         }
 
-        $minPorProjeto = Edicao::minPorProjeto();
-        $teto = max(Avaliacao::TETO_POR_PROJETO, $minPorProjeto);
+        $limites = Edicao::limites();
 
         // Projetos que o avaliador já viu não voltam para a fila dele.
         $jaTem = Avaliacao::where('avaliador_id', $avaliador->id)->pluck('projeto_id')->all();
@@ -157,7 +164,7 @@ class FilaAvaliadorService
                 'avaliacoes as total_count',
             ])
             ->get()
-            ->filter(fn (Projeto $p) => $p->total_count < $teto
+            ->filter(fn (Projeto $p) => $p->total_count < $limites->maxPorProjeto($p->categoria)
                 && $regras->aceita($p->categoria, $p->concluidas_count));
 
         if ($candidatos->isEmpty()) {
@@ -166,7 +173,7 @@ class FilaAvaliadorService
 
         $correlatas = $this->areasCorrelatas($areas);
         $pares = $perfil->paresAtendidos();
-        $precisa = fn (Projeto $p) => $p->total_count < $minPorProjeto;
+        $precisa = fn (Projeto $p) => $p->total_count < $limites->minPorProjeto($p->categoria);
 
         $faixas = [
             // 1. área e subárea que o avaliador atende

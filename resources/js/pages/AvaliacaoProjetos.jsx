@@ -21,7 +21,7 @@ const COLUNAS = [
 
 // Card de resumo de uma área: quantos projetos estão com 0, 1, 2 e 3+ avaliações
 // concluídas. Responde aos mesmos filtros da tabela.
-function CardArea({ resumo, minPorProjeto }) {
+function CardArea({ resumo, minPorProjeto, minUniforme }) {
     const faixas = [
         { key: 'zero', label: '0', cor: 'text-error' },
         { key: 'uma', label: '1', cor: 'text-on-surface' },
@@ -36,7 +36,7 @@ function CardArea({ resumo, minPorProjeto }) {
             </h3>
             <p className="text-xs text-on-surface-variant mb-2">
                 {resumo.total} {resumo.total === 1 ? 'projeto' : 'projetos'} · {resumo.completos} com o mínimo
-                de {minPorProjeto}
+                {minUniforme ? ` de ${minPorProjeto}` : ' da categoria'}
             </p>
             <div className="grid grid-cols-4 gap-1">
                 {faixas.map((f) => (
@@ -288,6 +288,8 @@ export default function AvaliacaoProjetos() {
 
     const resumoAreas = meta?.resumo_areas ?? [];
     const minPorProjeto = meta?.min_por_projeto ?? 3;
+    // Mínimo por categoria: o card fala em "mínimo da categoria" em vez de um número.
+    const minUniforme = meta?.min_por_projeto_uniforme ?? true;
     const areasFiltro = meta?.areas ?? [];
     const categorias = meta?.categorias ?? [];
     const temFiltro = filtros.q !== '' || filtros.areaId !== '' || filtros.categoria !== '';
@@ -312,7 +314,12 @@ export default function AvaliacaoProjetos() {
                     </p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                         {resumoAreas.map((r) => (
-                            <CardArea key={r.area_id ?? 'sem-area'} resumo={r} minPorProjeto={minPorProjeto} />
+                            <CardArea
+                                key={r.area_id ?? 'sem-area'}
+                                resumo={r}
+                                minPorProjeto={minPorProjeto}
+                                minUniforme={minUniforme}
+                            />
                         ))}
                     </div>
                 </section>

@@ -63,11 +63,14 @@ export const definirLiberacaoAvaliacao = (liberadaEm) =>
     http.patch('/admin/avaliacao/config', { liberada_em: liberadaEm }).then((r) => r.data);
 export const definirEncerramentoAvaliacao = (encerradaEm) =>
     http.patch('/admin/avaliacao/encerramento', { encerrada_em: encerradaEm }).then((r) => r.data);
-// Mínimos do edital: cada card manda só o seu número.
-export const definirMinimoPorAvaliador = (valor) =>
-    http.patch('/admin/avaliacao/minimos', { min_por_avaliador: valor }).then((r) => r.data);
-export const definirMinimoPorProjeto = (valor) =>
-    http.patch('/admin/avaliacao/minimos', { min_por_projeto: valor }).then((r) => r.data);
+// Limites do edital: cada card manda só o seu bloco. O máximo por avaliador
+// aceita null — quer dizer "sem teto".
+export const definirLimitesAvaliador = (min, max) =>
+    http.patch('/admin/avaliacao/minimos', { min_por_avaliador: min, max_por_avaliador: max }).then((r) => r.data);
+export const definirLimitesProjeto = (min, max, categorias) =>
+    http.patch('/admin/avaliacao/minimos', {
+        min_por_projeto: min, max_por_projeto: max, categorias,
+    }).then((r) => r.data);
 // Tabela de avaliadores: { q, area_id, ordenar, direcao, page }. A resposta traz
 // { data, meta } (paginação, áreas para o filtro e a ordenação em vigor).
 const avaliadorParams = ({ q, areaId, situacao, ordenar, direcao, page } = {}) => ({
@@ -150,6 +153,15 @@ export const definirDistribuicaoAoCadastrar = (aoCadastrar) =>
 // Rodízio: devolve ao bolo o que ainda não foi aberto e sorteia outros.
 export const redistribuirAvaliacoes = () => http.post('/admin/avaliacao/redistribuir').then((r) => r.data);
 
+// Lista final da feira: o que dá para pedir e o TXT do recorte escolhido.
+export const getOpcoesListaFinal = () => http.get('/admin/avaliacao/lista-final/opcoes').then((r) => r.data.data);
+
+export async function baixarListaFinal(cotas) {
+    const r = await http.post('/admin/avaliacao/lista-final', cotas, { responseType: 'blob' });
+    const nome = /filename="([^"]+)"/.exec(r.headers['content-disposition'] ?? '')?.[1] ?? 'lista-final.txt';
+    baixarBlob(r.data, nome);
+}
+
 // Projetos com sugestão de reclassificação. `filtros`: { area_id, q, de, ate }.
 export const getReclassificacoes = (filtros = {}) =>
     http.get('/admin/avaliacao/reclassificacoes', { params: limpar(filtros) }).then((r) => r.data.data);
@@ -196,6 +208,8 @@ export const renomearArea = (id, nome) => http.put(`/admin/areas/${id}`, { nome 
 export const mesclarArea = (id, destinoId) => http.post(`/admin/areas/${id}/mesclar`, { destino_id: destinoId }).then((r) => r.data.data);
 export const excluirArea = (id) => http.delete(`/admin/areas/${id}`).then((r) => r.data.data);
 export const definirCorrelacaoArea = (id, grupo) => http.patch(`/admin/areas/${id}/correlacao`, { grupo_correlato: grupo || null }).then((r) => r.data.data);
+// Sigla de três letras da área — o "AGR" de FET.AGR-001 na lista final.
+export const definirSiglaArea = (id, sigla) => http.patch(`/admin/areas/${id}/sigla`, { sigla: sigla || null }).then((r) => r.data.data);
 export const renomearSubarea = (id, nome) => http.put(`/admin/subareas/${id}`, { nome }).then((r) => r.data.data);
 export const mesclarSubarea = (id, destinoId) => http.post(`/admin/subareas/${id}/mesclar`, { destino_id: destinoId }).then((r) => r.data.data);
 export const excluirSubarea = (id) => http.delete(`/admin/subareas/${id}`).then((r) => r.data.data);

@@ -10,6 +10,7 @@ use App\Models\Avaliacao;
 use App\Models\Edicao;
 use App\Models\Projeto;
 use App\Models\User;
+use App\Support\LimitesAvaliacao;
 use App\Support\RegrasDistribuicao;
 use Illuminate\Support\Facades\DB;
 
@@ -36,11 +37,11 @@ class DistribuicaoService
      */
     public function distribuir(): array
     {
-        // Mínimos parametrizados pelo admin (Parametrização → Avaliação Online).
-        $alvo = Edicao::minPorProjeto();
-        $teto = max(Avaliacao::TETO_POR_PROJETO, $alvo);
+        // Limites parametrizados pelo admin (Parametrização → Avaliação Online).
+        // O alvo e o teto de cada projeto saem da categoria dele.
+        $limites = Edicao::limites();
 
-        $avaliadores = $this->carregarAvaliadores(Edicao::minPorAvaliador());
+        $avaliadores = $this->carregarAvaliadores($limites);
         [$cargaInicial, $projetoInfo] = $this->estadoAtual($avaliadores);
 
         // Aplica a carga já existente e monta índice de avaliadores por área. O
@@ -100,6 +101,9 @@ class DistribuicaoService
         $subCobertos = [];
 
         foreach ($projetos as &$proj) {
+            $alvo = $limites->minPorProjeto($proj['categoria']);
+            $teto = $limites->maxPorProjeto($proj['categoria']);
+
             while ($proj['coverage'] < $alvo && $proj['coverage'] < $teto) {
                 $cands = $elegiveis($proj);
                 if ($cands === []) {
@@ -222,10 +226,11 @@ class DistribuicaoService
 
     /**
      * Avaliadores elegíveis: ativos, não-demo e com ao menos uma área (a própria
-     * ou uma liberada pelo admin). A capacidade é o limite individual do
-     * avaliador ou, sem limite, o mínimo por avaliador da edição.
+     * ou uma liberada pelo admin). Cada rodada entrega no máximo o tamanho da
+     * fila (o mínimo por avaliador) — ou o bloqueio individual, quando houver —
+     * e nunca passa do teto total da edição.
      */
-    private function carregarAvaliadores(int $minPorAvaliador): array
+    private function carregarAvaliadores(LimitesAvaliacao $limites): array
     {
         $avaliadores = [];
 
@@ -235,7 +240,7 @@ class DistribuicaoService
             ->where('is_demo', false)
             ->with(['avaliadorProfile:id,user_id,area_id,subarea_id,limite_avaliacoes', 'avaliadorProfile.areasExtras'])
             ->get(['id'])
-            ->each(function (User $u) use (&$avaliadores, $minPorAvaliador) {
+            ->each(function (User $u) use (&$avaliadores, $limites) {
                 $perfil = $u->avaliadorProfile;
                 $areas = $perfil?->areasAtendidas() ?? [];
 
@@ -248,7 +253,10 @@ class DistribuicaoService
                     // A própria área mais as extras liberadas pelo admin.
                     'areas' => $areas,
                     'pares' => $perfil->paresAtendidos(),
-                    'capacidade' => $perfil->limite_avaliacoes ?? $minPorAvaliador,
+                    'capacidade' => min(array_filter([
+                        $perfil->limite_avaliacoes ?? $limites->minPorAvaliador(),
+                        $limites->maxPorAvaliador(),
+                    ], fn ($v) => $v !== null)),
                     'carga' => 0,
                 ];
             });

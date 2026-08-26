@@ -4,7 +4,7 @@ import AppShell from '../components/AppShell.jsx';
 import { Input, Select, Button, Alert, useConfirm } from '../components/ui.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import {
-    getCatalogo, renomearArea, mesclarArea, excluirArea, definirCorrelacaoArea,
+    getCatalogo, renomearArea, mesclarArea, excluirArea, definirCorrelacaoArea, definirSiglaArea,
     renomearSubarea, mesclarSubarea, excluirSubarea,
 } from '../lib/admin.js';
 
@@ -27,6 +27,43 @@ function CorrelacaoRow({ area, grupos, onChange }) {
                     <option key={g.value} value={g.value}>{g.label} — {g.descricao}</option>
                 ))}
             </Select>
+        </div>
+    );
+}
+
+// Sigla de três letras da área: é o "AGR" do código FET.AGR-001 na lista final
+// da feira. Em branco, a lista cai para as três primeiras letras do nome.
+function SiglaRow({ area, onChange }) {
+    const [valor, setValor] = useState(area.sigla ?? '');
+    const [busy, setBusy] = useState(false);
+
+    const limpo = valor.trim().toUpperCase();
+    const mudou = limpo !== (area.sigla ?? '');
+    const valido = limpo === '' || /^[A-Z]{3}$/.test(limpo);
+
+    async function salvar() {
+        setBusy(true);
+        try { await onChange(area.id, limpo); }
+        finally { setBusy(false); }
+    }
+
+    return (
+        <div className="flex flex-wrap items-center gap-2 py-1.5">
+            <span className="material-symbols-outlined text-[18px] text-on-surface-variant">tag</span>
+            <label className="text-sm text-on-surface-variant" htmlFor={`sigla-${area.id}`}>Sigla na lista final:</label>
+            <input
+                id={`sigla-${area.id}`}
+                aria-label={`Sigla de ${area.nome}`}
+                value={valor}
+                maxLength={3}
+                placeholder={area.sigla_lista}
+                onChange={(e) => setValor(e.target.value.toUpperCase())}
+                className="w-20 bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface uppercase focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 outline-none"
+            />
+            {mudou && (
+                <Button type="button" variant="success" loading={busy} disabled={!valido} onClick={salvar}>Salvar</Button>
+            )}
+            {!valido && <span className="text-xs text-error">Três letras, sem acento.</span>}
         </div>
     );
 }
@@ -123,6 +160,7 @@ export default function ParametrizacaoAreas() {
     const onRenameArea = (id, nome) => aplicar(renomearArea(id, nome), 'Área renomeada.');
     const onRenameSub = (id, nome) => aplicar(renomearSubarea(id, nome), 'Subárea renomeada.');
     const onCorrelacao = (id, grupo) => aplicar(definirCorrelacaoArea(id, grupo), 'Áreas correlatas atualizadas.').catch(() => {});
+    const onSigla = (id, sigla) => aplicar(definirSiglaArea(id, sigla), 'Sigla atualizada.').catch(() => {});
 
     async function onMergeArea(id, destinoId) {
         const ok = await confirm({ title: 'Mesclar áreas', danger: true, confirmLabel: 'Mesclar',
@@ -156,7 +194,8 @@ export default function ParametrizacaoAreas() {
                 (projetos, avaliadores e orientadores) para o destino e remove a original. Só é possível
                 <strong> excluir</strong> itens sem uso. As <strong>áreas correlatas</strong> são o plano B da
                 distribuição: um projeto sem avaliador disponível na própria área é encaminhado para
-                avaliadores das outras áreas do mesmo grupo.
+                avaliadores das outras áreas do mesmo grupo. A <strong>sigla</strong> é o que identifica a
+                área no código de cada projeto na lista final da feira (FET.<strong>AGR</strong>-001).
             </p>
 
             {alert && <div className="mb-4 max-w-3xl"><Alert>{alert}</Alert></div>}
@@ -172,6 +211,7 @@ export default function ParametrizacaoAreas() {
                         <div key={area.id} className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-5">
                             <ItemRow item={area} irmaos={areas} isArea onRename={onRenameArea} onMerge={onMergeArea} onDelete={onDeleteArea} />
                             <CorrelacaoRow area={area} grupos={grupos} onChange={onCorrelacao} />
+                            <SiglaRow area={area} onChange={onSigla} />
                             <div className="mt-2 pl-4 border-l-2 border-outline-variant/40">
                                 {area.subareas.length === 0 ? (
                                     <p className="text-xs text-on-surface-variant py-1">Sem subáreas.</p>

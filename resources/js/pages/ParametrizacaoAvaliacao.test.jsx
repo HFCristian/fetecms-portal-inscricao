@@ -7,23 +7,31 @@ vi.mock('react-router-dom', () => ({ Link: ({ children, to }) => <a href={to}>{c
 const getAvaliacaoConfig = vi.fn();
 const definirLiberacaoAvaliacao = vi.fn();
 const definirEncerramentoAvaliacao = vi.fn();
-const definirMinimoPorAvaliador = vi.fn();
-const definirMinimoPorProjeto = vi.fn();
+const definirLimitesAvaliador = vi.fn();
+const definirLimitesProjeto = vi.fn();
 vi.mock('../lib/admin.js', () => ({
     getAvaliacaoConfig: (...a) => getAvaliacaoConfig(...a),
     definirLiberacaoAvaliacao: (...a) => definirLiberacaoAvaliacao(...a),
     definirEncerramentoAvaliacao: (...a) => definirEncerramentoAvaliacao(...a),
-    definirMinimoPorAvaliador: (...a) => definirMinimoPorAvaliador(...a),
-    definirMinimoPorProjeto: (...a) => definirMinimoPorProjeto(...a),
+    definirLimitesAvaliador: (...a) => definirLimitesAvaliador(...a),
+    definirLimitesProjeto: (...a) => definirLimitesProjeto(...a),
 }));
 
 import ParametrizacaoAvaliacao from './ParametrizacaoAvaliacao.jsx';
+
+const categorias = [
+    { value: 'fetec_jr', label: 'FETEC Jr', min: null, max: null, min_efetivo: 3, max_efetivo: 5 },
+    { value: 'fetecms', label: 'FETECMS', min: null, max: null, min_efetivo: 3, max_efetivo: 5 },
+    { value: 'fetecms_fundect', label: 'FETECMS FUNDECT', min: null, max: null, min_efetivo: 3, max_efetivo: 5 },
+];
 
 const vazio = {
     liberada: false, encerrada: false,
     liberada_em_input: null, liberada_em_label: null,
     encerrada_em_input: null, encerrada_em_label: null,
     min_por_avaliador: 3, min_por_projeto: 3,
+    max_por_avaliador: null, max_por_projeto: 5,
+    categorias, limite_maximo: 50,
 };
 const comFim = { ...vazio, encerrada_em_input: '2026-10-10T18:00', encerrada_em_label: '10/10/2026 18:00' };
 const encerrada = { ...comFim, liberada: true, encerrada: true, liberada_em_label: '01/10/2026 08:00' };
@@ -33,8 +41,8 @@ describe('ParametrizacaoAvaliacao', () => {
         getAvaliacaoConfig.mockReset().mockResolvedValue(vazio);
         definirLiberacaoAvaliacao.mockReset();
         definirEncerramentoAvaliacao.mockReset();
-        definirMinimoPorAvaliador.mockReset();
-        definirMinimoPorProjeto.mockReset();
+        definirLimitesAvaliador.mockReset();
+        definirLimitesProjeto.mockReset();
     });
 
     it('mostra as duas datas do período sem nada definido', async () => {
@@ -84,36 +92,52 @@ describe('ParametrizacaoAvaliacao', () => {
         expect(await screen.findByText('A liberação precisa ser antes do encerramento.')).toBeInTheDocument();
     });
 
-    it('mostra os mínimos configurados', async () => {
+    it('mostra os limites configurados, com o teto por avaliador em branco', async () => {
         render(<ParametrizacaoAvaliacao />);
 
-        expect(await screen.findByLabelText('Mínimo de avaliações por avaliador')).toHaveValue(3);
-        expect(screen.getByLabelText('Mínimo de avaliações por projeto')).toHaveValue(3);
+        expect(await screen.findByLabelText('Mínimo — Por avaliador')).toHaveValue(3);
+        expect(screen.getByLabelText('Máximo — Por avaliador')).toHaveValue(null);
+        expect(screen.getByLabelText('Mínimo — Geral')).toHaveValue(3);
+        expect(screen.getByLabelText('Máximo — Geral')).toHaveValue(5);
+        // Categoria sem número próprio mostra o geral como placeholder.
+        expect(screen.getByLabelText('Mínimo — FETEC Jr')).toHaveAttribute('placeholder', '3');
     });
 
-    it('salva o mínimo por avaliador', async () => {
-        definirMinimoPorAvaliador.mockResolvedValue({
-            data: { ...vazio, min_por_avaliador: 5 }, meta: { message: 'Mínimos atualizados.' },
+    it('salva o par mínimo/máximo por avaliador', async () => {
+        definirLimitesAvaliador.mockResolvedValue({
+            data: { ...vazio, min_por_avaliador: 5, max_por_avaliador: 8 },
+            meta: { message: 'Limites atualizados.' },
         });
         render(<ParametrizacaoAvaliacao />);
 
-        fireEvent.change(await screen.findByLabelText('Mínimo de avaliações por avaliador'), {
-            target: { value: '5' },
-        });
-        fireEvent.click(screen.getByText('Salvar mínimo por avaliador'));
+        fireEvent.change(await screen.findByLabelText('Mínimo — Por avaliador'), { target: { value: '5' } });
+        fireEvent.change(screen.getByLabelText('Máximo — Por avaliador'), { target: { value: '8' } });
+        fireEvent.click(screen.getAllByText('Salvar')[0]);
 
-        await waitFor(() => expect(definirMinimoPorAvaliador).toHaveBeenCalledWith(5));
-        expect(await screen.findByText('Mínimos atualizados.')).toBeInTheDocument();
+        await waitFor(() => expect(definirLimitesAvaliador).toHaveBeenCalledWith(5, 8));
+        expect(await screen.findByText('Limites atualizados.')).toBeInTheDocument();
     });
 
-    it('não deixa salvar um mínimo fora da faixa', async () => {
+    it('salva o mínimo por projeto de uma categoria só', async () => {
+        definirLimitesProjeto.mockResolvedValue({ data: vazio, meta: { message: 'Limites atualizados.' } });
         render(<ParametrizacaoAvaliacao />);
 
-        fireEvent.change(await screen.findByLabelText('Mínimo de avaliações por projeto'), {
-            target: { value: '0' },
-        });
+        fireEvent.change(await screen.findByLabelText('Mínimo — FETEC Jr'), { target: { value: '2' } });
+        fireEvent.click(screen.getAllByText('Salvar')[1]);
 
-        expect(screen.getByText('Salvar mínimo por projeto').closest('button')).toBeDisabled();
-        expect(definirMinimoPorProjeto).not.toHaveBeenCalled();
+        await waitFor(() => expect(definirLimitesProjeto).toHaveBeenCalledWith(3, 5, {
+            fetec_jr: { min: 2, max: null },
+            fetecms: { min: null, max: null },
+            fetecms_fundect: { min: null, max: null },
+        }));
+    });
+
+    it('não deixa salvar com o máximo abaixo do mínimo', async () => {
+        render(<ParametrizacaoAvaliacao />);
+
+        fireEvent.change(await screen.findByLabelText('Máximo — Geral'), { target: { value: '1' } });
+
+        expect(screen.getAllByText('Salvar')[1].closest('button')).toBeDisabled();
+        expect(definirLimitesProjeto).not.toHaveBeenCalled();
     });
 });

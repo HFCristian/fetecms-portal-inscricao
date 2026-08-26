@@ -104,7 +104,11 @@ Tabela `users` única com coluna `role`: **`orientador`**, **`avaliador`**, **`a
     explica o motivo em `pode_desfazer`/`impedimentos_desfazer`). Cada ponta sem data fica
     aberta; a tela de cadastro lê `GET /inscricoes/publico` para avisar antes da abertura.
   - **Parametrização → Avaliação Online** (`/admin/parametrizacao/avaliacao`): **início**
-    (`edicoes.avaliacao_liberada_em`) e **fim** (`edicoes.avaliacao_encerrada_em`) do período.
+    (`edicoes.avaliacao_liberada_em`) e **fim** (`edicoes.avaliacao_encerrada_em`) do período, mais
+    os **limites de avaliação** (`App\Support\LimitesAvaliacao`): **por avaliador**, o mínimo é o
+    tamanho da fila e o máximo é o teto de avaliações que ele acumula (em branco = sem teto); **por
+    projeto**, o mínimo é o alvo da distribuição e o máximo é quantos avaliadores enxergam o
+    projeto — e esse par pode ser definido **por categoria**, seguindo o geral quando fica em branco.
     Encerrado, o avaliador ainda **lê** os projetos designados e o que respondeu, mas não
     inicia, não salva rascunho e não envia (`AvaliacaoFluxoService::podeVer()` vs
     `podeAvaliar()`); o demo em modo teste ignora as duas datas. O "período começou" que trava
@@ -120,6 +124,14 @@ Tabela `users` única com coluna `role`: **`orientador`**, **`avaliador`**, **`a
     sorteia de novo — o que está **em avaliação**, o concluído e o designado à mão não se mexem),
     mais o toggle **designar ao cadastrar** (`edicoes.distribuicao_ao_cadastrar`): ligado, o
     avaliador que acaba de se cadastrar já sai com a fila cheia.
+  - **Avaliação Online → Ranking dos projetos → Gerar lista final**: exporta em **TXT** o recorte
+    que vai para a programação da feira. O admin define um **total**, uma cota **por categoria** e
+    uma **por área** (em branco não limita); entram os **mais bem avaliados** que couberem em todas
+    as cotas. O arquivo sai por categoria (FETECMS → FETEC Jr → FETECMS FUNDECT) → área em ordem
+    alfabética → título, com o sequencial `001, 002…` reiniciando a cada categoria+área:
+    `FET.AGR-001 - Título` / `Escola / Cidade - UF` / alunos em ordem alfabética /
+    `Orientador - Orientador(a)`. As siglas de categoria são FET, JR e PIC; as de área saem de
+    `areas.sigla` (AGR, BIO, SAU, EXA, HUM, SOC, ENG, LIN), editável em Parametrização → Áreas.
   - **Comunicação → Avisos** (`/admin/comunicacao/avisos`): o admin publica um card com **título e mensagem livres**,
     que aparece para os **orientadores ativos** conectados em até ~1 min (polling; não há
     WebSocket no projeto) e pode ser fechado por cada um. **Um ativo por vez** — publicar um
@@ -269,7 +281,33 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 46 | Avisos com data de expiração na tela | ✅ sim | ✅ sim (Pedro, PR #60 → v1.17) | 0 |
 | 47 | Algoritmo de distribuição: seção própria, regras por categoria e "Distribuir" movido para lá | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 48 | Redistribuir avaliações + toggle "designar ao cadastrar avaliador" | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 49 | Ranking: "Gerar lista final" em TXT (cotas por total/categoria/área) + sigla da área | ✅ sim | ❌ não (manual do Pedro) | 2 |
+| 50 | Parametrização: mínimo E máximo por avaliador e por projeto (por categoria) | ✅ sim | ❌ não (manual do Pedro) | 2 |
 
+> **Sprints 49–50 (mesma branch `feat/algoritmo-distribuicao-e-lista-final`):**
+> (a) **Sprint 49** — **Gerar lista final** no Ranking dos projetos. O admin escolhe um **total**,
+> uma cota **por categoria** e uma **por área** (campo em branco não limita; 0 deixa o recorte de
+> fora); entram os **mais bem avaliados** que couberem em todas as cotas ao mesmo tempo. O arquivo
+> **TXT** sai agrupado por **categoria** (FETECMS → FETEC Jr → FETECMS FUNDECT) → **área** em ordem
+> alfabética → **título**, com o sequencial `001, 002…` reiniciando a cada categoria+área e os
+> alunos em ordem alfabética. Formato de cada bloco: `FET.AGR-001 - Título`, `Escola / Cidade - UF`,
+> os alunos e `Orientador - Orientador(a)`. Para isso a área ganhou **`areas.sigla`**
+> (AGR, BIO, SAU, EXA, HUM, SOC, ENG, LIN), com backfill pelo nome e edição em Parametrização →
+> Áreas (`PATCH /admin/areas/{area}/sigla`); área sem sigla cai para as três primeiras letras do
+> nome. Tudo no `ListaFinalService`; `GET /admin/avaliacao/lista-final/opcoes` alimenta o diálogo e
+> `POST /admin/avaliacao/lista-final` devolve o TXT.
+> (b) **Sprint 50** — os mínimos viraram **pares mínimo/máximo** (`App\Support\LimitesAvaliacao`,
+> lido de uma vez por operação para não consultar a edição projeto a projeto):
+> **por avaliador**, o mínimo continua sendo o tamanho da fila e o novo
+> `edicoes.avaliacoes_max_por_avaliador` é o **teto de avaliações que ele acumula** — em branco,
+> sem teto, que é o comportamento de sempre; **por projeto**, `edicoes.avaliacoes_max_por_projeto`
+> substitui a constante `Avaliacao::TETO_POR_PROJETO` e o par pode ser definido **por categoria**
+> em `edicoes.avaliacoes_por_categoria` (em branco, a categoria segue o geral). Distribuição,
+> reposição da fila, colunas de *faltantes*, cards de resumo e o "completo" do ranking passaram a
+> usar o número da **categoria do projeto**; onde o resumo precisa de um número só, ele diz
+> "mínimo da categoria" quando elas divergem. Três tipos novos na trilha de Registros.
+> Back **526/526**, front **228/228**, Pint limpo, build OK.
+>
 > **Sprints 47–48 (branch `feat/algoritmo-distribuicao-e-lista-final`, saída da `origin/main` @ `a9bb314`):**
 > a aba **Avaliação online** ganhou a seção **Algoritmo de distribuição**, com os limiares que o
 > admin ajusta e as duas ações de distribuição.

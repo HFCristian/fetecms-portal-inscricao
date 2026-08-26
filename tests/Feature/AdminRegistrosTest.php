@@ -232,6 +232,7 @@ class AdminRegistrosTest extends TestCase
             [
                 'avaliacao_liberacao', 'avaliacao_encerramento',
                 'avaliacao_min_avaliador', 'avaliacao_min_projeto',
+                'avaliacao_max_avaliador', 'avaliacao_max_projeto', 'avaliacao_limites_categoria',
                 'avaliacao_regra_distribuicao', 'avaliacao_designacao_ao_cadastrar',
             ],
             array_column($avaliacao->json('meta.tipos'), 'value'),

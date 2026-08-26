@@ -11,6 +11,7 @@ use App\Http\Requests\Admin\DesignarAvaliacaoRequest;
 use App\Http\Requests\Admin\EncerramentoAvaliacaoRequest;
 use App\Http\Requests\Admin\LiberacaoAvaliacaoRequest;
 use App\Http\Requests\Admin\LimiteAvaliadorRequest;
+use App\Http\Requests\Admin\ListaFinalRequest;
 use App\Http\Requests\Admin\ListarAvaliadoresRequest;
 use App\Http\Requests\Admin\ListarProjetosAvaliacaoRequest;
 use App\Http\Requests\Admin\MinimosAvaliacaoRequest;
@@ -20,6 +21,7 @@ use App\Models\Projeto;
 use App\Models\User;
 use App\Services\AdminAvaliacaoService;
 use App\Services\DistribuicaoService;
+use App\Services\ListaFinalService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -34,6 +36,7 @@ class AdminAvaliacaoController extends Controller
     public function __construct(
         private readonly AdminAvaliacaoService $service,
         private readonly DistribuicaoService $distribuicao,
+        private readonly ListaFinalService $listaFinal,
     ) {}
 
     /** Avaliadores agrupados por área, com o progresso de avaliação de cada um. */
@@ -102,12 +105,12 @@ class AdminAvaliacaoController extends Controller
         ]);
     }
 
-    /** Define os mínimos de avaliações (por avaliador e por projeto). */
+    /** Define os limites de avaliações (mínimo/máximo por avaliador e por projeto). */
     public function definirMinimos(MinimosAvaliacaoRequest $request): JsonResponse
     {
-        $config = $this->service->definirMinimos($request->validated(), $request->user());
+        $config = $this->service->definirMinimos($request->limites(), $request->user());
 
-        return response()->json(['data' => $config, 'meta' => ['message' => 'Mínimos atualizados.']]);
+        return response()->json(['data' => $config, 'meta' => ['message' => 'Limites atualizados.']]);
     }
 
     /** Regras do algoritmo de distribuição (uma por categoria). */
@@ -195,6 +198,23 @@ class AdminAvaliacaoController extends Controller
         ]);
     }
 
+    /** O que a lista final tem para oferecer: categorias, áreas e quantos projetos há em cada. */
+    public function opcoesListaFinal(): JsonResponse
+    {
+        return response()->json(['data' => $this->listaFinal->opcoes()]);
+    }
+
+    /** Gera a lista final em TXT, no recorte de cotas escolhido pelo admin. */
+    public function gerarListaFinal(ListaFinalRequest $request): Response
+    {
+        $txt = $this->listaFinal->exportarTxt($request->cotas());
+
+        return response($txt, 200, [
+            'Content-Type' => 'text/plain; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="lista-final-'.now()->format('Y-m-d-His').'.txt"',
+        ]);
+    }
+
     /** Ranking dos avaliadores que mais concluíram avaliações. */
     public function rankingAvaliadores(): JsonResponse
     {
@@ -206,9 +226,10 @@ class AdminAvaliacaoController extends Controller
     {
         $filtros = $request->filtros();
         $pagina = $this->service->projetos($filtros, (int) ($request->validated('por_pagina') ?? 50));
+        $limites = Edicao::limites();
 
         return response()->json([
-            'data' => array_map(fn ($p) => $this->service->linhaProjeto($p), $pagina->items()),
+            'data' => array_map(fn ($p) => $this->service->linhaProjeto($p, $limites), $pagina->items()),
             'meta' => [
                 'pagina_atual' => $pagina->currentPage(),
                 'por_pagina' => $pagina->perPage(),
@@ -218,7 +239,9 @@ class AdminAvaliacaoController extends Controller
                 'categorias' => Categoria::opcoes(),
                 // Cards do topo da tela: mesmo recorte de filtros da tabela.
                 'resumo_areas' => $this->service->resumoProjetosPorArea($filtros),
-                'min_por_projeto' => Edicao::minPorProjeto(),
+                'min_por_projeto' => $limites->minPorProjeto(),
+                // Com mínimos diferentes por categoria, o resumo não crava um número.
+                'min_por_projeto_uniforme' => $limites->minUniforme(),
                 'ordenar' => $filtros['ordenar'],
                 'direcao' => $filtros['direcao'],
             ],

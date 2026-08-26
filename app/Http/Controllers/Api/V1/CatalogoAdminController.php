@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Enums\GrupoCorrelato;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\AreaCorrelacaoRequest;
+use App\Http\Requests\Admin\AreaSiglaRequest;
 use App\Http\Requests\Admin\AreaUpdateRequest;
 use App\Http\Requests\Admin\MesclarAreaRequest;
 use App\Http\Requests\Admin\MesclarSubareaRequest;
@@ -39,6 +40,13 @@ class CatalogoAdminController extends Controller
         $this->catalogo->definirCorrelacao($area, $request->grupo());
 
         return $this->arvore('Áreas correlatas atualizadas.');
+    }
+
+    public function sigla(AreaSiglaRequest $request, Area $area): JsonResponse
+    {
+        $this->catalogo->definirSigla($area, $request->sigla());
+
+        return $this->arvore('Sigla atualizada.');
     }
 
     public function mergeArea(MesclarAreaRequest $request, Area $area): JsonResponse

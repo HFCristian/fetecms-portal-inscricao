@@ -5,7 +5,21 @@ vi.mock('../components/AppShell.jsx', () => ({ default: ({ children }) => <div>{
 vi.mock('react-router-dom', () => ({ Link: ({ children }) => <a>{children}</a> }));
 
 const getRankingAvaliacao = vi.fn();
-vi.mock('../lib/admin.js', () => ({ getRankingAvaliacao: (...a) => getRankingAvaliacao(...a) }));
+const getOpcoesListaFinal = vi.fn(() => Promise.resolve({
+    total_disponivel: 3,
+    categorias: [
+        { value: 'fetecms', label: 'FETECMS', sigla: 'FET', disponiveis: 2 },
+        { value: 'fetec_jr', label: 'FETEC Jr', sigla: 'JR', disponiveis: 1 },
+        { value: 'fetecms_fundect', label: 'FETECMS FUNDECT', sigla: 'PIC', disponiveis: 0 },
+    ],
+    areas: [{ id: 1, nome: 'Ciências Exatas e da Terra', sigla: 'EXA', disponiveis: 3 }],
+}));
+const baixarListaFinal = vi.fn(() => Promise.resolve());
+vi.mock('../lib/admin.js', () => ({
+    getRankingAvaliacao: (...a) => getRankingAvaliacao(...a),
+    getOpcoesListaFinal: (...a) => getOpcoesListaFinal(...a),
+    baixarListaFinal: (...a) => baixarListaFinal(...a),
+}));
 vi.mock('../lib/catalogos.js', () => ({
     loadAreas: vi.fn(() => Promise.resolve([
         { id: 1, nome: 'Exatas' },
@@ -138,6 +152,27 @@ describe('AvaliacaoRanking', () => {
         fireEvent.change(screen.getByLabelText('Categoria'), { target: { value: 'fetec_jr' } });
 
         await waitFor(() => expect(getRankingAvaliacao).toHaveBeenLastCalledWith({ area_id: '1', categoria: 'fetec_jr' }));
+    });
+
+    it('gera a lista final com as cotas escolhidas', async () => {
+        render(<AvaliacaoRanking />);
+        await screen.findByText('Secador solar');
+
+        fireEvent.click(screen.getByRole('button', { name: /Gerar lista final/ }));
+
+        // Cada categoria e cada área viram uma cota, com o que há disponível.
+        expect(await screen.findByLabelText(/Quantidade de FETECMS FUNDECT/)).toBeInTheDocument();
+        fireEvent.change(screen.getByLabelText('Total de projetos na lista'), { target: { value: '10' } });
+        fireEvent.change(screen.getByLabelText('Quantidade de FETEC Jr'), { target: { value: '2' } });
+        fireEvent.change(screen.getByLabelText(/Quantidade de Ciências Exatas/), { target: { value: '5' } });
+
+        fireEvent.click(screen.getByRole('button', { name: /Gerar TXT/ }));
+
+        await waitFor(() => expect(baixarListaFinal).toHaveBeenCalledWith({
+            total: 10,
+            categorias: { fetec_jr: 2 },
+            areas: { 1: 5 },
+        }));
     });
 
     it('mostra estado vazio quando ninguém foi avaliado', async () => {
