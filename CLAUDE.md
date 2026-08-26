@@ -113,10 +113,12 @@ Tabela `users` única com coluna `role`: **`orientador`**, **`avaliador`**, **`a
     inicia, não salva rascunho e não envia (`AvaliacaoFluxoService::podeVer()` vs
     `podeAvaliar()`); o demo em modo teste ignora as duas datas. O "período começou" que trava
     o cancelamento de submissão e a troca de área do avaliador continua sendo só o início.
-  - **Avaliação Online → Algoritmo de distribuição** (`/admin/avaliacao`): os limiares que o
-    algoritmo respeita. Por **categoria**, o admin liga/desliga a participação e define a **faixa
-    de avaliações concluídas** (de/até; "até" em branco = sem teto) em que o projeto ainda aceita
-    avaliador novo — é assim que se pede "só FETEC Jr com 0 avaliações". As regras moram em
+  - **Avaliação Online → Algoritmo de distribuição** (`/admin/avaliacao/distribuicao`, aberta pelo
+    botão *Abrir configurações* na aba): os limiares que o algoritmo respeita. Por **categoria**, o
+    admin liga/desliga a participação e define a **faixa de avaliações que o projeto já recebeu**
+    (as concluídas; de/até, "até" em branco = sem teto) para ele ainda aceitar avaliador novo — a
+    conta é **por projeto**, não pela carga do avaliador: "FUNDECT de 0 a 1" designa só os projetos
+    dessa categoria com nenhuma ou uma avaliação recebida. As regras moram em
     `edicoes.distribuicao_regras` (JSON, via `App\Support\RegrasDistribuicao`) e valem para a
     distribuição em massa, para a reposição da fila e para o sorteio; a **designação manual do
     admin passa por cima**. Na mesma seção ficam **Distribuir avaliações** (completa o que falta,
@@ -283,7 +285,16 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 48 | Redistribuir avaliações + toggle "designar ao cadastrar avaliador" | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 49 | Ranking: "Gerar lista final" em TXT (cotas por total/categoria/área) + sigla da área | ✅ sim | ❌ não (manual do Pedro) | 2 |
 | 50 | Parametrização: mínimo E máximo por avaliador e por projeto (por categoria) | ✅ sim | ❌ não (manual do Pedro) | 2 |
+| 51 | Algoritmo de distribuição em tela própria (`/admin/avaliacao/distribuicao`), aberta por botão na aba | ✅ sim | ❌ não (manual do Pedro) | 3 |
 
+> **Sprint 51 (mesma branch):** a seção **Algoritmo de distribuição** saiu da landing de
+> "Avaliação online" e virou tela própria em `/admin/avaliacao/distribuicao`
+> (`AvaliacaoDistribuicao.jsx`), aberta pelo botão **Abrir configurações**. Ela reúne as regras por
+> categoria, o toggle de designação ao cadastrar e as ações de **distribuir** e **redistribuir**; a
+> aba volta a ser só a janela de datas mais os cards de acompanhamento. Junto, a redação da faixa
+> ficou explícita: a contagem é de **avaliações recebidas pelo projeto**, não do trabalho do
+> avaliador. Back **527/527**, front **229/229**, Pint limpo, build OK.
+>
 > **Sprints 49–50 (mesma branch `feat/algoritmo-distribuicao-e-lista-final`):**
 > (a) **Sprint 49** — **Gerar lista final** no Ranking dos projetos. O admin escolhe um **total**,
 > uma cota **por categoria** e uma **por área** (campo em branco não limita; 0 deixa o recorte de

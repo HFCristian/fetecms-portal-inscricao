@@ -1,12 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
-import RegrasDistribuicaoCard from '../components/RegrasDistribuicaoCard.jsx';
-import { Button, Alert, Toggle, useConfirm } from '../components/ui.jsx';
-import {
-    getAvaliacaoConfig, getDistribuicaoConfig, distribuirAvaliacoes,
-    redistribuirAvaliacoes, definirDistribuicaoAoCadastrar,
-} from '../lib/admin.js';
+import { getAvaliacaoConfig } from '../lib/admin.js';
 
 // Resumo das datas do período — quem muda é a Parametrização.
 function JanelaAvaliacao({ config }) {
@@ -26,150 +21,6 @@ function JanelaAvaliacao({ config }) {
             >
                 Alterar datas
             </Link>
-        </div>
-    );
-}
-
-// Distribuição automática (idempotente) + relatório de sub-cobertura.
-function DistribuicaoCard({ minPorProjeto }) {
-    const [confirm, dialogo] = useConfirm();
-    const [rodando, setRodando] = useState('');
-    const [relatorio, setRelatorio] = useState(null);
-    const [msg, setMsg] = useState('');
-    const [erro, setErro] = useState('');
-
-    const alvo = minPorProjeto ?? 3;
-
-    async function distribuir() {
-        const ok = await confirm({
-            title: 'Distribuir avaliações', confirmLabel: 'Distribuir',
-            message: `Vou completar até ${alvo} avaliadores por projeto (por subárea/área), respeitando as regras acima, os limites de cada avaliador e ignorando avaliadores demo. É seguro rodar mais de uma vez. Continuar?`,
-        });
-        if (!ok) return;
-        setRodando('distribuir'); setMsg(''); setErro(''); setRelatorio(null);
-        try {
-            const resp = await distribuirAvaliacoes();
-            setRelatorio(resp.data);
-            setMsg(resp.meta?.message || 'Distribuição concluída.');
-        } catch {
-            setErro('Não foi possível distribuir. Tente novamente.');
-        } finally {
-            setRodando('');
-        }
-    }
-
-    async function redistribuir() {
-        const ok = await confirm({
-            title: 'Redistribuir avaliações', confirmLabel: 'Redistribuir', danger: true,
-            message: 'Todo projeto apenas designado volta para o bolo e cada avaliador recebe outros no lugar, pelas regras acima. O que já está em avaliação, o que foi concluído e o que você designou à mão não se mexem. Continuar?',
-        });
-        if (!ok) return;
-        setRodando('redistribuir'); setMsg(''); setErro(''); setRelatorio(null);
-        try {
-            const resp = await redistribuirAvaliacoes();
-            setRelatorio(resp.data);
-            setMsg(resp.meta?.message || 'Redistribuição concluída.');
-        } catch {
-            setErro('Não foi possível redistribuir. Tente novamente.');
-        } finally {
-            setRodando('');
-        }
-    }
-
-    const subs = relatorio?.sub_cobertos ?? [];
-    const ignorados = relatorio?.ignorados_pela_regra ?? 0;
-
-    return (
-        <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-6 mb-4 max-w-3xl">
-            <h3 className="font-display text-primary font-semibold mb-1">Distribuição automática</h3>
-            <p className="text-sm text-on-surface-variant mb-3">
-                Completa cada projeto elegível até {alvo} avaliadores, casando por subárea (preferencial)
-                ou área. Idempotente: pode rodar quantas vezes quiser — só completa o que falta, sem
-                mexer no que já foi designado.
-            </p>
-            {msg && <div className="mb-3"><Alert type="info">{msg}</Alert></div>}
-            {erro && <div className="mb-3"><Alert>{erro}</Alert></div>}
-            <div className="flex items-center gap-2 flex-wrap">
-                <Button type="button" loading={rodando === 'distribuir'} disabled={rodando !== ''} onClick={distribuir}>
-                    <span className="material-symbols-outlined text-[18px]">shuffle</span>
-                    Distribuir avaliações
-                </Button>
-                <Button type="button" variant="outline" loading={rodando === 'redistribuir'} disabled={rodando !== ''} onClick={redistribuir}>
-                    <span className="material-symbols-outlined text-[18px]">autorenew</span>
-                    Redistribuir avaliações
-                </Button>
-            </div>
-            <p className="mt-2 text-xs text-on-surface-variant">
-                Redistribuir troca o que ainda não foi aberto: em avaliação, concluído e designação
-                manual do admin ficam como estão.
-            </p>
-
-            {relatorio?.devolvidas > 0 && (
-                <p className="mt-3 text-sm text-on-surface">
-                    {relatorio.devolvidas} designação(ões) devolvidas ao bolo e {relatorio.recebidas} nova(s) no lugar.
-                </p>
-            )}
-            {ignorados > 0 && (
-                <p className="mt-3 text-sm text-on-surface-variant">
-                    {ignorados} projeto(s) ficaram de fora pelas regras por categoria.
-                </p>
-            )}
-            {relatorio && subs.length === 0 && (
-                <p className="mt-3 text-sm text-secondary font-semibold">
-                    Todos os projetos elegíveis têm ao menos {alvo} avaliadores.
-                </p>
-            )}
-            {subs.length > 0 && (
-                <div className="mt-4">
-                    <p className="text-sm font-semibold text-on-surface mb-2">
-                        {subs.length} projeto(s) ainda precisam de avaliadores — complete manualmente na tela de projetos:
-                    </p>
-                    <ul className="text-sm text-on-surface-variant space-y-1 max-h-56 overflow-auto">
-                        {subs.map((s) => (
-                            <li key={s.projeto_id} className="flex justify-between gap-2">
-                                <span className="truncate">{s.titulo}{s.area ? ` — ${s.area}` : ''}</span>
-                                <span className="shrink-0 text-error font-semibold">faltam {s.faltam}</span>
-                            </li>
-                        ))}
-                    </ul>
-                </div>
-            )}
-            {dialogo}
-        </div>
-    );
-}
-
-// Toggle: quem se cadastra como avaliador já sai com a fila cheia.
-function DesignacaoAoCadastrarCard({ config, onSalvo }) {
-    const [salvando, setSalvando] = useState(false);
-    const [msg, setMsg] = useState('');
-    const [erro, setErro] = useState('');
-
-    async function alternar(valor) {
-        setSalvando(true); setMsg(''); setErro('');
-        try {
-            const resp = await definirDistribuicaoAoCadastrar(valor);
-            onSalvo?.(resp.data);
-            setMsg(resp.meta?.message || 'Configuração salva.');
-        } catch {
-            setErro('Não foi possível salvar. Tente novamente.');
-        } finally {
-            setSalvando(false);
-        }
-    }
-
-    return (
-        <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-6 mb-4 max-w-3xl">
-            {msg && <div className="mb-3"><Alert type="info">{msg}</Alert></div>}
-            {erro && <div className="mb-3"><Alert>{erro}</Alert></div>}
-            <fieldset disabled={salvando}>
-                <Toggle
-                    checked={config.ao_cadastrar}
-                    onChange={alternar}
-                    label="Designar projetos ao cadastrar um avaliador"
-                    description="Ligado, quem termina o cadastro de avaliador já encontra projetos na fila — pelas mesmas regras acima, sem esperar a próxima distribuição."
-                />
-            </fieldset>
         </div>
     );
 }
@@ -195,11 +46,9 @@ function CardAvaliacao({ to, icon, titulo, descricao }) {
 
 export default function AdminAvaliacaoOnline() {
     const [janela, setJanela] = useState(null);
-    const [distribuicao, setDistribuicao] = useState(null);
 
     useEffect(() => {
         getAvaliacaoConfig().then(setJanela).catch(() => setJanela(null));
-        getDistribuicaoConfig().then(setDistribuicao).catch(() => setDistribuicao(null));
     }, []);
 
     return (
@@ -212,20 +61,23 @@ export default function AdminAvaliacaoOnline() {
 
             <JanelaAvaliacao config={janela} />
 
-            <section className="mb-8">
-                <h2 className="font-display text-xl font-semibold text-primary mb-1">Algoritmo de distribuição</h2>
-                <p className="text-sm text-on-surface-variant mb-4 max-w-3xl">
-                    Os limiares que o algoritmo respeita ao designar projetos automaticamente. O alvo por
-                    projeto e a capacidade de cada avaliador continuam em{' '}
-                    <Link to="/admin/parametrizacao/avaliacao" className="font-semibold text-primary-container hover:text-primary">
-                        Parametrização → Avaliação Online
-                    </Link>.
-                </p>
-
-                {distribuicao && <RegrasDistribuicaoCard config={distribuicao} onSalvo={setDistribuicao} />}
-                {distribuicao && <DesignacaoAoCadastrarCard config={distribuicao} onSalvo={setDistribuicao} />}
-                <DistribuicaoCard minPorProjeto={janela?.min_por_projeto} />
-            </section>
+            {/* As regras do algoritmo e as duas ações de distribuição moram numa tela só. */}
+            <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-6 mb-6 max-w-3xl flex items-center gap-4 flex-wrap">
+                <div className="min-w-0 flex-1">
+                    <h2 className="font-display text-lg font-semibold text-on-surface">Algoritmo de distribuição</h2>
+                    <p className="text-sm text-on-surface-variant mt-1">
+                        Quais projetos entram na distribuição automática, em que faixa de avaliações, e as
+                        ações de <strong>distribuir</strong> e <strong>redistribuir</strong>.
+                    </p>
+                </div>
+                <Link
+                    to="/admin/avaliacao/distribuicao"
+                    className="inline-flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 font-semibold transition-colors bg-primary-container text-on-primary hover:bg-primary shrink-0"
+                >
+                    <span className="material-symbols-outlined text-[18px]">tune</span>
+                    Abrir configurações
+                </Link>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl">
                 <CardAvaliacao

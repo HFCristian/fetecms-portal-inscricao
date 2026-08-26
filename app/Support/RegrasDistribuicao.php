@@ -9,9 +9,10 @@ use App\Enums\Categoria;
  * Online → Algoritmo de distribuição):
  *
  * - `ativa`: a categoria entra na distribuição automática;
- * - `min_concluidas` / `max_concluidas`: faixa de avaliações JÁ CONCLUÍDAS em
- *   que o projeto ainda aceita um avaliador novo. `max` nulo = sem teto, então
- *   "só FETEC Jr com 0 avaliações" é min 0 / máx 0.
+ * - `min_concluidas` / `max_concluidas`: faixa de avaliações que o PROJETO já
+ *   recebeu (as concluídas) para ele ainda aceitar um avaliador novo — a conta é
+ *   por projeto, não pela carga do avaliador. `max` nulo = sem teto, então "só
+ *   FETEC Jr com 0 avaliações" é min 0 / máx 0 e "FUNDECT de 0 a 1" é min 0 / máx 1.
  *
  * O padrão é o comportamento histórico: toda categoria ativa, sem faixa. Vale
  * para a distribuição em massa, para a reposição da fila do avaliador e para o
@@ -67,8 +68,9 @@ final class RegrasDistribuicao
     }
 
     /**
-     * O projeto pode receber mais um avaliador automático? Projeto sem
-     * categoria não tem regra que o alcance e segue elegível.
+     * O projeto pode receber mais um avaliador automático? `$concluidas` é
+     * quantas avaliações concluídas ELE já recebeu. Projeto sem categoria não
+     * tem regra que o alcance e segue elegível.
      */
     public function aceita(?Categoria $categoria, int $concluidas): bool
     {

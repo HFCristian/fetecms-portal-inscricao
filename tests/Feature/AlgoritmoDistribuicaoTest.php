@@ -177,6 +177,34 @@ class AlgoritmoDistribuicaoTest extends TestCase
         $this->assertSame(1, Avaliacao::where('projeto_id', $comUma->id)->count()); // só a que já existia
     }
 
+    public function test_faixa_conta_as_avaliacoes_recebidas_pelo_projeto(): void
+    {
+        $area = Area::create(['nome' => 'Área A']);
+        $this->avaliador($area->id);
+        $this->avaliador($area->id);
+
+        // "FUNDECT de 0 a 1": entra o projeto com uma avaliação recebida, não o
+        // que já recebeu duas — a conta é do projeto, não da carga do avaliador.
+        $comUma = $this->projeto($area->id, Categoria::FetecmsFundect, 'Recebeu uma');
+        $this->concluir($comUma, 1);
+
+        $comDuas = $this->projeto($area->id, Categoria::FetecmsFundect, 'Recebeu duas');
+        $this->concluir($comDuas, 2);
+
+        Edicao::atual()->update(['distribuicao_regras' => [
+            'fetecms' => $this->regra(),
+            'fetec_jr' => $this->regra(),
+            'fetecms_fundect' => $this->regra(true, 0, 1),
+        ]]);
+
+        app(DistribuicaoService::class)->distribuir();
+
+        $this->assertSame(2, Avaliacao::where('projeto_id', $comUma->id)
+            ->where('status', StatusAvaliacao::Designada->value)->count());
+        $this->assertSame(0, Avaliacao::where('projeto_id', $comDuas->id)
+            ->where('status', StatusAvaliacao::Designada->value)->count());
+    }
+
     public function test_reposicao_da_fila_tambem_respeita_a_regra(): void
     {
         $area = Area::create(['nome' => 'Área A']);
