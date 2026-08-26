@@ -31,6 +31,7 @@ import AdminManager from './pages/AdminManager.jsx';
 import AdminSuporte from './pages/AdminSuporte.jsx';
 import AdminAvaliacaoOnline from './pages/AdminAvaliacaoOnline.jsx';
 import AvaliacaoAvaliadores from './pages/AvaliacaoAvaliadores.jsx';
+import AvaliacaoDistribuicao from './pages/AvaliacaoDistribuicao.jsx';
 import AvaliacaoProjetos from './pages/AvaliacaoProjetos.jsx';
 import AvaliacaoReclassificacoes from './pages/AvaliacaoReclassificacoes.jsx';
 import AvaliacaoRanking from './pages/AvaliacaoRanking.jsx';
@@ -100,6 +101,7 @@ export default function Root() {
                         <Route element={<RoleRoute allow={['admin']} />}>
                             <Route path="/admin" element={<AdminHome />} />
                             <Route path="/admin/avaliacao" element={<AdminAvaliacaoOnline />} />
+                            <Route path="/admin/avaliacao/distribuicao" element={<AvaliacaoDistribuicao />} />
                             <Route path="/admin/avaliacao/avaliadores" element={<AvaliacaoAvaliadores />} />
                             <Route path="/admin/avaliacao/projetos" element={<AvaliacaoProjetos />} />
                             <Route path="/admin/avaliacao/reclassificacoes" element={<AvaliacaoReclassificacoes />} />

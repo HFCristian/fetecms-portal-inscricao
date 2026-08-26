@@ -18,17 +18,18 @@ function resumoFaixa(regra) {
     const min = Number(regra.min_concluidas || 0);
 
     return max === null
-        ? `Recebe avaliador com ${min} ou mais avaliações concluídas.`
+        ? `Distribui os projetos que já receberam ${min} ou mais avaliações.`
         : min === max
-            ? `Só recebe avaliador com exatamente ${min} ${min === 1 ? 'avaliação concluída' : 'avaliações concluídas'}.`
-            : `Recebe avaliador com ${min} a ${max} avaliações concluídas.`;
+            ? `Distribui só os projetos com exatamente ${min} ${min === 1 ? 'avaliação recebida' : 'avaliações recebidas'}.`
+            : `Distribui os projetos que receberam de ${min} a ${max} avaliações.`;
 }
 
 /**
  * Regras do algoritmo de distribuição, uma linha por categoria: se ela entra na
- * distribuição automática e em que faixa de avaliações JÁ CONCLUÍDAS o projeto
- * ainda aceita um avaliador novo. Vale para "Distribuir", para "Redistribuir" e
- * para a reposição da fila do avaliador — a designação manual passa por cima.
+ * distribuição automática e em que faixa de avaliações RECEBIDAS PELO PROJETO
+ * (as já concluídas) ele ainda aceita um avaliador novo — nada a ver com quantas
+ * avaliações o avaliador fez. Vale para "Distribuir", para "Redistribuir" e para
+ * a reposição da fila — a designação manual do admin passa por cima.
  */
 export default function RegrasDistribuicaoCard({ config, onSalvo }) {
     const [regras, setRegras] = useState(config.regras);
@@ -80,8 +81,11 @@ export default function RegrasDistribuicaoCard({ config, onSalvo }) {
             <h3 className="font-display text-primary font-semibold mb-1">Regras por categoria</h3>
             <p className="text-sm text-on-surface-variant mb-4">
                 Quais projetos o algoritmo pode designar. Desligue uma categoria para deixá-la de fora e
-                use a faixa para mirar em quem ainda precisa — por exemplo, só FETEC Jr com 0 avaliações
-                concluídas. A designação manual do admin não passa por estas regras.
+                use a faixa para mirar nos projetos que ainda precisam: a conta é de{' '}
+                <strong>avaliações que o projeto já recebeu</strong> (as concluídas), e não do quanto
+                cada avaliador trabalhou. Ex.: FETECMS FUNDECT de 0 a 1 designa só os projetos dessa
+                categoria com nenhuma ou uma avaliação recebida. A designação manual do admin não passa
+                por estas regras.
             </p>
 
             {msg && <div className="mb-3"><Alert type="info">{msg}</Alert></div>}
@@ -115,7 +119,7 @@ export default function RegrasDistribuicaoCard({ config, onSalvo }) {
                                         min={0}
                                         max={config.max_concluidas}
                                         disabled={!regra.ativa}
-                                        aria-label={`Mínimo de avaliações concluídas — ${label}`}
+                                        aria-label={`Mínimo de avaliações recebidas — ${label}`}
                                         value={regra.min_concluidas ?? 0}
                                         onChange={(e) => atualizar(value, 'min_concluidas', e.target.value)}
                                         className={numeroClass}
@@ -130,14 +134,15 @@ export default function RegrasDistribuicaoCard({ config, onSalvo }) {
                                         max={config.max_concluidas}
                                         disabled={!regra.ativa}
                                         placeholder="—"
-                                        aria-label={`Máximo de avaliações concluídas — ${label}`}
+                                        aria-label={`Máximo de avaliações recebidas — ${label}`}
                                         value={regra.max_concluidas ?? ''}
                                         onChange={(e) => atualizar(value, 'max_concluidas', e.target.value)}
                                         className={numeroClass}
                                     />
                                 </label>
                                 <p className="text-xs text-on-surface-variant flex-1 min-w-[12rem] pb-2">
-                                    avaliações concluídas — deixe <strong>Até</strong> em branco para não ter teto.
+                                    avaliações <strong>recebidas pelo projeto</strong> — deixe <strong>Até</strong> em
+                                    branco para não ter teto.
                                     <span className="block text-on-surface-variant/80 mt-0.5">{resumoFaixa(regra)}</span>
                                 </p>
                             </div>
