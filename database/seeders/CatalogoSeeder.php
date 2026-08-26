@@ -108,9 +108,14 @@ class CatalogoSeeder extends Seeder
         foreach ($arvore as $area => $subareas) {
             $a = Area::firstOrCreate(['nome' => $area]);
 
-            // Grupo de áreas correlatas (fallback da distribuição): deduzido do nome.
+            // Grupo de áreas correlatas (fallback da distribuição) e sigla da
+            // lista final: os dois deduzidos do nome.
             if ($a->grupo_correlato === null) {
                 $a->update(['grupo_correlato' => GrupoCorrelato::peloNome($area)]);
+            }
+
+            if ($a->sigla === null) {
+                $a->update(['sigla' => Area::siglaPeloNome($area)]);
             }
 
             foreach ($subareas as $sub) {

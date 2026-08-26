@@ -175,8 +175,14 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::post('/avaliacao/reclassificacoes/aplicar', [AdminAvaliacaoController::class, 'aplicarReclassificacoes']);
             Route::get('/avaliacao/ranking', [AdminAvaliacaoController::class, 'ranking']);
             Route::get('/avaliacao/ranking-avaliadores', [AdminAvaliacaoController::class, 'rankingAvaliadores']);
+            Route::get('/avaliacao/lista-final/opcoes', [AdminAvaliacaoController::class, 'opcoesListaFinal']);
+            Route::post('/avaliacao/lista-final', [AdminAvaliacaoController::class, 'gerarListaFinal']);
             Route::post('/avaliacao/projetos/{projeto}/designar', [AdminAvaliacaoController::class, 'designar']);
+            Route::get('/avaliacao/distribuicao', [AdminAvaliacaoController::class, 'distribuicaoConfig']);
+            Route::patch('/avaliacao/distribuicao', [AdminAvaliacaoController::class, 'definirRegrasDistribuicao']);
+            Route::patch('/avaliacao/distribuicao/ao-cadastrar', [AdminAvaliacaoController::class, 'definirDistribuicaoAoCadastrar']);
             Route::post('/avaliacao/distribuir', [AdminAvaliacaoController::class, 'distribuir']);
+            Route::post('/avaliacao/redistribuir', [AdminAvaliacaoController::class, 'redistribuir']);
             Route::patch('/avaliacao/avaliadores/{avaliador}/limite', [AdminAvaliacaoController::class, 'limitar']);
             Route::patch('/avaliacao/avaliadores/{avaliador}/demo', [AdminAvaliacaoController::class, 'demo']);
             Route::patch('/avaliacao/avaliadores/{avaliador}/comissao', [AdminAvaliacaoController::class, 'comissao']);
@@ -227,6 +233,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::get('/catalogo', [CatalogoAdminController::class, 'index']);
             Route::put('/areas/{area}', [CatalogoAdminController::class, 'updateArea']);
             Route::patch('/areas/{area}/correlacao', [CatalogoAdminController::class, 'correlacao']);
+            Route::patch('/areas/{area}/sigla', [CatalogoAdminController::class, 'sigla']);
             Route::post('/areas/{area}/mesclar', [CatalogoAdminController::class, 'mergeArea']);
             Route::delete('/areas/{area}', [CatalogoAdminController::class, 'destroyArea']);
             Route::put('/subareas/{subarea}', [CatalogoAdminController::class, 'updateSubarea']);

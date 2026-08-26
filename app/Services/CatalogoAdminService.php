@@ -34,6 +34,8 @@ class CatalogoAdminService
             'usos' => $usosArea[$a->id] ?? 0,
             'grupo_correlato' => $a->grupo_correlato?->value,
             'grupo_correlato_label' => $a->grupo_correlato?->label(),
+            'sigla' => $a->sigla,
+            'sigla_lista' => $a->siglaDaLista(),
             'subareas' => $a->subareas->sortBy('nome', SORT_NATURAL | SORT_FLAG_CASE)
                 ->map(fn (Subarea $s) => [
                     'id' => $s->id,
@@ -57,6 +59,16 @@ class CatalogoAdminService
     public function definirCorrelacao(Area $area, ?GrupoCorrelato $grupo): void
     {
         $area->update(['grupo_correlato' => $grupo]);
+        $this->limparCache();
+    }
+
+    /**
+     * Define (ou tira) a sigla de três letras da área — o "AGR" de FET.AGR-001
+     * na lista final da feira.
+     */
+    public function definirSigla(Area $area, ?string $sigla): void
+    {
+        $area->update(['sigla' => $sigla]);
         $this->limparCache();
     }
 

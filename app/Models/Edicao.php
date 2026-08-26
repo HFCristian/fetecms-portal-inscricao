@@ -2,6 +2,9 @@
 
 namespace App\Models;
 
+use App\Enums\Categoria;
+use App\Support\LimitesAvaliacao;
+use App\Support\RegrasDistribuicao;
 use Illuminate\Database\Eloquent\Model;
 
 class Edicao extends Model
@@ -20,6 +23,8 @@ class Edicao extends Model
         'nome', 'ano', 'inscricoes_abertas', 'inicio_em', 'fim_em',
         'avaliacao_liberada_em', 'avaliacao_encerrada_em', 'submissoes_de', 'submissoes_ate',
         'avaliacoes_min_por_avaliador', 'avaliacoes_min_por_projeto',
+        'avaliacoes_max_por_avaliador', 'avaliacoes_max_por_projeto', 'avaliacoes_por_categoria',
+        'distribuicao_regras', 'distribuicao_ao_cadastrar',
     ];
 
     protected function casts(): array
@@ -34,6 +39,11 @@ class Edicao extends Model
             'submissoes_ate' => 'datetime',
             'avaliacoes_min_por_avaliador' => 'integer',
             'avaliacoes_min_por_projeto' => 'integer',
+            'avaliacoes_max_por_avaliador' => 'integer',
+            'avaliacoes_max_por_projeto' => 'integer',
+            'avaliacoes_por_categoria' => 'array',
+            'distribuicao_regras' => 'array',
+            'distribuicao_ao_cadastrar' => 'boolean',
         ];
     }
 
@@ -44,18 +54,58 @@ class Edicao extends Model
     }
 
     /**
+     * Todos os limites de avaliação de uma vez. Quem precisa do número de vários
+     * projetos numa mesma operação deve guardar este objeto em vez de chamar os
+     * atalhos abaixo em laço — cada chamada consulta a edição atual.
+     */
+    public static function limites(): LimitesAvaliacao
+    {
+        return LimitesAvaliacao::daEdicao(static::atual());
+    }
+
+    /**
      * Quantas avaliações cada avaliador precisa concluir. É também quantos
      * projetos ele enxerga de uma vez no painel.
      */
     public static function minPorAvaliador(): int
     {
-        return static::atual()?->avaliacoes_min_por_avaliador ?? self::PADRAO_MIN_POR_AVALIADOR;
+        return static::limites()->minPorAvaliador();
     }
 
-    /** Quantas avaliações concluídas cada projeto precisa receber. */
-    public static function minPorProjeto(): int
+    /** Teto total de avaliações de um mesmo avaliador (null = sem teto). */
+    public static function maxPorAvaliador(): ?int
     {
-        return static::atual()?->avaliacoes_min_por_projeto ?? self::PADRAO_MIN_POR_PROJETO;
+        return static::limites()->maxPorAvaliador();
+    }
+
+    /** Quantas avaliações concluídas o projeto precisa receber (por categoria). */
+    public static function minPorProjeto(?Categoria $categoria = null): int
+    {
+        return static::limites()->minPorProjeto($categoria);
+    }
+
+    /** Quantos avaliadores no máximo enxergam o projeto (por categoria). */
+    public static function maxPorProjeto(?Categoria $categoria = null): int
+    {
+        return static::limites()->maxPorProjeto($categoria);
+    }
+
+    /**
+     * Regras do algoritmo de distribuição (por categoria). Sem edição atual ou
+     * sem configuração, valem os padrões — todas as categorias, sem faixa.
+     */
+    public static function regrasDistribuicao(): RegrasDistribuicao
+    {
+        return RegrasDistribuicao::deArray(static::atual()?->distribuicao_regras);
+    }
+
+    /**
+     * O avaliador recém-cadastrado já recebe projetos designados? (toggle do
+     * Algoritmo de distribuição). Sem edição atual, não.
+     */
+    public static function distribuiAoCadastrar(): bool
+    {
+        return (bool) static::atual()?->distribuicao_ao_cadastrar;
     }
 
     /** O prazo de submissão já passou? Sem prazo definido, as inscrições ficam abertas. */

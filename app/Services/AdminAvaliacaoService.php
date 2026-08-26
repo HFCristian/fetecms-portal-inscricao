@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\Categoria;
 use App\Enums\ProjetoStatus;
 use App\Enums\Role;
 use App\Enums\StatusAvaliacao;
@@ -13,6 +14,8 @@ use App\Models\Edicao;
 use App\Models\Projeto;
 use App\Models\Subarea;
 use App\Models\User;
+use App\Support\LimitesAvaliacao;
+use App\Support\RegrasDistribuicao;
 use App\Support\Rubrica;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -22,8 +25,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Telas de "Avaliação online" do admin (E7). O algoritmo de distribuição ainda
- * não existe, então os números vêm da tabela `avaliacoes` (zerados por enquanto).
+ * Telas de "Avaliação online" do admin (E7): panorama dos avaliadores e dos
+ * projetos submetidos, designação manual, rankings e a configuração do
+ * algoritmo de distribuição (as {@see RegrasDistribuicao} por categoria).
  */
 class AdminAvaliacaoService
 {
@@ -358,9 +362,11 @@ class AdminAvaliacaoService
      *
      * @return array<string, mixed>
      */
-    public function linhaProjeto(Projeto $p, ?int $minPorProjeto = null): array
+    public function linhaProjeto(Projeto $p, ?LimitesAvaliacao $limites = null): array
     {
-        $min = $minPorProjeto ?? Edicao::minPorProjeto();
+        // O alvo é o da categoria do projeto: FETEC Jr e FUNDECT podem pedir
+        // números diferentes de avaliações.
+        $min = ($limites ?? Edicao::limites())->minPorProjeto($p->categoria);
         $realizadas = (int) $p->realizadas_count;
 
         return [
@@ -387,13 +393,13 @@ class AdminAvaliacaoService
      */
     public function resumoProjetosPorArea(array $filtros = []): array
     {
-        $min = Edicao::minPorProjeto();
+        $limites = Edicao::limites();
 
         $grupos = [];
         $this->queryProjetos($filtros)
             ->reorder()
-            ->get(['projetos.id', 'projetos.area_id'])
-            ->each(function (Projeto $p) use (&$grupos, $min) {
+            ->get()
+            ->each(function (Projeto $p) use (&$grupos, $limites) {
                 $chave = $p->area_id ?? 0;
                 $grupos[$chave] ??= [
                     'area_id' => $p->area_id,
@@ -412,7 +418,8 @@ class AdminAvaliacaoService
 
                 $grupos[$chave][$faixa]++;
                 $grupos[$chave]['total']++;
-                $grupos[$chave]['completos'] += $realizadas >= $min ? 1 : 0;
+                // "Completo" é em relação ao mínimo da categoria do projeto.
+                $grupos[$chave]['completos'] += $realizadas >= $limites->minPorProjeto($p->categoria) ? 1 : 0;
             });
 
         $lista = array_values($grupos);
@@ -443,14 +450,14 @@ class AdminAvaliacaoService
      */
     public function exportarProjetosCsv(array $filtros = []): string
     {
-        $min = Edicao::minPorProjeto();
+        $limites = Edicao::limites();
         $saida = fopen('php://temp', 'r+');
         fwrite($saida, "\u{FEFF}");
         fputcsv($saida, ['Título', 'Área', 'Subárea', 'Categoria', 'Em avaliação', 'Realizadas', 'Faltantes'], ';');
 
-        $this->queryProjetos($filtros)->chunk(300, function ($projetos) use ($saida, $min) {
+        $this->queryProjetos($filtros)->chunk(300, function ($projetos) use ($saida, $limites) {
             foreach ($projetos as $p) {
-                $linha = $this->linhaProjeto($p, $min);
+                $linha = $this->linhaProjeto($p, $limites);
                 fputcsv($saida, [
                     $linha['titulo'],
                     $linha['area'] ?? '',
@@ -512,7 +519,7 @@ class AdminAvaliacaoService
      */
     public function projetosSubmetidosPorArea(): array
     {
-        $minPorProjeto = Edicao::minPorProjeto();
+        $limites = Edicao::limites();
 
         $projetos = Projeto::query()
             ->where('status', ProjetoStatus::Submetido->value)
@@ -536,8 +543,8 @@ class AdminAvaliacaoService
                 'titulo' => $p->titulo,
                 'realizadas' => $realizadas,
                 'em_avaliacao' => (int) $p->em_avaliacao,
-                // Cada projeto precisa do mínimo de avaliações concluídas da edição.
-                'faltantes' => max(0, $minPorProjeto - $realizadas),
+                // Cada projeto precisa do mínimo da categoria dele.
+                'faltantes' => max(0, $limites->minPorProjeto($p->categoria) - $realizadas),
             ];
         }
 
@@ -787,9 +794,9 @@ class AdminAvaliacaoService
             ])
             ->get();
 
-        $minPorProjeto = Edicao::minPorProjeto();
+        $limites = Edicao::limites();
 
-        $lista = $projetos->map(function (Projeto $p) use ($minPorProjeto) {
+        $lista = $projetos->map(function (Projeto $p) use ($limites) {
             $concluidas = $p->avaliacoes;
             $total = $concluidas->count();
 
@@ -801,7 +808,7 @@ class AdminAvaliacaoService
                 'avaliacoes' => $total,
                 'media' => round($concluidas->avg('nota'), 2),
                 'medias_secoes' => $this->mediasPorSecao($concluidas),
-                'completo' => $total >= $minPorProjeto,
+                'completo' => $total >= $limites->minPorProjeto($p->categoria),
                 'nota_maxima' => Avaliacao::notaMaxima(),
             ];
         })->all();
@@ -972,6 +979,7 @@ class AdminAvaliacaoService
     public function config(): array
     {
         $edicao = Edicao::atual();
+        $limites = LimitesAvaliacao::daEdicao($edicao);
         $data = $edicao?->avaliacao_liberada_em;   // Carbon no fuso do app
         $fim = $edicao?->avaliacao_encerrada_em;
 
@@ -984,42 +992,126 @@ class AdminAvaliacaoService
             'liberada_em_label' => $data?->format('d/m/Y H:i'),
             'encerrada_em_input' => $fim?->format('Y-m-d\TH:i'),
             'encerrada_em_label' => $fim?->format('d/m/Y H:i'),
-            // Mínimos do edital: quantas avaliações cada avaliador conclui (e
-            // quantos projetos ele vê na tela) e quantas cada projeto recebe.
-            'min_por_avaliador' => $edicao?->avaliacoes_min_por_avaliador ?? Edicao::PADRAO_MIN_POR_AVALIADOR,
-            'min_por_projeto' => $edicao?->avaliacoes_min_por_projeto ?? Edicao::PADRAO_MIN_POR_PROJETO,
+            // Limites do edital: quantas avaliações cada avaliador conclui (e
+            // quantos projetos ele vê na tela), até quantas ele pode receber, e
+            // o par mínimo/máximo de cada projeto — geral e por categoria.
+            'min_por_avaliador' => $limites->minPorAvaliador(),
+            'max_por_avaliador' => $limites->maxPorAvaliador(),
+            'min_por_projeto' => $limites->minPorProjeto(),
+            'max_por_projeto' => $limites->maxPorProjeto(),
+            'categorias' => $limites->categorias(),
+            'limite_maximo' => LimitesAvaliacao::MAXIMO,
         ];
     }
 
     /**
-     * Grava os mínimos da avaliação online. Só as chaves enviadas mudam — cada
-     * card da tela salva o seu número.
+     * Grava os limites da avaliação online. Só as chaves enviadas mudam — cada
+     * card da tela salva o seu bloco.
      *
-     * @param  array{min_por_avaliador?:int, min_por_projeto?:int}  $dados
+     * @param  array{min_por_avaliador?:int, max_por_avaliador?:int, min_por_projeto?:int, max_por_projeto?:int, categorias?:array<string, array{min:int|null, max:int|null}>}  $dados
      */
     public function definirMinimos(array $dados, User $admin): array
     {
         $edicao = Edicao::atual();
 
+        // Chave ausente = card não salvo agora. Já um `max_por_avaliador` nulo
+        // é intencional: quer dizer "sem teto".
         $mudancas = [
-            'avaliacoes_min_por_avaliador' => [TipoRegistro::AvaliacaoMinAvaliador, $dados['min_por_avaliador'] ?? null],
-            'avaliacoes_min_por_projeto' => [TipoRegistro::AvaliacaoMinProjeto, $dados['min_por_projeto'] ?? null],
+            'avaliacoes_min_por_avaliador' => [TipoRegistro::AvaliacaoMinAvaliador, 'min_por_avaliador'],
+            'avaliacoes_max_por_avaliador' => [TipoRegistro::AvaliacaoMaxAvaliador, 'max_por_avaliador'],
+            'avaliacoes_min_por_projeto' => [TipoRegistro::AvaliacaoMinProjeto, 'min_por_projeto'],
+            'avaliacoes_max_por_projeto' => [TipoRegistro::AvaliacaoMaxProjeto, 'max_por_projeto'],
         ];
 
-        foreach ($mudancas as $coluna => [$tipo, $novo]) {
-            if ($novo === null) {
+        foreach ($mudancas as $coluna => [$tipo, $chave]) {
+            if (! array_key_exists($chave, $dados)) {
                 continue;
             }
 
+            $novo = $dados[$chave];
             $anterior = $edicao?->{$coluna};
             $edicao?->update([$coluna => $novo]);
 
-            if ((int) $anterior !== (int) $novo) {
-                $this->registrarParametro($tipo, $admin, (string) $anterior, (string) $novo);
-            }
+            $this->registrarParametro(
+                $tipo,
+                $admin,
+                $anterior === null ? 'sem teto' : (string) $anterior,
+                $novo === null ? 'sem teto' : (string) $novo,
+            );
+        }
+
+        if (array_key_exists('categorias', $dados)) {
+            $antes = Edicao::limites()->resumoCategorias();
+            $edicao?->update(['avaliacoes_por_categoria' => $dados['categorias']]);
+
+            $this->registrarParametro(
+                TipoRegistro::AvaliacaoLimitesCategoria,
+                $admin,
+                $antes,
+                Edicao::limites()->resumoCategorias(),
+            );
         }
 
         return $this->config();
+    }
+
+    /**
+     * Configuração do algoritmo de distribuição (aba Avaliação Online): a regra
+     * de cada categoria mais o que a tela precisa para desenhar o formulário.
+     *
+     * @return array{regras: array<string, array{ativa:bool, min_concluidas:int, max_concluidas:int|null}>, categorias: array<int, array{value:string, label:string}>, max_concluidas: int}
+     */
+    public function configDistribuicao(): array
+    {
+        return [
+            'regras' => Edicao::regrasDistribuicao()->toArray(),
+            'categorias' => Categoria::opcoes(),
+            'max_concluidas' => RegrasDistribuicao::MAX_CONCLUIDAS,
+            'ao_cadastrar' => Edicao::distribuiAoCadastrar(),
+        ];
+    }
+
+    /**
+     * Grava as regras do algoritmo. Chega a configuração inteira (as três
+     * categorias de uma vez), como o formulário da tela salva.
+     *
+     * @param  array<string, mixed>  $regras
+     */
+    public function definirRegrasDistribuicao(array $regras, User $admin): array
+    {
+        $anterior = Edicao::regrasDistribuicao();
+        $novas = new RegrasDistribuicao($regras);
+
+        Edicao::atual()?->update(['distribuicao_regras' => $novas->toArray()]);
+
+        $this->registrarParametro(
+            TipoRegistro::AvaliacaoRegraDistribuicao,
+            $admin,
+            $anterior->resumo(),
+            $novas->resumo(),
+        );
+
+        return $this->configDistribuicao();
+    }
+
+    /**
+     * Liga/desliga a designação automática para quem acaba de se cadastrar como
+     * avaliador (toggle do Algoritmo de distribuição).
+     */
+    public function definirDistribuicaoAoCadastrar(bool $ativo, User $admin): array
+    {
+        $anterior = Edicao::distribuiAoCadastrar();
+
+        Edicao::atual()?->update(['distribuicao_ao_cadastrar' => $ativo]);
+
+        $this->registrarParametro(
+            TipoRegistro::AvaliacaoDesignacaoAoCadastrar,
+            $admin,
+            $anterior ? 'ligada' : 'desligada',
+            $ativo ? 'ligada' : 'desligada',
+        );
+
+        return $this->configDistribuicao();
     }
 
     /** Anota a mudança de parâmetro na trilha (seção "Avaliação Online"). */

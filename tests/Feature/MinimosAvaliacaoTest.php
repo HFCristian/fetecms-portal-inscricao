@@ -81,9 +81,10 @@ class MinimosAvaliacaoTest extends TestCase
             ->assertStatus(422)
             ->assertJsonValidationErrors('min_por_avaliador');
 
+        // Payload vazio: a exigência de "ao menos um limite" mora no primeiro campo.
         $this->patchJson('/api/v1/admin/avaliacao/minimos', [])
             ->assertStatus(422)
-            ->assertJsonValidationErrors(['min_por_avaliador', 'min_por_projeto']);
+            ->assertJsonValidationErrors('min_por_avaliador');
     }
 
     public function test_minimos_sao_so_para_admin(): void

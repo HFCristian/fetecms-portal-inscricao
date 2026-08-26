@@ -35,6 +35,30 @@ enum Categoria: string
         };
     }
 
+    /**
+     * Sigla de três letras usada na lista final da feira (FET.AGR-001):
+     * FET para a FETECMS, JR para a FETEC Jr e PIC para a FETECMS FUNDECT.
+     */
+    public function sigla(): string
+    {
+        return match ($this) {
+            self::Fetecms => 'FET',
+            self::FetecJr => 'JR',
+            self::FetecmsFundect => 'PIC',
+        };
+    }
+
+    /**
+     * Ordem em que as categorias saem na lista final — FETECMS, FETEC Jr e
+     * FETECMS FUNDECT —, que não é a ordem de declaração do enum.
+     *
+     * @return list<self>
+     */
+    public static function ordemDaLista(): array
+    {
+        return [self::Fetecms, self::FetecJr, self::FetecmsFundect];
+    }
+
     /** Indica se a categoria pode ser contemplada pelo programa PICTEC MS. */
     public function permitePictec(): bool
     {

@@ -104,11 +104,34 @@ Tabela `users` única com coluna `role`: **`orientador`**, **`avaliador`**, **`a
     explica o motivo em `pode_desfazer`/`impedimentos_desfazer`). Cada ponta sem data fica
     aberta; a tela de cadastro lê `GET /inscricoes/publico` para avisar antes da abertura.
   - **Parametrização → Avaliação Online** (`/admin/parametrizacao/avaliacao`): **início**
-    (`edicoes.avaliacao_liberada_em`) e **fim** (`edicoes.avaliacao_encerrada_em`) do período.
+    (`edicoes.avaliacao_liberada_em`) e **fim** (`edicoes.avaliacao_encerrada_em`) do período, mais
+    os **limites de avaliação** (`App\Support\LimitesAvaliacao`): **por avaliador**, o mínimo é o
+    tamanho da fila e o máximo é o teto de avaliações que ele acumula (em branco = sem teto); **por
+    projeto**, o mínimo é o alvo da distribuição e o máximo é quantos avaliadores enxergam o
+    projeto — e esse par pode ser definido **por categoria**, seguindo o geral quando fica em branco.
     Encerrado, o avaliador ainda **lê** os projetos designados e o que respondeu, mas não
     inicia, não salva rascunho e não envia (`AvaliacaoFluxoService::podeVer()` vs
     `podeAvaliar()`); o demo em modo teste ignora as duas datas. O "período começou" que trava
     o cancelamento de submissão e a troca de área do avaliador continua sendo só o início.
+  - **Avaliação Online → Algoritmo de distribuição** (`/admin/avaliacao`): os limiares que o
+    algoritmo respeita. Por **categoria**, o admin liga/desliga a participação e define a **faixa
+    de avaliações concluídas** (de/até; "até" em branco = sem teto) em que o projeto ainda aceita
+    avaliador novo — é assim que se pede "só FETEC Jr com 0 avaliações". As regras moram em
+    `edicoes.distribuicao_regras` (JSON, via `App\Support\RegrasDistribuicao`) e valem para a
+    distribuição em massa, para a reposição da fila e para o sorteio; a **designação manual do
+    admin passa por cima**. Na mesma seção ficam **Distribuir avaliações** (completa o que falta,
+    idempotente) e **Redistribuir avaliações** (devolve ao bolo tudo que foi apenas designado e
+    sorteia de novo — o que está **em avaliação**, o concluído e o designado à mão não se mexem),
+    mais o toggle **designar ao cadastrar** (`edicoes.distribuicao_ao_cadastrar`): ligado, o
+    avaliador que acaba de se cadastrar já sai com a fila cheia.
+  - **Avaliação Online → Ranking dos projetos → Gerar lista final**: exporta em **TXT** o recorte
+    que vai para a programação da feira. O admin define um **total**, uma cota **por categoria** e
+    uma **por área** (em branco não limita); entram os **mais bem avaliados** que couberem em todas
+    as cotas. O arquivo sai por categoria (FETECMS → FETEC Jr → FETECMS FUNDECT) → área em ordem
+    alfabética → título, com o sequencial `001, 002…` reiniciando a cada categoria+área:
+    `FET.AGR-001 - Título` / `Escola / Cidade - UF` / alunos em ordem alfabética /
+    `Orientador - Orientador(a)`. As siglas de categoria são FET, JR e PIC; as de área saem de
+    `areas.sigla` (AGR, BIO, SAU, EXA, HUM, SOC, ENG, LIN), editável em Parametrização → Áreas.
   - **Comunicação → Avisos** (`/admin/comunicacao/avisos`): o admin publica um card com **título e mensagem livres**,
     que aparece para os **orientadores ativos** conectados em até ~1 min (polling; não há
     WebSocket no projeto) e pode ser fechado por cada um. **Um ativo por vez** — publicar um
@@ -240,23 +263,73 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 28 | Projetos por área: cards por área (submetidos/rascunho) + áreas compactáveis | ✅ sim | ❌ não (manual do Pedro) | 4 |
 | 29 | Aba "Acesso": e-mail e senha na mesma tela + menu do admin reordenado | ✅ sim | ❌ não (manual do Pedro) | 4 |
 | 30 | Painel do admin: categoria, orientadores, alunos e coorientadores contam só projetos submetidos | ✅ sim | ✅ sim (Pedro, PR #59) | 0 |
-| 31 | Áreas correlatas: `areas.grupo_correlato` + fallback da distribuição para área irmã | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 32 | Parametrização → Avaliação Online: mínimo de avaliações por avaliador e por projeto | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 33 | Painel do avaliador: abas "A avaliar" e "Avaliados" | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 34 | Reposição automática da fila ao concluir (prioridades área+subárea → área → correlata → sorteio) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 35 | Botão "Sortear outros projetos" (só as designadas não iniciadas) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 36 | Registros em duas seções (Inscrições / Avaliação Online) + log das parametrizações | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 37 | Avaliadores Online: tabela única com busca, filtro, ordenação e CSV | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 38 | Avaliador: comissão especial + áreas/subáreas extras liberadas pelo admin | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 39 | Projetos submetidos: tabela única com busca, filtros, ordenação e CSV | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 40 | Projetos submetidos: cards de resumo por área (0/1/2/3+ avaliações), presos aos filtros | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 41 | Designação ao comitê especial (completa ou selecionada) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 42 | Ranking dos projetos: filtro por categoria | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 43 | Ranking dos avaliadores (nome, área, números e localidade) + estado/cidade no avaliador | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 44 | Comissão especial como público da mala direta | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 45 | Avisos com públicos combináveis (moldes da mala direta) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 46 | Avisos com data de expiração na tela | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 31 | Áreas correlatas: `areas.grupo_correlato` + fallback da distribuição para área irmã | ✅ sim | ✅ sim (Pedro, PR #60 → v1.17) | 0 |
+| 32 | Parametrização → Avaliação Online: mínimo de avaliações por avaliador e por projeto | ✅ sim | ✅ sim (Pedro, PR #60 → v1.17) | 0 |
+| 33 | Painel do avaliador: abas "A avaliar" e "Avaliados" | ✅ sim | ✅ sim (Pedro, PR #60 → v1.17) | 0 |
+| 34 | Reposição automática da fila ao concluir (prioridades área+subárea → área → correlata → sorteio) | ✅ sim | ✅ sim (Pedro, PR #60 → v1.17) | 0 |
+| 35 | Botão "Sortear outros projetos" (só as designadas não iniciadas) | ✅ sim | ✅ sim (Pedro, PR #60 → v1.17) | 0 |
+| 36 | Registros em duas seções (Inscrições / Avaliação Online) + log das parametrizações | ✅ sim | ✅ sim (Pedro, PR #60 → v1.17) | 0 |
+| 37 | Avaliadores Online: tabela única com busca, filtro, ordenação e CSV | ✅ sim | ✅ sim (Pedro, PR #60 → v1.17) | 0 |
+| 38 | Avaliador: comissão especial + áreas/subáreas extras liberadas pelo admin | ✅ sim | ✅ sim (Pedro, PR #60 → v1.17) | 0 |
+| 39 | Projetos submetidos: tabela única com busca, filtros, ordenação e CSV | ✅ sim | ✅ sim (Pedro, PR #60 → v1.17) | 0 |
+| 40 | Projetos submetidos: cards de resumo por área (0/1/2/3+ avaliações), presos aos filtros | ✅ sim | ✅ sim (Pedro, PR #60 → v1.17) | 0 |
+| 41 | Designação ao comitê especial (completa ou selecionada) | ✅ sim | ✅ sim (Pedro, PR #60 → v1.17) | 0 |
+| 42 | Ranking dos projetos: filtro por categoria | ✅ sim | ✅ sim (Pedro, PR #60 → v1.17) | 0 |
+| 43 | Ranking dos avaliadores (nome, área, números e localidade) + estado/cidade no avaliador | ✅ sim | ✅ sim (Pedro, PR #60 → v1.17) | 0 |
+| 44 | Comissão especial como público da mala direta | ✅ sim | ✅ sim (Pedro, PR #60 → v1.17) | 0 |
+| 45 | Avisos com públicos combináveis (moldes da mala direta) | ✅ sim | ✅ sim (Pedro, PR #60 → v1.17) | 0 |
+| 46 | Avisos com data de expiração na tela | ✅ sim | ✅ sim (Pedro, PR #60 → v1.17) | 0 |
+| 47 | Algoritmo de distribuição: seção própria, regras por categoria e "Distribuir" movido para lá | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 48 | Redistribuir avaliações + toggle "designar ao cadastrar avaliador" | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 49 | Ranking: "Gerar lista final" em TXT (cotas por total/categoria/área) + sigla da área | ✅ sim | ❌ não (manual do Pedro) | 2 |
+| 50 | Parametrização: mínimo E máximo por avaliador e por projeto (por categoria) | ✅ sim | ❌ não (manual do Pedro) | 2 |
 
+> **Sprints 49–50 (mesma branch `feat/algoritmo-distribuicao-e-lista-final`):**
+> (a) **Sprint 49** — **Gerar lista final** no Ranking dos projetos. O admin escolhe um **total**,
+> uma cota **por categoria** e uma **por área** (campo em branco não limita; 0 deixa o recorte de
+> fora); entram os **mais bem avaliados** que couberem em todas as cotas ao mesmo tempo. O arquivo
+> **TXT** sai agrupado por **categoria** (FETECMS → FETEC Jr → FETECMS FUNDECT) → **área** em ordem
+> alfabética → **título**, com o sequencial `001, 002…` reiniciando a cada categoria+área e os
+> alunos em ordem alfabética. Formato de cada bloco: `FET.AGR-001 - Título`, `Escola / Cidade - UF`,
+> os alunos e `Orientador - Orientador(a)`. Para isso a área ganhou **`areas.sigla`**
+> (AGR, BIO, SAU, EXA, HUM, SOC, ENG, LIN), com backfill pelo nome e edição em Parametrização →
+> Áreas (`PATCH /admin/areas/{area}/sigla`); área sem sigla cai para as três primeiras letras do
+> nome. Tudo no `ListaFinalService`; `GET /admin/avaliacao/lista-final/opcoes` alimenta o diálogo e
+> `POST /admin/avaliacao/lista-final` devolve o TXT.
+> (b) **Sprint 50** — os mínimos viraram **pares mínimo/máximo** (`App\Support\LimitesAvaliacao`,
+> lido de uma vez por operação para não consultar a edição projeto a projeto):
+> **por avaliador**, o mínimo continua sendo o tamanho da fila e o novo
+> `edicoes.avaliacoes_max_por_avaliador` é o **teto de avaliações que ele acumula** — em branco,
+> sem teto, que é o comportamento de sempre; **por projeto**, `edicoes.avaliacoes_max_por_projeto`
+> substitui a constante `Avaliacao::TETO_POR_PROJETO` e o par pode ser definido **por categoria**
+> em `edicoes.avaliacoes_por_categoria` (em branco, a categoria segue o geral). Distribuição,
+> reposição da fila, colunas de *faltantes*, cards de resumo e o "completo" do ranking passaram a
+> usar o número da **categoria do projeto**; onde o resumo precisa de um número só, ele diz
+> "mínimo da categoria" quando elas divergem. Três tipos novos na trilha de Registros.
+> Back **526/526**, front **228/228**, Pint limpo, build OK.
+>
+> **Sprints 47–48 (branch `feat/algoritmo-distribuicao-e-lista-final`, saída da `origin/main` @ `a9bb314`):**
+> a aba **Avaliação online** ganhou a seção **Algoritmo de distribuição**, com os limiares que o
+> admin ajusta e as duas ações de distribuição.
+> (a) **Sprint 47** — **regras por categoria** (`edicoes.distribuicao_regras`, JSON, lidas pelo
+> value object `App\Support\RegrasDistribuicao`): cada categoria tem liga/desliga e uma **faixa de
+> avaliações já concluídas** (`de`/`até`, `até` em branco = sem teto) em que o projeto ainda aceita
+> avaliador novo — é assim que se pede "só FETEC Jr com 0 avaliações" ou "só FUNDECT". A regra vale
+> para a `DistribuicaoService` **e** para a `FilaAvaliadorService` (reposição, sorteio e rodízio); a
+> **designação manual do admin passa por cima**. O padrão (tudo ligado, sem faixa) é o comportamento
+> histórico, então nada muda para quem não configurar. O card **Distribuir avaliações** mudou de
+> lugar para dentro da seção e passou a relatar quantos projetos ficaram de fora pela regra
+> (`ignorados_pela_regra`). `GET/PATCH /admin/avaliacao/distribuicao`.
+> (b) **Sprint 48** — **`POST /admin/avaliacao/redistribuir`**: cada avaliador ativo devolve ao bolo
+> o que **ainda não abriu** e recebe outros no lugar (`FilaAvaliadorService::roletar` para todos +
+> uma passada da distribuição para completar a cobertura). **Em avaliação, concluída e designação
+> manual não se mexem**; sem alternativa, o mesmo projeto volta — a fila nunca encolhe. E o toggle
+> **`edicoes.distribuicao_ao_cadastrar`**: ligado, quem termina o cadastro de avaliador já sai com a
+> fila cheia (`AvaliadorService::register` chama a reposição), pelas mesmas regras.
+> As duas mudanças entram na trilha de **Registros → Avaliação Online**
+> (`avaliacao_regra_distribuicao` e `avaliacao_designacao_ao_cadastrar`, com o "de → para").
+> Back **511/511**, front **225/225**, Pint limpo, build OK.
+>
 > **Sprints 31–46 (branch `feat/designacao-e-comissao-especial`, saída da `origin/main` @ `71bafa8`):**
 > ciclo de designação, comissão especial e comunicação segmentada. Um commit a cada duas sprints.
 > (a) **Sprint 31** — **áreas correlatas**: `areas.grupo_correlato` (enum `GrupoCorrelato`: *vida*,
@@ -320,14 +393,13 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > e **Escolas** (`/admin/parametrizacao/escolas`): admin busca, **renomeia, mescla** (reatribui
 > projetos/alunos/orientadores) e **exclui** instituições sem uso (`InstituicaoAdminService`/Controller,
 > rotas `admin/instituicoes`). Back **117/117**, front 11/11, Pint limpo, build OK.
-> **Pendências do Pedro:** (1) `git push origin feat/designacao-e-comissao-especial` + PR para a
-> `main` (o ambiente do Claude não tem credencial do GitHub) e, depois do merge, o deploy pela §11
-> do [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). Esta release **tem migrations** (áreas correlatas,
-> mínimos da edição, designação manual, comissão/áreas extras, localidade do avaliador e públicos/
-> expiração dos avisos) e **nenhuma variável nova de `.env`**; a fila (`queue:work`) continua
-> obrigatória.
-> A pendência anterior (`feat/reorganizacao-abas`) já entrou na `main` pelos PRs **#57** (v1.16) e
-> **#58** (v1.16.2); (2) popular as escolas com
+> **Pendências do Pedro:** (1) `git push origin feat/algoritmo-distribuicao-e-lista-final` + PR para
+> a `main` (o ambiente do Claude não tem credencial do GitHub) e, depois do merge, o deploy pela §11
+> do [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). Esta release **tem migrations** (regras do algoritmo,
+> designação ao cadastrar, sigla da área e mín/máx por categoria) e **nenhuma variável nova de
+> `.env`**; a fila (`queue:work`) continua obrigatória.
+> A pendência anterior (`feat/designacao-e-comissao-especial`) já entrou na `main` pelo PR **#60**
+> (v1.17); (2) popular as escolas com
 > `php artisan instituicoes:importar` (lê `database/data/instituicoes/escolas_ms.csv`; 1888 escolas
 > de MS, todos os 79 municípios casam com o catálogo IBGE).
 >
