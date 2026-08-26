@@ -18,7 +18,10 @@ class AvaliadorService
 {
     private const PROFILE_FIELDS = ['cpf', 'titulacao', 'area_id', 'subarea_id', 'estado_id', 'cidade_id'];
 
-    public function __construct(private readonly SubareaService $subareas) {}
+    public function __construct(
+        private readonly SubareaService $subareas,
+        private readonly FilaAvaliadorService $fila,
+    ) {}
 
     /**
      * Números do perfil do avaliador: quantas avaliações concluiu, quanto isso
@@ -134,6 +137,12 @@ class AvaliadorService
             ]);
 
             $user->avaliadorProfile()->create(Arr::only($data, self::PROFILE_FIELDS));
+
+            // Toggle do admin (Algoritmo de distribuição): o avaliador novo já
+            // sai do cadastro com a fila cheia, pelas mesmas regras da reposição.
+            if (Edicao::distribuiAoCadastrar()) {
+                $this->fila->repor($user->refresh());
+            }
 
             return $user->load('avaliadorProfile.area', 'avaliadorProfile.subarea');
         });

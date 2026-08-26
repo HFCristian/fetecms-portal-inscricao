@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\RegrasDistribuicao;
 use Illuminate\Database\Eloquent\Model;
 
 class Edicao extends Model
@@ -20,6 +21,7 @@ class Edicao extends Model
         'nome', 'ano', 'inscricoes_abertas', 'inicio_em', 'fim_em',
         'avaliacao_liberada_em', 'avaliacao_encerrada_em', 'submissoes_de', 'submissoes_ate',
         'avaliacoes_min_por_avaliador', 'avaliacoes_min_por_projeto',
+        'distribuicao_regras', 'distribuicao_ao_cadastrar',
     ];
 
     protected function casts(): array
@@ -34,6 +36,8 @@ class Edicao extends Model
             'submissoes_ate' => 'datetime',
             'avaliacoes_min_por_avaliador' => 'integer',
             'avaliacoes_min_por_projeto' => 'integer',
+            'distribuicao_regras' => 'array',
+            'distribuicao_ao_cadastrar' => 'boolean',
         ];
     }
 
@@ -56,6 +60,24 @@ class Edicao extends Model
     public static function minPorProjeto(): int
     {
         return static::atual()?->avaliacoes_min_por_projeto ?? self::PADRAO_MIN_POR_PROJETO;
+    }
+
+    /**
+     * Regras do algoritmo de distribuição (por categoria). Sem edição atual ou
+     * sem configuração, valem os padrões — todas as categorias, sem faixa.
+     */
+    public static function regrasDistribuicao(): RegrasDistribuicao
+    {
+        return RegrasDistribuicao::deArray(static::atual()?->distribuicao_regras);
+    }
+
+    /**
+     * O avaliador recém-cadastrado já recebe projetos designados? (toggle do
+     * Algoritmo de distribuição). Sem edição atual, não.
+     */
+    public static function distribuiAoCadastrar(): bool
+    {
+        return (bool) static::atual()?->distribuicao_ao_cadastrar;
     }
 
     /** O prazo de submissão já passou? Sem prazo definido, as inscrições ficam abertas. */

@@ -229,7 +229,11 @@ class AdminRegistrosTest extends TestCase
         $this->assertSame(1, $avaliacao->json('meta.total'));
         $this->assertSame('avaliacao_min_projeto', $avaliacao->json('data.0.tipo'));
         $this->assertSame(
-            ['avaliacao_liberacao', 'avaliacao_encerramento', 'avaliacao_min_avaliador', 'avaliacao_min_projeto'],
+            [
+                'avaliacao_liberacao', 'avaliacao_encerramento',
+                'avaliacao_min_avaliador', 'avaliacao_min_projeto',
+                'avaliacao_regra_distribuicao', 'avaliacao_designacao_ao_cadastrar',
+            ],
             array_column($avaliacao->json('meta.tipos'), 'value'),
         );
 

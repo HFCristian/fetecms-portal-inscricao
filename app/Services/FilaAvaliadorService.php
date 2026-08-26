@@ -9,6 +9,7 @@ use App\Models\Avaliacao;
 use App\Models\Edicao;
 use App\Models\Projeto;
 use App\Models\User;
+use App\Support\RegrasDistribuicao;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -31,6 +32,10 @@ use Illuminate\Support\Facades\DB;
  * em andamento; empatou, o menos designado. Nunca devolve projeto que o
  * avaliador já tenha (designado, em andamento ou concluído) e respeita tanto o
  * teto de avaliadores por projeto quanto o bloqueio individual do avaliador.
+ *
+ * O bolo de candidatos também respeita as {@see RegrasDistribuicao} do admin
+ * (Avaliação Online → Algoritmo de distribuição), inclusive no sorteio: o que a
+ * regra exclui não entra na fila de ninguém automaticamente.
  */
 class FilaAvaliadorService
 {
@@ -140,17 +145,20 @@ class FilaAvaliadorService
 
         // Projetos que o avaliador já viu não voltam para a fila dele.
         $jaTem = Avaliacao::where('avaliador_id', $avaliador->id)->pluck('projeto_id')->all();
+        $regras = Edicao::regrasDistribuicao();
 
         $candidatos = Projeto::query()
             ->where('status', ProjetoStatus::Submetido->value)
             ->whereNotIn('id', [...$jaTem, ...$ignorar])
+            ->select(['id', 'area_id', 'subarea_id', 'categoria'])
             ->withCount([
                 'avaliacoes as concluidas_count' => fn ($q) => $q->where('status', StatusAvaliacao::Concluida->value),
                 'avaliacoes as em_andamento_count' => fn ($q) => $q->where('status', StatusAvaliacao::EmAndamento->value),
                 'avaliacoes as total_count',
             ])
-            ->get(['id', 'area_id', 'subarea_id'])
-            ->filter(fn (Projeto $p) => $p->total_count < $teto);
+            ->get()
+            ->filter(fn (Projeto $p) => $p->total_count < $teto
+                && $regras->aceita($p->categoria, $p->concluidas_count));
 
         if ($candidatos->isEmpty()) {
             return null;

@@ -139,6 +139,17 @@ export const designarProjeto = (projetoId, payload) =>
     http.post(`/admin/avaliacao/projetos/${projetoId}/designar`, payload).then((r) => r.data);
 export const distribuirAvaliacoes = () => http.post('/admin/avaliacao/distribuir').then((r) => r.data);
 
+// Algoritmo de distribuição: a regra de cada categoria (quem entra e em que
+// faixa de avaliações concluídas). O formulário salva as três de uma vez.
+export const getDistribuicaoConfig = () => http.get('/admin/avaliacao/distribuicao').then((r) => r.data.data);
+export const definirRegrasDistribuicao = (regras) =>
+    http.patch('/admin/avaliacao/distribuicao', { regras }).then((r) => r.data);
+// Toggle: avaliador recém-cadastrado já sai com projetos na fila.
+export const definirDistribuicaoAoCadastrar = (aoCadastrar) =>
+    http.patch('/admin/avaliacao/distribuicao/ao-cadastrar', { ao_cadastrar: aoCadastrar }).then((r) => r.data);
+// Rodízio: devolve ao bolo o que ainda não foi aberto e sorteia outros.
+export const redistribuirAvaliacoes = () => http.post('/admin/avaliacao/redistribuir').then((r) => r.data);
+
 // Projetos com sugestão de reclassificação. `filtros`: { area_id, q, de, ate }.
 export const getReclassificacoes = (filtros = {}) =>
     http.get('/admin/avaliacao/reclassificacoes', { params: limpar(filtros) }).then((r) => r.data.data);

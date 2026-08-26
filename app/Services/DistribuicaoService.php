@@ -10,6 +10,7 @@ use App\Models\Avaliacao;
 use App\Models\Edicao;
 use App\Models\Projeto;
 use App\Models\User;
+use App\Support\RegrasDistribuicao;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -21,11 +22,17 @@ use Illuminate\Support\Facades\DB;
  * quando a própria área se esgota). Ignora avaliadores demo, inativos e sem
  * área; respeita o limite individual de cada avaliador. Projetos que não
  * fecham o alvo entram no relatório de "sub-cobertos" para o admin resolver.
+ *
+ * Antes de tudo, o bolo de projetos passa pelas {@see RegrasDistribuicao} que o
+ * admin configurou (Avaliação Online → Algoritmo de distribuição): categoria
+ * fora da regra, ou fora da faixa de avaliações concluídas, nem entra na conta.
  */
 class DistribuicaoService
 {
+    public function __construct(private readonly FilaAvaliadorService $fila) {}
+
     /**
-     * @return array{designadas_criadas:int, sub_cobertos: array<int, array{projeto_id:int, titulo:string, area:?string, faltam:int}>}
+     * @return array{designadas_criadas:int, ignorados_pela_regra:int, sub_cobertos: array<int, array{projeto_id:int, titulo:string, area:?string, faltam:int}>}
      */
     public function distribuir(): array
     {
@@ -46,7 +53,15 @@ class DistribuicaoService
             }
         }
 
-        $projetos = $this->carregarProjetos($projetoInfo);
+        // Regra do admin: o que não passa por ela fica fora desta rodada.
+        $regras = Edicao::regrasDistribuicao();
+        $candidatos = $this->carregarProjetos($projetoInfo);
+        $projetos = array_values(array_filter(
+            $candidatos,
+            fn (array $p) => $regras->aceita($p['categoria'], $p['concluidas']),
+        ));
+        $ignorados = count($candidatos) - count($projetos);
+
         $correlatas = $this->mapaCorrelatas();
 
         // Disponíveis dentre uma lista: com folga no limite e ainda não designados.
@@ -131,8 +146,53 @@ class DistribuicaoService
 
         return [
             'designadas_criadas' => count($novas),
+            'ignorados_pela_regra' => $ignorados,
             'sub_cobertos' => $subCobertos,
         ];
+    }
+
+    /**
+     * Redistribui a rodada: cada avaliador devolve ao bolo os projetos que
+     * ainda não abriu e recebe outros no lugar, pelas mesmas prioridades do
+     * edital. O que está em avaliação ou concluído não se mexe, e a designação
+     * manual do admin também fica de pé. Sem alternativa, um projeto devolvido
+     * pode voltar para quem o tinha — a fila nunca encolhe por causa do rodízio.
+     *
+     * Depois do rodízio, uma passada da distribuição normal completa os
+     * projetos que ficaram abaixo do alvo e devolve o relatório de sub-cobertura.
+     *
+     * @return array{devolvidas:int, recebidas:int, designadas_criadas:int, ignorados_pela_regra:int, sub_cobertos: array<int, array{projeto_id:int, titulo:string, area:?string, faltam:int}>}
+     */
+    public function redistribuir(): array
+    {
+        return DB::transaction(function () {
+            $devolvidas = 0;
+            $recebidas = 0;
+
+            $avaliadores = User::query()
+                ->where('role', Role::Avaliador->value)
+                ->where('is_active', true)
+                ->where('is_demo', false)
+                ->with('avaliadorProfile.areasExtras')
+                ->get();
+
+            foreach ($avaliadores as $avaliador) {
+                $rodizio = $this->fila->roletar($avaliador);
+                $devolvidas += $rodizio['trocados'];
+                // Quem estava com a fila curta (ou vazia) completa aqui.
+                $recebidas += $rodizio['recebidos'] + $this->fila->repor($avaliador);
+            }
+
+            $cobertura = $this->distribuir();
+
+            return [
+                'devolvidas' => $devolvidas,
+                'recebidas' => $recebidas,
+                'designadas_criadas' => $recebidas + $cobertura['designadas_criadas'],
+                'ignorados_pela_regra' => $cobertura['ignorados_pela_regra'],
+                'sub_cobertos' => $cobertura['sub_cobertos'],
+            ];
+        });
     }
 
     /**
@@ -223,14 +283,18 @@ class DistribuicaoService
     {
         return Projeto::query()
             ->where('status', ProjetoStatus::Submetido->value)
+            ->select(['id', 'titulo', 'area_id', 'subarea_id', 'categoria'])
+            ->withCount(['avaliacoes as concluidas_count' => fn ($q) => $q->where('status', StatusAvaliacao::Concluida->value)])
             ->with('area:id,nome')
-            ->get(['id', 'titulo', 'area_id', 'subarea_id'])
+            ->get()
             ->map(fn (Projeto $p) => [
                 'id' => $p->id,
                 'titulo' => $p->titulo,
                 'area_id' => $p->area_id,
                 'subarea_id' => $p->subarea_id,
                 'area_nome' => $p->area?->nome,
+                'categoria' => $p->categoria,
+                'concluidas' => (int) $p->concluidas_count,
                 'coverage' => $projetoInfo[$p->id]['coverage'] ?? 0,
                 'assigned' => $projetoInfo[$p->id]['assigned'] ?? [],
             ])

@@ -26,6 +26,8 @@ enum TipoRegistro: string
     case AvaliacaoEncerramento = 'avaliacao_encerramento';
     case AvaliacaoMinAvaliador = 'avaliacao_min_avaliador';
     case AvaliacaoMinProjeto = 'avaliacao_min_projeto';
+    case AvaliacaoRegraDistribuicao = 'avaliacao_regra_distribuicao';
+    case AvaliacaoDesignacaoAoCadastrar = 'avaliacao_designacao_ao_cadastrar';
 
     /** Seções da tela de Registros. */
     public const SECAO_INSCRICOES = 'inscricoes';
@@ -43,6 +45,8 @@ enum TipoRegistro: string
             self::AvaliacaoEncerramento => 'Fim da avaliação',
             self::AvaliacaoMinAvaliador => 'Mínimo por avaliador',
             self::AvaliacaoMinProjeto => 'Mínimo por projeto',
+            self::AvaliacaoRegraDistribuicao => 'Regra da distribuição',
+            self::AvaliacaoDesignacaoAoCadastrar => 'Designação ao cadastrar',
         };
     }
 

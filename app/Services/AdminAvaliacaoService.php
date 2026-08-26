@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\Categoria;
 use App\Enums\ProjetoStatus;
 use App\Enums\Role;
 use App\Enums\StatusAvaliacao;
@@ -13,6 +14,7 @@ use App\Models\Edicao;
 use App\Models\Projeto;
 use App\Models\Subarea;
 use App\Models\User;
+use App\Support\RegrasDistribuicao;
 use App\Support\Rubrica;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -22,8 +24,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Telas de "Avaliação online" do admin (E7). O algoritmo de distribuição ainda
- * não existe, então os números vêm da tabela `avaliacoes` (zerados por enquanto).
+ * Telas de "Avaliação online" do admin (E7): panorama dos avaliadores e dos
+ * projetos submetidos, designação manual, rankings e a configuração do
+ * algoritmo de distribuição (as {@see RegrasDistribuicao} por categoria).
  */
 class AdminAvaliacaoService
 {
@@ -1020,6 +1023,65 @@ class AdminAvaliacaoService
         }
 
         return $this->config();
+    }
+
+    /**
+     * Configuração do algoritmo de distribuição (aba Avaliação Online): a regra
+     * de cada categoria mais o que a tela precisa para desenhar o formulário.
+     *
+     * @return array{regras: array<string, array{ativa:bool, min_concluidas:int, max_concluidas:int|null}>, categorias: array<int, array{value:string, label:string}>, max_concluidas: int}
+     */
+    public function configDistribuicao(): array
+    {
+        return [
+            'regras' => Edicao::regrasDistribuicao()->toArray(),
+            'categorias' => Categoria::opcoes(),
+            'max_concluidas' => RegrasDistribuicao::MAX_CONCLUIDAS,
+            'ao_cadastrar' => Edicao::distribuiAoCadastrar(),
+        ];
+    }
+
+    /**
+     * Grava as regras do algoritmo. Chega a configuração inteira (as três
+     * categorias de uma vez), como o formulário da tela salva.
+     *
+     * @param  array<string, mixed>  $regras
+     */
+    public function definirRegrasDistribuicao(array $regras, User $admin): array
+    {
+        $anterior = Edicao::regrasDistribuicao();
+        $novas = new RegrasDistribuicao($regras);
+
+        Edicao::atual()?->update(['distribuicao_regras' => $novas->toArray()]);
+
+        $this->registrarParametro(
+            TipoRegistro::AvaliacaoRegraDistribuicao,
+            $admin,
+            $anterior->resumo(),
+            $novas->resumo(),
+        );
+
+        return $this->configDistribuicao();
+    }
+
+    /**
+     * Liga/desliga a designação automática para quem acaba de se cadastrar como
+     * avaliador (toggle do Algoritmo de distribuição).
+     */
+    public function definirDistribuicaoAoCadastrar(bool $ativo, User $admin): array
+    {
+        $anterior = Edicao::distribuiAoCadastrar();
+
+        Edicao::atual()?->update(['distribuicao_ao_cadastrar' => $ativo]);
+
+        $this->registrarParametro(
+            TipoRegistro::AvaliacaoDesignacaoAoCadastrar,
+            $admin,
+            $anterior ? 'ligada' : 'desligada',
+            $ativo ? 'ligada' : 'desligada',
+        );
+
+        return $this->configDistribuicao();
     }
 
     /** Anota a mudança de parâmetro na trilha (seção "Avaliação Online"). */

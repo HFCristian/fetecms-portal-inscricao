@@ -176,7 +176,11 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::get('/avaliacao/ranking', [AdminAvaliacaoController::class, 'ranking']);
             Route::get('/avaliacao/ranking-avaliadores', [AdminAvaliacaoController::class, 'rankingAvaliadores']);
             Route::post('/avaliacao/projetos/{projeto}/designar', [AdminAvaliacaoController::class, 'designar']);
+            Route::get('/avaliacao/distribuicao', [AdminAvaliacaoController::class, 'distribuicaoConfig']);
+            Route::patch('/avaliacao/distribuicao', [AdminAvaliacaoController::class, 'definirRegrasDistribuicao']);
+            Route::patch('/avaliacao/distribuicao/ao-cadastrar', [AdminAvaliacaoController::class, 'definirDistribuicaoAoCadastrar']);
             Route::post('/avaliacao/distribuir', [AdminAvaliacaoController::class, 'distribuir']);
+            Route::post('/avaliacao/redistribuir', [AdminAvaliacaoController::class, 'redistribuir']);
             Route::patch('/avaliacao/avaliadores/{avaliador}/limite', [AdminAvaliacaoController::class, 'limitar']);
             Route::patch('/avaliacao/avaliadores/{avaliador}/demo', [AdminAvaliacaoController::class, 'demo']);
             Route::patch('/avaliacao/avaliadores/{avaliador}/comissao', [AdminAvaliacaoController::class, 'comissao']);

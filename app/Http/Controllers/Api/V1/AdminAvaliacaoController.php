@@ -14,6 +14,7 @@ use App\Http\Requests\Admin\LimiteAvaliadorRequest;
 use App\Http\Requests\Admin\ListarAvaliadoresRequest;
 use App\Http\Requests\Admin\ListarProjetosAvaliacaoRequest;
 use App\Http\Requests\Admin\MinimosAvaliacaoRequest;
+use App\Http\Requests\Admin\RegrasDistribuicaoRequest;
 use App\Models\Edicao;
 use App\Models\Projeto;
 use App\Models\User;
@@ -109,7 +110,50 @@ class AdminAvaliacaoController extends Controller
         return response()->json(['data' => $config, 'meta' => ['message' => 'Mínimos atualizados.']]);
     }
 
-    /** Projetos submetidos por área, com realizadas/em avaliação/faltantes. */
+    /** Regras do algoritmo de distribuição (uma por categoria). */
+    public function distribuicaoConfig(): JsonResponse
+    {
+        return response()->json(['data' => $this->service->configDistribuicao()]);
+    }
+
+    /** Grava as regras do algoritmo de distribuição. */
+    public function definirRegrasDistribuicao(RegrasDistribuicaoRequest $request): JsonResponse
+    {
+        $config = $this->service->definirRegrasDistribuicao($request->validated('regras'), $request->user());
+
+        return response()->json([
+            'data' => $config,
+            'meta' => ['message' => 'Regras da distribuição atualizadas.'],
+        ]);
+    }
+
+    /** Liga/desliga a designação automática ao cadastrar um avaliador. */
+    public function definirDistribuicaoAoCadastrar(Request $request): JsonResponse
+    {
+        $ativo = $request->validate(['ao_cadastrar' => ['required', 'boolean']])['ao_cadastrar'];
+        $config = $this->service->definirDistribuicaoAoCadastrar($ativo, $request->user());
+
+        return response()->json([
+            'data' => $config,
+            'meta' => ['message' => $ativo
+                ? 'Avaliador novo passa a receber projetos no cadastro.'
+                : 'Avaliador novo não recebe mais projetos no cadastro.'],
+        ]);
+    }
+
+    /** Devolve ao bolo as designações não iniciadas e sorteia outras no lugar. */
+    public function redistribuir(): JsonResponse
+    {
+        $relatorio = $this->distribuicao->redistribuir();
+
+        return response()->json([
+            'data' => $relatorio,
+            'meta' => ['message' => $relatorio['devolvidas'] === 0
+                ? 'Não havia designação para trocar.'
+                : "{$relatorio['devolvidas']} designação(ões) trocadas por {$relatorio['recebidas']} nova(s)."],
+        ]);
+    }
+
     /** Projetos com sugestão de reclassificação de área/subárea (com filtros). */
     public function reclassificacoes(Request $request): JsonResponse
     {
@@ -157,6 +201,7 @@ class AdminAvaliacaoController extends Controller
         return response()->json(['data' => $this->service->rankingAvaliadores()]);
     }
 
+    /** Projetos submetidos por área, com realizadas/em avaliação/faltantes. */
     public function projetos(ListarProjetosAvaliacaoRequest $request): JsonResponse
     {
         $filtros = $request->filtros();

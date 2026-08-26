@@ -197,6 +197,7 @@ export function Toggle({ checked, onChange, label, description }) {
                 type="button"
                 role="switch"
                 aria-checked={checked}
+                aria-label={typeof label === 'string' ? label : undefined}
                 onClick={() => onChange(!checked)}
                 className={`relative w-11 h-6 rounded-full transition-colors shrink-0 mt-0.5 ${checked ? 'bg-primary-container' : 'bg-surface-variant'}`}
             >
