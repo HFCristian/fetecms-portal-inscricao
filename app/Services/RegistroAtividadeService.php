@@ -73,6 +73,36 @@ class RegistroAtividadeService
         ]);
     }
 
+    /**
+     * Correção de um projeto pelo admin (categoria, área, subárea ou vídeo).
+     * A justificativa é obrigatória na tela e vem junto para o registro poder
+     * responder "por que isso mudou".
+     */
+    public function correcaoProjeto(
+        TipoRegistro $tipo,
+        Projeto $projeto,
+        User $admin,
+        ?string $de,
+        ?string $para,
+        string $justificativa,
+    ): RegistroAtividade {
+        $dono = $projeto->relationLoaded('user') ? $projeto->user : $projeto->user()->first();
+
+        return RegistroAtividade::create([
+            'tipo' => $tipo,
+            'user_id' => $admin->id,
+            'autor_email' => $admin->email,
+            'autor_nome' => $admin->name,
+            'autor_role' => $admin->role?->value,
+            'projeto_id' => $projeto->id,
+            'projeto_titulo' => $projeto->titulo,
+            'projeto_categoria' => $projeto->categoria?->value,
+            'dono_email' => $dono?->email,
+            'dono_nome' => $dono?->name,
+            'detalhes' => ['de' => $de, 'para' => $para, 'justificativa' => $justificativa],
+        ]);
+    }
+
     private function registrarProjeto(TipoRegistro $tipo, Projeto $projeto, User $autor): RegistroAtividade
     {
         $dono = $projeto->relationLoaded('user') ? $projeto->user : $projeto->user()->first();
@@ -208,9 +238,13 @@ class RegistroAtividadeService
         if ($registro->tipo === TipoRegistro::TrocaEmail && isset($detalhes['de'], $detalhes['para'])) {
             $partes[] = $detalhes['de'].' → '.$detalhes['para'];
         }
-        if ($registro->tipo->secao() === TipoRegistro::SECAO_AVALIACAO && array_key_exists('para', $detalhes)) {
+        $comDeEPara = in_array($registro->tipo->secao(), [TipoRegistro::SECAO_AVALIACAO, TipoRegistro::SECAO_PROJETOS], true);
+        if ($comDeEPara && array_key_exists('para', $detalhes)) {
             $valor = fn ($v) => ($v === null || $v === '') ? '(sem valor)' : (string) $v;
             $partes[] = $valor($detalhes['de'] ?? null).' → '.$valor($detalhes['para']);
+        }
+        if (! empty($detalhes['justificativa'])) {
+            $partes[] = 'justificativa: '.$detalhes['justificativa'];
         }
         if (! empty($detalhes['por_admin'])) {
             $partes[] = 'executado pelo admin';

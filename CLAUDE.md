@@ -290,7 +290,23 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 53 | Confirmação de e-mail no cadastro (código de 6 dígitos, cadastro pendente, CPF liberado, trim do e-mail) | ✅ sim | ❌ não (manual do Pedro) | 4 |
 | 54 | Comunicação → Modelos de e-mail: admin edita assunto/texto dos e-mails automáticos | ✅ sim | ❌ não (manual do Pedro) | 4 |
 | 55 | Comprovante de submissão por e-mail (título, data e categoria) | ✅ sim | ❌ não (manual do Pedro) | 4 |
+| 56 | Projetos submetidos: admin corrige categoria, área, subárea e vídeo (justificativa obrigatória) | ✅ sim | ❌ não (manual do Pedro) | 4 |
+| 57 | Registros → Projetos: seção própria para as correções do admin | ✅ sim | ❌ não (manual do Pedro) | 4 |
 
+> **Sprints 56–57 (mesma branch):** o admin passou a poder corrigir a inscrição de outra pessoa.
+> (a) **Sprint 56** — na tabela de **Projetos submetidos**, cada linha ganhou **Editar** ao lado de
+> *Designar*: um diálogo com **categoria, área, subárea e link do vídeo** e uma **justificativa
+> obrigatória**. É um escape do edital (o orientador não mexe depois de submeter), então cada
+> **campo alterado** vira um registro com o "de → para" e a justificativa; campo sem mudança não
+> gera registro. Trocar a área **sem informar a subárea limpa a subárea**, porque a antiga pertence
+> a outra árvore, e a subárea é validada contra a área que vai valer depois da correção.
+> `PATCH /admin/avaliacao/projetos/{projeto}` (`AdminProjetoEdicaoService`).
+> (b) **Sprint 57** — **Registros** ganhou a terceira seção, **Projetos**
+> (`/admin/registros/projetos`), com os quatro tipos novos do `TipoRegistro`
+> (`projeto_categoria`, `projeto_area`, `projeto_subarea`, `projeto_video`), os mesmos filtros das
+> outras seções e o CSV descrevendo "de → para · justificativa".
+> Back **553/553**, front **240/240**, Pint limpo, build OK.
+>
 > **Sprints 54–55 (mesma branch):** os e-mails automáticos do portal ganharam dono.
 > (a) **Sprint 54** — **Comunicação → Modelos de e-mail** (`/admin/comunicacao/modelos`): o admin
 > edita **assunto e texto** de cada e-mail automático, com os botões de variável inserindo na

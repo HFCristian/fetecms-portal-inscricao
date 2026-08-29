@@ -7,6 +7,7 @@ use App\Enums\ProjetoStatus;
 use App\Enums\StatusAvaliacao;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\AplicarReclassificacaoRequest;
+use App\Http\Requests\Admin\CorrigirProjetoRequest;
 use App\Http\Requests\Admin\DesignarAvaliacaoRequest;
 use App\Http\Requests\Admin\EncerramentoAvaliacaoRequest;
 use App\Http\Requests\Admin\LiberacaoAvaliacaoRequest;
@@ -20,6 +21,7 @@ use App\Models\Edicao;
 use App\Models\Projeto;
 use App\Models\User;
 use App\Services\AdminAvaliacaoService;
+use App\Services\AdminProjetoEdicaoService;
 use App\Services\DistribuicaoService;
 use App\Services\ListaFinalService;
 use Illuminate\Http\JsonResponse;
@@ -280,6 +282,27 @@ class AdminAvaliacaoController extends Controller
         return response()->json([
             'data' => ['designadas' => $novas],
             'meta' => ['message' => $novas === 1 ? '1 designação criada.' : "{$novas} designações criadas."],
+        ]);
+    }
+
+    /**
+     * Correção manual da classificação e do vídeo de um projeto submetido
+     * (Projetos submetidos → Editar). Toda mudança exige justificativa e vira
+     * registro em Registros → Projetos.
+     */
+    public function corrigirProjeto(
+        CorrigirProjetoRequest $request,
+        Projeto $projeto,
+        AdminProjetoEdicaoService $edicao,
+    ): JsonResponse {
+        $resultado = $edicao->atualizar($projeto, $request->validated(), $request->user());
+        $alteracoes = $resultado['alteracoes'];
+
+        return response()->json([
+            'data' => $this->service->projetoParaEdicao($resultado['projeto']),
+            'meta' => ['message' => $alteracoes === []
+                ? 'Nada foi alterado: os valores enviados são os que já estavam gravados.'
+                : 'Projeto atualizado ('.implode(', ', $alteracoes).').'],
         ]);
     }
 

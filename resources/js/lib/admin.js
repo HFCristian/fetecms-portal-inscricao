@@ -257,6 +257,13 @@ export async function exportarRegistrosCsv(filtros) {
     baixarBlob(r.data, nome);
 }
 
+/**
+ * Correção manual de um projeto submetido (categoria, área, subárea e vídeo).
+ * A justificativa é obrigatória — ela vai para a trilha de registros.
+ */
+export const corrigirProjeto = (projetoId, dados) =>
+    http.patch(`/admin/avaliacao/projetos/${projetoId}`, dados).then((r) => r.data);
+
 // Comunicação → Modelos de e-mail: o texto dos e-mails automáticos do portal.
 // Sem customização salva, a API devolve o texto de fábrica.
 export const getModelosEmail = () => http.get('/admin/modelos-email').then((r) => r.data.data);

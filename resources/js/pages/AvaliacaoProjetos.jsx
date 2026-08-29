@@ -3,9 +3,11 @@ import { Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { Button, Alert, Select } from '../components/ui.jsx';
 import BuscaCombobox from '../components/BuscaCombobox.jsx';
+import CorrigirProjetoDialog from '../components/CorrigirProjetoDialog.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import {
     getAvaliacaoProjetos, exportarProjetosAvaliacaoCsv, getOpcoesAvaliadores, designarProjeto,
+    corrigirProjeto,
 } from '../lib/admin.js';
 import { loadAreas, loadSubareas } from '../lib/catalogos.js';
 
@@ -218,6 +220,9 @@ export default function AvaliacaoProjetos() {
     const [avaliadores, setAvaliadores] = useState([]);
     const [areas, setAreas] = useState([]);
     const [designando, setDesignando] = useState(null);
+    // Projeto aberto no diálogo de correção manual (categoria/área/subárea/vídeo).
+    const [corrigindo, setCorrigindo] = useState(null);
+    const [erroCorrecao, setErroCorrecao] = useState('');
     const [salvando, setSalvando] = useState(false);
     const [exportando, setExportando] = useState(false);
     const [alert, setAlert] = useState('');
@@ -269,6 +274,20 @@ export default function AvaliacaoProjetos() {
             await carregar();
         } catch (e) {
             setAlert(extractErrors(e).message);
+        } finally {
+            setSalvando(false);
+        }
+    }
+
+    async function corrigir(payload) {
+        setSalvando(true); setErroCorrecao(''); setSuccess('');
+        try {
+            const resp = await corrigirProjeto(corrigindo.id, payload);
+            setSuccess(resp.meta?.message || 'Projeto atualizado.');
+            setCorrigindo(null);
+            await carregar();
+        } catch (e) {
+            setErroCorrecao(extractErrors(e).message);
         } finally {
             setSalvando(false);
         }
@@ -429,6 +448,16 @@ export default function AvaliacaoProjetos() {
                                             <td className="px-3 py-2 text-center font-bold text-secondary">{p.realizadas}</td>
                                             <td className="px-3 py-2 text-center font-bold text-on-surface">{p.faltantes}</td>
                                             <td className="px-3 py-2 text-right">
+                                                <div className="inline-flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => { setErroCorrecao(''); setCorrigindo(p); }}
+                                                    aria-label={`Editar ${p.titulo}`}
+                                                    className="shrink-0 inline-flex items-center gap-1 text-sm font-semibold text-primary-container hover:text-primary border border-outline-variant rounded-lg px-3 py-1.5 hover:bg-surface-variant transition-colors"
+                                                >
+                                                    <span className="material-symbols-outlined text-[18px]">edit</span>
+                                                    Editar
+                                                </button>
                                                 <button
                                                     type="button"
                                                     onClick={() => setDesignando({ id: p.id, titulo: p.titulo, area_id: p.area_id })}
@@ -438,6 +467,7 @@ export default function AvaliacaoProjetos() {
                                                     <span className="material-symbols-outlined text-[18px]">assignment_ind</span>
                                                     Designar
                                                 </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}
@@ -466,6 +496,19 @@ export default function AvaliacaoProjetos() {
                     onFechar={() => setDesignando(null)}
                     onDesignar={designar}
                     salvando={salvando}
+                />
+            )}
+
+            {corrigindo && (
+                <CorrigirProjetoDialog
+                    projeto={corrigindo}
+                    // Catálogo completo: dá para mover o projeto para uma área ainda sem projetos.
+                    areas={areas.length > 0 ? areas : areasFiltro}
+                    categorias={categorias}
+                    salvando={salvando}
+                    erro={erroCorrecao}
+                    onFechar={() => setCorrigindo(null)}
+                    onSalvar={corrigir}
                 />
             )}
         </AppShell>

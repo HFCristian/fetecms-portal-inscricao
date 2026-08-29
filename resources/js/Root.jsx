@@ -120,6 +120,7 @@ export default function Root() {
                             <Route path="/admin/registros" element={<AdminRegistrosHome />} />
                             <Route path="/admin/registros/inscricoes" element={<AdminRegistros secao="inscricoes" />} />
                             <Route path="/admin/registros/avaliacao" element={<AdminRegistros secao="avaliacao" />} />
+                            <Route path="/admin/registros/projetos" element={<AdminRegistros secao="projetos" />} />
                             <Route path="/admin/comunicacao" element={<AdminComunicacao />} />
                             <Route path="/admin/comunicacao/avisos" element={<AdminAvisos />} />
                             <Route path="/admin/comunicacao/modelos" element={<AdminModelosEmail />} />

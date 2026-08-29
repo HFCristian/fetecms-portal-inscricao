@@ -15,6 +15,10 @@ namespace App\Enums;
  *
  * Seção "Avaliação Online" (parametrização do período pelo admin): cada
  * mudança guarda o valor anterior e o novo.
+ *
+ * Seção "Projetos" (o admin corrigindo a inscrição de alguém): categoria, área,
+ * subárea e link do vídeo. Aqui a justificativa é obrigatória e entra no
+ * registro junto do "de → para".
  */
 enum TipoRegistro: string
 {
@@ -31,11 +35,17 @@ enum TipoRegistro: string
     case AvaliacaoLimitesCategoria = 'avaliacao_limites_categoria';
     case AvaliacaoRegraDistribuicao = 'avaliacao_regra_distribuicao';
     case AvaliacaoDesignacaoAoCadastrar = 'avaliacao_designacao_ao_cadastrar';
+    case ProjetoCategoria = 'projeto_categoria';
+    case ProjetoArea = 'projeto_area';
+    case ProjetoSubarea = 'projeto_subarea';
+    case ProjetoVideo = 'projeto_video';
 
     /** Seções da tela de Registros. */
     public const SECAO_INSCRICOES = 'inscricoes';
 
     public const SECAO_AVALIACAO = 'avaliacao';
+
+    public const SECAO_PROJETOS = 'projetos';
 
     public function label(): string
     {
@@ -53,6 +63,10 @@ enum TipoRegistro: string
             self::AvaliacaoLimitesCategoria => 'Limites por categoria',
             self::AvaliacaoRegraDistribuicao => 'Regra da distribuição',
             self::AvaliacaoDesignacaoAoCadastrar => 'Designação ao cadastrar',
+            self::ProjetoCategoria => 'Categoria do projeto',
+            self::ProjetoArea => 'Área do projeto',
+            self::ProjetoSubarea => 'Subárea do projeto',
+            self::ProjetoVideo => 'Vídeo do projeto',
         };
     }
 
@@ -61,6 +75,7 @@ enum TipoRegistro: string
     {
         return match ($this) {
             self::Submissao, self::Cancelamento, self::Exclusao, self::TrocaEmail => self::SECAO_INSCRICOES,
+            self::ProjetoCategoria, self::ProjetoArea, self::ProjetoSubarea, self::ProjetoVideo => self::SECAO_PROJETOS,
             default => self::SECAO_AVALIACAO,
         };
     }
@@ -68,7 +83,7 @@ enum TipoRegistro: string
     /** @return list<string> */
     public static function secoes(): array
     {
-        return [self::SECAO_INSCRICOES, self::SECAO_AVALIACAO];
+        return [self::SECAO_INSCRICOES, self::SECAO_AVALIACAO, self::SECAO_PROJETOS];
     }
 
     /**

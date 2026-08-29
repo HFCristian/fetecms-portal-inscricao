@@ -374,12 +374,36 @@ class AdminAvaliacaoService
             'titulo' => $p->titulo,
             'area_id' => $p->area_id,
             'area' => $p->area?->nome,
+            'subarea_id' => $p->subarea_id,
             'subarea' => $p->subarea?->nome,
             'categoria' => $p->categoria?->value,
             'categoria_label' => $p->categoria?->label(),
+            // O diálogo de correção abre já preenchido, sem uma segunda consulta.
+            'link_video' => $p->link_video,
             'realizadas' => $realizadas,
             'em_avaliacao' => (int) $p->em_avaliacao_count,
             'faltantes' => max(0, $min - $realizadas),
+        ];
+    }
+
+    /**
+     * Os campos que a correção manual do admin devolve — o suficiente para a
+     * linha da tabela se atualizar sem recarregar a página.
+     *
+     * @return array<string, mixed>
+     */
+    public function projetoParaEdicao(Projeto $p): array
+    {
+        return [
+            'id' => $p->id,
+            'titulo' => $p->titulo,
+            'categoria' => $p->categoria?->value,
+            'categoria_label' => $p->categoria?->label(),
+            'area_id' => $p->area_id,
+            'area' => $p->area?->nome,
+            'subarea_id' => $p->subarea_id,
+            'subarea' => $p->subarea?->nome,
+            'link_video' => $p->link_video,
         ];
     }
 

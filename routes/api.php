@@ -190,6 +190,9 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::get('/avaliacao/lista-final/opcoes', [AdminAvaliacaoController::class, 'opcoesListaFinal']);
             Route::post('/avaliacao/lista-final', [AdminAvaliacaoController::class, 'gerarListaFinal']);
             Route::post('/avaliacao/projetos/{projeto}/designar', [AdminAvaliacaoController::class, 'designar']);
+            // Correção manual da classificação/vídeo de um projeto submetido
+            // (justificativa obrigatória; cada campo vira registro).
+            Route::patch('/avaliacao/projetos/{projeto}', [AdminAvaliacaoController::class, 'corrigirProjeto']);
             Route::get('/avaliacao/distribuicao', [AdminAvaliacaoController::class, 'distribuicaoConfig']);
             Route::patch('/avaliacao/distribuicao', [AdminAvaliacaoController::class, 'definirRegrasDistribuicao']);
             Route::patch('/avaliacao/distribuicao/ao-cadastrar', [AdminAvaliacaoController::class, 'definirDistribuicaoAoCadastrar']);

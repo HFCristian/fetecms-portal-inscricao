@@ -158,3 +158,10 @@ describe('AdminRegistros', () => {
         });
     });
 });
+
+describe('AdminRegistros — seção Projetos', () => {
+    it('usa o título e o vazio próprios da seção', async () => {
+        render(<AdminRegistros secao="projetos" />);
+        expect(await screen.findByText('Registros · Projetos')).toBeInTheDocument();
+    });
+});

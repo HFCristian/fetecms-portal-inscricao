@@ -15,6 +15,10 @@ const TAG = {
     avaliacao_encerramento: 'bg-error-container text-on-error-container',
     avaliacao_min_avaliador: 'bg-primary-fixed text-primary-container',
     avaliacao_min_projeto: 'bg-surface-variant text-on-surface-variant',
+    projeto_categoria: 'bg-primary-fixed text-primary-container',
+    projeto_area: 'bg-secondary-container text-on-secondary-container',
+    projeto_subarea: 'bg-surface-variant text-on-surface-variant',
+    projeto_video: 'bg-primary-fixed text-primary-container',
 };
 
 const ICONE = {
@@ -26,6 +30,10 @@ const ICONE = {
     avaliacao_encerramento: 'stop_circle',
     avaliacao_min_avaliador: 'person_check',
     avaliacao_min_projeto: 'fact_check',
+    projeto_categoria: 'category',
+    projeto_area: 'account_tree',
+    projeto_subarea: 'lan',
+    projeto_video: 'movie',
 };
 
 /** Título, texto e placeholder de busca de cada seção da trilha. */
@@ -43,6 +51,13 @@ const SECOES = {
             + 'avaliações por avaliador e por projeto —, com o valor anterior e o novo.',
         placeholder: 'Buscar pelo e-mail ou nome de quem alterou…',
         vazio: 'Nenhuma mudança de parâmetro registrada por enquanto.',
+    },
+    projetos: {
+        titulo: 'Registros · Projetos',
+        descricao: 'As correções que o admin fez em projetos já submetidos — categoria, área, '
+            + 'subárea e link do vídeo —, sempre com a justificativa de quem alterou.',
+        placeholder: 'Buscar por título do projeto, orientador ou admin…',
+        vazio: 'Nenhuma correção registrada por enquanto.',
     },
 };
 
