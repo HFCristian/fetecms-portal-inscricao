@@ -10,6 +10,7 @@ use App\Http\Resources\DocumentoResource;
 use App\Http\Resources\ProjetoResource;
 use App\Models\Projeto;
 use App\Services\InscricoesService;
+use App\Services\NotificacaoProjetoService;
 use App\Services\ProjetoChecklistService;
 use App\Services\RegistroAtividadeService;
 use App\Services\SubmissaoService;
@@ -26,6 +27,7 @@ class ProjetoSubmissaoController extends Controller
         private readonly SubmissaoService $submissoes,
         private readonly RegistroAtividadeService $registros,
         private readonly InscricoesService $inscricoes,
+        private readonly NotificacaoProjetoService $notificacoes,
     ) {}
 
     /** Resumo da inscrição (cadastro7): projeto + integrantes + checklist de pendências. */
@@ -99,9 +101,12 @@ class ProjetoSubmissaoController extends Controller
             return true;
         });
 
-        // Só a requisição que efetivou a submissão grava o registro.
+        // Só a requisição que efetivou a submissão grava o registro e manda o
+        // comprovante por e-mail (a outra é no-op idempotente).
         if ($submetido) {
-            $this->registros->submissao($projeto->fresh(), $request->user());
+            $fresco = $projeto->fresh();
+            $this->registros->submissao($fresco, $request->user());
+            $this->notificacoes->submetido($fresco->load('user', 'area'));
         }
 
         return response()->json([

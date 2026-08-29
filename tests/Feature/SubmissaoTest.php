@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\Categoria;
 use App\Enums\ProjetoStatus;
 use App\Enums\TipoDocumento;
+use App\Mail\MensagemTransacional;
 use App\Models\Aluno;
 use App\Models\Area;
 use App\Models\Estado;
@@ -14,6 +15,7 @@ use App\Models\ProjetoDocumento;
 use App\Models\User;
 use Database\Seeders\CatalogoSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Mail;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -170,5 +172,38 @@ class SubmissaoTest extends TestCase
         Sanctum::actingAs(User::factory()->create());
 
         $this->postJson("/api/v1/projetos/{$projetoAlheio->id}/submeter")->assertForbidden();
+    }
+
+    public function test_submissao_manda_o_comprovante_por_email_ao_orientador(): void
+    {
+        Mail::fake();
+
+        $user = User::factory()->create(['name' => 'João da Silva', 'email' => 'joao@escola.ms.gov.br']);
+        $projeto = $this->projetoCompleto($user);
+        Sanctum::actingAs($user);
+
+        $this->postJson("/api/v1/projetos/{$projeto->id}/submeter")->assertOk();
+
+        Mail::assertQueued(MensagemTransacional::class, function (MensagemTransacional $m) use ($projeto) {
+            return $m->hasTo('joao@escola.ms.gov.br')
+                && $m->assunto === 'Projeto submetido — XVI FETECMS'
+                && str_contains($m->corpo, $projeto->titulo)
+                && str_contains($m->corpo, Categoria::Fetecms->label())
+                && str_contains($m->corpo, $projeto->fresh()->submitted_at->timezone(config('app.timezone'))->format('d/m/Y'));
+        });
+    }
+
+    public function test_comprovante_sai_uma_vez_so_mesmo_com_submissao_repetida(): void
+    {
+        Mail::fake();
+
+        $user = User::factory()->create();
+        $projeto = $this->projetoCompleto($user);
+        Sanctum::actingAs($user);
+
+        $this->postJson("/api/v1/projetos/{$projeto->id}/submeter")->assertOk();
+        $this->postJson("/api/v1/projetos/{$projeto->id}/submeter")->assertOk();
+
+        Mail::assertQueuedCount(1);
     }
 }

@@ -2,13 +2,13 @@
 
 namespace App\Services;
 
+use App\Enums\ModeloEmail;
 use App\Enums\Role;
 use App\Mail\MensagemTransacional;
 use App\Models\AvaliadorProfile;
 use App\Models\CadastroPendente;
 use App\Models\OrientadorProfile;
 use App\Models\User;
-use App\Support\MensagemEmail;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
@@ -49,6 +49,7 @@ class ConfirmacaoCadastroService
     public function __construct(
         private readonly OrientadorService $orientadores,
         private readonly AvaliadorService $avaliadores,
+        private readonly ModeloEmailService $modelos,
     ) {}
 
     /**
@@ -167,23 +168,20 @@ class ConfirmacaoCadastroService
         Mail::to($pendente->email)->send($this->mensagem($pendente, $codigo));
     }
 
-    /** A mensagem que a pessoa recebe, com as variáveis já trocadas. */
+    /**
+     * A mensagem que a pessoa recebe. O texto é o que estiver valendo em
+     * Comunicação → Modelos de e-mail (o padrão daqui, se o admin não mexeu).
+     */
     private function mensagem(CadastroPendente $pendente, string $codigo): MensagemTransacional
     {
-        $valores = [
+        return $this->modelos->mensagem(ModeloEmail::ConfirmacaoCadastro, [
             'nome' => Str::before($pendente->nome, ' ') ?: $pendente->nome,
             'nome_completo' => $pendente->nome,
             'email' => $pendente->email,
             'codigo' => $codigo,
             'validade' => (string) self::VALIDADE_MINUTOS,
             'papel' => Role::from($pendente->papel)->label(),
-        ];
-
-        return new MensagemTransacional(
-            assunto: MensagemEmail::personalizar(self::ASSUNTO_PADRAO, $valores),
-            corpo: MensagemEmail::personalizar(self::CORPO_PADRAO, $valores),
-            destaque: $codigo,
-        );
+        ], destaque: $codigo);
     }
 
     /** O botão de reenviar não pode virar disparador automático de e-mail. */

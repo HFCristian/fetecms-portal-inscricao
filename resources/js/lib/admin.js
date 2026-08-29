@@ -256,3 +256,14 @@ export async function exportarRegistrosCsv(filtros) {
         ?? 'registros.csv';
     baixarBlob(r.data, nome);
 }
+
+// Comunicação → Modelos de e-mail: o texto dos e-mails automáticos do portal.
+// Sem customização salva, a API devolve o texto de fábrica.
+export const getModelosEmail = () => http.get('/admin/modelos-email').then((r) => r.data.data);
+
+export const salvarModeloEmail = (chave, dados) =>
+    http.put(`/admin/modelos-email/${chave}`, dados).then((r) => r.data.data);
+
+/** Volta o modelo ao texto padrão (apaga a customização). */
+export const restaurarModeloEmail = (chave) =>
+    http.delete(`/admin/modelos-email/${chave}`).then((r) => r.data.data);

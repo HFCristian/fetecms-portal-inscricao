@@ -288,7 +288,24 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 51 | Algoritmo de distribuição em tela própria (`/admin/avaliacao/distribuicao`), aberta por botão na aba | ✅ sim | ❌ não (manual do Pedro) | 3 |
 | 52 | Painel: 3 cards de camiseta (orientadores, alunos, coorientadores) por tamanho | ✅ sim | ❌ não (manual do Pedro) | 4 |
 | 53 | Confirmação de e-mail no cadastro (código de 6 dígitos, cadastro pendente, CPF liberado, trim do e-mail) | ✅ sim | ❌ não (manual do Pedro) | 4 |
+| 54 | Comunicação → Modelos de e-mail: admin edita assunto/texto dos e-mails automáticos | ✅ sim | ❌ não (manual do Pedro) | 4 |
+| 55 | Comprovante de submissão por e-mail (título, data e categoria) | ✅ sim | ❌ não (manual do Pedro) | 4 |
 
+> **Sprints 54–55 (mesma branch):** os e-mails automáticos do portal ganharam dono.
+> (a) **Sprint 54** — **Comunicação → Modelos de e-mail** (`/admin/comunicacao/modelos`): o admin
+> edita **assunto e texto** de cada e-mail automático, com os botões de variável inserindo na
+> posição do cursor e um **Restaurar padrão**. O padrão mora no enum `App\Enums\ModeloEmail`
+> (label, descrição, texto de fábrica e variáveis aceitas) e a tabela `modelos_email` guarda **só
+> o que foi customizado** — salvar exatamente o texto padrão apaga a linha, então o modelo volta a
+> acompanhar mudanças futuras de fábrica. Quem dispara pede a mensagem ao `ModeloEmailService` e
+> não sabe de onde o texto veio. `GET/PUT/DELETE /admin/modelos-email/{modelo}`.
+> (b) **Sprint 55** — submeter o projeto manda o **comprovante por e-mail** ao orientador, com
+> **título, data, hora e categoria** (`NotificacaoProjetoService`, modelo `projeto_submetido`). O
+> envio vai para a **fila** e qualquer falha é engolida com log: a submissão é irreversível e já
+> está gravada, então servidor de e-mail fora do ar não pode derrubar a resposta. Só a requisição
+> que efetivou a submissão envia — reenviar o POST não gera segundo comprovante.
+> Back **546/546**, front **237/237**, Pint limpo, build OK.
+>
 > **Sprints 52–53 (branch `feat/verificacao-email-e-ajustes`, saída da `origin/main` @ `60b8e27`):**
 > (a) **Sprint 52** — o painel do admin ganhou **três cards de camiseta** (orientadores, alunos e
 > coorientadores), cada um com a contagem por tamanho **PP, P, M, G, GG, XG + N.I.**. A conta vem

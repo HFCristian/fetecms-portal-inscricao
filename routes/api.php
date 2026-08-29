@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\V1\AdminAvisoController;
 use App\Http\Controllers\Api\V1\AdminController;
 use App\Http\Controllers\Api\V1\AdminInscricoesController;
 use App\Http\Controllers\Api\V1\AdminMalaDiretaController;
+use App\Http\Controllers\Api\V1\AdminModeloEmailController;
 use App\Http\Controllers\Api\V1\AdminRegistroController;
 use App\Http\Controllers\Api\V1\AlunoController;
 use App\Http\Controllers\Api\V1\AuthController;
@@ -215,6 +216,12 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::get('/avisos/{aviso}', [AdminAvisoController::class, 'show']);
             Route::get('/avisos/{aviso}/leitores', [AdminAvisoController::class, 'leitores']);
             Route::get('/avisos/{aviso}/exportar', [AdminAvisoController::class, 'exportar']);
+
+            // Comunicação → Modelos de e-mail: o texto dos e-mails automáticos.
+            Route::get('/modelos-email', [AdminModeloEmailController::class, 'index']);
+            Route::get('/modelos-email/{modelo}', [AdminModeloEmailController::class, 'show']);
+            Route::put('/modelos-email/{modelo}', [AdminModeloEmailController::class, 'update']);
+            Route::delete('/modelos-email/{modelo}', [AdminModeloEmailController::class, 'restaurar']);
 
             Route::get('/registros', [AdminRegistroController::class, 'index']);
             Route::get('/registros/exportar', [AdminRegistroController::class, 'exportar']);
