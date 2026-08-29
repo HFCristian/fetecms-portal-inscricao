@@ -8,6 +8,7 @@ use App\Models\Cidade;
 use App\Models\Edicao;
 use App\Models\Estado;
 use App\Models\Instituicao;
+use App\Support\Capitais;
 use Illuminate\Database\Seeder;
 
 /**
@@ -64,13 +65,17 @@ class CatalogoSeeder extends Seeder
         if (! is_file($path)) {
             $ms = $ufToId['MS'] ?? null;
             foreach ($ms ? ['Campo Grande', 'Dourados', 'Três Lagoas', 'Corumbá'] : [] as $nome) {
-                Cidade::firstOrCreate(['estado_id' => $ms, 'nome' => $nome]);
+                Cidade::firstOrCreate(
+                    ['estado_id' => $ms, 'nome' => $nome],
+                    ['capital' => $nome === 'Campo Grande'],
+                );
             }
 
             return;
         }
 
         $municipios = json_decode((string) file_get_contents($path), true) ?: [];
+        $capitais = Capitais::porUf();
         $now = now();
 
         $linhas = [];
@@ -82,6 +87,9 @@ class CatalogoSeeder extends Seeder
             $linhas[] = [
                 'estado_id' => $estadoId,
                 'nome' => $m['nome'],
+                // Capital do próprio estado: é o que separa capital de interior
+                // nas cotas da lista final.
+                'capital' => ($capitais[$m['uf']] ?? null) === $m['nome'],
                 'created_at' => $now,
                 'updated_at' => $now,
             ];

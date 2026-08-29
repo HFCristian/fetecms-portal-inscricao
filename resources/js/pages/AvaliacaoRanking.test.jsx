@@ -5,14 +5,17 @@ vi.mock('../components/AppShell.jsx', () => ({ default: ({ children }) => <div>{
 vi.mock('react-router-dom', () => ({ Link: ({ children }) => <a>{children}</a> }));
 
 const getRankingAvaliacao = vi.fn();
+const AREAS_LISTA = [
+    { id: 1, nome: 'Ciências Exatas e da Terra', sigla: 'EXA', disponiveis: 3, interior_disponiveis: 1 },
+];
 const getOpcoesListaFinal = vi.fn(() => Promise.resolve({
     total_disponivel: 3,
+    interior_disponivel: 1,
     categorias: [
-        { value: 'fetecms', label: 'FETECMS', sigla: 'FET', disponiveis: 2 },
-        { value: 'fetec_jr', label: 'FETEC Jr', sigla: 'JR', disponiveis: 1 },
-        { value: 'fetecms_fundect', label: 'FETECMS FUNDECT', sigla: 'PIC', disponiveis: 0 },
+        { value: 'fetecms', label: 'FETECMS', sigla: 'FET', disponiveis: 2, areas: AREAS_LISTA },
+        { value: 'fetec_jr', label: 'FETEC Jr', sigla: 'JR', disponiveis: 1, areas: AREAS_LISTA },
+        { value: 'fetecms_fundect', label: 'FETECMS FUNDECT', sigla: 'PIC', disponiveis: 0, areas: AREAS_LISTA },
     ],
-    areas: [{ id: 1, nome: 'Ciências Exatas e da Terra', sigla: 'EXA', disponiveis: 3 }],
 }));
 const baixarListaFinal = vi.fn(() => Promise.resolve());
 vi.mock('../lib/admin.js', () => ({
@@ -160,18 +163,27 @@ describe('AvaliacaoRanking', () => {
 
         fireEvent.click(screen.getByRole('button', { name: /Gerar lista final/ }));
 
-        // Cada categoria e cada área viram uma cota, com o que há disponível.
-        expect(await screen.findByLabelText(/Quantidade de FETECMS FUNDECT/)).toBeInTheDocument();
-        fireEvent.change(screen.getByLabelText('Total de projetos na lista'), { target: { value: '10' } });
-        fireEvent.change(screen.getByLabelText('Quantidade de FETEC Jr'), { target: { value: '2' } });
-        fireEvent.change(screen.getByLabelText(/Quantidade de Ciências Exatas/), { target: { value: '5' } });
+        // Passo 1: total geral e a cota da categoria.
+        expect(await screen.findByLabelText(/Quantidade para FETECMS FUNDECT/)).toBeInTheDocument();
+        fireEvent.change(screen.getByLabelText('Quantidade para Total geral da lista'), { target: { value: '10' } });
+        fireEvent.change(screen.getByLabelText('Quantidade para FETEC Jr'), { target: { value: '2' } });
 
+        // Passo 2: a cota da área, dentro da FETEC Jr (segunda seção).
+        fireEvent.click(screen.getByText('Continuar'));
+        const camposArea = await screen.findAllByLabelText(/Quantidade para Ciências Exatas/);
+        fireEvent.change(camposArea[1], { target: { value: '5' } });
+
+        fireEvent.click(screen.getByText('Continuar'));
         fireEvent.click(screen.getByRole('button', { name: /Gerar TXT/ }));
 
         await waitFor(() => expect(baixarListaFinal).toHaveBeenCalledWith({
-            total: 10,
-            categorias: { fetec_jr: 2 },
-            areas: { 1: 5 },
+            total: { tipo: 'fixo', valor: 10 },
+            categorias: {
+                fetec_jr: {
+                    cota: { tipo: 'fixo', valor: 2 },
+                    areas: { 1: { cota: { tipo: 'fixo', valor: 5 }, interior: null } },
+                },
+            },
         }));
     });
 

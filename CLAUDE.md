@@ -292,7 +292,25 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 55 | Comprovante de submissão por e-mail (título, data e categoria) | ✅ sim | ❌ não (manual do Pedro) | 4 |
 | 56 | Projetos submetidos: admin corrige categoria, área, subárea e vídeo (justificativa obrigatória) | ✅ sim | ❌ não (manual do Pedro) | 4 |
 | 57 | Registros → Projetos: seção própria para as correções do admin | ✅ sim | ❌ não (manual do Pedro) | 4 |
+| 58 | Perfil do avaliador: teto de 120h no certificado | ✅ sim | ❌ não (manual do Pedro) | 4 |
+| 59 | Lista final: cotas aninhadas categoria → área → interior, em número ou porcentagem | ✅ sim | ❌ não (manual do Pedro) | 4 |
 
+> **Sprints 58–59 (mesma branch):**
+> (a) **Sprint 58** — o certificado do avaliador tem **teto de 120 horas**
+> (`AvaliadorProfile::MAX_MINUTOS_CERTIFICADO`). A carga exibida satura ali, o card diz "máximo de
+> 120h" e, quem chega no teto, "Limite máximo de 120h atingido". Avaliar além disso continua
+> valendo para o ranking — só o certificado não passa.
+> (b) **Sprint 59** — **Gerar lista final** virou um **assistente de três passos**, na ordem em que
+> a organização decide: **categoria → área (dentro da categoria) → interior (dentro da área)**.
+> Cada quantidade é **número fixo ou porcentagem** do recorte que a contém, então "100 da FUNDECT,
+> 20 de agrárias, 70% desses para o interior" é exatamente o que se digita. As cotas de área agora
+> valem **por categoria** (antes eram globais). A reserva do interior é **piso**: uma segunda
+> passada devolve aos demais a vaga que o interior não preencheu, e ela só existe onde a área tem
+> cota — sem número fechado não há o que reservar. "Interior" é a cidade da escola que **não é a
+> capital do estado**, via a coluna nova `cidades.capital` (backfill das 27 capitais, `App\Support\Capitais`).
+> A leitura das cotas mora em `App\Support\Cota`.
+> Back **558/558**, front **244/244**, Pint limpo, build OK.
+>
 > **Sprints 56–57 (mesma branch):** o admin passou a poder corrigir a inscrição de outra pessoa.
 > (a) **Sprint 56** — na tabela de **Projetos submetidos**, cada linha ganhou **Editar** ao lado de
 > *Designar*: um diálogo com **categoria, área, subárea e link do vídeo** e uma **justificativa

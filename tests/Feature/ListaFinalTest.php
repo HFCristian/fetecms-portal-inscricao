@@ -34,7 +34,9 @@ class ListaFinalTest extends TestCase
     {
         parent::setUp();
         $this->estado = Estado::create(['nome' => 'Mato Grosso do Sul', 'uf' => 'MS']);
-        $this->cidade = Cidade::create(['nome' => 'Campo Grande', 'estado_id' => $this->estado->id]);
+        // Campo Grande é a capital; o interior entra pelas cidades criadas nos
+        // testes que exercitam a reserva.
+        $this->cidade = Cidade::create(['nome' => 'Campo Grande', 'estado_id' => $this->estado->id, 'capital' => true]);
     }
 
     private function area(string $nome, ?string $sigla): Area
@@ -159,14 +161,19 @@ class ListaFinalTest extends TestCase
         $this->projeto('Jr agrária', Categoria::FetecJr, $agrarias, 6.0);
 
         $lista = $this->servico()->gerar([
-            'categorias' => ['fetecms' => 2],
-            'areas' => [$agrarias->id => 1],
+            'categorias' => [
+                'fetecms' => [
+                    'cota' => 2,
+                    'areas' => [$agrarias->id => ['cota' => 1]],
+                ],
+            ],
         ]);
 
-        // A cota da área corta as agrárias em 1 (a melhor); a de categoria
-        // ainda deixa entrar a exata; a FETEC Jr não tem cota, mas a área já
-        // estourou.
-        $this->assertSame(['Agrária A', 'Exata A'], array_column($lista, 'titulo'));
+        // A cota de área vale DENTRO da categoria: em FETECMS as agrárias
+        // param na melhor (1 vaga) e a exata ainda cabe nas 2 da categoria. A
+        // FETEC Jr não tem cota nenhuma, então entra inteira — a cota das
+        // agrárias da FETECMS não a alcança.
+        $this->assertSame(['Agrária A', 'Exata A', 'Jr agrária'], array_column($lista, 'titulo'));
     }
 
     public function test_projeto_sem_escola_usa_a_localidade_do_projeto(): void
@@ -197,10 +204,12 @@ class ListaFinalTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.total_disponivel', 1)
             ->assertJsonPath('data.categorias.0.sigla', 'FET')
-            ->assertJsonPath('data.areas.0.sigla', 'AGR')
-            ->assertJsonPath('data.areas.0.disponiveis', 1);
+            ->assertJsonPath('data.categorias.0.areas.0.sigla', 'AGR')
+            ->assertJsonPath('data.categorias.0.areas.0.disponiveis', 1);
 
-        $resposta = $this->post('/api/v1/admin/avaliacao/lista-final', ['total' => 1]);
+        $resposta = $this->post('/api/v1/admin/avaliacao/lista-final', [
+            'total' => ['tipo' => 'fixo', 'valor' => 1],
+        ]);
 
         $resposta->assertOk()->assertHeader('Content-Type', 'text/plain; charset=UTF-8');
         $this->assertStringContainsString('FET.AGR-001 - Horta', $resposta->getContent());
@@ -217,5 +226,120 @@ class ListaFinalTest extends TestCase
 
         $this->patchJson("/api/v1/admin/areas/{$area->id}/sigla", ['sigla' => 'ROBO'])
             ->assertStatus(422)->assertJsonValidationErrors('sigla');
+    }
+
+    // --- Cotas em porcentagem e reserva para o interior ---
+
+    /** Cidade do interior (não capital) para os testes de reserva. */
+    private function interior(string $nome = 'Dourados'): Cidade
+    {
+        return Cidade::firstOrCreate(
+            ['nome' => $nome, 'estado_id' => $this->estado->id],
+            ['capital' => false],
+        );
+    }
+
+    public function test_cota_em_porcentagem_e_calculada_sobre_o_recorte_de_cima(): void
+    {
+        $agrarias = $this->area('Ciências Agrárias', 'AGR');
+
+        foreach (range(1, 10) as $i) {
+            $this->projeto('Projeto '.$i, Categoria::Fetecms, $agrarias, 10 - ($i / 10));
+        }
+
+        // 50% de 10 elegíveis = 5 na categoria; 40% desses 5 = 2 na área.
+        $lista = $this->servico()->gerar([
+            'categorias' => [
+                'fetecms' => [
+                    'cota' => ['tipo' => 'percentual', 'valor' => 50],
+                    'areas' => [$agrarias->id => ['cota' => ['tipo' => 'percentual', 'valor' => 40]]],
+                ],
+            ],
+        ]);
+
+        $this->assertCount(2, $lista);
+        // Os dois melhores: Projeto 1 (9,9) e Projeto 2 (9,8).
+        $this->assertSame(['Projeto 1', 'Projeto 2'], array_column($lista, 'titulo'));
+    }
+
+    public function test_reserva_do_interior_segura_as_vagas_para_quem_e_do_interior(): void
+    {
+        $agrarias = $this->area('Ciências Agrárias', 'AGR');
+        $interior = $this->interior();
+
+        // As melhores notas são todas da capital; o interior vem depois.
+        $this->projeto('Capital A', Categoria::Fetecms, $agrarias, 9.9, [], 'EE Capital A');
+        $this->projeto('Capital B', Categoria::Fetecms, $agrarias, 9.8, [], 'EE Capital B');
+        $this->projeto('Capital C', Categoria::Fetecms, $agrarias, 9.7, [], 'EE Capital C');
+        $this->doInterior($this->projeto('Interior A', Categoria::Fetecms, $agrarias, 5.0, [], 'EE Interior A'), $interior);
+        $this->doInterior($this->projeto('Interior B', Categoria::Fetecms, $agrarias, 4.0, [], 'EE Interior B'), $interior);
+
+        // 4 vagas na área, 50% (2) reservadas ao interior.
+        $lista = $this->servico()->gerar([
+            'categorias' => [
+                'fetecms' => [
+                    'areas' => [$agrarias->id => [
+                        'cota' => 4,
+                        'interior' => ['tipo' => 'percentual', 'valor' => 50],
+                    ]],
+                ],
+            ],
+        ]);
+
+        $titulos = array_column($lista, 'titulo');
+        sort($titulos);
+        // Só duas da capital entram, mesmo sendo as melhores.
+        $this->assertSame(['Capital A', 'Capital B', 'Interior A', 'Interior B'], $titulos);
+    }
+
+    public function test_reserva_nao_preenchida_devolve_a_vaga_para_os_demais(): void
+    {
+        $agrarias = $this->area('Ciências Agrárias', 'AGR');
+        $interior = $this->interior();
+
+        $this->projeto('Capital A', Categoria::Fetecms, $agrarias, 9.9, [], 'EE Capital A');
+        $this->projeto('Capital B', Categoria::Fetecms, $agrarias, 9.8, [], 'EE Capital B');
+        $this->projeto('Capital C', Categoria::Fetecms, $agrarias, 9.7, [], 'EE Capital C');
+        $this->doInterior($this->projeto('Interior A', Categoria::Fetecms, $agrarias, 5.0, [], 'EE Interior A'), $interior);
+
+        // 3 vagas com 2 reservadas ao interior, mas só existe 1 projeto do
+        // interior: a vaga que sobra volta para a capital.
+        $lista = $this->servico()->gerar([
+            'categorias' => [
+                'fetecms' => [
+                    'areas' => [$agrarias->id => ['cota' => 3, 'interior' => 2]],
+                ],
+            ],
+        ]);
+
+        $titulos = array_column($lista, 'titulo');
+        sort($titulos);
+        $this->assertSame(['Capital A', 'Capital B', 'Interior A'], $titulos);
+    }
+
+    public function test_reserva_do_interior_sem_cota_na_area_nao_tem_efeito(): void
+    {
+        $agrarias = $this->area('Ciências Agrárias', 'AGR');
+
+        $this->projeto('Capital A', Categoria::Fetecms, $agrarias, 9.9, [], 'EE Capital A');
+        $this->projeto('Capital B', Categoria::Fetecms, $agrarias, 9.8, [], 'EE Capital B');
+
+        $lista = $this->servico()->gerar([
+            'categorias' => [
+                'fetecms' => [
+                    'areas' => [$agrarias->id => ['interior' => ['tipo' => 'percentual', 'valor' => 100]]],
+                ],
+            ],
+        ]);
+
+        $this->assertCount(2, $lista);
+    }
+
+    /** Move a escola do projeto para uma cidade do interior. */
+    private function doInterior(Projeto $projeto, Cidade $cidade): Projeto
+    {
+        $projeto->instituicao?->update(['cidade_id' => $cidade->id]);
+
+        return $projeto;
     }
 }
