@@ -4,7 +4,8 @@ import AppShell from '../components/AppShell.jsx';
 import { getDashboard } from '../lib/admin.js';
 
 // Cards do painel. `status` = submetidos/rascunho; `genero` = mulheres/homens/outros;
-// `categoria` = quantos projetos em cada categoria da feira.
+// `categoria` = quantos projetos em cada categoria da feira; `camiseta` = quantas
+// camisetas de cada tamanho (o número que a organização usa para encomendar).
 const CARDS = [
     { key: 'projetos_total', label: 'Projetos (total)', icon: 'folder', verMais: '/admin/projetos-por-area' },
     { type: 'status', label: 'Projetos por status', icon: 'donut_large' },
@@ -12,6 +13,9 @@ const CARDS = [
     { type: 'genero', generoKey: 'orientadores_genero', label: 'Orientadores', icon: 'person' },
     { type: 'genero', generoKey: 'alunos_genero', label: 'Alunos', icon: 'school' },
     { type: 'genero', generoKey: 'coorientadores_genero', label: 'Coorientadores', icon: 'group' },
+    { type: 'camiseta', camisetaKey: 'orientadores_camisetas', label: 'Camisetas · Orientadores', icon: 'apparel' },
+    { type: 'camiseta', camisetaKey: 'alunos_camisetas', label: 'Camisetas · Alunos', icon: 'apparel' },
+    { type: 'camiseta', camisetaKey: 'coorientadores_camisetas', label: 'Camisetas · Coorientadores', icon: 'apparel' },
     { key: 'escolas_com_projeto', label: 'Escolas com projeto', icon: 'apartment', verMais: '/admin/projetos-por-escola' },
     { key: 'cidades_com_projeto', label: 'Cidades com projeto', icon: 'location_city', verMais: '/admin/projetos-por-cidade' },
     { key: 'estados_com_projeto', label: 'Estados com projeto', icon: 'map', verMais: '/admin/projetos-por-estado' },
@@ -71,6 +75,26 @@ function CategoriaBreakdown({ dados, label }) {
     );
 }
 
+// Camisetas por tamanho. São sete baldes (PP…XG + não informado), demais para a
+// linha única do Breakdown, então saem numa grade de quatro colunas.
+function CamisetaBreakdown({ dados, label }) {
+    const d = dados ?? { total: 0, tamanhos: [] };
+    return (
+        <>
+            <div className="text-3xl font-bold text-primary-container pt-2">{d.total ?? 0}</div>
+            <div className="grid grid-cols-4 gap-x-2 gap-y-1 w-full py-2">
+                {(d.tamanhos ?? []).map((t) => (
+                    <div key={t.tamanho} className="min-w-0">
+                        <div className="text-lg font-semibold text-on-surface">{t.total ?? 0}</div>
+                        <div className="text-[11px] text-on-surface-variant leading-tight truncate">{t.tamanho}</div>
+                    </div>
+                ))}
+            </div>
+            <div className="text-sm text-on-surface-variant">{label}</div>
+        </>
+    );
+}
+
 export default function AdminHome() {
     const [m, setM] = useState(null);
 
@@ -88,7 +112,7 @@ export default function AdminHome() {
             ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-10">
                     {CARDS.map((c) => (
-                        <div key={c.key ?? c.generoKey ?? c.type} className="flex flex-col items-center text-center gap-2 bg-surface-container-lowest rounded-xl fetec-card-shadow p-5">
+                        <div key={c.key ?? c.generoKey ?? c.camisetaKey ?? c.type} className="flex flex-col items-center text-center gap-2 bg-surface-container-lowest rounded-xl fetec-card-shadow p-5">
                             <span className="material-symbols-outlined text-primary-container text-2xl">{c.icon}</span>
 
                             {c.type === 'status' ? (
@@ -109,6 +133,8 @@ export default function AdminHome() {
                                 <CategoriaBreakdown dados={m.projetos_categoria} label={c.label} />
                             ) : c.type === 'genero' ? (
                                 <GeneroBreakdown dados={m[c.generoKey]} label={c.label} />
+                            ) : c.type === 'camiseta' ? (
+                                <CamisetaBreakdown dados={m[c.camisetaKey]} label={c.label} />
                             ) : (
                                 <>
                                     <div className='py-2'>

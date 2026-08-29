@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Orientador;
 
+use App\Http\Requests\Concerns\NormalizaEmail;
 use App\Models\AvaliadorProfile;
 use App\Rules\CidadeDoEstado;
 use App\Rules\Cpf;
@@ -11,6 +12,8 @@ use Illuminate\Validation\Rules\Password;
 
 class RegisterOrientadorRequest extends FormRequest
 {
+    use NormalizaEmail;
+
     public function authorize(): bool
     {
         return true;
@@ -21,6 +24,8 @@ class RegisterOrientadorRequest extends FormRequest
      */
     protected function prepareForValidation(): void
     {
+        $this->limparEmails();
+
         $this->merge(array_filter([
             'cpf' => $this->onlyDigits($this->input('cpf')),
             'telefone' => $this->onlyDigits($this->input('telefone')),

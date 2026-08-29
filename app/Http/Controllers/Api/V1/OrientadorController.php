@@ -2,34 +2,31 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\Role;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Orientador\RegisterOrientadorRequest;
-use App\Http\Resources\UserResource;
-use App\Services\OrientadorService;
+use App\Http\Resources\CadastroPendenteResource;
+use App\Services\ConfirmacaoCadastroService;
 use Illuminate\Http\JsonResponse;
 
 class OrientadorController extends Controller
 {
-    public function __construct(private readonly OrientadorService $orientadores) {}
+    public function __construct(private readonly ConfirmacaoCadastroService $confirmacao) {}
 
     /**
-     * Cadastro público de orientador (wizard 3 etapas). Cria usuário + perfil,
-     * já autentica a sessão e devolve o usuário.
+     * Cadastro público de orientador (wizard 3 etapas). NÃO cria a conta ainda:
+     * guarda o formulário e manda um código de 6 dígitos para o e-mail. O
+     * usuário nasce em POST /cadastros/{token}/confirmar.
      */
     public function store(RegisterOrientadorRequest $request): JsonResponse
     {
-        $user = $this->orientadores->register($request->validated());
+        $pendente = $this->confirmacao->iniciar(Role::Orientador, $request->validated());
 
-        // Loga automaticamente após o cadastro (mesma experiência do protótipo).
-        // Só no fluxo web (stateful, com sessão); mobile cadastraria e pediria token.
-        if ($request->hasSession()) {
-            auth()->guard('web')->login($user);
-            $request->session()->regenerate();
-        }
-
-        return UserResource::make($user)
-            ->additional(['meta' => ['message' => 'Cadastro realizado com sucesso.']])
+        return CadastroPendenteResource::make($pendente)
+            ->additional(['meta' => [
+                'message' => 'Enviamos um código de 6 dígitos para '.$pendente->email.'. Confirme para concluir o cadastro.',
+            ]])
             ->response()
-            ->setStatusCode(201);
+            ->setStatusCode(202);
     }
 }

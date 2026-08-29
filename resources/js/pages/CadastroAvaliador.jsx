@@ -4,6 +4,7 @@ import { useAuth, extractErrors, homeFor } from '../lib/auth.jsx';
 import AuthCard from '../components/AuthCard.jsx';
 import { Field, Input, CpfInput, Select, Button, Alert } from '../components/ui.jsx';
 import SubareaCombobox from '../components/SubareaCombobox.jsx';
+import ConfirmacaoEmail from '../components/ConfirmacaoEmail.jsx';
 import { useCatalogos, loadSubareas, loadCidades } from '../lib/catalogos.js';
 import { validarObrigatorios } from '../lib/validacao.js';
 
@@ -22,7 +23,9 @@ const TITULACOES = [
 ];
 
 export default function CadastroAvaliador() {
-    const { registerAvaliador } = useAuth();
+    // `confirmar` do contexto é o código de 6 dígitos; o confirmar() daqui é o
+    // aceite do termo antes de enviar o formulário.
+    const { registerAvaliador, confirmar: confirmarCodigo } = useAuth();
     const navigate = useNavigate();
     const catalogos = useCatalogos();
     const [form, setForm] = useState({});
@@ -33,6 +36,8 @@ export default function CadastroAvaliador() {
     const [loading, setLoading] = useState(false);
     const [confirming, setConfirming] = useState(false);
     const [ciente, setCiente] = useState(false);
+    // Cadastro preenchido esperando o código: a conta ainda não existe.
+    const [pendente, setPendente] = useState(null);
 
     const set = (name) => (e) => setForm((f) => ({ ...f, [name]: e.target.value }));
     const err = (name) => errors[name]?.[0];
@@ -83,8 +88,7 @@ export default function CadastroAvaliador() {
         setErrors({});
         setLoading(true);
         try {
-            const user = await registerAvaliador({ ...form, password_confirmation: form.password_confirmation ?? '' });
-            navigate(homeFor(user.role), { replace: true });
+            setPendente(await registerAvaliador({ ...form, password_confirmation: form.password_confirmation ?? '' }));
         } catch (error) {
             const { message, fields } = extractErrors(error);
             setErrors(fields);
@@ -93,6 +97,18 @@ export default function CadastroAvaliador() {
         } finally {
             setLoading(false);
         }
+    }
+
+    if (pendente) {
+        return (
+            <AuthCard>
+                <ConfirmacaoEmail
+                    pendente={pendente}
+                    onConfirmar={confirmarCodigo}
+                    onConfirmado={(user) => navigate(homeFor(user.role), { replace: true })}
+                />
+            </AuthCard>
+        );
     }
 
     return (

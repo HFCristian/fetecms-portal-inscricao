@@ -2,11 +2,14 @@
 
 namespace App\Http\Requests\Integrante;
 
+use App\Http\Requests\Concerns\NormalizaEmail;
 use App\Rules\Cpf;
 use Illuminate\Foundation\Http\FormRequest;
 
 class CoorientadorRequest extends FormRequest
 {
+    use NormalizaEmail;
+
     public function authorize(): bool
     {
         return true;
@@ -14,6 +17,8 @@ class CoorientadorRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        $this->limparEmails();
+
         $this->merge(array_filter([
             'cpf' => $this->onlyDigits($this->input('cpf')),
             'telefone' => $this->onlyDigits($this->input('telefone')),

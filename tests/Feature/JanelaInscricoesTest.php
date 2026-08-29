@@ -61,7 +61,7 @@ class JanelaInscricoesTest extends TestCase
     {
         $this->definirJanela(de: now()->addDays(3)->toDateTimeString());
 
-        $this->postJson('/api/v1/orientadores', $this->cadastro())
+        $this->cadastrarOrientadorPelaApi($this->cadastro())
             ->assertStatus(422)
             ->assertJsonPath('code', 'INSCRICOES_NAO_INICIADAS');
 
@@ -72,7 +72,7 @@ class JanelaInscricoesTest extends TestCase
     {
         $this->definirJanela(de: now()->addDays(3)->toDateTimeString());
 
-        $this->postJson('/api/v1/avaliadores', [
+        $this->cadastrarAvaliadorPelaApi([
             'name' => 'Maria Avaliadora',
             'email' => 'maria@ufms.br',
             'password' => 'Senha@123',
@@ -91,7 +91,7 @@ class JanelaInscricoesTest extends TestCase
     {
         $this->definirJanela(de: now()->subDay()->toDateTimeString());
 
-        $this->postJson('/api/v1/orientadores', $this->cadastro())->assertCreated();
+        $this->cadastrarOrientadorPelaApi($this->cadastro())->assertCreated();
 
         Sanctum::actingAs(User::factory()->create(['role' => Role::Orientador]));
         $this->postJson('/api/v1/projetos', ['titulo' => 'Novo projeto'])->assertCreated();
@@ -101,7 +101,7 @@ class JanelaInscricoesTest extends TestCase
     {
         $this->definirJanela(de: now()->subDays(10)->toDateTimeString(), ate: now()->subDay()->toDateTimeString());
 
-        $this->postJson('/api/v1/orientadores', $this->cadastro())->assertCreated();
+        $this->cadastrarOrientadorPelaApi($this->cadastro())->assertCreated();
     }
 
     public function test_admin_passa_por_cima_da_abertura(): void

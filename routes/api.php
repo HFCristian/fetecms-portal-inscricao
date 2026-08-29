@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\V1\AvaliadorAvaliacaoController;
 use App\Http\Controllers\Api\V1\AvaliadorController;
 use App\Http\Controllers\Api\V1\AvaliadorPerfilController;
 use App\Http\Controllers\Api\V1\AvisoController;
+use App\Http\Controllers\Api\V1\CadastroPendenteController;
 use App\Http\Controllers\Api\V1\CatalogoAdminController;
 use App\Http\Controllers\Api\V1\CatalogoController;
 use App\Http\Controllers\Api\V1\ChatAdminController;
@@ -47,6 +48,16 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
     Route::get('/inscricoes/publico', [InscricoesController::class, 'show']);
     Route::post('/avaliadores', [AvaliadorController::class, 'store'])
         ->middleware('throttle:10,1');
+
+    // Confirmação do e-mail do cadastro (orientador e avaliador): a conta só
+    // nasce quando o código de 6 dígitos volta. O acesso é pelo token do
+    // cadastro pendente — quem está aqui ainda não tem login.
+    Route::prefix('cadastros/{cadastro:token}')->middleware('throttle:20,1')->group(function () {
+        Route::get('/', [CadastroPendenteController::class, 'show']);
+        Route::post('/confirmar', [CadastroPendenteController::class, 'confirmar']);
+        Route::post('/reenviar', [CadastroPendenteController::class, 'reenviar']);
+        Route::patch('/email', [CadastroPendenteController::class, 'trocarEmail']);
+    });
     // O bloqueio por excesso de tentativas é feito no AuthService, por e-mail+IP e
     // só contando FALHAS (ver AuthService::MAX_TENTATIVAS). Este throttle por IP é
     // apenas a rede de proteção contra abuso automatizado — folgado o bastante para

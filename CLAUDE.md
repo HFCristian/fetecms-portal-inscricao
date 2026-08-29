@@ -286,7 +286,29 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 49 | Ranking: "Gerar lista final" em TXT (cotas por total/categoria/área) + sigla da área | ✅ sim | ❌ não (manual do Pedro) | 2 |
 | 50 | Parametrização: mínimo E máximo por avaliador e por projeto (por categoria) | ✅ sim | ❌ não (manual do Pedro) | 2 |
 | 51 | Algoritmo de distribuição em tela própria (`/admin/avaliacao/distribuicao`), aberta por botão na aba | ✅ sim | ❌ não (manual do Pedro) | 3 |
+| 52 | Painel: 3 cards de camiseta (orientadores, alunos, coorientadores) por tamanho | ✅ sim | ❌ não (manual do Pedro) | 4 |
+| 53 | Confirmação de e-mail no cadastro (código de 6 dígitos, cadastro pendente, CPF liberado, trim do e-mail) | ✅ sim | ❌ não (manual do Pedro) | 4 |
 
+> **Sprints 52–53 (branch `feat/verificacao-email-e-ajustes`, saída da `origin/main` @ `60b8e27`):**
+> (a) **Sprint 52** — o painel do admin ganhou **três cards de camiseta** (orientadores, alunos e
+> coorientadores), cada um com a contagem por tamanho **PP, P, M, G, GG, XG + N.I.**. A conta vem
+> de `App\Support\Camisetas` e segue a regra dos demais cards: **só projetos submetidos**, com o
+> orientador contando uma vez. O balde **N.I.** é o total menos os tamanhos conhecidos, então a
+> linha sempre fecha com o número grande do card.
+> (b) **Sprint 53** — **confirmação de e-mail** no cadastro de orientador e de avaliador. O
+> formulário **não cria mais a conta**: ele vira uma linha em `cadastros_pendentes` (payload em
+> JSON, **senha já hasheada**) e um **código de 6 dígitos** vai por e-mail, válido por **15
+> minutos**, com **5 tentativas** e reenvio a cada 60s. A conta nasce em
+> `POST /cadastros/{token}/confirmar`, que já loga a sessão. Como nada ocupa
+> `users`/`orientador_profiles` antes disso, **o mesmo CPF pode ser cadastrado de novo** por quem
+> errou o e-mail — e quem errou também **corrige o endereço na própria tela**
+> (`PATCH /cadastros/{token}/email`), sem refazer o formulário. A corrida por e-mail/CPF é
+> reconferida na hora de confirmar. Junto veio o **trim de e-mail**: o trait
+> `App\Http\Requests\Concerns\NormalizaEmail` tira espaço de **qualquer posição** (inclusive o
+> não-quebrável do copiar/colar) em todo formulário que grava e-mail, e na lista personalizada da
+> mala direta. Front: `ConfirmacaoEmail.jsx`, usado pelas duas telas de cadastro.
+> Back **538/538**, front **234/234**, Pint limpo, build OK.
+>
 > **Sprint 51 (mesma branch):** a seção **Algoritmo de distribuição** saiu da landing de
 > "Avaliação online" e virou tela própria em `/admin/avaliacao/distribuicao`
 > (`AvaliacaoDistribuicao.jsx`), aberta pelo botão **Abrir configurações**. Ela reúne as regras por

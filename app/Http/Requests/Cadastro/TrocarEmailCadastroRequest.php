@@ -1,18 +1,20 @@
 <?php
 
-namespace App\Http\Requests\Admin;
+namespace App\Http\Requests\Cadastro;
 
 use App\Http\Requests\Concerns\NormalizaEmail;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rules\Password;
 
-class RegisterAdminRequest extends FormRequest
+/**
+ * Correção do e-mail antes de confirmar o cadastro — o caminho de quem digitou
+ * o endereço errado e viu na tela.
+ */
+class TrocarEmailCadastroRequest extends FormRequest
 {
     use NormalizaEmail;
 
     public function authorize(): bool
     {
-        // A restrição de "só admin cria admin" é feita pelo middleware role:admin na rota.
         return true;
     }
 
@@ -24,9 +26,12 @@ class RegisterAdminRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
-            'password' => ['required', 'confirmed', Password::min(8)],
         ];
+    }
+
+    public function attributes(): array
+    {
+        return ['email' => 'e-mail'];
     }
 }

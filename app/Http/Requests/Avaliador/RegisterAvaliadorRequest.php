@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Avaliador;
 
+use App\Http\Requests\Concerns\NormalizaEmail;
 use App\Models\AvaliadorProfile;
 use App\Models\Coorientador;
 use App\Models\OrientadorProfile;
@@ -14,6 +15,8 @@ use Illuminate\Validation\Rules\Password;
 
 class RegisterAvaliadorRequest extends FormRequest
 {
+    use NormalizaEmail;
+
     public function authorize(): bool
     {
         return true;
@@ -21,6 +24,8 @@ class RegisterAvaliadorRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        $this->limparEmails();
+
         if ($this->filled('cpf')) {
             $this->merge(['cpf' => preg_replace('/\D/', '', $this->input('cpf'))]);
         }

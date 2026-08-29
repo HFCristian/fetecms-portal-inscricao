@@ -67,6 +67,39 @@ class AdminTest extends TestCase
             ->assertJsonPath('data.estados_com_projeto', 2);
     }
 
+    public function test_dashboard_conta_camisetas_por_tamanho(): void
+    {
+        $orient = User::factory()->create();
+        OrientadorProfile::factory()->create(['user_id' => $orient->id, 'camiseta' => 'M']);
+
+        $submetido = Projeto::factory()->submetido()->create(['user_id' => $orient->id]);
+        Aluno::factory()->count(2)->create(['projeto_id' => $submetido->id, 'camiseta' => 'P']);
+        // Sem tamanho informado: cai no balde N.I. para a soma fechar com o total.
+        Aluno::factory()->create(['projeto_id' => $submetido->id, 'camiseta' => null]);
+        Coorientador::factory()->create(['projeto_id' => $submetido->id, 'camiseta' => 'GG']);
+
+        // Rascunho não entra em card nenhum, camiseta inclusive.
+        $rascunho = Projeto::factory()->create(['user_id' => $orient->id]);
+        Aluno::factory()->count(4)->create(['projeto_id' => $rascunho->id, 'camiseta' => 'P']);
+
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->getJson('/api/v1/admin/dashboard')
+            ->assertOk()
+            // Ordem fixa: PP, P, M, G, GG, XG, N.I.
+            ->assertJsonPath('data.orientadores_camisetas.total', 1)
+            ->assertJsonPath('data.orientadores_camisetas.tamanhos.2.tamanho', 'M')
+            ->assertJsonPath('data.orientadores_camisetas.tamanhos.2.total', 1)
+            ->assertJsonPath('data.alunos_camisetas.total', 3)
+            ->assertJsonPath('data.alunos_camisetas.tamanhos.1.tamanho', 'P')
+            ->assertJsonPath('data.alunos_camisetas.tamanhos.1.total', 2)
+            ->assertJsonPath('data.alunos_camisetas.tamanhos.6.tamanho', 'N.I.')
+            ->assertJsonPath('data.alunos_camisetas.tamanhos.6.total', 1)
+            ->assertJsonPath('data.coorientadores_camisetas.total', 1)
+            ->assertJsonPath('data.coorientadores_camisetas.tamanhos.4.tamanho', 'GG')
+            ->assertJsonPath('data.coorientadores_camisetas.tamanhos.4.total', 1);
+    }
+
     public function test_dashboard_conta_projetos_por_categoria(): void
     {
         $orient = User::factory()->create();

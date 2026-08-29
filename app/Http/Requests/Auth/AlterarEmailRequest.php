@@ -2,11 +2,14 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Http\Requests\Concerns\NormalizaEmail;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 class AlterarEmailRequest extends FormRequest
 {
+    use NormalizaEmail;
+
     public function authorize(): bool
     {
         // Cada usuário só troca o próprio e-mail: o controller sempre opera
@@ -16,9 +19,7 @@ class AlterarEmailRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
-        if (is_string($this->input('email'))) {
-            $this->merge(['email' => trim($this->input('email'))]);
-        }
+        $this->limparEmails();
     }
 
     public function rules(): array

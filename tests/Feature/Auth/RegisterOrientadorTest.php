@@ -29,7 +29,7 @@ class RegisterOrientadorTest extends TestCase
 
     public function test_orientador_consegue_se_cadastrar(): void
     {
-        $response = $this->postJson('/api/v1/orientadores', $this->payload());
+        $response = $this->cadastrarOrientadorPelaApi($this->payload());
 
         $response->assertCreated()
             ->assertJsonPath('data.email', 'joao@escola.ms.gov.br')
@@ -45,7 +45,7 @@ class RegisterOrientadorTest extends TestCase
 
     public function test_senha_e_armazenada_como_hash(): void
     {
-        $this->postJson('/api/v1/orientadores', $this->payload());
+        $this->cadastrarOrientadorPelaApi($this->payload());
 
         $user = User::where('email', 'joao@escola.ms.gov.br')->first();
         $this->assertNotSame('Senha@123', $user->password);
@@ -54,7 +54,7 @@ class RegisterOrientadorTest extends TestCase
 
     public function test_cpf_invalido_e_rejeitado(): void
     {
-        $this->postJson('/api/v1/orientadores', $this->payload(['cpf' => '12345678900']))
+        $this->cadastrarOrientadorPelaApi($this->payload(['cpf' => '12345678900']))
             ->assertStatus(422)
             ->assertJsonValidationErrors('cpf');
     }
@@ -63,14 +63,14 @@ class RegisterOrientadorTest extends TestCase
     {
         User::factory()->create(['email' => 'joao@escola.ms.gov.br']);
 
-        $this->postJson('/api/v1/orientadores', $this->payload())
+        $this->cadastrarOrientadorPelaApi($this->payload())
             ->assertStatus(422)
             ->assertJsonValidationErrors('email');
     }
 
     public function test_senha_precisa_de_confirmacao_e_minimo(): void
     {
-        $this->postJson('/api/v1/orientadores', $this->payload([
+        $this->cadastrarOrientadorPelaApi($this->payload([
             'password' => '123',
             'password_confirmation' => '123',
         ]))->assertStatus(422)->assertJsonValidationErrors('password');
@@ -81,7 +81,7 @@ class RegisterOrientadorTest extends TestCase
         $estado = Estado::create(['nome' => 'Mato Grosso do Sul', 'uf' => 'MS']);
         $cidade = $estado->cidades()->create(['nome' => 'Campo Grande']);
 
-        $this->postJson('/api/v1/orientadores', $this->payload([
+        $this->cadastrarOrientadorPelaApi($this->payload([
             'pais' => 'BR',
             'cep' => '79000-000',
             'estado_id' => $estado->id,
@@ -104,7 +104,7 @@ class RegisterOrientadorTest extends TestCase
         $sp = Estado::create(['nome' => 'São Paulo', 'uf' => 'SP']);
         $cidadeSp = $sp->cidades()->create(['nome' => 'São Paulo']);
 
-        $this->postJson('/api/v1/orientadores', $this->payload([
+        $this->cadastrarOrientadorPelaApi($this->payload([
             'estado_id' => $ms->id,
             'cidade_id' => $cidadeSp->id,
         ]))
@@ -114,7 +114,7 @@ class RegisterOrientadorTest extends TestCase
 
     public function test_endereco_no_exterior_usa_texto_livre(): void
     {
-        $this->postJson('/api/v1/orientadores', $this->payload([
+        $this->cadastrarOrientadorPelaApi($this->payload([
             'pais' => 'AR',
             'estado_nome' => 'Buenos Aires',
             'cidade_nome' => 'La Plata',

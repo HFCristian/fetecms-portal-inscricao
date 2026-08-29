@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import http, { ensureCsrf } from './http.js';
+import { confirmarCadastro as confirmarCadastroApi } from './cadastro.js';
 
 const AuthContext = createContext(null);
 
@@ -22,18 +23,25 @@ export function AuthProvider({ children }) {
         return r.data.data;
     }, []);
 
+    // Cadastro NÃO cria a conta: abre um cadastro pendente e manda o código de
+    // 6 dígitos por e-mail. Quem cria o usuário (e loga) é o confirmar().
     const register = useCallback(async (payload) => {
         await ensureCsrf();
         const r = await http.post('/orientadores', payload);
-        setUser(r.data.data);
         return r.data.data;
     }, []);
 
     const registerAvaliador = useCallback(async (payload) => {
         await ensureCsrf();
         const r = await http.post('/avaliadores', payload);
-        setUser(r.data.data);
         return r.data.data;
+    }, []);
+
+    /** Código correto: a conta nasce agora e a sessão já vem logada. */
+    const confirmar = useCallback(async (token, codigo) => {
+        const novo = await confirmarCadastroApi(token, codigo);
+        setUser(novo);
+        return novo;
     }, []);
 
     const logout = useCallback(async () => {
@@ -45,7 +53,7 @@ export function AuthProvider({ children }) {
     }, []);
 
     return (
-        <AuthContext.Provider value={{ user, setUser, loading, login, register, registerAvaliador, logout }}>
+        <AuthContext.Provider value={{ user, setUser, loading, login, register, registerAvaliador, confirmar, logout }}>
             {children}
         </AuthContext.Provider>
     );

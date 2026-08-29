@@ -6,6 +6,7 @@ use App\Enums\PublicoMala;
 use App\Enums\Role;
 use App\Enums\StatusDestinatario;
 use App\Enums\StatusMala;
+use App\Http\Requests\Concerns\NormalizaEmail;
 use App\Jobs\EnviarMalaDireta;
 use App\Models\MalaDireta;
 use App\Models\MalaDiretaDestinatario;
@@ -378,7 +379,9 @@ class MalaDiretaService
     {
         $entradas = [];
         foreach (array_slice($personalizados, 0, self::MAX_PERSONALIZADOS) as $item) {
-            $email = mb_strtolower(trim(is_array($item) ? (string) ($item['email'] ?? '') : (string) $item));
+            // Espaço em qualquer posição sai (o mesmo tratamento dos formulários):
+            // endereço colado de conversa costuma vir com espaço no meio.
+            $email = mb_strtolower(NormalizaEmail::semEspacos(is_array($item) ? (string) ($item['email'] ?? '') : (string) $item));
             $nome = is_array($item) ? trim((string) ($item['nome'] ?? '')) : '';
             if ($email === '') {
                 continue;
