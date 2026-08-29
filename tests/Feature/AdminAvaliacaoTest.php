@@ -480,6 +480,14 @@ class AdminAvaliacaoTest extends TestCase
             ->assertJsonPath('meta.resumo_areas.0.tres_ou_mais', 1)
             ->assertJsonPath('meta.resumo_areas.0.total', 3)
             ->assertJsonPath('meta.resumo_areas.0.completos', 1)
+            // O card destacado soma as áreas: 4 projetos, 1 sem avaliação, 1 com
+            // uma, 1 com duas e 1 com três (o único que bateu o mínimo).
+            ->assertJsonPath('meta.resumo_geral.total', 4)
+            ->assertJsonPath('meta.resumo_geral.zero', 1)
+            ->assertJsonPath('meta.resumo_geral.uma', 1)
+            ->assertJsonPath('meta.resumo_geral.duas', 1)
+            ->assertJsonPath('meta.resumo_geral.tres_ou_mais', 1)
+            ->assertJsonPath('meta.resumo_geral.completos', 1)
             ->assertJsonPath('meta.resumo_areas.1.area', 'Área B')
             ->assertJsonPath('meta.resumo_areas.1.uma', 1);
     }

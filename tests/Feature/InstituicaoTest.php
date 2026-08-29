@@ -73,7 +73,7 @@ class InstituicaoTest extends TestCase
 
     public function test_orientador_cria_instituicao_nova_no_cadastro(): void
     {
-        $this->postJson('/api/v1/orientadores', [
+        $this->cadastrarOrientadorPelaApi([
             'name' => 'Professora Teste',
             'email' => 'prof@escola.ms.gov.br',
             'password' => 'Senha@123',
@@ -141,7 +141,7 @@ class InstituicaoTest extends TestCase
         $ms = Estado::create(['nome' => 'Mato Grosso do Sul', 'uf' => 'MS']);
         $cg = $ms->cidades()->create(['nome' => 'Campo Grande']);
 
-        $this->postJson('/api/v1/orientadores', [
+        $this->cadastrarOrientadorPelaApi([
             'name' => 'Professor Teste',
             'email' => 'prof2@escola.ms.gov.br',
             'password' => 'Senha@123',

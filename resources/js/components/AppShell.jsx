@@ -82,6 +82,12 @@ function NavLinks({ role, onNavigate, suporteBadge = 0 }) {
                 <span className="material-symbols-outlined">folder_shared</span>
                 Meus Projetos
             </NavLink>
+            {/* A aba fica sempre visível: fora do período de ajustes ela abre
+                explicando que está fechada. */}
+            <NavLink to="/ajustes" className={navClass} onClick={onNavigate}>
+                <span className="material-symbols-outlined">rule_settings</span>
+                Ajustes
+            </NavLink>
             <NavLink to="/perfil" className={navClass} onClick={onNavigate}>
                 <span className="material-symbols-outlined">account_circle</span>
                 Perfil

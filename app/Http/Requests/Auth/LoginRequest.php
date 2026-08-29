@@ -2,14 +2,22 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Http\Requests\Concerns\NormalizaEmail;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Str;
 
 class LoginRequest extends FormRequest
 {
+    use NormalizaEmail;
+
     public function authorize(): bool
     {
         return true;
+    }
+
+    protected function prepareForValidation(): void
+    {
+        $this->limparEmails();
     }
 
     public function rules(): array

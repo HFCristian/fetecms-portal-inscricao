@@ -6,6 +6,7 @@ use App\Enums\Categoria;
 use App\Enums\StatusAvaliacao;
 use App\Models\Area;
 use App\Models\Projeto;
+use App\Support\Cota;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
@@ -16,9 +17,17 @@ use Illuminate\Support\Str;
  * Duas etapas independentes:
  *
  * 1. SELEÇÃO — desce o ranking (média das notas finais, do melhor para o pior)
- *    e vai pegando quem cabe nas cotas que o admin definiu: um total geral, um
- *    teto por categoria e um teto por área. Cota em branco é cota sem limite,
- *    então "só os 30 melhores" e "5 de cada área" convivem no mesmo pedido.
+ *    e vai pegando quem cabe nas cotas que o admin definiu. As cotas são
+ *    ANINHADAS: um total geral, dentro dele a cota de cada **categoria**,
+ *    dentro dela a cota de cada **área** e, dentro da área, quantas vagas ficam
+ *    reservadas ao **interior** (cidade que não é a capital do estado). Cada
+ *    uma pode ser número fixo ou porcentagem do recorte que a contém — é o
+ *    "100 da FUNDECT, 20 para agrárias, 70% desses para o interior".
+ *
+ *    Cota em branco não limita nada; cota 0 deixa o recorte de fora. A reserva
+ *    do interior é PISO, não teto: se não houver projeto do interior suficiente,
+ *    as vagas que sobram voltam para os demais numa segunda passada — a área
+ *    nunca entrega menos do que sua cota por causa da reserva.
  *
  * 2. ORDENAÇÃO — o arquivo NÃO sai na ordem da nota: sai por categoria
  *    (FETECMS, FETEC Jr, FETECMS FUNDECT), depois por área em ordem alfabética
@@ -39,34 +48,44 @@ class ListaFinalService
     public function opcoes(): array
     {
         $projetos = $this->avaliados();
+        $areas = Area::query()->orderBy('nome')->get(['id', 'nome', 'sigla']);
 
         $porCategoria = $projetos->groupBy(fn (Projeto $p) => $p->categoria?->value ?? '');
-        $porArea = $projetos->groupBy(fn (Projeto $p) => $p->area_id ?? 0);
 
         return [
             'total_disponivel' => $projetos->count(),
-            'categorias' => array_map(fn (Categoria $c) => [
-                'value' => $c->value,
-                'label' => $c->label(),
-                'sigla' => $c->sigla(),
-                'disponiveis' => $porCategoria->get($c->value, collect())->count(),
-            ], Categoria::ordemDaLista()),
-            'areas' => Area::query()
-                ->orderBy('nome')
-                ->get(['id', 'nome', 'sigla'])
-                ->map(fn (Area $a) => [
-                    'id' => $a->id,
-                    'nome' => $a->nome,
-                    'sigla' => $a->siglaDaLista(),
-                    'disponiveis' => $porArea->get($a->id, collect())->count(),
-                ])->all(),
+            'interior_disponivel' => $projetos->filter(fn (Projeto $p) => $this->doInterior($p))->count(),
+            // As áreas saem DENTRO de cada categoria: a cota da área é uma
+            // fatia da cota da categoria, e a do interior, uma fatia da área.
+            'categorias' => array_map(function (Categoria $c) use ($porCategoria, $areas) {
+                $daCategoria = $porCategoria->get($c->value, collect());
+                $porArea = $daCategoria->groupBy(fn (Projeto $p) => $p->area_id ?? 0);
+
+                return [
+                    'value' => $c->value,
+                    'label' => $c->label(),
+                    'sigla' => $c->sigla(),
+                    'disponiveis' => $daCategoria->count(),
+                    'areas' => $areas->map(function (Area $a) use ($porArea) {
+                        $daArea = $porArea->get($a->id, collect());
+
+                        return [
+                            'id' => $a->id,
+                            'nome' => $a->nome,
+                            'sigla' => $a->siglaDaLista(),
+                            'disponiveis' => $daArea->count(),
+                            'interior_disponiveis' => $daArea->filter(fn (Projeto $p) => $this->doInterior($p))->count(),
+                        ];
+                    })->values()->all(),
+                ];
+            }, Categoria::ordemDaLista()),
         ];
     }
 
     /**
      * Os projetos da lista, já ordenados e numerados.
      *
-     * @param  array{total?:int|null, categorias?:array<string,int|null>, areas?:array<int|string,int|null>}  $cotas
+     * @param  array<string, mixed>  $cotas  ver selecionar()
      * @return list<array<string, mixed>>
      */
     public function gerar(array $cotas): array
@@ -79,7 +98,7 @@ class ListaFinalService
     /**
      * O TXT da lista: um bloco por projeto, separados por linha em branco.
      *
-     * @param  array{total?:int|null, categorias?:array<string,int|null>, areas?:array<int|string,int|null>}  $cotas
+     * @param  array<string, mixed>  $cotas  ver selecionar()
      */
     public function exportarTxt(array $cotas): string
     {
@@ -120,9 +139,9 @@ class ListaFinalService
                 'user:id,name',
                 'alunos:id,projeto_id,nome',
                 'instituicao:id,nome,cidade_id',
-                'instituicao.cidade:id,nome,estado_id',
+                'instituicao.cidade:id,nome,estado_id,capital',
                 'instituicao.cidade.estado:id,uf',
-                'cidade:id,nome',
+                'cidade:id,nome,capital',
                 'estado:id,uf',
             ])
             ->get()
@@ -136,51 +155,173 @@ class ListaFinalService
     }
 
     /**
-     * Desce o ranking pegando quem ainda cabe em todas as cotas. Cota ausente
-     * (ou nula) não limita nada.
+     * Desce o ranking pegando quem ainda cabe nas cotas aninhadas.
+     *
+     * O payload é
+     * `['total' => cota, 'categorias' => ['fetecms' => ['cota' => cota,
+     * 'areas' => [7 => ['cota' => cota, 'interior' => cota]]]]]`, onde cada
+     * `cota` é `['tipo' => 'fixo'|'percentual', 'valor' => n]` ou null.
+     *
+     * São duas passadas: a primeira respeita a reserva do interior (um projeto
+     * da capital não ocupa vaga reservada); a segunda devolve aos demais as
+     * vagas que o interior não preencheu, para a cota da área nunca render
+     * menos do que foi pedido.
      *
      * @param  Collection<int, Projeto>  $projetos
-     * @param  array{total?:int|null, categorias?:array<string,int|null>, areas?:array<int|string,int|null>}  $cotas
+     * @param  array<string, mixed>  $cotas
      * @return list<Projeto>
      */
     private function selecionar(Collection $projetos, array $cotas): array
     {
-        $restaTotal = $cotas['total'] ?? null;
-        $porCategoria = array_filter($cotas['categorias'] ?? [], fn ($v) => $v !== null);
-        $porArea = array_filter($cotas['areas'] ?? [], fn ($v) => $v !== null);
+        $limites = $this->resolverCotas($projetos, $cotas);
 
+        $usado = ['total' => 0, 'categoria' => [], 'area' => [], 'capital' => []];
         $escolhidos = [];
+        $adiados = [];
 
         foreach ($projetos as $projeto) {
-            if ($restaTotal !== null && $restaTotal <= 0) {
-                break;
-            }
+            $encaixe = $this->encaixe($projeto, $limites, $usado, true);
 
-            $categoria = $projeto->categoria?->value;
-            $area = $projeto->area_id;
-
-            if ($categoria !== null && array_key_exists($categoria, $porCategoria) && $porCategoria[$categoria] <= 0) {
-                continue;
+            if ($encaixe === 'cabe') {
+                $this->contabilizar($projeto, $usado);
+                $escolhidos[] = $projeto;
+            } elseif ($encaixe === 'reservado') {
+                // Vaga existe, mas está guardada para o interior. Se sobrar, ele
+                // volta na segunda passada.
+                $adiados[] = $projeto;
             }
+        }
 
-            if ($area !== null && array_key_exists($area, $porArea) && $porArea[$area] <= 0) {
-                continue;
-            }
-
-            $escolhidos[] = $projeto;
-
-            if ($restaTotal !== null) {
-                $restaTotal--;
-            }
-            if ($categoria !== null && array_key_exists($categoria, $porCategoria)) {
-                $porCategoria[$categoria]--;
-            }
-            if ($area !== null && array_key_exists($area, $porArea)) {
-                $porArea[$area]--;
+        foreach ($adiados as $projeto) {
+            if ($this->encaixe($projeto, $limites, $usado, false) === 'cabe') {
+                $this->contabilizar($projeto, $usado);
+                $escolhidos[] = $projeto;
             }
         }
 
         return $escolhidos;
+    }
+
+    /**
+     * Traduz as cotas do formulário em número de vagas, de fora para dentro:
+     * a porcentagem da categoria é sobre o total, a da área sobre a categoria e
+     * a do interior sobre a área. Sem cota acima, a base é quantos projetos
+     * elegíveis existem naquele recorte.
+     *
+     * @param  Collection<int, Projeto>  $projetos
+     * @param  array<string, mixed>  $cotas
+     * @return array{total:?int, categoria:array<string,int>, area:array<string,int>, interior:array<string,int>}
+     */
+    private function resolverCotas(Collection $projetos, array $cotas): array
+    {
+        $total = Cota::de($cotas['total'] ?? null)?->resolver($projetos->count());
+        $baseCategoria = $total ?? $projetos->count();
+
+        $limites = ['total' => $total, 'categoria' => [], 'area' => [], 'interior' => []];
+
+        foreach ((array) ($cotas['categorias'] ?? []) as $categoria => $config) {
+            $config = (array) $config;
+            $daCategoria = $projetos->filter(fn (Projeto $p) => $p->categoria?->value === $categoria);
+
+            $cotaCategoria = Cota::de($config['cota'] ?? null)?->resolver($baseCategoria);
+            if ($cotaCategoria !== null) {
+                $limites['categoria'][$categoria] = $cotaCategoria;
+            }
+
+            foreach ((array) ($config['areas'] ?? []) as $areaId => $areaConfig) {
+                $areaConfig = (array) $areaConfig;
+                $chave = $categoria.'|'.$areaId;
+
+                $cotaArea = Cota::de($areaConfig['cota'] ?? null)
+                    ?->resolver($cotaCategoria ?? $daCategoria->count());
+
+                if ($cotaArea === null) {
+                    // Sem cota na área não há vaga para reservar: a cota do
+                    // interior só faz sentido dentro de um número fechado.
+                    continue;
+                }
+
+                $limites['area'][$chave] = $cotaArea;
+
+                $reserva = Cota::de($areaConfig['interior'] ?? null)?->resolver($cotaArea);
+                if ($reserva !== null) {
+                    $limites['interior'][$chave] = min($reserva, $cotaArea);
+                }
+            }
+        }
+
+        return $limites;
+    }
+
+    /**
+     * O projeto cabe agora? Devolve 'cabe', 'reservado' (só a reserva do
+     * interior barrou — pode voltar na segunda passada) ou 'nao'.
+     *
+     * @param  array{total:?int, categoria:array<string,int>, area:array<string,int>, interior:array<string,int>}  $limites
+     * @param  array{total:int, categoria:array<string,int>, area:array<string,int>, capital:array<string,int>}  $usado
+     */
+    private function encaixe(Projeto $projeto, array $limites, array $usado, bool $respeitarReserva): string
+    {
+        if ($limites['total'] !== null && $usado['total'] >= $limites['total']) {
+            return 'nao';
+        }
+
+        $categoria = $projeto->categoria?->value;
+        if ($categoria !== null && isset($limites['categoria'][$categoria])
+            && ($usado['categoria'][$categoria] ?? 0) >= $limites['categoria'][$categoria]) {
+            return 'nao';
+        }
+
+        $chave = $categoria.'|'.(int) $projeto->area_id;
+        if (! isset($limites['area'][$chave])) {
+            return 'cabe';
+        }
+
+        if (($usado['area'][$chave] ?? 0) >= $limites['area'][$chave]) {
+            return 'nao';
+        }
+
+        // Reserva do interior: um projeto da capital só ocupa as vagas que
+        // sobram depois de guardadas as do interior.
+        $reserva = $limites['interior'][$chave] ?? 0;
+        if ($respeitarReserva && $reserva > 0 && ! $this->doInterior($projeto)) {
+            $paraCapital = $limites['area'][$chave] - $reserva;
+
+            if (($usado['capital'][$chave] ?? 0) >= $paraCapital) {
+                return 'reservado';
+            }
+        }
+
+        return 'cabe';
+    }
+
+    /**
+     * @param  array{total:int, categoria:array<string,int>, area:array<string,int>, capital:array<string,int>}  $usado
+     */
+    private function contabilizar(Projeto $projeto, array &$usado): void
+    {
+        $categoria = $projeto->categoria?->value;
+        $chave = $categoria.'|'.(int) $projeto->area_id;
+
+        $usado['total']++;
+        $usado['categoria'][$categoria] = ($usado['categoria'][$categoria] ?? 0) + 1;
+        $usado['area'][$chave] = ($usado['area'][$chave] ?? 0) + 1;
+
+        if (! $this->doInterior($projeto)) {
+            $usado['capital'][$chave] = ($usado['capital'][$chave] ?? 0) + 1;
+        }
+    }
+
+    /**
+     * Projeto do interior: a cidade dele não é a capital do próprio estado.
+     * Vale a cidade da escola, que é a que aparece na lista; sem escola, a do
+     * projeto. Cidade desconhecida não conta como interior.
+     */
+    private function doInterior(Projeto $projeto): bool
+    {
+        $cidade = $projeto->instituicao?->cidade ?? $projeto->cidade;
+
+        return $cidade !== null && ! $cidade->capital;
     }
 
     /**

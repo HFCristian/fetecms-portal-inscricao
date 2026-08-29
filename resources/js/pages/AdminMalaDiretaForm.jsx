@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { Alert, Button, Field, Input, useConfirm } from '../components/ui.jsx';
 import { extractErrors } from '../lib/auth.jsx';
+import EditorTexto from '../components/EditorTexto.jsx';
 import {
     dispararMala,
     emailParecaValido,
@@ -12,9 +13,28 @@ import {
     mesclarDestinatarios,
     parseCsvDestinatarios,
     parseEmailsColados,
+    subirArquivoMala,
+    removerArquivoMala,
 } from '../lib/malaDireta.js';
 
 // Mesmas classes do textarea do resto do app (o ui.jsx só exporta o Input).
+// Limites que a organização definiu (o servidor confere os mesmos números).
+const MAX_IMAGENS = 5;
+const MAX_ANEXOS = 10;
+
+/** Texto puro do corpo, só para a caixa de confirmação. */
+function textoDoCorpo(html) {
+    const div = document.createElement('div');
+    div.innerHTML = html ?? '';
+    return (div.textContent ?? '').trim();
+}
+
+/** Tamanho legível de um arquivo ("1,2 MB"). */
+function tamanhoLegivel(bytes) {
+    const mb = (bytes ?? 0) / (1024 * 1024);
+    return mb >= 1 ? `${mb.toFixed(1).replace('.', ',')} MB` : `${Math.max(1, Math.round((bytes ?? 0) / 1024))} KB`;
+}
+
 const TEXTAREA =
     'w-full bg-surface border border-outline-variant rounded-lg px-3 py-2.5 text-on-surface '
     + 'placeholder:text-outline focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 '
@@ -75,10 +95,16 @@ export default function AdminMalaDiretaForm() {
     const [confirmar, dialogo] = useConfirm();
     const arquivoRef = useRef(null);
 
-    const corpoRef = useRef(null);
+    // Imagens no corpo e anexos do e-mail: sobem na hora e ficam soltos até o
+    // disparo, que é quem os prende à mala.
+    const [imagens, setImagens] = useState([]);
+    const [anexos, setAnexos] = useState([]);
+    const [subindo, setSubindo] = useState(false);
+    // Instância do editor, para os botões de variável escreverem no cursor.
+    const editorRef = useRef(null);
+    const anexoRef = useRef(null);
     // Posição em que o cursor deve ficar depois que o React redesenhar o textarea
     // (o campo é controlado: inserir texto não move o cursor sozinho).
-    const [cursorCorpo, setCursorCorpo] = useState(null);
 
     const [opcoes, setOpcoes] = useState(null);
     const [publicos, setPublicos] = useState([]);
@@ -120,27 +146,69 @@ export default function AdminMalaDiretaForm() {
         return () => { clearTimeout(t); setCarregandoPrevia(false); };
     }, [criterio, temCriterio, paginaLista]);
 
-    /** Insere a variável onde o cursor está (ou no fim, se o campo nunca teve foco). */
+    /** Insere a variável na posição do cursor dentro do editor. */
     function inserirVariavel(chave) {
-        const marcador = `{{${chave}}}`;
-        const campo = corpoRef.current;
-        const corpo = form.corpo ?? '';
-        const inicio = campo?.selectionStart ?? corpo.length;
-        const fim = campo?.selectionEnd ?? corpo.length;
+        const editor = editorRef.current;
+        if (!editor) return;
 
-        setForm({ ...form, corpo: corpo.slice(0, inicio) + marcador + corpo.slice(fim) });
-        setCursorCorpo(inicio + marcador.length);
+        editor.chain().focus().insertContent(`{{${chave}}}`).run();
+        setForm((atual) => ({ ...atual, corpo: editor.getHTML() }));
     }
 
-    useEffect(() => {
-        if (cursorCorpo === null) return;
-        const campo = corpoRef.current;
-        if (campo) {
-            campo.focus();
-            campo.setSelectionRange(cursorCorpo, cursorCorpo);
+    /**
+     * Sobe uma imagem escolhida no editor. Devolve o arquivo salvo (id + url)
+     * para o editor inserir a tag no ponto do cursor.
+     */
+    async function inserirImagem(arquivo) {
+        if (imagens.length >= MAX_IMAGENS) {
+            setAlert(`No máximo ${MAX_IMAGENS} imagens no corpo da mensagem.`);
+            return null;
         }
-        setCursorCorpo(null);
-    }, [cursorCorpo]);
+
+        setAlert('');
+        setSubindo(true);
+        try {
+            const salvo = await subirArquivoMala(arquivo, 'imagem');
+            setImagens((atuais) => [...atuais, salvo]);
+            return salvo;
+        } catch (e) {
+            setAlert(extractErrors(e).message);
+            return null;
+        } finally {
+            setSubindo(false);
+        }
+    }
+
+    async function adicionarAnexo(evento) {
+        const arquivo = evento.target.files?.[0];
+        evento.target.value = '';
+        if (!arquivo) return;
+
+        if (anexos.length >= MAX_ANEXOS) {
+            setAlert(`No máximo ${MAX_ANEXOS} anexos por mensagem.`);
+            return;
+        }
+
+        setAlert('');
+        setSubindo(true);
+        try {
+            const salvo = await subirArquivoMala(arquivo, 'anexo');
+            setAnexos((atuais) => [...atuais, salvo]);
+        } catch (e) {
+            setAlert(extractErrors(e).message);
+        } finally {
+            setSubindo(false);
+        }
+    }
+
+    async function removerAnexo(id) {
+        setAnexos((atuais) => atuais.filter((a) => a.id !== id));
+        try {
+            await removerArquivoMala(id);
+        } catch {
+            // O arquivo já saiu da mensagem; a faxina do servidor apaga o resto.
+        }
+    }
 
     const alternarPublico = useCallback((valor) => {
         setPaginaLista(1);
@@ -215,7 +283,7 @@ export default function AdminMalaDiretaForm() {
             message: [
                 `Assunto: ${form.assunto || '(sem assunto)'}`,
                 '',
-                form.corpo || '(sem texto)',
+                textoDoCorpo(form.corpo) || '(sem texto)',
                 '',
                 `Destinatários: ${validos}${invalidos > 0 ? ` (${invalidos} e-mail(s) inválido(s) serão ignorados)` : ''}.`,
                 'O envio começa agora e não pode ser desfeito.',
@@ -226,7 +294,13 @@ export default function AdminMalaDiretaForm() {
 
         setEnviando(true);
         try {
-            const mala = await dispararMala({ ...form, ...criterio });
+            const mala = await dispararMala({
+                ...form,
+                ...criterio,
+                formato: 'html',
+                imagens: imagens.map((i) => i.id),
+                anexos: anexos.map((a) => a.id),
+            });
             navigate(`/admin/mala-direta/${mala.id}`);
         } catch (e) {
             const { message, fields } = extractErrors(e);
@@ -397,15 +471,18 @@ export default function AdminMalaDiretaForm() {
                         />
                     </Field>
                     <Field label="Texto da mensagem" required error={erros.corpo?.[0]}>
-                        <textarea
-                            ref={corpoRef}
-                            rows={10}
-                            maxLength={20000}
-                            className={TEXTAREA}
-                            placeholder={'Olá, {{nome}}!\n\nEscreva aqui o comunicado.'}
-                            value={form.corpo}
-                            onChange={(e) => setForm({ ...form, corpo: e.target.value })}
+                        <EditorTexto
+                            valor={form.corpo}
+                            onChange={(html) => setForm((atual) => ({ ...atual, corpo: html }))}
+                            onEditorPronto={(editor) => { editorRef.current = editor; }}
+                            onInserirImagem={inserirImagem}
+                            podeInserirImagem={imagens.length < MAX_IMAGENS && !subindo}
+                            placeholder="Olá, {{nome}}! Escreva aqui o comunicado."
                         />
+                        <p className="text-xs text-on-surface-variant pt-1">
+                            Imagens no corpo: {imagens.length} de {MAX_IMAGENS} · até 10 MB cada.
+                            Arraste a imagem dentro do texto para mudá-la de lugar.
+                        </p>
                         <div className="flex flex-wrap items-center gap-2 pt-1">
                             <span className="text-xs text-on-surface-variant">Inserir variável:</span>
                             {(opcoes?.variaveis ?? []).map((variavel) => (
@@ -422,6 +499,55 @@ export default function AdminMalaDiretaForm() {
                             ))}
                         </div>
                     </Field>
+
+                    {/* Anexos: vão junto do e-mail, e não dentro do texto. */}
+                    <div className="space-y-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="text-sm font-semibold text-on-surface">Anexos</span>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                disabled={anexos.length >= MAX_ANEXOS || subindo}
+                                onClick={() => anexoRef.current?.click()}
+                            >
+                                <span className="material-symbols-outlined text-[18px]">attach_file</span>
+                                Adicionar anexo
+                            </Button>
+                        </div>
+                        <p className="text-xs text-on-surface-variant">
+                            {anexos.length} de {MAX_ANEXOS} · até 20 MB cada. Imagens, PDF, documentos,
+                            planilhas e .zip.
+                        </p>
+
+                        {anexos.length > 0 && (
+                            <ul className="divide-y divide-outline-variant/30 border border-outline-variant/40 rounded-lg">
+                                {anexos.map((a) => (
+                                    <li key={a.id} className="flex items-center gap-2 px-3 py-2">
+                                        <span className="material-symbols-outlined text-[18px] text-primary-container">description</span>
+                                        <span className="text-sm text-on-surface truncate grow">{a.nome}</span>
+                                        <span className="text-xs text-on-surface-variant shrink-0">{tamanhoLegivel(a.tamanho_bytes)}</span>
+                                        <button
+                                            type="button"
+                                            aria-label={`Remover ${a.nome}`}
+                                            onClick={() => removerAnexo(a.id)}
+                                            className="text-on-surface-variant hover:text-error"
+                                        >
+                                            <span className="material-symbols-outlined text-[18px]">close</span>
+                                        </button>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+
+                        <input
+                            ref={anexoRef}
+                            type="file"
+                            aria-label="Escolher anexo"
+                            className="hidden"
+                            tabIndex={-1}
+                            onChange={adicionarAnexo}
+                        />
+                    </div>
                 </section>
 
                 {/* 4. Prévia e disparo */}

@@ -10,6 +10,7 @@ import { useCatalogos, loadCidades, loadSubareas, buscarInstituicoes } from '../
 import { MIN_IDADE, idadeEmAnos } from '../lib/idade.js';
 import { validarObrigatorios, MSG_OBRIGATORIO } from '../lib/validacao.js';
 import { getInscricoesPublico } from '../lib/inscricoes.js';
+import ConfirmacaoEmail from '../components/ConfirmacaoEmail.jsx';
 
 const PAISES = listaPaises();
 
@@ -34,8 +35,11 @@ const FIELD_STEP = {
 };
 
 export default function Cadastro() {
-    const { register } = useAuth();
+    const { register, confirmar } = useAuth();
     const navigate = useNavigate();
+    // Cadastro preenchido esperando o código de confirmação: a conta ainda não
+    // existe, então a tela troca o wizard pela confirmação do e-mail.
+    const [pendente, setPendente] = useState(null);
     const [step, setStep] = useState(1);
     const [form, setForm] = useState({ pais: 'BR', pcd: false, ex_aluno_fetec: false });
     const [errors, setErrors] = useState({});
@@ -159,8 +163,7 @@ export default function Cadastro() {
         setErrors({});
         setLoading(true);
         try {
-            const user = await register({ ...form, password_confirmation: form.password_confirmation ?? '' });
-            navigate(homeFor(user.role), { replace: true });
+            setPendente(await register({ ...form, password_confirmation: form.password_confirmation ?? '' }));
         } catch (error) {
             const { message, fields } = extractErrors(error);
             setErrors(fields);
@@ -173,6 +176,18 @@ export default function Cadastro() {
     }
 
     const progress = step === 1 ? '15%' : step === 2 ? '50%' : '100%';
+
+    if (pendente) {
+        return (
+            <AuthCard>
+                <ConfirmacaoEmail
+                    pendente={pendente}
+                    onConfirmar={confirmar}
+                    onConfirmado={(user) => navigate(homeFor(user.role), { replace: true })}
+                />
+            </AuthCard>
+        );
+    }
 
     return (
         <AuthCard>

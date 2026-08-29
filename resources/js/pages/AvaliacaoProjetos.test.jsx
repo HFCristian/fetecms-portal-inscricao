@@ -30,6 +30,7 @@ const META = {
     ],
     ordenar: 'titulo', direcao: 'asc',
     min_por_projeto: 3,
+    resumo_geral: { zero: 1, uma: 0, duas: 1, tres_ou_mais: 0, total: 2, completos: 0 },
     resumo_areas: [
         { area_id: 1, area: 'Ciências Agrárias', zero: 0, uma: 0, duas: 1, tres_ou_mais: 0, total: 1, completos: 0 },
         { area_id: 2, area: 'Ciências Exatas', zero: 1, uma: 0, duas: 0, tres_ou_mais: 0, total: 1, completos: 0 },
@@ -39,6 +40,7 @@ const META = {
 const getAvaliacaoProjetos = vi.fn(() => Promise.resolve({ data: LINHAS, meta: META }));
 const exportarProjetosAvaliacaoCsv = vi.fn(() => Promise.resolve());
 const designarProjeto = vi.fn(() => Promise.resolve({ data: { designadas: 1 }, meta: { message: '1 designação criada.' } }));
+const corrigirProjeto = vi.fn(() => Promise.resolve({ data: {}, meta: { message: 'Projeto atualizado (categoria).' } }));
 // Com `comissao`, devolve só os membros da comissão especial.
 const getOpcoesAvaliadores = vi.fn((comissao) => Promise.resolve(comissao
     ? [{ id: 20, nome: 'Zilda Rocha', area: 'Ciências Exatas' }, { id: 30, nome: 'Célia Prado', area: 'Ciências Humanas' }]
@@ -52,6 +54,7 @@ vi.mock('../lib/admin.js', () => ({
     exportarProjetosAvaliacaoCsv: (...a) => exportarProjetosAvaliacaoCsv(...a),
     getOpcoesAvaliadores: (...a) => getOpcoesAvaliadores(...a),
     designarProjeto: (...a) => designarProjeto(...a),
+    corrigirProjeto: (...a) => corrigirProjeto(...a),
 }));
 
 import AvaliacaoProjetos from './AvaliacaoProjetos.jsx';
@@ -61,6 +64,7 @@ describe('AvaliacaoProjetos — tabela única', () => {
         getAvaliacaoProjetos.mockClear();
         exportarProjetosAvaliacaoCsv.mockClear();
         designarProjeto.mockClear();
+        corrigirProjeto.mockClear();
     });
 
     it('mostra todos os projetos numa tabela só, sem acordeão por área', async () => {
@@ -168,7 +172,8 @@ describe('AvaliacaoProjetos — tabela única', () => {
             meta: {
                 ...META,
                 total: 1,
-                resumo_areas: [{ area_id: 2, area: 'Ciências Exatas', zero: 1, uma: 0, duas: 0, tres_ou_mais: 0, total: 1, completos: 0 }],
+                resumo_geral: { zero: 1, uma: 0, duas: 1, tres_ou_mais: 0, total: 2, completos: 0 },
+    resumo_areas: [{ area_id: 2, area: 'Ciências Exatas', zero: 1, uma: 0, duas: 0, tres_ou_mais: 0, total: 1, completos: 0 }],
             },
         });
 
@@ -212,5 +217,51 @@ describe('AvaliacaoProjetos — tabela única', () => {
         fireEvent.click(dialogo.getByText('Designar'));
 
         await waitFor(() => expect(designarProjeto).toHaveBeenCalledWith(1, { tipo: 'comissao', avaliador_ids: [30] }));
+    });
+});
+
+describe('AvaliacaoProjetos — correção manual', () => {
+    beforeEach(() => { corrigirProjeto.mockClear(); });
+
+    it('cada linha tem Editar ao lado de Designar', async () => {
+        render(<AvaliacaoProjetos />);
+        expect(await screen.findByLabelText('Editar Projeto X')).toBeInTheDocument();
+        expect(screen.getByLabelText('Designar Projeto X')).toBeInTheDocument();
+    });
+
+    it('só salva com justificativa e manda os quatro campos', async () => {
+        render(<AvaliacaoProjetos />);
+        fireEvent.click(await screen.findByLabelText('Editar Projeto X'));
+
+        expect(screen.getByText('Editar projeto')).toBeInTheDocument();
+
+        const dialogo = within(screen.getByRole('dialog'));
+        expect(dialogo.getByText('Salvar alterações')).toBeDisabled();
+
+        fireEvent.change(dialogo.getByLabelText(/Categoria/), { target: { value: 'fetecms' } });
+        fireEvent.change(dialogo.getByLabelText(/Link do vídeo/), { target: { value: 'https://youtu.be/novo' } });
+        fireEvent.change(dialogo.getByLabelText(/Justificativa/), { target: { value: 'Corrigido pela coordenação.' } });
+
+        fireEvent.click(dialogo.getByText('Salvar alterações'));
+
+        await waitFor(() => expect(corrigirProjeto).toHaveBeenCalledWith(1, expect.objectContaining({
+            categoria: 'fetecms',
+            area_id: 1,
+            link_video: 'https://youtu.be/novo',
+            justificativa: 'Corrigido pela coordenação.',
+        })));
+    });
+});
+
+describe('AvaliacaoProjetos — card geral', () => {
+    it('soma todas as áreas num card destacado no topo', async () => {
+        render(<AvaliacaoProjetos />);
+        expect(await screen.findByText('Todos os projetos')).toBeInTheDocument();
+        expect(screen.getByText('sem avaliação')).toBeInTheDocument();
+        expect(screen.getByText('3 ou mais')).toBeInTheDocument();
+        // Vem antes dos cards por área.
+        const geral = screen.getByText('Todos os projetos');
+        const area = screen.getAllByText('Ciências Agrárias')[0];
+        expect(geral.compareDocumentPosition(area) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 });

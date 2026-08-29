@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\V1\AdminAvisoController;
 use App\Http\Controllers\Api\V1\AdminController;
 use App\Http\Controllers\Api\V1\AdminInscricoesController;
 use App\Http\Controllers\Api\V1\AdminMalaDiretaController;
+use App\Http\Controllers\Api\V1\AdminModeloEmailController;
 use App\Http\Controllers\Api\V1\AdminRegistroController;
 use App\Http\Controllers\Api\V1\AlunoController;
 use App\Http\Controllers\Api\V1\AuthController;
@@ -12,6 +13,7 @@ use App\Http\Controllers\Api\V1\AvaliadorAvaliacaoController;
 use App\Http\Controllers\Api\V1\AvaliadorController;
 use App\Http\Controllers\Api\V1\AvaliadorPerfilController;
 use App\Http\Controllers\Api\V1\AvisoController;
+use App\Http\Controllers\Api\V1\CadastroPendenteController;
 use App\Http\Controllers\Api\V1\CatalogoAdminController;
 use App\Http\Controllers\Api\V1\CatalogoController;
 use App\Http\Controllers\Api\V1\ChatAdminController;
@@ -21,6 +23,7 @@ use App\Http\Controllers\Api\V1\DocumentoController;
 use App\Http\Controllers\Api\V1\InscricoesController;
 use App\Http\Controllers\Api\V1\InstituicaoAdminController;
 use App\Http\Controllers\Api\V1\IntegranteController;
+use App\Http\Controllers\Api\V1\OrientadorAjusteController;
 use App\Http\Controllers\Api\V1\OrientadorController;
 use App\Http\Controllers\Api\V1\PerfilController;
 use App\Http\Controllers\Api\V1\ProjetoController;
@@ -47,6 +50,16 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
     Route::get('/inscricoes/publico', [InscricoesController::class, 'show']);
     Route::post('/avaliadores', [AvaliadorController::class, 'store'])
         ->middleware('throttle:10,1');
+
+    // Confirmação do e-mail do cadastro (orientador e avaliador): a conta só
+    // nasce quando o código de 6 dígitos volta. O acesso é pelo token do
+    // cadastro pendente — quem está aqui ainda não tem login.
+    Route::prefix('cadastros/{cadastro:token}')->middleware('throttle:20,1')->group(function () {
+        Route::get('/', [CadastroPendenteController::class, 'show']);
+        Route::post('/confirmar', [CadastroPendenteController::class, 'confirmar']);
+        Route::post('/reenviar', [CadastroPendenteController::class, 'reenviar']);
+        Route::patch('/email', [CadastroPendenteController::class, 'trocarEmail']);
+    });
     // O bloqueio por excesso de tentativas é feito no AuthService, por e-mail+IP e
     // só contando FALHAS (ver AuthService::MAX_TENTATIVAS). Este throttle por IP é
     // apenas a rede de proteção contra abuso automatizado — folgado o bastante para
@@ -129,6 +142,14 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::delete('documentos/{documento}', [DocumentoController::class, 'destroy']);
         });
 
+        // Aba "Ajustes" do orientador: as sugestões dos avaliadores nos projetos
+        // dele, respondidas durante o período de ajustes.
+        Route::middleware('role:orientador')->prefix('ajustes')->group(function () {
+            Route::get('/', [OrientadorAjusteController::class, 'index']);
+            Route::get('/projetos/{projeto}', [OrientadorAjusteController::class, 'show']);
+            Route::post('/projetos/{projeto}/decidir', [OrientadorAjusteController::class, 'decidir']);
+        });
+
         // Avaliação online — lado do avaliador (E7): ler, iniciar e concluir com nota
         Route::middleware('role:avaliador')->prefix('avaliacao')->group(function () {
             Route::get('/', [AvaliadorAvaliacaoController::class, 'index']);
@@ -166,6 +187,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::patch('/avaliacao/config', [AdminAvaliacaoController::class, 'definirLiberacao']);
             Route::patch('/avaliacao/encerramento', [AdminAvaliacaoController::class, 'definirEncerramento']);
             Route::patch('/avaliacao/minimos', [AdminAvaliacaoController::class, 'definirMinimos']);
+            Route::patch('/avaliacao/ajustes', [AdminAvaliacaoController::class, 'definirAjustes']);
             Route::get('/avaliacao/avaliadores', [AdminAvaliacaoController::class, 'avaliadores']);
             Route::get('/avaliacao/avaliadores/opcoes', [AdminAvaliacaoController::class, 'avaliadoresOpcoes']);
             Route::get('/avaliacao/avaliadores/exportar', [AdminAvaliacaoController::class, 'exportarAvaliadores']);
@@ -178,6 +200,9 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::get('/avaliacao/lista-final/opcoes', [AdminAvaliacaoController::class, 'opcoesListaFinal']);
             Route::post('/avaliacao/lista-final', [AdminAvaliacaoController::class, 'gerarListaFinal']);
             Route::post('/avaliacao/projetos/{projeto}/designar', [AdminAvaliacaoController::class, 'designar']);
+            // Correção manual da classificação/vídeo de um projeto submetido
+            // (justificativa obrigatória; cada campo vira registro).
+            Route::patch('/avaliacao/projetos/{projeto}', [AdminAvaliacaoController::class, 'corrigirProjeto']);
             Route::get('/avaliacao/distribuicao', [AdminAvaliacaoController::class, 'distribuicaoConfig']);
             Route::patch('/avaliacao/distribuicao', [AdminAvaliacaoController::class, 'definirRegrasDistribuicao']);
             Route::patch('/avaliacao/distribuicao/ao-cadastrar', [AdminAvaliacaoController::class, 'definirDistribuicaoAoCadastrar']);
@@ -205,6 +230,12 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::get('/avisos/{aviso}/leitores', [AdminAvisoController::class, 'leitores']);
             Route::get('/avisos/{aviso}/exportar', [AdminAvisoController::class, 'exportar']);
 
+            // Comunicação → Modelos de e-mail: o texto dos e-mails automáticos.
+            Route::get('/modelos-email', [AdminModeloEmailController::class, 'index']);
+            Route::get('/modelos-email/{modelo}', [AdminModeloEmailController::class, 'show']);
+            Route::put('/modelos-email/{modelo}', [AdminModeloEmailController::class, 'update']);
+            Route::delete('/modelos-email/{modelo}', [AdminModeloEmailController::class, 'restaurar']);
+
             Route::get('/registros', [AdminRegistroController::class, 'index']);
             Route::get('/registros/exportar', [AdminRegistroController::class, 'exportar']);
 
@@ -213,6 +244,13 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::get('/mala-direta/opcoes', [AdminMalaDiretaController::class, 'opcoes']);
             Route::post('/mala-direta/previa', [AdminMalaDiretaController::class, 'previa']);
             Route::post('/mala-direta/previa/exportar', [AdminMalaDiretaController::class, 'exportarPrevia']);
+
+            // Imagens do corpo e anexos da mensagem. Sobem antes do disparo (a
+            // mala ainda não existe) e ficam num disco privado.
+            Route::post('/mala-direta/arquivos', [AdminMalaDiretaController::class, 'subirArquivo'])
+                ->middleware('throttle:60,1');
+            Route::get('/mala-direta/arquivos/{arquivo}', [AdminMalaDiretaController::class, 'baixarArquivo']);
+            Route::delete('/mala-direta/arquivos/{arquivo}', [AdminMalaDiretaController::class, 'removerArquivo']);
             // Disparo é caro e irreversível: limita a 10 malas por minuto.
             Route::post('/mala-direta', [AdminMalaDiretaController::class, 'store'])
                 ->middleware('throttle:10,1');

@@ -256,3 +256,28 @@ export async function exportarRegistrosCsv(filtros) {
         ?? 'registros.csv';
     baixarBlob(r.data, nome);
 }
+
+/** Início/fim do período de ajustes do orientador (aba "Ajustes"). */
+export const definirInicioAjustes = (data) =>
+    http.patch('/admin/avaliacao/ajustes', { ponta: 'de', data }).then((r) => r.data.data);
+
+export const definirFimAjustes = (data) =>
+    http.patch('/admin/avaliacao/ajustes', { ponta: 'ate', data }).then((r) => r.data.data);
+
+/**
+ * Correção manual de um projeto submetido (categoria, área, subárea e vídeo).
+ * A justificativa é obrigatória — ela vai para a trilha de registros.
+ */
+export const corrigirProjeto = (projetoId, dados) =>
+    http.patch(`/admin/avaliacao/projetos/${projetoId}`, dados).then((r) => r.data);
+
+// Comunicação → Modelos de e-mail: o texto dos e-mails automáticos do portal.
+// Sem customização salva, a API devolve o texto de fábrica.
+export const getModelosEmail = () => http.get('/admin/modelos-email').then((r) => r.data.data);
+
+export const salvarModeloEmail = (chave, dados) =>
+    http.put(`/admin/modelos-email/${chave}`, dados).then((r) => r.data.data);
+
+/** Volta o modelo ao texto padrão (apaga a customização). */
+export const restaurarModeloEmail = (chave) =>
+    http.delete(`/admin/modelos-email/${chave}`).then((r) => r.data.data);

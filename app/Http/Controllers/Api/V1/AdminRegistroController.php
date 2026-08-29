@@ -11,10 +11,11 @@ use Illuminate\Http\JsonResponse;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Trilha de registros do painel do admin, em duas seções: "Inscrições"
- * (submissões, cancelamentos, exclusões e trocas de e-mail) e "Avaliação Online"
- * (mudanças de parâmetro do período). Filtra por tipo, período e busca, e exporta
- * o mesmo recorte que está na tela em CSV.
+ * Trilha de registros do painel do admin, em três seções: "Inscrições"
+ * (submissões, cancelamentos, exclusões e trocas de e-mail), "Avaliação Online"
+ * (mudanças de parâmetro do período) e "Projetos" (correções do admin em
+ * projetos submetidos, com a justificativa). Filtra por tipo, período e busca, e
+ * exporta o mesmo recorte que está na tela em CSV.
  */
 class AdminRegistroController extends Controller
 {

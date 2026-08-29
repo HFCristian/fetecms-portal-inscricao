@@ -37,6 +37,12 @@ export default function AdminComunicacao() {
                     descricao="Comunicado por e-mail para os públicos que você combinar, com prévia, disparo pela fila e relatório de falhas."
                 />
                 <CardComunicacao
+                    to="/admin/comunicacao/modelos"
+                    icon="drafts"
+                    titulo="Modelos de e-mail"
+                    descricao="O texto dos e-mails que o portal manda sozinho — confirmação de cadastro e aviso de projeto submetido."
+                />
+                <CardComunicacao
                     to="/admin/comunicacao/avisos"
                     icon="campaign"
                     titulo="Avisos"

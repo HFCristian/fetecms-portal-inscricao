@@ -7,6 +7,7 @@ use App\Enums\ProjetoStatus;
 use App\Enums\StatusAvaliacao;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\AplicarReclassificacaoRequest;
+use App\Http\Requests\Admin\CorrigirProjetoRequest;
 use App\Http\Requests\Admin\DesignarAvaliacaoRequest;
 use App\Http\Requests\Admin\EncerramentoAvaliacaoRequest;
 use App\Http\Requests\Admin\LiberacaoAvaliacaoRequest;
@@ -20,6 +21,7 @@ use App\Models\Edicao;
 use App\Models\Projeto;
 use App\Models\User;
 use App\Services\AdminAvaliacaoService;
+use App\Services\AdminProjetoEdicaoService;
 use App\Services\DistribuicaoService;
 use App\Services\ListaFinalService;
 use Illuminate\Http\JsonResponse;
@@ -103,6 +105,19 @@ class AdminAvaliacaoController extends Controller
                 ? 'Encerramento da avaliação salvo.'
                 : 'Encerramento removido — a avaliação segue aberta.'],
         ]);
+    }
+
+    /** Define o início/fim do período de ajustes do orientador. */
+    public function definirAjustes(Request $request): JsonResponse
+    {
+        $dados = $request->validate([
+            'ponta' => ['required', Rule::in(['de', 'ate'])],
+            'data' => ['nullable', 'date'],
+        ]);
+
+        $config = $this->service->definirAjustes($dados['ponta'], $dados['data'] ?? null, $request->user());
+
+        return response()->json(['data' => $config, 'meta' => ['message' => 'Período de ajustes atualizado.']]);
     }
 
     /** Define os limites de avaliações (mínimo/máximo por avaliador e por projeto). */
@@ -238,7 +253,8 @@ class AdminAvaliacaoController extends Controller
                 'areas' => $this->service->areasComProjeto(),
                 'categorias' => Categoria::opcoes(),
                 // Cards do topo da tela: mesmo recorte de filtros da tabela.
-                'resumo_areas' => $this->service->resumoProjetosPorArea($filtros),
+                'resumo_areas' => $resumoAreas = $this->service->resumoProjetosPorArea($filtros),
+                'resumo_geral' => $this->service->resumoProjetosGeral($resumoAreas),
                 'min_por_projeto' => $limites->minPorProjeto(),
                 // Com mínimos diferentes por categoria, o resumo não crava um número.
                 'min_por_projeto_uniforme' => $limites->minUniforme(),
@@ -280,6 +296,27 @@ class AdminAvaliacaoController extends Controller
         return response()->json([
             'data' => ['designadas' => $novas],
             'meta' => ['message' => $novas === 1 ? '1 designação criada.' : "{$novas} designações criadas."],
+        ]);
+    }
+
+    /**
+     * Correção manual da classificação e do vídeo de um projeto submetido
+     * (Projetos submetidos → Editar). Toda mudança exige justificativa e vira
+     * registro em Registros → Projetos.
+     */
+    public function corrigirProjeto(
+        CorrigirProjetoRequest $request,
+        Projeto $projeto,
+        AdminProjetoEdicaoService $edicao,
+    ): JsonResponse {
+        $resultado = $edicao->atualizar($projeto, $request->validated(), $request->user());
+        $alteracoes = $resultado['alteracoes'];
+
+        return response()->json([
+            'data' => $this->service->projetoParaEdicao($resultado['projeto']),
+            'meta' => ['message' => $alteracoes === []
+                ? 'Nada foi alterado: os valores enviados são os que já estavam gravados.'
+                : 'Projeto atualizado ('.implode(', ', $alteracoes).').'],
         ]);
     }
 

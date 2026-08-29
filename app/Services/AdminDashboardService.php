@@ -10,6 +10,7 @@ use App\Models\Coorientador;
 use App\Models\OrientadorProfile;
 use App\Models\Projeto;
 use App\Models\User;
+use App\Support\Camisetas;
 use Illuminate\Database\Eloquent\Builder;
 
 class AdminDashboardService
@@ -50,6 +51,14 @@ class AdminDashboardService
             ),
             'alunos_genero' => $this->porGenero(Aluno::whereHas('projeto', $submetido), $alunos),
             'coorientadores_genero' => $this->porGenero(Coorientador::whereHas('projeto', $submetido), $coorientadores),
+            // Camisetas: mesmo conjunto de pessoas dos cards acima, quebrado por
+            // tamanho — é o número que a organização usa para encomendar.
+            'orientadores_camisetas' => Camisetas::contar(
+                OrientadorProfile::whereIn('user_id', (clone $orientadoresSubmetidos)->select('id')),
+                $orientadores
+            ),
+            'alunos_camisetas' => Camisetas::contar(Aluno::whereHas('projeto', $submetido), $alunos),
+            'coorientadores_camisetas' => Camisetas::contar(Coorientador::whereHas('projeto', $submetido), $coorientadores),
             'escolas_com_projeto' => $submetidos()->whereNotNull('instituicao_id')->distinct()->count('instituicao_id'),
             'cidades_com_projeto' => $submetidos()->whereNotNull('cidade_id')->distinct()->count('cidade_id'),
             'estados_com_projeto' => $submetidos()->whereNotNull('estado_id')->distinct()->count('estado_id'),

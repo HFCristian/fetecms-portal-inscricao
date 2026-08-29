@@ -73,7 +73,24 @@ class AvaliadorPerfilTest extends TestCase
             ->assertJsonPath('data.estatisticas.avaliacoes_concluidas', 3)
             ->assertJsonPath('data.estatisticas.certificado_minutos', 450)
             ->assertJsonPath('data.estatisticas.certificado_label', '7h30')
+            ->assertJsonPath('data.estatisticas.certificado_no_teto', false)
             ->assertJsonPath('data.estatisticas.por_avaliacao_label', '2h30');
+    }
+
+    public function test_certificado_para_no_teto_de_120_horas(): void
+    {
+        $ana = $this->avaliador();
+        // 49 × 2h30 = 122h30, acima do teto de 120h.
+        $this->concluiu($ana, 49);
+        Sanctum::actingAs($ana);
+
+        $this->getJson('/api/v1/avaliador/perfil')
+            ->assertOk()
+            ->assertJsonPath('data.estatisticas.avaliacoes_concluidas', 49)
+            ->assertJsonPath('data.estatisticas.certificado_minutos', 7200)
+            ->assertJsonPath('data.estatisticas.certificado_label', '120h')
+            ->assertJsonPath('data.estatisticas.certificado_teto_label', '120h')
+            ->assertJsonPath('data.estatisticas.certificado_no_teto', true);
     }
 
     public function test_avaliacao_em_andamento_nao_conta_no_certificado(): void

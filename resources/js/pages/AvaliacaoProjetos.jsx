@@ -3,9 +3,11 @@ import { Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { Button, Alert, Select } from '../components/ui.jsx';
 import BuscaCombobox from '../components/BuscaCombobox.jsx';
+import CorrigirProjetoDialog from '../components/CorrigirProjetoDialog.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import {
     getAvaliacaoProjetos, exportarProjetosAvaliacaoCsv, getOpcoesAvaliadores, designarProjeto,
+    corrigirProjeto,
 } from '../lib/admin.js';
 import { loadAreas, loadSubareas } from '../lib/catalogos.js';
 
@@ -44,6 +46,35 @@ function CardArea({ resumo, minPorProjeto, minUniforme }) {
                         <div className={`text-lg font-bold ${f.cor}`}>{resumo[f.key]}</div>
                         <div className="text-[10px] text-on-surface-variant leading-tight" aria-hidden="true">{f.label}</div>
                         <span className="sr-only">{`${resumo[f.key]} projetos com ${f.label} avaliações`}</span>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+// O mesmo resumo somando TODAS as áreas — o número que a organização olha
+// primeiro. Fundo destacado para se separar dos cards por área.
+function CardGeral({ resumo, minPorProjeto, minUniforme }) {
+    const faixas = [
+        { key: 'zero', label: 'sem avaliação' },
+        { key: 'uma', label: '1 avaliação' },
+        { key: 'duas', label: '2 avaliações' },
+        { key: 'tres_ou_mais', label: '3 ou mais' },
+    ];
+
+    return (
+        <div className="bg-primary-container text-on-primary rounded-xl fetec-card-shadow p-4 mb-3">
+            <h3 className="font-display text-sm font-semibold">Todos os projetos</h3>
+            <p className="text-xs opacity-90 mb-2">
+                {resumo.total} {resumo.total === 1 ? 'projeto' : 'projetos'} · {resumo.completos} com o mínimo
+                {minUniforme ? ` de ${minPorProjeto}` : ' da categoria'}
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {faixas.map((f) => (
+                    <div key={f.key} className="text-center">
+                        <div className="text-2xl font-bold">{resumo[f.key] ?? 0}</div>
+                        <div className="text-[11px] opacity-90 leading-tight">{f.label}</div>
                     </div>
                 ))}
             </div>
@@ -218,6 +249,9 @@ export default function AvaliacaoProjetos() {
     const [avaliadores, setAvaliadores] = useState([]);
     const [areas, setAreas] = useState([]);
     const [designando, setDesignando] = useState(null);
+    // Projeto aberto no diálogo de correção manual (categoria/área/subárea/vídeo).
+    const [corrigindo, setCorrigindo] = useState(null);
+    const [erroCorrecao, setErroCorrecao] = useState('');
     const [salvando, setSalvando] = useState(false);
     const [exportando, setExportando] = useState(false);
     const [alert, setAlert] = useState('');
@@ -274,6 +308,20 @@ export default function AvaliacaoProjetos() {
         }
     }
 
+    async function corrigir(payload) {
+        setSalvando(true); setErroCorrecao(''); setSuccess('');
+        try {
+            const resp = await corrigirProjeto(corrigindo.id, payload);
+            setSuccess(resp.meta?.message || 'Projeto atualizado.');
+            setCorrigindo(null);
+            await carregar();
+        } catch (e) {
+            setErroCorrecao(extractErrors(e).message);
+        } finally {
+            setSalvando(false);
+        }
+    }
+
     async function exportar() {
         setAlert('');
         setExportando(true);
@@ -287,6 +335,7 @@ export default function AvaliacaoProjetos() {
     }
 
     const resumoAreas = meta?.resumo_areas ?? [];
+    const resumoGeral = meta?.resumo_geral ?? null;
     const minPorProjeto = meta?.min_por_projeto ?? 3;
     // Mínimo por categoria: o card fala em "mínimo da categoria" em vez de um número.
     const minUniforme = meta?.min_por_projeto_uniforme ?? true;
@@ -309,9 +358,17 @@ export default function AvaliacaoProjetos() {
             {resumoAreas.length > 0 && (
                 <section aria-label="Resumo por área do conhecimento" className="mb-4 max-w-4xl">
                     <p className="text-xs text-on-surface-variant mb-2">
-                        Projetos por número de avaliações concluídas (0, 1, 2 e 3 ou mais), por área.
-                        Os filtros da tabela valem aqui também.
+                        Projetos por número de avaliações concluídas (0, 1, 2 e 3 ou mais), no total e
+                        por área. Os filtros da tabela valem aqui também.
                     </p>
+
+                    {resumoGeral && (
+                        <CardGeral
+                            resumo={resumoGeral}
+                            minPorProjeto={minPorProjeto}
+                            minUniforme={minUniforme}
+                        />
+                    )}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                         {resumoAreas.map((r) => (
                             <CardArea
@@ -429,6 +486,16 @@ export default function AvaliacaoProjetos() {
                                             <td className="px-3 py-2 text-center font-bold text-secondary">{p.realizadas}</td>
                                             <td className="px-3 py-2 text-center font-bold text-on-surface">{p.faltantes}</td>
                                             <td className="px-3 py-2 text-right">
+                                                <div className="inline-flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => { setErroCorrecao(''); setCorrigindo(p); }}
+                                                    aria-label={`Editar ${p.titulo}`}
+                                                    className="shrink-0 inline-flex items-center gap-1 text-sm font-semibold text-primary-container hover:text-primary border border-outline-variant rounded-lg px-3 py-1.5 hover:bg-surface-variant transition-colors"
+                                                >
+                                                    <span className="material-symbols-outlined text-[18px]">edit</span>
+                                                    Editar
+                                                </button>
                                                 <button
                                                     type="button"
                                                     onClick={() => setDesignando({ id: p.id, titulo: p.titulo, area_id: p.area_id })}
@@ -438,6 +505,7 @@ export default function AvaliacaoProjetos() {
                                                     <span className="material-symbols-outlined text-[18px]">assignment_ind</span>
                                                     Designar
                                                 </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}
@@ -466,6 +534,19 @@ export default function AvaliacaoProjetos() {
                     onFechar={() => setDesignando(null)}
                     onDesignar={designar}
                     salvando={salvando}
+                />
+            )}
+
+            {corrigindo && (
+                <CorrigirProjetoDialog
+                    projeto={corrigindo}
+                    // Catálogo completo: dá para mover o projeto para uma área ainda sem projetos.
+                    areas={areas.length > 0 ? areas : areasFiltro}
+                    categorias={categorias}
+                    salvando={salvando}
+                    erro={erroCorrecao}
+                    onFechar={() => setCorrigindo(null)}
+                    onSalvar={corrigir}
                 />
             )}
         </AppShell>

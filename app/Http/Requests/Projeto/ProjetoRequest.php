@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Projeto;
 
 use App\Enums\Categoria;
+use App\Http\Requests\Concerns\NormalizaEmail;
 use App\Rules\SubareaDaArea;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -14,6 +15,8 @@ use Illuminate\Validation\Rule;
  */
 class ProjetoRequest extends FormRequest
 {
+    use NormalizaEmail;
+
     public function authorize(): bool
     {
         return true;
@@ -21,6 +24,8 @@ class ProjetoRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        $this->limparEmails();
+
         // PICTEC MS só existe na FETECMS: se a categoria veio e não é FETECMS,
         // zera o flag para não persistir um estado inconsistente.
         if ($this->has('categoria') && $this->input('categoria') !== Categoria::Fetecms->value) {
@@ -35,6 +40,12 @@ class ProjetoRequest extends FormRequest
                 ), fn ($p) => $p !== '')),
             ]);
         }
+    }
+
+    /** @return list<string> */
+    protected function camposDeEmail(): array
+    {
+        return ['email_comunicacao'];
     }
 
     public function rules(): array

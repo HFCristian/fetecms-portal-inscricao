@@ -52,7 +52,7 @@ class SubareaTest extends TestCase
     {
         $area = Area::create(['nome' => 'Ciências Biológicas']);
 
-        $this->postJson('/api/v1/orientadores', [
+        $this->cadastrarOrientadorPelaApi([
             'name' => 'Maria Souza',
             'email' => 'maria@escola.ms.gov.br',
             'password' => 'Senha@123',
@@ -73,7 +73,7 @@ class SubareaTest extends TestCase
     {
         $area = Area::create(['nome' => 'Engenharias']);
 
-        $this->postJson('/api/v1/avaliadores', [
+        $this->cadastrarAvaliadorPelaApi([
             'name' => 'João Lima',
             'email' => 'joao.aval@escola.ms.gov.br',
             'password' => 'Senha@123',
@@ -94,7 +94,7 @@ class SubareaTest extends TestCase
         $bio = Area::create(['nome' => 'Ciências Biológicas']);
         $subBio = $bio->subareas()->create(['nome' => 'Genética']);
 
-        $this->postJson('/api/v1/avaliadores', [
+        $this->cadastrarAvaliadorPelaApi([
             'name' => 'Ana Paula',
             'email' => 'ana.aval@escola.ms.gov.br',
             'password' => 'Senha@123',

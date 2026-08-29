@@ -33,6 +33,13 @@ class AvaliadorProfile extends Model
      */
     public const MINUTOS_POR_AVALIACAO = 150;
 
+    /**
+     * Teto do certificado de avaliação online: 120 horas. Quem avalia além
+     * disso continua avaliando, mas o certificado não passa daqui — é o limite
+     * que a organização emite.
+     */
+    public const MAX_MINUTOS_CERTIFICADO = 120 * 60;
+
     protected $fillable = [
         'cpf', 'titulacao', 'area_id', 'subarea_id', 'limite_avaliacoes', 'comissao_especial',
         'estado_id', 'cidade_id',

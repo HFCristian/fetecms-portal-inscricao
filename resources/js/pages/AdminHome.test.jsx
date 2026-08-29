@@ -15,6 +15,21 @@ vi.mock('../lib/admin.js', () => ({
             { value: 'fetecms', label: 'FETECMS', total: 2 },
             { value: 'fetecms_fundect', label: 'FETECMS FUNDECT', total: 1 },
         ],
+        orientadores_camisetas: { total: 5, tamanhos: [
+            { tamanho: 'PP', total: 0 }, { tamanho: 'P', total: 1 }, { tamanho: 'M', total: 2 },
+            { tamanho: 'G', total: 1 }, { tamanho: 'GG', total: 0 }, { tamanho: 'XG', total: 1 },
+            { tamanho: 'N.I.', total: 0 },
+        ] },
+        alunos_camisetas: { total: 20, tamanhos: [
+            { tamanho: 'PP', total: 4 }, { tamanho: 'P', total: 6 }, { tamanho: 'M', total: 5 },
+            { tamanho: 'G', total: 3 }, { tamanho: 'GG', total: 1 }, { tamanho: 'XG', total: 0 },
+            { tamanho: 'N.I.', total: 1 },
+        ] },
+        coorientadores_camisetas: { total: 3, tamanhos: [
+            { tamanho: 'PP', total: 0 }, { tamanho: 'P', total: 0 }, { tamanho: 'M', total: 2 },
+            { tamanho: 'G', total: 1 }, { tamanho: 'GG', total: 0 }, { tamanho: 'XG', total: 0 },
+            { tamanho: 'N.I.', total: 0 },
+        ] },
         escolas_com_projeto: 2, cidades_com_projeto: 2, estados_com_projeto: 1,
     })),
 }));
@@ -49,5 +64,18 @@ describe('AdminHome — projetos por categoria', () => {
         const orientadores = screen.getByText('Orientadores');
         // Ordem no DOM: categoria precede orientadores.
         expect(categoria.compareDocumentPosition(orientadores) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+});
+
+describe('AdminHome — camisetas', () => {
+    it('tem um card por público, com todos os tamanhos', async () => {
+        render(<AdminHome />);
+        expect(await screen.findByText('Camisetas · Orientadores')).toBeInTheDocument();
+        expect(screen.getByText('Camisetas · Alunos')).toBeInTheDocument();
+        expect(screen.getByText('Camisetas · Coorientadores')).toBeInTheDocument();
+        // Sete baldes (PP…XG + N.I.) em cada um dos três cards.
+        expect(screen.getAllByText('PP')).toHaveLength(3);
+        expect(screen.getAllByText('XG')).toHaveLength(3);
+        expect(screen.getAllByText('N.I.')).toHaveLength(3);
     });
 });

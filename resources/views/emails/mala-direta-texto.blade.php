@@ -1,6 +1,6 @@
 XVI FETECMS
 
-{{ $corpo }}
+{{ $textoSimples }}
 
 --
 Equipe FETECMS

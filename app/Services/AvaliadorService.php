@@ -33,7 +33,9 @@ class AvaliadorService
     {
         $concluidas = $this->concluidasPorAvaliador();
         $minhas = (int) $concluidas->get($user->id, 0);
-        $minutos = $minhas * AvaliadorProfile::MINUTOS_POR_AVALIACAO;
+        // O certificado tem teto: passar de 120h não aumenta a carga emitida.
+        $brutos = $minhas * AvaliadorProfile::MINUTOS_POR_AVALIACAO;
+        $minutos = min($brutos, AvaliadorProfile::MAX_MINUTOS_CERTIFICADO);
 
         // Só entra no ranking quem já concluiu alguma: uma lista de zeros não
         // classifica ninguém.
@@ -43,6 +45,10 @@ class AvaliadorService
             'avaliacoes_concluidas' => $minhas,
             'certificado_minutos' => $minutos,
             'certificado_label' => Tempo::cargaHoraria($minutos),
+            'certificado_teto_minutos' => AvaliadorProfile::MAX_MINUTOS_CERTIFICADO,
+            'certificado_teto_label' => Tempo::cargaHoraria(AvaliadorProfile::MAX_MINUTOS_CERTIFICADO),
+            // Já bateu no teto: a tela troca o texto de "por avaliação" pelo aviso.
+            'certificado_no_teto' => $brutos >= AvaliadorProfile::MAX_MINUTOS_CERTIFICADO,
             'por_avaliacao_label' => Tempo::cargaHoraria(AvaliadorProfile::MINUTOS_POR_AVALIACAO),
             'posicao' => $minhas > 0 ? $acima + 1 : null,
             'total_no_ranking' => $concluidas->count(),

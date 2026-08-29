@@ -16,6 +16,19 @@ export const exportarPreviaCsv = (criterio) =>
 
 export const dispararMala = (payload) => http.post('/admin/mala-direta', payload).then((r) => r.data.data);
 
+// Imagens do corpo e anexos: sobem antes do disparo e ficam soltos até ele.
+// `tipo` é 'imagem' ou 'anexo'; os limites de tamanho valem por arquivo.
+export const subirArquivoMala = (arquivo, tipo) => {
+    const dados = new FormData();
+    dados.append('arquivo', arquivo);
+    dados.append('tipo', tipo);
+
+    return http.post('/admin/mala-direta/arquivos', dados).then((r) => r.data.data);
+};
+
+/** Só funciona enquanto o arquivo não foi disparado em nenhuma mala. */
+export const removerArquivoMala = (id) => http.delete(`/admin/mala-direta/arquivos/${id}`);
+
 export const getMala = (id) => http.get(`/admin/mala-direta/${id}`).then((r) => r.data.data);
 
 export const getMalaDestinatarios = (id, params = {}) =>

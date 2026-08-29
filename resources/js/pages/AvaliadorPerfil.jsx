@@ -214,7 +214,9 @@ export default function AvaliadorPerfil() {
                             icone="workspace_premium"
                             valor={est.certificado_label}
                             rotulo="Certificado"
-                            detalhe={`${est.por_avaliacao_label} por avaliação concluída`}
+                            detalhe={est.certificado_no_teto
+                                ? `Limite máximo de ${est.certificado_teto_label} atingido`
+                                : `${est.por_avaliacao_label} por avaliação concluída · máximo de ${est.certificado_teto_label}`}
                         />
                         <Estatistica
                             icone="trophy"

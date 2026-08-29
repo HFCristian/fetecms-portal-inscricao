@@ -9,7 +9,12 @@ class Cidade extends Model
 {
     protected $table = 'cidades';
 
-    protected $fillable = ['estado_id', 'nome'];
+    protected $fillable = ['estado_id', 'nome', 'capital'];
+
+    protected function casts(): array
+    {
+        return ['capital' => 'boolean'];
+    }
 
     public function estado(): BelongsTo
     {

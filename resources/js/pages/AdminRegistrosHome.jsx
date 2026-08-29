@@ -37,6 +37,12 @@ export default function AdminRegistrosHome() {
                     descricao="Submissões, cancelamentos, exclusões de projeto e trocas de e-mail das contas."
                 />
                 <CardSecao
+                    to="/admin/registros/projetos"
+                    icon="edit_note"
+                    titulo="Projetos"
+                    descricao="Correções do admin em projetos submetidos: categoria, área, subárea e vídeo, com a justificativa."
+                />
+                <CardSecao
                     to="/admin/registros/avaliacao"
                     icon="grading"
                     titulo="Avaliação Online"

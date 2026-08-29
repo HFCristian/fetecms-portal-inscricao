@@ -17,7 +17,7 @@ class MalaDireta extends Model
     protected $table = 'malas_diretas';
 
     protected $fillable = [
-        'nome', 'justificativa', 'solicitante', 'assunto', 'corpo',
+        'nome', 'justificativa', 'solicitante', 'assunto', 'corpo', 'formato',
         'publicos', 'emails_personalizados', 'status',
         'user_id', 'autor_nome', 'autor_email',
         'enviado_em', 'concluido_em',
@@ -41,6 +41,30 @@ class MalaDireta extends Model
     public function destinatarios(): HasMany
     {
         return $this->hasMany(MalaDiretaDestinatario::class);
+    }
+
+    /** Imagens do corpo e anexos desta mala. */
+    public function arquivos(): HasMany
+    {
+        return $this->hasMany(MalaDiretaArquivo::class, 'mala_direta_id');
+    }
+
+    /** @return HasMany<MalaDiretaArquivo, $this> */
+    public function imagens(): HasMany
+    {
+        return $this->arquivos()->where('tipo', MalaDiretaArquivo::TIPO_IMAGEM);
+    }
+
+    /** @return HasMany<MalaDiretaArquivo, $this> */
+    public function anexos(): HasMany
+    {
+        return $this->arquivos()->where('tipo', MalaDiretaArquivo::TIPO_ANEXO);
+    }
+
+    /** O corpo é HTML do editor (e não texto puro)? */
+    public function ehHtml(): bool
+    {
+        return $this->formato === 'html';
     }
 
     /**

@@ -6,13 +6,17 @@ use App\Enums\PublicoMala;
 use App\Enums\StatusDestinatario;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\CriarMalaDiretaRequest;
+use App\Http\Requests\Admin\MalaDiretaArquivoRequest;
 use App\Http\Requests\Admin\PreviaMalaDiretaRequest;
 use App\Http\Resources\MalaDiretaDestinatarioResource;
 use App\Http\Resources\MalaDiretaResource;
 use App\Models\MalaDireta;
+use App\Models\MalaDiretaArquivo;
+use App\Services\MalaDiretaArquivoService;
 use App\Services\MalaDiretaService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -103,6 +107,50 @@ class AdminMalaDiretaController extends Controller
         $mala = $this->malas->criar($dados, $request->user());
 
         return response()->json(['data' => (new MalaDiretaResource($mala->fresh()))->resolve()], 201);
+    }
+
+    /**
+     * Sobe uma imagem do corpo ou um anexo. O arquivo nasce solto e só é
+     * vinculado à mala no disparo — o admin ainda está escrevendo.
+     */
+    public function subirArquivo(MalaDiretaArquivoRequest $request, MalaDiretaArquivoService $arquivos): JsonResponse
+    {
+        $arquivo = $arquivos->armazenar(
+            $request->file('arquivo'),
+            $request->validated('tipo'),
+            $request->user(),
+        );
+
+        return response()->json(['data' => $this->arquivoJson($arquivo)], 201);
+    }
+
+    /** Serve o arquivo para a prévia no painel (nunca é link público). */
+    public function baixarArquivo(MalaDiretaArquivo $arquivo): Response
+    {
+        return Storage::disk($arquivo->disk)->response($arquivo->path, $arquivo->nome_original, [
+            'Content-Type' => $arquivo->mime ?? 'application/octet-stream',
+        ]);
+    }
+
+    /** Remove um arquivo que ainda não foi disparado. */
+    public function removerArquivo(MalaDiretaArquivo $arquivo, MalaDiretaArquivoService $arquivos): JsonResponse
+    {
+        $arquivos->remover($arquivo);
+
+        return response()->json(['data' => ['removido' => true]]);
+    }
+
+    /** @return array<string, mixed> */
+    private function arquivoJson(MalaDiretaArquivo $arquivo): array
+    {
+        return [
+            'id' => $arquivo->id,
+            'tipo' => $arquivo->tipo,
+            'nome' => $arquivo->nome_original,
+            'mime' => $arquivo->mime,
+            'tamanho_bytes' => $arquivo->tamanho_bytes,
+            'url' => '/api/v1/admin/mala-direta/arquivos/'.$arquivo->id,
+        ];
     }
 
     /** Progresso/relatório de uma mala (a tela faz polling deste endpoint). */

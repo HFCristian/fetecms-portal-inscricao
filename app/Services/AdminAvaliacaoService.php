@@ -374,12 +374,57 @@ class AdminAvaliacaoService
             'titulo' => $p->titulo,
             'area_id' => $p->area_id,
             'area' => $p->area?->nome,
+            'subarea_id' => $p->subarea_id,
             'subarea' => $p->subarea?->nome,
             'categoria' => $p->categoria?->value,
             'categoria_label' => $p->categoria?->label(),
+            // O diálogo de correção abre já preenchido, sem uma segunda consulta.
+            'link_video' => $p->link_video,
             'realizadas' => $realizadas,
             'em_avaliacao' => (int) $p->em_avaliacao_count,
             'faltantes' => max(0, $min - $realizadas),
+        ];
+    }
+
+    /**
+     * O mesmo resumo, somado: quantos projetos do recorte inteiro estão com 0,
+     * 1, 2 e 3+ avaliações concluídas, sem separar por área. É o card
+     * destacado do topo da tela.
+     *
+     * @param  list<array<string, mixed>>  $porArea  saída de resumoProjetosPorArea()
+     * @return array<string, mixed>
+     */
+    public function resumoProjetosGeral(array $porArea): array
+    {
+        $geral = ['zero' => 0, 'uma' => 0, 'duas' => 0, 'tres_ou_mais' => 0, 'total' => 0, 'completos' => 0];
+
+        foreach ($porArea as $area) {
+            foreach (array_keys($geral) as $chave) {
+                $geral[$chave] += (int) ($area[$chave] ?? 0);
+            }
+        }
+
+        return $geral;
+    }
+
+    /**
+     * Os campos que a correção manual do admin devolve — o suficiente para a
+     * linha da tabela se atualizar sem recarregar a página.
+     *
+     * @return array<string, mixed>
+     */
+    public function projetoParaEdicao(Projeto $p): array
+    {
+        return [
+            'id' => $p->id,
+            'titulo' => $p->titulo,
+            'categoria' => $p->categoria?->value,
+            'categoria_label' => $p->categoria?->label(),
+            'area_id' => $p->area_id,
+            'area' => $p->area?->nome,
+            'subarea_id' => $p->subarea_id,
+            'subarea' => $p->subarea?->nome,
+            'link_video' => $p->link_video,
         ];
     }
 
@@ -992,6 +1037,14 @@ class AdminAvaliacaoService
             'liberada_em_label' => $data?->format('d/m/Y H:i'),
             'encerrada_em_input' => $fim?->format('Y-m-d\TH:i'),
             'encerrada_em_label' => $fim?->format('d/m/Y H:i'),
+            // Período de ajustes: a janela em que o orientador responde às
+            // sugestões dos avaliadores (aba "Ajustes"). Sem data de início, a
+            // aba fica fechada.
+            'ajustes_abertos' => (bool) $edicao?->ajustesAbertos(),
+            'ajustes_de_input' => $edicao?->ajustes_de?->format('Y-m-d\TH:i'),
+            'ajustes_de_label' => $edicao?->ajustes_de?->format('d/m/Y H:i'),
+            'ajustes_ate_input' => $edicao?->ajustes_ate?->format('Y-m-d\TH:i'),
+            'ajustes_ate_label' => $edicao?->ajustes_ate?->format('d/m/Y H:i'),
             // Limites do edital: quantas avaliações cada avaliador conclui (e
             // quantos projetos ele vê na tela), até quantas ele pode receber, e
             // o par mínimo/máximo de cada projeto — geral e por categoria.
@@ -1172,6 +1225,47 @@ class AdminAvaliacaoService
 
         $this->registrarParametro(
             TipoRegistro::AvaliacaoEncerramento,
+            $admin,
+            $anterior?->format('d/m/Y H:i'),
+            $valor?->format('d/m/Y H:i'),
+        );
+
+        return $this->config();
+    }
+
+    /**
+     * Define o início ou o fim do período de ajustes (ou remove, com null). É a
+     * janela da aba "Ajustes" do orientador — sem início, ela fica fechada.
+     */
+    public function definirAjustes(string $ponta, ?string $data, User $admin): array
+    {
+        $valor = ($data !== null && $data !== '')
+            ? Carbon::parse($data, config('app.timezone'))
+            : null;
+
+        $edicao = Edicao::atual();
+        $coluna = $ponta === 'de' ? 'ajustes_de' : 'ajustes_ate';
+        $outra = $ponta === 'de' ? $edicao?->ajustes_ate : $edicao?->ajustes_de;
+
+        if ($valor && $outra) {
+            $foraDeOrdem = $ponta === 'de'
+                ? $valor->greaterThanOrEqualTo($outra)
+                : $valor->lessThanOrEqualTo($outra);
+
+            if ($foraDeOrdem) {
+                throw ValidationException::withMessages([
+                    $coluna => $ponta === 'de'
+                        ? 'O início dos ajustes precisa ser antes do fim ('.$outra->format('d/m/Y H:i').').'
+                        : 'O fim dos ajustes precisa ser depois do início ('.$outra->format('d/m/Y H:i').').',
+                ]);
+            }
+        }
+
+        $anterior = $edicao?->{$coluna};
+        $edicao?->update([$coluna => $valor]);
+
+        $this->registrarParametro(
+            $ponta === 'de' ? TipoRegistro::AvaliacaoAjustesInicio : TipoRegistro::AvaliacaoAjustesFim,
             $admin,
             $anterior?->format('d/m/Y H:i'),
             $valor?->format('d/m/Y H:i'),

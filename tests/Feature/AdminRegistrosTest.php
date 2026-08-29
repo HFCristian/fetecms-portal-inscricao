@@ -8,6 +8,7 @@ use App\Models\Edicao;
 use App\Models\Projeto;
 use App\Models\RegistroAtividade;
 use App\Models\User;
+use App\Services\RegistroAtividadeService;
 use Database\Seeders\CatalogoSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -234,6 +235,7 @@ class AdminRegistrosTest extends TestCase
                 'avaliacao_min_avaliador', 'avaliacao_min_projeto',
                 'avaliacao_max_avaliador', 'avaliacao_max_projeto', 'avaliacao_limites_categoria',
                 'avaliacao_regra_distribuicao', 'avaliacao_designacao_ao_cadastrar',
+                'avaliacao_ajustes_inicio', 'avaliacao_ajustes_fim',
             ],
             array_column($avaliacao->json('meta.tipos'), 'value'),
         );
@@ -267,5 +269,38 @@ class AdminRegistrosTest extends TestCase
         $this->getJson('/api/v1/admin/registros?secao=inexistente')
             ->assertStatus(422)
             ->assertJsonValidationErrors('secao');
+    }
+
+    public function test_secao_projetos_traz_so_as_correcoes_do_admin(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $projeto = Projeto::factory()->submetido()->create(['user_id' => User::factory()->create()->id]);
+
+        app(RegistroAtividadeService::class)->correcaoProjeto(
+            TipoRegistro::ProjetoCategoria, $projeto, $admin, 'FETECMS', 'FETEC Jr', 'Erro de digitação.',
+        );
+        app(RegistroAtividadeService::class)->submissao($projeto, $projeto->user);
+
+        Sanctum::actingAs($admin);
+
+        $resposta = $this->getJson('/api/v1/admin/registros?secao=projetos')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.tipo', TipoRegistro::ProjetoCategoria->value)
+            ->assertJsonPath('meta.secao', 'projetos');
+
+        // Os filtros de tipo da tela são só os da seção.
+        $tipos = array_column($resposta->json('meta.tipos'), 'value');
+        $this->assertSame([
+            TipoRegistro::ProjetoCategoria->value,
+            TipoRegistro::ProjetoArea->value,
+            TipoRegistro::ProjetoSubarea->value,
+            TipoRegistro::ProjetoVideo->value,
+        ], $tipos);
+
+        // O CSV descreve o "de → para" e a justificativa.
+        $csv = $this->get('/api/v1/admin/registros/exportar?secao=projetos')->assertOk()->getContent();
+        $this->assertStringContainsString('FETECMS → FETEC Jr', $csv);
+        $this->assertStringContainsString('justificativa: Erro de digitação.', $csv);
     }
 }

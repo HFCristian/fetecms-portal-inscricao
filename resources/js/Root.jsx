@@ -11,11 +11,13 @@ import Projetos from './pages/Projetos.jsx';
 import ProjetoForm from './pages/ProjetoForm.jsx';
 import Integrantes from './pages/Integrantes.jsx';
 import Resumo from './pages/Resumo.jsx';
+import Ajustes from './pages/Ajustes.jsx';
 import Perfil from './pages/Perfil.jsx';
 import AvaliadorHome from './pages/AvaliadorHome.jsx';
 import AvaliadorPerfil from './pages/AvaliadorPerfil.jsx';
 import AdminAvisoDetalhe from './pages/AdminAvisoDetalhe.jsx';
 import AdminAvisos from './pages/AdminAvisos.jsx';
+import AdminModelosEmail from './pages/AdminModelosEmail.jsx';
 import AdminComunicacao from './pages/AdminComunicacao.jsx';
 import AdminHome from './pages/AdminHome.jsx';
 import AdminProjetosPorArea from './pages/AdminProjetosPorArea.jsx';
@@ -88,6 +90,7 @@ export default function Root() {
                             <Route path="/projetos/:id/editar" element={<ProjetoForm />} />
                             <Route path="/projetos/:id/integrantes" element={<Integrantes />} />
                             <Route path="/projetos/:id/resumo" element={<Resumo />} />
+                            <Route path="/ajustes" element={<Ajustes />} />
                             <Route path="/perfil" element={<Perfil />} />
                         </Route>
 
@@ -119,8 +122,10 @@ export default function Root() {
                             <Route path="/admin/registros" element={<AdminRegistrosHome />} />
                             <Route path="/admin/registros/inscricoes" element={<AdminRegistros secao="inscricoes" />} />
                             <Route path="/admin/registros/avaliacao" element={<AdminRegistros secao="avaliacao" />} />
+                            <Route path="/admin/registros/projetos" element={<AdminRegistros secao="projetos" />} />
                             <Route path="/admin/comunicacao" element={<AdminComunicacao />} />
                             <Route path="/admin/comunicacao/avisos" element={<AdminAvisos />} />
+                            <Route path="/admin/comunicacao/modelos" element={<AdminModelosEmail />} />
                             <Route path="/admin/comunicacao/avisos/:id" element={<AdminAvisoDetalhe />} />
                             <Route path="/admin/mala-direta" element={<AdminMalaDireta />} />
                             <Route path="/admin/mala-direta/nova" element={<AdminMalaDiretaForm />} />

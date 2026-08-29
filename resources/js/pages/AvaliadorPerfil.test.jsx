@@ -44,6 +44,7 @@ const PERFIL = {
     estatisticas: {
         avaliacoes_concluidas: 3,
         certificado_minutos: 450, certificado_label: '7h30', por_avaliacao_label: '2h30',
+        certificado_teto_label: '120h', certificado_no_teto: false,
         posicao: 2, total_no_ranking: 12, empate: false,
     },
     pode_trocar_area: true,
@@ -76,7 +77,7 @@ describe('AvaliadorPerfil — estatísticas', () => {
 
         expect(screen.getByText('Certificado')).toBeInTheDocument();
         expect(screen.getByText('7h30')).toBeInTheDocument();
-        expect(screen.getByText('2h30 por avaliação concluída')).toBeInTheDocument();
+        expect(screen.getByText('2h30 por avaliação concluída · máximo de 120h')).toBeInTheDocument();
 
         expect(screen.getByText('No ranking de avaliadores')).toBeInTheDocument();
         expect(screen.getByText('2º')).toBeInTheDocument();
@@ -224,5 +225,24 @@ describe('AvaliadorPerfil — área de atuação', () => {
 
         await waitFor(() => expect(atualizarLocalidadeAvaliador).toHaveBeenCalledWith({ estado_id: '1', cidade_id: '10' }));
         expect(await screen.findByText('Localidade atualizada.')).toBeInTheDocument();
+    });
+});
+
+describe('AvaliadorPerfil — teto do certificado', () => {
+    beforeEach(() => { getPerfilAvaliador.mockReset(); });
+
+    it('avisa o limite quando o avaliador já bateu no teto', async () => {
+        getPerfilAvaliador.mockResolvedValue({
+            ...PERFIL,
+            estatisticas: {
+                ...PERFIL.estatisticas,
+                avaliacoes_concluidas: 49,
+                certificado_label: '120h',
+                certificado_no_teto: true,
+            },
+        });
+        renderPerfil();
+
+        expect(await screen.findByText('Limite máximo de 120h atingido')).toBeInTheDocument();
     });
 });

@@ -153,7 +153,7 @@ class RankingAvaliadoresTest extends TestCase
         $ms = Estado::create(['nome' => 'Mato Grosso do Sul', 'uf' => 'MS']);
         $cidade = Cidade::create(['estado_id' => $ms->id, 'nome' => 'Três Lagoas']);
 
-        $this->postJson('/api/v1/avaliadores', [
+        $this->cadastrarAvaliadorPelaApi([
             'name' => 'Nova Avaliadora',
             'email' => 'nova@avaliadores.test',
             'password' => 'Senha@123',

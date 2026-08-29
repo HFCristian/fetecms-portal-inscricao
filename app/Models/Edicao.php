@@ -22,6 +22,7 @@ class Edicao extends Model
     protected $fillable = [
         'nome', 'ano', 'inscricoes_abertas', 'inicio_em', 'fim_em',
         'avaliacao_liberada_em', 'avaliacao_encerrada_em', 'submissoes_de', 'submissoes_ate',
+        'ajustes_de', 'ajustes_ate',
         'avaliacoes_min_por_avaliador', 'avaliacoes_min_por_projeto',
         'avaliacoes_max_por_avaliador', 'avaliacoes_max_por_projeto', 'avaliacoes_por_categoria',
         'distribuicao_regras', 'distribuicao_ao_cadastrar',
@@ -37,6 +38,8 @@ class Edicao extends Model
             'avaliacao_encerrada_em' => 'datetime',
             'submissoes_de' => 'datetime',
             'submissoes_ate' => 'datetime',
+            'ajustes_de' => 'datetime',
+            'ajustes_ate' => 'datetime',
             'avaliacoes_min_por_avaliador' => 'integer',
             'avaliacoes_min_por_projeto' => 'integer',
             'avaliacoes_max_por_avaliador' => 'integer',
@@ -133,5 +136,27 @@ class Edicao extends Model
     public function avaliacaoEncerrada(): bool
     {
         return $this->avaliacao_encerrada_em !== null && now()->greaterThan($this->avaliacao_encerrada_em);
+    }
+
+    /**
+     * O período de ajustes já começou? Ao contrário das outras janelas, esta
+     * fica FECHADA enquanto a data não for definida: a aba do orientador só
+     * abre quando o admin marca o período.
+     */
+    public function ajustesIniciados(): bool
+    {
+        return $this->ajustes_de !== null && now()->greaterThanOrEqualTo($this->ajustes_de);
+    }
+
+    /** O período de ajustes acabou? Sem data de fim, segue aberto depois de começar. */
+    public function ajustesEncerrados(): bool
+    {
+        return $this->ajustes_ate !== null && now()->greaterThan($this->ajustes_ate);
+    }
+
+    /** A aba de ajustes do orientador está aberta agora? */
+    public function ajustesAbertos(): bool
+    {
+        return $this->ajustesIniciados() && ! $this->ajustesEncerrados();
     }
 }

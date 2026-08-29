@@ -2,10 +2,13 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Http\Requests\Concerns\NormalizaEmail;
 use Illuminate\Foundation\Http\FormRequest;
 
 class EsqueciSenhaRequest extends FormRequest
 {
+    use NormalizaEmail;
+
     public function authorize(): bool
     {
         return true;
@@ -13,9 +16,7 @@ class EsqueciSenhaRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
-        if (is_string($this->email)) {
-            $this->merge(['email' => trim($this->email)]);
-        }
+        $this->limparEmails();
     }
 
     /** @return array<string, mixed> */

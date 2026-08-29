@@ -2,11 +2,14 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Http\Requests\Concerns\NormalizaEmail;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rules\Password;
 
 class RedefinirSenhaRequest extends FormRequest
 {
+    use NormalizaEmail;
+
     public function authorize(): bool
     {
         return true;
@@ -14,9 +17,7 @@ class RedefinirSenhaRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
-        if (is_string($this->email)) {
-            $this->merge(['email' => trim($this->email)]);
-        }
+        $this->limparEmails();
     }
 
     /** @return array<string, mixed> */

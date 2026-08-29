@@ -1,72 +1,148 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button, Alert } from './ui.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import { getOpcoesListaFinal, baixarListaFinal } from '../lib/admin.js';
 
-const cotaClass =
-    'w-20 bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface ' +
+const inputClass =
+    'w-24 bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface ' +
     'focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 outline-none';
 
-/** Uma cota: campo em branco não limita nada; 0 deixa o recorte de fora. */
-function Cota({ id, titulo, sigla, disponiveis, valor, onChange }) {
+const tipoClass =
+    'bg-surface border border-outline-variant rounded-lg px-2 py-2 text-sm text-on-surface ' +
+    'focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 outline-none';
+
+const PASSOS = ['Categorias', 'Áreas', 'Interior'];
+
+/** Uma cota vazia: nem valor, nem tipo escolhido — não limita nada. */
+const VAZIA = { tipo: 'fixo', valor: '' };
+
+const preenchida = (cota) => cota && cota.valor !== '' && cota.valor !== null && cota.valor !== undefined;
+
+/** Converte a cota da tela no formato da API; `null` quando está em branco. */
+const paraApi = (cota) => (preenchida(cota) ? { tipo: cota.tipo, valor: Number(cota.valor) } : null);
+
+/**
+ * Um campo de cota: o número e o seletor fixo/porcentagem. A porcentagem é
+ * sempre sobre o recorte que contém este campo (a categoria para a área, a área
+ * para o interior).
+ */
+function CampoCota({ id, rotulo, detalhe, cota, onChange, placeholder = 'sem limite' }) {
+    const atual = cota ?? VAZIA;
+
     return (
         <div className="flex items-center gap-2 py-1">
-            <span className="text-xs font-bold text-primary-container w-9 shrink-0">{sigla}</span>
-            <label htmlFor={id} className="text-sm text-on-surface flex-1 min-w-0 truncate">
-                {titulo}
-                <span className="text-xs text-on-surface-variant"> · {disponiveis} disponíve{disponiveis === 1 ? 'l' : 'is'}</span>
+            <label htmlFor={id} className="text-sm text-on-surface flex-1 min-w-0">
+                <span className="block truncate">{rotulo}</span>
+                {detalhe && <span className="block text-xs text-on-surface-variant">{detalhe}</span>}
             </label>
             <input
                 id={id}
                 type="number"
                 inputMode="numeric"
                 min={0}
-                placeholder="todos"
-                aria-label={`Quantidade de ${titulo}`}
-                value={valor ?? ''}
-                onChange={(e) => onChange(e.target.value)}
-                className={cotaClass}
+                placeholder={placeholder}
+                aria-label={`Quantidade para ${rotulo}`}
+                value={atual.valor}
+                onChange={(e) => onChange({ ...atual, valor: e.target.value })}
+                className={inputClass}
             />
+            <select
+                aria-label={`Tipo da quantidade para ${rotulo}`}
+                value={atual.tipo}
+                onChange={(e) => onChange({ ...atual, tipo: e.target.value })}
+                className={tipoClass}
+            >
+                <option value="fixo">nº</option>
+                <option value="percentual">%</option>
+            </select>
         </div>
     );
 }
 
 /**
- * "Gerar lista final": o admin escolhe quantos projetos quer no total, por
- * categoria e por área; quem entra é decidido pela média das notas, do melhor
- * para o pior. Campo em branco não limita nada. O arquivo sai agrupado por
- * categoria → área → título, com a numeração 001, 002… reiniciando a cada
- * categoria+área.
+ * "Gerar lista final" em três passos, na ordem em que a organização decide:
+ * quantos projetos por **categoria**, depois quantos por **área** dentro de
+ * cada categoria e, por fim, quantos daquela área ficam reservados ao
+ * **interior** (cidade que não é a capital do estado).
+ *
+ * Cada quantidade pode ser número fixo ou porcentagem do recorte de cima —
+ * "100 da FUNDECT, 20 de agrárias, 70% desses para o interior". Campo em branco
+ * não limita; a reserva do interior é piso, e a vaga que ele não preencher
+ * volta para os demais.
  */
 export default function ListaFinalDialog({ open, onClose }) {
     const [opcoes, setOpcoes] = useState(null);
-    const [total, setTotal] = useState('');
-    const [categorias, setCategorias] = useState({});
-    const [areas, setAreas] = useState({});
+    const [passo, setPasso] = useState(0);
+    const [total, setTotal] = useState(VAZIA);
+    // { [categoria]: { cota, areas: { [areaId]: { cota, interior } } } }
+    const [cotas, setCotas] = useState({});
     const [gerando, setGerando] = useState(false);
     const [erro, setErro] = useState('');
 
     useEffect(() => {
         if (!open) return;
         setErro('');
+        setPasso(0);
         getOpcoesListaFinal().then(setOpcoes).catch(() => setErro('Não foi possível carregar as opções.'));
     }, [open]);
 
+    // Só as categorias que o admin não zerou entram nos passos seguintes: não
+    // faz sentido pedir a área de uma categoria que ficou de fora.
+    const categoriasAtivas = useMemo(() => (opcoes?.categorias ?? []).filter((c) => {
+        const cota = cotas[c.value]?.cota;
+        return !preenchida(cota) || Number(cota.valor) > 0;
+    }), [opcoes, cotas]);
+
     if (!open) return null;
 
-    const numeros = (mapa) => Object.fromEntries(
-        Object.entries(mapa).filter(([, v]) => v !== '' && v !== null && v !== undefined)
-            .map(([k, v]) => [k, Number(v)]),
-    );
+    const setCotaCategoria = (categoria, cota) => setCotas((atual) => ({
+        ...atual,
+        [categoria]: { ...(atual[categoria] ?? {}), cota },
+    }));
+
+    const setCotaArea = (categoria, areaId, campo, cota) => setCotas((atual) => {
+        const daCategoria = atual[categoria] ?? {};
+        const areas = daCategoria.areas ?? {};
+        return {
+            ...atual,
+            [categoria]: {
+                ...daCategoria,
+                areas: { ...areas, [areaId]: { ...(areas[areaId] ?? {}), [campo]: cota } },
+            },
+        };
+    });
+
+    /** Áreas com cota definida — são as únicas que podem reservar vaga ao interior. */
+    const areasComCota = (categoria) => (opcoes?.categorias ?? [])
+        .find((c) => c.value === categoria)?.areas
+        .filter((a) => preenchida(cotas[categoria]?.areas?.[a.id]?.cota)) ?? [];
+
+    function montarPayload() {
+        const categorias = {};
+
+        for (const c of opcoes.categorias) {
+            const daCategoria = cotas[c.value] ?? {};
+            const areas = {};
+
+            for (const [areaId, config] of Object.entries(daCategoria.areas ?? {})) {
+                const cota = paraApi(config.cota);
+                const interior = paraApi(config.interior);
+                if (cota || interior) areas[areaId] = { cota, interior };
+            }
+
+            const cota = paraApi(daCategoria.cota);
+            if (cota || Object.keys(areas).length > 0) {
+                categorias[c.value] = { cota, areas };
+            }
+        }
+
+        return { total: paraApi(total), categorias };
+    }
 
     async function gerar() {
         setGerando(true); setErro('');
         try {
-            await baixarListaFinal({
-                total: total === '' ? null : Number(total),
-                categorias: numeros(categorias),
-                areas: numeros(areas),
-            });
+            await baixarListaFinal(montarPayload());
             onClose();
         } catch (e) {
             setErro(extractErrors(e).message || 'Não foi possível gerar a lista. Tente novamente.');
@@ -81,10 +157,27 @@ export default function ListaFinalDialog({ open, onClose }) {
                 <h3 className="font-display text-xl font-semibold text-on-surface mb-1">Gerar lista final</h3>
                 <p className="text-sm text-on-surface-variant mb-4">
                     Entram os projetos <strong>mais bem avaliados</strong> que couberem nas quantidades
-                    abaixo — deixe em branco o que não quiser limitar. O arquivo sai agrupado por
-                    categoria e área, em ordem alfabética de título, com a numeração reiniciando a cada
-                    categoria+área.
+                    que você definir. Cada quantidade pode ser um <strong>número</strong> ou uma{' '}
+                    <strong>porcentagem</strong> do recorte acima dela; em branco não limita nada.
                 </p>
+
+                {/* Trilha dos três passos */}
+                <ol className="flex items-center gap-2 mb-4 text-xs">
+                    {PASSOS.map((nome, i) => (
+                        <li key={nome} className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setPasso(i)}
+                                className={`px-2 py-1 rounded-full font-semibold ${i === passo
+                                    ? 'bg-primary-container text-on-primary'
+                                    : 'text-on-surface-variant hover:bg-surface-variant'}`}
+                            >
+                                {i + 1}. {nome}
+                            </button>
+                            {i < PASSOS.length - 1 && <span className="text-on-surface-variant">›</span>}
+                        </li>
+                    ))}
+                </ol>
 
                 {erro && <div className="mb-3"><Alert>{erro}</Alert></div>}
 
@@ -92,66 +185,117 @@ export default function ListaFinalDialog({ open, onClose }) {
                     <div className="text-center py-8 text-on-surface-variant">
                         <span className="inline-block w-8 h-8 rounded-full border-4 border-on-surface-variant/25 border-t-primary animate-spin align-[-0.2em]" role="status" aria-label="Carregando" />
                     </div>
-                ) : (
-                    <>
-                        <div className="flex items-center gap-2 mb-4">
-                            <label htmlFor="lista-total" className="text-sm font-semibold text-on-surface flex-1">
-                                Total de projetos na lista
-                                <span className="block text-xs font-normal text-on-surface-variant">
-                                    {opcoes.total_disponivel} projeto(s) avaliados no total
-                                </span>
-                            </label>
-                            <input
+                ) : passo === 0 ? (
+                    <fieldset>
+                        <legend className="text-sm font-semibold text-on-surface mb-1">
+                            Quantos projetos em cada categoria?
+                        </legend>
+                        <p className="text-xs text-on-surface-variant mb-2">
+                            A porcentagem é sobre os {opcoes.total_disponivel} projetos avaliados
+                            {preenchida(total) ? ' (ou sobre o total que você definir abaixo)' : ''}.
+                        </p>
+
+                        {opcoes.categorias.map((c) => (
+                            <CampoCota
+                                key={c.value}
+                                id={`lista-cat-${c.value}`}
+                                rotulo={c.label}
+                                detalhe={`${c.disponiveis} disponíve${c.disponiveis === 1 ? 'l' : 'is'}`}
+                                cota={cotas[c.value]?.cota}
+                                onChange={(cota) => setCotaCategoria(c.value, cota)}
+                            />
+                        ))}
+
+                        <div className="border-t border-outline-variant/40 mt-3 pt-3">
+                            <CampoCota
                                 id="lista-total"
-                                type="number"
-                                inputMode="numeric"
-                                min={0}
+                                rotulo="Total geral da lista"
+                                detalhe={`${opcoes.total_disponivel} projeto(s) avaliados · opcional`}
+                                cota={total}
+                                onChange={setTotal}
                                 placeholder="todos"
-                                aria-label="Total de projetos na lista"
-                                value={total}
-                                onChange={(e) => setTotal(e.target.value)}
-                                className={cotaClass}
                             />
                         </div>
+                    </fieldset>
+                ) : passo === 1 ? (
+                    <div className="space-y-4">
+                        <p className="text-xs text-on-surface-variant">
+                            Dentro de cada categoria, quantos projetos de cada área. A porcentagem é
+                            sobre a cota da categoria.
+                        </p>
+                        {categoriasAtivas.map((c) => (
+                            <fieldset key={c.value}>
+                                <legend className="text-sm font-semibold text-primary-container mb-1">{c.label}</legend>
+                                {c.areas.map((a) => (
+                                    <CampoCota
+                                        key={a.id}
+                                        id={`lista-area-${c.value}-${a.id}`}
+                                        rotulo={a.nome}
+                                        detalhe={`${a.disponiveis} disponíve${a.disponiveis === 1 ? 'l' : 'is'}`}
+                                        cota={cotas[c.value]?.areas?.[a.id]?.cota}
+                                        onChange={(cota) => setCotaArea(c.value, a.id, 'cota', cota)}
+                                    />
+                                ))}
+                            </fieldset>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                        <p className="text-xs text-on-surface-variant">
+                            Quantas das vagas de cada área ficam reservadas a projetos do{' '}
+                            <strong>interior</strong> (escola fora da capital). Só aparecem as áreas
+                            com cota definida — a reserva é uma fatia dessa cota. Se não houver
+                            projeto do interior suficiente, a vaga volta para os demais.
+                        </p>
+                        {categoriasAtivas.every((c) => areasComCota(c.value).length === 0) ? (
+                            <p className="text-sm text-on-surface-variant">
+                                Nenhuma área tem cota definida. Volte ao passo 2 para definir as cotas
+                                por área antes de reservar vagas para o interior.
+                            </p>
+                        ) : categoriasAtivas.map((c) => {
+                            const areas = areasComCota(c.value);
+                            if (areas.length === 0) return null;
 
-                        <fieldset className="mb-4">
-                            <legend className="text-sm font-semibold text-on-surface mb-1">Por categoria</legend>
-                            {opcoes.categorias.map((c) => (
-                                <Cota
-                                    key={c.value}
-                                    id={`lista-cat-${c.value}`}
-                                    titulo={c.label}
-                                    sigla={c.sigla}
-                                    disponiveis={c.disponiveis}
-                                    valor={categorias[c.value]}
-                                    onChange={(v) => setCategorias((atual) => ({ ...atual, [c.value]: v }))}
-                                />
-                            ))}
-                        </fieldset>
-
-                        <fieldset className="mb-4">
-                            <legend className="text-sm font-semibold text-on-surface mb-1">Por área do conhecimento</legend>
-                            {opcoes.areas.map((a) => (
-                                <Cota
-                                    key={a.id}
-                                    id={`lista-area-${a.id}`}
-                                    titulo={a.nome}
-                                    sigla={a.sigla}
-                                    disponiveis={a.disponiveis}
-                                    valor={areas[a.id]}
-                                    onChange={(v) => setAreas((atual) => ({ ...atual, [a.id]: v }))}
-                                />
-                            ))}
-                        </fieldset>
-                    </>
+                            return (
+                                <fieldset key={c.value}>
+                                    <legend className="text-sm font-semibold text-primary-container mb-1">{c.label}</legend>
+                                    {areas.map((a) => (
+                                        <CampoCota
+                                            key={a.id}
+                                            id={`lista-interior-${c.value}-${a.id}`}
+                                            rotulo={a.nome}
+                                            detalhe={`${a.interior_disponiveis} do interior disponíve${a.interior_disponiveis === 1 ? 'l' : 'is'}`}
+                                            cota={cotas[c.value]?.areas?.[a.id]?.interior}
+                                            onChange={(cota) => setCotaArea(c.value, a.id, 'interior', cota)}
+                                            placeholder="sem reserva"
+                                        />
+                                    ))}
+                                </fieldset>
+                            );
+                        })}
+                    </div>
                 )}
 
-                <div className="flex justify-end gap-2 pt-2">
+                <div className="flex justify-between gap-2 pt-4">
                     <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-                    <Button type="button" loading={gerando} disabled={opcoes === null} onClick={gerar}>
-                        <span className="material-symbols-outlined text-[18px]">download</span>
-                        Gerar TXT
-                    </Button>
+
+                    <div className="flex gap-2">
+                        {passo > 0 && (
+                            <Button type="button" variant="outline" onClick={() => setPasso(passo - 1)}>
+                                Voltar
+                            </Button>
+                        )}
+                        {passo < PASSOS.length - 1 ? (
+                            <Button type="button" disabled={opcoes === null} onClick={() => setPasso(passo + 1)}>
+                                Continuar
+                            </Button>
+                        ) : (
+                            <Button type="button" loading={gerando} disabled={opcoes === null} onClick={gerar}>
+                                <span className="material-symbols-outlined text-[18px]">download</span>
+                                Gerar TXT
+                            </Button>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>

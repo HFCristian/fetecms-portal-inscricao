@@ -37,7 +37,7 @@ class AvaliadorTest extends TestCase
 
     public function test_avaliador_se_cadastra(): void
     {
-        $this->postJson('/api/v1/avaliadores', $this->payload())
+        $this->cadastrarAvaliadorPelaApi($this->payload())
             ->assertCreated()
             ->assertJsonPath('data.role', 'avaliador')
             ->assertJsonPath('data.avaliador_profile.cpf', '52998224725');
@@ -49,17 +49,17 @@ class AvaliadorTest extends TestCase
     public function test_pos_graduacao_em_andamento_habilita_o_cadastro(): void
     {
         // Regra do edital: basta estar cursando — não precisa ter concluído.
-        $this->postJson('/api/v1/avaliadores', $this->payload(['titulacao' => 'Mestrado (em andamento)']))
+        $this->cadastrarAvaliadorPelaApi($this->payload(['titulacao' => 'Mestrado (em andamento)']))
             ->assertCreated()
             ->assertJsonPath('data.avaliador_profile.titulacao', 'Mestrado (em andamento)');
     }
 
     public function test_titulacao_precisa_ser_uma_das_opcoes(): void
     {
-        $this->postJson('/api/v1/avaliadores', $this->payload(['titulacao' => 'Graduação']))
+        $this->cadastrarAvaliadorPelaApi($this->payload(['titulacao' => 'Graduação']))
             ->assertStatus(422)->assertJsonValidationErrors('titulacao');
 
-        $this->postJson('/api/v1/avaliadores', $this->payload(['titulacao' => null]))
+        $this->cadastrarAvaliadorPelaApi($this->payload(['titulacao' => null]))
             ->assertStatus(422)->assertJsonValidationErrors('titulacao');
     }
 
@@ -68,7 +68,7 @@ class AvaliadorTest extends TestCase
         $orientador = User::factory()->create();
         OrientadorProfile::factory()->create(['user_id' => $orientador->id, 'cpf' => '52998224725']);
 
-        $this->postJson('/api/v1/avaliadores', $this->payload())
+        $this->cadastrarAvaliadorPelaApi($this->payload())
             ->assertStatus(422)->assertJsonValidationErrors('cpf');
     }
 
@@ -76,7 +76,7 @@ class AvaliadorTest extends TestCase
     {
         User::factory()->create(['email' => 'dup@escola.com']);
 
-        $this->postJson('/api/v1/avaliadores', $this->payload(['email' => 'dup@escola.com']))
+        $this->cadastrarAvaliadorPelaApi($this->payload(['email' => 'dup@escola.com']))
             ->assertStatus(422)->assertJsonValidationErrors('email');
     }
 
@@ -84,7 +84,7 @@ class AvaliadorTest extends TestCase
     {
         Coorientador::factory()->create(['cpf' => '52998224725']);
 
-        $this->postJson('/api/v1/avaliadores', $this->payload())
+        $this->cadastrarAvaliadorPelaApi($this->payload())
             ->assertStatus(422)->assertJsonValidationErrors('cpf');
     }
 
@@ -92,7 +92,7 @@ class AvaliadorTest extends TestCase
     {
         AvaliadorProfile::factory()->create(['cpf' => '52998224725']);
 
-        $this->postJson('/api/v1/orientadores', [
+        $this->cadastrarOrientadorPelaApi([
             'name' => 'Tenta Orientador',
             'email' => 'tenta@escola.com',
             'password' => 'Senha@123',
