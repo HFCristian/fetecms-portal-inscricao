@@ -49,8 +49,25 @@ Documentos de referência detalhados (modelo de dados, CRUDs, validações, chec
 
 Tabela `users` única com coluna `role`: **`orientador`**, **`avaliador`**, **`admin`**.
 
-- **Orientador**: cadastro completo (wizard 3 etapas) → lista de projetos → cadastro de projeto
-  (salvável como **rascunho**) → alunos → coorientador opcional → resumo → **submissão irreversível**.
+**Confirmação de e-mail (orientador e avaliador):** o formulário público **não cria a conta**. Ele
+vira uma linha em `cadastros_pendentes` (payload em JSON, senha **já hasheada**) e um **código de 6
+dígitos** vai por e-mail — válido por **15 minutos**, com **5 tentativas** e reenvio a cada 60s. A
+conta nasce em `POST /cadastros/{token}/confirmar`, que já autentica a sessão. Como nada ocupa
+`users`/`orientador_profiles` antes disso, **o mesmo CPF pode ser cadastrado de novo** por quem errou
+o endereço — e a tela mostra o e-mail digitado, com a opção de **corrigi-lo sem refazer o formulário**
+(`ConfirmacaoCadastroService`). Todo campo de e-mail do portal perde os espaços (de qualquer posição,
+inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `NormalizaEmail`.
+
+- **Orientador**: cadastro completo (wizard 3 etapas) → **confirmação do e-mail por código de 6
+  dígitos** → lista de projetos → cadastro de projeto (salvável como **rascunho**) → alunos →
+  coorientador opcional → resumo → **submissão irreversível** (que dispara o comprovante por e-mail).
+  Depois da avaliação online ele ainda tem a aba **Ajustes** (`/ajustes`, abaixo de *Meus Projetos*):
+  dentro do **período de ajustes** definido pelo admin, vê o que os avaliadores sugeriram em cada
+  projeto seu e **aceita ou desfaz a troca de área/subárea** — aceitar aplica na hora e vira registro;
+  a sugestão continua na tela até o fim do prazo, para ele poder mudar de ideia. As **recomendações
+  escritas** (vídeo e projeto) aparecem junto, só para leitura, e o avaliador é anônimo
+  ("Avaliador 1", "Avaliador 2"). Fora do período a aba aparece no menu mas não abre; o orientador
+  **demo** tem *modo de teste*, que ignora as datas (`AjustesOrientadorService`).
 - **Avaliador (online)**: mesmo login do orientador; botão de cadastro **abaixo** do de orientador
   na tela de login. **Exclusão mútua**: quem é orientador NÃO pode ser avaliador, e vice-versa
   (validar no cadastro, em ambos os sentidos), pois o avaliador avalia projetos **submetidos**.
@@ -72,7 +89,8 @@ Tabela `users` única com coluna `role`: **`orientador`**, **`avaliador`**, **`a
     irreversível. As perguntas moram em `app/Support/Rubrica.php` e as respostas na coluna
     JSON `avaliacoes.respostas` — mexer na rubrica não pede migration.
   - **Perfil do avaliador** (`/avaliador/perfil`): cards com **projetos avaliados**, **carga
-    horária do certificado** (**2h30 por avaliação concluída**) e **posição no ranking** de quem
+    horária do certificado** (**2h30 por avaliação concluída**, com **teto de 120 horas** —
+    `AvaliadorProfile::MAX_MINUTOS_CERTIFICADO`) e **posição no ranking** de quem
     mais avaliou (só entra quem já concluiu ao menos uma; empate divide a posição). Na mesma
     tela ele **troca a própria área/subárea — só enquanto o período de avaliação não começou**
     (`Edicao::avaliacaoLiberada()`), porque depois a distribuição já foi feita em cima dela.
@@ -87,7 +105,9 @@ Tabela `users` única com coluna `role`: **`orientador`**, **`avaliador`**, **`a
   - O **admin pode designar manualmente** projetos a avaliadores, podendo **exceder o limite de 3**.
 - **Admin**: criado **somente por outro admin** (cadastro simples: nome, e-mail, senha). Dashboard
   com as métricas: projetos totais / submetidos / em rascunho; **projetos por categoria**;
-  orientadores; alunos; coorientadores; escolas, cidades e estados **com projeto cadastrado**.
+  orientadores; alunos; coorientadores; **camisetas por tamanho** (um card para orientadores, um
+  para alunos e um para coorientadores, PP…XG + N.I., via `App\Support\Camisetas`); escolas, cidades
+  e estados **com projeto cadastrado**.
   Fora dos dois primeiros cards (que existem para mostrar o rascunho), **todo card conta só
   projetos submetidos** — categoria, pessoas e localidades. Orientador entra **uma vez**, tenha
   um ou vários submetidos (`AdminDashboardService`).
@@ -111,7 +131,9 @@ Tabela `users` única com coluna `role`: **`orientador`**, **`avaliador`**, **`a
     projeto — e esse par pode ser definido **por categoria**, seguindo o geral quando fica em branco.
     Encerrado, o avaliador ainda **lê** os projetos designados e o que respondeu, mas não
     inicia, não salva rascunho e não envia (`AvaliacaoFluxoService::podeVer()` vs
-    `podeAvaliar()`); o demo em modo teste ignora as duas datas. O "período começou" que trava
+    `podeAvaliar()`); o demo em modo teste ignora as duas datas. Na mesma tela ficam o **início** e
+    o **fim do período de ajustes** (`edicoes.ajustes_de`/`ajustes_ate`), a janela da aba **Ajustes**
+    do orientador — **sem data de início ela fica fechada**, ao contrário das outras janelas. O "período começou" que trava
     o cancelamento de submissão e a troca de área do avaliador continua sendo só o início.
   - **Avaliação Online → Algoritmo de distribuição** (`/admin/avaliacao/distribuicao`, aberta pelo
     botão *Abrir configurações* na aba): os limiares que o algoritmo respeita. Por **categoria**, o
@@ -127,13 +149,27 @@ Tabela `users` única com coluna `role`: **`orientador`**, **`avaliador`**, **`a
     mais o toggle **designar ao cadastrar** (`edicoes.distribuicao_ao_cadastrar`): ligado, o
     avaliador que acaba de se cadastrar já sai com a fila cheia.
   - **Avaliação Online → Ranking dos projetos → Gerar lista final**: exporta em **TXT** o recorte
-    que vai para a programação da feira. O admin define um **total**, uma cota **por categoria** e
-    uma **por área** (em branco não limita); entram os **mais bem avaliados** que couberem em todas
-    as cotas. O arquivo sai por categoria (FETECMS → FETEC Jr → FETECMS FUNDECT) → área em ordem
+    que vai para a programação da feira. O admin passa por **três passos** — quantos projetos por
+    **categoria**, quantos por **área dentro de cada categoria** e quantas dessas vagas ficam
+    reservadas ao **interior** (escola fora da capital do estado, via `cidades.capital`) —, cada
+    quantidade em **número fixo ou porcentagem** do recorte acima dela (`App\Support\Cota`): "100 da
+    FUNDECT, 20 de agrárias, 70% desses para o interior". Campo em branco não limita; 0 deixa o
+    recorte de fora. A reserva do interior é **piso**, não teto: a vaga que ele não preencher volta
+    para os demais numa segunda passada, e ela só vale onde a área tem cota. Entram os **mais bem
+    avaliados** que couberem em todas as cotas. O arquivo sai por categoria (FETECMS → FETEC Jr → FETECMS FUNDECT) → área em ordem
     alfabética → título, com o sequencial `001, 002…` reiniciando a cada categoria+área:
     `FET.AGR-001 - Título` / `Escola / Cidade - UF` / alunos em ordem alfabética /
     `Orientador - Orientador(a)`. As siglas de categoria são FET, JR e PIC; as de área saem de
     `areas.sigla` (AGR, BIO, SAU, EXA, HUM, SOC, ENG, LIN), editável em Parametrização → Áreas.
+  - **Avaliação Online → Projetos submetidos**: além de *Designar*, cada linha tem **Editar**, que
+    abre a correção manual de **categoria, área, subárea e link do vídeo**. É um escape do edital (o
+    orientador não mexe depois de submeter), então a **justificativa é obrigatória** e cada campo
+    alterado vira um registro em **Registros → Projetos** com o "de → para"
+    (`AdminProjetoEdicaoService`). No topo da tela, um **card destacado** soma todas as áreas:
+    quantos projetos estão com 0, 1, 2 e 3+ avaliações concluídas, sempre no recorte dos filtros.
+  - **Registros** tem três seções: **Inscrições**, **Avaliação Online** e **Projetos**
+    (`/admin/registros/projetos`) — esta última com as correções do admin e os aceites do orientador,
+    cada um com a justificativa.
   - **Comunicação → Avisos** (`/admin/comunicacao/avisos`): o admin publica um card com **título e mensagem livres**,
     que aparece para os **orientadores ativos** conectados em até ~1 min (polling; não há
     WebSocket no projeto) e pode ser fechado por cada um. **Um ativo por vez** — publicar um
@@ -144,6 +180,12 @@ Tabela `users` única com coluna `role`: **`orientador`**, **`avaliador`**, **`a
     real de quem está lendo. **Relatório** por aviso: quantos viram, fecharam e ainda não viram,
     com a lista nome a nome (filtro por situação, busca e export CSV) e o histórico dos avisos
     anteriores.
+  - **Comunicação → Modelos de e-mail** (`/admin/comunicacao/modelos`): o texto dos e-mails que o
+    portal manda sozinho — **confirmação de cadastro** e **projeto submetido**. O admin edita
+    assunto e corpo, insere as variáveis de cada modelo por botões e pode **restaurar o padrão**. O
+    texto de fábrica mora no enum `App\Enums\ModeloEmail`; a tabela `modelos_email` guarda **só o
+    que foi customizado** (salvar exatamente o padrão apaga a linha). Quem dispara pede a mensagem
+    ao `ModeloEmailService` e não sabe de onde o texto veio.
   - **Comunicação → Mala direta** (`/admin/mala-direta`): comunicado por e-mail para um recorte da base.
     O admin combina quantos **públicos** quiser (todos, orientadores, avaliadores, orientadores
     com rascunho, com submetido, avaliadores com avaliação **em andamento** ou **concluída**) e/ou
@@ -159,7 +201,12 @@ Tabela `users` única com coluna `role`: **`orientador`**, **`avaliador`**, **`a
     dentro das chaves; sem nome conhecido, o tratamento vira "participante"), inseridas por **botões
     abaixo do campo, na posição do cursor**. A lista mora em `MalaDiretaService::VARIAVEIS` e chega à
     tela por `GET /admin/mala-direta/opcoes` — é a mesma que o `personalizar()` percorre, então
-    acrescentar uma variável lá já a faz aparecer no formulário.
+    acrescentar uma variável lá já a faz aparecer no formulário. O texto é escrito num **editor rico**
+    (TipTap): **negrito, itálico, sublinhado, traçado**, listas e **imagens no corpo** (até **5**,
+    **10 MB** cada, arrastáveis para reposicionar), mais **anexos** no e-mail (até **10**, **20 MB**
+    cada). O corpo vai como **HTML sanitizado** (`App\Support\HtmlEmail`) e as imagens viajam
+    **embutidas por CID**, nunca por link; os arquivos ficam em `mala_direta_arquivos`, num disco
+    privado, e só são vinculados à mala no disparo.
 
 Regras-chave:
 - **Equipe: 1 a 4 alunos por projeto, condicionado à categoria** — *FETEC Jr* permite até 4;
@@ -515,13 +562,15 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > e **Escolas** (`/admin/parametrizacao/escolas`): admin busca, **renomeia, mescla** (reatribui
 > projetos/alunos/orientadores) e **exclui** instituições sem uso (`InstituicaoAdminService`/Controller,
 > rotas `admin/instituicoes`). Back **117/117**, front 11/11, Pint limpo, build OK.
-> **Pendências do Pedro:** (1) `git push origin feat/algoritmo-distribuicao-e-lista-final` + PR para
-> a `main` (o ambiente do Claude não tem credencial do GitHub) e, depois do merge, o deploy pela §11
-> do [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). Esta release **tem migrations** (regras do algoritmo,
-> designação ao cadastrar, sigla da área e mín/máx por categoria) e **nenhuma variável nova de
-> `.env`**; a fila (`queue:work`) continua obrigatória.
-> A pendência anterior (`feat/designacao-e-comissao-especial`) já entrou na `main` pelo PR **#60**
-> (v1.17); (2) popular as escolas com
+> **Pendências do Pedro:** (1) `git push origin feat/verificacao-email-e-ajustes` + PR para a `main`
+> (o ambiente do Claude não tem credencial do GitHub) e, depois do merge, o deploy pela §11 do
+> [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). Esta release **tem migrations** (cadastros pendentes,
+> modelos de e-mail, capital das cidades, período/decisões de ajuste e arquivos da mala direta),
+> **nenhuma variável nova de `.env`** e uma **dependência nova de npm** (TipTap) — o deploy precisa
+> de `npm ci && npm run build`. A fila (`queue:work`) continua obrigatória e agora também entrega o
+> comprovante de submissão. **O envio de e-mail deixou de ser opcional**: sem SMTP configurado
+> (`MAIL_MAILER`), ninguém conclui o cadastro, porque o código de confirmação não chega.
+> A pendência anterior (`feat/algoritmo-distribuicao-e-lista-final`) segue aguardando push; (2) popular as escolas com
 > `php artisan instituicoes:importar` (lê `database/data/instituicoes/escolas_ms.csv`; 1888 escolas
 > de MS, todos os 79 municípios casam com o catálogo IBGE).
 >
