@@ -53,6 +53,35 @@ function CardArea({ resumo, minPorProjeto, minUniforme }) {
     );
 }
 
+// O mesmo resumo somando TODAS as áreas — o número que a organização olha
+// primeiro. Fundo destacado para se separar dos cards por área.
+function CardGeral({ resumo, minPorProjeto, minUniforme }) {
+    const faixas = [
+        { key: 'zero', label: 'sem avaliação' },
+        { key: 'uma', label: '1 avaliação' },
+        { key: 'duas', label: '2 avaliações' },
+        { key: 'tres_ou_mais', label: '3 ou mais' },
+    ];
+
+    return (
+        <div className="bg-primary-container text-on-primary rounded-xl fetec-card-shadow p-4 mb-3">
+            <h3 className="font-display text-sm font-semibold">Todos os projetos</h3>
+            <p className="text-xs opacity-90 mb-2">
+                {resumo.total} {resumo.total === 1 ? 'projeto' : 'projetos'} · {resumo.completos} com o mínimo
+                {minUniforme ? ` de ${minPorProjeto}` : ' da categoria'}
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {faixas.map((f) => (
+                    <div key={f.key} className="text-center">
+                        <div className="text-2xl font-bold">{resumo[f.key] ?? 0}</div>
+                        <div className="text-[11px] opacity-90 leading-tight">{f.label}</div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
 // Cabeçalho clicável: alterna asc/desc na própria coluna, começa asc numa nova.
 function Cabecalho({ coluna, ordenar, direcao, onOrdenar }) {
     const ativo = ordenar === coluna.key;
@@ -306,6 +335,7 @@ export default function AvaliacaoProjetos() {
     }
 
     const resumoAreas = meta?.resumo_areas ?? [];
+    const resumoGeral = meta?.resumo_geral ?? null;
     const minPorProjeto = meta?.min_por_projeto ?? 3;
     // Mínimo por categoria: o card fala em "mínimo da categoria" em vez de um número.
     const minUniforme = meta?.min_por_projeto_uniforme ?? true;
@@ -328,9 +358,17 @@ export default function AvaliacaoProjetos() {
             {resumoAreas.length > 0 && (
                 <section aria-label="Resumo por área do conhecimento" className="mb-4 max-w-4xl">
                     <p className="text-xs text-on-surface-variant mb-2">
-                        Projetos por número de avaliações concluídas (0, 1, 2 e 3 ou mais), por área.
-                        Os filtros da tabela valem aqui também.
+                        Projetos por número de avaliações concluídas (0, 1, 2 e 3 ou mais), no total e
+                        por área. Os filtros da tabela valem aqui também.
                     </p>
+
+                    {resumoGeral && (
+                        <CardGeral
+                            resumo={resumoGeral}
+                            minPorProjeto={minPorProjeto}
+                            minUniforme={minUniforme}
+                        />
+                    )}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                         {resumoAreas.map((r) => (
                             <CardArea

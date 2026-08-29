@@ -35,6 +35,8 @@ enum TipoRegistro: string
     case AvaliacaoLimitesCategoria = 'avaliacao_limites_categoria';
     case AvaliacaoRegraDistribuicao = 'avaliacao_regra_distribuicao';
     case AvaliacaoDesignacaoAoCadastrar = 'avaliacao_designacao_ao_cadastrar';
+    case AvaliacaoAjustesInicio = 'avaliacao_ajustes_inicio';
+    case AvaliacaoAjustesFim = 'avaliacao_ajustes_fim';
     case ProjetoCategoria = 'projeto_categoria';
     case ProjetoArea = 'projeto_area';
     case ProjetoSubarea = 'projeto_subarea';
@@ -63,6 +65,8 @@ enum TipoRegistro: string
             self::AvaliacaoLimitesCategoria => 'Limites por categoria',
             self::AvaliacaoRegraDistribuicao => 'Regra da distribuição',
             self::AvaliacaoDesignacaoAoCadastrar => 'Designação ao cadastrar',
+            self::AvaliacaoAjustesInicio => 'Início dos ajustes',
+            self::AvaliacaoAjustesFim => 'Fim dos ajustes',
             self::ProjetoCategoria => 'Categoria do projeto',
             self::ProjetoArea => 'Área do projeto',
             self::ProjetoSubarea => 'Subárea do projeto',

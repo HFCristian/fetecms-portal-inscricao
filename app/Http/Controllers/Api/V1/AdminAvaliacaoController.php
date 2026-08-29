@@ -107,6 +107,19 @@ class AdminAvaliacaoController extends Controller
         ]);
     }
 
+    /** Define o início/fim do período de ajustes do orientador. */
+    public function definirAjustes(Request $request): JsonResponse
+    {
+        $dados = $request->validate([
+            'ponta' => ['required', Rule::in(['de', 'ate'])],
+            'data' => ['nullable', 'date'],
+        ]);
+
+        $config = $this->service->definirAjustes($dados['ponta'], $dados['data'] ?? null, $request->user());
+
+        return response()->json(['data' => $config, 'meta' => ['message' => 'Período de ajustes atualizado.']]);
+    }
+
     /** Define os limites de avaliações (mínimo/máximo por avaliador e por projeto). */
     public function definirMinimos(MinimosAvaliacaoRequest $request): JsonResponse
     {
@@ -240,7 +253,8 @@ class AdminAvaliacaoController extends Controller
                 'areas' => $this->service->areasComProjeto(),
                 'categorias' => Categoria::opcoes(),
                 // Cards do topo da tela: mesmo recorte de filtros da tabela.
-                'resumo_areas' => $this->service->resumoProjetosPorArea($filtros),
+                'resumo_areas' => $resumoAreas = $this->service->resumoProjetosPorArea($filtros),
+                'resumo_geral' => $this->service->resumoProjetosGeral($resumoAreas),
                 'min_por_projeto' => $limites->minPorProjeto(),
                 // Com mínimos diferentes por categoria, o resumo não crava um número.
                 'min_por_projeto_uniforme' => $limites->minUniforme(),

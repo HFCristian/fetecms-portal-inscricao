@@ -5,6 +5,7 @@ import CampoDataCard from '../components/CampoDataCard.jsx';
 import { LimitesAvaliadorCard, LimitesProjetoCard } from '../components/LimitesAvaliacaoCards.jsx';
 import {
     getAvaliacaoConfig, definirLiberacaoAvaliacao, definirEncerramentoAvaliacao,
+    definirInicioAjustes, definirFimAjustes,
 } from '../lib/admin.js';
 
 const PILL = {
@@ -33,6 +34,17 @@ export default function ParametrizacaoAvaliacao() {
         : config.liberada ? { txt: 'Avaliação liberada', cor: PILL.aberta }
             : config.liberada_em_label ? { txt: `Libera em ${config.liberada_em_label}`, cor: PILL.futura }
                 : { txt: 'Sem data definida', cor: PILL.vazia };
+
+    // O período de ajustes só existe quando o admin marca o início: sem data, a
+    // aba do orientador fica fechada (ao contrário das outras janelas).
+    const statusAjustesInicio = !config ? null
+        : config.ajustes_abertos ? { txt: 'Ajustes abertos', cor: PILL.aberta }
+            : config.ajustes_de_label ? { txt: `Abre em ${config.ajustes_de_label}`, cor: PILL.futura }
+                : { txt: 'Aba fechada', cor: PILL.vazia };
+
+    const statusAjustesFim = !config ? null
+        : config.ajustes_ate_label ? { txt: `Ajustes até ${config.ajustes_ate_label}`, cor: PILL.futura }
+            : { txt: 'Ajustes sem data de fim', cor: PILL.vazia };
 
     const statusFim = !config ? null
         : config.encerrada ? { txt: 'Avaliação encerrada', cor: PILL.encerrada }
@@ -88,6 +100,40 @@ export default function ParametrizacaoAvaliacao() {
                             </>
                         }
                         onSalvar={definirEncerramentoAvaliacao}
+                        onSalvo={setConfig}
+                    />
+
+                    <CampoDataCard
+                        titulo="Início do período de ajustes"
+                        status={statusAjustesInicio}
+                        valor={config.ajustes_de_input}
+                        ariaLabel="Data de início do período de ajustes"
+                        salvarLabel="Salvar início dos ajustes"
+                        descricao={
+                            <>
+                                Quando a aba <strong>Ajustes</strong> do orientador abre — é nela que ele
+                                responde às sugestões de área e subárea feitas pelos avaliadores.
+                                Em branco, a aba fica <strong>fechada</strong>: ela aparece no menu, mas
+                                não abre.
+                            </>
+                        }
+                        onSalvar={definirInicioAjustes}
+                        onSalvo={setConfig}
+                    />
+
+                    <CampoDataCard
+                        titulo="Fim do período de ajustes"
+                        status={statusAjustesFim}
+                        valor={config.ajustes_ate_input}
+                        ariaLabel="Data de fim do período de ajustes"
+                        salvarLabel="Salvar fim dos ajustes"
+                        descricao={
+                            <>
+                                Depois desta data o orientador não muda mais as decisões que tomou. Deixe
+                                em branco para manter a aba aberta enquanto quiser.
+                            </>
+                        }
+                        onSalvar={definirFimAjustes}
                         onSalvo={setConfig}
                     />
 

@@ -257,6 +257,13 @@ export async function exportarRegistrosCsv(filtros) {
     baixarBlob(r.data, nome);
 }
 
+/** Início/fim do período de ajustes do orientador (aba "Ajustes"). */
+export const definirInicioAjustes = (data) =>
+    http.patch('/admin/avaliacao/ajustes', { ponta: 'de', data }).then((r) => r.data.data);
+
+export const definirFimAjustes = (data) =>
+    http.patch('/admin/avaliacao/ajustes', { ponta: 'ate', data }).then((r) => r.data.data);
+
 /**
  * Correção manual de um projeto submetido (categoria, área, subárea e vídeo).
  * A justificativa é obrigatória — ela vai para a trilha de registros.

@@ -23,6 +23,7 @@ use App\Http\Controllers\Api\V1\DocumentoController;
 use App\Http\Controllers\Api\V1\InscricoesController;
 use App\Http\Controllers\Api\V1\InstituicaoAdminController;
 use App\Http\Controllers\Api\V1\IntegranteController;
+use App\Http\Controllers\Api\V1\OrientadorAjusteController;
 use App\Http\Controllers\Api\V1\OrientadorController;
 use App\Http\Controllers\Api\V1\PerfilController;
 use App\Http\Controllers\Api\V1\ProjetoController;
@@ -141,6 +142,14 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::delete('documentos/{documento}', [DocumentoController::class, 'destroy']);
         });
 
+        // Aba "Ajustes" do orientador: as sugestões dos avaliadores nos projetos
+        // dele, respondidas durante o período de ajustes.
+        Route::middleware('role:orientador')->prefix('ajustes')->group(function () {
+            Route::get('/', [OrientadorAjusteController::class, 'index']);
+            Route::get('/projetos/{projeto}', [OrientadorAjusteController::class, 'show']);
+            Route::post('/projetos/{projeto}/decidir', [OrientadorAjusteController::class, 'decidir']);
+        });
+
         // Avaliação online — lado do avaliador (E7): ler, iniciar e concluir com nota
         Route::middleware('role:avaliador')->prefix('avaliacao')->group(function () {
             Route::get('/', [AvaliadorAvaliacaoController::class, 'index']);
@@ -178,6 +187,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::patch('/avaliacao/config', [AdminAvaliacaoController::class, 'definirLiberacao']);
             Route::patch('/avaliacao/encerramento', [AdminAvaliacaoController::class, 'definirEncerramento']);
             Route::patch('/avaliacao/minimos', [AdminAvaliacaoController::class, 'definirMinimos']);
+            Route::patch('/avaliacao/ajustes', [AdminAvaliacaoController::class, 'definirAjustes']);
             Route::get('/avaliacao/avaliadores', [AdminAvaliacaoController::class, 'avaliadores']);
             Route::get('/avaliacao/avaliadores/opcoes', [AdminAvaliacaoController::class, 'avaliadoresOpcoes']);
             Route::get('/avaliacao/avaliadores/exportar', [AdminAvaliacaoController::class, 'exportarAvaliadores']);

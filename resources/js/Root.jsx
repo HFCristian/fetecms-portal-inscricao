@@ -11,6 +11,7 @@ import Projetos from './pages/Projetos.jsx';
 import ProjetoForm from './pages/ProjetoForm.jsx';
 import Integrantes from './pages/Integrantes.jsx';
 import Resumo from './pages/Resumo.jsx';
+import Ajustes from './pages/Ajustes.jsx';
 import Perfil from './pages/Perfil.jsx';
 import AvaliadorHome from './pages/AvaliadorHome.jsx';
 import AvaliadorPerfil from './pages/AvaliadorPerfil.jsx';
@@ -89,6 +90,7 @@ export default function Root() {
                             <Route path="/projetos/:id/editar" element={<ProjetoForm />} />
                             <Route path="/projetos/:id/integrantes" element={<Integrantes />} />
                             <Route path="/projetos/:id/resumo" element={<Resumo />} />
+                            <Route path="/ajustes" element={<Ajustes />} />
                             <Route path="/perfil" element={<Perfil />} />
                         </Route>
 

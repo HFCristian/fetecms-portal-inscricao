@@ -9,12 +9,16 @@ const definirLiberacaoAvaliacao = vi.fn();
 const definirEncerramentoAvaliacao = vi.fn();
 const definirLimitesAvaliador = vi.fn();
 const definirLimitesProjeto = vi.fn();
+const definirInicioAjustes = vi.fn();
+const definirFimAjustes = vi.fn();
 vi.mock('../lib/admin.js', () => ({
     getAvaliacaoConfig: (...a) => getAvaliacaoConfig(...a),
     definirLiberacaoAvaliacao: (...a) => definirLiberacaoAvaliacao(...a),
     definirEncerramentoAvaliacao: (...a) => definirEncerramentoAvaliacao(...a),
     definirLimitesAvaliador: (...a) => definirLimitesAvaliador(...a),
     definirLimitesProjeto: (...a) => definirLimitesProjeto(...a),
+    definirInicioAjustes: (...a) => definirInicioAjustes(...a),
+    definirFimAjustes: (...a) => definirFimAjustes(...a),
 }));
 
 import ParametrizacaoAvaliacao from './ParametrizacaoAvaliacao.jsx';

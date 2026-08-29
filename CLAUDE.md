@@ -294,7 +294,27 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 57 | Registros → Projetos: seção própria para as correções do admin | ✅ sim | ❌ não (manual do Pedro) | 4 |
 | 58 | Perfil do avaliador: teto de 120h no certificado | ✅ sim | ❌ não (manual do Pedro) | 4 |
 | 59 | Lista final: cotas aninhadas categoria → área → interior, em número ou porcentagem | ✅ sim | ❌ não (manual do Pedro) | 4 |
+| 60 | Projetos submetidos: card destacado com o total geral por número de avaliações | ✅ sim | ❌ não (manual do Pedro) | 4 |
+| 61 | Aba "Ajustes" do orientador: aceitar/desfazer as sugestões dos avaliadores no período parametrizável | ✅ sim | ❌ não (manual do Pedro) | 4 |
 
+> **Sprints 60–61 (mesma branch):**
+> (a) **Sprint 60** — "Projetos submetidos" ganhou, acima dos cards por área, um **card destacado**
+> (fundo roxo) com o **total geral**: quantos projetos do recorte estão com 0, 1, 2 e 3+ avaliações
+> concluídas. Ele responde aos mesmos filtros da tabela (`meta.resumo_geral`).
+> (b) **Sprint 61** — o orientador ganhou a aba **Ajustes** (`/ajustes`, abaixo de *Meus Projetos*).
+> Terminada a avaliação online, dentro do **período de ajustes** (`edicoes.ajustes_de`/`ajustes_ate`,
+> em Parametrização → Avaliação Online), ele abre cada projeto e vê o que os avaliadores sugeriram:
+> **aceita ou desfaz a troca de área/subárea** — aceitar aplica no projeto **na hora** e entra em
+> Registros → Projetos no nome dele — e lê as **recomendações escritas** (vídeo e projeto), que são
+> só leitura. A sugestão **nunca some**: fica na tela, marcada como *em vigor*, até o fim do prazo,
+> então dá para mudar de ideia. Só uma sugestão do mesmo tipo vale por vez (aceitar outra desliga a
+> anterior) e desfazer devolve o valor anterior, guardado em `projeto_ajustes`. O avaliador é
+> **anônimo** para o orientador ("Avaliador 1", "Avaliador 2"). Sem data de início a aba fica
+> **fechada** — aparece no menu e explica o motivo ao abrir; o **orientador demo** tem o mesmo
+> *modo de teste* do avaliador demo, que ignora as datas. `AjustesOrientadorService`,
+> `GET/POST /ajustes/...`, `PATCH /admin/avaliacao/ajustes`.
+> Back **567/567**, front **249/249**, Pint limpo, build OK.
+>
 > **Sprints 58–59 (mesma branch):**
 > (a) **Sprint 58** — o certificado do avaliador tem **teto de 120 horas**
 > (`AvaliadorProfile::MAX_MINUTOS_CERTIFICADO`). A carga exibida satura ali, o card diz "máximo de

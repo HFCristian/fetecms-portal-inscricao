@@ -30,6 +30,7 @@ const META = {
     ],
     ordenar: 'titulo', direcao: 'asc',
     min_por_projeto: 3,
+    resumo_geral: { zero: 1, uma: 0, duas: 1, tres_ou_mais: 0, total: 2, completos: 0 },
     resumo_areas: [
         { area_id: 1, area: 'Ciências Agrárias', zero: 0, uma: 0, duas: 1, tres_ou_mais: 0, total: 1, completos: 0 },
         { area_id: 2, area: 'Ciências Exatas', zero: 1, uma: 0, duas: 0, tres_ou_mais: 0, total: 1, completos: 0 },
@@ -171,7 +172,8 @@ describe('AvaliacaoProjetos — tabela única', () => {
             meta: {
                 ...META,
                 total: 1,
-                resumo_areas: [{ area_id: 2, area: 'Ciências Exatas', zero: 1, uma: 0, duas: 0, tres_ou_mais: 0, total: 1, completos: 0 }],
+                resumo_geral: { zero: 1, uma: 0, duas: 1, tres_ou_mais: 0, total: 2, completos: 0 },
+    resumo_areas: [{ area_id: 2, area: 'Ciências Exatas', zero: 1, uma: 0, duas: 0, tres_ou_mais: 0, total: 1, completos: 0 }],
             },
         });
 
@@ -248,5 +250,18 @@ describe('AvaliacaoProjetos — correção manual', () => {
             link_video: 'https://youtu.be/novo',
             justificativa: 'Corrigido pela coordenação.',
         })));
+    });
+});
+
+describe('AvaliacaoProjetos — card geral', () => {
+    it('soma todas as áreas num card destacado no topo', async () => {
+        render(<AvaliacaoProjetos />);
+        expect(await screen.findByText('Todos os projetos')).toBeInTheDocument();
+        expect(screen.getByText('sem avaliação')).toBeInTheDocument();
+        expect(screen.getByText('3 ou mais')).toBeInTheDocument();
+        // Vem antes dos cards por área.
+        const geral = screen.getByText('Todos os projetos');
+        const area = screen.getAllByText('Ciências Agrárias')[0];
+        expect(geral.compareDocumentPosition(area) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 });
