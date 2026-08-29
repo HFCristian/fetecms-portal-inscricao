@@ -20,9 +20,17 @@
                     </tr>
                     <tr>
                         <td style="padding:32px;">
-                            @foreach ($paragrafos as $paragrafo)
-                                <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#1c1b1f;">{!! nl2br(e($paragrafo)) !!}</p>
-                            @endforeach
+                            @if ($html)
+                                {{-- Corpo do editor: já sanitizado na gravação e com as
+                                     imagens trocadas por CID (embutidas nesta mensagem). --}}
+                                <div style="font-size:15px;line-height:1.6;color:#1c1b1f;">
+                                    {!! $corpoHtml($message) !!}
+                                </div>
+                            @else
+                                @foreach ($paragrafos as $paragrafo)
+                                    <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#1c1b1f;">{!! nl2br(e($paragrafo)) !!}</p>
+                                @endforeach
+                            @endif
 
                             <p style="margin:28px 0 0;font-size:15px;line-height:1.6;color:#1c1b1f;">
                                 Equipe FETECMS<br>

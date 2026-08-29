@@ -212,9 +212,18 @@ export default function AdminMalaDiretaDetalhe() {
                         {verMensagem ? 'Ocultar a mensagem enviada' : 'Ver a mensagem enviada'}
                     </button>
                     {verMensagem && (
-                        <div className="mt-3 rounded-lg bg-surface-variant/50 p-4 text-sm text-on-surface whitespace-pre-line">
-                            {mala.corpo}
-                        </div>
+                        mala.formato === 'html' ? (
+                            // O corpo já foi sanitizado na gravação (App\Support\HtmlEmail):
+                            // aqui é a mesma mensagem que saiu, com as imagens no lugar.
+                            <div
+                                className="fetec-editor mt-3 rounded-lg bg-surface-variant/50 p-4 text-sm text-on-surface"
+                                dangerouslySetInnerHTML={{ __html: mala.corpo }}
+                            />
+                        ) : (
+                            <div className="mt-3 rounded-lg bg-surface-variant/50 p-4 text-sm text-on-surface whitespace-pre-line">
+                                {mala.corpo}
+                            </div>
+                        )
                     )}
                 </div>
 

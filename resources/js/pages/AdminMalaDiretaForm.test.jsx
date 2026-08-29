@@ -4,6 +4,39 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../components/AppShell.jsx', () => ({ default: ({ children }) => <div>{children}</div> }));
 vi.mock('../lib/auth.jsx', () => ({ extractErrors: (e) => ({ message: e?.message ?? 'Erro', fields: {} }) }));
 
+// O editor de verdade é ProseMirror (contenteditable), que o jsdom não digita:
+// aqui ele vira um textarea com o mesmo contrato. O comportamento do editor em
+// si é testado em EditorTexto.test.jsx.
+vi.mock('../components/EditorTexto.jsx', () => ({
+    default: ({ valor, onChange, onEditorPronto, placeholder }) => {
+        // getHTML() precisa refletir o que insertContent acabou de escrever —
+        // é assim que o editor de verdade se comporta.
+        let conteudo = valor ?? '';
+        const editorFalso = {
+            chain: () => ({
+                focus: () => ({
+                    insertContent: (texto) => ({
+                        run: () => { conteudo += texto; onChange(conteudo); },
+                    }),
+                }),
+            }),
+            getHTML: () => conteudo,
+        };
+        onEditorPronto?.(editorFalso);
+
+        return (
+            <textarea
+                aria-label="Texto da mensagem"
+                placeholder={placeholder}
+                value={valor ?? ''}
+                onChange={(e) => onChange(e.target.value)}
+            />
+        );
+    },
+}));
+
+const subirArquivoMala = vi.fn();
+const removerArquivoMala = vi.fn();
 const navigate = vi.fn();
 vi.mock('react-router-dom', () => ({
     Link: ({ children, to }) => <a href={to}>{children}</a>,
@@ -44,6 +77,8 @@ vi.mock('../lib/malaDireta.js', async (importOriginal) => {
         getPreviaMala: (...a) => getPreviaMala(...a),
         dispararMala: (...a) => dispararMala(...a),
         exportarPreviaCsv: (...a) => exportarPreviaCsv(...a),
+        subirArquivoMala: (...a) => subirArquivoMala(...a),
+        removerArquivoMala: (...a) => removerArquivoMala(...a),
     };
 });
 
@@ -54,7 +89,7 @@ function preencherMensagem() {
     fireEvent.change(screen.getByPlaceholderText('Ex.: Lembrete do prazo de submissão'), { target: { value: 'Prazo' } });
     fireEvent.change(screen.getByPlaceholderText('Por que este comunicado precisa ser enviado?'), { target: { value: 'O prazo fecha sexta.' } });
     fireEvent.change(screen.getByPlaceholderText('O que aparece na caixa de entrada'), { target: { value: 'Prazo de submissão' } });
-    fireEvent.change(screen.getByPlaceholderText(/Escreva aqui o comunicado/), { target: { value: 'Olá, {{nome}}!' } });
+    fireEvent.change(screen.getByLabelText('Texto da mensagem'), { target: { value: 'Olá, {{nome}}!' } });
 }
 
 describe('AdminMalaDiretaForm', () => {
@@ -162,33 +197,16 @@ describe('AdminMalaDiretaForm', () => {
         expect(navigate).not.toHaveBeenCalled();
     });
 
-    it('insere a variável na posição do cursor do texto', async () => {
+    it('insere a variável no ponto do cursor do editor', async () => {
         render(<AdminMalaDiretaForm />);
         await waitFor(() => expect(screen.getByText('{{nome}}')).toBeInTheDocument());
 
-        const corpo = screen.getByPlaceholderText(/Escreva aqui o comunicado/);
-        fireEvent.change(corpo, { target: { value: 'Olá, ! Tudo bem?' } });
-        corpo.setSelectionRange(5, 5); // logo antes do "!"
+        const corpo = screen.getByLabelText('Texto da mensagem');
+        fireEvent.change(corpo, { target: { value: 'Olá, ' } });
 
         fireEvent.click(screen.getByText('{{nome}}'));
 
-        await waitFor(() => expect(corpo.value).toBe('Olá, {{nome}}! Tudo bem?'));
-        // O cursor fica depois da variável, pronto para continuar digitando.
-        expect(corpo.selectionStart).toBe(13);
-        expect(document.activeElement).toBe(corpo);
-    });
-
-    it('substitui o trecho selecionado ao inserir a variável', async () => {
-        render(<AdminMalaDiretaForm />);
-        await waitFor(() => expect(screen.getByText('{{email}}')).toBeInTheDocument());
-
-        const corpo = screen.getByPlaceholderText(/Escreva aqui o comunicado/);
-        fireEvent.change(corpo, { target: { value: 'Escreva para XXX hoje' } });
-        corpo.setSelectionRange(13, 16); // seleciona "XXX"
-
-        fireEvent.click(screen.getByText('{{email}}'));
-
-        await waitFor(() => expect(corpo.value).toBe('Escreva para {{email}} hoje'));
+        await waitFor(() => expect(corpo.value).toBe('Olá, {{nome}}'));
     });
 
     it('lista os destinatários da prévia sob demanda', async () => {
@@ -201,5 +219,61 @@ describe('AdminMalaDiretaForm', () => {
 
         expect(screen.getByText('ana@escola.test')).toBeInTheDocument();
         expect(screen.getByText('Ana Souza')).toBeInTheDocument();
+    });
+});
+
+describe('AdminMalaDiretaForm — anexos', () => {
+    beforeEach(() => {
+        subirArquivoMala.mockReset();
+        removerArquivoMala.mockReset();
+        dispararMala.mockClear();
+        navigate.mockClear();
+        getPreviaMala.mockResolvedValue(previaPadrao);
+        dispararMala.mockResolvedValue({ id: 7 });
+        removerArquivoMala.mockResolvedValue({});
+    });
+
+    it('sobe o anexo, lista o arquivo e manda o id no disparo', async () => {
+        subirArquivoMala.mockResolvedValue({ id: 42, tipo: 'anexo', nome: 'edital.pdf', tamanho_bytes: 2_500_000 });
+
+        render(<AdminMalaDiretaForm />);
+        await waitFor(() => expect(screen.getByText('Todos os usuários')).toBeInTheDocument());
+        fireEvent.click(screen.getByText('Todos os usuários'));
+        await waitFor(() => expect(screen.getByText('e-mail será enviado')).toBeInTheDocument());
+        preencherMensagem();
+
+        const arquivo = new File(['x'], 'edital.pdf', { type: 'application/pdf' });
+        fireEvent.change(screen.getByLabelText('Escolher anexo'), { target: { files: [arquivo] } });
+
+        await waitFor(() => expect(subirArquivoMala).toHaveBeenCalledWith(arquivo, 'anexo'));
+        expect(await screen.findByText('edital.pdf')).toBeInTheDocument();
+        expect(screen.getByText('2,4 MB')).toBeInTheDocument();
+
+        fireEvent.click(screen.getByText('Enviar mensagem'));
+        await waitFor(() => expect(screen.getByText('Confirmar o envio')).toBeInTheDocument());
+        fireEvent.click(screen.getByText('Enviar agora'));
+
+        await waitFor(() => expect(dispararMala).toHaveBeenCalledWith(expect.objectContaining({
+            formato: 'html',
+            anexos: [42],
+            imagens: [],
+        })));
+    });
+
+    it('remove o anexo da lista', async () => {
+        subirArquivoMala.mockResolvedValue({ id: 42, tipo: 'anexo', nome: 'edital.pdf', tamanho_bytes: 1000 });
+
+        render(<AdminMalaDiretaForm />);
+        await waitFor(() => expect(screen.getByText('Todos os usuários')).toBeInTheDocument());
+
+        fireEvent.change(screen.getByLabelText('Escolher anexo'), {
+            target: { files: [new File(['x'], 'edital.pdf', { type: 'application/pdf' })] },
+        });
+        expect(await screen.findByText('edital.pdf')).toBeInTheDocument();
+
+        fireEvent.click(screen.getByLabelText('Remover edital.pdf'));
+
+        await waitFor(() => expect(removerArquivoMala).toHaveBeenCalledWith(42));
+        expect(screen.queryByText('edital.pdf')).not.toBeInTheDocument();
     });
 });

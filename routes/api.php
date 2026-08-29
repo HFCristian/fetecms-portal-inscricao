@@ -244,6 +244,13 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::get('/mala-direta/opcoes', [AdminMalaDiretaController::class, 'opcoes']);
             Route::post('/mala-direta/previa', [AdminMalaDiretaController::class, 'previa']);
             Route::post('/mala-direta/previa/exportar', [AdminMalaDiretaController::class, 'exportarPrevia']);
+
+            // Imagens do corpo e anexos da mensagem. Sobem antes do disparo (a
+            // mala ainda não existe) e ficam num disco privado.
+            Route::post('/mala-direta/arquivos', [AdminMalaDiretaController::class, 'subirArquivo'])
+                ->middleware('throttle:60,1');
+            Route::get('/mala-direta/arquivos/{arquivo}', [AdminMalaDiretaController::class, 'baixarArquivo']);
+            Route::delete('/mala-direta/arquivos/{arquivo}', [AdminMalaDiretaController::class, 'removerArquivo']);
             // Disparo é caro e irreversível: limita a 10 malas por minuto.
             Route::post('/mala-direta', [AdminMalaDiretaController::class, 'store'])
                 ->middleware('throttle:10,1');

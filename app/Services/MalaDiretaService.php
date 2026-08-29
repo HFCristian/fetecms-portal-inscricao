@@ -9,8 +9,10 @@ use App\Enums\StatusMala;
 use App\Http\Requests\Concerns\NormalizaEmail;
 use App\Jobs\EnviarMalaDireta;
 use App\Models\MalaDireta;
+use App\Models\MalaDiretaArquivo;
 use App\Models\MalaDiretaDestinatario;
 use App\Models\User;
+use App\Support\HtmlEmail;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -54,6 +56,8 @@ class MalaDiretaService
         'Nome', 'E-mail', 'Papel', 'Origem',
         'Projetos cadastrados', 'Qtd. de projetos', 'Situação', 'Detalhe',
     ];
+
+    public function __construct(private readonly MalaDiretaArquivoService $arquivos) {}
 
     /**
      * Monta a lista final de destinatários, deduplicada por e-mail: quem cai em
@@ -120,13 +124,19 @@ class MalaDiretaService
         $personalizados = $dados['destinatarios'] ?? [];
         $lista = $this->resolver($publicos, $personalizados);
 
-        $mala = DB::transaction(function () use ($dados, $publicos, $personalizados, $lista, $autor) {
+        // O editor manda HTML; o que chega é limpo antes de virar e-mail.
+        $formato = ($dados['formato'] ?? 'texto') === 'html' ? 'html' : 'texto';
+
+        $mala = DB::transaction(function () use ($dados, $publicos, $personalizados, $lista, $autor, $formato) {
             $mala = MalaDireta::create([
                 'nome' => $dados['nome'],
                 'justificativa' => $dados['justificativa'],
                 'solicitante' => $dados['solicitante'] ?? null,
                 'assunto' => $dados['assunto'],
-                'corpo' => $dados['corpo'],
+                'corpo' => $formato === 'html'
+                    ? HtmlEmail::sanitizar($dados['corpo'])
+                    : $dados['corpo'],
+                'formato' => $formato,
                 'publicos' => $publicos,
                 'emails_personalizados' => count($personalizados),
                 'status' => StatusMala::Enviando,
@@ -153,6 +163,11 @@ class MalaDiretaService
                     'updated_at' => $agora,
                 ])->all());
             }
+
+            // As imagens do corpo e os anexos deixam de ser soltos e passam a
+            // ser desta mala — é o que o job usa para embutir/anexar.
+            $this->arquivos->vincular($mala, $dados['imagens'] ?? [], MalaDiretaArquivo::TIPO_IMAGEM);
+            $this->arquivos->vincular($mala, $dados['anexos'] ?? [], MalaDiretaArquivo::TIPO_ANEXO);
 
             return $mala;
         });

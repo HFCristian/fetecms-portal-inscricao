@@ -75,3 +75,41 @@
     vertical-align: middle;
     user-select: none;
 }
+
+/* Corpo do editor de texto rico da mala direta (TipTap). O conteúdo aqui vira
+   e-mail, então a formatação da tela imita o que o destinatário vai ver. */
+.fetec-editor p {
+    margin: 0 0 0.75rem;
+    line-height: 1.6;
+}
+
+.fetec-editor p:last-child {
+    margin-bottom: 0;
+}
+
+.fetec-editor ul,
+.fetec-editor ol {
+    margin: 0 0 0.75rem 1.25rem;
+    list-style: revert;
+}
+
+.fetec-editor img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 0.5rem;
+}
+
+/* Imagem selecionada (arrastar para reposicionar). */
+.fetec-editor img.ProseMirror-selectednode {
+    outline: 2px solid var(--color-primary-container, #43157a);
+}
+
+/* Placeholder do primeiro parágrafo vazio. */
+.fetec-editor p.is-editor-empty:first-child::before,
+.fetec-editor:empty::before {
+    content: attr(data-placeholder);
+    color: var(--color-on-surface-variant, #49454f);
+    float: left;
+    height: 0;
+    pointer-events: none;
+}

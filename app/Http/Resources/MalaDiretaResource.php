@@ -33,6 +33,9 @@ class MalaDiretaResource extends JsonResource
             'solicitante' => $this->solicitante,
             'assunto' => $this->assunto,
             'corpo' => $this->corpo,
+            // 'html' quando o texto veio do editor: a tela precisa saber se
+            // renderiza como HTML ou como texto puro.
+            'formato' => $this->formato,
             'status' => $this->status->value,
             'status_label' => $this->status->label(),
             'publicos' => $this->publicos ?? [],

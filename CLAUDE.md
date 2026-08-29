@@ -296,7 +296,25 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 59 | Lista final: cotas aninhadas categoria → área → interior, em número ou porcentagem | ✅ sim | ❌ não (manual do Pedro) | 4 |
 | 60 | Projetos submetidos: card destacado com o total geral por número de avaliações | ✅ sim | ❌ não (manual do Pedro) | 4 |
 | 61 | Aba "Ajustes" do orientador: aceitar/desfazer as sugestões dos avaliadores no período parametrizável | ✅ sim | ❌ não (manual do Pedro) | 4 |
+| 62 | Mala direta: editor de texto rico (negrito, itálico, sublinhado, traçado, listas) + imagens no corpo | ✅ sim | ❌ não (manual do Pedro) | 4 |
+| 63 | Mala direta: anexos no e-mail (até 10, 20 MB cada) | ✅ sim | ❌ não (manual do Pedro) | 4 |
 
+> **Sprints 62–63 (mesma branch):** a mala direta ganhou editor e arquivos.
+> (a) **Sprint 62** — o campo de texto virou um **editor rico** (`EditorTexto.jsx`, TipTap —
+> dependência nova) com **negrito, itálico, sublinhado, traçado**, listas e **imagens no corpo**
+> (até **5**, **10 MB** cada), arrastáveis para reposicionar. O corpo passa a ser **HTML**
+> (`malas_diretas.formato`), **sanitizado na gravação** por `App\Support\HtmlEmail` — só passa
+> uma lista curta de tags e atributos, e `script`/`style`/`on*`/`javascript:` somem. As variáveis
+> (`{{nome}}`…) continuam sendo inseridas na posição do cursor, agora pelo editor. No e-mail, cada
+> imagem vai **embutida (CID)**, nunca por link para o portal — imagem remota costuma ser bloqueada
+> na caixa de entrada —, e a versão text/plain é gerada do HTML.
+> (b) **Sprint 63** — **anexos**: até **10** arquivos de **20 MB** cada (imagens, PDF, documentos,
+> planilhas, .zip), listados no formulário com tamanho e remoção. Os dois tipos moram em
+> `mala_direta_arquivos`: sobem **antes** de a mala existir, ficam soltos até o disparo (que os
+> vincula) e o que nunca for usado é apagado na faxina do upload seguinte. O disco é o **privado** —
+> a prévia no painel é servida por rota autenticada (`GET /admin/mala-direta/arquivos/{id}`).
+> Back **575/575**, front **254/254**, Pint limpo, build OK.
+>
 > **Sprints 60–61 (mesma branch):**
 > (a) **Sprint 60** — "Projetos submetidos" ganhou, acima dos cards por área, um **card destacado**
 > (fundo roxo) com o **total geral**: quantos projetos do recorte estão com 0, 1, 2 e 3+ avaliações
