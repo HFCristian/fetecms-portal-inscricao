@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\V1\CatalogoController;
 use App\Http\Controllers\Api\V1\ChatAdminController;
 use App\Http\Controllers\Api\V1\ChatController;
 use App\Http\Controllers\Api\V1\ComiteTransporteController;
+use App\Http\Controllers\Api\V1\ContaTemporariaController;
 use App\Http\Controllers\Api\V1\CoorientadorController;
 use App\Http\Controllers\Api\V1\CredenciamentoController;
 use App\Http\Controllers\Api\V1\DocumentoController;
@@ -252,6 +253,12 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
 
             // --- Aba "Credenciamento": o balcão do evento ---
             Route::middleware('aba:credenciamento')->prefix('credenciamento')->group(function () {
+                // Contas temporárias: quem atende o balcão sem ser da organização.
+                Route::get('/contas', [ContaTemporariaController::class, 'index']);
+                Route::post('/contas', [ContaTemporariaController::class, 'store']);
+                Route::patch('/contas/{conta}/renovar', [ContaTemporariaController::class, 'renovar']);
+                Route::patch('/contas/{conta}/desativar', [ContaTemporariaController::class, 'desativar']);
+
                 Route::get('/config', [CredenciamentoController::class, 'config']);
                 Route::get('/finalistas', [CredenciamentoController::class, 'index']);
                 Route::get('/projetos/{projeto}', [CredenciamentoController::class, 'show']);

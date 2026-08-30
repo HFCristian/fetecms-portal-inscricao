@@ -83,6 +83,23 @@ class User extends Authenticatable
         return $this->escopos()->wherePivot('edicao_id', $edicao->id)->get();
     }
 
+    /** A conta de acesso temporário ao balcão, quando esta é uma. */
+    public function contaTemporaria(): HasOne
+    {
+        return $this->hasOne(ContaTemporaria::class);
+    }
+
+    /**
+     * Esta é uma conta temporária de credenciamento?
+     *
+     * Vale como trava de acesso: ela abre **só** a aba Credenciamento, por cima
+     * de qualquer escopo — inclusive do "acesso total" de quem não tem nenhum.
+     */
+    public function ehContaTemporaria(): bool
+    {
+        return $this->isAdmin() && $this->contaTemporaria()->exists();
+    }
+
     /**
      * Este admin abre esta aba do menu? Quem não é admin nunca abre.
      *
@@ -93,6 +110,10 @@ class User extends Authenticatable
     {
         if (! $this->isAdmin()) {
             return false;
+        }
+
+        if ($this->ehContaTemporaria()) {
+            return $aba === AbaAdmin::Credenciamento;
         }
 
         $escopos = $this->escoposAdmin();
@@ -110,6 +131,12 @@ class User extends Authenticatable
     {
         if (! $this->isAdmin()) {
             return [];
+        }
+
+        // Conta temporária é balcão e nada mais: não depende de alguém lembrar
+        // de atribuir o escopo certo.
+        if ($this->ehContaTemporaria()) {
+            return [AbaAdmin::Credenciamento->value];
         }
 
         $escopos = $this->escoposAdmin();

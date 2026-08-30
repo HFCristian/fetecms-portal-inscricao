@@ -46,6 +46,16 @@ class AuthService
         /** @var User $user */
         $user = Auth::user();
 
+        // Conta temporária vencida vira conta inativa aqui mesmo: o prazo não
+        // pode depender de alguém abrir a tela de contas para valer.
+        if (app(ContaTemporariaService::class)->venceuParaLogin($user)) {
+            Auth::logout();
+
+            throw ValidationException::withMessages([
+                'email' => 'O prazo de acesso desta conta temporária venceu. Peça a renovação à organização.',
+            ]);
+        }
+
         if (! $user->is_active) {
             Auth::logout();
 

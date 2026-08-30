@@ -42,6 +42,7 @@ import ComiteTransporte from './pages/ComiteTransporte.jsx';
 import ComiteMapa from './pages/ComiteMapa.jsx';
 import CredenciamentoLista from './pages/CredenciamentoLista.jsx';
 import CredenciamentoFicha from './pages/CredenciamentoFicha.jsx';
+import CredenciamentoContas from './pages/CredenciamentoContas.jsx';
 import ParametrizacaoCredenciamento from './pages/ParametrizacaoCredenciamento.jsx';
 import AdminAvaliacaoOnline from './pages/AdminAvaliacaoOnline.jsx';
 import AvaliacaoAvaliadores from './pages/AvaliacaoAvaliadores.jsx';
@@ -164,6 +165,7 @@ export default function Root() {
                             <Route path="/admin/credenciamento/credenciar" element={<CredenciamentoLista situacao="pendentes" />} />
                             <Route path="/admin/credenciamento/credenciados" element={<CredenciamentoLista situacao="credenciados" />} />
                             <Route path="/admin/credenciamento/projetos/:id" element={<CredenciamentoFicha />} />
+                            <Route path="/admin/credenciamento/contas" element={<CredenciamentoContas />} />
                             {/* Aba Comitê especial: transporte e mapa em tempo real. */}
                             <Route path="/admin/comite" element={<ComiteHome />} />
                             <Route path="/admin/comite/transporte" element={<ComiteTransporte />} />

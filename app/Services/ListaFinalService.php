@@ -380,7 +380,8 @@ class ListaFinalService
      */
     private function avaliados(): Collection
     {
-        return Projeto::query()
+        // Projeto de orientador demo não disputa vaga na feira.
+        return Projeto::semDemo()
             ->whereHas('avaliacoes', fn ($q) => $q->where('status', StatusAvaliacao::Concluida->value))
             ->withAvg(
                 ['avaliacoes as media_nota' => fn ($q) => $q->where('status', StatusAvaliacao::Concluida->value)],

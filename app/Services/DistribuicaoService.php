@@ -289,7 +289,9 @@ class DistribuicaoService
 
     private function carregarProjetos(array $projetoInfo): array
     {
-        return Projeto::query()
+        // `semDemo`: o projeto-exemplo de um orientador demo não é sorteado
+        // para avaliador de verdade — quem o avalia é designado à mão.
+        return Projeto::semDemo()
             ->where('status', ProjetoStatus::Submetido->value)
             ->select(['id', 'titulo', 'area_id', 'subarea_id', 'categoria'])
             ->withCount(['avaliacoes as concluidas_count' => fn ($q) => $q->where('status', StatusAvaliacao::Concluida->value)])

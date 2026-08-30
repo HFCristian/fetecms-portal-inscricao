@@ -827,7 +827,10 @@ class AdminAvaliacaoService
      */
     public function rankingProjetos(array $filtros = []): array
     {
-        $projetos = Projeto::query()
+        // O ranking decide quem vai para a lista final, então o projeto-exemplo
+        // de um orientador demo fica de fora. As listagens operacionais desta
+        // mesma aba continuam mostrando tudo — lá o admin quer ver o que existe.
+        $projetos = Projeto::semDemo()
             ->whereHas('avaliacoes', fn ($q) => $q->where('status', StatusAvaliacao::Concluida->value))
             ->when($filtros['area_id'] ?? null, fn ($q, $areaId) => $q->where('area_id', $areaId))
             // Categorias não competem entre si: FETEC Jr, FETECMS e FETECMS FUNDECT

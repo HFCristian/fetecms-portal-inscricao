@@ -4,6 +4,7 @@ import AppShell from '../components/AppShell.jsx';
 import { Alert, Toggle } from '../components/ui.jsx';
 import { getFinalistas } from '../lib/credenciamento.js';
 import { useModoTeste } from '../lib/modoTeste.js';
+import { useAuth } from '../lib/auth.jsx';
 
 function CardSecao({ to, icon, titulo, descricao, numero, rotulo }) {
     return (
@@ -17,9 +18,12 @@ function CardSecao({ to, icon, titulo, descricao, numero, rotulo }) {
             <div className="min-w-0">
                 <h2 className="font-display text-lg font-semibold text-on-surface group-hover:text-primary transition-colors">{titulo}</h2>
                 <p className="text-sm text-on-surface-variant mt-1">{descricao}</p>
-                <p className="text-2xl font-bold text-primary-container mt-2">
-                    {numero} <span className="text-sm font-normal text-on-surface-variant">{rotulo}</span>
-                </p>
+                {/* Nem todo card tem contagem: o de contas temporárias é só atalho. */}
+                {numero !== undefined && (
+                    <p className="text-2xl font-bold text-primary-container mt-2">
+                        {numero} <span className="text-sm font-normal text-on-surface-variant">{rotulo}</span>
+                    </p>
+                )}
             </div>
             <span className="material-symbols-outlined text-on-surface-variant ml-auto self-center group-hover:translate-x-0.5 transition-transform">chevron_right</span>
         </Link>
@@ -36,6 +40,8 @@ function CardSecao({ to, icon, titulo, descricao, numero, rotulo }) {
 export default function CredenciamentoHome() {
     const [teste, setTeste] = useModoTeste();
     const [dados, setDados] = useState(null);
+
+    const { user } = useAuth();
 
     useEffect(() => {
         getFinalistas({}, teste).then(setDados).catch(() => setDados(null));
@@ -103,6 +109,18 @@ export default function CredenciamentoHome() {
                     numero={resumo.credenciados}
                     rotulo={resumo.credenciados === 1 ? 'credenciado' : 'credenciados'}
                 />
+                {/* Contas de prazo curto para quem atende o balcão sem ser da
+                    organização. Não depende da janela do evento — as contas são
+                    criadas antes dele. Quem É uma conta temporária não as gere:
+                    o backend recusa, então o card nem aparece. */}
+                {!user?.conta_temporaria && (
+                    <CardSecao
+                        to="/admin/credenciamento/contas"
+                        icon="badge"
+                        titulo="Contas temporárias"
+                        descricao="Acesso de prazo curto para quem atende o balcão, restrito a esta aba."
+                    />
+                )}
             </div>
         </AppShell>
     );

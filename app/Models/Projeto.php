@@ -6,7 +6,9 @@ use App\Enums\Categoria;
 use App\Enums\ProjetoStatus;
 use App\Models\Scopes\EdicaoScope;
 use Database\Factories\ProjetoFactory;
+use Illuminate\Database\Eloquent\Attributes\Scope;
 use Illuminate\Database\Eloquent\Attributes\ScopedBy;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -57,6 +59,21 @@ class Projeto extends Model
             'tempo_pesquisa_meses' => 'integer',
             'submitted_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Tira da consulta os projetos de **orientadores demo**.
+     *
+     * As contas demo existem para ensaiar o portal (mostrar a aba de ajustes
+     * antes do prazo, treinar o balcão), e os projetos delas são de mentira. Eles
+     * ficam de fora de tudo que vira número ou decisão real — painel, ranking,
+     * lista final e distribuição automática —, mas continuam visíveis nas
+     * listagens administrativas e para o próprio dono.
+     */
+    #[Scope]
+    protected function semDemo(Builder $query): void
+    {
+        $query->whereHas('user', fn (Builder $q) => $q->where('is_demo', false));
     }
 
     public function user(): BelongsTo

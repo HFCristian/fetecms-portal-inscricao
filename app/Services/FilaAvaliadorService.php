@@ -154,7 +154,9 @@ class FilaAvaliadorService
         $jaTem = Avaliacao::where('avaliador_id', $avaliador->id)->pluck('projeto_id')->all();
         $regras = Edicao::regrasDistribuicao();
 
-        $candidatos = Projeto::query()
+        // `semDemo` pelo mesmo motivo da distribuição em massa: projeto de
+        // orientador demo só chega a um avaliador por designação manual.
+        $candidatos = Projeto::semDemo()
             ->where('status', ProjetoStatus::Submetido->value)
             ->whereNotIn('id', [...$jaTem, ...$ignorar])
             ->select(['id', 'area_id', 'subarea_id', 'categoria'])
