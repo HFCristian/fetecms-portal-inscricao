@@ -24,7 +24,7 @@ return new class extends Migration
 
             // Dados acadêmicos (cadastro5)
             $table->foreignId('instituicao_id')->nullable()->constrained('instituicoes')->nullOnDelete();
-            $table->string('modalidade')->nullable();   // fundamental | medio | tecnico
+            $table->string('modalidade')->nullable();   // fundamental_i | fundamental_ii | medio | tecnico_integrado
             $table->string('ano_escolar')->nullable();
             $table->string('periodo')->nullable();
             $table->string('graduacao_pretendida')->nullable();

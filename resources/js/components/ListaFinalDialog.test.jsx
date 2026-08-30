@@ -21,14 +21,17 @@ const OPCOES = {
     total_disponivel: 40,
     interior_disponivel: 18,
     categorias: [
-        { value: 'fetecms', label: 'FETECMS', sigla: 'FET', disponiveis: 20, areas: AREAS },
-        { value: 'fetecms_fundect', label: 'FETECMS FUNDECT', sigla: 'PIC', disponiveis: 20, areas: AREAS },
+        // Só a FUNDECT reserva vaga para o interior (Sprint 68).
+        { value: 'fetecms', label: 'FETECMS', sigla: 'FET', disponiveis: 20, areas: AREAS, permite_interior: false },
+        { value: 'fetecms_fundect', label: 'FETECMS FUNDECT', sigla: 'PIC', disponiveis: 20, areas: AREAS, permite_interior: true },
     ],
 };
 
 describe('ListaFinalDialog — cotas em três passos', () => {
     beforeEach(() => {
         getOpcoesListaFinal.mockResolvedValue(OPCOES);
+        // Sem limpar, `mock.calls[0]` seria a chamada do teste anterior.
+        baixarListaFinal.mockClear();
         baixarListaFinal.mockResolvedValue();
     });
 
@@ -56,8 +59,9 @@ describe('ListaFinalDialog — cotas em três passos', () => {
         fireEvent.change(camposAgrarias[1], { target: { value: '20' } });
         fireEvent.click(screen.getByText('Continuar'));
 
-        // Passo 3: 70% dessas 20 vagas para o interior.
+        // Passo 3: 70% dessas 20 vagas para o interior. Só a FUNDECT aparece aqui.
         const interior = await screen.findAllByLabelText('Quantidade para Ciências Agrárias');
+        expect(interior).toHaveLength(1);
         fireEvent.change(interior[0], { target: { value: '70' } });
         fireEvent.change(screen.getAllByLabelText('Tipo da quantidade para Ciências Agrárias')[0], {
             target: { value: 'percentual' },
@@ -81,5 +85,42 @@ describe('ListaFinalDialog — cotas em três passos', () => {
 
         fireEvent.click(screen.getByText('3. Interior'));
         expect(await screen.findByText(/Nenhuma área tem cota definida/)).toBeInTheDocument();
+    });
+
+    it('no passo do interior só entram as categorias que reservam vaga', async () => {
+        render(<ListaFinalDialog open onClose={vi.fn()} />);
+        await screen.findByText('Quantos projetos em cada categoria?');
+
+        // Cota em ambas as categorias e nas duas áreas.
+        fireEvent.click(screen.getByText('Continuar'));
+        for (const campo of await screen.findAllByLabelText('Quantidade para Ciências Agrárias')) {
+            fireEvent.change(campo, { target: { value: '5' } });
+        }
+        fireEvent.click(screen.getByText('Continuar'));
+
+        // Só a FUNDECT tem seção no passo 3.
+        expect(await screen.findByText('FETECMS FUNDECT')).toBeInTheDocument();
+        expect(screen.queryByText('FETECMS')).not.toBeInTheDocument();
+        expect(screen.getAllByLabelText('Quantidade para Ciências Agrárias')).toHaveLength(1);
+    });
+
+    it('marca a lista como oficial e manda o nome escolhido', async () => {
+        render(<ListaFinalDialog open onClose={vi.fn()} />);
+        await screen.findByText('Quantos projetos em cada categoria?');
+
+        fireEvent.click(screen.getByText('3. Interior'));
+
+        const oficial = await screen.findByRole('checkbox', { name: /Lista Final Oficial/ });
+        expect(screen.queryByLabelText('Nome da lista')).not.toBeInTheDocument();
+
+        fireEvent.click(oficial);
+        fireEvent.change(screen.getByLabelText('Nome da lista'), { target: { value: 'Oficial 2026' } });
+
+        fireEvent.click(screen.getByText('Gerar e oficializar'));
+
+        await waitFor(() => expect(baixarListaFinal).toHaveBeenCalled());
+        const payload = baixarListaFinal.mock.calls[0][0];
+        expect(payload.oficial).toBe(true);
+        expect(payload.nome).toBe('Oficial 2026');
     });
 });

@@ -13,6 +13,7 @@ use App\Services\AdminDashboardService;
 use App\Services\AdminLocalidadesService;
 use App\Services\AdminProjetosService;
 use App\Services\AdminService;
+use App\Services\EscopoAdminService;
 use Illuminate\Http\JsonResponse;
 
 class AdminController extends Controller
@@ -61,10 +62,16 @@ class AdminController extends Controller
     }
 
     /** Lista todos os administradores (ativos e inativos). */
-    public function listarAdmins(): JsonResponse
+    public function listarAdmins(EscopoAdminService $escopos): JsonResponse
     {
         return response()->json([
             'data' => UserResource::collection($this->admins->listar())->resolve(),
+            // Escopos disponíveis e o de cada admin NA EDIÇÃO EM CURSO: a tela
+            // monta o seletor daqui, sem precisar da aba de Parametrização.
+            'meta' => [
+                'escopos' => $escopos->listar()['escopos'],
+                'escopo_por_admin' => $escopos->escoposDosAdmins(),
+            ],
         ]);
     }
 

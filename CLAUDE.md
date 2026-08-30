@@ -103,14 +103,37 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     cai para a **mesma área**. (Algoritmo ainda a refinar.)
   - Cada projeto fica visível para **no máximo 5 avaliadores**.
   - O **admin pode designar manualmente** projetos a avaliadores, podendo **exceder o limite de 3**.
-- **Admin**: criado **somente por outro admin** (cadastro simples: nome, e-mail, senha). Dashboard
+- **Admin**: criado **somente por outro admin** (cadastro simples: nome, e-mail, senha). O que ele
+  enxerga do menu depende do **escopo** que recebeu **naquela edição** (Parametrização → Escopos de
+  admin): um escopo é um nome e a lista de abas que ele abre (`App\Enums\AbaAdmin`). **Sem escopo
+  atribuído na edição em curso, o admin tem acesso total** — é o comportamento histórico e o que
+  impede uma edição nova de trancar a equipe para fora. O bloqueio é de verdade: o menu esconde e o
+  middleware `aba:` responde 403. Uma trava impede deixar a edição sem nenhum admin ativo capaz de
+  abrir "Administradores". Dashboard
   com as métricas: projetos totais / submetidos / em rascunho; **projetos por categoria**;
   orientadores; alunos; coorientadores; **camisetas por tamanho** (um card para orientadores, um
-  para alunos e um para coorientadores, PP…XG + N.I., via `App\Support\Camisetas`); escolas, cidades
+  para alunos e um para coorientadores, PP…XG + N.I., via `App\Support\Camisetas`); **alunos por
+  classe escolar** (um card para Ensino Fundamental I, um para Fundamental II e um para Ensino
+  Médio, cada um quebrado por série + N.I., via `App\Support\ClassesEscolares` — o **técnico
+  integrado conta no card do médio**, que por isso vai até o 4º ano); escolas, cidades
   e estados **com projeto cadastrado**.
   Fora dos dois primeiros cards (que existem para mostrar o rascunho), **todo card conta só
   projetos submetidos** — categoria, pessoas e localidades. Orientador entra **uma vez**, tenha
   um ou vários submetidos (`AdminDashboardService`).
+  - **Parametrização → Edições** (`/admin/parametrizacao/edicoes`): as edições da feira. O portal
+    roda **várias ao mesmo tempo** — cada projeto pertence a uma (`projetos.edicao_id`) e o
+    `EdicaoScope` faz toda consulta enxergar só a que está em escopo, então **trocar de edição
+    troca de uma vez** os projetos, os prazos, os limites e as regras. Uma edição é a **padrão**
+    (`edicoes.padrao`): vale para quem não escolheu nenhuma, para o cadastro público, para os
+    e-mails e para os jobs da fila. Criar a edição do ano seguinte pode **herdar a parametrização**
+    da atual (limites, regras de distribuição, designação ao cadastrar — as datas não). Edição
+    **padrão ou com projeto não é excluída**. **Qualquer usuário** troca a sua edição pelo seletor
+    no topo do menu (`users.edicao_id`; `GET /edicoes`, `PUT /edicoes/atual`) — nulo significa
+    "seguir a padrão". `EdicaoService`.
+  - **Parametrização → Escopos de admin** (`/admin/parametrizacao/escopos`): o CRUD dos perfis de
+    acesso — nome + abas do menu. A atribuição (um escopo por admin **em cada edição**) fica na aba
+    **Administradores**, no seletor de cada linha. `EscopoAdminService`,
+    `PUT /admin/admins/{admin}/escopo`.
   - **Parametrização → Inscrições** (`/admin/parametrizacao/inscricoes`): a **janela de
     inscrição** da edição — **abertura** (`edicoes.submissoes_de`) e **prazo de submissão**
     (`edicoes.submissoes_ate`), ambos hora de parede de Campo Grande. Fora da janela a área do
@@ -148,6 +171,13 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     sorteia de novo — o que está **em avaliação**, o concluído e o designado à mão não se mexem),
     mais o toggle **designar ao cadastrar** (`edicoes.distribuicao_ao_cadastrar`): ligado, o
     avaliador que acaba de se cadastrar já sai com a fila cheia.
+  - **Avaliação Online → Listas finais oficiais** (`/admin/avaliacao/listas-finais`): as listas
+    geradas com a caixa **Lista Final Oficial** marcada ficam registradas. A **vigente** da edição
+    é a que define os **finalistas** da feira (projetos + alunos + orientador + coorientador);
+    publicar uma nova encerra a anterior. Dentro de cada lista o admin **inclui e retira projetos**
+    com **justificativa obrigatória** — cada alteração **sobe a versão**, gera um TXT novo (o
+    arquivo sai sempre da composição atual, com a numeração refeita) e entra em **Registros → Lista
+    final**. `listas_finais` + `lista_final_projetos`, `ListaFinalService`.
   - **Avaliação Online → Ranking dos projetos → Gerar lista final**: exporta em **TXT** o recorte
     que vai para a programação da feira. O admin passa por **três passos** — quantos projetos por
     **categoria**, quantos por **área dentro de cada categoria** e quantas dessas vagas ficam
@@ -155,7 +185,9 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     quantidade em **número fixo ou porcentagem** do recorte acima dela (`App\Support\Cota`): "100 da
     FUNDECT, 20 de agrárias, 70% desses para o interior". Campo em branco não limita; 0 deixa o
     recorte de fora. A reserva do interior é **piso**, não teto: a vaga que ele não preencher volta
-    para os demais numa segunda passada, e ela só vale onde a área tem cota. Entram os **mais bem
+    para os demais numa segunda passada, e ela só vale onde a área tem cota. **A cota do interior
+    existe apenas na FETECMS FUNDECT** (`Categoria::permiteCotaInterior()`) — é exigência do fomento
+    dela; nas demais a lista é só por nota. Entram os **mais bem
     avaliados** que couberem em todas as cotas. O arquivo sai por categoria (FETECMS → FETEC Jr → FETECMS FUNDECT) → área em ordem
     alfabética → título, com o sequencial `001, 002…` reiniciando a cada categoria+área:
     `FET.AGR-001 - Título` / `Escola / Cidade - UF` / alunos em ordem alfabética /
@@ -167,9 +199,53 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     alterado vira um registro em **Registros → Projetos** com o "de → para"
     (`AdminProjetoEdicaoService`). No topo da tela, um **card destacado** soma todas as áreas:
     quantos projetos estão com 0, 1, 2 e 3+ avaliações concluídas, sempre no recorte dos filtros.
-  - **Registros** tem três seções: **Inscrições**, **Avaliação Online** e **Projetos**
-    (`/admin/registros/projetos`) — esta última com as correções do admin e os aceites do orientador,
-    cada um com a justificativa.
+  - **Credenciamento** (`/admin/credenciamento`): o balcão do evento, em duas seções —
+    **Credenciar** (os finalistas que ainda não passaram) e **Credenciados** (quem já passou), a
+    mesma lista pesquisável com filtro por área e categoria. **Finalista é quem está na lista final
+    vigente**; sem lista oficial não há quem credenciar. Ao abrir um projeto, o admin confere
+    **documento a documento, pessoa a pessoa** (alunos, orientador e coorientador), marcando
+    **presente / ausente / não necessário** — a lista de documentos de cada papel é parametrizável.
+    Cada credenciamento grava **quem atendeu e o horário** e entra em Registros → Credenciamento com
+    o que ficou ausente. O **horário de início** vem preenchido com o momento do atendimento e pode
+    ser corrigido: alterado, o **fim vira início + 5 minutos**
+    (`CredenciamentoService::MINUTOS_ATENDIMENTO`); intocado, o fim é o instante da conclusão. Ao
+    concluir, a tela **lembra os itens a entregar** ao finalista. Só credencia dentro da **janela do
+    evento**; fora dela a aba abre em leitura. O **admin demo** tem um *modo de teste* que ignora as
+    datas. `CredenciamentoService`.
+  - **Parametrização → Credenciamento** (`/admin/parametrizacao/credenciamento`): o **período do
+    evento** (`edicoes.evento_de`/`evento_ate`, **fechado enquanto não for definido** — credenciar é
+    ato presencial), os **itens entregues** aos finalistas (`edicoes.itens_credenciamento`) e a
+    **lista de documentos** exigida de cada papel (`documentos_credenciamento`, catálogo do portal).
+    Documento já conferido em algum credenciamento não é excluído — desative-o.
+  - **Comitê especial** (`/admin/comite`): o deslocamento das equipes durante a feira, em duas
+    seções. **Transporte de comitê** lista quem está com o localizador ligado e o que cada um
+    configurou, e traz o botão **Habilitar localização** — um assistente de **seis passos**:
+    quantas pessoas estão junto → os **nomes** (opcionais, com a área de cada uma) → o **meio de
+    transporte** → o **ponto de partida** → o **destino** (autocomplete do Google Places) e por
+    **quanto tempo** o localizador fica ligado (ajustável depois) → a **permissão de localização**
+    do aparelho. Ligado, a tela mostra o próprio ponto no mapa, o **caminho recomendado**, a
+    **previsão de chegada** e a **próxima orientação**. **Mapa do comitê** mostra todos os grupos
+    em tempo real; clicar num ponto abre quantas pessoas estão lá, os nomes, as áreas, a distância
+    aproximada e o tempo até o destino. A posição vai e volta **de 5 em 5 segundos** por polling
+    (não há WebSocket no projeto). **Privacidade**: guarda-se a última posição e o **trajeto vivo**;
+    desligar o localizador — à mão ou pelo vencimento do prazo — **apaga o trajeto**.
+    `ComiteTransporteService`, `localizacoes_comite` + `localizacao_comite_pontos`.
+  - **Registros** tem seis seções: **Inscrições**, **Avaliação Online**, **Lista final**
+    (`/admin/registros/lista-final` — publicação da lista oficial e cada projeto incluído ou
+    retirado, com a justificativa), **Credenciamento** (`/admin/registros/credenciamento` — quem
+    credenciou cada finalista, quando e o que ficou ausente), **Projetos**
+    (`/admin/registros/projetos`) — as correções do admin e os aceites do orientador, cada um com a
+    justificativa — e **Rascunhos** (`/admin/registros/rascunhos`), com o que o admin mexeu numa
+    inscrição alheia antes de submetê-la por ela.
+  - **Projetos → Projetos por área → Projetos em rascunho** (`/admin/projetos-rascunho`): o botão
+    **só aparece depois do prazo de submissão**. Ele lista as inscrições que ficaram em rascunho
+    (busca por título/orientador, filtro por área e categoria, quantas pendências faltam) e leva
+    o admin às **mesmas telas do orientador** em modo admin (`/admin/projetos-rascunho/{id}/…`),
+    onde ele termina de preencher e **submete** mesmo com as inscrições encerradas. O admin **não
+    conclui deixando em rascunho**: a saída que fecha o trabalho é a submissão, e ela exige
+    **justificativa**. Cada campo que ele altera — projeto, aluno, coorientador ou anexo — vira uma
+    linha em Registros → Rascunhos com o "de → para" (`AdminRascunhoService`); o orientador
+    editando o próprio rascunho não gera registro nenhum.
   - **Comunicação → Avisos** (`/admin/comunicacao/avisos`): o admin publica um card com **título e mensagem livres**,
     que aparece para os **orientadores ativos** conectados em até ~1 min (polling; não há
     WebSocket no projeto) e pode ser fechado por cada um. **Um ativo por vez** — publicar um
@@ -345,7 +421,125 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 61 | Aba "Ajustes" do orientador: aceitar/desfazer as sugestões dos avaliadores no período parametrizável | ✅ sim | ❌ não (manual do Pedro) | 4 |
 | 62 | Mala direta: editor de texto rico (negrito, itálico, sublinhado, traçado, listas) + imagens no corpo | ✅ sim | ❌ não (manual do Pedro) | 4 |
 | 63 | Mala direta: anexos no e-mail (até 10, 20 MB cada) | ✅ sim | ❌ não (manual do Pedro) | 4 |
+| 64 | Projetos em rascunho: admin termina e submete depois do prazo (justificativa) + Registros → Rascunhos | ✅ sim | ❌ não (manual do Pedro) | 5 |
+| 65 | Painel: 3 cards de alunos por classe escolar, quebrados por série | ✅ sim | ❌ não (manual do Pedro) | 5 |
+| 66 | Parametrização → Edições: várias edições, edição padrão e troca de escopo por usuário | ✅ sim | ❌ não (manual do Pedro) | 6 |
+| 67 | Escopos de admin: perfis de abas por edição, aplicados no menu e no backend | ✅ sim | ❌ não (manual do Pedro) | 6 |
+| 68 | Lista final: cota do interior só na FUNDECT + caixa "Lista Final Oficial" (finalistas registrados) | ✅ sim | ❌ não (manual do Pedro) | 7 |
+| 69 | Lista final oficial: incluir/retirar projeto com justificativa, versão nova e auditoria | ✅ sim | ❌ não (manual do Pedro) | 7 |
+| 70 | Aba Credenciamento: credenciar/credenciados, conferência de documentos por pessoa e auditoria | ✅ sim | ❌ não (manual do Pedro) | 8 |
+| 71 | Credenciamento: horários do atendimento (+5 min no lançamento retroativo) e itens a entregar | ✅ sim | ❌ não (manual do Pedro) | 8 |
+| 72 | Comitê especial → Transporte: assistente de 6 passos, localizador a cada 5s, rota e ETA | ✅ sim | ❌ não (manual do Pedro) | 9 |
+| 73 | Comitê especial → Mapa do comitê: tempo real e detalhe do ponto (pessoas, áreas, distância) | ✅ sim | ❌ não (manual do Pedro) | 9 |
 
+> **Sprints 72–73 (mesma branch):** nasceu a aba **Comitê especial**, com o deslocamento das
+> equipes durante a feira.
+> (a) **Sprint 72** — **Transporte de comitê**. O botão *Habilitar localização* abre um assistente
+> de **seis passos** — quantas pessoas, os nomes (opcionais, com a área de cada uma), o meio de
+> transporte, o ponto de partida, o destino + o tempo com o localizador ligado, e a permissão de
+> localização do aparelho. Ligado, o navegador acompanha a posição e a envia **a cada 5 segundos**
+> junto da estimativa de rota calculada ali mesmo; a tela mostra o ponto no mapa, o caminho
+> recomendado, a **previsão de chegada** e a **próxima orientação**. Uma sessão ativa por pessoa
+> (ligar de novo encerra a anterior), e o tempo pode ser esticado ou encurtado depois. **Privacidade**:
+> guarda-se a última posição e o trajeto vivo; desligar — à mão ou pelo vencimento — **apaga o
+> trajeto**, e a faxina das sessões vencidas roda em cada leitura do mapa, sem depender de agendador.
+> (b) **Sprint 73** — **Mapa do comitê**: todos os grupos ligados, com leitura de 5 em 5 segundos
+> (polling; não há WebSocket no projeto). Clicar num ponto abre **quantas pessoas, os nomes, as
+> áreas, a distância aproximada e o tempo até o destino**, e o painel acompanha o ponto enquanto ele
+> se move. Quem está ligado mas ainda sem posição é contado à parte, não some da tela.
+> **Google Maps**: mapa, autocomplete (Places) e rota (Directions) usam a chave
+> `VITE_GOOGLE_MAPS_API_KEY`, lida **no build** do front. **Sem a chave nada quebra** — o mapa é
+> substituído por um aviso dizendo o que falta e o campo de endereço vira texto livre —, mas o
+> Pedro precisa configurá-la e rodar `npm run build` para o recurso funcionar de verdade; o mapa
+> real ainda não foi validado em navegador aqui.
+> Back **661/661**, front **300/300**, Pint limpo, build OK.
+>
+> **Sprints 70–71 (mesma branch):** nasceu a aba **Credenciamento**, o balcão do evento.
+> (a) **Sprint 70** — duas seções sobre a mesma lista pesquisável: **Credenciar** (pendentes) e
+> **Credenciados** (quem já passou), com filtro por área e categoria. **Finalista é quem está na
+> lista final vigente** — sem lista oficial a tela avisa que não há ninguém para credenciar. A ficha
+> de um projeto monta **cada pessoa × os documentos do papel dela** (alunos, orientador,
+> coorientador) e marca **presente / ausente / não necessário** — "não necessário" é decisão
+> registrada, diferente de deixar em branco. A lista de documentos é **parametrizável** por papel
+> (`documentos_credenciamento`), e o que já foi conferido não pode ser excluído, só desativado. Cada
+> credenciamento grava quem atendeu e o horário (`credenciamentos` + `credenciamento_documentos`,
+> com nome e papel desnormalizados) e entra na seção nova **Registros → Credenciamento**, listando o
+> que ficou ausente. A janela do evento (`edicoes.evento_de`/`evento_ate`) fica **fechada enquanto
+> não for definida**, e fora dela a aba abre **em leitura**; o **admin demo** tem um *modo de teste*
+> (guardado no `sessionStorage`) que ignora as datas. A aba entrou no enum `AbaAdmin`, então ela
+> respeita os escopos da Sprint 67.
+> (b) **Sprint 71** — os **horários do atendimento**. O início vem preenchido com o "agora" e é
+> editável: **quando o admin o corrige** (lançamento retroativo), o fim passa a ser **início + 5
+> minutos** (`CredenciamentoService::MINUTOS_ATENDIMENTO`); quando não mexe, o fim é o instante da
+> conclusão. O front só manda `iniciado_em` quando o valor difere do sugerido — é essa diferença que
+> sinaliza a alteração. Junto veio a lista de **itens entregues** ao finalista
+> (`edicoes.itens_credenciamento`, editável na Parametrização): ao concluir, a ficha mostra o
+> lembrete com os itens antes de voltar para a lista.
+> Back **645/645**, front **291/291**, Pint limpo, build OK.
+>
+> **Sprints 68–69 (mesma branch):** a lista final virou um documento vivo.
+> (a) **Sprint 68** — a **cota do interior** passou a existir **só na FETECMS FUNDECT**
+> (`Categoria::permiteCotaInterior()`): o passo 3 do assistente só mostra as categorias que a
+> preveem, e uma reserva enviada para outra categoria é ignorada no servidor. Junto veio a caixa
+> **Lista Final Oficial**: marcada, a geração **registra** a lista (`listas_finais` +
+> `lista_final_projetos`) como a **vigente** da edição — e os projetos dela, com alunos, orientador
+> e coorientador, passam a ser os **finalistas** da feira. Publicar uma nova encerra a anterior;
+> várias listas convivem, uma vigente. Sem marcar, nada é registrado: continua sendo só um TXT.
+> (b) **Sprint 69** — a composição da lista oficial ficou **editável e auditada**. Em
+> `/admin/avaliacao/listas-finais/{id}` o admin **inclui** um projeto avaliado que ficou de fora ou
+> **retira** um que está dentro, sempre com **justificativa** (mín. 5 caracteres). Cada alteração
+> **sobe a versão** da lista, e o TXT é gerado a partir da composição atual — com a numeração
+> `001, 002…` refeita —, então baixar de novo já traz o arquivo novo. Tudo entra na seção nova
+> **Registros → Lista final** (`lista_final_oficializada`, `lista_final_projeto_adicionado`,
+> `lista_final_projeto_removido`), com o "de → para" e a justificativa. Projeto que entrou à mão
+> fica marcado na composição.
+> Back **624/624**, front **281/281**, Pint limpo, build OK.
+>
+> **Sprints 66–67 (mesma branch):** o portal deixou de ser de uma edição só.
+> (a) **Sprint 66** — **Edições**. Nasceram `edicoes.padrao` (a edição que vale para quem não
+> escolheu nenhuma — cadastro público, e-mails, fila, CLI) e `users.edicao_id` (a que a pessoa está
+> vendo). `Edicao::atual()` deixou de ser "a de inscrições abertas" e passou a ser **a edição em
+> escopo**: a escolhida pelo usuário autenticado, ou a padrão. Como todo serviço já perguntava por
+> ali, trocar de edição troca de uma vez os prazos, os limites e as regras de distribuição. Os
+> projetos seguem junto por um **global scope** (`App\Models\Scopes\EdicaoScope`) — que pega de
+> carona o `whereHas('projeto', …)` de alunos, anexos e avaliações, então o recorte acompanha sem
+> cada consulta precisar saber da edição. Duas válvulas: **sem nenhuma edição cadastrada o escopo
+> não filtra nada**, e **projeto com `edicao_id` nulo aparece em todas** (a migration faz o
+> backfill, mas o que escapar fica visível para alguém corrigir em vez de sumir). A tela é
+> Parametrização → Edições, com criação que **herda a parametrização** da edição atual, troca da
+> padrão e exclusão só de edição vazia; o seletor no topo do menu vale para **todos os papéis** e
+> recarrega a tela, porque misturar dados de uma edição com ações de outra seria pior.
+> (b) **Sprint 67** — **Escopos de admin**. `escopos_admin` (nome + abas) e `admin_escopos`
+> (admin × edição × escopo): a mesma pessoa pode cuidar da comunicação num ano e de outra coisa no
+> seguinte. As abas são o enum `App\Enums\AbaAdmin`, o menu filtra pelo que vem em
+> `UserResource::abas` e o **backend barra de verdade** — as rotas de `/admin` foram reagrupadas
+> sob o middleware novo `aba:`, que aceita mais de uma aba para as telas que moram em duas (as
+> datas do período de avaliação estão em Parametrização e em Avaliação online). **Admin sem escopo
+> na edição tem acesso total**, e uma trava em transação impede deixar a edição sem ninguém ativo
+> na aba "Administradores" — é de lá que se conserta qualquer escopo.
+> Back **611/611**, front **274/274**, Pint limpo, build OK.
+>
+> **Sprints 64–65 (branch `feat/edicoes-credenciamento-comite`, saída da `origin/main` @ `c736132`):**
+> (a) **Sprint 64** — **Projetos em rascunho**. Em *Projetos por área* nasce o botão **Projetos em
+> rascunho**, visível **só depois do prazo de submissão** (`InscricoesService::encerradas()`): antes
+> disso o orientador ainda envia sozinho e a organização não entra na inscrição dele. A tela lista
+> os rascunhos com dono, equipe e quantas pendências do checklist faltam, e cada linha leva às
+> **mesmas telas do orientador** sob `/admin/projetos-rascunho/{id}/…` (as rotas de escrita são as
+> do orientador — a Policy já deixa o admin passar e o middleware `inscricoes.abertas` não o barra).
+> O botão "Salvar rascunho" some: quem **fecha** o trabalho é a submissão, que passa a exigir
+> **justificativa** quando o autor é admin e não é o dono (`POST /projetos/{id}/submeter`). Toda
+> alteração que ele faz — campo do projeto, aluno, coorientador ou anexo — vira uma linha na seção
+> nova **Registros → Rascunhos**, com o "de → para" e as FKs já resolvidas em nome
+> (`AdminRascunhoService`, `TipoRegistro::RascunhoAlteracao`/`RascunhoSubmissao`).
+> (b) **Sprint 65** — o painel ganhou **três cards de alunos por classe escolar** (Ensino
+> Fundamental I, Fundamental II e Ensino Médio), cada um com a contagem **por série** mais o balde
+> **N.I.**, que fecha a soma com o número grande do card (`App\Support\ClassesEscolares`). O
+> **técnico integrado é contado no card do Ensino Médio** — é ensino médio na prática e usa os
+> mesmos códigos de série, por isso o card vai até o 4º ano. Vale a regra dos demais cards: **só
+> projetos submetidos**. De quebra, a `AlunoFactory` passou a gerar `modalidade` e `ano_escolar` em
+> **par coerente**, com os mesmos códigos que o formulário grava.
+> Back **587/587**, front **261/261**, Pint limpo, build OK.
+>
 > **Sprints 62–63 (mesma branch):** a mala direta ganhou editor e arquivos.
 > (a) **Sprint 62** — o campo de texto virou um **editor rico** (`EditorTexto.jsx`, TipTap —
 > dependência nova) com **negrito, itálico, sublinhado, traçado**, listas e **imagens no corpo**
@@ -562,17 +756,25 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > e **Escolas** (`/admin/parametrizacao/escolas`): admin busca, **renomeia, mescla** (reatribui
 > projetos/alunos/orientadores) e **exclui** instituições sem uso (`InstituicaoAdminService`/Controller,
 > rotas `admin/instituicoes`). Back **117/117**, front 11/11, Pint limpo, build OK.
-> **Pendências do Pedro:** (1) `git push origin feat/verificacao-email-e-ajustes` + PR para a `main`
-> (o ambiente do Claude não tem credencial do GitHub) e, depois do merge, o deploy pela §11 do
-> [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). Esta release **tem migrations** (cadastros pendentes,
-> modelos de e-mail, capital das cidades, período/decisões de ajuste e arquivos da mala direta),
-> **nenhuma variável nova de `.env`** e uma **dependência nova de npm** (TipTap) — o deploy precisa
-> de `npm ci && npm run build`. A fila (`queue:work`) continua obrigatória e agora também entrega o
-> comprovante de submissão. **O envio de e-mail deixou de ser opcional**: sem SMTP configurado
-> (`MAIL_MAILER`), ninguém conclui o cadastro, porque o código de confirmação não chega.
-> A pendência anterior (`feat/algoritmo-distribuicao-e-lista-final`) segue aguardando push; (2) popular as escolas com
-> `php artisan instituicoes:importar` (lê `database/data/instituicoes/escolas_ms.csv`; 1888 escolas
-> de MS, todos os 79 municípios casam com o catálogo IBGE).
+> **Pendências do Pedro (Sprints 64–73):** (1) `git push origin feat/edicoes-credenciamento-comite`
+> + PR para a `main` (o ambiente do Claude não tem credencial do GitHub) e, depois do merge, o
+> deploy pela §11 do [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). Esta release **tem migrations**
+> (edição padrão + edição do usuário e backfill dos projetos, escopos de admin, listas finais
+> oficiais, credenciamento e localização do comitê) e **uma variável nova de `.env`**:
+> **`VITE_GOOGLE_MAPS_API_KEY`** — chave do Google Maps JS API com **Places** e **Directions**
+> habilitados, usada pela aba Comitê especial. Ela é lida **no build** (`npm run build`), então
+> mudá-la exige recompilar o front; sem ela as telas do comitê abrem e explicam que o mapa está
+> indisponível, e **o mapa real ainda não foi validado em navegador** — vale conferir no dia.
+> Nenhuma dependência nova de npm. A fila (`queue:work`) continua obrigatória.
+> (2) **Configurar a nova aba Credenciamento antes do evento**: em Parametrização → Credenciamento,
+> definir o **período do evento** (sem a data de início o balcão fica fechado), os **documentos**
+> exigidos de aluno, orientador e coorientador, e os **itens a entregar**. E publicar a **lista
+> final oficial** no Ranking dos projetos — é ela que define os finalistas que aparecem no balcão.
+> (3) **Escopos de admin são opcionais**: sem nenhum atribuído, todo admin segue com acesso total
+> (comportamento de antes). (4) popular as escolas com `php artisan instituicoes:importar` (lê
+> `database/data/instituicoes/escolas_ms.csv`; 1888 escolas de MS, todos os 79 municípios casam com
+> o catálogo IBGE). As pendências anteriores (`feat/verificacao-email-e-ajustes` e
+> `feat/algoritmo-distribuicao-e-lista-final`) já entraram na `main` (v1.18).
 >
 > **Sprint 14 (branch `feat/conta-email-e-registros`, saída da `origin/main`):**
 > (a) **Troca de e-mail** em `PUT /auth/email` para orientador, avaliador e admin, com tela

@@ -4,7 +4,7 @@ namespace App\Enums;
 
 /**
  * Tipos de evento gravados na trilha de registros (painel do admin), divididos
- * em duas seções — cada uma é uma tela.
+ * em seções — cada uma é uma tela.
  *
  * Seção "Inscrições" (o que acontece com os projetos e as contas):
  * - submissao: orientador submeteu a inscrição (irreversível para ele depois
@@ -19,6 +19,17 @@ namespace App\Enums;
  * Seção "Projetos" (o admin corrigindo a inscrição de alguém): categoria, área,
  * subárea e link do vídeo. Aqui a justificativa é obrigatória e entra no
  * registro junto do "de → para".
+ *
+ * Seção "Rascunhos" (o admin terminando e enviando a inscrição de alguém depois
+ * do prazo): cada campo que ele mexe no rascunho vira uma linha, e a submissão
+ * fecha a sequência carregando a justificativa obrigatória.
+ *
+ * Seção "Lista final" (a lista oficial da feira): a oficialização e cada
+ * projeto acrescentado ou retirado depois, sempre com justificativa — é a
+ * composição de quem sobe ao evento, então toda mexida fica registrada.
+ *
+ * Seção "Credenciamento" (o balcão do evento): quem credenciou cada projeto,
+ * quando, e o que ficou ausente na conferência dos documentos.
  */
 enum TipoRegistro: string
 {
@@ -41,6 +52,12 @@ enum TipoRegistro: string
     case ProjetoArea = 'projeto_area';
     case ProjetoSubarea = 'projeto_subarea';
     case ProjetoVideo = 'projeto_video';
+    case RascunhoAlteracao = 'rascunho_alteracao';
+    case RascunhoSubmissao = 'rascunho_submissao';
+    case ListaFinalOficializada = 'lista_final_oficializada';
+    case ListaFinalProjetoAdicionado = 'lista_final_projeto_adicionado';
+    case ListaFinalProjetoRemovido = 'lista_final_projeto_removido';
+    case CredenciamentoRealizado = 'credenciamento_realizado';
 
     /** Seções da tela de Registros. */
     public const SECAO_INSCRICOES = 'inscricoes';
@@ -48,6 +65,12 @@ enum TipoRegistro: string
     public const SECAO_AVALIACAO = 'avaliacao';
 
     public const SECAO_PROJETOS = 'projetos';
+
+    public const SECAO_RASCUNHOS = 'rascunhos';
+
+    public const SECAO_LISTA_FINAL = 'lista_final';
+
+    public const SECAO_CREDENCIAMENTO = 'credenciamento';
 
     public function label(): string
     {
@@ -71,6 +94,12 @@ enum TipoRegistro: string
             self::ProjetoArea => 'Área do projeto',
             self::ProjetoSubarea => 'Subárea do projeto',
             self::ProjetoVideo => 'Vídeo do projeto',
+            self::RascunhoAlteracao => 'Alteração no rascunho',
+            self::RascunhoSubmissao => 'Submissão do rascunho',
+            self::ListaFinalOficializada => 'Lista final oficializada',
+            self::ListaFinalProjetoAdicionado => 'Projeto incluído na lista',
+            self::ListaFinalProjetoRemovido => 'Projeto retirado da lista',
+            self::CredenciamentoRealizado => 'Credenciamento realizado',
         };
     }
 
@@ -80,6 +109,10 @@ enum TipoRegistro: string
         return match ($this) {
             self::Submissao, self::Cancelamento, self::Exclusao, self::TrocaEmail => self::SECAO_INSCRICOES,
             self::ProjetoCategoria, self::ProjetoArea, self::ProjetoSubarea, self::ProjetoVideo => self::SECAO_PROJETOS,
+            self::RascunhoAlteracao, self::RascunhoSubmissao => self::SECAO_RASCUNHOS,
+            self::ListaFinalOficializada, self::ListaFinalProjetoAdicionado,
+            self::ListaFinalProjetoRemovido => self::SECAO_LISTA_FINAL,
+            self::CredenciamentoRealizado => self::SECAO_CREDENCIAMENTO,
             default => self::SECAO_AVALIACAO,
         };
     }
@@ -87,7 +120,10 @@ enum TipoRegistro: string
     /** @return list<string> */
     public static function secoes(): array
     {
-        return [self::SECAO_INSCRICOES, self::SECAO_AVALIACAO, self::SECAO_PROJETOS];
+        return [
+            self::SECAO_INSCRICOES, self::SECAO_AVALIACAO, self::SECAO_PROJETOS,
+            self::SECAO_RASCUNHOS, self::SECAO_LISTA_FINAL, self::SECAO_CREDENCIAMENTO,
+        ];
     }
 
     /**

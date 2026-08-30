@@ -4,7 +4,9 @@ namespace App\Models;
 
 use App\Enums\Categoria;
 use App\Enums\ProjetoStatus;
+use App\Models\Scopes\EdicaoScope;
 use Database\Factories\ProjetoFactory;
+use Illuminate\Database\Eloquent\Attributes\ScopedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -12,6 +14,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
+/**
+ * Todo projeto pertence a uma edição da feira, e o `EdicaoScope` faz com que
+ * cada consulta enxergue só a edição em escopo — trocar de edição troca de uma
+ * vez tudo o que a pessoa vê.
+ */
+#[ScopedBy(EdicaoScope::class)]
 class Projeto extends Model
 {
     /** @use HasFactory<ProjetoFactory> */
@@ -54,6 +62,12 @@ class Projeto extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /** O credenciamento deste projeto no evento (um por projeto). */
+    public function credenciamento(): HasOne
+    {
+        return $this->hasOne(Credenciamento::class);
     }
 
     public function edicao(): BelongsTo

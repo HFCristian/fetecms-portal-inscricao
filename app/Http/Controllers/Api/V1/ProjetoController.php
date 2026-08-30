@@ -7,6 +7,7 @@ use App\Http\Requests\Projeto\ProjetoRequest;
 use App\Http\Resources\ProjetoListResource;
 use App\Http\Resources\ProjetoResource;
 use App\Models\Projeto;
+use App\Services\AdminRascunhoService;
 use App\Services\ProjetoService;
 use App\Services\SubmissaoService;
 use Illuminate\Http\JsonResponse;
@@ -17,7 +18,10 @@ class ProjetoController extends Controller
 {
     private const RELATIONS = ['instituicao', 'area', 'subarea', 'estado', 'cidade', 'edicao'];
 
-    public function __construct(private readonly ProjetoService $projetos) {}
+    public function __construct(
+        private readonly ProjetoService $projetos,
+        private readonly AdminRascunhoService $rascunhos,
+    ) {}
 
     public function index(Request $request): AnonymousResourceCollection
     {
@@ -51,7 +55,12 @@ class ProjetoController extends Controller
     {
         $this->authorize('update', $projeto);
 
+        // Lido ANTES de salvar: é a foto que o registro de "Projetos em rascunho"
+        // usa para dizer o que o admin mudou. Para o dono, não gera nada.
+        $antes = $projeto->getAttributes();
+
         $projeto = $this->projetos->atualizar($projeto, $request->validated());
+        $this->rascunhos->registrarAlteracoesProjeto($projeto, $request->user(), $antes);
 
         return ProjetoResource::make($projeto);
     }

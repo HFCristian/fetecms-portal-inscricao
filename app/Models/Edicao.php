@@ -6,6 +6,8 @@ use App\Enums\Categoria;
 use App\Support\LimitesAvaliacao;
 use App\Support\RegrasDistribuicao;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Auth;
 
 class Edicao extends Model
 {
@@ -20,9 +22,9 @@ class Edicao extends Model
     public const PADRAO_MIN_POR_PROJETO = 3;
 
     protected $fillable = [
-        'nome', 'ano', 'inscricoes_abertas', 'inicio_em', 'fim_em',
+        'nome', 'ano', 'padrao', 'inscricoes_abertas', 'inicio_em', 'fim_em',
         'avaliacao_liberada_em', 'avaliacao_encerrada_em', 'submissoes_de', 'submissoes_ate',
-        'ajustes_de', 'ajustes_ate',
+        'ajustes_de', 'ajustes_ate', 'evento_de', 'evento_ate', 'itens_credenciamento',
         'avaliacoes_min_por_avaliador', 'avaliacoes_min_por_projeto',
         'avaliacoes_max_por_avaliador', 'avaliacoes_max_por_projeto', 'avaliacoes_por_categoria',
         'distribuicao_regras', 'distribuicao_ao_cadastrar',
@@ -31,6 +33,7 @@ class Edicao extends Model
     protected function casts(): array
     {
         return [
+            'padrao' => 'boolean',
             'inscricoes_abertas' => 'boolean',
             'inicio_em' => 'date',
             'fim_em' => 'date',
@@ -40,6 +43,9 @@ class Edicao extends Model
             'submissoes_ate' => 'datetime',
             'ajustes_de' => 'datetime',
             'ajustes_ate' => 'datetime',
+            'evento_de' => 'datetime',
+            'evento_ate' => 'datetime',
+            'itens_credenciamento' => 'array',
             'avaliacoes_min_por_avaliador' => 'integer',
             'avaliacoes_min_por_projeto' => 'integer',
             'avaliacoes_max_por_avaliador' => 'integer',
@@ -50,10 +56,47 @@ class Edicao extends Model
         ];
     }
 
-    /** Edição atual (a que está com inscrições abertas). */
+    /**
+     * A edição **padrão**: a que vale para quem não escolheu nenhuma (cadastro
+     * público, e-mails, jobs da fila, CLI). Só existe uma marcada por vez.
+     *
+     * Sem nenhuma marcada — banco recém-criado ou base antiga —, cai na regra
+     * histórica: a de inscrições abertas, mais recente.
+     */
+    public static function padrao(): ?self
+    {
+        return static::where('padrao', true)->first()
+            ?? static::where('inscricoes_abertas', true)->latest('ano')->first();
+    }
+
+    /**
+     * A edição **em escopo agora**: a que o usuário autenticado escolheu, ou a
+     * padrão quando ele não escolheu nenhuma (ou não há usuário — fila, CLI,
+     * requisição pública).
+     *
+     * Todo o resto do sistema pergunta por aqui, então trocar de edição troca de
+     * uma vez os prazos, os limites, as regras de distribuição e os projetos que
+     * a pessoa enxerga.
+     */
     public static function atual(): ?self
     {
-        return static::where('inscricoes_abertas', true)->latest('ano')->first();
+        return static::escopoDe(Auth::user());
+    }
+
+    /** A edição em escopo para um usuário específico. */
+    public static function escopoDe(mixed $user): ?self
+    {
+        $escolhida = $user?->edicao_id;
+
+        if ($escolhida !== null) {
+            $edicao = static::find($escolhida);
+
+            if ($edicao !== null) {
+                return $edicao;
+            }
+        }
+
+        return static::padrao();
     }
 
     /**
@@ -158,5 +201,32 @@ class Edicao extends Model
     public function ajustesAbertos(): bool
     {
         return $this->ajustesIniciados() && ! $this->ajustesEncerrados();
+    }
+
+    /**
+     * O evento já começou? Ao contrário das outras janelas, esta fica FECHADA
+     * enquanto a data não for definida: credenciar é um ato presencial, então
+     * ninguém credencia "por padrão".
+     */
+    public function eventoIniciado(): bool
+    {
+        return $this->evento_de !== null && now()->greaterThanOrEqualTo($this->evento_de);
+    }
+
+    /** O evento acabou? Sem data de fim, segue aberto depois de começar. */
+    public function eventoEncerrado(): bool
+    {
+        return $this->evento_ate !== null && now()->greaterThan($this->evento_ate);
+    }
+
+    /** O credenciamento está aberto agora? */
+    public function eventoEmAndamento(): bool
+    {
+        return $this->eventoIniciado() && ! $this->eventoEncerrado();
+    }
+
+    public function projetos(): HasMany
+    {
+        return $this->hasMany(Projeto::class);
     }
 }

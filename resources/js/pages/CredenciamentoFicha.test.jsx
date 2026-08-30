@@ -1,0 +1,150 @@
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+vi.mock('../components/AppShell.jsx', () => ({ default: ({ children }) => <div>{children}</div> }));
+const navigate = vi.fn();
+vi.mock('react-router-dom', () => ({
+    Link: ({ children, to }) => <a href={to}>{children}</a>,
+    useParams: () => ({ id: '7' }),
+    useNavigate: () => navigate,
+}));
+vi.mock('../lib/auth.jsx', () => ({ extractErrors: () => ({ message: 'erro', fields: {} }) }));
+vi.mock('../lib/modoTeste.js', () => ({ useModoTeste: () => [false, vi.fn()] }));
+
+const SITUACOES = [
+    { value: 'presente', label: 'Presente' },
+    { value: 'ausente', label: 'Ausente' },
+    { value: 'nao_necessario', label: 'Não necessário' },
+];
+
+const FICHA = {
+    projeto: { id: 7, titulo: 'Bioplástico', categoria: 'FETECMS', area: 'Agrárias', escola: 'EE Alfa' },
+    pessoas: [
+        {
+            tipo: 'aluno', tipo_label: 'Aluno', id: 30, nome: 'Ana Aluna',
+            documentos: [
+                { id: 1, nome: 'RG', situacao: null },
+                { id: 2, nome: 'Autorização de menor', situacao: 'presente' },
+            ],
+        },
+        {
+            tipo: 'orientador', tipo_label: 'Orientador', id: 5, nome: 'Marta Orientadora',
+            documentos: [{ id: 3, nome: 'Documento com foto', situacao: null }],
+        },
+    ],
+    credenciamento: null,
+    situacoes: SITUACOES,
+    config: { aberto: true, itens: [], minutos_atendimento: 5 },
+};
+
+const getFichaCredenciamento = vi.fn(() => Promise.resolve(FICHA));
+const credenciarProjeto = vi.fn(() => Promise.resolve({}));
+vi.mock('../lib/credenciamento.js', () => ({
+    getFichaCredenciamento: (...a) => getFichaCredenciamento(...a),
+    credenciarProjeto: (...a) => credenciarProjeto(...a),
+}));
+
+import CredenciamentoFicha from './CredenciamentoFicha.jsx';
+
+describe('CredenciamentoFicha', () => {
+    beforeEach(() => {
+        credenciarProjeto.mockClear();
+        navigate.mockClear();
+        getFichaCredenciamento.mockResolvedValue(FICHA);
+    });
+
+    it('mostra cada pessoa com os documentos do papel dela', async () => {
+        render(<CredenciamentoFicha />);
+
+        expect(await screen.findByText('Ana Aluna')).toBeInTheDocument();
+        expect(screen.getByText('Marta Orientadora')).toBeInTheDocument();
+        expect(screen.getByText('RG')).toBeInTheDocument();
+        expect(screen.getByText('Documento com foto')).toBeInTheDocument();
+        // Três botões de situação por documento (3 documentos).
+        expect(screen.getAllByText('Presente')).toHaveLength(3);
+    });
+
+    it('já vem com o que foi conferido antes marcado', async () => {
+        render(<CredenciamentoFicha />);
+        await screen.findByText('Ana Aluna');
+
+        const grupo = screen.getByRole('group', { name: 'Autorização de menor de Ana Aluna' });
+        const presente = within(grupo).getByRole('button', { name: 'Presente' });
+        expect(presente).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    it('envia as marcações escolhidas ao concluir', async () => {
+        render(<CredenciamentoFicha />);
+        await screen.findByText('Ana Aluna');
+
+        const rg = screen.getByRole('group', { name: 'RG de Ana Aluna' });
+        fireEvent.click(within(rg).getByRole('button', { name: 'Presente' }));
+
+        const foto = screen.getByRole('group', { name: 'Documento com foto de Marta Orientadora' });
+        fireEvent.click(within(foto).getByRole('button', { name: 'Ausente' }));
+
+        fireEvent.click(screen.getByRole('button', { name: /Concluir credenciamento/ }));
+
+        await waitFor(() => expect(credenciarProjeto).toHaveBeenCalled());
+        const [, payload] = credenciarProjeto.mock.calls[0];
+        expect(payload.marcacoes).toEqual(expect.arrayContaining([
+            { documento_id: 2, pessoa_tipo: 'aluno', pessoa_id: 30, situacao: 'presente' },
+            { documento_id: 1, pessoa_tipo: 'aluno', pessoa_id: 30, situacao: 'presente' },
+            { documento_id: 3, pessoa_tipo: 'orientador', pessoa_id: 5, situacao: 'ausente' },
+        ]));
+        expect(navigate).toHaveBeenCalledWith('/admin/credenciamento/credenciados', { replace: true });
+    });
+
+    it('fora da janela do evento a ficha fica só de leitura', async () => {
+        getFichaCredenciamento.mockResolvedValue({ ...FICHA, config: { aberto: false } });
+        render(<CredenciamentoFicha />);
+        await screen.findByText('Ana Aluna');
+
+        expect(screen.getByText(/O credenciamento está fechado agora/)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Concluir credenciamento/ })).toBeDisabled();
+        const rg = screen.getByRole('group', { name: 'RG de Ana Aluna' });
+        expect(within(rg).getByRole('button', { name: 'Presente' })).toBeDisabled();
+    });
+
+    it('manda o início só quando o horário sugerido é alterado', async () => {
+        render(<CredenciamentoFicha />);
+        await screen.findByText('Ana Aluna');
+
+        // Sem mexer no campo, o início não viaja: o fim é o instante da conclusão.
+        fireEvent.click(screen.getByRole('button', { name: /Concluir credenciamento/ }));
+        await waitFor(() => expect(credenciarProjeto).toHaveBeenCalled());
+        expect(credenciarProjeto.mock.calls[0][1].iniciado_em).toBeNull();
+
+        credenciarProjeto.mockClear();
+        render(<CredenciamentoFicha />);
+        await screen.findAllByText('Ana Aluna');
+
+        fireEvent.change(screen.getAllByLabelText('Início do atendimento')[1], {
+            target: { value: '2026-10-01T09:00' },
+        });
+        fireEvent.click(screen.getAllByRole('button', { name: /Concluir credenciamento/ })[1]);
+
+        await waitFor(() => expect(credenciarProjeto).toHaveBeenCalled());
+        expect(credenciarProjeto.mock.calls[0][1].iniciado_em).toBe('2026-10-01T09:00');
+    });
+
+    it('lembra os itens a entregar antes de sair da ficha', async () => {
+        getFichaCredenciamento.mockResolvedValue({
+            ...FICHA,
+            config: { aberto: true, itens: ['Camiseta', 'Crachá'], minutos_atendimento: 5 },
+        });
+        render(<CredenciamentoFicha />);
+        await screen.findByText('Ana Aluna');
+
+        fireEvent.click(screen.getByRole('button', { name: /Concluir credenciamento/ }));
+
+        expect(await screen.findByText('Credenciamento concluído')).toBeInTheDocument();
+        expect(screen.getByText('Camiseta')).toBeInTheDocument();
+        expect(screen.getByText('Crachá')).toBeInTheDocument();
+        // Só sai da ficha depois do lembrete.
+        expect(navigate).not.toHaveBeenCalled();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Entendi' }));
+        expect(navigate).toHaveBeenCalledWith('/admin/credenciamento/credenciados', { replace: true });
+    });
+});

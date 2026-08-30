@@ -5,6 +5,7 @@ import { getConversasNaoVistas } from '../lib/chat.js';
 import SupportFooter from './SupportFooter.jsx';
 import ChatWidget from './ChatWidget.jsx';
 import AvisoCard from './AvisoCard.jsx';
+import SeletorEdicao from './SeletorEdicao.jsx';
 
 function navClass({ isActive }) {
     return (
@@ -25,40 +26,37 @@ function NavBadge({ count }) {
     );
 }
 
+// As abas do admin, na ordem do menu. `aba` é a chave do escopo (AbaAdmin no
+// backend): o admin só vê as que o escopo dele abre — e quem não tem escopo
+// atribuído na edição em curso recebe todas.
+const ABAS_ADMIN = [
+    { aba: 'projetos', to: '/admin', end: true, icon: 'folder', label: 'Projetos' },
+    { aba: 'avaliacao', to: '/admin/avaliacao', icon: 'grading', label: 'Avaliação online' },
+    { aba: 'credenciamento', to: '/admin/credenciamento', icon: 'badge', label: 'Credenciamento' },
+    { aba: 'comite', to: '/admin/comite', icon: 'directions_bus', label: 'Comitê especial' },
+    { aba: 'comunicacao', to: '/admin/comunicacao', icon: 'campaign', label: 'Comunicação' },
+    { aba: 'suporte', to: '/admin/suporte', icon: 'forum', label: 'Suporte', badge: true },
+    { aba: 'parametrizacao', to: '/admin/parametrizacao', icon: 'tune', label: 'Parametrização' },
+    { aba: 'administradores', to: '/admin/gerir-admins', icon: 'people', label: 'Administradores' },
+    { aba: 'registros', to: '/admin/registros', icon: 'history', label: 'Registros' },
+];
+
 // Links de navegação por papel. onNavigate fecha o menu mobile ao clicar num link.
-function NavLinks({ role, onNavigate, suporteBadge = 0 }) {
+function NavLinks({ role, abas, onNavigate, suporteBadge = 0 }) {
     if (role === 'admin') {
+        // Sem lista de abas (payload antigo em cache), mostra tudo — o backend
+        // continua sendo quem barra de verdade.
+        const permitida = (aba) => !Array.isArray(abas) || abas.includes(aba);
+
         return (
             <>
-                <NavLink to="/admin" end className={navClass} onClick={onNavigate}>
-                    <span className="material-symbols-outlined">folder</span>
-                    Projetos
-                </NavLink>
-                <NavLink to="/admin/avaliacao" className={navClass} onClick={onNavigate}>
-                    <span className="material-symbols-outlined">grading</span>
-                    Avaliação online
-                </NavLink>
-                <NavLink to="/admin/comunicacao" className={navClass} onClick={onNavigate}>
-                    <span className="material-symbols-outlined">campaign</span>
-                    Comunicação
-                </NavLink>
-                <NavLink to="/admin/suporte" className={navClass} onClick={onNavigate}>
-                    <span className="material-symbols-outlined">forum</span>
-                    Suporte
-                    <NavBadge count={suporteBadge} />
-                </NavLink>
-                <NavLink to="/admin/parametrizacao" className={navClass} onClick={onNavigate}>
-                    <span className="material-symbols-outlined">tune</span>
-                    Parametrização
-                </NavLink>
-                <NavLink to="/admin/gerir-admins" className={navClass} onClick={onNavigate}>
-                    <span className="material-symbols-outlined">people</span>
-                    Administradores
-                </NavLink>
-                <NavLink to="/admin/registros" className={navClass} onClick={onNavigate}>
-                    <span className="material-symbols-outlined">history</span>
-                    Registros
-                </NavLink>
+                {ABAS_ADMIN.filter((a) => permitida(a.aba)).map((a) => (
+                    <NavLink key={a.to} to={a.to} end={a.end} className={navClass} onClick={onNavigate}>
+                        <span className="material-symbols-outlined">{a.icon}</span>
+                        {a.label}
+                        {a.badge && <NavBadge count={suporteBadge} />}
+                    </NavLink>
+                ))}
             </>
         );
     }
@@ -114,11 +112,15 @@ export default function AppShell({ children }) {
     const [menuOpen, setMenuOpen] = useState(false);
     const [suporteBadge, setSuporteBadge] = useState(0);
 
-    // Só o admin: número de conversas não visualizadas ao lado de "Suporte".
-    // Checagem leve em segundo plano (~60s) + reatualização imediata quando o
-    // painel de suporte sinaliza mudança (abrir/responder/arquivar uma conversa).
+    // Só o admin COM a aba Suporte no escopo: número de conversas não
+    // visualizadas ao lado do item. Checagem leve em segundo plano (~60s) +
+    // reatualização imediata quando o painel de suporte sinaliza mudança
+    // (abrir/responder/arquivar uma conversa).
+    const veSuporte = user?.role === 'admin'
+        && (!Array.isArray(user?.abas) || user.abas.includes('suporte'));
+
     useEffect(() => {
-        if (user?.role !== 'admin') return undefined;
+        if (!veSuporte) return undefined;
         let cancelado = false;
         const checar = () =>
             getConversasNaoVistas()
@@ -132,7 +134,7 @@ export default function AppShell({ children }) {
             clearInterval(id);
             window.removeEventListener('suporte:atualizar', checar);
         };
-    }, [user?.role]);
+    }, [veSuporte]);
 
     async function handleLogout() {
         setMenuOpen(false);
@@ -150,7 +152,8 @@ export default function AppShell({ children }) {
                     <p className="text-sm text-on-surface-variant">XVI FETECMS</p>
                 </div>
                 <div className="flex-1 flex flex-col gap-1">
-                    <NavLinks role={user?.role} suporteBadge={suporteBadge} />
+                    <SeletorEdicao />
+                    <NavLinks role={user?.role} abas={user?.abas} suporteBadge={suporteBadge} />
                     <div className="flex flex-col gap-1 mt-auto mb-4">
                         <NavLink to="/acesso" className={navClass}>
                             <span className="material-symbols-outlined">lock</span>
@@ -193,7 +196,8 @@ export default function AppShell({ children }) {
                         <p className="text-sm text-on-surface-variant mb-3 px-1">
                             Olá, <strong className="text-on-surface">{user?.name}</strong>
                         </p>
-                        <NavLinks role={user?.role} onNavigate={() => setMenuOpen(false)} suporteBadge={suporteBadge} />
+                        <SeletorEdicao />
+                        <NavLinks role={user?.role} abas={user?.abas} onNavigate={() => setMenuOpen(false)} suporteBadge={suporteBadge} />
                     </div>
                     <div className="p-4 border-t border-outline-variant/30 flex flex-col gap-1 shrink-0">
                         <NavLink to="/acesso" className={navClass} onClick={() => setMenuOpen(false)}>

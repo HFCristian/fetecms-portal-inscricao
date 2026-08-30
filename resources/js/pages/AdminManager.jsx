@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import AppShell from '../components/AppShell.jsx';
 import { Field, Input, Button, Alert, useConfirm } from '../components/ui.jsx';
 import { extractErrors, useAuth } from '../lib/auth.jsx';
-import { criarAdmin, getAdmins, atualizarAdmin, definirStatusAdmin } from '../lib/admin.js';
+import { criarAdmin, getAdmins, atualizarAdmin, definirStatusAdmin, definirEscopoAdmin } from '../lib/admin.js';
 
 function CriarAdminForm({ onCriado }) {
     const [form, setForm] = useState({});
@@ -67,7 +67,7 @@ function StatusPill({ ativo }) {
     );
 }
 
-function LinhaAdmin({ admin, souEu, editando, form, setForm, err, salvando, onEditar, onCancelar, onSalvar, onStatus }) {
+function LinhaAdmin({ admin, souEu, editando, form, setForm, err, salvando, escopos, escopoId, onEscopo, onEditar, onCancelar, onSalvar, onStatus }) {
     if (editando) {
         return (
             <div className="px-4 py-3 border-b border-outline-variant/30 last:border-0 space-y-3">
@@ -97,6 +97,22 @@ function LinhaAdmin({ admin, souEu, editando, form, setForm, err, salvando, onEd
                     {souEu && <span className="text-xs text-on-surface-variant">(você)</span>}
                 </div>
                 <p className="text-sm text-on-surface-variant truncate">{admin.email}</p>
+                {/* Escopo desta pessoa NA EDIÇÃO EM CURSO: define quais abas do
+                    menu ela abre. Sem escopo, acesso total. */}
+                {escopos !== null && (
+                    <label className="mt-1 flex items-center gap-2 text-xs text-on-surface-variant">
+                        Escopo:
+                        <select
+                            value={escopoId ?? ''}
+                            onChange={(e) => onEscopo(e.target.value === '' ? null : Number(e.target.value))}
+                            aria-label={`Escopo de ${admin.name}`}
+                            className="rounded-lg border border-outline-variant bg-surface-container-lowest px-2 py-1 text-xs text-on-surface focus:border-primary-container focus:outline-none"
+                        >
+                            <option value="">Acesso total</option>
+                            {escopos.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
+                        </select>
+                    </label>
+                )}
             </div>
             <div className="flex gap-1 shrink-0">
                 <button type="button" onClick={onEditar} title="Editar"
@@ -123,6 +139,10 @@ function LinhaAdmin({ admin, souEu, editando, form, setForm, err, salvando, onEd
 function AdminList() {
     const { user } = useAuth();
     const [admins, setAdmins] = useState(null);
+    // Escopos disponíveis e o de cada admin na edição em curso (Sprint 67);
+    // ambos chegam junto da lista de administradores.
+    const [escopos, setEscopos] = useState(null);
+    const [escopoPorAdmin, setEscopoPorAdmin] = useState({});
     const [editId, setEditId] = useState(null);
     const [form, setForm] = useState({ name: '', email: '' });
     const [errors, setErrors] = useState({});
@@ -132,9 +152,25 @@ function AdminList() {
     const err = (n) => errors[n]?.[0];
 
     function carregar() {
-        return getAdmins().then(setAdmins).catch(() => setAdmins([]));
+        return getAdmins()
+            .then((r) => {
+                setAdmins(r.data ?? []);
+                setEscopos(r.meta?.escopos ?? null);
+                setEscopoPorAdmin(r.meta?.escopo_por_admin ?? {});
+            })
+            .catch(() => setAdmins([]));
     }
     useEffect(() => { carregar(); }, []);
+
+
+    async function trocarEscopo(adminId, escopoId) {
+        setAlert('');
+        try {
+            setEscopoPorAdmin(await definirEscopoAdmin(adminId, escopoId));
+        } catch (e) {
+            setAlert(extractErrors(e).message || 'Não foi possível trocar o escopo.');
+        }
+    }
 
     function abrirEdicao(a) {
         setEditId(a.id); setForm({ name: a.name, email: a.email }); setErrors({}); setAlert('');
@@ -196,6 +232,9 @@ function AdminList() {
                         setForm={setForm}
                         err={err}
                         salvando={salvando}
+                        escopos={escopos}
+                        escopoId={escopoPorAdmin[a.id]?.escopo_id ?? null}
+                        onEscopo={(id) => trocarEscopo(a.id, id)}
                         onEditar={() => abrirEdicao(a)}
                         onCancelar={() => { setEditId(null); setErrors({}); }}
                         onSalvar={() => salvar(a.id)}

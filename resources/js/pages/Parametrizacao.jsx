@@ -31,6 +31,24 @@ export default function Parametrizacao() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl">
                 <CardParametrizacao
+                    to="/admin/parametrizacao/edicoes"
+                    icon="event_repeat"
+                    titulo="Edições"
+                    descricao="As edições da feira: crie a do próximo ano, escolha a padrão e reaproveite o portal."
+                />
+                <CardParametrizacao
+                    to="/admin/parametrizacao/escopos"
+                    icon="admin_panel_settings"
+                    titulo="Escopos de admin"
+                    descricao="Perfis de acesso: quais abas do menu cada administrador abre, edição por edição."
+                />
+                <CardParametrizacao
+                    to="/admin/parametrizacao/credenciamento"
+                    icon="badge"
+                    titulo="Credenciamento"
+                    descricao="O período do evento e os documentos conferidos no balcão, por papel."
+                />
+                <CardParametrizacao
                     to="/admin/parametrizacao/areas"
                     icon="category"
                     titulo="Áreas e subáreas"

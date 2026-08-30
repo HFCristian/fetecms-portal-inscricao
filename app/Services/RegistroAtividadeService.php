@@ -2,7 +2,9 @@
 
 namespace App\Services;
 
+use App\Enums\SituacaoDocumento;
 use App\Enums\TipoRegistro;
+use App\Models\Credenciamento;
 use App\Models\Projeto;
 use App\Models\RegistroAtividade;
 use App\Models\User;
@@ -10,9 +12,10 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 
 /**
- * Grava e consulta a trilha de auditoria (submissões, cancelamentos, exclusões
- * e trocas de e-mail). Escrever é sempre "fire and forget" a partir dos serviços
- * de negócio; ler é exclusividade do painel do admin.
+ * Grava e consulta a trilha de auditoria (submissões, cancelamentos, exclusões,
+ * trocas de e-mail, correções do admin e o que ele mexe num rascunho alheio).
+ * Escrever é sempre "fire and forget" a partir dos serviços de negócio; ler é
+ * exclusividade do painel do admin.
  */
 class RegistroAtividadeService
 {
@@ -86,6 +89,110 @@ class RegistroAtividadeService
         ?string $para,
         string $justificativa,
     ): RegistroAtividade {
+        return $this->registrarNoProjeto($tipo, $projeto, $admin, [
+            'de' => $de,
+            'para' => $para,
+            'justificativa' => $justificativa,
+        ]);
+    }
+
+    /**
+     * O admin mexendo no rascunho de outra pessoa (Projetos em rascunho): uma
+     * linha por campo alterado, com o "de → para". Quem fecha a sequência é a
+     * submissaoRascunho(), que carrega a justificativa obrigatória.
+     */
+    public function alteracaoRascunho(
+        Projeto $projeto,
+        User $admin,
+        string $campo,
+        ?string $de,
+        ?string $para,
+    ): RegistroAtividade {
+        return $this->registrarNoProjeto(TipoRegistro::RascunhoAlteracao, $projeto, $admin, [
+            'campo' => $campo,
+            'de' => $de,
+            'para' => $para,
+        ]);
+    }
+
+    /**
+     * Lista final oficial: a publicação e cada projeto acrescentado ou retirado
+     * depois. `$projeto` é nulo na oficialização (o registro é da lista toda).
+     */
+    public function listaFinal(
+        TipoRegistro $tipo,
+        User $admin,
+        string $lista,
+        ?Projeto $projeto,
+        ?string $justificativa,
+        ?string $detalhe = null,
+    ): RegistroAtividade {
+        $detalhes = array_filter([
+            'campo' => $lista,
+            'de' => $tipo === TipoRegistro::ListaFinalProjetoRemovido ? ($projeto?->titulo ?? $detalhe) : null,
+            'para' => $tipo === TipoRegistro::ListaFinalProjetoRemovido ? null : ($projeto?->titulo ?? $detalhe),
+            'justificativa' => $justificativa,
+        ], fn ($v) => $v !== null);
+
+        // Na remoção o "para" some de propósito (o projeto saiu), mas a chave
+        // precisa existir para o texto sair como "Título → (sem valor)".
+        $detalhes['para'] ??= null;
+
+        if ($projeto === null) {
+            return RegistroAtividade::create([
+                'tipo' => $tipo,
+                'user_id' => $admin->id,
+                'autor_email' => $admin->email,
+                'autor_nome' => $admin->name,
+                'autor_role' => $admin->role?->value,
+                'detalhes' => $detalhes,
+            ]);
+        }
+
+        return $this->registrarNoProjeto($tipo, $projeto, $admin, $detalhes);
+    }
+
+    /**
+     * Credenciamento de um projeto no evento: quem atendeu, quando e o que
+     * ficou pendente. O horário fica no próprio registro (`created_at`) e no
+     * `credenciamentos.finalizado_em`.
+     */
+    public function credenciamento(Credenciamento $credenciamento, Projeto $projeto, User $admin): RegistroAtividade
+    {
+        $ausentes = $credenciamento->documentos
+            ->filter(fn ($d) => $d->situacao === SituacaoDocumento::Ausente)
+            ->map(fn ($d) => $d->pessoa_nome.': '.($d->documento?->nome ?? 'documento'))
+            ->values()
+            ->all();
+
+        return $this->registrarNoProjeto(TipoRegistro::CredenciamentoRealizado, $projeto, $admin, array_filter([
+            'campo' => 'Credenciamento',
+            'para' => $credenciamento->finalizado_em?->format('d/m/Y H:i'),
+            'pendencias' => $ausentes === [] ? null : $ausentes,
+            'justificativa' => $credenciamento->observacao,
+        ], fn ($v) => $v !== null));
+    }
+
+    /** O admin submetendo o rascunho de outra pessoa, com a justificativa do escape. */
+    public function submissaoRascunho(Projeto $projeto, User $admin, string $justificativa): RegistroAtividade
+    {
+        return $this->registrarNoProjeto(TipoRegistro::RascunhoSubmissao, $projeto, $admin, [
+            'justificativa' => $justificativa,
+        ]);
+    }
+
+    /**
+     * Linha da trilha presa a um projeto, executada por um admin. O projeto e o
+     * dono são desnormalizados para o registro sobreviver ao delete.
+     *
+     * @param  array<string, mixed>  $detalhes
+     */
+    private function registrarNoProjeto(
+        TipoRegistro $tipo,
+        Projeto $projeto,
+        User $admin,
+        array $detalhes,
+    ): RegistroAtividade {
         $dono = $projeto->relationLoaded('user') ? $projeto->user : $projeto->user()->first();
 
         return RegistroAtividade::create([
@@ -99,7 +206,7 @@ class RegistroAtividadeService
             'projeto_categoria' => $projeto->categoria?->value,
             'dono_email' => $dono?->email,
             'dono_nome' => $dono?->name,
-            'detalhes' => ['de' => $de, 'para' => $para, 'justificativa' => $justificativa],
+            'detalhes' => $detalhes,
         ]);
     }
 
@@ -238,10 +345,19 @@ class RegistroAtividadeService
         if ($registro->tipo === TipoRegistro::TrocaEmail && isset($detalhes['de'], $detalhes['para'])) {
             $partes[] = $detalhes['de'].' → '.$detalhes['para'];
         }
-        $comDeEPara = in_array($registro->tipo->secao(), [TipoRegistro::SECAO_AVALIACAO, TipoRegistro::SECAO_PROJETOS], true);
+        $comDeEPara = in_array($registro->tipo->secao(), [
+            TipoRegistro::SECAO_AVALIACAO, TipoRegistro::SECAO_PROJETOS,
+            TipoRegistro::SECAO_RASCUNHOS, TipoRegistro::SECAO_LISTA_FINAL,
+            TipoRegistro::SECAO_CREDENCIAMENTO,
+        ], true);
         if ($comDeEPara && array_key_exists('para', $detalhes)) {
             $valor = fn ($v) => ($v === null || $v === '') ? '(sem valor)' : (string) $v;
-            $partes[] = $valor($detalhes['de'] ?? null).' → '.$valor($detalhes['para']);
+            // No rascunho, um registro por campo: o nome dele abre a frase.
+            $prefixo = ! empty($detalhes['campo']) ? $detalhes['campo'].': ' : '';
+            $partes[] = $prefixo.$valor($detalhes['de'] ?? null).' → '.$valor($detalhes['para']);
+        }
+        if (! empty($detalhes['pendencias'])) {
+            $partes[] = 'ausentes: '.implode('; ', (array) $detalhes['pendencias']);
         }
         if (! empty($detalhes['justificativa'])) {
             $partes[] = 'justificativa: '.$detalhes['justificativa'];

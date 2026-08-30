@@ -11,6 +11,7 @@ use App\Models\OrientadorProfile;
 use App\Models\Projeto;
 use App\Models\User;
 use App\Support\Camisetas;
+use App\Support\ClassesEscolares;
 use Illuminate\Database\Eloquent\Builder;
 
 class AdminDashboardService
@@ -58,6 +59,10 @@ class AdminDashboardService
                 $orientadores
             ),
             'alunos_camisetas' => Camisetas::contar(Aluno::whereHas('projeto', $submetido), $alunos),
+            // Alunos por classe escolar (Fundamental I, Fundamental II e Médio,
+            // com o técnico integrado dentro do médio), quebrados por série.
+            // Mesmo recorte dos demais cards: só projetos submetidos.
+            'alunos_classes' => ClassesEscolares::contar(Aluno::whereHas('projeto', $submetido)),
             'coorientadores_camisetas' => Camisetas::contar(Coorientador::whereHas('projeto', $submetido), $coorientadores),
             'escolas_com_projeto' => $submetidos()->whereNotNull('instituicao_id')->distinct()->count('instituicao_id'),
             'cidades_com_projeto' => $submetidos()->whereNotNull('cidade_id')->distinct()->count('cidade_id'),

@@ -8,6 +8,7 @@ import DocumentoUpload from '../components/DocumentoUpload.jsx';
 import SubareaCombobox from '../components/SubareaCombobox.jsx';
 import InstituicaoCombobox from '../components/InstituicaoCombobox.jsx';
 import { extractErrors } from '../lib/auth.jsx';
+import { baseProjeto, voltarLabel } from '../lib/rotasProjeto.js';
 import { useCatalogos, loadSubareas, loadCidades, criarSubarea, buscarInstituicoes, criarInstituicao } from '../lib/catalogos.js';
 import { criarProjeto, atualizarProjeto, obterProjeto } from '../lib/projetos.js';
 import { listarDocumentos } from '../lib/documentos.js';
@@ -28,9 +29,15 @@ const contarPalavras = (t) => (t || '').trim().split(/\s+/).filter(Boolean).leng
 const videoValido = (url) =>
     !!url && /(youtube\.com\/(watch\?v=|embed\/|shorts\/)|youtu\.be\/|vimeo\.com\/|drive\.google\.com\/file\/d\/)/i.test(url);
 
-export default function ProjetoForm() {
+/**
+ * `modoAdmin`: o admin terminando o rascunho de outra pessoa (Projetos em
+ * rascunho). Muda o prefixo das rotas e tira o "Salvar rascunho" — ele não
+ * conclui deixando em rascunho, só submetendo.
+ */
+export default function ProjetoForm({ modoAdmin = false }) {
     const { id } = useParams();
     const navigate = useNavigate();
+    const base = baseProjeto(modoAdmin);
     const catalogos = useCatalogos();
     const [confirm, confirmDialog] = useConfirm();
 
@@ -157,7 +164,7 @@ export default function ProjetoForm() {
             } else {
                 const novo = await criarProjeto(buildPayload());
                 setSaved(true); setDirty(false);
-                navigate(`/projetos/${novo.id}/editar`, { replace: true });
+                navigate(`${base}/${novo.id}/editar`, { replace: true });
             }
         } catch (e) {
             const { message, fields } = extractErrors(e);
@@ -182,7 +189,7 @@ export default function ProjetoForm() {
         try {
             await atualizarProjeto(id, buildPayload());
             setSaved(true); setDirty(false);
-            navigate(`/projetos/${id}/resumo`);
+            navigate(`${base}/${id}/resumo`);
         } catch (e) {
             const { message, fields } = extractErrors(e);
             setErrors(fields); setAlert(message);
@@ -196,7 +203,7 @@ export default function ProjetoForm() {
     // criação, cria o rascunho para obter o id. Sem alterações (edição), só navega.
     async function irParaIntegrantes() {
         if (id && !dirty) {
-            navigate(`/projetos/${id}/integrantes`);
+            navigate(`${base}/${id}/integrantes`);
             return;
         }
         setAlert(''); setSuccess(''); setErrors({}); setSaving(true);
@@ -208,7 +215,7 @@ export default function ProjetoForm() {
                 projetoId = (await criarProjeto(buildPayload())).id;
             }
             setSaved(true); setDirty(false);
-            navigate(`/projetos/${projetoId}/integrantes`);
+            navigate(`${base}/${projetoId}/integrantes`);
         } catch (e) {
             const { message, fields } = extractErrors(e);
             setErrors(fields); setAlert(message);
@@ -228,7 +235,7 @@ export default function ProjetoForm() {
                     <span className="material-symbols-outlined text-[48px] text-error">report</span>
                     <h1 className="font-display text-xl font-semibold text-on-surface mt-3">Projeto não encontrado</h1>
                     <p className="text-on-surface-variant text-sm mt-1">Este projeto não existe ou não está vinculado à sua conta.</p>
-                    <Button className="mt-6" onClick={() => navigate('/projetos')}>Voltar aos meus projetos</Button>
+                    <Button className="mt-6" onClick={() => navigate(base)}>Voltar</Button>
                 </div>
             </AppShell>
         );
@@ -242,8 +249,8 @@ export default function ProjetoForm() {
                     <h1 className="font-display text-xl font-semibold text-on-surface mt-3">Projeto já submetido</h1>
                     <p className="text-on-surface-variant text-sm mt-1">Projetos submetidos não podem mais ser editados (previsto em edital). Você pode visualizar o resumo.</p>
                     <div className="flex justify-center gap-3 mt-6">
-                        <Button variant="outline" onClick={() => navigate('/projetos')}>Voltar</Button>
-                        <Button onClick={() => navigate(`/projetos/${id}/resumo`)}>Ver resumo</Button>
+                        <Button variant="outline" onClick={() => navigate(base)}>Voltar</Button>
+                        <Button onClick={() => navigate(`${base}/${id}/resumo`)}>Ver resumo</Button>
                     </div>
                 </div>
             </AppShell>
@@ -272,9 +279,9 @@ export default function ProjetoForm() {
 
     return (
         <AppShell>
-            <Link to="/projetos" className="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary mb-2">
+            <Link to={base} className="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary mb-2">
                 <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-                Meus projetos
+                {voltarLabel(modoAdmin)}
             </Link>
             <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
                 <div>
@@ -481,10 +488,15 @@ export default function ProjetoForm() {
 
                 {/* Ações */}
                 <div className="flex flex-col sm:flex-row justify-end gap-3 pt-2">
-                    <Button variant="outline" onClick={() => navigate('/projetos')} type="button">Voltar</Button>
+                    <Button variant="outline" onClick={() => navigate(base)} type="button">Voltar</Button>
+                    {/* O admin não conclui deixando em rascunho: o botão grava o
+                        que ele mexeu (e a trilha registra), mas quem fecha o
+                        trabalho é a submissão. */}
                     <Button onClick={salvarRascunho} loading={saving} disabled={!dirty} type="button">
                         <span className="material-symbols-outlined text-[20px]">{!dirty && saved ? 'check' : 'save'}</span>
-                        {!dirty && saved ? 'RASCUNHO SALVO' : 'SALVAR RASCUNHO'}
+                        {modoAdmin
+                            ? (!dirty && saved ? 'ALTERAÇÕES SALVAS' : 'SALVAR ALTERAÇÕES')
+                            : (!dirty && saved ? 'RASCUNHO SALVO' : 'SALVAR RASCUNHO')}
                     </Button>
                     <Button variant="success" type="button" loading={saving} disabled={!formularioCompleto}
                         title={formularioCompleto ? 'Revisar e submeter' : 'Preencha todos os campos obrigatórios (e anexos) para habilitar'}
@@ -495,7 +507,9 @@ export default function ProjetoForm() {
                 </div>
                 {!formularioCompleto && (
                     <p className="text-right text-xs text-on-surface-variant">
-                        Preencha todos os campos (e anexe o Projeto de Pesquisa) para habilitar a revisão/submissão. Sem isso, você ainda pode salvar o rascunho.
+                        {modoAdmin
+                            ? 'Preencha todos os campos (e anexe o Projeto de Pesquisa) para habilitar a submissão. As alterações ficam gravadas e registradas em Registros → Rascunhos.'
+                            : 'Preencha todos os campos (e anexe o Projeto de Pesquisa) para habilitar a revisão/submissão. Sem isso, você ainda pode salvar o rascunho.'}
                     </p>
                 )}
             </div>

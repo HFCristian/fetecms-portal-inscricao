@@ -36,7 +36,8 @@ class ProjetoService
     public function criarRascunho(User $user, array $data): Projeto
     {
         $data['status'] = ProjetoStatus::Rascunho;
-        $data['edicao_id'] ??= Edicao::where('inscricoes_abertas', true)->value('id');
+        // A edição em escopo do orientador — é nela que a inscrição nasce.
+        $data['edicao_id'] ??= Edicao::atual()?->id;
 
         // user_id vem da relação (do usuário autenticado), nunca do request.
         $projeto = $user->projetos()->create($data);

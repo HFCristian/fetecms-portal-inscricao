@@ -21,22 +21,34 @@ import AdminModelosEmail from './pages/AdminModelosEmail.jsx';
 import AdminComunicacao from './pages/AdminComunicacao.jsx';
 import AdminHome from './pages/AdminHome.jsx';
 import AdminProjetosPorArea from './pages/AdminProjetosPorArea.jsx';
+import AdminProjetosRascunho from './pages/AdminProjetosRascunho.jsx';
 import AdminProjetosPorEstado from './pages/AdminProjetosPorEstado.jsx';
 import AdminProjetosPorCidade from './pages/AdminProjetosPorCidade.jsx';
 import AdminProjetosPorEscola from './pages/AdminProjetosPorEscola.jsx';
 import Parametrizacao from './pages/Parametrizacao.jsx';
 import ParametrizacaoAreas from './pages/ParametrizacaoAreas.jsx';
+import ParametrizacaoEdicoes from './pages/ParametrizacaoEdicoes.jsx';
+import ParametrizacaoEscopos from './pages/ParametrizacaoEscopos.jsx';
 import ParametrizacaoEscolas from './pages/ParametrizacaoEscolas.jsx';
 import ParametrizacaoInscricoes from './pages/ParametrizacaoInscricoes.jsx';
 import ParametrizacaoAvaliacao from './pages/ParametrizacaoAvaliacao.jsx';
 import AdminManager from './pages/AdminManager.jsx';
 import AdminSuporte from './pages/AdminSuporte.jsx';
+import CredenciamentoHome from './pages/CredenciamentoHome.jsx';
+import ComiteHome from './pages/ComiteHome.jsx';
+import ComiteTransporte from './pages/ComiteTransporte.jsx';
+import ComiteMapa from './pages/ComiteMapa.jsx';
+import CredenciamentoLista from './pages/CredenciamentoLista.jsx';
+import CredenciamentoFicha from './pages/CredenciamentoFicha.jsx';
+import ParametrizacaoCredenciamento from './pages/ParametrizacaoCredenciamento.jsx';
 import AdminAvaliacaoOnline from './pages/AdminAvaliacaoOnline.jsx';
 import AvaliacaoAvaliadores from './pages/AvaliacaoAvaliadores.jsx';
 import AvaliacaoDistribuicao from './pages/AvaliacaoDistribuicao.jsx';
 import AvaliacaoProjetos from './pages/AvaliacaoProjetos.jsx';
 import AvaliacaoReclassificacoes from './pages/AvaliacaoReclassificacoes.jsx';
 import AvaliacaoRanking from './pages/AvaliacaoRanking.jsx';
+import AvaliacaoListasFinais from './pages/AvaliacaoListasFinais.jsx';
+import AvaliacaoListaFinalDetalhe from './pages/AvaliacaoListaFinalDetalhe.jsx';
 import AvaliacaoRankingAvaliadores from './pages/AvaliacaoRankingAvaliadores.jsx';
 import Acesso from './pages/Acesso.jsx';
 import AdminRegistros from './pages/AdminRegistros.jsx';
@@ -109,13 +121,25 @@ export default function Root() {
                             <Route path="/admin/avaliacao/projetos" element={<AvaliacaoProjetos />} />
                             <Route path="/admin/avaliacao/reclassificacoes" element={<AvaliacaoReclassificacoes />} />
                             <Route path="/admin/avaliacao/ranking" element={<AvaliacaoRanking />} />
+                            <Route path="/admin/avaliacao/listas-finais" element={<AvaliacaoListasFinais />} />
+                            <Route path="/admin/avaliacao/listas-finais/:id" element={<AvaliacaoListaFinalDetalhe />} />
                             <Route path="/admin/avaliacao/ranking-avaliadores" element={<AvaliacaoRankingAvaliadores />} />
                             <Route path="/admin/projetos-por-area" element={<AdminProjetosPorArea />} />
+                            {/* Projetos em rascunho: o admin termina a inscrição de
+                                outra pessoa nas MESMAS telas do orientador, sob este
+                                prefixo, e só sai dali submetendo (com justificativa). */}
+                            <Route path="/admin/projetos-rascunho" element={<AdminProjetosRascunho />} />
+                            <Route path="/admin/projetos-rascunho/:id/editar" element={<ProjetoForm modoAdmin />} />
+                            <Route path="/admin/projetos-rascunho/:id/integrantes" element={<Integrantes modoAdmin />} />
+                            <Route path="/admin/projetos-rascunho/:id/resumo" element={<Resumo modoAdmin />} />
                             <Route path="/admin/projetos-por-estado" element={<AdminProjetosPorEstado />} />
                             <Route path="/admin/projetos-por-cidade" element={<AdminProjetosPorCidade />} />
                             <Route path="/admin/projetos-por-escola" element={<AdminProjetosPorEscola />} />
                             <Route path="/admin/parametrizacao" element={<Parametrizacao />} />
                             <Route path="/admin/parametrizacao/areas" element={<ParametrizacaoAreas />} />
+                            <Route path="/admin/parametrizacao/edicoes" element={<ParametrizacaoEdicoes />} />
+                            <Route path="/admin/parametrizacao/escopos" element={<ParametrizacaoEscopos />} />
+                            <Route path="/admin/parametrizacao/credenciamento" element={<ParametrizacaoCredenciamento />} />
                             <Route path="/admin/parametrizacao/escolas" element={<ParametrizacaoEscolas />} />
                             <Route path="/admin/parametrizacao/inscricoes" element={<ParametrizacaoInscricoes />} />
                             <Route path="/admin/parametrizacao/avaliacao" element={<ParametrizacaoAvaliacao />} />
@@ -123,6 +147,18 @@ export default function Root() {
                             <Route path="/admin/registros/inscricoes" element={<AdminRegistros secao="inscricoes" />} />
                             <Route path="/admin/registros/avaliacao" element={<AdminRegistros secao="avaliacao" />} />
                             <Route path="/admin/registros/projetos" element={<AdminRegistros secao="projetos" />} />
+                            <Route path="/admin/registros/rascunhos" element={<AdminRegistros secao="rascunhos" />} />
+                            <Route path="/admin/registros/lista-final" element={<AdminRegistros secao="lista_final" />} />
+                            <Route path="/admin/registros/credenciamento" element={<AdminRegistros secao="credenciamento" />} />
+                            {/* Aba Credenciamento: o balcão do evento. */}
+                            <Route path="/admin/credenciamento" element={<CredenciamentoHome />} />
+                            <Route path="/admin/credenciamento/credenciar" element={<CredenciamentoLista situacao="pendentes" />} />
+                            <Route path="/admin/credenciamento/credenciados" element={<CredenciamentoLista situacao="credenciados" />} />
+                            <Route path="/admin/credenciamento/projetos/:id" element={<CredenciamentoFicha />} />
+                            {/* Aba Comitê especial: transporte e mapa em tempo real. */}
+                            <Route path="/admin/comite" element={<ComiteHome />} />
+                            <Route path="/admin/comite/transporte" element={<ComiteTransporte />} />
+                            <Route path="/admin/comite/mapa" element={<ComiteMapa />} />
                             <Route path="/admin/comunicacao" element={<AdminComunicacao />} />
                             <Route path="/admin/comunicacao/avisos" element={<AdminAvisos />} />
                             <Route path="/admin/comunicacao/modelos" element={<AdminModelosEmail />} />

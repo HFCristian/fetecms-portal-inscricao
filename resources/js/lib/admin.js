@@ -162,6 +162,31 @@ export async function baixarListaFinal(cotas) {
     baixarBlob(r.data, nome);
 }
 
+/** Listas finais oficiais registradas na edição em curso. */
+export const getListasFinais = () =>
+    http.get('/admin/avaliacao/listas-finais').then((r) => r.data.data);
+
+/** Baixa o TXT de uma lista oficial na composição atual dela. */
+export async function baixarListaOficial(id) {
+    const r = await http.get(`/admin/avaliacao/listas-finais/${id}/arquivo`, { responseType: 'blob' });
+    const nome = /filename="([^"]+)"/.exec(r.headers['content-disposition'] ?? '')?.[1] ?? 'lista-final.txt';
+    baixarBlob(r.data, nome);
+}
+
+/** Uma lista oficial aberta para edição: composição atual + candidatos. */
+export const getListaFinal = (id) =>
+    http.get(`/admin/avaliacao/listas-finais/${id}`).then((r) => r.data.data);
+
+/** Inclui um projeto na lista oficial (justificativa obrigatória). */
+export const adicionarNaListaFinal = (id, projetoId, justificativa) =>
+    http.post(`/admin/avaliacao/listas-finais/${id}/projetos`, { projeto_id: projetoId, justificativa })
+        .then((r) => r.data.data);
+
+/** Retira um projeto da lista oficial (justificativa obrigatória). */
+export const removerDaListaFinal = (id, projetoId, justificativa) =>
+    http.delete(`/admin/avaliacao/listas-finais/${id}/projetos/${projetoId}`, { data: { justificativa } })
+        .then((r) => r.data.data);
+
 // Projetos com sugestão de reclassificação. `filtros`: { area_id, q, de, ate }.
 export const getReclassificacoes = (filtros = {}) =>
     http.get('/admin/avaliacao/reclassificacoes', { params: limpar(filtros) }).then((r) => r.data.data);
@@ -189,12 +214,20 @@ function limpar(filtros) {
 
 export const getProjetosPorArea = () => http.get('/admin/projetos-por-area').then((r) => r.data.data);
 
+/** Projetos em rascunho (o admin termina e submete depois do prazo). */
+export const getProjetosRascunho = (filtros = {}) =>
+    http.get('/admin/projetos-rascunho', { params: filtros }).then((r) => r.data);
+
 export const getProjetosPorLocalidade = () => http.get('/admin/projetos-por-localidade').then((r) => r.data.data);
 
 export const criarAdmin = (payload) => http.post('/admin/admins', payload).then((r) => r.data.data);
 
 // Gestão de administradores (listar, editar nome/email, ativar/desativar).
-export const getAdmins = () => http.get('/admin/admins').then((r) => r.data.data);
+/**
+ * Administradores + o escopo de cada um na edição em curso.
+ * Devolve o payload inteiro: `{ data, meta: { escopos, escopo_por_admin } }`.
+ */
+export const getAdmins = () => http.get('/admin/admins').then((r) => r.data);
 export const atualizarAdmin = (id, payload) => http.put(`/admin/admins/${id}`, payload).then((r) => r.data.data);
 export const definirStatusAdmin = (id, isActive) =>
     http.patch(`/admin/admins/${id}/status`, { is_active: isActive }).then((r) => r.data.data);
@@ -281,3 +314,18 @@ export const salvarModeloEmail = (chave, dados) =>
 /** Volta o modelo ao texto padrão (apaga a customização). */
 export const restaurarModeloEmail = (chave) =>
     http.delete(`/admin/modelos-email/${chave}`).then((r) => r.data.data);
+
+// --- Parametrização → Escopos de admin (Sprint 67) ---
+
+export const getEscopos = () => http.get('/admin/escopos').then((r) => r.data.data);
+
+export const criarEscopo = (payload) => http.post('/admin/escopos', payload).then((r) => r.data.data);
+
+export const atualizarEscopo = (id, payload) =>
+    http.put(`/admin/escopos/${id}`, payload).then((r) => r.data.data);
+
+export const excluirEscopo = (id) => http.delete(`/admin/escopos/${id}`).then((r) => r.data.data);
+
+/** Define o escopo de um admin na edição em curso (null = acesso total). */
+export const definirEscopoAdmin = (adminId, escopoId) =>
+    http.put(`/admin/admins/${adminId}/escopo`, { escopo_id: escopoId ?? null }).then((r) => r.data.data);

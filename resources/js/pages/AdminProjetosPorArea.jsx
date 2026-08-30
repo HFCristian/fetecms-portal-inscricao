@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import GrupoArea, { BotoesExpandir, useAreasAbertas } from '../components/GrupoArea.jsx';
-import { getProjetosPorArea } from '../lib/admin.js';
+import { getProjetosPorArea, getInscricoesConfig } from '../lib/admin.js';
 
 const STATUS_PILL = {
     rascunho: 'bg-primary-fixed text-primary-container',
@@ -33,9 +33,14 @@ function CardArea({ grupo }) {
 
 export default function AdminProjetosPorArea() {
     const [grupos, setGrupos] = useState(null);
+    // O botão "Projetos em rascunho" só existe depois do prazo: antes disso o
+    // orientador ainda pode submeter sozinho, e a organização não entra na
+    // inscrição dele.
+    const [inscricoes, setInscricoes] = useState(null);
     const abertas = useAreasAbertas();
 
     useEffect(() => { getProjetosPorArea().then(setGrupos).catch(() => setGrupos([])); }, []);
+    useEffect(() => { getInscricoesConfig().then(setInscricoes).catch(() => setInscricoes(null)); }, []);
 
     // O grupo "sem área" vem com area_id null: a chave do acordeão precisa ser estável.
     const chave = (g) => g.area_id ?? 0;
@@ -45,11 +50,24 @@ export default function AdminProjetosPorArea() {
             <Link to="/admin" className="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary mb-3">
                 <span className="material-symbols-outlined text-[18px]">arrow_back</span> Painel do Administrador
             </Link>
-            <h1 className="font-display text-2xl font-semibold text-primary mb-1">Projetos por área do conhecimento</h1>
-            <p className="text-sm text-on-surface-variant mb-6">
-                Inclui rascunhos. Projetos sem área aparecem em “Área ainda não informada”. Clique na
-                área para abrir a lista.
-            </p>
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-6">
+                <div>
+                    <h1 className="font-display text-2xl font-semibold text-primary mb-1">Projetos por área do conhecimento</h1>
+                    <p className="text-sm text-on-surface-variant">
+                        Inclui rascunhos. Projetos sem área aparecem em “Área ainda não informada”. Clique na
+                        área para abrir a lista.
+                    </p>
+                </div>
+                {inscricoes?.encerradas && (
+                    <Link
+                        to="/admin/projetos-rascunho"
+                        className="shrink-0 inline-flex items-center gap-2 rounded-lg bg-primary-container px-4 py-2.5 text-sm font-semibold text-on-primary hover:opacity-90 transition-opacity"
+                    >
+                        <span className="material-symbols-outlined text-[20px]">edit_note</span>
+                        Projetos em rascunho
+                    </Link>
+                )}
+            </div>
 
             {grupos === null ? (
                 <div className="text-center py-6 text-on-surface-variant">

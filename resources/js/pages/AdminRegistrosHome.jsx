@@ -43,6 +43,24 @@ export default function AdminRegistrosHome() {
                     descricao="Correções do admin em projetos submetidos: categoria, área, subárea e vídeo, com a justificativa."
                 />
                 <CardSecao
+                    to="/admin/registros/rascunhos"
+                    icon="drafts"
+                    titulo="Rascunhos"
+                    descricao="O admin terminando e submetendo a inscrição de alguém depois do prazo: cada campo alterado e a justificativa do envio."
+                />
+                <CardSecao
+                    to="/admin/registros/lista-final"
+                    icon="fact_check"
+                    titulo="Lista final"
+                    descricao="A lista oficial da feira: publicação e cada projeto incluído ou retirado, com a justificativa."
+                />
+                <CardSecao
+                    to="/admin/registros/credenciamento"
+                    icon="how_to_reg"
+                    titulo="Credenciamento"
+                    descricao="Quem credenciou cada finalista no evento, o horário e o que ficou ausente."
+                />
+                <CardSecao
                     to="/admin/registros/avaliacao"
                     icon="grading"
                     titulo="Avaliação Online"

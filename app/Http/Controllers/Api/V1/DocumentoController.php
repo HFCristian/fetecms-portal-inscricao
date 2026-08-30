@@ -8,15 +8,20 @@ use App\Http\Requests\Projeto\DocumentoRequest;
 use App\Http\Resources\DocumentoResource;
 use App\Models\Projeto;
 use App\Models\ProjetoDocumento;
+use App\Services\AdminRascunhoService;
 use App\Services\DocumentoService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class DocumentoController extends Controller
 {
-    public function __construct(private readonly DocumentoService $documentos) {}
+    public function __construct(
+        private readonly DocumentoService $documentos,
+        private readonly AdminRascunhoService $rascunhos,
+    ) {}
 
     public function index(Projeto $projeto): AnonymousResourceCollection
     {
@@ -34,6 +39,7 @@ class DocumentoController extends Controller
             $request->file('file'),
             TipoDocumento::from($request->validated('tipo')),
         );
+        $this->rascunhos->registrarDocumentoAnexado($projeto, $request->user(), $documento);
 
         return DocumentoResource::make($documento)->response()->setStatusCode(201);
     }
@@ -55,10 +61,11 @@ class DocumentoController extends Controller
         ]);
     }
 
-    public function destroy(ProjetoDocumento $documento): JsonResponse
+    public function destroy(Request $request, ProjetoDocumento $documento): JsonResponse
     {
         $this->authorize('update', $documento->projeto);
 
+        $this->rascunhos->registrarDocumentoRemovido($documento->projeto, $request->user(), $documento);
         $this->documentos->remover($documento);
 
         return response()->json(['data' => ['message' => 'Documento removido.']]);

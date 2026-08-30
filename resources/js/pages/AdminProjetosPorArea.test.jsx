@@ -25,7 +25,13 @@ const getProjetosPorArea = vi.fn(() => Promise.resolve([
         projetos: [{ id: 12, titulo: 'Sem área', status: 'rascunho', status_label: 'Rascunho', categoria_label: null }],
     },
 ]));
-vi.mock('../lib/admin.js', () => ({ getProjetosPorArea: (...a) => getProjetosPorArea(...a) }));
+// A tela também pergunta o estado da janela de inscrição: é ela que decide se
+// o botão "Projetos em rascunho" aparece.
+const getInscricoesConfig = vi.fn(() => Promise.resolve({ encerradas: false }));
+vi.mock('../lib/admin.js', () => ({
+    getProjetosPorArea: (...a) => getProjetosPorArea(...a),
+    getInscricoesConfig: (...a) => getInscricoesConfig(...a),
+}));
 
 import AdminProjetosPorArea from './AdminProjetosPorArea.jsx';
 
@@ -66,5 +72,16 @@ describe('AdminProjetosPorArea', () => {
 
         fireEvent.click(screen.getByText('Recolher todas'));
         expect(screen.queryByText('Zebra do cerrado')).not.toBeInTheDocument();
+    });
+
+    it('só oferece "Projetos em rascunho" depois do fim das inscrições', async () => {
+        const { unmount } = render(<AdminProjetosPorArea />);
+        await screen.findAllByText('Ciências Agrárias');
+        expect(screen.queryByText('Projetos em rascunho')).not.toBeInTheDocument();
+        unmount();
+
+        getInscricoesConfig.mockResolvedValueOnce({ encerradas: true });
+        render(<AdminProjetosPorArea />);
+        expect(await screen.findByText('Projetos em rascunho')).toBeInTheDocument();
     });
 });
