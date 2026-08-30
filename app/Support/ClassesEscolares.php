@@ -15,9 +15,10 @@ use Illuminate\Database\Eloquent\Builder;
  * O **Técnico Integrado entra no card de Ensino Médio**: é ensino médio na
  * prática, e os códigos de série são os mesmos (só ele chega ao 4º ano).
  *
- * Quem está sem série (ou com um código de cadastro antigo, fora da lista) cai
- * no balde "N.I." da própria classe, então a soma das séries sempre fecha com o
- * número grande do card. Aluno sem modalidade nenhuma não entra em card algum —
+ * Só as séries conhecidas são listadas: quem está sem série (ou com um código
+ * de cadastro antigo, fora da lista) **não aparece** na quebra, então a soma das
+ * séries pode ser menor que o número grande do card — que continua sendo o total
+ * de alunos da classe. Aluno sem modalidade nenhuma não entra em card algum:
  * não há como adivinhar a classe dele.
  */
 class ClassesEscolares
@@ -61,9 +62,6 @@ class ClassesEscolares
         ],
     ];
 
-    /** Rótulo do balde de quem não informou a série. */
-    public const NAO_INFORMADO = 'N.I.';
-
     /**
      * Um bloco por classe, na ordem acima, mesmo as zeradas.
      *
@@ -90,10 +88,6 @@ class ClassesEscolares
                 'serie' => $label,
                 'total' => $porSerie[$codigo] ?? 0,
             ], $classe['series'], array_keys($classe['series']));
-
-            // Sobra = alunos da classe cuja série não casou com nenhum código conhecido.
-            $conhecidos = array_sum(array_column($series, 'total'));
-            $series[] = ['serie' => self::NAO_INFORMADO, 'total' => max(0, $total - $conhecidos)];
 
             return [
                 'chave' => $chave,

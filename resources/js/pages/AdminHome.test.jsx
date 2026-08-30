@@ -18,32 +18,27 @@ vi.mock('../lib/admin.js', () => ({
         orientadores_camisetas: { total: 5, tamanhos: [
             { tamanho: 'PP', total: 0 }, { tamanho: 'P', total: 1 }, { tamanho: 'M', total: 2 },
             { tamanho: 'G', total: 1 }, { tamanho: 'GG', total: 0 }, { tamanho: 'XG', total: 1 },
-            { tamanho: 'N.I.', total: 0 },
         ] },
         alunos_camisetas: { total: 20, tamanhos: [
             { tamanho: 'PP', total: 4 }, { tamanho: 'P', total: 6 }, { tamanho: 'M', total: 5 },
             { tamanho: 'G', total: 3 }, { tamanho: 'GG', total: 1 }, { tamanho: 'XG', total: 0 },
-            { tamanho: 'N.I.', total: 1 },
         ] },
         coorientadores_camisetas: { total: 3, tamanhos: [
             { tamanho: 'PP', total: 0 }, { tamanho: 'P', total: 0 }, { tamanho: 'M', total: 2 },
             { tamanho: 'G', total: 1 }, { tamanho: 'GG', total: 0 }, { tamanho: 'XG', total: 0 },
-            { tamanho: 'N.I.', total: 0 },
         ] },
         alunos_classes: [
             { chave: 'fundamental_i', label: 'Ensino Fundamental I', total: 3, series: [
                 { serie: '3º ano', total: 2 }, { serie: '4º ano', total: 0 },
-                { serie: '5º ano', total: 1 }, { serie: 'N.I.', total: 0 },
+                { serie: '5º ano', total: 1 },
             ] },
             { chave: 'fundamental_ii', label: 'Ensino Fundamental II', total: 5, series: [
                 { serie: '6º ano', total: 1 }, { serie: '7º ano', total: 1 },
                 { serie: '8º ano', total: 1 }, { serie: '9º ano', total: 1 },
-                { serie: 'N.I.', total: 1 },
             ] },
             { chave: 'medio', label: 'Ensino Médio', total: 12, series: [
                 { serie: '1º ano', total: 5 }, { serie: '2º ano', total: 4 },
                 { serie: '3º ano', total: 2 }, { serie: '4º ano', total: 1 },
-                { serie: 'N.I.', total: 0 },
             ] },
         ],
         escolas_com_projeto: 2, cidades_com_projeto: 2, estados_com_projeto: 1,
@@ -92,12 +87,11 @@ describe('AdminHome — camisetas', () => {
         expect(await screen.findByText('Camisetas · Orientadores')).toBeInTheDocument();
         expect(screen.getByText('Camisetas · Alunos')).toBeInTheDocument();
         expect(screen.getByText('Camisetas · Coorientadores')).toBeInTheDocument();
-        // Sete baldes (PP…XG + N.I.) em cada um dos três cards.
+        // Seis baldes (PP…XG) em cada um dos três cards — sem "N.I.": quem não
+        // informou tamanho não vira uma coluna do card.
         expect(screen.getAllByText('PP')).toHaveLength(3);
         expect(screen.getAllByText('XG')).toHaveLength(3);
-        for (const publico of ['Orientadores', 'Alunos', 'Coorientadores']) {
-            expect(within(card(`Camisetas · ${publico}`)).getByText('N.I.')).toBeInTheDocument();
-        }
+        expect(screen.queryByText('N.I.')).not.toBeInTheDocument();
     });
 });
 
@@ -113,9 +107,9 @@ describe('AdminHome — alunos por classe escolar', () => {
         expect(within(medio).getByText('4º ano')).toBeInTheDocument();
         expect(within(medio).getByText('12')).toBeInTheDocument();
 
-        // O Fundamental I vai do 3º ao 5º ano e tem seu próprio balde N.I.
+        // O Fundamental I vai do 3º ao 5º ano, e nenhuma classe mostra "N.I.".
         const fund1 = card('Alunos · Ensino Fundamental I');
         expect(within(fund1).getByText('5º ano')).toBeInTheDocument();
-        expect(within(fund1).getByText('N.I.')).toBeInTheDocument();
+        expect(screen.queryByText('N.I.')).not.toBeInTheDocument();
     });
 });

@@ -290,12 +290,18 @@ export async function exportarRegistrosCsv(filtros) {
     baixarBlob(r.data, nome);
 }
 
-/** Início/fim do período de ajustes do orientador (aba "Ajustes"). */
+/**
+ * Início/fim do período de ajustes do orientador (aba "Ajustes").
+ *
+ * Devolvem o envelope inteiro (`{ data, meta }`), como os demais campos de data:
+ * é o que o `CampoDataCard` espera para repassar o config novo e mostrar a
+ * mensagem do backend. Desembrulhar aqui deixava o card sem config.
+ */
 export const definirInicioAjustes = (data) =>
-    http.patch('/admin/avaliacao/ajustes', { ponta: 'de', data }).then((r) => r.data.data);
+    http.patch('/admin/avaliacao/ajustes', { ponta: 'de', data }).then((r) => r.data);
 
 export const definirFimAjustes = (data) =>
-    http.patch('/admin/avaliacao/ajustes', { ponta: 'ate', data }).then((r) => r.data.data);
+    http.patch('/admin/avaliacao/ajustes', { ponta: 'ate', data }).then((r) => r.data);
 
 /**
  * Correção manual de um projeto submetido (categoria, área, subárea e vídeo).

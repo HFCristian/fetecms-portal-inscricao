@@ -5,8 +5,8 @@ import { getDashboard } from '../lib/admin.js';
 
 // Cards do painel. `status` = submetidos/rascunho; `genero` = mulheres/homens/outros;
 // `categoria` = quantos projetos em cada categoria da feira; `camiseta` = quantas
-// camisetas de cada tamanho (o número que a organização usa para encomendar);
-// `classe` = quantos alunos em cada classe escolar, quebrados por série.
+// camisetas de cada tamanho informado (o número que a organização usa para
+// encomendar); `classe` = quantos alunos em cada classe escolar, por série.
 const CARDS = [
     { key: 'projetos_total', label: 'Projetos (total)', icon: 'folder', verMais: '/admin/projetos-por-area' },
     { type: 'status', label: 'Projetos por status', icon: 'donut_large' },
@@ -80,8 +80,9 @@ function CategoriaBreakdown({ dados, label }) {
     );
 }
 
-// Camisetas por tamanho. São sete baldes (PP…XG + não informado), demais para a
-// linha única do Breakdown, então saem numa grade de quatro colunas.
+// Camisetas por tamanho (PP…XG). São seis baldes, demais para a linha única do
+// Breakdown, então saem numa grade de quatro colunas. Quem não informou tamanho
+// não aparece: a soma pode ficar abaixo do número grande, que é o total de gente.
 function CamisetaBreakdown({ dados, label }) {
     const d = dados ?? { total: 0, tamanhos: [] };
     return (
@@ -101,7 +102,8 @@ function CamisetaBreakdown({ dados, label }) {
 }
 
 // Alunos de uma classe escolar (Fundamental I/II ou Médio), com a quebra por
-// série. O balde N.I. fecha a conta com o número grande do card.
+// série. Aluno sem série não aparece na quebra, então a soma das séries pode
+// ficar abaixo do número grande — que é o total de alunos da classe.
 function ClasseBreakdown({ dados }) {
     if (!dados) return null;
     return (

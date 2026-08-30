@@ -74,7 +74,7 @@ class AdminTest extends TestCase
 
         $submetido = Projeto::factory()->submetido()->create(['user_id' => $orient->id]);
         Aluno::factory()->count(2)->create(['projeto_id' => $submetido->id, 'camiseta' => 'P']);
-        // Sem tamanho informado: cai no balde N.I. para a soma fechar com o total.
+        // Sem tamanho informado: conta no total do card, mas não vira coluna.
         Aluno::factory()->create(['projeto_id' => $submetido->id, 'camiseta' => null]);
         Coorientador::factory()->create(['projeto_id' => $submetido->id, 'camiseta' => 'GG']);
 
@@ -86,15 +86,16 @@ class AdminTest extends TestCase
 
         $this->getJson('/api/v1/admin/dashboard')
             ->assertOk()
-            // Ordem fixa: PP, P, M, G, GG, XG, N.I.
+            // Ordem fixa: PP, P, M, G, GG, XG — só os tamanhos informados.
             ->assertJsonPath('data.orientadores_camisetas.total', 1)
             ->assertJsonPath('data.orientadores_camisetas.tamanhos.2.tamanho', 'M')
             ->assertJsonPath('data.orientadores_camisetas.tamanhos.2.total', 1)
             ->assertJsonPath('data.alunos_camisetas.total', 3)
             ->assertJsonPath('data.alunos_camisetas.tamanhos.1.tamanho', 'P')
             ->assertJsonPath('data.alunos_camisetas.tamanhos.1.total', 2)
-            ->assertJsonPath('data.alunos_camisetas.tamanhos.6.tamanho', 'N.I.')
-            ->assertJsonPath('data.alunos_camisetas.tamanhos.6.total', 1)
+            // Seis baldes: o aluno sem tamanho entra no total (3), não na quebra.
+            ->assertJsonCount(6, 'data.alunos_camisetas.tamanhos')
+            ->assertJsonMissing([['tamanho' => 'N.I.', 'total' => 1]])
             ->assertJsonPath('data.coorientadores_camisetas.total', 1)
             ->assertJsonPath('data.coorientadores_camisetas.tamanhos.4.tamanho', 'GG')
             ->assertJsonPath('data.coorientadores_camisetas.tamanhos.4.total', 1);
@@ -345,7 +346,7 @@ class AdminTest extends TestCase
         // Fundamental I: dois no 3º ano, um no 5º.
         Aluno::factory()->count(2)->classe('fundamental_i', '3_ef')->create(['projeto_id' => $submetido->id]);
         Aluno::factory()->classe('fundamental_i', '5_ef')->create(['projeto_id' => $submetido->id]);
-        // Fundamental II: um no 9º, e um sem série (cai no N.I. da classe).
+        // Fundamental II: um no 9º, e um sem série (conta no total, fora da quebra).
         Aluno::factory()->classe('fundamental_ii', '9_ef')->create(['projeto_id' => $submetido->id]);
         Aluno::factory()->classe('fundamental_ii')->create(['projeto_id' => $submetido->id, 'ano_escolar' => null]);
         // Médio: um regular no 2º ano e um técnico integrado no 4º — os dois no
@@ -368,11 +369,13 @@ class AdminTest extends TestCase
         $this->assertSame(['serie' => '3º ano', 'total' => 2], $fund1['series'][0]);
         $this->assertSame(['serie' => '5º ano', 'total' => 1], $fund1['series'][2]);
 
-        // A soma das séries (com o N.I.) fecha com o número grande do card.
+        // Só as quatro séries conhecidas: o aluno sem série conta no total do
+        // card (2), mas não aparece na quebra — a soma fica em 1.
         $fund2 = $porChave['fundamental_ii'];
         $this->assertSame(2, $fund2['total']);
-        $this->assertSame($fund2['total'], array_sum(array_column($fund2['series'], 'total')));
-        $this->assertSame(['serie' => 'N.I.', 'total' => 1], end($fund2['series']));
+        $this->assertCount(4, $fund2['series']);
+        $this->assertSame(1, array_sum(array_column($fund2['series'], 'total')));
+        $this->assertNotContains('N.I.', array_column($fund2['series'], 'serie'));
 
         $medio = $porChave['medio'];
         $this->assertSame(2, $medio['total']);

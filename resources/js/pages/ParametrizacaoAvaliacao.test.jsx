@@ -47,6 +47,8 @@ describe('ParametrizacaoAvaliacao', () => {
         definirEncerramentoAvaliacao.mockReset();
         definirLimitesAvaliador.mockReset();
         definirLimitesProjeto.mockReset();
+        definirInicioAjustes.mockReset();
+        definirFimAjustes.mockReset();
     });
 
     it('mostra as duas datas do período sem nada definido', async () => {
@@ -143,5 +145,42 @@ describe('ParametrizacaoAvaliacao', () => {
 
         expect(screen.getAllByText('Salvar')[1].closest('button')).toBeDisabled();
         expect(definirLimitesProjeto).not.toHaveBeenCalled();
+    });
+    // Regressão: o card repassa `resp.data` para o `setConfig`. Enquanto o helper
+    // desembrulhava a resposta, o config virava `undefined` e o render seguinte
+    // estourava em `config.liberada_em_input`.
+    it('salva o início do período de ajustes sem derrubar a tela', async () => {
+        definirInicioAjustes.mockResolvedValue({
+            data: { ...vazio, ajustes_de_input: '2026-11-01T08:00', ajustes_de_label: '01/11/2026 08:00' },
+            meta: { message: 'Período de ajustes atualizado.' },
+        });
+        render(<ParametrizacaoAvaliacao />);
+
+        fireEvent.change(await screen.findByLabelText('Data de início do período de ajustes'), {
+            target: { value: '2026-11-01T08:00' },
+        });
+        fireEvent.click(screen.getByText('Salvar início dos ajustes'));
+
+        await waitFor(() => expect(definirInicioAjustes).toHaveBeenCalledWith('2026-11-01T08:00'));
+        expect(await screen.findByText('Período de ajustes atualizado.')).toBeInTheDocument();
+        expect(screen.getByText('Abre em 01/11/2026 08:00')).toBeInTheDocument();
+        // A tela continua de pé: os demais cards seguem renderizados.
+        expect(screen.getByLabelText('Data de liberação da avaliação')).toBeInTheDocument();
+    });
+
+    it('salva o fim do período de ajustes', async () => {
+        definirFimAjustes.mockResolvedValue({
+            data: { ...vazio, ajustes_ate_input: '2026-11-20T18:00', ajustes_ate_label: '20/11/2026 18:00' },
+            meta: { message: 'Período de ajustes atualizado.' },
+        });
+        render(<ParametrizacaoAvaliacao />);
+
+        fireEvent.change(await screen.findByLabelText('Data de fim do período de ajustes'), {
+            target: { value: '2026-11-20T18:00' },
+        });
+        fireEvent.click(screen.getByText('Salvar fim dos ajustes'));
+
+        await waitFor(() => expect(definirFimAjustes).toHaveBeenCalledWith('2026-11-20T18:00'));
+        expect(await screen.findByText('Ajustes até 20/11/2026 18:00')).toBeInTheDocument();
     });
 });
