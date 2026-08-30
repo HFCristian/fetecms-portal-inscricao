@@ -240,9 +240,13 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::patch('/avaliacao/projetos/{projeto}', [AdminAvaliacaoController::class, 'corrigirProjeto']);
                 Route::get('/avaliacao/distribuicao', [AdminAvaliacaoController::class, 'distribuicaoConfig']);
                 Route::patch('/avaliacao/distribuicao', [AdminAvaliacaoController::class, 'definirRegrasDistribuicao']);
+                Route::patch('/avaliacao/distribuicao/piso', [AdminAvaliacaoController::class, 'definirPisoFila']);
                 Route::patch('/avaliacao/distribuicao/ao-cadastrar', [AdminAvaliacaoController::class, 'definirDistribuicaoAoCadastrar']);
                 Route::post('/avaliacao/distribuir', [AdminAvaliacaoController::class, 'distribuir']);
                 Route::post('/avaliacao/redistribuir', [AdminAvaliacaoController::class, 'redistribuir']);
+                // As duas ações acima vão para a fila; a tela acompanha por aqui.
+                Route::get('/avaliacao/distribuicoes/ultima', [AdminAvaliacaoController::class, 'ultimaDistribuicao']);
+                Route::get('/avaliacao/distribuicoes/{distribuicao}', [AdminAvaliacaoController::class, 'progressoDistribuicao']);
                 Route::patch('/avaliacao/avaliadores/{avaliador}/limite', [AdminAvaliacaoController::class, 'limitar']);
                 Route::patch('/avaliacao/avaliadores/{avaliador}/demo', [AdminAvaliacaoController::class, 'demo']);
                 Route::patch('/avaliacao/avaliadores/{avaliador}/comissao', [AdminAvaliacaoController::class, 'comissao']);

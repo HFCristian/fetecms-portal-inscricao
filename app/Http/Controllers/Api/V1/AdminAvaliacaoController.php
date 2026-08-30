@@ -17,6 +17,7 @@ use App\Http\Requests\Admin\ListarAvaliadoresRequest;
 use App\Http\Requests\Admin\ListarProjetosAvaliacaoRequest;
 use App\Http\Requests\Admin\MinimosAvaliacaoRequest;
 use App\Http\Requests\Admin\RegrasDistribuicaoRequest;
+use App\Models\Distribuicao;
 use App\Models\Edicao;
 use App\Models\ListaFinal;
 use App\Models\Projeto;
@@ -25,6 +26,7 @@ use App\Services\AdminAvaliacaoService;
 use App\Services\AdminProjetoEdicaoService;
 use App\Services\DistribuicaoService;
 use App\Services\ListaFinalService;
+use App\Support\LimitesAvaliacao;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -130,6 +132,21 @@ class AdminAvaliacaoController extends Controller
         return response()->json(['data' => $config, 'meta' => ['message' => 'Limites atualizados.']]);
     }
 
+    /** Piso da fila do avaliador — a exceção às regras por categoria. */
+    public function definirPisoFila(Request $request): JsonResponse
+    {
+        $dados = $request->validate([
+            'piso_fila' => ['present', 'nullable', 'integer', 'min:1', 'max:'.LimitesAvaliacao::MAXIMO],
+        ]);
+
+        $config = $this->avaliacao->definirPisoFila($dados['piso_fila'], $request->user());
+
+        return response()->json([
+            'data' => $config,
+            'meta' => ['message' => 'Piso da fila atualizado.'],
+        ]);
+    }
+
     /** Regras do algoritmo de distribuição (uma por categoria). */
     public function distribuicaoConfig(): JsonResponse
     {
@@ -162,16 +179,26 @@ class AdminAvaliacaoController extends Controller
     }
 
     /** Devolve ao bolo as designações não iniciadas e sorteia outras no lugar. */
-    public function redistribuir(): JsonResponse
+    public function redistribuir(Request $request): JsonResponse
     {
-        $relatorio = $this->distribuicao->redistribuir();
+        $rodada = $this->distribuicao->enfileirar(Distribuicao::TIPO_REDISTRIBUIR, $request->user());
 
         return response()->json([
-            'data' => $relatorio,
-            'meta' => ['message' => $relatorio['devolvidas'] === 0
-                ? 'Não havia designação para trocar.'
-                : "{$relatorio['devolvidas']} designação(ões) trocadas por {$relatorio['recebidas']} nova(s)."],
-        ]);
+            'data' => $rodada->paraApi(),
+            'meta' => ['message' => 'Redistribuição na fila. Acompanhe o progresso abaixo.'],
+        ], 202);
+    }
+
+    /** Progresso de uma rodada — a tela consulta até `finalizada` ficar true. */
+    public function progressoDistribuicao(Distribuicao $distribuicao): JsonResponse
+    {
+        return response()->json(['data' => $distribuicao->paraApi()]);
+    }
+
+    /** A rodada mais recente da edição (nula quando nunca houve uma). */
+    public function ultimaDistribuicao(): JsonResponse
+    {
+        return response()->json(['data' => $this->distribuicao->ultimaRodada()?->paraApi()]);
     }
 
     /** Projetos com sugestão de reclassificação de área/subárea (com filtros). */
@@ -504,13 +531,13 @@ class AdminAvaliacaoController extends Controller
     }
 
     /** Roda a distribuição automática (idempotente) e devolve o relatório. */
-    public function distribuir(): JsonResponse
+    public function distribuir(Request $request): JsonResponse
     {
-        $relatorio = $this->distribuicao->distribuir();
+        $rodada = $this->distribuicao->enfileirar(Distribuicao::TIPO_DISTRIBUIR, $request->user());
 
         return response()->json([
-            'data' => $relatorio,
-            'meta' => ['message' => "{$relatorio['designadas_criadas']} designação(ões) criada(s)."],
-        ]);
+            'data' => $rodada->paraApi(),
+            'meta' => ['message' => 'Distribuição na fila. Acompanhe o progresso abaixo.'],
+        ], 202);
     }
 }

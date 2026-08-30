@@ -140,7 +140,18 @@ export async function exportarProjetosAvaliacaoCsv(filtros) {
 }
 export const designarProjeto = (projetoId, payload) =>
     http.post(`/admin/avaliacao/projetos/${projetoId}/designar`, payload).then((r) => r.data);
+/**
+ * Enfileira uma rodada de distribuição. Responde 202 com o registro da rodada —
+ * o trabalho acontece na fila, e a tela acompanha por `getProgressoDistribuicao`.
+ */
 export const distribuirAvaliacoes = () => http.post('/admin/avaliacao/distribuir').then((r) => r.data);
+
+export const getProgressoDistribuicao = (id) =>
+    http.get(`/admin/avaliacao/distribuicoes/${id}`).then((r) => r.data.data);
+
+/** A rodada mais recente da edição (null quando nunca houve uma). */
+export const getUltimaDistribuicao = () =>
+    http.get('/admin/avaliacao/distribuicoes/ultima').then((r) => r.data.data);
 
 // Algoritmo de distribuição: a regra de cada categoria (quem entra e em que
 // faixa de avaliações concluídas). O formulário salva as três de uma vez.
@@ -152,6 +163,13 @@ export const definirDistribuicaoAoCadastrar = (aoCadastrar) =>
     http.patch('/admin/avaliacao/distribuicao/ao-cadastrar', { ao_cadastrar: aoCadastrar }).then((r) => r.data);
 // Rodízio: devolve ao bolo o que ainda não foi aberto e sorteia outros.
 export const redistribuirAvaliacoes = () => http.post('/admin/avaliacao/redistribuir').then((r) => r.data);
+
+/**
+ * Piso da fila do avaliador: a rede de segurança das regras por categoria.
+ * `null` desliga o piso — aí a regra manda sozinha.
+ */
+export const definirPisoFila = (piso) =>
+    http.patch('/admin/avaliacao/distribuicao/piso', { piso_fila: piso ?? null }).then((r) => r.data);
 
 // Lista final da feira: o que dá para pedir e o TXT do recorte escolhido.
 export const getOpcoesListaFinal = () => http.get('/admin/avaliacao/lista-final/opcoes').then((r) => r.data.data);

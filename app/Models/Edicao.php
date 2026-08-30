@@ -27,6 +27,7 @@ class Edicao extends Model
         'ajustes_de', 'ajustes_ate', 'evento_de', 'evento_ate', 'itens_credenciamento',
         'avaliacoes_min_por_avaliador', 'avaliacoes_min_por_projeto',
         'avaliacoes_max_por_avaliador', 'avaliacoes_max_por_projeto', 'avaliacoes_por_categoria',
+        'piso_fila_avaliador',
         'distribuicao_regras', 'distribuicao_ao_cadastrar',
     ];
 
@@ -49,6 +50,7 @@ class Edicao extends Model
             'avaliacoes_min_por_avaliador' => 'integer',
             'avaliacoes_min_por_projeto' => 'integer',
             'avaliacoes_max_por_avaliador' => 'integer',
+            'piso_fila_avaliador' => 'integer',
             'avaliacoes_max_por_projeto' => 'integer',
             'avaliacoes_por_categoria' => 'array',
             'distribuicao_regras' => 'array',
@@ -140,6 +142,18 @@ class Edicao extends Model
      * Regras do algoritmo de distribuição (por categoria). Sem edição atual ou
      * sem configuração, valem os padrões — todas as categorias, sem faixa.
      */
+    /**
+     * O **piso da fila do avaliador**: quando as regras por categoria deixam a
+     * fila dele abaixo deste número, uma segunda passada a completa ignorando
+     * as regras. `null` desliga o piso — é o comportamento anterior à Sprint 85.
+     */
+    public static function pisoFilaAvaliador(): ?int
+    {
+        $piso = static::atual()?->piso_fila_avaliador;
+
+        return $piso !== null && $piso > 0 ? (int) $piso : null;
+    }
+
     public static function regrasDistribuicao(): RegrasDistribuicao
     {
         return RegrasDistribuicao::deArray(static::atual()?->distribuicao_regras);

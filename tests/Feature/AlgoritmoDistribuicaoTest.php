@@ -205,6 +205,10 @@ class AlgoritmoDistribuicaoTest extends TestCase
             ->where('status', StatusAvaliacao::Designada->value)->count());
     }
 
+    /**
+     * Com o piso desligado, a regra manda sozinha: o projeto que ela exclui não
+     * entra na fila de ninguém, mesmo que isso deixe o avaliador sem trabalho.
+     */
     public function test_reposicao_da_fila_tambem_respeita_a_regra(): void
     {
         $area = Area::create(['nome' => 'Área A']);
@@ -212,14 +216,129 @@ class AlgoritmoDistribuicaoTest extends TestCase
 
         $this->projeto($area->id, Categoria::Fetecms, 'Só FETECMS disponível');
 
-        Edicao::atual()->update(['distribuicao_regras' => [
-            'fetecms' => $this->regra(false),
-            'fetec_jr' => $this->regra(),
-            'fetecms_fundect' => $this->regra(),
-        ]]);
+        Edicao::atual()->update([
+            'piso_fila_avaliador' => null,
+            'distribuicao_regras' => [
+                'fetecms' => $this->regra(false),
+                'fetec_jr' => $this->regra(),
+                'fetecms_fundect' => $this->regra(),
+            ],
+        ]);
 
         $this->assertSame(0, app(FilaAvaliadorService::class)->repor($avaliador));
         $this->assertSame(0, Avaliacao::where('avaliador_id', $avaliador->id)->count());
+    }
+
+    /**
+     * Sprint 85 — o piso. A regra continua escolhendo quem entra primeiro; ela
+     * só não pode deixar o avaliador parado. Com a regra excluindo o único
+     * projeto disponível, a segunda passada o traz assim mesmo.
+     */
+    public function test_piso_completa_a_fila_ignorando_a_regra(): void
+    {
+        $area = Area::create(['nome' => 'Área A']);
+        $avaliador = $this->avaliador($area->id);
+
+        $projeto = $this->projeto($area->id, Categoria::Fetecms, 'Só FETECMS disponível');
+
+        Edicao::atual()->update([
+            'piso_fila_avaliador' => 6,
+            'distribuicao_regras' => [
+                'fetecms' => $this->regra(false),
+                'fetec_jr' => $this->regra(),
+                'fetecms_fundect' => $this->regra(),
+            ],
+        ]);
+
+        $this->assertSame(1, app(FilaAvaliadorService::class)->repor($avaliador));
+        $this->assertSame(1, Avaliacao::where('avaliador_id', $avaliador->id)
+            ->where('projeto_id', $projeto->id)->count());
+    }
+
+    /**
+     * A ordem importa: quem a regra aceita entra primeiro, e o piso só completa
+     * o que faltou. Com projetos de sobra dentro da regra, ela vale sozinha.
+     */
+    public function test_piso_nao_entra_quando_a_regra_ja_enche_a_fila(): void
+    {
+        $area = Area::create(['nome' => 'Área A']);
+        $avaliador = $this->avaliador($area->id);
+
+        // Um excluído pela regra e seis aceitos: a fila fecha nos aceitos.
+        $excluido = $this->projeto($area->id, Categoria::Fetecms, 'Excluído pela regra');
+        for ($i = 1; $i <= 6; $i++) {
+            $this->projeto($area->id, Categoria::FetecJr, "Aceito {$i}");
+        }
+
+        Edicao::atual()->update([
+            'piso_fila_avaliador' => 6,
+            'avaliacoes_min_por_avaliador' => 6,
+            'distribuicao_regras' => [
+                'fetecms' => $this->regra(false),
+                'fetec_jr' => $this->regra(),
+                'fetecms_fundect' => $this->regra(),
+            ],
+        ]);
+
+        app(FilaAvaliadorService::class)->repor($avaliador);
+
+        $this->assertSame(6, Avaliacao::where('avaliador_id', $avaliador->id)->count());
+        $this->assertSame(0, Avaliacao::where('avaliador_id', $avaliador->id)
+            ->where('projeto_id', $excluido->id)->count());
+    }
+
+    /** Sem regra restritiva não há segunda passada: o mínimo já é o tamanho da fila. */
+    public function test_piso_nao_muda_nada_com_as_regras_liberadas(): void
+    {
+        $area = Area::create(['nome' => 'Área A']);
+        $avaliador = $this->avaliador($area->id);
+
+        for ($i = 1; $i <= 5; $i++) {
+            $this->projeto($area->id, Categoria::Fetecms, "Projeto {$i}");
+        }
+
+        Edicao::atual()->update([
+            'piso_fila_avaliador' => 6,
+            'avaliacoes_min_por_avaliador' => 3,
+        ]);
+
+        app(FilaAvaliadorService::class)->repor($avaliador);
+
+        // Fica no mínimo (3), não no piso: o piso é uma rede, não um alvo.
+        $this->assertSame(3, Avaliacao::where('avaliador_id', $avaliador->id)->count());
+    }
+
+    /** O botão "Sortear outros projetos" herda o piso, pela mesma reposição. */
+    public function test_piso_vale_no_sorteio_do_avaliador(): void
+    {
+        $area = Area::create(['nome' => 'Área A']);
+        $avaliador = $this->avaliador($area->id);
+
+        $aceito = $this->projeto($area->id, Categoria::FetecJr, 'Aceito pela regra');
+        $excluido = $this->projeto($area->id, Categoria::Fetecms, 'Excluído pela regra');
+
+        Edicao::atual()->update([
+            'piso_fila_avaliador' => 6,
+            'distribuicao_regras' => [
+                'fetecms' => $this->regra(false),
+                'fetec_jr' => $this->regra(),
+                'fetecms_fundect' => $this->regra(),
+            ],
+        ]);
+
+        Avaliacao::create([
+            'projeto_id' => $aceito->id,
+            'avaliador_id' => $avaliador->id,
+            'status' => StatusAvaliacao::Designada,
+        ]);
+
+        app(FilaAvaliadorService::class)->roletar($avaliador);
+
+        // Os dois projetos que existem cabem na fila, inclusive o que a regra
+        // excluía — o avaliador não fica com menos do que poderia trabalhar.
+        $this->assertSame(2, Avaliacao::where('avaliador_id', $avaliador->id)->count());
+        $this->assertSame(1, Avaliacao::where('avaliador_id', $avaliador->id)
+            ->where('projeto_id', $excluido->id)->count());
     }
 
     public function test_redistribuicao_troca_designadas_e_preserva_o_resto(): void

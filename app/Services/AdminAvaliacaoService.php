@@ -1124,6 +1124,10 @@ class AdminAvaliacaoService
             'categorias' => Categoria::opcoes(),
             'max_concluidas' => RegrasDistribuicao::MAX_CONCLUIDAS,
             'ao_cadastrar' => Edicao::distribuiAoCadastrar(),
+            // A rede de segurança das regras acima: abaixo deste número de
+            // projetos na fila, a distribuição completa ignorando-as.
+            'piso_fila' => Edicao::pisoFilaAvaliador(),
+            'piso_maximo' => LimitesAvaliacao::MAXIMO,
         ];
     }
 
@@ -1146,6 +1150,24 @@ class AdminAvaliacaoService
             $anterior->resumo(),
             $novas->resumo(),
         );
+
+        return $this->configDistribuicao();
+    }
+
+    /**
+     * Grava o **piso da fila do avaliador** — a exceção às regras por categoria.
+     * `null` (ou 0) desliga o piso: aí a regra manda sozinha, mesmo que deixe
+     * alguém sem trabalho.
+     */
+    public function definirPisoFila(?int $piso, User $admin): array
+    {
+        $anterior = Edicao::pisoFilaAvaliador();
+        $novo = $piso !== null && $piso > 0 ? $piso : null;
+
+        Edicao::atual()?->update(['piso_fila_avaliador' => $novo]);
+
+        $rotulo = fn (?int $v) => $v === null ? 'sem piso' : $v.' projeto(s)';
+        $this->registrarParametro(TipoRegistro::AvaliacaoPisoFila, $admin, $rotulo($anterior), $rotulo($novo));
 
         return $this->configDistribuicao();
     }
