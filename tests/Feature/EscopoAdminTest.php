@@ -271,4 +271,47 @@ class EscopoAdminTest extends TestCase
         $this->getJson('/api/v1/admin/escopos')->assertForbidden();
         $this->postJson('/api/v1/admin/escopos', ['nome' => 'X', 'abas' => ['projetos']])->assertForbidden();
     }
+
+    /**
+     * A aba "Dashboards" é uma rule própria, mas o painel de números serve às
+     * duas telas: quem tem só "Projetos" continua abrindo o endpoint, e quem
+     * tem só "Dashboards" também — sem enxergar as listas da aba Projetos.
+     */
+    public function test_dashboard_abre_para_as_abas_projetos_e_dashboards(): void
+    {
+        $edicao = Edicao::padrao();
+
+        $soDashboards = User::factory()->admin()->create();
+        $soDashboards->escopos()->attach(
+            $this->escopo('Só dashboards', [AbaAdmin::Dashboards->value])->id,
+            ['edicao_id' => $edicao->id],
+        );
+
+        Sanctum::actingAs($soDashboards);
+        $this->getJson('/api/v1/admin/dashboard')->assertOk();
+        $this->getJson('/api/v1/admin/projetos-por-area')->assertForbidden();
+
+        $soProjetos = User::factory()->admin()->create();
+        $soProjetos->escopos()->attach(
+            $this->escopo('Só projetos (aba)', [AbaAdmin::Projetos->value])->id,
+            ['edicao_id' => $edicao->id],
+        );
+
+        Sanctum::actingAs($soProjetos);
+        $this->getJson('/api/v1/admin/dashboard')->assertOk();
+        $this->getJson('/api/v1/admin/projetos-por-area')->assertOk();
+    }
+
+    /** Quem não tem nenhuma das duas abas não vê o painel. */
+    public function test_dashboard_barra_quem_nao_tem_nenhuma_das_duas_abas(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $admin->escopos()->attach(
+            $this->escopo('Só comunicação', [AbaAdmin::Comunicacao->value])->id,
+            ['edicao_id' => Edicao::padrao()->id],
+        );
+
+        Sanctum::actingAs($admin);
+        $this->getJson('/api/v1/admin/dashboard')->assertForbidden();
+    }
 }

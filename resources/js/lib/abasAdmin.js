@@ -18,6 +18,13 @@ export const ABAS_ADMIN = [
         descricao: 'O painel da edição, os projetos por área e por localidade.',
     },
     {
+        aba: 'dashboards',
+        to: '/admin/dashboards',
+        icon: 'insights',
+        label: 'Dashboards',
+        descricao: 'Os números da feira: projetos, pessoas, camisetas e localidades.',
+    },
+    {
         aba: 'avaliacao',
         to: '/admin/avaliacao',
         icon: 'grading',

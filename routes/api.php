@@ -196,8 +196,13 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
         // em duas abas, o middleware aceita qualquer uma das duas.
         Route::prefix('admin')->middleware('role:admin')->group(function () {
             // --- Aba "Projetos": painel, recortes e os rascunhos ---
-            Route::middleware('aba:projetos')->group(function () {
+            // O painel de números alimenta as duas abas: "Dashboards" o mostra
+            // inteiro e "Projetos" fica com o recorte de projetos e localidades.
+            Route::middleware('aba:projetos,dashboards')->group(function () {
                 Route::get('/dashboard', [AdminController::class, 'dashboard']);
+            });
+
+            Route::middleware('aba:projetos')->group(function () {
                 Route::get('/projetos-por-area', [AdminController::class, 'projetosPorArea']);
                 Route::get('/projetos-por-localidade', [AdminController::class, 'projetosPorLocalidade']);
                 // Projetos em rascunho: o admin termina e submete a inscrição que

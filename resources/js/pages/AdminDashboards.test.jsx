@@ -45,48 +45,54 @@ vi.mock('../lib/admin.js', () => ({
     })),
 }));
 
-import AdminHome from './AdminHome.jsx';
+import AdminDashboards from './AdminDashboards.jsx';
 
-// O rótulo mora dentro do card; sobe até a caixa do card (a que tem a sombra).
 const card = (rotulo) => screen.getByText(rotulo).closest('.fetec-card-shadow');
 
-describe('AdminHome — aba Projetos', () => {
-    it('mostra só os seis cards da aba', async () => {
-        render(<AdminHome />);
+describe('AdminDashboards — seções', () => {
+    it('agrupa os cards por assunto', async () => {
+        render(<AdminDashboards />);
+
+        expect(await screen.findByText('Pessoas')).toBeInTheDocument();
+        expect(screen.getByText('Camisetas')).toBeInTheDocument();
+        expect(screen.getByText('Alunos por classe escolar')).toBeInTheDocument();
+        expect(screen.getByText('Localidades')).toBeInTheDocument();
+    });
+
+    it('reúne todos os cards que a aba Projetos tinha', async () => {
+        render(<AdminDashboards />);
 
         expect(await screen.findByText('Projetos (total)')).toBeInTheDocument();
         expect(screen.getByText('Projetos por status')).toBeInTheDocument();
         expect(screen.getByText('Projetos por categoria')).toBeInTheDocument();
+        expect(screen.getAllByText('Mulheres')).toHaveLength(3);
+        expect(screen.getByText('Camisetas · Alunos')).toBeInTheDocument();
+        expect(screen.getByText('Alunos · Ensino Médio')).toBeInTheDocument();
         expect(screen.getByText('Escolas com projeto')).toBeInTheDocument();
-        expect(screen.getByText('Cidades com projeto')).toBeInTheDocument();
-        expect(screen.getByText('Estados com projeto')).toBeInTheDocument();
     });
 
-    it('não mostra mais os cards que foram para Dashboards', async () => {
-        render(<AdminHome />);
+    // A pedido: aqui o total é só número — a lista mora na aba Projetos.
+    it('o card de total de projetos NÃO tem o atalho "Ver mais"', async () => {
+        render(<AdminDashboards />);
+
         await screen.findByText('Projetos (total)');
 
-        expect(screen.queryByText('Orientadores')).not.toBeInTheDocument();
-        expect(screen.queryByText('Camisetas · Alunos')).not.toBeInTheDocument();
-        expect(screen.queryByText('Alunos · Ensino Médio')).not.toBeInTheDocument();
-        expect(screen.queryByText('Mulheres')).not.toBeInTheDocument();
+        expect(within(card('Projetos (total)')).queryByText('Ver mais')).not.toBeInTheDocument();
     });
 
-    it('o total de projetos leva à lista por área', async () => {
-        render(<AdminHome />);
-        await screen.findByText('Projetos (total)');
+    it('os cards de localidade continuam levando às listas', async () => {
+        render(<AdminDashboards />);
+        await screen.findByText('Escolas com projeto');
 
-        expect(within(card('Projetos (total)')).getByText('Ver mais').closest('a'))
-            .toHaveAttribute('href', '/admin/projetos-por-area');
+        expect(within(card('Escolas com projeto')).getByText('Ver mais').closest('a'))
+            .toHaveAttribute('href', '/admin/projetos-por-escola');
     });
 
-    it('mostra submetidos e rascunho no card de status', async () => {
-        render(<AdminHome />);
-        await screen.findByText('Projetos por status');
+    it('as camisetas seguem sem o balde N.I.', async () => {
+        render(<AdminDashboards />);
+        await screen.findByText('Camisetas · Alunos');
 
-        const status = card('Projetos por status');
-        expect(within(status).getByText('Submetidos')).toBeInTheDocument();
-        expect(within(status).getByText('6')).toBeInTheDocument();
-        expect(within(status).getByText('4')).toBeInTheDocument();
+        expect(screen.getAllByText('PP')).toHaveLength(3);
+        expect(screen.queryByText('N.I.')).not.toBeInTheDocument();
     });
 });

@@ -21,6 +21,7 @@ import AdminModelosEmail from './pages/AdminModelosEmail.jsx';
 import AdminComunicacao from './pages/AdminComunicacao.jsx';
 import AdminHome from './pages/AdminHome.jsx';
 import AdminInicio from './pages/AdminInicio.jsx';
+import AdminDashboards from './pages/AdminDashboards.jsx';
 import AdminProjetosPorArea from './pages/AdminProjetosPorArea.jsx';
 import AdminProjetosRascunho from './pages/AdminProjetosRascunho.jsx';
 import AdminProjetosPorEstado from './pages/AdminProjetosPorEstado.jsx';
@@ -119,6 +120,7 @@ export default function Root() {
                                 projetos ganhou rota própria. */}
                             <Route path="/admin" element={<AdminInicio />} />
                             <Route path="/admin/projetos" element={<AdminHome />} />
+                            <Route path="/admin/dashboards" element={<AdminDashboards />} />
                             <Route path="/admin/avaliacao" element={<AdminAvaliacaoOnline />} />
                             <Route path="/admin/avaliacao/distribuicao" element={<AvaliacaoDistribuicao />} />
                             <Route path="/admin/avaliacao/avaliadores" element={<AvaliacaoAvaliadores />} />

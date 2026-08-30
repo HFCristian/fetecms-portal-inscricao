@@ -19,6 +19,7 @@ namespace App\Enums;
 enum AbaAdmin: string
 {
     case Projetos = 'projetos';
+    case Dashboards = 'dashboards';
     case Avaliacao = 'avaliacao';
     case Credenciamento = 'credenciamento';
     case Comite = 'comite';
@@ -32,6 +33,7 @@ enum AbaAdmin: string
     {
         return match ($this) {
             self::Projetos => 'Projetos',
+            self::Dashboards => 'Dashboards',
             self::Avaliacao => 'Avaliação online',
             self::Credenciamento => 'Credenciamento',
             self::Comite => 'Comitê especial',
@@ -46,7 +48,8 @@ enum AbaAdmin: string
     public function descricao(): string
     {
         return match ($this) {
-            self::Projetos => 'Painel, projetos por área, localidade e os rascunhos.',
+            self::Projetos => 'Projetos por área, por localidade e os rascunhos.',
+            self::Dashboards => 'Os números da feira: projetos, pessoas, camisetas e localidades.',
             self::Avaliacao => 'Distribuição, avaliadores, ranking e lista final.',
             self::Credenciamento => 'Credenciar os finalistas no dia do evento e conferir os documentos.',
             self::Comite => 'Transporte do comitê e o mapa de quem está a caminho.',
