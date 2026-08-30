@@ -103,7 +103,13 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     cai para a **mesma área**. (Algoritmo ainda a refinar.)
   - Cada projeto fica visível para **no máximo 5 avaliadores**.
   - O **admin pode designar manualmente** projetos a avaliadores, podendo **exceder o limite de 3**.
-- **Admin**: criado **somente por outro admin** (cadastro simples: nome, e-mail, senha). Dashboard
+- **Admin**: criado **somente por outro admin** (cadastro simples: nome, e-mail, senha). O que ele
+  enxerga do menu depende do **escopo** que recebeu **naquela edição** (Parametrização → Escopos de
+  admin): um escopo é um nome e a lista de abas que ele abre (`App\Enums\AbaAdmin`). **Sem escopo
+  atribuído na edição em curso, o admin tem acesso total** — é o comportamento histórico e o que
+  impede uma edição nova de trancar a equipe para fora. O bloqueio é de verdade: o menu esconde e o
+  middleware `aba:` responde 403. Uma trava impede deixar a edição sem nenhum admin ativo capaz de
+  abrir "Administradores". Dashboard
   com as métricas: projetos totais / submetidos / em rascunho; **projetos por categoria**;
   orientadores; alunos; coorientadores; **camisetas por tamanho** (um card para orientadores, um
   para alunos e um para coorientadores, PP…XG + N.I., via `App\Support\Camisetas`); **alunos por
@@ -114,6 +120,20 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
   Fora dos dois primeiros cards (que existem para mostrar o rascunho), **todo card conta só
   projetos submetidos** — categoria, pessoas e localidades. Orientador entra **uma vez**, tenha
   um ou vários submetidos (`AdminDashboardService`).
+  - **Parametrização → Edições** (`/admin/parametrizacao/edicoes`): as edições da feira. O portal
+    roda **várias ao mesmo tempo** — cada projeto pertence a uma (`projetos.edicao_id`) e o
+    `EdicaoScope` faz toda consulta enxergar só a que está em escopo, então **trocar de edição
+    troca de uma vez** os projetos, os prazos, os limites e as regras. Uma edição é a **padrão**
+    (`edicoes.padrao`): vale para quem não escolheu nenhuma, para o cadastro público, para os
+    e-mails e para os jobs da fila. Criar a edição do ano seguinte pode **herdar a parametrização**
+    da atual (limites, regras de distribuição, designação ao cadastrar — as datas não). Edição
+    **padrão ou com projeto não é excluída**. **Qualquer usuário** troca a sua edição pelo seletor
+    no topo do menu (`users.edicao_id`; `GET /edicoes`, `PUT /edicoes/atual`) — nulo significa
+    "seguir a padrão". `EdicaoService`.
+  - **Parametrização → Escopos de admin** (`/admin/parametrizacao/escopos`): o CRUD dos perfis de
+    acesso — nome + abas do menu. A atribuição (um escopo por admin **em cada edição**) fica na aba
+    **Administradores**, no seletor de cada linha. `EscopoAdminService`,
+    `PUT /admin/admins/{admin}/escopo`.
   - **Parametrização → Inscrições** (`/admin/parametrizacao/inscricoes`): a **janela de
     inscrição** da edição — **abertura** (`edicoes.submissoes_de`) e **prazo de submissão**
     (`edicoes.submissoes_ate`), ambos hora de parede de Campo Grande. Fora da janela a área do
@@ -360,7 +380,33 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 63 | Mala direta: anexos no e-mail (até 10, 20 MB cada) | ✅ sim | ❌ não (manual do Pedro) | 4 |
 | 64 | Projetos em rascunho: admin termina e submete depois do prazo (justificativa) + Registros → Rascunhos | ✅ sim | ❌ não (manual do Pedro) | 5 |
 | 65 | Painel: 3 cards de alunos por classe escolar, quebrados por série | ✅ sim | ❌ não (manual do Pedro) | 5 |
+| 66 | Parametrização → Edições: várias edições, edição padrão e troca de escopo por usuário | ✅ sim | ❌ não (manual do Pedro) | 6 |
+| 67 | Escopos de admin: perfis de abas por edição, aplicados no menu e no backend | ✅ sim | ❌ não (manual do Pedro) | 6 |
 
+> **Sprints 66–67 (mesma branch):** o portal deixou de ser de uma edição só.
+> (a) **Sprint 66** — **Edições**. Nasceram `edicoes.padrao` (a edição que vale para quem não
+> escolheu nenhuma — cadastro público, e-mails, fila, CLI) e `users.edicao_id` (a que a pessoa está
+> vendo). `Edicao::atual()` deixou de ser "a de inscrições abertas" e passou a ser **a edição em
+> escopo**: a escolhida pelo usuário autenticado, ou a padrão. Como todo serviço já perguntava por
+> ali, trocar de edição troca de uma vez os prazos, os limites e as regras de distribuição. Os
+> projetos seguem junto por um **global scope** (`App\Models\Scopes\EdicaoScope`) — que pega de
+> carona o `whereHas('projeto', …)` de alunos, anexos e avaliações, então o recorte acompanha sem
+> cada consulta precisar saber da edição. Duas válvulas: **sem nenhuma edição cadastrada o escopo
+> não filtra nada**, e **projeto com `edicao_id` nulo aparece em todas** (a migration faz o
+> backfill, mas o que escapar fica visível para alguém corrigir em vez de sumir). A tela é
+> Parametrização → Edições, com criação que **herda a parametrização** da edição atual, troca da
+> padrão e exclusão só de edição vazia; o seletor no topo do menu vale para **todos os papéis** e
+> recarrega a tela, porque misturar dados de uma edição com ações de outra seria pior.
+> (b) **Sprint 67** — **Escopos de admin**. `escopos_admin` (nome + abas) e `admin_escopos`
+> (admin × edição × escopo): a mesma pessoa pode cuidar da comunicação num ano e de outra coisa no
+> seguinte. As abas são o enum `App\Enums\AbaAdmin`, o menu filtra pelo que vem em
+> `UserResource::abas` e o **backend barra de verdade** — as rotas de `/admin` foram reagrupadas
+> sob o middleware novo `aba:`, que aceita mais de uma aba para as telas que moram em duas (as
+> datas do período de avaliação estão em Parametrização e em Avaliação online). **Admin sem escopo
+> na edição tem acesso total**, e uma trava em transação impede deixar a edição sem ninguém ativo
+> na aba "Administradores" — é de lá que se conserta qualquer escopo.
+> Back **611/611**, front **274/274**, Pint limpo, build OK.
+>
 > **Sprints 64–65 (branch `feat/edicoes-credenciamento-comite`, saída da `origin/main` @ `c736132`):**
 > (a) **Sprint 64** — **Projetos em rascunho**. Em *Projetos por área* nasce o botão **Projetos em
 > rascunho**, visível **só depois do prazo de submissão** (`InscricoesService::encerradas()`): antes

@@ -28,10 +28,15 @@ class CatalogoSeeder extends Seeder
 
     private function seedEdicao(): void
     {
-        Edicao::firstOrCreate(
+        $edicao = Edicao::firstOrCreate(
             ['nome' => 'XVI FETECMS', 'ano' => 2026],
             ['inscricoes_abertas' => true],
         );
+
+        // Sem edição padrão o portal fica sem escopo: a semeada assume o posto.
+        if (Edicao::where('padrao', true)->doesntExist()) {
+            $edicao->update(['padrao' => true]);
+        }
     }
 
     private function seedEstados(): void

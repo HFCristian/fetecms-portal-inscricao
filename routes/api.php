@@ -21,6 +21,8 @@ use App\Http\Controllers\Api\V1\ChatAdminController;
 use App\Http\Controllers\Api\V1\ChatController;
 use App\Http\Controllers\Api\V1\CoorientadorController;
 use App\Http\Controllers\Api\V1\DocumentoController;
+use App\Http\Controllers\Api\V1\EdicaoController;
+use App\Http\Controllers\Api\V1\EscopoAdminController;
 use App\Http\Controllers\Api\V1\InscricoesController;
 use App\Http\Controllers\Api\V1\InstituicaoAdminController;
 use App\Http\Controllers\Api\V1\IntegranteController;
@@ -119,6 +121,11 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
         // Tudo que ESCREVE em projeto passa pelo prazo de submissão: depois da
         // data-limite a área do orientador fica só de leitura (GET passa sempre,
         // e o admin também).
+        // Edição em escopo: qualquer usuário lista as edições e troca a sua —
+        // trocar muda de uma vez os projetos, os prazos e os limites que ele vê.
+        Route::get('edicoes', [EdicaoController::class, 'opcoes']);
+        Route::put('edicoes/atual', [EdicaoController::class, 'trocar']);
+
         Route::middleware('inscricoes.abertas')->group(function () {
             Route::apiResource('projetos', ProjetoController::class);
 
@@ -178,123 +185,167 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 ->middleware('throttle:30,1');
         });
 
-        // Administração (E8) — somente admin
+        // Administração (E8) — somente admin.
+        //
+        // Cada bloco pede a ABA correspondente no escopo do admin (Sprint 67).
+        // Admin sem escopo atribuído na edição em curso tem acesso total, então
+        // isto é transparente até alguém configurar os escopos. Onde a tela mora
+        // em duas abas, o middleware aceita qualquer uma das duas.
         Route::prefix('admin')->middleware('role:admin')->group(function () {
-            Route::get('/dashboard', [AdminController::class, 'dashboard']);
-            Route::get('/avaliadores', [AdminController::class, 'avaliadores']);
+            // --- Aba "Projetos": painel, recortes e os rascunhos ---
+            Route::middleware('aba:projetos')->group(function () {
+                Route::get('/dashboard', [AdminController::class, 'dashboard']);
+                Route::get('/projetos-por-area', [AdminController::class, 'projetosPorArea']);
+                Route::get('/projetos-por-localidade', [AdminController::class, 'projetosPorLocalidade']);
+                // Projetos em rascunho: o admin termina e submete a inscrição que
+                // ficou pela metade, mesmo com o prazo vencido (a edição em si
+                // reaproveita as rotas de projeto/integrantes/documentos acima).
+                Route::get('/projetos-rascunho', [AdminRascunhoController::class, 'index']);
+            });
 
-            // Avaliação online (E7): visão por área de avaliadores e projetos submetidos
-            Route::get('/avaliacao/config', [AdminAvaliacaoController::class, 'config']);
-            Route::patch('/avaliacao/config', [AdminAvaliacaoController::class, 'definirLiberacao']);
-            Route::patch('/avaliacao/encerramento', [AdminAvaliacaoController::class, 'definirEncerramento']);
-            Route::patch('/avaliacao/minimos', [AdminAvaliacaoController::class, 'definirMinimos']);
-            Route::patch('/avaliacao/ajustes', [AdminAvaliacaoController::class, 'definirAjustes']);
-            Route::get('/avaliacao/avaliadores', [AdminAvaliacaoController::class, 'avaliadores']);
-            Route::get('/avaliacao/avaliadores/opcoes', [AdminAvaliacaoController::class, 'avaliadoresOpcoes']);
-            Route::get('/avaliacao/avaliadores/exportar', [AdminAvaliacaoController::class, 'exportarAvaliadores']);
-            Route::get('/avaliacao/projetos', [AdminAvaliacaoController::class, 'projetos']);
-            Route::get('/avaliacao/projetos/exportar', [AdminAvaliacaoController::class, 'exportarProjetos']);
-            Route::get('/avaliacao/reclassificacoes', [AdminAvaliacaoController::class, 'reclassificacoes']);
-            Route::post('/avaliacao/reclassificacoes/aplicar', [AdminAvaliacaoController::class, 'aplicarReclassificacoes']);
-            Route::get('/avaliacao/ranking', [AdminAvaliacaoController::class, 'ranking']);
-            Route::get('/avaliacao/ranking-avaliadores', [AdminAvaliacaoController::class, 'rankingAvaliadores']);
-            Route::get('/avaliacao/lista-final/opcoes', [AdminAvaliacaoController::class, 'opcoesListaFinal']);
-            Route::post('/avaliacao/lista-final', [AdminAvaliacaoController::class, 'gerarListaFinal']);
-            Route::post('/avaliacao/projetos/{projeto}/designar', [AdminAvaliacaoController::class, 'designar']);
-            // Correção manual da classificação/vídeo de um projeto submetido
-            // (justificativa obrigatória; cada campo vira registro).
-            Route::patch('/avaliacao/projetos/{projeto}', [AdminAvaliacaoController::class, 'corrigirProjeto']);
-            Route::get('/avaliacao/distribuicao', [AdminAvaliacaoController::class, 'distribuicaoConfig']);
-            Route::patch('/avaliacao/distribuicao', [AdminAvaliacaoController::class, 'definirRegrasDistribuicao']);
-            Route::patch('/avaliacao/distribuicao/ao-cadastrar', [AdminAvaliacaoController::class, 'definirDistribuicaoAoCadastrar']);
-            Route::post('/avaliacao/distribuir', [AdminAvaliacaoController::class, 'distribuir']);
-            Route::post('/avaliacao/redistribuir', [AdminAvaliacaoController::class, 'redistribuir']);
-            Route::patch('/avaliacao/avaliadores/{avaliador}/limite', [AdminAvaliacaoController::class, 'limitar']);
-            Route::patch('/avaliacao/avaliadores/{avaliador}/demo', [AdminAvaliacaoController::class, 'demo']);
-            Route::patch('/avaliacao/avaliadores/{avaliador}/comissao', [AdminAvaliacaoController::class, 'comissao']);
-            Route::post('/avaliacao/avaliadores/{avaliador}/areas-extras', [AdminAvaliacaoController::class, 'adicionarAreaExtra']);
-            Route::delete('/avaliacao/avaliadores/{avaliador}/areas-extras/{extra}', [AdminAvaliacaoController::class, 'removerAreaExtra']);
-            Route::delete('/avaliacao/testes', [AdminAvaliacaoController::class, 'limparTestes']);
-            // Trilha de registros (submissões, cancelamentos, exclusões, e-mails)
-            // Aba "Inscrições": prazo de submissão dos projetos.
-            Route::get('/inscricoes', [AdminInscricoesController::class, 'show']);
-            Route::patch('/inscricoes/prazo', [AdminInscricoesController::class, 'definirPrazo']);
-            Route::patch('/inscricoes/inicio', [AdminInscricoesController::class, 'definirInicio']);
-            // Avisos na tela dos orientadores (um ativo por vez).
-            Route::get('/avisos/opcoes', [AdminAvisoController::class, 'opcoes']);
-            Route::get('/avisos/ativo', [AdminAvisoController::class, 'ativo']);
-            Route::post('/avisos/previa', [AdminAvisoController::class, 'previa']);
-            Route::post('/avisos', [AdminAvisoController::class, 'store']);
-            Route::get('/avisos', [AdminAvisoController::class, 'index']);
-            Route::post('/avisos/{aviso}/encerrar', [AdminAvisoController::class, 'encerrar']);
-            Route::get('/avisos/{aviso}', [AdminAvisoController::class, 'show']);
-            Route::get('/avisos/{aviso}/leitores', [AdminAvisoController::class, 'leitores']);
-            Route::get('/avisos/{aviso}/exportar', [AdminAvisoController::class, 'exportar']);
+            // --- Aba "Avaliação online" ---
+            Route::middleware('aba:avaliacao')->group(function () {
+                Route::get('/avaliadores', [AdminController::class, 'avaliadores']);
+                Route::get('/avaliacao/avaliadores', [AdminAvaliacaoController::class, 'avaliadores']);
+                Route::get('/avaliacao/avaliadores/opcoes', [AdminAvaliacaoController::class, 'avaliadoresOpcoes']);
+                Route::get('/avaliacao/avaliadores/exportar', [AdminAvaliacaoController::class, 'exportarAvaliadores']);
+                Route::get('/avaliacao/projetos', [AdminAvaliacaoController::class, 'projetos']);
+                Route::get('/avaliacao/projetos/exportar', [AdminAvaliacaoController::class, 'exportarProjetos']);
+                Route::get('/avaliacao/reclassificacoes', [AdminAvaliacaoController::class, 'reclassificacoes']);
+                Route::post('/avaliacao/reclassificacoes/aplicar', [AdminAvaliacaoController::class, 'aplicarReclassificacoes']);
+                Route::get('/avaliacao/ranking', [AdminAvaliacaoController::class, 'ranking']);
+                Route::get('/avaliacao/ranking-avaliadores', [AdminAvaliacaoController::class, 'rankingAvaliadores']);
+                Route::get('/avaliacao/lista-final/opcoes', [AdminAvaliacaoController::class, 'opcoesListaFinal']);
+                Route::post('/avaliacao/lista-final', [AdminAvaliacaoController::class, 'gerarListaFinal']);
+                Route::post('/avaliacao/projetos/{projeto}/designar', [AdminAvaliacaoController::class, 'designar']);
+                // Correção manual da classificação/vídeo de um projeto submetido
+                // (justificativa obrigatória; cada campo vira registro).
+                Route::patch('/avaliacao/projetos/{projeto}', [AdminAvaliacaoController::class, 'corrigirProjeto']);
+                Route::get('/avaliacao/distribuicao', [AdminAvaliacaoController::class, 'distribuicaoConfig']);
+                Route::patch('/avaliacao/distribuicao', [AdminAvaliacaoController::class, 'definirRegrasDistribuicao']);
+                Route::patch('/avaliacao/distribuicao/ao-cadastrar', [AdminAvaliacaoController::class, 'definirDistribuicaoAoCadastrar']);
+                Route::post('/avaliacao/distribuir', [AdminAvaliacaoController::class, 'distribuir']);
+                Route::post('/avaliacao/redistribuir', [AdminAvaliacaoController::class, 'redistribuir']);
+                Route::patch('/avaliacao/avaliadores/{avaliador}/limite', [AdminAvaliacaoController::class, 'limitar']);
+                Route::patch('/avaliacao/avaliadores/{avaliador}/demo', [AdminAvaliacaoController::class, 'demo']);
+                Route::patch('/avaliacao/avaliadores/{avaliador}/comissao', [AdminAvaliacaoController::class, 'comissao']);
+                Route::post('/avaliacao/avaliadores/{avaliador}/areas-extras', [AdminAvaliacaoController::class, 'adicionarAreaExtra']);
+                Route::delete('/avaliacao/avaliadores/{avaliador}/areas-extras/{extra}', [AdminAvaliacaoController::class, 'removerAreaExtra']);
+                Route::delete('/avaliacao/testes', [AdminAvaliacaoController::class, 'limparTestes']);
+            });
 
-            // Comunicação → Modelos de e-mail: o texto dos e-mails automáticos.
-            Route::get('/modelos-email', [AdminModeloEmailController::class, 'index']);
-            Route::get('/modelos-email/{modelo}', [AdminModeloEmailController::class, 'show']);
-            Route::put('/modelos-email/{modelo}', [AdminModeloEmailController::class, 'update']);
-            Route::delete('/modelos-email/{modelo}', [AdminModeloEmailController::class, 'restaurar']);
+            // --- Parametrização (as datas do período de avaliação moram nas
+            //     duas abas: quem cuida da avaliação também as ajusta) ---
+            Route::middleware('aba:parametrizacao,avaliacao')->group(function () {
+                Route::get('/avaliacao/config', [AdminAvaliacaoController::class, 'config']);
+                Route::patch('/avaliacao/config', [AdminAvaliacaoController::class, 'definirLiberacao']);
+                Route::patch('/avaliacao/encerramento', [AdminAvaliacaoController::class, 'definirEncerramento']);
+                Route::patch('/avaliacao/minimos', [AdminAvaliacaoController::class, 'definirMinimos']);
+                Route::patch('/avaliacao/ajustes', [AdminAvaliacaoController::class, 'definirAjustes']);
+            });
 
-            Route::get('/registros', [AdminRegistroController::class, 'index']);
-            Route::get('/registros/exportar', [AdminRegistroController::class, 'exportar']);
+            Route::middleware('aba:parametrizacao')->group(function () {
+                // Aba "Inscrições": prazo de submissão dos projetos.
+                Route::get('/inscricoes', [AdminInscricoesController::class, 'show']);
+                Route::patch('/inscricoes/prazo', [AdminInscricoesController::class, 'definirPrazo']);
+                Route::patch('/inscricoes/inicio', [AdminInscricoesController::class, 'definirInicio']);
 
-            // Mala direta: comunicado em massa para um recorte da base.
-            Route::get('/mala-direta', [AdminMalaDiretaController::class, 'index']);
-            Route::get('/mala-direta/opcoes', [AdminMalaDiretaController::class, 'opcoes']);
-            Route::post('/mala-direta/previa', [AdminMalaDiretaController::class, 'previa']);
-            Route::post('/mala-direta/previa/exportar', [AdminMalaDiretaController::class, 'exportarPrevia']);
+                // Parametrização → Edições: criar a edição do ano, escolher a
+                // padrão (a que vale para quem não trocou) e excluir uma vazia.
+                Route::get('/edicoes', [EdicaoController::class, 'index']);
+                Route::post('/edicoes', [EdicaoController::class, 'store']);
+                Route::put('/edicoes/{edicao}', [EdicaoController::class, 'update']);
+                Route::patch('/edicoes/{edicao}/padrao', [EdicaoController::class, 'padrao']);
+                Route::delete('/edicoes/{edicao}', [EdicaoController::class, 'destroy']);
 
-            // Imagens do corpo e anexos da mensagem. Sobem antes do disparo (a
-            // mala ainda não existe) e ficam num disco privado.
-            Route::post('/mala-direta/arquivos', [AdminMalaDiretaController::class, 'subirArquivo'])
-                ->middleware('throttle:60,1');
-            Route::get('/mala-direta/arquivos/{arquivo}', [AdminMalaDiretaController::class, 'baixarArquivo']);
-            Route::delete('/mala-direta/arquivos/{arquivo}', [AdminMalaDiretaController::class, 'removerArquivo']);
-            // Disparo é caro e irreversível: limita a 10 malas por minuto.
-            Route::post('/mala-direta', [AdminMalaDiretaController::class, 'store'])
-                ->middleware('throttle:10,1');
-            Route::get('/mala-direta/{mala}', [AdminMalaDiretaController::class, 'show']);
-            Route::get('/mala-direta/{mala}/destinatarios', [AdminMalaDiretaController::class, 'destinatarios']);
-            Route::get('/mala-direta/{mala}/exportar', [AdminMalaDiretaController::class, 'exportar']);
-            Route::post('/mala-direta/{mala}/reenviar-falhas', [AdminMalaDiretaController::class, 'reenviarFalhas'])
-                ->middleware('throttle:10,1');
+                // Parametrização → Escopos de admin: quais abas cada perfil abre.
+                Route::get('/escopos', [EscopoAdminController::class, 'index']);
+                Route::post('/escopos', [EscopoAdminController::class, 'store']);
+                Route::put('/escopos/{escopo}', [EscopoAdminController::class, 'update']);
+                Route::delete('/escopos/{escopo}', [EscopoAdminController::class, 'destroy']);
 
-            Route::get('/projetos-por-area', [AdminController::class, 'projetosPorArea']);
-            // Projetos em rascunho: o admin termina e submete a inscrição que
-            // ficou pela metade, mesmo com o prazo vencido (a edição em si
-            // reaproveita as rotas de projeto/integrantes/documentos acima).
-            Route::get('/projetos-rascunho', [AdminRascunhoController::class, 'index']);
-            Route::get('/projetos-por-localidade', [AdminController::class, 'projetosPorLocalidade']);
-            Route::post('/admins', [AdminController::class, 'store']);
-            Route::get('/admins', [AdminController::class, 'listarAdmins']);
-            Route::put('/admins/{admin}', [AdminController::class, 'updateAdmin']);
-            Route::patch('/admins/{admin}/status', [AdminController::class, 'statusAdmin']);
+                // Parametrização do catálogo (áreas/subáreas)
+                Route::get('/catalogo', [CatalogoAdminController::class, 'index']);
+                Route::put('/areas/{area}', [CatalogoAdminController::class, 'updateArea']);
+                Route::patch('/areas/{area}/correlacao', [CatalogoAdminController::class, 'correlacao']);
+                Route::patch('/areas/{area}/sigla', [CatalogoAdminController::class, 'sigla']);
+                Route::post('/areas/{area}/mesclar', [CatalogoAdminController::class, 'mergeArea']);
+                Route::delete('/areas/{area}', [CatalogoAdminController::class, 'destroyArea']);
+                Route::put('/subareas/{subarea}', [CatalogoAdminController::class, 'updateSubarea']);
+                Route::post('/subareas/{subarea}/mesclar', [CatalogoAdminController::class, 'mergeSubarea']);
+                Route::delete('/subareas/{subarea}', [CatalogoAdminController::class, 'destroySubarea']);
 
-            // Parametrização do catálogo (áreas/subáreas)
-            Route::get('/catalogo', [CatalogoAdminController::class, 'index']);
-            Route::put('/areas/{area}', [CatalogoAdminController::class, 'updateArea']);
-            Route::patch('/areas/{area}/correlacao', [CatalogoAdminController::class, 'correlacao']);
-            Route::patch('/areas/{area}/sigla', [CatalogoAdminController::class, 'sigla']);
-            Route::post('/areas/{area}/mesclar', [CatalogoAdminController::class, 'mergeArea']);
-            Route::delete('/areas/{area}', [CatalogoAdminController::class, 'destroyArea']);
-            Route::put('/subareas/{subarea}', [CatalogoAdminController::class, 'updateSubarea']);
-            Route::post('/subareas/{subarea}/mesclar', [CatalogoAdminController::class, 'mergeSubarea']);
-            Route::delete('/subareas/{subarea}', [CatalogoAdminController::class, 'destroySubarea']);
+                // Parametrização das instituições de ensino (escolas)
+                Route::get('/instituicoes', [InstituicaoAdminController::class, 'index']);
+                Route::put('/instituicoes/{instituicao}', [InstituicaoAdminController::class, 'update']);
+                Route::post('/instituicoes/{instituicao}/mesclar', [InstituicaoAdminController::class, 'merge']);
+                Route::delete('/instituicoes/{instituicao}', [InstituicaoAdminController::class, 'destroy']);
+            });
 
-            // Parametrização das instituições de ensino (escolas)
-            Route::get('/instituicoes', [InstituicaoAdminController::class, 'index']);
-            Route::put('/instituicoes/{instituicao}', [InstituicaoAdminController::class, 'update']);
-            Route::post('/instituicoes/{instituicao}/mesclar', [InstituicaoAdminController::class, 'merge']);
-            Route::delete('/instituicoes/{instituicao}', [InstituicaoAdminController::class, 'destroy']);
+            // --- Aba "Comunicação": avisos, modelos de e-mail e mala direta ---
+            Route::middleware('aba:comunicacao')->group(function () {
+                // Avisos na tela dos orientadores (um ativo por vez).
+                Route::get('/avisos/opcoes', [AdminAvisoController::class, 'opcoes']);
+                Route::get('/avisos/ativo', [AdminAvisoController::class, 'ativo']);
+                Route::post('/avisos/previa', [AdminAvisoController::class, 'previa']);
+                Route::post('/avisos', [AdminAvisoController::class, 'store']);
+                Route::get('/avisos', [AdminAvisoController::class, 'index']);
+                Route::post('/avisos/{aviso}/encerrar', [AdminAvisoController::class, 'encerrar']);
+                Route::get('/avisos/{aviso}', [AdminAvisoController::class, 'show']);
+                Route::get('/avisos/{aviso}/leitores', [AdminAvisoController::class, 'leitores']);
+                Route::get('/avisos/{aviso}/exportar', [AdminAvisoController::class, 'exportar']);
 
-            // Chat de suporte (inbox): conversas dos orientadores/avaliadores
-            Route::get('/conversas', [ChatAdminController::class, 'index']);
-            Route::get('/conversas-nao-vistas', [ChatAdminController::class, 'naoVistas']);
-            Route::get('/conversas/{conversa}', [ChatAdminController::class, 'show']);
-            Route::patch('/conversas/{conversa}/status', [ChatAdminController::class, 'atualizarStatus']);
-            Route::post('/conversas/{conversa}/responder', [ChatAdminController::class, 'responder']);
+                // Comunicação → Modelos de e-mail: o texto dos e-mails automáticos.
+                Route::get('/modelos-email', [AdminModeloEmailController::class, 'index']);
+                Route::get('/modelos-email/{modelo}', [AdminModeloEmailController::class, 'show']);
+                Route::put('/modelos-email/{modelo}', [AdminModeloEmailController::class, 'update']);
+                Route::delete('/modelos-email/{modelo}', [AdminModeloEmailController::class, 'restaurar']);
+
+                // Mala direta: comunicado em massa para um recorte da base.
+                Route::get('/mala-direta', [AdminMalaDiretaController::class, 'index']);
+                Route::get('/mala-direta/opcoes', [AdminMalaDiretaController::class, 'opcoes']);
+                Route::post('/mala-direta/previa', [AdminMalaDiretaController::class, 'previa']);
+                Route::post('/mala-direta/previa/exportar', [AdminMalaDiretaController::class, 'exportarPrevia']);
+
+                // Imagens do corpo e anexos da mensagem. Sobem antes do disparo (a
+                // mala ainda não existe) e ficam num disco privado.
+                Route::post('/mala-direta/arquivos', [AdminMalaDiretaController::class, 'subirArquivo'])
+                    ->middleware('throttle:60,1');
+                Route::get('/mala-direta/arquivos/{arquivo}', [AdminMalaDiretaController::class, 'baixarArquivo']);
+                Route::delete('/mala-direta/arquivos/{arquivo}', [AdminMalaDiretaController::class, 'removerArquivo']);
+                // Disparo é caro e irreversível: limita a 10 malas por minuto.
+                Route::post('/mala-direta', [AdminMalaDiretaController::class, 'store'])
+                    ->middleware('throttle:10,1');
+                Route::get('/mala-direta/{mala}', [AdminMalaDiretaController::class, 'show']);
+                Route::get('/mala-direta/{mala}/destinatarios', [AdminMalaDiretaController::class, 'destinatarios']);
+                Route::get('/mala-direta/{mala}/exportar', [AdminMalaDiretaController::class, 'exportar']);
+                Route::post('/mala-direta/{mala}/reenviar-falhas', [AdminMalaDiretaController::class, 'reenviarFalhas'])
+                    ->middleware('throttle:10,1');
+            });
+
+            // --- Aba "Registros": a trilha de auditoria ---
+            Route::middleware('aba:registros')->group(function () {
+                Route::get('/registros', [AdminRegistroController::class, 'index']);
+                Route::get('/registros/exportar', [AdminRegistroController::class, 'exportar']);
+            });
+
+            // --- Aba "Administradores": contas e escopos de cada admin ---
+            Route::middleware('aba:administradores')->group(function () {
+                Route::post('/admins', [AdminController::class, 'store']);
+                Route::get('/admins', [AdminController::class, 'listarAdmins']);
+                Route::put('/admins/{admin}', [AdminController::class, 'updateAdmin']);
+                Route::patch('/admins/{admin}/status', [AdminController::class, 'statusAdmin']);
+                Route::put('/admins/{admin}/escopo', [EscopoAdminController::class, 'atribuir']);
+            });
+
+            // --- Aba "Suporte": inbox do chat ---
+            Route::middleware('aba:suporte')->group(function () {
+                Route::get('/conversas', [ChatAdminController::class, 'index']);
+                Route::get('/conversas-nao-vistas', [ChatAdminController::class, 'naoVistas']);
+                Route::get('/conversas/{conversa}', [ChatAdminController::class, 'show']);
+                Route::patch('/conversas/{conversa}/status', [ChatAdminController::class, 'atualizarStatus']);
+                Route::post('/conversas/{conversa}/responder', [ChatAdminController::class, 'responder']);
+            });
         });
     });
 });

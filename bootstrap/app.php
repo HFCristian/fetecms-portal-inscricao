@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureAbaAdmin;
 use App\Http\Middleware\EnsureRole;
 use App\Http\Middleware\InscricoesAbertas;
 use App\Http\Middleware\InscricoesIniciadas;
@@ -39,6 +40,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'role' => EnsureRole::class,
+            'aba' => EnsureAbaAdmin::class,
             'inscricoes.abertas' => InscricoesAbertas::class,
             'inscricoes.iniciadas' => InscricoesIniciadas::class,
         ]);

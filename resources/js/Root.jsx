@@ -27,6 +27,8 @@ import AdminProjetosPorCidade from './pages/AdminProjetosPorCidade.jsx';
 import AdminProjetosPorEscola from './pages/AdminProjetosPorEscola.jsx';
 import Parametrizacao from './pages/Parametrizacao.jsx';
 import ParametrizacaoAreas from './pages/ParametrizacaoAreas.jsx';
+import ParametrizacaoEdicoes from './pages/ParametrizacaoEdicoes.jsx';
+import ParametrizacaoEscopos from './pages/ParametrizacaoEscopos.jsx';
 import ParametrizacaoEscolas from './pages/ParametrizacaoEscolas.jsx';
 import ParametrizacaoInscricoes from './pages/ParametrizacaoInscricoes.jsx';
 import ParametrizacaoAvaliacao from './pages/ParametrizacaoAvaliacao.jsx';
@@ -124,6 +126,8 @@ export default function Root() {
                             <Route path="/admin/projetos-por-escola" element={<AdminProjetosPorEscola />} />
                             <Route path="/admin/parametrizacao" element={<Parametrizacao />} />
                             <Route path="/admin/parametrizacao/areas" element={<ParametrizacaoAreas />} />
+                            <Route path="/admin/parametrizacao/edicoes" element={<ParametrizacaoEdicoes />} />
+                            <Route path="/admin/parametrizacao/escopos" element={<ParametrizacaoEscopos />} />
                             <Route path="/admin/parametrizacao/escolas" element={<ParametrizacaoEscolas />} />
                             <Route path="/admin/parametrizacao/inscricoes" element={<ParametrizacaoInscricoes />} />
                             <Route path="/admin/parametrizacao/avaliacao" element={<ParametrizacaoAvaliacao />} />

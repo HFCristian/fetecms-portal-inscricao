@@ -198,7 +198,11 @@ export const getProjetosPorLocalidade = () => http.get('/admin/projetos-por-loca
 export const criarAdmin = (payload) => http.post('/admin/admins', payload).then((r) => r.data.data);
 
 // Gestão de administradores (listar, editar nome/email, ativar/desativar).
-export const getAdmins = () => http.get('/admin/admins').then((r) => r.data.data);
+/**
+ * Administradores + o escopo de cada um na edição em curso.
+ * Devolve o payload inteiro: `{ data, meta: { escopos, escopo_por_admin } }`.
+ */
+export const getAdmins = () => http.get('/admin/admins').then((r) => r.data);
 export const atualizarAdmin = (id, payload) => http.put(`/admin/admins/${id}`, payload).then((r) => r.data.data);
 export const definirStatusAdmin = (id, isActive) =>
     http.patch(`/admin/admins/${id}/status`, { is_active: isActive }).then((r) => r.data.data);
@@ -285,3 +289,18 @@ export const salvarModeloEmail = (chave, dados) =>
 /** Volta o modelo ao texto padrão (apaga a customização). */
 export const restaurarModeloEmail = (chave) =>
     http.delete(`/admin/modelos-email/${chave}`).then((r) => r.data.data);
+
+// --- Parametrização → Escopos de admin (Sprint 67) ---
+
+export const getEscopos = () => http.get('/admin/escopos').then((r) => r.data.data);
+
+export const criarEscopo = (payload) => http.post('/admin/escopos', payload).then((r) => r.data.data);
+
+export const atualizarEscopo = (id, payload) =>
+    http.put(`/admin/escopos/${id}`, payload).then((r) => r.data.data);
+
+export const excluirEscopo = (id) => http.delete(`/admin/escopos/${id}`).then((r) => r.data.data);
+
+/** Define o escopo de um admin na edição em curso (null = acesso total). */
+export const definirEscopoAdmin = (adminId, escopoId) =>
+    http.put(`/admin/admins/${adminId}/escopo`, { escopo_id: escopoId ?? null }).then((r) => r.data.data);
