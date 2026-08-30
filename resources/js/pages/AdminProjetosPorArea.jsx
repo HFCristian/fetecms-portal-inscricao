@@ -47,7 +47,7 @@ export default function AdminProjetosPorArea() {
 
     return (
         <AppShell>
-            <Link to="/admin" className="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary mb-3">
+            <Link to="/admin/projetos" className="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary mb-3">
                 <span className="material-symbols-outlined text-[18px]">arrow_back</span> Painel do Administrador
             </Link>
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-6">

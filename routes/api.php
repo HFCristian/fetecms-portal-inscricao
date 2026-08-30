@@ -376,7 +376,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::get('/admins', [AdminController::class, 'listarAdmins']);
                 Route::put('/admins/{admin}', [AdminController::class, 'updateAdmin']);
                 Route::patch('/admins/{admin}/status', [AdminController::class, 'statusAdmin']);
-                Route::put('/admins/{admin}/escopo', [EscopoAdminController::class, 'atribuir']);
+                Route::put('/admins/{admin}/escopos', [EscopoAdminController::class, 'atribuir']);
             });
 
             // --- Aba "Suporte": inbox do chat ---

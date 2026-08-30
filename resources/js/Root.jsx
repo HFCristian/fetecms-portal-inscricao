@@ -20,6 +20,7 @@ import AdminAvisos from './pages/AdminAvisos.jsx';
 import AdminModelosEmail from './pages/AdminModelosEmail.jsx';
 import AdminComunicacao from './pages/AdminComunicacao.jsx';
 import AdminHome from './pages/AdminHome.jsx';
+import AdminInicio from './pages/AdminInicio.jsx';
 import AdminProjetosPorArea from './pages/AdminProjetosPorArea.jsx';
 import AdminProjetosRascunho from './pages/AdminProjetosRascunho.jsx';
 import AdminProjetosPorEstado from './pages/AdminProjetosPorEstado.jsx';
@@ -114,7 +115,10 @@ export default function Root() {
 
                         {/* Área do admin */}
                         <Route element={<RoleRoute allow={['admin']} />}>
-                            <Route path="/admin" element={<AdminHome />} />
+                            {/* A Home lista as abas liberadas; o painel de
+                                projetos ganhou rota própria. */}
+                            <Route path="/admin" element={<AdminInicio />} />
+                            <Route path="/admin/projetos" element={<AdminHome />} />
                             <Route path="/admin/avaliacao" element={<AdminAvaliacaoOnline />} />
                             <Route path="/admin/avaliacao/distribuicao" element={<AvaliacaoDistribuicao />} />
                             <Route path="/admin/avaliacao/avaliadores" element={<AvaliacaoAvaliadores />} />

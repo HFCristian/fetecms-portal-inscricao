@@ -6,9 +6,11 @@ namespace App\Enums;
  * As abas do menu do admin — a unidade de permissão dos **escopos**
  * (Parametrização → Escopos de admin).
  *
- * Cada escopo é um conjunto destas abas; cada admin recebe um escopo **por
- * edição**, então a mesma pessoa pode cuidar da comunicação em 2026 e do
- * credenciamento em 2027. Sem escopo atribuído na edição em curso, o admin tem
+ * No RBAC do portal, uma aba é a **rule**; o escopo é o **role** (um nome + o
+ * conjunto de abas que ele abre). Cada admin recebe **um ou mais** escopos
+ * **por edição** e abre a **união** das abas deles, então a mesma pessoa pode
+ * cuidar da comunicação em 2026 e do credenciamento em 2027 — ou das duas
+ * coisas ao mesmo tempo. Sem escopo algum na edição em curso, o admin tem
  * **acesso total** — é o comportamento histórico, e evita que criar uma edição
  * nova tranque todo mundo para fora.
  *

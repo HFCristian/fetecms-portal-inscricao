@@ -332,6 +332,9 @@ export const atualizarEscopo = (id, payload) =>
 
 export const excluirEscopo = (id) => http.delete(`/admin/escopos/${id}`).then((r) => r.data.data);
 
-/** Define o escopo de um admin na edição em curso (null = acesso total). */
-export const definirEscopoAdmin = (adminId, escopoId) =>
-    http.put(`/admin/admins/${adminId}/escopo`, { escopo_id: escopoId ?? null }).then((r) => r.data.data);
+/**
+ * Define o conjunto de escopos de um admin na edição em curso — o acesso dele é
+ * a união das abas de todos. Lista vazia devolve o acesso total.
+ */
+export const definirEscoposAdmin = (adminId, escopoIds) =>
+    http.put(`/admin/admins/${adminId}/escopos`, { escopo_ids: escopoIds ?? [] }).then((r) => r.data.data);

@@ -136,9 +136,9 @@ class EscopoAdminTest extends TestCase
 
         Sanctum::actingAs($autor);
 
-        $this->putJson("/api/v1/admin/admins/{$alvo->id}/escopo", ['escopo_id' => $escopo->id])
+        $this->putJson("/api/v1/admin/admins/{$alvo->id}/escopos", ['escopo_ids' => [$escopo->id]])
             ->assertOk()
-            ->assertJsonPath("data.{$alvo->id}.escopo", 'Projetos');
+            ->assertJsonPath("data.{$alvo->id}.escopos", ['Projetos']);
 
         $this->assertDatabaseHas('admin_escopos', [
             'user_id' => $alvo->id,
@@ -147,8 +147,65 @@ class EscopoAdminTest extends TestCase
         ]);
 
         // Sem escopo, volta ao acesso total.
-        $this->putJson("/api/v1/admin/admins/{$alvo->id}/escopo", ['escopo_id' => null])->assertOk();
+        $this->putJson("/api/v1/admin/admins/{$alvo->id}/escopos", ['escopo_ids' => []])->assertOk();
         $this->assertDatabaseMissing('admin_escopos', ['user_id' => $alvo->id]);
+    }
+
+    /**
+     * O coração do RBAC: vários escopos na mesma edição somam as abas, em vez
+     * de o último substituir o anterior.
+     */
+    public function test_admin_acumula_varios_escopos_e_as_abas_se_somam(): void
+    {
+        $autor = User::factory()->admin()->create();
+        $alvo = User::factory()->admin()->create();
+        $comunicacao = $this->escopo('Comunicação', [AbaAdmin::Comunicacao->value]);
+        $credenciamento = $this->escopo('Credenciamento', [AbaAdmin::Credenciamento->value]);
+
+        Sanctum::actingAs($autor);
+
+        $this->putJson("/api/v1/admin/admins/{$alvo->id}/escopos", [
+            'escopo_ids' => [$comunicacao->id, $credenciamento->id],
+        ])
+            ->assertOk()
+            ->assertJsonPath("data.{$alvo->id}.escopos", ['Comunicação', 'Credenciamento'])
+            ->assertJsonPath("data.{$alvo->id}.abas", [
+                AbaAdmin::Credenciamento->value, AbaAdmin::Comunicacao->value,
+            ]);
+
+        $this->assertSame(2, $alvo->escopos()->count());
+
+        // A união vale de verdade: as duas abas abrem, e as demais não.
+        $alvo->refresh();
+        $this->assertTrue($alvo->podeAbrirAba(AbaAdmin::Comunicacao));
+        $this->assertTrue($alvo->podeAbrirAba(AbaAdmin::Credenciamento));
+        $this->assertFalse($alvo->podeAbrirAba(AbaAdmin::Registros));
+        $this->assertSame(
+            [AbaAdmin::Credenciamento->value, AbaAdmin::Comunicacao->value],
+            $alvo->abasPermitidas(),
+        );
+    }
+
+    /** O middleware `aba:` respeita a união, não só o primeiro escopo. */
+    public function test_middleware_libera_aba_vinda_do_segundo_escopo(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $edicao = Edicao::padrao();
+        $admin->escopos()->attach(
+            $this->escopo('Só projetos', [AbaAdmin::Projetos->value])->id,
+            ['edicao_id' => $edicao->id],
+        );
+
+        Sanctum::actingAs($admin);
+        $this->getJson('/api/v1/admin/registros')->assertForbidden();
+
+        $admin->escopos()->attach(
+            $this->escopo('Só registros', [AbaAdmin::Registros->value])->id,
+            ['edicao_id' => $edicao->id],
+        );
+
+        $this->getJson('/api/v1/admin/registros')->assertOk();
+        $this->getJson('/api/v1/admin/dashboard')->assertOk();
     }
 
     public function test_nao_deixa_a_edicao_sem_ninguem_na_aba_administradores(): void
@@ -158,9 +215,9 @@ class EscopoAdminTest extends TestCase
 
         Sanctum::actingAs($unico);
 
-        $this->putJson("/api/v1/admin/admins/{$unico->id}/escopo", ['escopo_id' => $semAdmins->id])
+        $this->putJson("/api/v1/admin/admins/{$unico->id}/escopos", ['escopo_ids' => [$semAdmins->id]])
             ->assertStatus(422)
-            ->assertJsonValidationErrors('escopo_id');
+            ->assertJsonValidationErrors('escopo_ids');
 
         // A atribuição foi desfeita: ele continua com acesso total.
         $this->assertDatabaseMissing('admin_escopos', ['user_id' => $unico->id]);
@@ -177,7 +234,7 @@ class EscopoAdminTest extends TestCase
 
         $this->putJson("/api/v1/admin/escopos/{$completo->id}", [
             'abas' => [AbaAdmin::Projetos->value],
-        ])->assertStatus(422)->assertJsonValidationErrors('escopo_id');
+        ])->assertStatus(422)->assertJsonValidationErrors('escopo_ids');
 
         // Nada mudou: a transação foi desfeita.
         $this->assertSame(AbaAdmin::valores(), $completo->fresh()->abas);
@@ -194,7 +251,7 @@ class EscopoAdminTest extends TestCase
             ->assertStatus(422)
             ->assertJsonValidationErrors('escopo');
 
-        $this->putJson("/api/v1/admin/admins/{$admin->id}/escopo", ['escopo_id' => null])->assertOk();
+        $this->putJson("/api/v1/admin/admins/{$admin->id}/escopos", ['escopo_ids' => []])->assertOk();
         $this->deleteJson("/api/v1/admin/escopos/{$escopo->id}")->assertOk();
         $this->assertDatabaseMissing('escopos_admin', ['id' => $escopo->id]);
     }
