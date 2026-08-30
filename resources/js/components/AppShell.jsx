@@ -33,6 +33,7 @@ const ABAS_ADMIN = [
     { aba: 'projetos', to: '/admin', end: true, icon: 'folder', label: 'Projetos' },
     { aba: 'avaliacao', to: '/admin/avaliacao', icon: 'grading', label: 'Avaliação online' },
     { aba: 'credenciamento', to: '/admin/credenciamento', icon: 'badge', label: 'Credenciamento' },
+    { aba: 'comite', to: '/admin/comite', icon: 'directions_bus', label: 'Comitê especial' },
     { aba: 'comunicacao', to: '/admin/comunicacao', icon: 'campaign', label: 'Comunicação' },
     { aba: 'suporte', to: '/admin/suporte', icon: 'forum', label: 'Suporte', badge: true },
     { aba: 'parametrizacao', to: '/admin/parametrizacao', icon: 'tune', label: 'Parametrização' },

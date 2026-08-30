@@ -35,6 +35,9 @@ import ParametrizacaoAvaliacao from './pages/ParametrizacaoAvaliacao.jsx';
 import AdminManager from './pages/AdminManager.jsx';
 import AdminSuporte from './pages/AdminSuporte.jsx';
 import CredenciamentoHome from './pages/CredenciamentoHome.jsx';
+import ComiteHome from './pages/ComiteHome.jsx';
+import ComiteTransporte from './pages/ComiteTransporte.jsx';
+import ComiteMapa from './pages/ComiteMapa.jsx';
 import CredenciamentoLista from './pages/CredenciamentoLista.jsx';
 import CredenciamentoFicha from './pages/CredenciamentoFicha.jsx';
 import ParametrizacaoCredenciamento from './pages/ParametrizacaoCredenciamento.jsx';
@@ -152,6 +155,10 @@ export default function Root() {
                             <Route path="/admin/credenciamento/credenciar" element={<CredenciamentoLista situacao="pendentes" />} />
                             <Route path="/admin/credenciamento/credenciados" element={<CredenciamentoLista situacao="credenciados" />} />
                             <Route path="/admin/credenciamento/projetos/:id" element={<CredenciamentoFicha />} />
+                            {/* Aba Comitê especial: transporte e mapa em tempo real. */}
+                            <Route path="/admin/comite" element={<ComiteHome />} />
+                            <Route path="/admin/comite/transporte" element={<ComiteTransporte />} />
+                            <Route path="/admin/comite/mapa" element={<ComiteMapa />} />
                             <Route path="/admin/comunicacao" element={<AdminComunicacao />} />
                             <Route path="/admin/comunicacao/avisos" element={<AdminAvisos />} />
                             <Route path="/admin/comunicacao/modelos" element={<AdminModelosEmail />} />

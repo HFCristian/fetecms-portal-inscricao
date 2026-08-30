@@ -217,6 +217,19 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     ato presencial), os **itens entregues** aos finalistas (`edicoes.itens_credenciamento`) e a
     **lista de documentos** exigida de cada papel (`documentos_credenciamento`, catálogo do portal).
     Documento já conferido em algum credenciamento não é excluído — desative-o.
+  - **Comitê especial** (`/admin/comite`): o deslocamento das equipes durante a feira, em duas
+    seções. **Transporte de comitê** lista quem está com o localizador ligado e o que cada um
+    configurou, e traz o botão **Habilitar localização** — um assistente de **seis passos**:
+    quantas pessoas estão junto → os **nomes** (opcionais, com a área de cada uma) → o **meio de
+    transporte** → o **ponto de partida** → o **destino** (autocomplete do Google Places) e por
+    **quanto tempo** o localizador fica ligado (ajustável depois) → a **permissão de localização**
+    do aparelho. Ligado, a tela mostra o próprio ponto no mapa, o **caminho recomendado**, a
+    **previsão de chegada** e a **próxima orientação**. **Mapa do comitê** mostra todos os grupos
+    em tempo real; clicar num ponto abre quantas pessoas estão lá, os nomes, as áreas, a distância
+    aproximada e o tempo até o destino. A posição vai e volta **de 5 em 5 segundos** por polling
+    (não há WebSocket no projeto). **Privacidade**: guarda-se a última posição e o **trajeto vivo**;
+    desligar o localizador — à mão ou pelo vencimento do prazo — **apaga o trajeto**.
+    `ComiteTransporteService`, `localizacoes_comite` + `localizacao_comite_pontos`.
   - **Registros** tem seis seções: **Inscrições**, **Avaliação Online**, **Lista final**
     (`/admin/registros/lista-final` — publicação da lista oficial e cada projeto incluído ou
     retirado, com a justificativa), **Credenciamento** (`/admin/registros/credenciamento` — quem
@@ -416,7 +429,31 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 69 | Lista final oficial: incluir/retirar projeto com justificativa, versão nova e auditoria | ✅ sim | ❌ não (manual do Pedro) | 7 |
 | 70 | Aba Credenciamento: credenciar/credenciados, conferência de documentos por pessoa e auditoria | ✅ sim | ❌ não (manual do Pedro) | 8 |
 | 71 | Credenciamento: horários do atendimento (+5 min no lançamento retroativo) e itens a entregar | ✅ sim | ❌ não (manual do Pedro) | 8 |
+| 72 | Comitê especial → Transporte: assistente de 6 passos, localizador a cada 5s, rota e ETA | ✅ sim | ❌ não (manual do Pedro) | 9 |
+| 73 | Comitê especial → Mapa do comitê: tempo real e detalhe do ponto (pessoas, áreas, distância) | ✅ sim | ❌ não (manual do Pedro) | 9 |
 
+> **Sprints 72–73 (mesma branch):** nasceu a aba **Comitê especial**, com o deslocamento das
+> equipes durante a feira.
+> (a) **Sprint 72** — **Transporte de comitê**. O botão *Habilitar localização* abre um assistente
+> de **seis passos** — quantas pessoas, os nomes (opcionais, com a área de cada uma), o meio de
+> transporte, o ponto de partida, o destino + o tempo com o localizador ligado, e a permissão de
+> localização do aparelho. Ligado, o navegador acompanha a posição e a envia **a cada 5 segundos**
+> junto da estimativa de rota calculada ali mesmo; a tela mostra o ponto no mapa, o caminho
+> recomendado, a **previsão de chegada** e a **próxima orientação**. Uma sessão ativa por pessoa
+> (ligar de novo encerra a anterior), e o tempo pode ser esticado ou encurtado depois. **Privacidade**:
+> guarda-se a última posição e o trajeto vivo; desligar — à mão ou pelo vencimento — **apaga o
+> trajeto**, e a faxina das sessões vencidas roda em cada leitura do mapa, sem depender de agendador.
+> (b) **Sprint 73** — **Mapa do comitê**: todos os grupos ligados, com leitura de 5 em 5 segundos
+> (polling; não há WebSocket no projeto). Clicar num ponto abre **quantas pessoas, os nomes, as
+> áreas, a distância aproximada e o tempo até o destino**, e o painel acompanha o ponto enquanto ele
+> se move. Quem está ligado mas ainda sem posição é contado à parte, não some da tela.
+> **Google Maps**: mapa, autocomplete (Places) e rota (Directions) usam a chave
+> `VITE_GOOGLE_MAPS_API_KEY`, lida **no build** do front. **Sem a chave nada quebra** — o mapa é
+> substituído por um aviso dizendo o que falta e o campo de endereço vira texto livre —, mas o
+> Pedro precisa configurá-la e rodar `npm run build` para o recurso funcionar de verdade; o mapa
+> real ainda não foi validado em navegador aqui.
+> Back **661/661**, front **300/300**, Pint limpo, build OK.
+>
 > **Sprints 70–71 (mesma branch):** nasceu a aba **Credenciamento**, o balcão do evento.
 > (a) **Sprint 70** — duas seções sobre a mesma lista pesquisável: **Credenciar** (pendentes) e
 > **Credenciados** (quem já passou), com filtro por área e categoria. **Finalista é quem está na

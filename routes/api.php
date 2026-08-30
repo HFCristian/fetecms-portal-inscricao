@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\V1\CatalogoAdminController;
 use App\Http\Controllers\Api\V1\CatalogoController;
 use App\Http\Controllers\Api\V1\ChatAdminController;
 use App\Http\Controllers\Api\V1\ChatController;
+use App\Http\Controllers\Api\V1\ComiteTransporteController;
 use App\Http\Controllers\Api\V1\CoorientadorController;
 use App\Http\Controllers\Api\V1\CredenciamentoController;
 use App\Http\Controllers\Api\V1\DocumentoController;
@@ -250,6 +251,19 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::get('/finalistas', [CredenciamentoController::class, 'index']);
                 Route::get('/projetos/{projeto}', [CredenciamentoController::class, 'show']);
                 Route::post('/projetos/{projeto}', [CredenciamentoController::class, 'store']);
+            });
+
+            // --- Aba "Comitê especial": transporte e mapa em tempo real ---
+            Route::middleware('aba:comite')->prefix('comite')->group(function () {
+                Route::get('/localizacao', [ComiteTransporteController::class, 'minha']);
+                Route::post('/localizacao', [ComiteTransporteController::class, 'iniciar']);
+                Route::patch('/localizacao', [ComiteTransporteController::class, 'prorrogar']);
+                Route::delete('/localizacao', [ComiteTransporteController::class, 'encerrar']);
+                // Uma posição a cada 5s: o teto acomoda a sessão inteira com folga.
+                Route::post('/localizacao/ponto', [ComiteTransporteController::class, 'ponto'])
+                    ->middleware('throttle:60,1');
+                Route::get('/mapa', [ComiteTransporteController::class, 'mapa']);
+                Route::get('/mapa/{localizacao}', [ComiteTransporteController::class, 'detalhe']);
             });
 
             // --- Parametrização (as datas do período de avaliação moram nas

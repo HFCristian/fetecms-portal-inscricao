@@ -19,6 +19,7 @@ enum AbaAdmin: string
     case Projetos = 'projetos';
     case Avaliacao = 'avaliacao';
     case Credenciamento = 'credenciamento';
+    case Comite = 'comite';
     case Comunicacao = 'comunicacao';
     case Suporte = 'suporte';
     case Parametrizacao = 'parametrizacao';
@@ -31,6 +32,7 @@ enum AbaAdmin: string
             self::Projetos => 'Projetos',
             self::Avaliacao => 'Avaliação online',
             self::Credenciamento => 'Credenciamento',
+            self::Comite => 'Comitê especial',
             self::Comunicacao => 'Comunicação',
             self::Suporte => 'Suporte',
             self::Parametrizacao => 'Parametrização',
@@ -45,6 +47,7 @@ enum AbaAdmin: string
             self::Projetos => 'Painel, projetos por área, localidade e os rascunhos.',
             self::Avaliacao => 'Distribuição, avaliadores, ranking e lista final.',
             self::Credenciamento => 'Credenciar os finalistas no dia do evento e conferir os documentos.',
+            self::Comite => 'Transporte do comitê e o mapa de quem está a caminho.',
             self::Comunicacao => 'Mala direta, avisos na tela e modelos de e-mail.',
             self::Suporte => 'Caixa de entrada do chat de orientadores e avaliadores.',
             self::Parametrizacao => 'Edições, datas, áreas, escolas e escopos.',
