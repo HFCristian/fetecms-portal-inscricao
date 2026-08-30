@@ -333,6 +333,13 @@ export const atualizarEscopo = (id, payload) =>
 export const excluirEscopo = (id) => http.delete(`/admin/escopos/${id}`).then((r) => r.data.data);
 
 /**
+ * Liga/desliga o **modo demo** de um administrador: com ele, as telas que
+ * dependem de data (credenciamento, ajustes) oferecem o "modo de teste".
+ */
+export const definirDemoAdmin = (adminId, demo) =>
+    http.patch(`/admin/admins/${adminId}/demo`, { is_demo: demo }).then((r) => r.data);
+
+/**
  * Define o conjunto de escopos de um admin na edição em curso — o acesso dele é
  * a união das abas de todos. Lista vazia devolve o acesso total.
  */

@@ -11,6 +11,7 @@ use App\Models\Instituicao;
 use App\Models\OrientadorProfile;
 use App\Models\Projeto;
 use App\Models\User;
+use App\Services\CredenciamentoService;
 use Database\Seeders\CatalogoSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -381,5 +382,44 @@ class AdminTest extends TestCase
         $this->assertSame(2, $medio['total']);
         $this->assertSame(['serie' => '2º ano', 'total' => 1], $medio['series'][1]);
         $this->assertSame(['serie' => '4º ano', 'total' => 1], $medio['series'][3]);
+    }
+
+    /**
+     * Modo demo por administrador: libera para ele as telas que dependem de
+     * data (o credenciamento antes do evento, por exemplo) sem esperar o
+     * calendário. É o mesmo interruptor que os avaliadores já tinham.
+     */
+    public function test_admin_liga_e_desliga_o_modo_demo_de_outro_admin(): void
+    {
+        $autor = User::factory()->admin()->create();
+        $alvo = User::factory()->admin()->create(['is_demo' => false]);
+
+        Sanctum::actingAs($autor);
+
+        $this->patchJson("/api/v1/admin/admins/{$alvo->id}/demo", ['is_demo' => true])
+            ->assertOk()
+            ->assertJsonPath('data.is_demo', true)
+            ->assertJsonPath('meta.message', 'Modo demo liberado.');
+
+        $this->assertTrue($alvo->fresh()->is_demo);
+
+        // O modo demo passa a valer de verdade: o credenciamento em modo de
+        // teste ignora a janela do evento, que aqui nem foi definida.
+        $this->assertTrue(app(CredenciamentoService::class)->config($alvo->fresh())['pode_testar']);
+
+        $this->patchJson("/api/v1/admin/admins/{$alvo->id}/demo", ['is_demo' => false])
+            ->assertOk()
+            ->assertJsonPath('data.is_demo', false);
+
+        $this->assertFalse($alvo->fresh()->is_demo);
+    }
+
+    public function test_modo_demo_so_vale_para_conta_de_admin(): void
+    {
+        Sanctum::actingAs(User::factory()->admin()->create());
+        $orientador = User::factory()->create();
+
+        $this->patchJson("/api/v1/admin/admins/{$orientador->id}/demo", ['is_demo' => true])
+            ->assertNotFound();
     }
 }

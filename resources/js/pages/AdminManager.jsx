@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import AppShell from '../components/AppShell.jsx';
 import { Field, Input, Button, Alert, useConfirm } from '../components/ui.jsx';
 import { extractErrors, useAuth } from '../lib/auth.jsx';
-import { criarAdmin, getAdmins, atualizarAdmin, definirStatusAdmin, definirEscoposAdmin } from '../lib/admin.js';
+import { criarAdmin, getAdmins, atualizarAdmin, definirStatusAdmin, definirEscoposAdmin, definirDemoAdmin } from '../lib/admin.js';
 
 function CriarAdminForm({ onCriado }) {
     const [form, setForm] = useState({});
@@ -109,7 +109,7 @@ function EscoposDoAdmin({ admin, escopos, selecionados, onAlternar }) {
     );
 }
 
-function LinhaAdmin({ admin, souEu, editando, form, setForm, err, salvando, escopos, escopoIds, onEscopos, onEditar, onCancelar, onSalvar, onStatus }) {
+function LinhaAdmin({ admin, souEu, editando, form, setForm, err, salvando, escopos, escopoIds, onEscopos, onEditar, onCancelar, onSalvar, onStatus, onDemo }) {
     if (editando) {
         return (
             <div className="px-4 py-3 border-b border-outline-variant/30 last:border-0 space-y-3">
@@ -136,6 +136,11 @@ function LinhaAdmin({ admin, souEu, editando, form, setForm, err, salvando, esco
                 <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-semibold text-on-surface truncate">{admin.name}</span>
                     <StatusPill ativo={admin.is_active} />
+                    {admin.is_demo && (
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap bg-primary-fixed text-primary-container">
+                            Modo demo
+                        </span>
+                    )}
                     {souEu && <span className="text-xs text-on-surface-variant">(você)</span>}
                 </div>
                 <p className="text-sm text-on-surface-variant truncate">{admin.email}</p>
@@ -151,6 +156,24 @@ function LinhaAdmin({ admin, souEu, editando, form, setForm, err, salvando, esco
                 )}
             </div>
             <div className="flex gap-1 shrink-0">
+                {/* Modo demo: libera para esta pessoa as funcionalidades que
+                    dependem de data (credenciar antes do evento, por exemplo)
+                    para ela treinar antes do prazo. */}
+                <button
+                    type="button"
+                    onClick={onDemo}
+                    aria-pressed={!!admin.is_demo}
+                    title={admin.is_demo
+                        ? `Desativar o modo demo de ${admin.name}`
+                        : `Liberar o modo demo para ${admin.name}`}
+                    className={`p-1.5 rounded-lg transition-colors ${
+                        admin.is_demo
+                            ? 'text-primary-container bg-primary-fixed hover:bg-primary-fixed/70'
+                            : 'text-on-surface-variant hover:bg-surface-variant'
+                    }`}
+                >
+                    <span className="material-symbols-outlined text-[20px]">science</span>
+                </button>
                 <button type="button" onClick={onEditar} title="Editar"
                     className="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-variant transition-colors">
                     <span className="material-symbols-outlined text-[20px]">edit</span>
@@ -205,6 +228,17 @@ function AdminList() {
             setEscopoPorAdmin(await definirEscoposAdmin(adminId, escopoIds));
         } catch (e) {
             setAlert(extractErrors(e).message || 'Não foi possível trocar os escopos.');
+        }
+    }
+
+    async function alternarDemo(a) {
+        setAlert('');
+        try {
+            const { data } = await definirDemoAdmin(a.id, !a.is_demo);
+            // Troca só a linha alterada: recarregar tudo perderia a edição aberta.
+            setAdmins((lista) => lista.map((x) => (x.id === a.id ? { ...x, is_demo: data.is_demo } : x)));
+        } catch (e) {
+            setAlert(extractErrors(e).message || 'Não foi possível mudar o modo demo.');
         }
     }
 
@@ -275,6 +309,7 @@ function AdminList() {
                         onCancelar={() => { setEditId(null); setErrors({}); }}
                         onSalvar={() => salvar(a.id)}
                         onStatus={() => alternarStatus(a)}
+                        onDemo={() => alternarDemo(a)}
                     />
                 ))
             )}

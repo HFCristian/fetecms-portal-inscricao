@@ -381,6 +381,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::get('/admins', [AdminController::class, 'listarAdmins']);
                 Route::put('/admins/{admin}', [AdminController::class, 'updateAdmin']);
                 Route::patch('/admins/{admin}/status', [AdminController::class, 'statusAdmin']);
+                Route::patch('/admins/{admin}/demo', [AdminController::class, 'demoAdmin']);
                 Route::put('/admins/{admin}/escopos', [EscopoAdminController::class, 'atribuir']);
             });
 

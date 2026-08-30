@@ -31,6 +31,12 @@ export default function Parametrizacao() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl">
                 <CardParametrizacao
+                    to="/admin/parametrizacao/datas"
+                    icon="calendar_month"
+                    titulo="Datas e períodos"
+                    descricao="Todas as janelas da edição: inscrições, avaliação, ajustes do orientador e evento."
+                />
+                <CardParametrizacao
                     to="/admin/parametrizacao/edicoes"
                     icon="event_repeat"
                     titulo="Edições"
@@ -46,7 +52,7 @@ export default function Parametrizacao() {
                     to="/admin/parametrizacao/credenciamento"
                     icon="badge"
                     titulo="Credenciamento"
-                    descricao="O período do evento e os documentos conferidos no balcão, por papel."
+                    descricao="Os documentos conferidos no balcão, por papel, e os itens entregues ao finalista."
                 />
                 <CardParametrizacao
                     to="/admin/parametrizacao/areas"
@@ -61,16 +67,10 @@ export default function Parametrizacao() {
                     descricao="Renomeie, mescle e exclua instituições de ensino — limpe as cadastradas em duplicidade."
                 />
                 <CardParametrizacao
-                    to="/admin/parametrizacao/inscricoes"
-                    icon="app_registration"
-                    titulo="Inscrições"
-                    descricao="Quando as inscrições abrem e até quando os orientadores podem submeter os projetos."
-                />
-                <CardParametrizacao
                     to="/admin/parametrizacao/avaliacao"
                     icon="grading"
                     titulo="Avaliação Online"
-                    descricao="Quando os avaliadores passam a acessar os projetos e quando o período se encerra."
+                    descricao="Os limites de avaliação do edital: mínimo e máximo por avaliador e por projeto."
                 />
             </div>
         </AppShell>

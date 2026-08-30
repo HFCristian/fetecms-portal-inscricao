@@ -11,8 +11,8 @@ vi.mock('../lib/admin.js', () => ({
     criarAdmin: vi.fn(),
     getAdmins: vi.fn(() => Promise.resolve({
         data: [
-            { id: 1, name: 'Eu Admin', email: 'eu@x.test', is_active: true, role: 'admin' },
-            { id: 2, name: 'Outro Admin', email: 'outro@x.test', is_active: false, role: 'admin' },
+            { id: 1, name: 'Eu Admin', email: 'eu@x.test', is_active: true, role: 'admin', is_demo: false },
+            { id: 2, name: 'Outro Admin', email: 'outro@x.test', is_active: false, role: 'admin', is_demo: true },
         ],
         meta: {
             escopos: [
@@ -27,10 +27,11 @@ vi.mock('../lib/admin.js', () => ({
     atualizarAdmin: vi.fn(() => Promise.resolve({})),
     definirStatusAdmin: vi.fn(() => Promise.resolve({})),
     definirEscoposAdmin: vi.fn(() => Promise.resolve({})),
+    definirDemoAdmin: vi.fn(() => Promise.resolve({ data: { is_demo: true } })),
 }));
 
 import AdminManager from './AdminManager.jsx';
-import { definirStatusAdmin, definirEscoposAdmin } from '../lib/admin.js';
+import { definirStatusAdmin, definirEscoposAdmin, definirDemoAdmin } from '../lib/admin.js';
 
 describe('AdminManager — lista de administradores', () => {
     it('lista os admins com status e marca (você)', async () => {
@@ -101,5 +102,36 @@ describe('AdminManager — escopos', () => {
 
         fireEvent.click(chip('Outro Admin', 'Comunicação'));
         await waitFor(() => expect(definirEscoposAdmin).toHaveBeenCalledWith(2, []));
+    });
+});
+
+describe('AdminManager — modo demo', () => {
+    it('marca quem já está em modo demo', async () => {
+        render(<AdminManager />);
+        await screen.findByText('Outro Admin');
+
+        expect(screen.getByText('Modo demo')).toBeInTheDocument();
+        expect(screen.getByTitle('Desativar o modo demo de Outro Admin'))
+            .toHaveAttribute('aria-pressed', 'true');
+        expect(screen.getByTitle('Liberar o modo demo para Eu Admin'))
+            .toHaveAttribute('aria-pressed', 'false');
+    });
+
+    it('libera o modo demo de quem não tem e reflete na linha', async () => {
+        render(<AdminManager />);
+
+        fireEvent.click(await screen.findByTitle('Liberar o modo demo para Eu Admin'));
+
+        await waitFor(() => expect(definirDemoAdmin).toHaveBeenCalledWith(1, true));
+        expect(await screen.findByTitle('Desativar o modo demo de Eu Admin')).toBeInTheDocument();
+    });
+
+    it('desliga o modo demo de quem já tem', async () => {
+        definirDemoAdmin.mockResolvedValueOnce({ data: { is_demo: false } });
+        render(<AdminManager />);
+
+        fireEvent.click(await screen.findByTitle('Desativar o modo demo de Outro Admin'));
+
+        await waitFor(() => expect(definirDemoAdmin).toHaveBeenCalledWith(2, false));
     });
 });

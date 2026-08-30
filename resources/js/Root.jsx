@@ -32,7 +32,7 @@ import ParametrizacaoAreas from './pages/ParametrizacaoAreas.jsx';
 import ParametrizacaoEdicoes from './pages/ParametrizacaoEdicoes.jsx';
 import ParametrizacaoEscopos from './pages/ParametrizacaoEscopos.jsx';
 import ParametrizacaoEscolas from './pages/ParametrizacaoEscolas.jsx';
-import ParametrizacaoInscricoes from './pages/ParametrizacaoInscricoes.jsx';
+import ParametrizacaoDatas from './pages/ParametrizacaoDatas.jsx';
 import ParametrizacaoAvaliacao from './pages/ParametrizacaoAvaliacao.jsx';
 import AdminManager from './pages/AdminManager.jsx';
 import AdminSuporte from './pages/AdminSuporte.jsx';
@@ -147,7 +147,10 @@ export default function Root() {
                             <Route path="/admin/parametrizacao/escopos" element={<ParametrizacaoEscopos />} />
                             <Route path="/admin/parametrizacao/credenciamento" element={<ParametrizacaoCredenciamento />} />
                             <Route path="/admin/parametrizacao/escolas" element={<ParametrizacaoEscolas />} />
-                            <Route path="/admin/parametrizacao/inscricoes" element={<ParametrizacaoInscricoes />} />
+                            <Route path="/admin/parametrizacao/datas" element={<ParametrizacaoDatas />} />
+                            {/* A tela de Inscrições só tinha datas; o link antigo
+                                segue valendo, agora apontando para a tela nova. */}
+                            <Route path="/admin/parametrizacao/inscricoes" element={<Navigate to="/admin/parametrizacao/datas" replace />} />
                             <Route path="/admin/parametrizacao/avaliacao" element={<ParametrizacaoAvaliacao />} />
                             <Route path="/admin/registros" element={<AdminRegistrosHome />} />
                             <Route path="/admin/registros/inscricoes" element={<AdminRegistros secao="inscricoes" />} />
