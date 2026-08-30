@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\AdminController;
 use App\Http\Controllers\Api\V1\AdminInscricoesController;
 use App\Http\Controllers\Api\V1\AdminMalaDiretaController;
 use App\Http\Controllers\Api\V1\AdminModeloEmailController;
+use App\Http\Controllers\Api\V1\AdminRascunhoController;
 use App\Http\Controllers\Api\V1\AdminRegistroController;
 use App\Http\Controllers\Api\V1\AlunoController;
 use App\Http\Controllers\Api\V1\AuthController;
@@ -261,6 +262,10 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 ->middleware('throttle:10,1');
 
             Route::get('/projetos-por-area', [AdminController::class, 'projetosPorArea']);
+            // Projetos em rascunho: o admin termina e submete a inscrição que
+            // ficou pela metade, mesmo com o prazo vencido (a edição em si
+            // reaproveita as rotas de projeto/integrantes/documentos acima).
+            Route::get('/projetos-rascunho', [AdminRascunhoController::class, 'index']);
             Route::get('/projetos-por-localidade', [AdminController::class, 'projetosPorLocalidade']);
             Route::post('/admins', [AdminController::class, 'store']);
             Route::get('/admins', [AdminController::class, 'listarAdmins']);

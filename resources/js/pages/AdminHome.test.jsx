@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 
 vi.mock('../components/AppShell.jsx', () => ({ default: ({ children }) => <div>{children}</div> }));
@@ -30,11 +30,30 @@ vi.mock('../lib/admin.js', () => ({
             { tamanho: 'G', total: 1 }, { tamanho: 'GG', total: 0 }, { tamanho: 'XG', total: 0 },
             { tamanho: 'N.I.', total: 0 },
         ] },
+        alunos_classes: [
+            { chave: 'fundamental_i', label: 'Ensino Fundamental I', total: 3, series: [
+                { serie: '3º ano', total: 2 }, { serie: '4º ano', total: 0 },
+                { serie: '5º ano', total: 1 }, { serie: 'N.I.', total: 0 },
+            ] },
+            { chave: 'fundamental_ii', label: 'Ensino Fundamental II', total: 5, series: [
+                { serie: '6º ano', total: 1 }, { serie: '7º ano', total: 1 },
+                { serie: '8º ano', total: 1 }, { serie: '9º ano', total: 1 },
+                { serie: 'N.I.', total: 1 },
+            ] },
+            { chave: 'medio', label: 'Ensino Médio', total: 12, series: [
+                { serie: '1º ano', total: 5 }, { serie: '2º ano', total: 4 },
+                { serie: '3º ano', total: 2 }, { serie: '4º ano', total: 1 },
+                { serie: 'N.I.', total: 0 },
+            ] },
+        ],
         escolas_com_projeto: 2, cidades_com_projeto: 2, estados_com_projeto: 1,
     })),
 }));
 
 import AdminHome from './AdminHome.jsx';
+
+// O rótulo é a última linha do card; o card é o elemento que o contém.
+const card = (rotulo) => screen.getByText(rotulo).parentElement;
 
 describe('AdminHome — recorte por gênero', () => {
     it('mostra Mulheres/Homens/Outros nos 3 cards de pessoas', async () => {
@@ -76,6 +95,27 @@ describe('AdminHome — camisetas', () => {
         // Sete baldes (PP…XG + N.I.) em cada um dos três cards.
         expect(screen.getAllByText('PP')).toHaveLength(3);
         expect(screen.getAllByText('XG')).toHaveLength(3);
-        expect(screen.getAllByText('N.I.')).toHaveLength(3);
+        for (const publico of ['Orientadores', 'Alunos', 'Coorientadores']) {
+            expect(within(card(`Camisetas · ${publico}`)).getByText('N.I.')).toBeInTheDocument();
+        }
+    });
+});
+
+describe('AdminHome — alunos por classe escolar', () => {
+    it('tem um card por classe, com a quebra por série', async () => {
+        render(<AdminHome />);
+        expect(await screen.findByText('Alunos · Ensino Fundamental I')).toBeInTheDocument();
+        expect(screen.getByText('Alunos · Ensino Fundamental II')).toBeInTheDocument();
+        expect(screen.getByText('Alunos · Ensino Médio')).toBeInTheDocument();
+
+        // As séries do médio vão até o 4º ano — é por onde entra o técnico integrado.
+        const medio = card('Alunos · Ensino Médio');
+        expect(within(medio).getByText('4º ano')).toBeInTheDocument();
+        expect(within(medio).getByText('12')).toBeInTheDocument();
+
+        // O Fundamental I vai do 3º ao 5º ano e tem seu próprio balde N.I.
+        const fund1 = card('Alunos · Ensino Fundamental I');
+        expect(within(fund1).getByText('5º ano')).toBeInTheDocument();
+        expect(within(fund1).getByText('N.I.')).toBeInTheDocument();
     });
 });

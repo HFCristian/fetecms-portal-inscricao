@@ -9,6 +9,7 @@ use App\Http\Resources\CoorientadorResource;
 use App\Http\Resources\DocumentoResource;
 use App\Http\Resources\ProjetoResource;
 use App\Models\Projeto;
+use App\Services\AdminRascunhoService;
 use App\Services\InscricoesService;
 use App\Services\NotificacaoProjetoService;
 use App\Services\ProjetoChecklistService;
@@ -20,7 +21,7 @@ use Illuminate\Support\Facades\DB;
 
 class ProjetoSubmissaoController extends Controller
 {
-    private const RELATIONS = ['instituicao', 'area', 'subarea', 'estado', 'cidade', 'edicao', 'alunos', 'coorientador', 'documentos'];
+    private const RELATIONS = ['instituicao', 'area', 'subarea', 'estado', 'cidade', 'edicao', 'alunos', 'coorientador', 'documentos', 'user'];
 
     public function __construct(
         private readonly ProjetoChecklistService $checklist,
@@ -28,6 +29,7 @@ class ProjetoSubmissaoController extends Controller
         private readonly RegistroAtividadeService $registros,
         private readonly InscricoesService $inscricoes,
         private readonly NotificacaoProjetoService $notificacoes,
+        private readonly AdminRascunhoService $rascunhos,
     ) {}
 
     /** Resumo da inscrição (cadastro7): projeto + integrantes + checklist de pendências. */
@@ -58,13 +60,33 @@ class ProjetoSubmissaoController extends Controller
             'pode_desfazer' => ! $projeto->status->editavel()
                 && $this->submissoes->podeDesfazer($projeto, $request->user()),
             'impedimentos_desfazer' => $this->submissoes->impedimentosPara($projeto, $request->user()),
+            // Admin terminando o rascunho de outra pessoa: a tela precisa pedir
+            // a justificativa antes de deixar submeter.
+            'exige_justificativa' => $this->rascunhos->ehEdicaoDeAdmin($projeto, $request->user()),
+            // Quem é o dono da inscrição — o admin precisa ver de quem é o
+            // rascunho que está prestes a submeter.
+            'orientador' => $projeto->user?->name,
         ]]);
     }
 
-    /** Submete o projeto. 422 com pendências se o checklist falhar. */
+    /**
+     * Submete o projeto. 422 com pendências se o checklist falhar.
+     *
+     * Quando quem submete é um ADMIN terminando o rascunho de outra pessoa
+     * ("Projetos em rascunho"), a justificativa é obrigatória: é o escape do
+     * edital, e ela fecha a trilha de Registros → Rascunhos.
+     */
     public function submeter(Request $request, Projeto $projeto): JsonResponse
     {
         $this->authorize('submit', $projeto);
+
+        // Lido antes de submeter — depois o status muda e a condição não vale mais.
+        $justificativa = null;
+        if ($this->rascunhos->ehEdicaoDeAdmin($projeto, $request->user())) {
+            $justificativa = $request->validate([
+                'justificativa' => ['required', 'string', 'min:5', 'max:500'],
+            ])['justificativa'];
+        }
 
         // Idempotente: se já submetido, devolve 200 sem reprocessar.
         if (! $projeto->status->editavel()) {
@@ -106,6 +128,11 @@ class ProjetoSubmissaoController extends Controller
         if ($submetido) {
             $fresco = $projeto->fresh();
             $this->registros->submissao($fresco, $request->user());
+
+            if ($justificativa !== null) {
+                $this->rascunhos->registrarSubmissao($fresco, $request->user(), $justificativa);
+            }
+
             $this->notificacoes->submetido($fresco->load('user', 'area'));
         }
 

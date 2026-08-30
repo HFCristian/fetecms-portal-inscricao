@@ -4,7 +4,7 @@ namespace App\Enums;
 
 /**
  * Tipos de evento gravados na trilha de registros (painel do admin), divididos
- * em duas seções — cada uma é uma tela.
+ * em seções — cada uma é uma tela.
  *
  * Seção "Inscrições" (o que acontece com os projetos e as contas):
  * - submissao: orientador submeteu a inscrição (irreversível para ele depois
@@ -19,6 +19,10 @@ namespace App\Enums;
  * Seção "Projetos" (o admin corrigindo a inscrição de alguém): categoria, área,
  * subárea e link do vídeo. Aqui a justificativa é obrigatória e entra no
  * registro junto do "de → para".
+ *
+ * Seção "Rascunhos" (o admin terminando e enviando a inscrição de alguém depois
+ * do prazo): cada campo que ele mexe no rascunho vira uma linha, e a submissão
+ * fecha a sequência carregando a justificativa obrigatória.
  */
 enum TipoRegistro: string
 {
@@ -41,6 +45,8 @@ enum TipoRegistro: string
     case ProjetoArea = 'projeto_area';
     case ProjetoSubarea = 'projeto_subarea';
     case ProjetoVideo = 'projeto_video';
+    case RascunhoAlteracao = 'rascunho_alteracao';
+    case RascunhoSubmissao = 'rascunho_submissao';
 
     /** Seções da tela de Registros. */
     public const SECAO_INSCRICOES = 'inscricoes';
@@ -48,6 +54,8 @@ enum TipoRegistro: string
     public const SECAO_AVALIACAO = 'avaliacao';
 
     public const SECAO_PROJETOS = 'projetos';
+
+    public const SECAO_RASCUNHOS = 'rascunhos';
 
     public function label(): string
     {
@@ -71,6 +79,8 @@ enum TipoRegistro: string
             self::ProjetoArea => 'Área do projeto',
             self::ProjetoSubarea => 'Subárea do projeto',
             self::ProjetoVideo => 'Vídeo do projeto',
+            self::RascunhoAlteracao => 'Alteração no rascunho',
+            self::RascunhoSubmissao => 'Submissão do rascunho',
         };
     }
 
@@ -80,6 +90,7 @@ enum TipoRegistro: string
         return match ($this) {
             self::Submissao, self::Cancelamento, self::Exclusao, self::TrocaEmail => self::SECAO_INSCRICOES,
             self::ProjetoCategoria, self::ProjetoArea, self::ProjetoSubarea, self::ProjetoVideo => self::SECAO_PROJETOS,
+            self::RascunhoAlteracao, self::RascunhoSubmissao => self::SECAO_RASCUNHOS,
             default => self::SECAO_AVALIACAO,
         };
     }
@@ -87,7 +98,7 @@ enum TipoRegistro: string
     /** @return list<string> */
     public static function secoes(): array
     {
-        return [self::SECAO_INSCRICOES, self::SECAO_AVALIACAO, self::SECAO_PROJETOS];
+        return [self::SECAO_INSCRICOES, self::SECAO_AVALIACAO, self::SECAO_PROJETOS, self::SECAO_RASCUNHOS];
     }
 
     /**

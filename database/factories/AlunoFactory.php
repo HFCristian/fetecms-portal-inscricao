@@ -22,7 +22,37 @@ class AlunoFactory extends Factory
             'data_nascimento' => fake()->dateTimeBetween('-18 years', '-12 years')->format('Y-m-d'),
             'genero' => fake()->randomElement(['F', 'M', 'NB']),
             'camiseta' => fake()->randomElement(['PP', 'P', 'M', 'G', 'GG']),
-            'modalidade' => fake()->randomElement(['fundamental', 'medio', 'tecnico']),
+            // Modalidade e série saem sempre em par coerente, com os MESMOS
+            // códigos que o formulário do aluno grava — é o que o painel usa
+            // para montar os cards por classe escolar.
+            ...self::classeAleatoria(),
         ];
+    }
+
+    /** @return array{modalidade: string, ano_escolar: string} */
+    private static function classeAleatoria(): array
+    {
+        $porModalidade = [
+            'fundamental_i' => ['3_ef', '4_ef', '5_ef'],
+            'fundamental_ii' => ['6_ef', '7_ef', '8_ef', '9_ef'],
+            'medio' => ['1_em', '2_em', '3_em'],
+            'tecnico_integrado' => ['1_em', '2_em', '3_em', '4_em'],
+        ];
+
+        $modalidade = fake()->randomElement(array_keys($porModalidade));
+
+        return [
+            'modalidade' => $modalidade,
+            'ano_escolar' => fake()->randomElement($porModalidade[$modalidade]),
+        ];
+    }
+
+    /** Aluno de uma classe/série específica (para os testes dos cards do painel). */
+    public function classe(string $modalidade, ?string $anoEscolar = null): static
+    {
+        return $this->state(fn () => array_filter([
+            'modalidade' => $modalidade,
+            'ano_escolar' => $anoEscolar,
+        ]));
     }
 }

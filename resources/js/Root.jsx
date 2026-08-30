@@ -21,6 +21,7 @@ import AdminModelosEmail from './pages/AdminModelosEmail.jsx';
 import AdminComunicacao from './pages/AdminComunicacao.jsx';
 import AdminHome from './pages/AdminHome.jsx';
 import AdminProjetosPorArea from './pages/AdminProjetosPorArea.jsx';
+import AdminProjetosRascunho from './pages/AdminProjetosRascunho.jsx';
 import AdminProjetosPorEstado from './pages/AdminProjetosPorEstado.jsx';
 import AdminProjetosPorCidade from './pages/AdminProjetosPorCidade.jsx';
 import AdminProjetosPorEscola from './pages/AdminProjetosPorEscola.jsx';
@@ -111,6 +112,13 @@ export default function Root() {
                             <Route path="/admin/avaliacao/ranking" element={<AvaliacaoRanking />} />
                             <Route path="/admin/avaliacao/ranking-avaliadores" element={<AvaliacaoRankingAvaliadores />} />
                             <Route path="/admin/projetos-por-area" element={<AdminProjetosPorArea />} />
+                            {/* Projetos em rascunho: o admin termina a inscrição de
+                                outra pessoa nas MESMAS telas do orientador, sob este
+                                prefixo, e só sai dali submetendo (com justificativa). */}
+                            <Route path="/admin/projetos-rascunho" element={<AdminProjetosRascunho />} />
+                            <Route path="/admin/projetos-rascunho/:id/editar" element={<ProjetoForm modoAdmin />} />
+                            <Route path="/admin/projetos-rascunho/:id/integrantes" element={<Integrantes modoAdmin />} />
+                            <Route path="/admin/projetos-rascunho/:id/resumo" element={<Resumo modoAdmin />} />
                             <Route path="/admin/projetos-por-estado" element={<AdminProjetosPorEstado />} />
                             <Route path="/admin/projetos-por-cidade" element={<AdminProjetosPorCidade />} />
                             <Route path="/admin/projetos-por-escola" element={<AdminProjetosPorEscola />} />
@@ -123,6 +131,7 @@ export default function Root() {
                             <Route path="/admin/registros/inscricoes" element={<AdminRegistros secao="inscricoes" />} />
                             <Route path="/admin/registros/avaliacao" element={<AdminRegistros secao="avaliacao" />} />
                             <Route path="/admin/registros/projetos" element={<AdminRegistros secao="projetos" />} />
+                            <Route path="/admin/registros/rascunhos" element={<AdminRegistros secao="rascunhos" />} />
                             <Route path="/admin/comunicacao" element={<AdminComunicacao />} />
                             <Route path="/admin/comunicacao/avisos" element={<AdminAvisos />} />
                             <Route path="/admin/comunicacao/modelos" element={<AdminModelosEmail />} />

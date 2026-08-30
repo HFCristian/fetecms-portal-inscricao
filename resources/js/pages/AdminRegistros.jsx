@@ -19,6 +19,8 @@ const TAG = {
     projeto_area: 'bg-secondary-container text-on-secondary-container',
     projeto_subarea: 'bg-surface-variant text-on-surface-variant',
     projeto_video: 'bg-primary-fixed text-primary-container',
+    rascunho_alteracao: 'bg-surface-variant text-on-surface-variant',
+    rascunho_submissao: 'bg-secondary-container text-on-secondary-container',
 };
 
 const ICONE = {
@@ -34,6 +36,8 @@ const ICONE = {
     projeto_area: 'account_tree',
     projeto_subarea: 'lan',
     projeto_video: 'movie',
+    rascunho_alteracao: 'edit',
+    rascunho_submissao: 'send',
 };
 
 /** Título, texto e placeholder de busca de cada seção da trilha. */
@@ -58,6 +62,13 @@ const SECOES = {
             + 'subárea e link do vídeo —, sempre com a justificativa de quem alterou.',
         placeholder: 'Buscar por título do projeto, orientador ou admin…',
         vazio: 'Nenhuma correção registrada por enquanto.',
+    },
+    rascunhos: {
+        titulo: 'Registros · Rascunhos',
+        descricao: 'O admin terminando a inscrição de outra pessoa depois do prazo: cada campo que '
+            + 'ele alterou, com o valor anterior e o novo, e a justificativa da submissão.',
+        placeholder: 'Buscar por título do projeto, orientador ou admin…',
+        vazio: 'Nenhum rascunho mexido pelo admin por enquanto.',
     },
 };
 
@@ -106,7 +117,8 @@ function Registro({ item }) {
 }
 
 /**
- * Uma seção da trilha de registros ("inscricoes" ou "avaliacao"), com filtro por
+ * Uma seção da trilha de registros ("inscricoes", "avaliacao", "projetos" ou
+ * "rascunhos"), com filtro por
  * tipo, período e busca, e export CSV do mesmo recorte que está na tela.
  */
 export default function AdminRegistros({ secao = 'inscricoes' }) {

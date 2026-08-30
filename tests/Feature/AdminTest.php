@@ -336,4 +336,47 @@ class AdminTest extends TestCase
     {
         $this->getJson('/api/v1/admin/dashboard')->assertUnauthorized();
     }
+
+    public function test_dashboard_conta_alunos_por_classe_escolar(): void
+    {
+        $submetido = Projeto::factory()->submetido()->create(['user_id' => User::factory()->create()->id]);
+        $rascunho = Projeto::factory()->create(['user_id' => User::factory()->create()->id]);
+
+        // Fundamental I: dois no 3º ano, um no 5º.
+        Aluno::factory()->count(2)->classe('fundamental_i', '3_ef')->create(['projeto_id' => $submetido->id]);
+        Aluno::factory()->classe('fundamental_i', '5_ef')->create(['projeto_id' => $submetido->id]);
+        // Fundamental II: um no 9º, e um sem série (cai no N.I. da classe).
+        Aluno::factory()->classe('fundamental_ii', '9_ef')->create(['projeto_id' => $submetido->id]);
+        Aluno::factory()->classe('fundamental_ii')->create(['projeto_id' => $submetido->id, 'ano_escolar' => null]);
+        // Médio: um regular no 2º ano e um técnico integrado no 4º — os dois no
+        // MESMO card, porque o técnico integrado é ensino médio.
+        Aluno::factory()->classe('medio', '2_em')->create(['projeto_id' => $submetido->id]);
+        Aluno::factory()->classe('tecnico_integrado', '4_em')->create(['projeto_id' => $submetido->id]);
+        // Rascunho não entra em card nenhum.
+        Aluno::factory()->classe('medio', '1_em')->create(['projeto_id' => $rascunho->id]);
+
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $classes = $this->getJson('/api/v1/admin/dashboard')->assertOk()->json('data.alunos_classes');
+
+        $this->assertCount(3, $classes);
+        $porChave = collect($classes)->keyBy('chave');
+
+        $fund1 = $porChave['fundamental_i'];
+        $this->assertSame('Ensino Fundamental I', $fund1['label']);
+        $this->assertSame(3, $fund1['total']);
+        $this->assertSame(['serie' => '3º ano', 'total' => 2], $fund1['series'][0]);
+        $this->assertSame(['serie' => '5º ano', 'total' => 1], $fund1['series'][2]);
+
+        // A soma das séries (com o N.I.) fecha com o número grande do card.
+        $fund2 = $porChave['fundamental_ii'];
+        $this->assertSame(2, $fund2['total']);
+        $this->assertSame($fund2['total'], array_sum(array_column($fund2['series'], 'total')));
+        $this->assertSame(['serie' => 'N.I.', 'total' => 1], end($fund2['series']));
+
+        $medio = $porChave['medio'];
+        $this->assertSame(2, $medio['total']);
+        $this->assertSame(['serie' => '2º ano', 'total' => 1], $medio['series'][1]);
+        $this->assertSame(['serie' => '4º ano', 'total' => 1], $medio['series'][3]);
+    }
 }

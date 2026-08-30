@@ -106,7 +106,10 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
 - **Admin**: criado **somente por outro admin** (cadastro simples: nome, e-mail, senha). Dashboard
   com as métricas: projetos totais / submetidos / em rascunho; **projetos por categoria**;
   orientadores; alunos; coorientadores; **camisetas por tamanho** (um card para orientadores, um
-  para alunos e um para coorientadores, PP…XG + N.I., via `App\Support\Camisetas`); escolas, cidades
+  para alunos e um para coorientadores, PP…XG + N.I., via `App\Support\Camisetas`); **alunos por
+  classe escolar** (um card para Ensino Fundamental I, um para Fundamental II e um para Ensino
+  Médio, cada um quebrado por série + N.I., via `App\Support\ClassesEscolares` — o **técnico
+  integrado conta no card do médio**, que por isso vai até o 4º ano); escolas, cidades
   e estados **com projeto cadastrado**.
   Fora dos dois primeiros cards (que existem para mostrar o rascunho), **todo card conta só
   projetos submetidos** — categoria, pessoas e localidades. Orientador entra **uma vez**, tenha
@@ -167,9 +170,19 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     alterado vira um registro em **Registros → Projetos** com o "de → para"
     (`AdminProjetoEdicaoService`). No topo da tela, um **card destacado** soma todas as áreas:
     quantos projetos estão com 0, 1, 2 e 3+ avaliações concluídas, sempre no recorte dos filtros.
-  - **Registros** tem três seções: **Inscrições**, **Avaliação Online** e **Projetos**
-    (`/admin/registros/projetos`) — esta última com as correções do admin e os aceites do orientador,
-    cada um com a justificativa.
+  - **Registros** tem quatro seções: **Inscrições**, **Avaliação Online**, **Projetos**
+    (`/admin/registros/projetos`) — as correções do admin e os aceites do orientador, cada um com a
+    justificativa — e **Rascunhos** (`/admin/registros/rascunhos`), com o que o admin mexeu numa
+    inscrição alheia antes de submetê-la por ela.
+  - **Projetos → Projetos por área → Projetos em rascunho** (`/admin/projetos-rascunho`): o botão
+    **só aparece depois do prazo de submissão**. Ele lista as inscrições que ficaram em rascunho
+    (busca por título/orientador, filtro por área e categoria, quantas pendências faltam) e leva
+    o admin às **mesmas telas do orientador** em modo admin (`/admin/projetos-rascunho/{id}/…`),
+    onde ele termina de preencher e **submete** mesmo com as inscrições encerradas. O admin **não
+    conclui deixando em rascunho**: a saída que fecha o trabalho é a submissão, e ela exige
+    **justificativa**. Cada campo que ele altera — projeto, aluno, coorientador ou anexo — vira uma
+    linha em Registros → Rascunhos com o "de → para" (`AdminRascunhoService`); o orientador
+    editando o próprio rascunho não gera registro nenhum.
   - **Comunicação → Avisos** (`/admin/comunicacao/avisos`): o admin publica um card com **título e mensagem livres**,
     que aparece para os **orientadores ativos** conectados em até ~1 min (polling; não há
     WebSocket no projeto) e pode ser fechado por cada um. **Um ativo por vez** — publicar um
@@ -345,7 +358,30 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 61 | Aba "Ajustes" do orientador: aceitar/desfazer as sugestões dos avaliadores no período parametrizável | ✅ sim | ❌ não (manual do Pedro) | 4 |
 | 62 | Mala direta: editor de texto rico (negrito, itálico, sublinhado, traçado, listas) + imagens no corpo | ✅ sim | ❌ não (manual do Pedro) | 4 |
 | 63 | Mala direta: anexos no e-mail (até 10, 20 MB cada) | ✅ sim | ❌ não (manual do Pedro) | 4 |
+| 64 | Projetos em rascunho: admin termina e submete depois do prazo (justificativa) + Registros → Rascunhos | ✅ sim | ❌ não (manual do Pedro) | 5 |
+| 65 | Painel: 3 cards de alunos por classe escolar, quebrados por série | ✅ sim | ❌ não (manual do Pedro) | 5 |
 
+> **Sprints 64–65 (branch `feat/edicoes-credenciamento-comite`, saída da `origin/main` @ `c736132`):**
+> (a) **Sprint 64** — **Projetos em rascunho**. Em *Projetos por área* nasce o botão **Projetos em
+> rascunho**, visível **só depois do prazo de submissão** (`InscricoesService::encerradas()`): antes
+> disso o orientador ainda envia sozinho e a organização não entra na inscrição dele. A tela lista
+> os rascunhos com dono, equipe e quantas pendências do checklist faltam, e cada linha leva às
+> **mesmas telas do orientador** sob `/admin/projetos-rascunho/{id}/…` (as rotas de escrita são as
+> do orientador — a Policy já deixa o admin passar e o middleware `inscricoes.abertas` não o barra).
+> O botão "Salvar rascunho" some: quem **fecha** o trabalho é a submissão, que passa a exigir
+> **justificativa** quando o autor é admin e não é o dono (`POST /projetos/{id}/submeter`). Toda
+> alteração que ele faz — campo do projeto, aluno, coorientador ou anexo — vira uma linha na seção
+> nova **Registros → Rascunhos**, com o "de → para" e as FKs já resolvidas em nome
+> (`AdminRascunhoService`, `TipoRegistro::RascunhoAlteracao`/`RascunhoSubmissao`).
+> (b) **Sprint 65** — o painel ganhou **três cards de alunos por classe escolar** (Ensino
+> Fundamental I, Fundamental II e Ensino Médio), cada um com a contagem **por série** mais o balde
+> **N.I.**, que fecha a soma com o número grande do card (`App\Support\ClassesEscolares`). O
+> **técnico integrado é contado no card do Ensino Médio** — é ensino médio na prática e usa os
+> mesmos códigos de série, por isso o card vai até o 4º ano. Vale a regra dos demais cards: **só
+> projetos submetidos**. De quebra, a `AlunoFactory` passou a gerar `modalidade` e `ano_escolar` em
+> **par coerente**, com os mesmos códigos que o formulário grava.
+> Back **587/587**, front **261/261**, Pint limpo, build OK.
+>
 > **Sprints 62–63 (mesma branch):** a mala direta ganhou editor e arquivos.
 > (a) **Sprint 62** — o campo de texto virou um **editor rico** (`EditorTexto.jsx`, TipTap —
 > dependência nova) com **negrito, itálico, sublinhado, traçado**, listas e **imagens no corpo**

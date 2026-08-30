@@ -189,6 +189,10 @@ function limpar(filtros) {
 
 export const getProjetosPorArea = () => http.get('/admin/projetos-por-area').then((r) => r.data.data);
 
+/** Projetos em rascunho (o admin termina e submete depois do prazo). */
+export const getProjetosRascunho = (filtros = {}) =>
+    http.get('/admin/projetos-rascunho', { params: filtros }).then((r) => r.data);
+
 export const getProjetosPorLocalidade = () => http.get('/admin/projetos-por-localidade').then((r) => r.data.data);
 
 export const criarAdmin = (payload) => http.post('/admin/admins', payload).then((r) => r.data.data);

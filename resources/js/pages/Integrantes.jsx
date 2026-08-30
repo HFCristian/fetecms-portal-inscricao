@@ -4,6 +4,7 @@ import AppShell from '../components/AppShell.jsx';
 import { Field, Input, DateInput, CpfInput, TelefoneInput, Select, Button, Alert, useConfirm } from '../components/ui.jsx';
 import InstituicaoCombobox from '../components/InstituicaoCombobox.jsx';
 import { extractErrors } from '../lib/auth.jsx';
+import { baseProjeto, voltarLabel } from '../lib/rotasProjeto.js';
 import { buscarInstituicoes, criarInstituicao } from '../lib/catalogos.js';
 import { MIN_IDADE, idadeEmAnos } from '../lib/idade.js';
 import { validarObrigatorios } from '../lib/validacao.js';
@@ -298,9 +299,11 @@ function CoorientadorForm({ inicial, onSubmit, onCancelar }) {
     );
 }
 
-export default function Integrantes() {
+/** `modoAdmin`: mesma tela, sob as rotas de "Projetos em rascunho" do admin. */
+export default function Integrantes({ modoAdmin = false }) {
     const { id } = useParams();
     const navigate = useNavigate();
+    const base = baseProjeto(modoAdmin);
     const [confirm, confirmDialog] = useConfirm();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -332,7 +335,7 @@ export default function Integrantes() {
                     <span className="material-symbols-outlined text-[48px] text-error">report</span>
                     <h1 className="font-display text-xl font-semibold text-on-surface mt-3">Projeto não encontrado</h1>
                     <p className="text-on-surface-variant text-sm mt-1">Este projeto não existe ou não está vinculado à sua conta.</p>
-                    <Button className="mt-6" onClick={() => navigate('/projetos')}>Voltar aos meus projetos</Button>
+                    <Button className="mt-6" onClick={() => navigate(base)}>Voltar</Button>
                 </div>
             </AppShell>
         );
@@ -378,14 +381,14 @@ export default function Integrantes() {
 
     return (
         <AppShell>
-            <Link to="/projetos" className="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary mb-2">
+            <Link to={base} className="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary mb-2">
                 <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-                Meus projetos
+                {voltarLabel(modoAdmin)}
             </Link>
             <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
                 <h1 className="font-display text-2xl font-semibold text-primary">Integrantes</h1>
                 {editavel && (
-                    <Button variant="outline" type="button" onClick={() => navigate(`/projetos/${id}/editar`)}>
+                    <Button variant="outline" type="button" onClick={() => navigate(`${base}/${id}/editar`)}>
                         <span className="material-symbols-outlined text-[20px]">edit</span>
                         Editar projeto
                     </Button>
@@ -407,7 +410,7 @@ export default function Integrantes() {
                 <div className="mb-6">
                     <Alert>
                         Defina a <strong>categoria</strong> do projeto antes de cadastrar alunos.{' '}
-                        <Link to={`/projetos/${id}/editar`} className="underline font-semibold">Editar projeto</Link>
+                        <Link to={`${base}/${id}/editar`} className="underline font-semibold">Editar projeto</Link>
                     </Alert>
                 </div>
             )}
@@ -472,11 +475,11 @@ export default function Integrantes() {
 
             {/* Navegação */}
             <div className="flex flex-col sm:flex-row justify-between gap-3 mt-8 pt-4 border-t border-outline-variant/30">
-                <Button variant="outline" type="button" onClick={() => navigate('/projetos')}>
+                <Button variant="outline" type="button" onClick={() => navigate(base)}>
                     <span className="material-symbols-outlined text-[20px]">arrow_back</span>
                     Voltar aos projetos
                 </Button>
-                <Button type="button" onClick={() => navigate(`/projetos/${id}/resumo`)}>
+                <Button type="button" onClick={() => navigate(`${base}/${id}/resumo`)}>
                     <span className="material-symbols-outlined text-[20px]">summarize</span>
                     Ir para o resumo
                 </Button>

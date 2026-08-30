@@ -3,7 +3,9 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { Button, Alert, useConfirm } from '../components/ui.jsx';
 import PrazoInscricoes from '../components/PrazoInscricoes.jsx';
+import SubmeterRascunhoDialog from '../components/SubmeterRascunhoDialog.jsx';
 import { extractErrors } from '../lib/auth.jsx';
+import { baseProjeto, voltarLabel } from '../lib/rotasProjeto.js';
 import { getResumo, submeterProjeto } from '../lib/submissao.js';
 import { cancelarSubmissao, removerProjeto } from '../lib/projetos.js';
 
@@ -16,10 +18,13 @@ function Linha({ label, valor }) {
     );
 }
 
-export default function Resumo() {
+/** `modoAdmin`: mesma tela, sob as rotas de "Projetos em rascunho" do admin. */
+export default function Resumo({ modoAdmin = false }) {
     const { id } = useParams();
     const navigate = useNavigate();
+    const base = baseProjeto(modoAdmin);
     const [confirm, confirmDialog] = useConfirm();
+    const [pedindoJustificativa, setPedindoJustificativa] = useState(false);
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
@@ -33,24 +38,41 @@ export default function Resumo() {
 
     useEffect(() => carregar(), [carregar]);
 
-    async function confirmar() {
-        const ok = await confirm({
-            title: 'Confirmar submissão',
-            message: 'Confirmar a submissão? Após submeter, o projeto NÃO poderá mais ser editado (previsto em edital).',
-            confirmLabel: 'Submeter',
-        });
-        if (!ok) return;
+    /**
+     * Submete de fato. `justificativa` só vem quando é o admin terminando o
+     * rascunho de outra pessoa — o backend exige a mesma coisa.
+     */
+    async function submeter(justificativa) {
         setAlert('');
         setSubmitting(true);
         try {
-            await submeterProjeto(id);
-            navigate('/projetos', { replace: true });
+            await submeterProjeto(id, justificativa);
+            setPedindoJustificativa(false);
+            navigate(base, { replace: true });
         } catch (e) {
             setAlert(extractErrors(e).message || 'Não foi possível submeter.');
             carregar(); // atualiza o checklist
         } finally {
             setSubmitting(false);
         }
+    }
+
+    async function confirmar() {
+        // Admin submetendo inscrição alheia: a justificativa é obrigatória, então
+        // o diálogo próprio substitui a confirmação simples.
+        if (data?.exige_justificativa) {
+            setPedindoJustificativa(true);
+            return;
+        }
+
+        const ok = await confirm({
+            title: 'Confirmar submissão',
+            message: 'Confirmar a submissão? Após submeter, o projeto NÃO poderá mais ser editado (previsto em edital).',
+            confirmLabel: 'Submeter',
+        });
+        if (!ok) return;
+
+        await submeter();
     }
 
     /** Mensagem do 422 quando a janela para desfazer a submissão já fechou. */
@@ -92,7 +114,7 @@ export default function Resumo() {
         setDesfazendo(true);
         try {
             await removerProjeto(id);
-            navigate('/projetos', { replace: true });
+            navigate(base, { replace: true });
         } catch (e) {
             avisarBloqueio(e);
             setDesfazendo(false);
@@ -114,9 +136,9 @@ export default function Resumo() {
 
     return (
         <AppShell>
-            <Link to="/projetos" className="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary mb-2">
+            <Link to={base} className="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary mb-2">
                 <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-                Meus projetos
+                {voltarLabel(modoAdmin)}
             </Link>
             <h1 className="font-display text-2xl font-semibold text-primary mb-1">Resumo da Inscrição</h1>
             <p className="text-on-surface-variant mb-6">Confira os dados e os integrantes antes de confirmar a submissão à XVI FETECMS.</p>
@@ -144,7 +166,7 @@ export default function Resumo() {
             <section className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-6 mb-5">
                 <div className="flex items-center justify-between mb-4">
                     <h2 className="font-display text-primary font-semibold">Integrantes</h2>
-                    <Link to={`/projetos/${id}/integrantes`} className="text-sm text-primary-container hover:underline">Editar equipe</Link>
+                    <Link to={`${base}/${id}/integrantes`} className="text-sm text-primary-container hover:underline">Editar equipe</Link>
                 </div>
                 <p className="text-sm font-semibold text-on-surface-variant mb-1">Alunos ({integrantes.alunos.length})</p>
                 <ul className="text-sm text-on-surface mb-3 list-disc pl-5">
@@ -192,11 +214,11 @@ export default function Resumo() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 {jaSubmetido ? (
                     <div className="flex flex-wrap gap-3">
-                        <Button variant="outline" type="button" onClick={() => navigate('/projetos')}>
+                        <Button variant="outline" type="button" onClick={() => navigate(base)}>
                             <span className="material-symbols-outlined text-[20px]">arrow_back</span>
-                            Voltar aos projetos
+                            Voltar
                         </Button>
-                        <Button variant="outline" type="button" onClick={() => navigate(`/projetos/${id}/integrantes`)}>
+                        <Button variant="outline" type="button" onClick={() => navigate(`${base}/${id}/integrantes`)}>
                             <span className="material-symbols-outlined text-[20px]">groups</span>
                             Ver integrantes
                         </Button>
@@ -219,15 +241,15 @@ export default function Resumo() {
                 ) : (
                     <>
                         <div className="flex flex-wrap gap-3">
-                            <Button variant="outline" type="button" onClick={() => navigate('/projetos')}>
+                            <Button variant="outline" type="button" onClick={() => navigate(base)}>
                                 <span className="material-symbols-outlined text-[20px]">arrow_back</span>
-                                Voltar aos projetos
+                                Voltar
                             </Button>
-                            <Button variant="outline" type="button" onClick={() => navigate(`/projetos/${id}/editar`)}>
+                            <Button variant="outline" type="button" onClick={() => navigate(`${base}/${id}/editar`)}>
                                 <span className="material-symbols-outlined text-[20px]">edit</span>
                                 Editar projeto
                             </Button>
-                            <Button variant="outline" type="button" onClick={() => navigate(`/projetos/${id}/integrantes`)}>
+                            <Button variant="outline" type="button" onClick={() => navigate(`${base}/${id}/integrantes`)}>
                                 <span className="material-symbols-outlined text-[20px]">groups</span>
                                 Integrantes
                             </Button>
@@ -243,6 +265,16 @@ export default function Resumo() {
                     </>
                 )}
             </div>
+            {pedindoJustificativa && (
+                <SubmeterRascunhoDialog
+                    projeto={projeto}
+                    orientador={data.orientador}
+                    salvando={submitting}
+                    erro={alert}
+                    onSubmeter={submeter}
+                    onFechar={() => setPedindoJustificativa(false)}
+                />
+            )}
             {confirmDialog}
         </AppShell>
     );
