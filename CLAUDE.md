@@ -756,17 +756,25 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > e **Escolas** (`/admin/parametrizacao/escolas`): admin busca, **renomeia, mescla** (reatribui
 > projetos/alunos/orientadores) e **exclui** instituições sem uso (`InstituicaoAdminService`/Controller,
 > rotas `admin/instituicoes`). Back **117/117**, front 11/11, Pint limpo, build OK.
-> **Pendências do Pedro:** (1) `git push origin feat/verificacao-email-e-ajustes` + PR para a `main`
-> (o ambiente do Claude não tem credencial do GitHub) e, depois do merge, o deploy pela §11 do
-> [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). Esta release **tem migrations** (cadastros pendentes,
-> modelos de e-mail, capital das cidades, período/decisões de ajuste e arquivos da mala direta),
-> **nenhuma variável nova de `.env`** e uma **dependência nova de npm** (TipTap) — o deploy precisa
-> de `npm ci && npm run build`. A fila (`queue:work`) continua obrigatória e agora também entrega o
-> comprovante de submissão. **O envio de e-mail deixou de ser opcional**: sem SMTP configurado
-> (`MAIL_MAILER`), ninguém conclui o cadastro, porque o código de confirmação não chega.
-> A pendência anterior (`feat/algoritmo-distribuicao-e-lista-final`) segue aguardando push; (2) popular as escolas com
-> `php artisan instituicoes:importar` (lê `database/data/instituicoes/escolas_ms.csv`; 1888 escolas
-> de MS, todos os 79 municípios casam com o catálogo IBGE).
+> **Pendências do Pedro (Sprints 64–73):** (1) `git push origin feat/edicoes-credenciamento-comite`
+> + PR para a `main` (o ambiente do Claude não tem credencial do GitHub) e, depois do merge, o
+> deploy pela §11 do [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). Esta release **tem migrations**
+> (edição padrão + edição do usuário e backfill dos projetos, escopos de admin, listas finais
+> oficiais, credenciamento e localização do comitê) e **uma variável nova de `.env`**:
+> **`VITE_GOOGLE_MAPS_API_KEY`** — chave do Google Maps JS API com **Places** e **Directions**
+> habilitados, usada pela aba Comitê especial. Ela é lida **no build** (`npm run build`), então
+> mudá-la exige recompilar o front; sem ela as telas do comitê abrem e explicam que o mapa está
+> indisponível, e **o mapa real ainda não foi validado em navegador** — vale conferir no dia.
+> Nenhuma dependência nova de npm. A fila (`queue:work`) continua obrigatória.
+> (2) **Configurar a nova aba Credenciamento antes do evento**: em Parametrização → Credenciamento,
+> definir o **período do evento** (sem a data de início o balcão fica fechado), os **documentos**
+> exigidos de aluno, orientador e coorientador, e os **itens a entregar**. E publicar a **lista
+> final oficial** no Ranking dos projetos — é ela que define os finalistas que aparecem no balcão.
+> (3) **Escopos de admin são opcionais**: sem nenhum atribuído, todo admin segue com acesso total
+> (comportamento de antes). (4) popular as escolas com `php artisan instituicoes:importar` (lê
+> `database/data/instituicoes/escolas_ms.csv`; 1888 escolas de MS, todos os 79 municípios casam com
+> o catálogo IBGE). As pendências anteriores (`feat/verificacao-email-e-ajustes` e
+> `feat/algoritmo-distribuicao-e-lista-final`) já entraram na `main` (v1.18).
 >
 > **Sprint 14 (branch `feat/conta-email-e-registros`, saída da `origin/main`):**
 > (a) **Troca de e-mail** em `PUT /auth/email` para orientador, avaliador e admin, com tela
