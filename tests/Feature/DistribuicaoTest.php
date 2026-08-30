@@ -3,20 +3,34 @@
 namespace Tests\Feature;
 
 use App\Enums\GrupoCorrelato;
+use App\Enums\StatusDistribuicao;
+use App\Jobs\ProcessarDistribuicao;
 use App\Models\Area;
 use App\Models\Avaliacao;
 use App\Models\AvaliadorProfile;
+use App\Models\Distribuicao;
+use App\Models\Edicao;
 use App\Models\Projeto;
 use App\Models\Subarea;
 use App\Models\User;
 use App\Services\DistribuicaoService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class DistribuicaoTest extends TestCase
 {
     use RefreshDatabase;
+
+    /** As rodadas de distribuição pertencem a uma edição. */
+    private function edicaoPadrao(): Edicao
+    {
+        return Edicao::firstOrCreate(
+            ['ano' => 2026],
+            ['nome' => 'XVI FETECMS', 'inscricoes_abertas' => true, 'padrao' => true],
+        );
+    }
 
     private function avaliador(int $areaId, ?int $subareaId = null, array $over = []): User
     {
@@ -190,8 +204,14 @@ class DistribuicaoTest extends TestCase
         $this->assertDatabaseHas('avaliacoes', ['projeto_id' => $p->id, 'avaliador_id' => $irmao->id]);
     }
 
-    public function test_endpoint_de_distribuicao_do_admin(): void
+    /**
+     * A distribuição vai para a fila e a tela acompanha o progresso, em vez de
+     * segurar a requisição até o fim (que, com a base cheia, é uma espera cega
+     * e um bom candidato a timeout).
+     */
+    public function test_endpoint_de_distribuicao_enfileira_e_reporta_progresso(): void
     {
+        $this->edicaoPadrao();
         $a = Area::create(['nome' => 'Área A']);
         $this->avaliador($a->id);
         $this->avaliador($a->id);
@@ -200,9 +220,115 @@ class DistribuicaoTest extends TestCase
 
         Sanctum::actingAs(User::factory()->admin()->create());
 
-        $this->postJson('/api/v1/admin/avaliacao/distribuir')
+        // Em teste a fila é síncrona; o fake segura o job para dar tempo de
+        // conferir que a requisição volta ANTES de o trabalho acontecer.
+        Queue::fake();
+
+        $resposta = $this->postJson('/api/v1/admin/avaliacao/distribuir')
+            ->assertStatus(202)
+            ->assertJsonPath('data.tipo', Distribuicao::TIPO_DISTRIBUIR)
+            ->assertJsonPath('data.status', 'pendente')
+            ->assertJsonPath('data.finalizada', false);
+
+        $id = $resposta->json('data.id');
+
+        // Nada foi designado ainda: quem trabalha é a fila.
+        $this->assertSame(0, Avaliacao::count());
+        Queue::assertPushed(ProcessarDistribuicao::class);
+
+        (new ProcessarDistribuicao($id))->handle(app(DistribuicaoService::class));
+
+        $this->getJson("/api/v1/admin/avaliacao/distribuicoes/{$id}")
             ->assertOk()
-            ->assertJsonPath('data.designadas_criadas', 3);
+            ->assertJsonPath('data.status', 'concluida')
+            ->assertJsonPath('data.finalizada', true)
+            ->assertJsonPath('data.percentual', 100)
+            ->assertJsonPath('data.relatorio.designadas_criadas', 3);
+
+        $this->assertSame(3, Avaliacao::count());
+    }
+
+    /** A tela abre já mostrando a última rodada, se houver. */
+    public function test_ultima_rodada_alimenta_a_tela_ao_abrir(): void
+    {
+        $this->edicaoPadrao();
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        Queue::fake();
+
+        $this->getJson('/api/v1/admin/avaliacao/distribuicoes/ultima')
+            ->assertOk()
+            ->assertJsonPath('data', null);
+
+        $id = $this->postJson('/api/v1/admin/avaliacao/distribuir')->json('data.id');
+
+        $this->getJson('/api/v1/admin/avaliacao/distribuicoes/ultima')
+            ->assertOk()
+            ->assertJsonPath('data.id', $id);
+    }
+
+    /**
+     * Duas rodadas ao mesmo tempo competiriam pelas mesmas vagas, e o relatório
+     * de nenhuma delas faria sentido.
+     */
+    public function test_nao_deixa_duas_rodadas_ao_mesmo_tempo(): void
+    {
+        $this->edicaoPadrao();
+        Sanctum::actingAs(User::factory()->admin()->create());
+        // Sem o fake, a fila síncrona concluiria a primeira rodada na hora e a
+        // segunda seria aceita — o que este teste justamente quer impedir.
+        Queue::fake();
+
+        $id = $this->postJson('/api/v1/admin/avaliacao/distribuir')->assertStatus(202)->json('data.id');
+
+        $this->postJson('/api/v1/admin/avaliacao/redistribuir')
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('distribuicao');
+
+        // Terminada a primeira, a próxima é aceita.
+        (new ProcessarDistribuicao($id))->handle(app(DistribuicaoService::class));
+        $this->postJson('/api/v1/admin/avaliacao/distribuir')->assertStatus(202);
+    }
+
+    /** A barra precisa de um denominador: o job grava total e processados. */
+    public function test_progresso_conta_os_projetos_da_rodada(): void
+    {
+        $this->edicaoPadrao();
+        Queue::fake();
+        $a = Area::create(['nome' => 'Área A']);
+        $this->avaliador($a->id);
+        $this->projetoSubmetido($a->id, null, 'Um');
+        $this->projetoSubmetido($a->id, null, 'Dois');
+
+        $rodada = app(DistribuicaoService::class)
+            ->enfileirar(Distribuicao::TIPO_DISTRIBUIR, User::factory()->admin()->create());
+
+        (new ProcessarDistribuicao($rodada->id))->handle(app(DistribuicaoService::class));
+
+        $rodada->refresh();
+        $this->assertSame(2, $rodada->total);
+        $this->assertSame(2, $rodada->processados);
+        $this->assertSame(100, $rodada->percentual());
+    }
+
+    /** Uma falha no meio não deixa a tela girando para sempre. */
+    public function test_falha_marca_a_rodada_e_guarda_o_motivo(): void
+    {
+        $this->edicaoPadrao();
+        // Sem o fake, a fila síncrona já concluiria a rodada aqui e o job
+        // abaixo sairia cedo, sem nunca chamar o serviço que falha.
+        Queue::fake();
+        $rodada = app(DistribuicaoService::class)->enfileirar(Distribuicao::TIPO_DISTRIBUIR);
+
+        $servico = \Mockery::mock(DistribuicaoService::class);
+        $servico->shouldReceive('distribuir')->once()->andThrow(new \RuntimeException('banco fora do ar'));
+
+        (new ProcessarDistribuicao($rodada->id))->handle($servico);
+
+        $rodada->refresh();
+        $this->assertSame(StatusDistribuicao::Falha->value, $rodada->status->value);
+        $this->assertTrue($rodada->status->finalizada());
+        $this->assertSame('banco fora do ar', $rodada->erro);
     }
 
     public function test_distribuir_e_so_para_admin(): void

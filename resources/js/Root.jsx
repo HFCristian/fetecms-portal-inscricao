@@ -18,8 +18,13 @@ import AvaliadorPerfil from './pages/AvaliadorPerfil.jsx';
 import AdminAvisoDetalhe from './pages/AdminAvisoDetalhe.jsx';
 import AdminAvisos from './pages/AdminAvisos.jsx';
 import AdminModelosEmail from './pages/AdminModelosEmail.jsx';
+import AdminFeedbacks from './pages/AdminFeedbacks.jsx';
+import AdminFeedbackForm from './pages/AdminFeedbackForm.jsx';
+import AdminFeedbackDetalhe from './pages/AdminFeedbackDetalhe.jsx';
 import AdminComunicacao from './pages/AdminComunicacao.jsx';
 import AdminHome from './pages/AdminHome.jsx';
+import AdminInicio from './pages/AdminInicio.jsx';
+import AdminDashboards from './pages/AdminDashboards.jsx';
 import AdminProjetosPorArea from './pages/AdminProjetosPorArea.jsx';
 import AdminProjetosRascunho from './pages/AdminProjetosRascunho.jsx';
 import AdminProjetosPorEstado from './pages/AdminProjetosPorEstado.jsx';
@@ -30,7 +35,7 @@ import ParametrizacaoAreas from './pages/ParametrizacaoAreas.jsx';
 import ParametrizacaoEdicoes from './pages/ParametrizacaoEdicoes.jsx';
 import ParametrizacaoEscopos from './pages/ParametrizacaoEscopos.jsx';
 import ParametrizacaoEscolas from './pages/ParametrizacaoEscolas.jsx';
-import ParametrizacaoInscricoes from './pages/ParametrizacaoInscricoes.jsx';
+import ParametrizacaoDatas from './pages/ParametrizacaoDatas.jsx';
 import ParametrizacaoAvaliacao from './pages/ParametrizacaoAvaliacao.jsx';
 import AdminManager from './pages/AdminManager.jsx';
 import AdminSuporte from './pages/AdminSuporte.jsx';
@@ -40,6 +45,7 @@ import ComiteTransporte from './pages/ComiteTransporte.jsx';
 import ComiteMapa from './pages/ComiteMapa.jsx';
 import CredenciamentoLista from './pages/CredenciamentoLista.jsx';
 import CredenciamentoFicha from './pages/CredenciamentoFicha.jsx';
+import CredenciamentoContas from './pages/CredenciamentoContas.jsx';
 import ParametrizacaoCredenciamento from './pages/ParametrizacaoCredenciamento.jsx';
 import AdminAvaliacaoOnline from './pages/AdminAvaliacaoOnline.jsx';
 import AvaliacaoAvaliadores from './pages/AvaliacaoAvaliadores.jsx';
@@ -114,7 +120,11 @@ export default function Root() {
 
                         {/* Área do admin */}
                         <Route element={<RoleRoute allow={['admin']} />}>
-                            <Route path="/admin" element={<AdminHome />} />
+                            {/* A Home lista as abas liberadas; o painel de
+                                projetos ganhou rota própria. */}
+                            <Route path="/admin" element={<AdminInicio />} />
+                            <Route path="/admin/projetos" element={<AdminHome />} />
+                            <Route path="/admin/dashboards" element={<AdminDashboards />} />
                             <Route path="/admin/avaliacao" element={<AdminAvaliacaoOnline />} />
                             <Route path="/admin/avaliacao/distribuicao" element={<AvaliacaoDistribuicao />} />
                             <Route path="/admin/avaliacao/avaliadores" element={<AvaliacaoAvaliadores />} />
@@ -141,7 +151,10 @@ export default function Root() {
                             <Route path="/admin/parametrizacao/escopos" element={<ParametrizacaoEscopos />} />
                             <Route path="/admin/parametrizacao/credenciamento" element={<ParametrizacaoCredenciamento />} />
                             <Route path="/admin/parametrizacao/escolas" element={<ParametrizacaoEscolas />} />
-                            <Route path="/admin/parametrizacao/inscricoes" element={<ParametrizacaoInscricoes />} />
+                            <Route path="/admin/parametrizacao/datas" element={<ParametrizacaoDatas />} />
+                            {/* A tela de Inscrições só tinha datas; o link antigo
+                                segue valendo, agora apontando para a tela nova. */}
+                            <Route path="/admin/parametrizacao/inscricoes" element={<Navigate to="/admin/parametrizacao/datas" replace />} />
                             <Route path="/admin/parametrizacao/avaliacao" element={<ParametrizacaoAvaliacao />} />
                             <Route path="/admin/registros" element={<AdminRegistrosHome />} />
                             <Route path="/admin/registros/inscricoes" element={<AdminRegistros secao="inscricoes" />} />
@@ -155,6 +168,7 @@ export default function Root() {
                             <Route path="/admin/credenciamento/credenciar" element={<CredenciamentoLista situacao="pendentes" />} />
                             <Route path="/admin/credenciamento/credenciados" element={<CredenciamentoLista situacao="credenciados" />} />
                             <Route path="/admin/credenciamento/projetos/:id" element={<CredenciamentoFicha />} />
+                            <Route path="/admin/credenciamento/contas" element={<CredenciamentoContas />} />
                             {/* Aba Comitê especial: transporte e mapa em tempo real. */}
                             <Route path="/admin/comite" element={<ComiteHome />} />
                             <Route path="/admin/comite/transporte" element={<ComiteTransporte />} />
@@ -162,6 +176,9 @@ export default function Root() {
                             <Route path="/admin/comunicacao" element={<AdminComunicacao />} />
                             <Route path="/admin/comunicacao/avisos" element={<AdminAvisos />} />
                             <Route path="/admin/comunicacao/modelos" element={<AdminModelosEmail />} />
+                            <Route path="/admin/comunicacao/feedback" element={<AdminFeedbacks />} />
+                            <Route path="/admin/comunicacao/feedback/novo" element={<AdminFeedbackForm />} />
+                            <Route path="/admin/comunicacao/feedback/:id" element={<AdminFeedbackDetalhe />} />
                             <Route path="/admin/comunicacao/avisos/:id" element={<AdminAvisoDetalhe />} />
                             <Route path="/admin/mala-direta" element={<AdminMalaDireta />} />
                             <Route path="/admin/mala-direta/nova" element={<AdminMalaDiretaForm />} />

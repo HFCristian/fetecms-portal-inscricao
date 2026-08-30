@@ -13,13 +13,15 @@ use Illuminate\Validation\ValidationException;
 /**
  * Escopos de admin (Parametrização → Escopos de admin).
  *
- * Um escopo é um nome e um conjunto de abas do menu. Cada admin recebe um
- * escopo **por edição**, então a mesma pessoa pode cuidar da comunicação num
- * ano e do credenciamento no outro.
+ * O modelo é um Rule-Based Access Control: a *rule* é a aba do menu
+ * (`App\Enums\AbaAdmin`), o *role* é o escopo — um nome e o conjunto de abas
+ * que ele abre — e cada admin carrega **um ou mais** escopos **por edição**. O
+ * acesso dele é a **união** das abas de todos os escopos que tem, então dá para
+ * compor "Comunicação" + "Credenciamento" sem criar um escopo novo para a soma.
  *
  * Duas travas para ninguém se trancar do lado de fora:
  *
- * - **admin sem escopo na edição em curso tem acesso total** — é o
+ * - **admin sem escopo algum na edição em curso tem acesso total** — é o
  *   comportamento anterior aos escopos e o que segura a criação de uma edição
  *   nova sem atribuições;
  * - **a edição precisa ter ao menos um admin com a aba "Administradores"**;
@@ -84,7 +86,7 @@ class EscopoAdminService
     {
         if ($escopo->admins()->exists()) {
             throw ValidationException::withMessages([
-                'escopo' => 'Este escopo está atribuído a algum administrador. Troque o escopo dele antes.',
+                'escopo' => 'Este escopo está atribuído a algum administrador. Retire-o dele antes.',
             ]);
         }
 
@@ -92,15 +94,16 @@ class EscopoAdminService
     }
 
     /**
-     * Atribui (ou remove, com `null`) o escopo de um admin **na edição
-     * informada** — sem edição, na que está em curso. Sem escopo, ele volta ao
-     * acesso total.
+     * Define **o conjunto** de escopos de um admin na edição informada — sem
+     * edição, na que está em curso. Lista vazia devolve o acesso total.
+     *
+     * @param  list<int>  $escopoIds
      */
-    public function atribuir(User $admin, ?int $escopoId, ?Edicao $edicao = null): void
+    public function atribuir(User $admin, array $escopoIds, ?Edicao $edicao = null): void
     {
         if ($admin->role !== Role::Admin) {
             throw ValidationException::withMessages([
-                'escopo_id' => 'Escopos valem apenas para administradores.',
+                'escopo_ids' => 'Escopos valem apenas para administradores.',
             ]);
         }
 
@@ -108,16 +111,18 @@ class EscopoAdminService
 
         if ($edicao === null) {
             throw ValidationException::withMessages([
-                'escopo_id' => 'Nenhuma edição em curso para atribuir o escopo.',
+                'escopo_ids' => 'Nenhuma edição em curso para atribuir o escopo.',
             ]);
         }
 
-        DB::transaction(function () use ($admin, $escopoId, $edicao) {
-            // Um escopo por admin em cada edição: troca é sempre "tira e põe".
+        $ids = array_values(array_unique(array_map('intval', $escopoIds)));
+
+        DB::transaction(function () use ($admin, $ids, $edicao) {
+            // O conjunto é substituído por inteiro: "tira tudo e põe o que veio".
             $admin->escopos()->wherePivot('edicao_id', $edicao->id)->detach();
 
-            if ($escopoId !== null) {
-                $admin->escopos()->attach($escopoId, ['edicao_id' => $edicao->id]);
+            foreach ($ids as $id) {
+                $admin->escopos()->attach($id, ['edicao_id' => $edicao->id]);
             }
 
             $this->garantirAlguemComAdministradores($edicao);
@@ -125,10 +130,10 @@ class EscopoAdminService
     }
 
     /**
-     * Os admins e o escopo de cada um na edição em curso — alimenta a tela de
-     * Administradores.
+     * Os admins e os escopos de cada um na edição em curso — alimenta a tela de
+     * Administradores. Lista vazia quer dizer acesso total.
      *
-     * @return array<int, array{escopo_id: int|null, escopo: string|null}>
+     * @return array<int, array{escopo_ids: list<int>, escopos: list<string>, abas: list<string>}>
      */
     public function escoposDosAdmins(?Edicao $edicao = null): array
     {
@@ -139,16 +144,17 @@ class EscopoAdminService
         }
 
         return User::where('role', Role::Admin->value)
-            ->with(['escopos' => fn ($q) => $q->wherePivot('edicao_id', $edicao->id)])
+            ->with(['escopos' => fn ($q) => $q->wherePivot('edicao_id', $edicao->id)->orderBy('nome')])
             ->get()
-            ->mapWithKeys(function (User $admin) {
-                $escopo = $admin->escopos->first();
-
-                return [$admin->id => [
-                    'escopo_id' => $escopo?->id,
-                    'escopo' => $escopo?->nome,
-                ]];
-            })
+            ->mapWithKeys(fn (User $admin) => [$admin->id => [
+                'escopo_ids' => $admin->escopos->pluck('id')->map(fn ($id) => (int) $id)->values()->all(),
+                'escopos' => $admin->escopos->pluck('nome')->values()->all(),
+                // A união das abas: é o que a pessoa realmente abre.
+                'abas' => array_values(array_intersect(
+                    AbaAdmin::valores(),
+                    $admin->escopos->flatMap(fn (EscopoAdmin $e) => $e->abas ?? [])->unique()->all(),
+                )),
+            ]])
             ->all();
     }
 
@@ -191,14 +197,16 @@ class EscopoAdminService
             ->where('is_active', true)
             ->get()
             ->contains(function (User $admin) use ($edicao) {
-                $escopo = $admin->escopos()->wherePivot('edicao_id', $edicao->id)->first();
+                $escopos = $admin->escopos()->wherePivot('edicao_id', $edicao->id)->get();
 
-                return $escopo === null || $escopo->permite(AbaAdmin::Administradores);
+                // Sem escopo nenhum = acesso total; com escopos, basta um abrir a aba.
+                return $escopos->isEmpty()
+                    || $escopos->contains(fn (EscopoAdmin $e) => $e->permite(AbaAdmin::Administradores));
             });
 
         if (! $sobrou) {
             throw ValidationException::withMessages([
-                'escopo_id' => 'Pelo menos um administrador ativo precisa manter a aba "Administradores" nesta edição.',
+                'escopo_ids' => 'Pelo menos um administrador ativo precisa manter a aba "Administradores" nesta edição.',
             ]);
         }
     }

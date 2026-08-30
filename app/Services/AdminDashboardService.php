@@ -24,21 +24,28 @@ class AdminDashboardService
         // categoria, de pessoas nem de escolas/cidades/estados. As exceções são
         // os dois primeiros cards ("Projetos (total)" e "Projetos por status"),
         // que existem justamente para mostrar o rascunho.
-        $submetido = fn (Builder $q) => $q->where('status', ProjetoStatus::Submetido->value);
-        $submetidos = fn () => Projeto::where('status', ProjetoStatus::Submetido->value);
+        //
+        // Projeto de orientador **demo** fica de fora de todos eles: as contas
+        // demo existem para ensaiar o portal, e o projeto-exemplo delas não pode
+        // entrar na conta de camisetas que a organização vai encomendar.
+        $submetido = fn (Builder $q) => $q
+            ->where('status', ProjetoStatus::Submetido->value)
+            ->whereHas('user', fn (Builder $u) => $u->where('is_demo', false));
+        $submetidos = fn () => Projeto::semDemo()->where('status', ProjetoStatus::Submetido->value);
 
         // Orientador conta uma vez só, tenha ele um ou vários projetos submetidos.
         $orientadoresSubmetidos = User::where('role', Role::Orientador->value)
-            ->whereHas('projetos', $submetido);
+            ->where('is_demo', false)
+            ->whereHas('projetos', fn (Builder $q) => $q->where('status', ProjetoStatus::Submetido->value));
 
         $orientadores = (clone $orientadoresSubmetidos)->count();
         $alunos = Aluno::whereHas('projeto', $submetido)->count();
         $coorientadores = Coorientador::whereHas('projeto', $submetido)->count();
 
         return [
-            'projetos_total' => Projeto::count(),
+            'projetos_total' => Projeto::semDemo()->count(),
             'projetos_submetidos' => $submetidos()->count(),
-            'projetos_rascunho' => Projeto::where('status', ProjetoStatus::Rascunho->value)->count(),
+            'projetos_rascunho' => Projeto::semDemo()->where('status', ProjetoStatus::Rascunho->value)->count(),
             'projetos_categoria' => $this->porCategoria(),
             'orientadores' => $orientadores,
             'alunos' => $alunos,
@@ -80,7 +87,7 @@ class AdminDashboardService
      */
     private function porCategoria(): array
     {
-        $totais = Projeto::query()
+        $totais = Projeto::semDemo()
             ->where('status', ProjetoStatus::Submetido->value)
             ->whereNotNull('categoria')
             ->groupBy('categoria')

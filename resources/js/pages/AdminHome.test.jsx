@@ -2,7 +2,7 @@ import { render, screen, within } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 
 vi.mock('../components/AppShell.jsx', () => ({ default: ({ children }) => <div>{children}</div> }));
-vi.mock('react-router-dom', () => ({ Link: ({ children }) => <a>{children}</a> }));
+vi.mock('react-router-dom', () => ({ Link: ({ to, children }) => <a href={to}>{children}</a> }));
 vi.mock('../lib/admin.js', () => ({
     getDashboard: vi.fn(() => Promise.resolve({
         projetos_total: 10, projetos_submetidos: 6, projetos_rascunho: 4,
@@ -18,32 +18,27 @@ vi.mock('../lib/admin.js', () => ({
         orientadores_camisetas: { total: 5, tamanhos: [
             { tamanho: 'PP', total: 0 }, { tamanho: 'P', total: 1 }, { tamanho: 'M', total: 2 },
             { tamanho: 'G', total: 1 }, { tamanho: 'GG', total: 0 }, { tamanho: 'XG', total: 1 },
-            { tamanho: 'N.I.', total: 0 },
         ] },
         alunos_camisetas: { total: 20, tamanhos: [
             { tamanho: 'PP', total: 4 }, { tamanho: 'P', total: 6 }, { tamanho: 'M', total: 5 },
             { tamanho: 'G', total: 3 }, { tamanho: 'GG', total: 1 }, { tamanho: 'XG', total: 0 },
-            { tamanho: 'N.I.', total: 1 },
         ] },
         coorientadores_camisetas: { total: 3, tamanhos: [
             { tamanho: 'PP', total: 0 }, { tamanho: 'P', total: 0 }, { tamanho: 'M', total: 2 },
             { tamanho: 'G', total: 1 }, { tamanho: 'GG', total: 0 }, { tamanho: 'XG', total: 0 },
-            { tamanho: 'N.I.', total: 0 },
         ] },
         alunos_classes: [
             { chave: 'fundamental_i', label: 'Ensino Fundamental I', total: 3, series: [
                 { serie: '3º ano', total: 2 }, { serie: '4º ano', total: 0 },
-                { serie: '5º ano', total: 1 }, { serie: 'N.I.', total: 0 },
+                { serie: '5º ano', total: 1 },
             ] },
             { chave: 'fundamental_ii', label: 'Ensino Fundamental II', total: 5, series: [
                 { serie: '6º ano', total: 1 }, { serie: '7º ano', total: 1 },
                 { serie: '8º ano', total: 1 }, { serie: '9º ano', total: 1 },
-                { serie: 'N.I.', total: 1 },
             ] },
             { chave: 'medio', label: 'Ensino Médio', total: 12, series: [
                 { serie: '1º ano', total: 5 }, { serie: '2º ano', total: 4 },
                 { serie: '3º ano', total: 2 }, { serie: '4º ano', total: 1 },
-                { serie: 'N.I.', total: 0 },
             ] },
         ],
         escolas_com_projeto: 2, cidades_com_projeto: 2, estados_com_projeto: 1,
@@ -52,70 +47,46 @@ vi.mock('../lib/admin.js', () => ({
 
 import AdminHome from './AdminHome.jsx';
 
-// O rótulo é a última linha do card; o card é o elemento que o contém.
-const card = (rotulo) => screen.getByText(rotulo).parentElement;
+// O rótulo mora dentro do card; sobe até a caixa do card (a que tem a sombra).
+const card = (rotulo) => screen.getByText(rotulo).closest('.fetec-card-shadow');
 
-describe('AdminHome — recorte por gênero', () => {
-    it('mostra Mulheres/Homens/Outros nos 3 cards de pessoas', async () => {
+describe('AdminHome — aba Projetos', () => {
+    it('mostra só os seis cards da aba', async () => {
         render(<AdminHome />);
-        expect(await screen.findAllByText('Mulheres')).toHaveLength(3);
-        expect(screen.getAllByText('Homens')).toHaveLength(3);
-        expect(screen.getAllByText('Outros/N.I.')).toHaveLength(3);
-        // números do card de alunos (11 mulheres, 8 homens)
-        expect(screen.getByText('11')).toBeInTheDocument();
-        expect(screen.getByText('8')).toBeInTheDocument();
-    });
-});
 
-describe('AdminHome — projetos por categoria', () => {
-    it('mostra uma coluna por categoria com a contagem', async () => {
-        render(<AdminHome />);
-        expect(await screen.findByText('Projetos por categoria')).toBeInTheDocument();
-        expect(screen.getByText('FETEC Jr')).toBeInTheDocument();
-        expect(screen.getByText('FETECMS')).toBeInTheDocument();
-        expect(screen.getByText('FETECMS FUNDECT')).toBeInTheDocument();
-        expect(screen.getByText('7')).toBeInTheDocument();
+        expect(await screen.findByText('Projetos (total)')).toBeInTheDocument();
+        expect(screen.getByText('Projetos por status')).toBeInTheDocument();
+        expect(screen.getByText('Projetos por categoria')).toBeInTheDocument();
+        expect(screen.getByText('Escolas com projeto')).toBeInTheDocument();
+        expect(screen.getByText('Cidades com projeto')).toBeInTheDocument();
+        expect(screen.getByText('Estados com projeto')).toBeInTheDocument();
     });
 
-    it('vem logo antes do card de orientadores', async () => {
+    it('não mostra mais os cards que foram para Dashboards', async () => {
         render(<AdminHome />);
-        const categoria = await screen.findByText('Projetos por categoria');
-        const orientadores = screen.getByText('Orientadores');
-        // Ordem no DOM: categoria precede orientadores.
-        expect(categoria.compareDocumentPosition(orientadores) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        await screen.findByText('Projetos (total)');
+
+        expect(screen.queryByText('Orientadores')).not.toBeInTheDocument();
+        expect(screen.queryByText('Camisetas · Alunos')).not.toBeInTheDocument();
+        expect(screen.queryByText('Alunos · Ensino Médio')).not.toBeInTheDocument();
+        expect(screen.queryByText('Mulheres')).not.toBeInTheDocument();
     });
-});
 
-describe('AdminHome — camisetas', () => {
-    it('tem um card por público, com todos os tamanhos', async () => {
+    it('o total de projetos leva à lista por área', async () => {
         render(<AdminHome />);
-        expect(await screen.findByText('Camisetas · Orientadores')).toBeInTheDocument();
-        expect(screen.getByText('Camisetas · Alunos')).toBeInTheDocument();
-        expect(screen.getByText('Camisetas · Coorientadores')).toBeInTheDocument();
-        // Sete baldes (PP…XG + N.I.) em cada um dos três cards.
-        expect(screen.getAllByText('PP')).toHaveLength(3);
-        expect(screen.getAllByText('XG')).toHaveLength(3);
-        for (const publico of ['Orientadores', 'Alunos', 'Coorientadores']) {
-            expect(within(card(`Camisetas · ${publico}`)).getByText('N.I.')).toBeInTheDocument();
-        }
+        await screen.findByText('Projetos (total)');
+
+        expect(within(card('Projetos (total)')).getByText('Ver mais').closest('a'))
+            .toHaveAttribute('href', '/admin/projetos-por-area');
     });
-});
 
-describe('AdminHome — alunos por classe escolar', () => {
-    it('tem um card por classe, com a quebra por série', async () => {
+    it('mostra submetidos e rascunho no card de status', async () => {
         render(<AdminHome />);
-        expect(await screen.findByText('Alunos · Ensino Fundamental I')).toBeInTheDocument();
-        expect(screen.getByText('Alunos · Ensino Fundamental II')).toBeInTheDocument();
-        expect(screen.getByText('Alunos · Ensino Médio')).toBeInTheDocument();
+        await screen.findByText('Projetos por status');
 
-        // As séries do médio vão até o 4º ano — é por onde entra o técnico integrado.
-        const medio = card('Alunos · Ensino Médio');
-        expect(within(medio).getByText('4º ano')).toBeInTheDocument();
-        expect(within(medio).getByText('12')).toBeInTheDocument();
-
-        // O Fundamental I vai do 3º ao 5º ano e tem seu próprio balde N.I.
-        const fund1 = card('Alunos · Ensino Fundamental I');
-        expect(within(fund1).getByText('5º ano')).toBeInTheDocument();
-        expect(within(fund1).getByText('N.I.')).toBeInTheDocument();
+        const status = card('Projetos por status');
+        expect(within(status).getByText('Submetidos')).toBeInTheDocument();
+        expect(within(status).getByText('6')).toBeInTheDocument();
+        expect(within(status).getByText('4')).toBeInTheDocument();
     });
 });

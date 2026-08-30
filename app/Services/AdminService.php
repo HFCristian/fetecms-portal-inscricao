@@ -65,6 +65,25 @@ class AdminService
         return $admin->refresh();
     }
 
+    /**
+     * Liga/desliga o **modo demo** de um administrador.
+     *
+     * Com ele, as telas que dependem de data passam a oferecer o "modo de
+     * teste" — hoje o credenciamento (que ignora a janela do evento) e a aba de
+     * ajustes do orientador. É uma permissão de treinamento: quem tem o modo
+     * demo ligado vê o interruptor, e o interruptor é que ignora as datas, então
+     * ninguém credencia fora de hora sem querer.
+     *
+     * A conta demo continua fora dos públicos de comunicação
+     * (`PublicoUsuariosService`) e da distribuição de avaliações.
+     */
+    public function definirDemo(User $admin, bool $demo): User
+    {
+        $admin->update(['is_demo' => $demo]);
+
+        return $admin->refresh();
+    }
+
     private function totalAtivos(): int
     {
         return User::where('role', Role::Admin->value)->where('is_active', true)->count();

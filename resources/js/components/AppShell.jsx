@@ -5,7 +5,9 @@ import { getConversasNaoVistas } from '../lib/chat.js';
 import SupportFooter from './SupportFooter.jsx';
 import ChatWidget from './ChatWidget.jsx';
 import AvisoCard from './AvisoCard.jsx';
+import FeedbackCard from './FeedbackCard.jsx';
 import SeletorEdicao from './SeletorEdicao.jsx';
+import { abasPermitidas } from '../lib/abasAdmin.js';
 
 function navClass({ isActive }) {
     return (
@@ -26,32 +28,20 @@ function NavBadge({ count }) {
     );
 }
 
-// As abas do admin, na ordem do menu. `aba` é a chave do escopo (AbaAdmin no
-// backend): o admin só vê as que o escopo dele abre — e quem não tem escopo
-// atribuído na edição em curso recebe todas.
-const ABAS_ADMIN = [
-    { aba: 'projetos', to: '/admin', end: true, icon: 'folder', label: 'Projetos' },
-    { aba: 'avaliacao', to: '/admin/avaliacao', icon: 'grading', label: 'Avaliação online' },
-    { aba: 'credenciamento', to: '/admin/credenciamento', icon: 'badge', label: 'Credenciamento' },
-    { aba: 'comite', to: '/admin/comite', icon: 'directions_bus', label: 'Comitê especial' },
-    { aba: 'comunicacao', to: '/admin/comunicacao', icon: 'campaign', label: 'Comunicação' },
-    { aba: 'suporte', to: '/admin/suporte', icon: 'forum', label: 'Suporte', badge: true },
-    { aba: 'parametrizacao', to: '/admin/parametrizacao', icon: 'tune', label: 'Parametrização' },
-    { aba: 'administradores', to: '/admin/gerir-admins', icon: 'people', label: 'Administradores' },
-    { aba: 'registros', to: '/admin/registros', icon: 'history', label: 'Registros' },
-];
 
 // Links de navegação por papel. onNavigate fecha o menu mobile ao clicar num link.
 function NavLinks({ role, abas, onNavigate, suporteBadge = 0 }) {
     if (role === 'admin') {
-        // Sem lista de abas (payload antigo em cache), mostra tudo — o backend
-        // continua sendo quem barra de verdade.
-        const permitida = (aba) => !Array.isArray(abas) || abas.includes(aba);
-
         return (
             <>
-                {ABAS_ADMIN.filter((a) => permitida(a.aba)).map((a) => (
-                    <NavLink key={a.to} to={a.to} end={a.end} className={navClass} onClick={onNavigate}>
+                {/* A Home nunca é filtrada: ela só reúne atalhos para as abas
+                    que a pessoa já pode abrir. */}
+                <NavLink to="/admin" end className={navClass} onClick={onNavigate}>
+                    <span className="material-symbols-outlined">home</span>
+                    Início
+                </NavLink>
+                {abasPermitidas(abas).map((a) => (
+                    <NavLink key={a.to} to={a.to} className={navClass} onClick={onNavigate}>
                         <span className="material-symbols-outlined">{a.icon}</span>
                         {a.label}
                         {a.badge && <NavBadge count={suporteBadge} />}
@@ -220,6 +210,10 @@ export default function AppShell({ children }) {
                         orientador e avaliador consultam — o backend decide se há
                         card para esta pessoa. */}
                     <AvisoCard ativo={user?.role === 'orientador' || user?.role === 'avaliador'} />
+                    {/* Convite de feedback: o público de cada pedido decide quem
+                        vê, então basta estar autenticado — o backend responde
+                        `null` para quem nenhum pedido alcança. */}
+                    <FeedbackCard ativo={!!user} />
                     {children}
                     <SupportFooter className="mt-10 pb-2 md:hidden" />
                 </div>

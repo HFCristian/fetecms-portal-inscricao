@@ -36,6 +36,13 @@ use Illuminate\Support\Facades\DB;
  * O bolo de candidatos também respeita as {@see RegrasDistribuicao} do admin
  * (Avaliação Online → Algoritmo de distribuição), inclusive no sorteio: o que a
  * regra exclui não entra na fila de ninguém automaticamente.
+ *
+ * **Piso da fila** (Sprint 85): uma regra restritiva pode deixar tão pouco
+ * projeto elegível que o avaliador fica sem trabalho. Por isso, quando a
+ * primeira passada não alcança o piso definido pelo admin
+ * ({@see Edicao::pisoFilaAvaliador()}), uma segunda passada completa a fila
+ * **ignorando as regras por categoria** — a "regra geral". A ordem importa: a
+ * regra escolhe quem entra primeiro, e o piso só evita que alguém fique parado.
  */
 class FilaAvaliadorService
 {
@@ -43,9 +50,45 @@ class FilaAvaliadorService
      * Completa a fila do avaliador até o mínimo por avaliador da edição.
      * Devolve quantas designações novas foram criadas.
      *
+     * Se as regras por categoria deixarem a fila abaixo do **piso** da edição,
+     * uma segunda passada a completa ignorando essas regras.
+     *
      * @param  list<int>  $ignorar  Projetos que não devem voltar nesta rodada.
      */
     public function repor(User $avaliador, array $ignorar = []): int
+    {
+        $criadas = $this->preencher($avaliador, $ignorar);
+
+        return $criadas + $this->completarAtePiso($avaliador, $ignorar);
+    }
+
+    /**
+     * A segunda passada: leva a fila até o piso **ignorando as regras por
+     * categoria**. Só roda quando a passada normal deixou o avaliador abaixo do
+     * piso — se a regra já deu trabalho suficiente, ela continua valendo
+     * sozinha.
+     *
+     * @param  list<int>  $ignorar
+     */
+    private function completarAtePiso(User $avaliador, array $ignorar = []): int
+    {
+        $piso = Edicao::pisoFilaAvaliador();
+
+        // Sem piso, ou com as regras já liberando tudo, não há segunda passada.
+        if ($piso === null || ! Edicao::regrasDistribuicao()->restringe()) {
+            return 0;
+        }
+
+        return $this->preencher($avaliador, $ignorar, alvo: $piso, ignorarRegras: true);
+    }
+
+    /**
+     * O motor da reposição, usado pelas duas passadas.
+     *
+     * @param  list<int>  $ignorar
+     * @param  ?int  $alvo  tamanho de fila desejado; nulo usa o mínimo por avaliador
+     */
+    private function preencher(User $avaliador, array $ignorar = [], ?int $alvo = null, bool $ignorarRegras = false): int
     {
         $perfil = $avaliador->avaliadorProfile;
 
@@ -65,9 +108,10 @@ class FilaAvaliadorService
 
         $limites = Edicao::limites();
 
-        // A fila tem o tamanho do mínimo por avaliador e, quando a edição
-        // define um teto total, para de crescer ao alcançá-lo.
-        $vagas = $limites->minPorAvaliador() - $pendentes;
+        // A fila tem o tamanho do mínimo por avaliador (ou do alvo pedido pela
+        // segunda passada) e, quando a edição define um teto total, para de
+        // crescer ao alcançá-lo.
+        $vagas = ($alvo ?? $limites->minPorAvaliador()) - $pendentes;
 
         if ($limites->maxPorAvaliador() !== null) {
             $vagas = min($vagas, $limites->maxPorAvaliador() - $status->count());
@@ -76,7 +120,7 @@ class FilaAvaliadorService
         $escolhidos = $ignorar;
 
         while ($vagas > 0) {
-            $projetoId = $this->proximo($avaliador, $escolhidos);
+            $projetoId = $this->proximo($avaliador, $escolhidos, $ignorarRegras);
             if ($projetoId === null) {
                 break; // acabaram os projetos elegíveis
             }
@@ -103,6 +147,9 @@ class FilaAvaliadorService
      * atrás), o que já foi concluído e o que o ADMIN designou à mão. Se não
      * houver alternativa suficiente, os projetos devolvidos podem voltar — a
      * fila nunca encolhe por causa de um sorteio.
+     *
+     * O piso vale aqui como na reposição: se as regras não encherem a fila até
+     * ele, a segunda passada completa ignorando-as.
      *
      * @return array{trocados:int, recebidos:int}
      */
@@ -137,8 +184,11 @@ class FilaAvaliadorService
      * se não sobrou nenhum elegível.
      *
      * @param  list<int>  $ignorar  Projetos já escolhidos nesta mesma rodada.
+     * @param  bool  $ignorarRegras  Passa por cima das regras por categoria — é o
+     *                               que a segunda passada do piso usa. Os tetos
+     *                               por projeto e por avaliador continuam valendo.
      */
-    public function proximo(User $avaliador, array $ignorar = []): ?int
+    public function proximo(User $avaliador, array $ignorar = [], bool $ignorarRegras = false): ?int
     {
         $perfil = $avaliador->avaliadorProfile;
         // A própria área do avaliador mais as que o admin liberou para ele.
@@ -154,7 +204,9 @@ class FilaAvaliadorService
         $jaTem = Avaliacao::where('avaliador_id', $avaliador->id)->pluck('projeto_id')->all();
         $regras = Edicao::regrasDistribuicao();
 
-        $candidatos = Projeto::query()
+        // `semDemo` pelo mesmo motivo da distribuição em massa: projeto de
+        // orientador demo só chega a um avaliador por designação manual.
+        $candidatos = Projeto::semDemo()
             ->where('status', ProjetoStatus::Submetido->value)
             ->whereNotIn('id', [...$jaTem, ...$ignorar])
             ->select(['id', 'area_id', 'subarea_id', 'categoria'])
@@ -165,7 +217,7 @@ class FilaAvaliadorService
             ])
             ->get()
             ->filter(fn (Projeto $p) => $p->total_count < $limites->maxPorProjeto($p->categoria)
-                && $regras->aceita($p->categoria, $p->concluidas_count));
+                && ($ignorarRegras || $regras->aceita($p->categoria, $p->concluidas_count)));
 
         if ($candidatos->isEmpty()) {
             return null;

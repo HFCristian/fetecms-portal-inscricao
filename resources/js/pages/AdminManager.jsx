@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import AppShell from '../components/AppShell.jsx';
 import { Field, Input, Button, Alert, useConfirm } from '../components/ui.jsx';
 import { extractErrors, useAuth } from '../lib/auth.jsx';
-import { criarAdmin, getAdmins, atualizarAdmin, definirStatusAdmin, definirEscopoAdmin } from '../lib/admin.js';
+import { criarAdmin, getAdmins, atualizarAdmin, definirStatusAdmin, definirEscoposAdmin, definirDemoAdmin } from '../lib/admin.js';
 
 function CriarAdminForm({ onCriado }) {
     const [form, setForm] = useState({});
@@ -67,7 +67,49 @@ function StatusPill({ ativo }) {
     );
 }
 
-function LinhaAdmin({ admin, souEu, editando, form, setForm, err, salvando, escopos, escopoId, onEscopo, onEditar, onCancelar, onSalvar, onStatus }) {
+/**
+ * Os escopos de uma pessoa NA EDIÇÃO EM CURSO — os *roles* do RBAC. Ela pode ter
+ * quantos quiser, e o que abre é a união das abas de todos. Nenhum marcado =
+ * acesso total, que é o comportamento de quem nunca foi configurado.
+ */
+function EscoposDoAdmin({ admin, escopos, selecionados, onAlternar }) {
+    const total = selecionados.length === 0;
+
+    return (
+        <div className="mt-1.5">
+            <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs text-on-surface-variant">Escopos:</span>
+                {total && (
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary-fixed text-primary-container">
+                        Acesso total
+                    </span>
+                )}
+            </div>
+            <div role="group" aria-label={`Escopos de ${admin.name}`} className="flex gap-1.5 flex-wrap mt-1">
+                {escopos.map((e) => {
+                    const marcado = selecionados.includes(e.id);
+                    return (
+                        <button
+                            key={e.id}
+                            type="button"
+                            aria-pressed={marcado}
+                            onClick={() => onAlternar(e.id)}
+                            className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${
+                                marcado
+                                    ? 'bg-primary-container text-on-primary border-primary-container'
+                                    : 'bg-surface-container-lowest text-on-surface-variant border-outline-variant hover:border-primary-container'
+                            }`}
+                        >
+                            {e.nome}
+                        </button>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
+function LinhaAdmin({ admin, souEu, editando, form, setForm, err, salvando, escopos, escopoIds, onEscopos, onEditar, onCancelar, onSalvar, onStatus, onDemo }) {
     if (editando) {
         return (
             <div className="px-4 py-3 border-b border-outline-variant/30 last:border-0 space-y-3">
@@ -94,27 +136,44 @@ function LinhaAdmin({ admin, souEu, editando, form, setForm, err, salvando, esco
                 <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-semibold text-on-surface truncate">{admin.name}</span>
                     <StatusPill ativo={admin.is_active} />
+                    {admin.is_demo && (
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap bg-primary-fixed text-primary-container">
+                            Modo demo
+                        </span>
+                    )}
                     {souEu && <span className="text-xs text-on-surface-variant">(você)</span>}
                 </div>
                 <p className="text-sm text-on-surface-variant truncate">{admin.email}</p>
-                {/* Escopo desta pessoa NA EDIÇÃO EM CURSO: define quais abas do
-                    menu ela abre. Sem escopo, acesso total. */}
-                {escopos !== null && (
-                    <label className="mt-1 flex items-center gap-2 text-xs text-on-surface-variant">
-                        Escopo:
-                        <select
-                            value={escopoId ?? ''}
-                            onChange={(e) => onEscopo(e.target.value === '' ? null : Number(e.target.value))}
-                            aria-label={`Escopo de ${admin.name}`}
-                            className="rounded-lg border border-outline-variant bg-surface-container-lowest px-2 py-1 text-xs text-on-surface focus:border-primary-container focus:outline-none"
-                        >
-                            <option value="">Acesso total</option>
-                            {escopos.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
-                        </select>
-                    </label>
+                {escopos !== null && escopos.length > 0 && (
+                    <EscoposDoAdmin
+                        admin={admin}
+                        escopos={escopos}
+                        selecionados={escopoIds}
+                        onAlternar={(id) => onEscopos(
+                            escopoIds.includes(id) ? escopoIds.filter((x) => x !== id) : [...escopoIds, id],
+                        )}
+                    />
                 )}
             </div>
             <div className="flex gap-1 shrink-0">
+                {/* Modo demo: libera para esta pessoa as funcionalidades que
+                    dependem de data (credenciar antes do evento, por exemplo)
+                    para ela treinar antes do prazo. */}
+                <button
+                    type="button"
+                    onClick={onDemo}
+                    aria-pressed={!!admin.is_demo}
+                    title={admin.is_demo
+                        ? `Desativar o modo demo de ${admin.name}`
+                        : `Liberar o modo demo para ${admin.name}`}
+                    className={`p-1.5 rounded-lg transition-colors ${
+                        admin.is_demo
+                            ? 'text-primary-container bg-primary-fixed hover:bg-primary-fixed/70'
+                            : 'text-on-surface-variant hover:bg-surface-variant'
+                    }`}
+                >
+                    <span className="material-symbols-outlined text-[20px]">science</span>
+                </button>
                 <button type="button" onClick={onEditar} title="Editar"
                     className="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-variant transition-colors">
                     <span className="material-symbols-outlined text-[20px]">edit</span>
@@ -163,12 +222,23 @@ function AdminList() {
     useEffect(() => { carregar(); }, []);
 
 
-    async function trocarEscopo(adminId, escopoId) {
+    async function trocarEscopos(adminId, escopoIds) {
         setAlert('');
         try {
-            setEscopoPorAdmin(await definirEscopoAdmin(adminId, escopoId));
+            setEscopoPorAdmin(await definirEscoposAdmin(adminId, escopoIds));
         } catch (e) {
-            setAlert(extractErrors(e).message || 'Não foi possível trocar o escopo.');
+            setAlert(extractErrors(e).message || 'Não foi possível trocar os escopos.');
+        }
+    }
+
+    async function alternarDemo(a) {
+        setAlert('');
+        try {
+            const { data } = await definirDemoAdmin(a.id, !a.is_demo);
+            // Troca só a linha alterada: recarregar tudo perderia a edição aberta.
+            setAdmins((lista) => lista.map((x) => (x.id === a.id ? { ...x, is_demo: data.is_demo } : x)));
+        } catch (e) {
+            setAlert(extractErrors(e).message || 'Não foi possível mudar o modo demo.');
         }
     }
 
@@ -233,12 +303,13 @@ function AdminList() {
                         err={err}
                         salvando={salvando}
                         escopos={escopos}
-                        escopoId={escopoPorAdmin[a.id]?.escopo_id ?? null}
-                        onEscopo={(id) => trocarEscopo(a.id, id)}
+                        escopoIds={escopoPorAdmin[a.id]?.escopo_ids ?? []}
+                        onEscopos={(ids) => trocarEscopos(a.id, ids)}
                         onEditar={() => abrirEdicao(a)}
                         onCancelar={() => { setEditId(null); setErrors({}); }}
                         onSalvar={() => salvar(a.id)}
                         onStatus={() => alternarStatus(a)}
+                        onDemo={() => alternarDemo(a)}
                     />
                 ))
             )}

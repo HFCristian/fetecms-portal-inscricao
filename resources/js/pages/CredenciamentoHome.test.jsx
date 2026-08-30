@@ -16,6 +16,9 @@ const resposta = (config) => ({
 const getFinalistas = vi.fn();
 vi.mock('../lib/credenciamento.js', () => ({ getFinalistas: (...a) => getFinalistas(...a) }));
 
+const user = { id: 1, role: 'admin', conta_temporaria: false };
+vi.mock('../lib/auth.jsx', () => ({ useAuth: () => ({ user }) }));
+
 import CredenciamentoHome from './CredenciamentoHome.jsx';
 
 const CONFIG = {
@@ -66,5 +69,29 @@ describe('CredenciamentoHome', () => {
         const toggle = await screen.findByRole('switch');
         fireEvent.click(toggle);
         await waitFor(() => expect(setTeste).toHaveBeenCalledWith(true));
+    });
+});
+
+describe('CredenciamentoHome — contas temporárias', () => {
+    beforeEach(() => {
+        getFinalistas.mockReset().mockResolvedValue(resposta({ lista: true, aberto: true }));
+    });
+
+    it('a organização vê o atalho para as contas temporárias', async () => {
+        user.conta_temporaria = false;
+        render(<CredenciamentoHome />);
+
+        expect((await screen.findByText('Contas temporárias')).closest('a'))
+            .toHaveAttribute('href', '/admin/credenciamento/contas');
+    });
+
+    // Elas atendem o balcão; quem gere as contas é a organização (o backend
+    // recusa de qualquer forma, então o card só some para não iludir).
+    it('uma conta temporária não vê o atalho', async () => {
+        user.conta_temporaria = true;
+        render(<CredenciamentoHome />);
+
+        await screen.findByText('Credenciar');
+        expect(screen.queryByText('Contas temporárias')).not.toBeInTheDocument();
     });
 });

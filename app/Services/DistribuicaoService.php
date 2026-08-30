@@ -5,14 +5,18 @@ namespace App\Services;
 use App\Enums\ProjetoStatus;
 use App\Enums\Role;
 use App\Enums\StatusAvaliacao;
+use App\Enums\StatusDistribuicao;
+use App\Jobs\ProcessarDistribuicao;
 use App\Models\Area;
 use App\Models\Avaliacao;
+use App\Models\Distribuicao;
 use App\Models\Edicao;
 use App\Models\Projeto;
 use App\Models\User;
 use App\Support\LimitesAvaliacao;
 use App\Support\RegrasDistribuicao;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Distribuição automática de projetos para avaliação (E7).
@@ -33,9 +37,63 @@ class DistribuicaoService
     public function __construct(private readonly FilaAvaliadorService $fila) {}
 
     /**
+     * Enfileira uma rodada e devolve o registro que a tela vai consultar.
+     *
+     * Uma rodada em andamento **bloqueia outra**: duas distribuições
+     * simultâneas competiriam pelas mesmas vagas e o relatório de nenhuma delas
+     * faria sentido.
+     */
+    public function enfileirar(string $tipo, ?User $autor = null): Distribuicao
+    {
+        $edicao = Edicao::atual();
+
+        if ($edicao === null) {
+            throw ValidationException::withMessages([
+                'distribuicao' => 'Nenhuma edição em curso para distribuir.',
+            ]);
+        }
+
+        $emAndamento = Distribuicao::where('edicao_id', $edicao->id)
+            ->whereIn('status', [StatusDistribuicao::Pendente->value, StatusDistribuicao::Processando->value])
+            ->first();
+
+        if ($emAndamento !== null) {
+            throw ValidationException::withMessages([
+                'distribuicao' => 'Já existe uma distribuição em andamento. Aguarde o fim dela.',
+            ]);
+        }
+
+        $rodada = Distribuicao::create([
+            'edicao_id' => $edicao->id,
+            'tipo' => $tipo === Distribuicao::TIPO_REDISTRIBUIR
+                ? Distribuicao::TIPO_REDISTRIBUIR
+                : Distribuicao::TIPO_DISTRIBUIR,
+            'status' => StatusDistribuicao::Pendente,
+            'iniciada_por' => $autor?->id,
+        ]);
+
+        ProcessarDistribuicao::dispatch($rodada->id);
+
+        return $rodada;
+    }
+
+    /** A rodada mais recente da edição — é o que a tela mostra ao abrir. */
+    public function ultimaRodada(): ?Distribuicao
+    {
+        $edicao = Edicao::atual();
+
+        return $edicao === null
+            ? null
+            : Distribuicao::where('edicao_id', $edicao->id)->latest('id')->first();
+    }
+
+    /**
+     * @param  ?callable(int, int): void  $progresso  recebe (processados, total) a
+     *                                                cada projeto resolvido — é o
+     *                                                que alimenta a barra da tela.
      * @return array{designadas_criadas:int, ignorados_pela_regra:int, sub_cobertos: array<int, array{projeto_id:int, titulo:string, area:?string, faltam:int}>}
      */
-    public function distribuir(): array
+    public function distribuir(?callable $progresso = null): array
     {
         // Limites parametrizados pelo admin (Parametrização → Avaliação Online).
         // O alvo e o teto de cada projeto saem da categoria dele.
@@ -99,6 +157,12 @@ class DistribuicaoService
 
         $novas = [];
         $subCobertos = [];
+        $total = count($projetos);
+        $feitos = 0;
+        // Relator que já engole o caso "sem callback", para o laço abaixo não
+        // ficar salpicado de ifs.
+        $relatar = fn (int $feitos) => $progresso === null ? null : $progresso($feitos, $total);
+        $relatar(0);
 
         foreach ($projetos as &$proj) {
             $alvo = $limites->minPorProjeto($proj['categoria']);
@@ -141,6 +205,8 @@ class DistribuicaoService
                     'faltam' => $alvo - $proj['coverage'],
                 ];
             }
+
+            $relatar(++$feitos);
         }
         unset($proj);
 
@@ -165,11 +231,15 @@ class DistribuicaoService
      * Depois do rodízio, uma passada da distribuição normal completa os
      * projetos que ficaram abaixo do alvo e devolve o relatório de sub-cobertura.
      *
+     * @param  ?callable(int, int, string): void  $progresso  recebe (processados,
+     *                                                        total, etapa). São duas etapas:
+     *                                                        o rodízio, avaliador a avaliador,
+     *                                                        e a passada de cobertura.
      * @return array{devolvidas:int, recebidas:int, designadas_criadas:int, ignorados_pela_regra:int, sub_cobertos: array<int, array{projeto_id:int, titulo:string, area:?string, faltam:int}>}
      */
-    public function redistribuir(): array
+    public function redistribuir(?callable $progresso = null): array
     {
-        return DB::transaction(function () {
+        return DB::transaction(function () use ($progresso) {
             $devolvidas = 0;
             $recebidas = 0;
 
@@ -180,14 +250,29 @@ class DistribuicaoService
                 ->with('avaliadorProfile.areasExtras')
                 ->get();
 
+            // A barra cobre as duas etapas de uma vez: o rodízio (um passo por
+            // avaliador) e a passada de cobertura (um passo por projeto). O
+            // total da segunda só é conhecido quando ela começa, então o
+            // denominador é atualizado no caminho.
+            $totalAvaliadores = $avaliadores->count();
+            $feitos = 0;
+            $etapaRodizio = 'Trocando as designações não abertas';
+            $relatar = fn (int $feitos) => $progresso === null
+                ? null
+                : $progresso($feitos, $totalAvaliadores, $etapaRodizio);
+            $relatar(0);
+
             foreach ($avaliadores as $avaliador) {
                 $rodizio = $this->fila->roletar($avaliador);
                 $devolvidas += $rodizio['trocados'];
                 // Quem estava com a fila curta (ou vazia) completa aqui.
                 $recebidas += $rodizio['recebidos'] + $this->fila->repor($avaliador);
+                $relatar(++$feitos);
             }
 
-            $cobertura = $this->distribuir();
+            $cobertura = $this->distribuir($progresso === null ? null : function (int $feitos, int $total) use ($progresso) {
+                $progresso($feitos, $total, 'Completando a cobertura dos projetos');
+            });
 
             return [
                 'devolvidas' => $devolvidas,
@@ -289,7 +374,9 @@ class DistribuicaoService
 
     private function carregarProjetos(array $projetoInfo): array
     {
-        return Projeto::query()
+        // `semDemo`: o projeto-exemplo de um orientador demo não é sorteado
+        // para avaliador de verdade — quem o avalia é designado à mão.
+        return Projeto::semDemo()
             ->where('status', ProjetoStatus::Submetido->value)
             ->select(['id', 'titulo', 'area_id', 'subarea_id', 'categoria'])
             ->withCount(['avaliacoes as concluidas_count' => fn ($q) => $q->where('status', StatusAvaliacao::Concluida->value)])

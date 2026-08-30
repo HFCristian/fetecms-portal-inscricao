@@ -4,22 +4,20 @@ import AppShell from '../components/AppShell.jsx';
 import { Alert, Button, Field, Input, Select, useConfirm } from '../components/ui.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import {
-    getParametrizacaoCredenciamento, definirJanelaEvento, definirItensCredenciamento,
+    getParametrizacaoCredenciamento, definirItensCredenciamento,
     criarDocumentoCredenciamento, atualizarDocumentoCredenciamento, excluirDocumentoCredenciamento,
 } from '../lib/credenciamento.js';
 
 /**
  * Parametrização → Credenciamento: quando o balcão abre e o que ele confere.
  *
- * A **janela do evento** vive na edição (cada ano tem as suas datas) e fica
- * fechada enquanto não for definida — credenciar é ato presencial. Os
- * **documentos** são catálogo do portal, um conjunto por papel. Os **itens a
- * entregar** são o lembrete que a tela do balcão mostra ao concluir cada
- * credenciamento.
+ * A **janela do evento** mudou-se para Parametrização → Datas e períodos, com
+ * as demais datas da edição. Aqui ficam os **documentos** — catálogo do portal,
+ * um conjunto por papel — e os **itens a entregar**, o lembrete que a tela do
+ * balcão mostra ao concluir cada credenciamento.
  */
 export default function ParametrizacaoCredenciamento() {
     const [dados, setDados] = useState(null);
-    const [janela, setJanela] = useState({ de: '', ate: '' });
     const [novo, setNovo] = useState({ tipo_pessoa: 'aluno', nome: '' });
     const [itens, setItens] = useState([]);
     const [novoItem, setNovoItem] = useState('');
@@ -33,7 +31,6 @@ export default function ParametrizacaoCredenciamento() {
         getParametrizacaoCredenciamento()
             .then((d) => {
                 setDados(d);
-                setJanela({ de: d.config.inicio_input ?? '', ate: d.config.fim_input ?? '' });
                 setItens(d.config.itens ?? []);
             })
             .catch(() => setDados(null));
@@ -51,18 +48,6 @@ export default function ParametrizacaoCredenciamento() {
         setErrors(fields);
         setAlerta(message || 'Não foi possível concluir.');
         setSucesso('');
-    }
-
-    async function salvarJanela(ev) {
-        ev.preventDefault();
-        setSalvando(true);
-        try {
-            aplicar(await definirJanelaEvento(janela.de, janela.ate), 'Janela do evento salva.');
-        } catch (e) {
-            falhar(e);
-        } finally {
-            setSalvando(false);
-        }
     }
 
     async function salvarItens(lista) {
@@ -135,42 +120,15 @@ export default function ParametrizacaoCredenciamento() {
             </Link>
             <h1 className="font-display text-2xl font-semibold text-primary mb-1">Credenciamento</h1>
             <p className="text-sm text-on-surface-variant mb-6 max-w-3xl">
-                Quando o balcão do evento abre e quais documentos ele confere de cada papel. Sem a
-                data de início o credenciamento fica <strong>fechado</strong> — ele é um ato
+                O que o balcão do evento entrega e quais documentos ele confere de cada papel. O{' '}
+                <strong>período do evento</strong> mudou-se para{' '}
+                <Link to="/admin/parametrizacao/datas" className="underline">Datas e períodos</Link> — e,
+                sem a data de início, o credenciamento continua <strong>fechado</strong>: ele é um ato
                 presencial, ninguém credencia por padrão.
             </p>
 
             {alerta && <div className="mb-4"><Alert>{alerta}</Alert></div>}
             {sucesso && <div className="mb-4"><Alert type="info">{sucesso}</Alert></div>}
-
-            {/* Janela do evento */}
-            <form onSubmit={salvarJanela} className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-6 mb-6 max-w-3xl">
-                <h2 className="font-display text-primary font-semibold mb-4">Período do evento</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <Field label="Início" error={errors.evento_de}>
-                        <Input
-                            type="datetime-local"
-                            value={janela.de}
-                            onChange={(e) => setJanela((j) => ({ ...j, de: e.target.value }))}
-                            error={errors.evento_de}
-                        />
-                    </Field>
-                    <Field label="Fim" error={errors.evento_ate}>
-                        <Input
-                            type="datetime-local"
-                            value={janela.ate}
-                            onChange={(e) => setJanela((j) => ({ ...j, ate: e.target.value }))}
-                            error={errors.evento_ate}
-                        />
-                    </Field>
-                </div>
-                <div className="flex justify-end mt-4">
-                    <Button type="submit" loading={salvando}>
-                        <span className="material-symbols-outlined text-[20px]">save</span>
-                        Salvar período
-                    </Button>
-                </div>
-            </form>
 
             {/* Itens entregues no balcão */}
             <form onSubmit={adicionarItem} className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-6 mb-6 max-w-3xl">

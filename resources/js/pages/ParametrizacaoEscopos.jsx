@@ -8,9 +8,10 @@ import { getEscopos, criarEscopo, atualizarEscopo, excluirEscopo } from '../lib/
 /**
  * Parametrização → Escopos de admin.
  *
- * Um escopo é um nome e as abas do menu que ele abre. Quem recebe o escopo é
- * cada administrador, **por edição**, na aba Administradores — aqui só se
- * desenham os perfis.
+ * Um escopo é um nome e as abas do menu que ele abre — o *role* do RBAC, e as
+ * abas são as *rules*. Quem recebe os escopos é cada administrador, **por
+ * edição**, na aba Administradores; ele pode acumular quantos precisar, e abre
+ * a união das abas de todos. Aqui só se desenham os perfis.
  */
 export default function ParametrizacaoEscopos() {
     const [dados, setDados] = useState(null);
@@ -97,8 +98,9 @@ export default function ParametrizacaoEscopos() {
             <p className="text-sm text-on-surface-variant mb-6 max-w-3xl">
                 Um escopo diz <strong>quais abas do menu</strong> um administrador abre. A atribuição é
                 feita em <Link to="/admin/gerir-admins" className="underline">Administradores</Link> e vale
-                <strong> por edição</strong>. Quem não recebeu escopo na edição em curso continua com
-                acesso total.
+                <strong> por edição</strong>. Cada pessoa pode receber <strong>vários escopos</strong> —
+                ela abre a união das abas de todos —, e quem não recebeu nenhum na edição em curso
+                continua com acesso total.
             </p>
 
             {alerta && <div className="mb-4"><Alert>{alerta}</Alert></div>}

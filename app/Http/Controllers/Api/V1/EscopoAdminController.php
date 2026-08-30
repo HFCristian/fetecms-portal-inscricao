@@ -12,8 +12,10 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
 /**
- * Escopos de admin: o CRUD dos perfis (Parametrização) e a atribuição de um
- * perfil a cada administrador na edição em curso (aba Administradores).
+ * Escopos de admin: o CRUD dos perfis (Parametrização) e a atribuição dos
+ * perfis de cada administrador na edição em curso (aba Administradores).
+ *
+ * Um admin pode acumular vários escopos — o acesso dele é a união das abas.
  */
 class EscopoAdminController extends Controller
 {
@@ -49,14 +51,18 @@ class EscopoAdminController extends Controller
         return response()->json(['data' => $this->escopos->listar()]);
     }
 
-    /** Define o escopo de um admin na edição em curso (null = acesso total). */
+    /**
+     * Define o conjunto de escopos de um admin na edição em curso. Lista vazia
+     * (ou ausente) devolve o acesso total.
+     */
     public function atribuir(Request $request, User $admin): JsonResponse
     {
         $dados = $request->validate([
-            'escopo_id' => ['nullable', 'integer', 'exists:escopos_admin,id'],
+            'escopo_ids' => ['present', 'array'],
+            'escopo_ids.*' => ['integer', 'exists:escopos_admin,id'],
         ]);
 
-        $this->escopos->atribuir($admin, $dados['escopo_id'] ?? null);
+        $this->escopos->atribuir($admin, $dados['escopo_ids']);
 
         return response()->json(['data' => $this->escopos->escoposDosAdmins()]);
     }

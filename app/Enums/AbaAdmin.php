@@ -6,9 +6,11 @@ namespace App\Enums;
  * As abas do menu do admin — a unidade de permissão dos **escopos**
  * (Parametrização → Escopos de admin).
  *
- * Cada escopo é um conjunto destas abas; cada admin recebe um escopo **por
- * edição**, então a mesma pessoa pode cuidar da comunicação em 2026 e do
- * credenciamento em 2027. Sem escopo atribuído na edição em curso, o admin tem
+ * No RBAC do portal, uma aba é a **rule**; o escopo é o **role** (um nome + o
+ * conjunto de abas que ele abre). Cada admin recebe **um ou mais** escopos
+ * **por edição** e abre a **união** das abas deles, então a mesma pessoa pode
+ * cuidar da comunicação em 2026 e do credenciamento em 2027 — ou das duas
+ * coisas ao mesmo tempo. Sem escopo algum na edição em curso, o admin tem
  * **acesso total** — é o comportamento histórico, e evita que criar uma edição
  * nova tranque todo mundo para fora.
  *
@@ -17,6 +19,7 @@ namespace App\Enums;
 enum AbaAdmin: string
 {
     case Projetos = 'projetos';
+    case Dashboards = 'dashboards';
     case Avaliacao = 'avaliacao';
     case Credenciamento = 'credenciamento';
     case Comite = 'comite';
@@ -30,6 +33,7 @@ enum AbaAdmin: string
     {
         return match ($this) {
             self::Projetos => 'Projetos',
+            self::Dashboards => 'Dashboards',
             self::Avaliacao => 'Avaliação online',
             self::Credenciamento => 'Credenciamento',
             self::Comite => 'Comitê especial',
@@ -44,7 +48,8 @@ enum AbaAdmin: string
     public function descricao(): string
     {
         return match ($this) {
-            self::Projetos => 'Painel, projetos por área, localidade e os rascunhos.',
+            self::Projetos => 'Projetos por área, por localidade e os rascunhos.',
+            self::Dashboards => 'Os números da feira: projetos, pessoas, camisetas e localidades.',
             self::Avaliacao => 'Distribuição, avaliadores, ranking e lista final.',
             self::Credenciamento => 'Credenciar os finalistas no dia do evento e conferir os documentos.',
             self::Comite => 'Transporte do comitê e o mapa de quem está a caminho.',

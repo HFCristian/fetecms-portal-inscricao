@@ -15,6 +15,7 @@ use App\Services\AdminProjetosService;
 use App\Services\AdminService;
 use App\Services\EscopoAdminService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class AdminController extends Controller
 {
@@ -84,6 +85,21 @@ class AdminController extends Controller
 
         return UserResource::make($atualizado)
             ->additional(['meta' => ['message' => 'Administrador atualizado.']])
+            ->response();
+    }
+
+    /** Liga/desliga o modo demo de um administrador (funcionalidades fora de data). */
+    public function demoAdmin(Request $request, User $admin): JsonResponse
+    {
+        abort_unless($admin->isAdmin(), 404, 'Administrador não encontrado.');
+
+        $demo = $request->validate(['is_demo' => ['required', 'boolean']])['is_demo'];
+        $atualizado = $this->admins->definirDemo($admin, $demo);
+
+        return UserResource::make($atualizado)
+            ->additional(['meta' => [
+                'message' => $demo ? 'Modo demo liberado.' : 'Modo demo desativado.',
+            ]])
             ->response();
     }
 

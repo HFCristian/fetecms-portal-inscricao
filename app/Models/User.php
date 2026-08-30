@@ -9,6 +9,7 @@ use App\Notifications\RedefinirSenhaNotification;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -48,7 +49,10 @@ class User extends Authenticatable
         return $this->belongsTo(Edicao::class);
     }
 
-    /** Escopos de admin deste usuário, um por edição. */
+    /**
+     * Escopos de admin deste usuário — os *roles* do RBAC. Um admin pode ter
+     * **vários** na mesma edição, e o acesso dele é a união das abas de todos.
+     */
     public function escopos(): BelongsToMany
     {
         return $this->belongsToMany(EscopoAdmin::class, 'admin_escopos', 'user_id', 'escopo_admin_id')
@@ -57,40 +61,69 @@ class User extends Authenticatable
     }
 
     /**
-     * O escopo deste admin na edição em curso. `null` significa **acesso
-     * total**: sem atribuição, o admin continua vendo tudo (comportamento
-     * anterior aos escopos, e a rede que impede uma edição nova de trancar a
-     * equipe para fora).
+     * Os escopos deste admin na edição em curso. Coleção **vazia** significa
+     * **acesso total**: sem atribuição, o admin continua vendo tudo
+     * (comportamento anterior aos escopos, e a rede que impede uma edição nova
+     * de trancar a equipe para fora).
+     *
+     * @return Collection<int, EscopoAdmin>
      */
-    public function escopoAdmin(): ?EscopoAdmin
+    public function escoposAdmin(): Collection
     {
         if (! $this->isAdmin()) {
-            return null;
+            return new Collection;
         }
 
         $edicao = Edicao::escopoDe($this);
 
         if ($edicao === null) {
-            return null;
+            return new Collection;
         }
 
-        return $this->escopos()->wherePivot('edicao_id', $edicao->id)->first();
+        return $this->escopos()->wherePivot('edicao_id', $edicao->id)->get();
     }
 
-    /** Este admin abre esta aba do menu? Quem não é admin nunca abre. */
+    /** A conta de acesso temporário ao balcão, quando esta é uma. */
+    public function contaTemporaria(): HasOne
+    {
+        return $this->hasOne(ContaTemporaria::class);
+    }
+
+    /**
+     * Esta é uma conta temporária de credenciamento?
+     *
+     * Vale como trava de acesso: ela abre **só** a aba Credenciamento, por cima
+     * de qualquer escopo — inclusive do "acesso total" de quem não tem nenhum.
+     */
+    public function ehContaTemporaria(): bool
+    {
+        return $this->isAdmin() && $this->contaTemporaria()->exists();
+    }
+
+    /**
+     * Este admin abre esta aba do menu? Quem não é admin nunca abre.
+     *
+     * Basta **um** dos escopos dele liberar a aba — os roles somam, não se
+     * restringem entre si.
+     */
     public function podeAbrirAba(AbaAdmin $aba): bool
     {
         if (! $this->isAdmin()) {
             return false;
         }
 
-        $escopo = $this->escopoAdmin();
+        if ($this->ehContaTemporaria()) {
+            return $aba === AbaAdmin::Credenciamento;
+        }
 
-        return $escopo === null || $escopo->permite($aba);
+        $escopos = $this->escoposAdmin();
+
+        return $escopos->isEmpty() || $escopos->contains(fn (EscopoAdmin $e) => $e->permite($aba));
     }
 
     /**
-     * As abas que este admin enxerga agora — é o que monta o menu.
+     * As abas que este admin enxerga agora — é o que monta o menu. É a **união**
+     * das abas de todos os escopos dele, na ordem canônica do enum.
      *
      * @return list<string>
      */
@@ -100,11 +133,21 @@ class User extends Authenticatable
             return [];
         }
 
-        $escopo = $this->escopoAdmin();
+        // Conta temporária é balcão e nada mais: não depende de alguém lembrar
+        // de atribuir o escopo certo.
+        if ($this->ehContaTemporaria()) {
+            return [AbaAdmin::Credenciamento->value];
+        }
 
-        return $escopo === null
-            ? AbaAdmin::valores()
-            : array_values(array_intersect(AbaAdmin::valores(), $escopo->abas ?? []));
+        $escopos = $this->escoposAdmin();
+
+        if ($escopos->isEmpty()) {
+            return AbaAdmin::valores();
+        }
+
+        $liberadas = $escopos->flatMap(fn (EscopoAdmin $e) => $e->abas ?? [])->unique()->all();
+
+        return array_values(array_intersect(AbaAdmin::valores(), $liberadas));
     }
 
     public function orientadorProfile(): HasOne

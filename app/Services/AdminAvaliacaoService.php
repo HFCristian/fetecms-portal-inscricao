@@ -827,7 +827,10 @@ class AdminAvaliacaoService
      */
     public function rankingProjetos(array $filtros = []): array
     {
-        $projetos = Projeto::query()
+        // O ranking decide quem vai para a lista final, então o projeto-exemplo
+        // de um orientador demo fica de fora. As listagens operacionais desta
+        // mesma aba continuam mostrando tudo — lá o admin quer ver o que existe.
+        $projetos = Projeto::semDemo()
             ->whereHas('avaliacoes', fn ($q) => $q->where('status', StatusAvaliacao::Concluida->value))
             ->when($filtros['area_id'] ?? null, fn ($q, $areaId) => $q->where('area_id', $areaId))
             // Categorias não competem entre si: FETEC Jr, FETECMS e FETECMS FUNDECT
@@ -1121,6 +1124,10 @@ class AdminAvaliacaoService
             'categorias' => Categoria::opcoes(),
             'max_concluidas' => RegrasDistribuicao::MAX_CONCLUIDAS,
             'ao_cadastrar' => Edicao::distribuiAoCadastrar(),
+            // A rede de segurança das regras acima: abaixo deste número de
+            // projetos na fila, a distribuição completa ignorando-as.
+            'piso_fila' => Edicao::pisoFilaAvaliador(),
+            'piso_maximo' => LimitesAvaliacao::MAXIMO,
         ];
     }
 
@@ -1143,6 +1150,24 @@ class AdminAvaliacaoService
             $anterior->resumo(),
             $novas->resumo(),
         );
+
+        return $this->configDistribuicao();
+    }
+
+    /**
+     * Grava o **piso da fila do avaliador** — a exceção às regras por categoria.
+     * `null` (ou 0) desliga o piso: aí a regra manda sozinha, mesmo que deixe
+     * alguém sem trabalho.
+     */
+    public function definirPisoFila(?int $piso, User $admin): array
+    {
+        $anterior = Edicao::pisoFilaAvaliador();
+        $novo = $piso !== null && $piso > 0 ? $piso : null;
+
+        Edicao::atual()?->update(['piso_fila_avaliador' => $novo]);
+
+        $rotulo = fn (?int $v) => $v === null ? 'sem piso' : $v.' projeto(s)';
+        $this->registrarParametro(TipoRegistro::AvaliacaoPisoFila, $admin, $rotulo($anterior), $rotulo($novo));
 
         return $this->configDistribuicao();
     }

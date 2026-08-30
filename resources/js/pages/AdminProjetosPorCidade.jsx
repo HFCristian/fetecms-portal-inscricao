@@ -13,7 +13,7 @@ export default function AdminProjetosPorCidade() {
 
     return (
         <AppShell>
-            <Link to="/admin" className="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary mb-3">
+            <Link to="/admin/projetos" className="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary mb-3">
                 <span className="material-symbols-outlined text-[18px]">arrow_back</span> Painel do Administrador
             </Link>
             <h1 className="font-display text-2xl font-semibold text-primary mb-1">Projetos por cidade</h1>

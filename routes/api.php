@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\AdminAvaliacaoController;
 use App\Http\Controllers\Api\V1\AdminAvisoController;
 use App\Http\Controllers\Api\V1\AdminController;
+use App\Http\Controllers\Api\V1\AdminFeedbackController;
 use App\Http\Controllers\Api\V1\AdminInscricoesController;
 use App\Http\Controllers\Api\V1\AdminMalaDiretaController;
 use App\Http\Controllers\Api\V1\AdminModeloEmailController;
@@ -20,11 +21,13 @@ use App\Http\Controllers\Api\V1\CatalogoController;
 use App\Http\Controllers\Api\V1\ChatAdminController;
 use App\Http\Controllers\Api\V1\ChatController;
 use App\Http\Controllers\Api\V1\ComiteTransporteController;
+use App\Http\Controllers\Api\V1\ContaTemporariaController;
 use App\Http\Controllers\Api\V1\CoorientadorController;
 use App\Http\Controllers\Api\V1\CredenciamentoController;
 use App\Http\Controllers\Api\V1\DocumentoController;
 use App\Http\Controllers\Api\V1\EdicaoController;
 use App\Http\Controllers\Api\V1\EscopoAdminController;
+use App\Http\Controllers\Api\V1\FeedbackController;
 use App\Http\Controllers\Api\V1\InscricoesController;
 use App\Http\Controllers\Api\V1\InstituicaoAdminController;
 use App\Http\Controllers\Api\V1\IntegranteController;
@@ -113,6 +116,16 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
 
         // Card de aviso publicado pelo admin: consultado de tempos em tempos
         // pelo front, marcado como visto quando aparece e fechado pela pessoa.
+        // Feedback: o balão que aparece ao entrar e o questionário em si.
+        // Vale para todo usuário autenticado — o público de cada pedido é quem
+        // decide quem vê.
+        Route::get('/feedbacks/pendente', [FeedbackController::class, 'pendente']);
+        Route::get('/feedbacks', [FeedbackController::class, 'index']);
+        Route::post('/feedbacks/{feedback}/visto', [FeedbackController::class, 'visto']);
+        Route::post('/feedbacks/{feedback}/dispensar', [FeedbackController::class, 'dispensar']);
+        Route::post('/feedbacks/{feedback}/responder', [FeedbackController::class, 'responder'])
+            ->middleware('throttle:20,1');
+
         Route::get('/avisos/ativo', [AvisoController::class, 'ativo']);
         Route::post('/avisos/{aviso}/visto', [AvisoController::class, 'visto']);
         Route::post('/avisos/{aviso}/fechar', [AvisoController::class, 'fechar']);
@@ -196,8 +209,13 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
         // em duas abas, o middleware aceita qualquer uma das duas.
         Route::prefix('admin')->middleware('role:admin')->group(function () {
             // --- Aba "Projetos": painel, recortes e os rascunhos ---
-            Route::middleware('aba:projetos')->group(function () {
+            // O painel de números alimenta as duas abas: "Dashboards" o mostra
+            // inteiro e "Projetos" fica com o recorte de projetos e localidades.
+            Route::middleware('aba:projetos,dashboards')->group(function () {
                 Route::get('/dashboard', [AdminController::class, 'dashboard']);
+            });
+
+            Route::middleware('aba:projetos')->group(function () {
                 Route::get('/projetos-por-area', [AdminController::class, 'projetosPorArea']);
                 Route::get('/projetos-por-localidade', [AdminController::class, 'projetosPorLocalidade']);
                 // Projetos em rascunho: o admin termina e submete a inscrição que
@@ -234,9 +252,13 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::patch('/avaliacao/projetos/{projeto}', [AdminAvaliacaoController::class, 'corrigirProjeto']);
                 Route::get('/avaliacao/distribuicao', [AdminAvaliacaoController::class, 'distribuicaoConfig']);
                 Route::patch('/avaliacao/distribuicao', [AdminAvaliacaoController::class, 'definirRegrasDistribuicao']);
+                Route::patch('/avaliacao/distribuicao/piso', [AdminAvaliacaoController::class, 'definirPisoFila']);
                 Route::patch('/avaliacao/distribuicao/ao-cadastrar', [AdminAvaliacaoController::class, 'definirDistribuicaoAoCadastrar']);
                 Route::post('/avaliacao/distribuir', [AdminAvaliacaoController::class, 'distribuir']);
                 Route::post('/avaliacao/redistribuir', [AdminAvaliacaoController::class, 'redistribuir']);
+                // As duas ações acima vão para a fila; a tela acompanha por aqui.
+                Route::get('/avaliacao/distribuicoes/ultima', [AdminAvaliacaoController::class, 'ultimaDistribuicao']);
+                Route::get('/avaliacao/distribuicoes/{distribuicao}', [AdminAvaliacaoController::class, 'progressoDistribuicao']);
                 Route::patch('/avaliacao/avaliadores/{avaliador}/limite', [AdminAvaliacaoController::class, 'limitar']);
                 Route::patch('/avaliacao/avaliadores/{avaliador}/demo', [AdminAvaliacaoController::class, 'demo']);
                 Route::patch('/avaliacao/avaliadores/{avaliador}/comissao', [AdminAvaliacaoController::class, 'comissao']);
@@ -247,6 +269,12 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
 
             // --- Aba "Credenciamento": o balcão do evento ---
             Route::middleware('aba:credenciamento')->prefix('credenciamento')->group(function () {
+                // Contas temporárias: quem atende o balcão sem ser da organização.
+                Route::get('/contas', [ContaTemporariaController::class, 'index']);
+                Route::post('/contas', [ContaTemporariaController::class, 'store']);
+                Route::patch('/contas/{conta}/renovar', [ContaTemporariaController::class, 'renovar']);
+                Route::patch('/contas/{conta}/desativar', [ContaTemporariaController::class, 'desativar']);
+
                 Route::get('/config', [CredenciamentoController::class, 'config']);
                 Route::get('/finalistas', [CredenciamentoController::class, 'index']);
                 Route::get('/projetos/{projeto}', [CredenciamentoController::class, 'show']);
@@ -336,6 +364,16 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::get('/avisos/{aviso}/leitores', [AdminAvisoController::class, 'leitores']);
                 Route::get('/avisos/{aviso}/exportar', [AdminAvisoController::class, 'exportar']);
 
+                // Comunicação → Feedback: o questionário e os seus resultados.
+                Route::get('/feedbacks/opcoes', [AdminFeedbackController::class, 'opcoes']);
+                Route::get('/feedbacks', [AdminFeedbackController::class, 'index']);
+                Route::post('/feedbacks', [AdminFeedbackController::class, 'store']);
+                Route::get('/feedbacks/{feedback}', [AdminFeedbackController::class, 'show']);
+                Route::get('/feedbacks/{feedback}/destinatarios', [AdminFeedbackController::class, 'destinatarios']);
+                Route::get('/feedbacks/{feedback}/exportar', [AdminFeedbackController::class, 'exportar']);
+                Route::post('/feedbacks/{feedback}/reenviar-falhas', [AdminFeedbackController::class, 'reenviarFalhas']);
+                Route::post('/feedbacks/{feedback}/encerrar', [AdminFeedbackController::class, 'encerrar']);
+
                 // Comunicação → Modelos de e-mail: o texto dos e-mails automáticos.
                 Route::get('/modelos-email', [AdminModeloEmailController::class, 'index']);
                 Route::get('/modelos-email/{modelo}', [AdminModeloEmailController::class, 'show']);
@@ -376,7 +414,8 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::get('/admins', [AdminController::class, 'listarAdmins']);
                 Route::put('/admins/{admin}', [AdminController::class, 'updateAdmin']);
                 Route::patch('/admins/{admin}/status', [AdminController::class, 'statusAdmin']);
-                Route::put('/admins/{admin}/escopo', [EscopoAdminController::class, 'atribuir']);
+                Route::patch('/admins/{admin}/demo', [AdminController::class, 'demoAdmin']);
+                Route::put('/admins/{admin}/escopos', [EscopoAdminController::class, 'atribuir']);
             });
 
             // --- Aba "Suporte": inbox do chat ---
