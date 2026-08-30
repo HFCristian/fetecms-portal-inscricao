@@ -64,6 +64,12 @@ class Projeto extends Model
         return $this->belongsTo(User::class);
     }
 
+    /** O credenciamento deste projeto no evento (um por projeto). */
+    public function credenciamento(): HasOne
+    {
+        return $this->hasOne(Credenciamento::class);
+    }
+
     public function edicao(): BelongsTo
     {
         return $this->belongsTo(Edicao::class);

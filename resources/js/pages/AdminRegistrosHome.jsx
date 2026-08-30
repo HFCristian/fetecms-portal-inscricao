@@ -55,6 +55,12 @@ export default function AdminRegistrosHome() {
                     descricao="A lista oficial da feira: publicação e cada projeto incluído ou retirado, com a justificativa."
                 />
                 <CardSecao
+                    to="/admin/registros/credenciamento"
+                    icon="how_to_reg"
+                    titulo="Credenciamento"
+                    descricao="Quem credenciou cada finalista no evento, o horário e o que ficou ausente."
+                />
+                <CardSecao
                     to="/admin/registros/avaliacao"
                     icon="grading"
                     titulo="Avaliação Online"

@@ -43,6 +43,12 @@ export default function Parametrizacao() {
                     descricao="Perfis de acesso: quais abas do menu cada administrador abre, edição por edição."
                 />
                 <CardParametrizacao
+                    to="/admin/parametrizacao/credenciamento"
+                    icon="badge"
+                    titulo="Credenciamento"
+                    descricao="O período do evento e os documentos conferidos no balcão, por papel."
+                />
+                <CardParametrizacao
                     to="/admin/parametrizacao/areas"
                     icon="category"
                     titulo="Áreas e subáreas"

@@ -199,9 +199,28 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     alterado vira um registro em **Registros → Projetos** com o "de → para"
     (`AdminProjetoEdicaoService`). No topo da tela, um **card destacado** soma todas as áreas:
     quantos projetos estão com 0, 1, 2 e 3+ avaliações concluídas, sempre no recorte dos filtros.
-  - **Registros** tem cinco seções: **Inscrições**, **Avaliação Online**, **Lista final**
+  - **Credenciamento** (`/admin/credenciamento`): o balcão do evento, em duas seções —
+    **Credenciar** (os finalistas que ainda não passaram) e **Credenciados** (quem já passou), a
+    mesma lista pesquisável com filtro por área e categoria. **Finalista é quem está na lista final
+    vigente**; sem lista oficial não há quem credenciar. Ao abrir um projeto, o admin confere
+    **documento a documento, pessoa a pessoa** (alunos, orientador e coorientador), marcando
+    **presente / ausente / não necessário** — a lista de documentos de cada papel é parametrizável.
+    Cada credenciamento grava **quem atendeu e o horário** e entra em Registros → Credenciamento com
+    o que ficou ausente. O **horário de início** vem preenchido com o momento do atendimento e pode
+    ser corrigido: alterado, o **fim vira início + 5 minutos**
+    (`CredenciamentoService::MINUTOS_ATENDIMENTO`); intocado, o fim é o instante da conclusão. Ao
+    concluir, a tela **lembra os itens a entregar** ao finalista. Só credencia dentro da **janela do
+    evento**; fora dela a aba abre em leitura. O **admin demo** tem um *modo de teste* que ignora as
+    datas. `CredenciamentoService`.
+  - **Parametrização → Credenciamento** (`/admin/parametrizacao/credenciamento`): o **período do
+    evento** (`edicoes.evento_de`/`evento_ate`, **fechado enquanto não for definido** — credenciar é
+    ato presencial), os **itens entregues** aos finalistas (`edicoes.itens_credenciamento`) e a
+    **lista de documentos** exigida de cada papel (`documentos_credenciamento`, catálogo do portal).
+    Documento já conferido em algum credenciamento não é excluído — desative-o.
+  - **Registros** tem seis seções: **Inscrições**, **Avaliação Online**, **Lista final**
     (`/admin/registros/lista-final` — publicação da lista oficial e cada projeto incluído ou
-    retirado, com a justificativa), **Projetos**
+    retirado, com a justificativa), **Credenciamento** (`/admin/registros/credenciamento` — quem
+    credenciou cada finalista, quando e o que ficou ausente), **Projetos**
     (`/admin/registros/projetos`) — as correções do admin e os aceites do orientador, cada um com a
     justificativa — e **Rascunhos** (`/admin/registros/rascunhos`), com o que o admin mexeu numa
     inscrição alheia antes de submetê-la por ela.
@@ -395,7 +414,32 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 67 | Escopos de admin: perfis de abas por edição, aplicados no menu e no backend | ✅ sim | ❌ não (manual do Pedro) | 6 |
 | 68 | Lista final: cota do interior só na FUNDECT + caixa "Lista Final Oficial" (finalistas registrados) | ✅ sim | ❌ não (manual do Pedro) | 7 |
 | 69 | Lista final oficial: incluir/retirar projeto com justificativa, versão nova e auditoria | ✅ sim | ❌ não (manual do Pedro) | 7 |
+| 70 | Aba Credenciamento: credenciar/credenciados, conferência de documentos por pessoa e auditoria | ✅ sim | ❌ não (manual do Pedro) | 8 |
+| 71 | Credenciamento: horários do atendimento (+5 min no lançamento retroativo) e itens a entregar | ✅ sim | ❌ não (manual do Pedro) | 8 |
 
+> **Sprints 70–71 (mesma branch):** nasceu a aba **Credenciamento**, o balcão do evento.
+> (a) **Sprint 70** — duas seções sobre a mesma lista pesquisável: **Credenciar** (pendentes) e
+> **Credenciados** (quem já passou), com filtro por área e categoria. **Finalista é quem está na
+> lista final vigente** — sem lista oficial a tela avisa que não há ninguém para credenciar. A ficha
+> de um projeto monta **cada pessoa × os documentos do papel dela** (alunos, orientador,
+> coorientador) e marca **presente / ausente / não necessário** — "não necessário" é decisão
+> registrada, diferente de deixar em branco. A lista de documentos é **parametrizável** por papel
+> (`documentos_credenciamento`), e o que já foi conferido não pode ser excluído, só desativado. Cada
+> credenciamento grava quem atendeu e o horário (`credenciamentos` + `credenciamento_documentos`,
+> com nome e papel desnormalizados) e entra na seção nova **Registros → Credenciamento**, listando o
+> que ficou ausente. A janela do evento (`edicoes.evento_de`/`evento_ate`) fica **fechada enquanto
+> não for definida**, e fora dela a aba abre **em leitura**; o **admin demo** tem um *modo de teste*
+> (guardado no `sessionStorage`) que ignora as datas. A aba entrou no enum `AbaAdmin`, então ela
+> respeita os escopos da Sprint 67.
+> (b) **Sprint 71** — os **horários do atendimento**. O início vem preenchido com o "agora" e é
+> editável: **quando o admin o corrige** (lançamento retroativo), o fim passa a ser **início + 5
+> minutos** (`CredenciamentoService::MINUTOS_ATENDIMENTO`); quando não mexe, o fim é o instante da
+> conclusão. O front só manda `iniciado_em` quando o valor difere do sugerido — é essa diferença que
+> sinaliza a alteração. Junto veio a lista de **itens entregues** ao finalista
+> (`edicoes.itens_credenciamento`, editável na Parametrização): ao concluir, a ficha mostra o
+> lembrete com os itens antes de voltar para a lista.
+> Back **645/645**, front **291/291**, Pint limpo, build OK.
+>
 > **Sprints 68–69 (mesma branch):** a lista final virou um documento vivo.
 > (a) **Sprint 68** — a **cota do interior** passou a existir **só na FETECMS FUNDECT**
 > (`Categoria::permiteCotaInterior()`): o passo 3 do assistente só mostra as categorias que a

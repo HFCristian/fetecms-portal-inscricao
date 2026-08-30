@@ -27,6 +27,9 @@ namespace App\Enums;
  * Seção "Lista final" (a lista oficial da feira): a oficialização e cada
  * projeto acrescentado ou retirado depois, sempre com justificativa — é a
  * composição de quem sobe ao evento, então toda mexida fica registrada.
+ *
+ * Seção "Credenciamento" (o balcão do evento): quem credenciou cada projeto,
+ * quando, e o que ficou ausente na conferência dos documentos.
  */
 enum TipoRegistro: string
 {
@@ -54,6 +57,7 @@ enum TipoRegistro: string
     case ListaFinalOficializada = 'lista_final_oficializada';
     case ListaFinalProjetoAdicionado = 'lista_final_projeto_adicionado';
     case ListaFinalProjetoRemovido = 'lista_final_projeto_removido';
+    case CredenciamentoRealizado = 'credenciamento_realizado';
 
     /** Seções da tela de Registros. */
     public const SECAO_INSCRICOES = 'inscricoes';
@@ -65,6 +69,8 @@ enum TipoRegistro: string
     public const SECAO_RASCUNHOS = 'rascunhos';
 
     public const SECAO_LISTA_FINAL = 'lista_final';
+
+    public const SECAO_CREDENCIAMENTO = 'credenciamento';
 
     public function label(): string
     {
@@ -93,6 +99,7 @@ enum TipoRegistro: string
             self::ListaFinalOficializada => 'Lista final oficializada',
             self::ListaFinalProjetoAdicionado => 'Projeto incluído na lista',
             self::ListaFinalProjetoRemovido => 'Projeto retirado da lista',
+            self::CredenciamentoRealizado => 'Credenciamento realizado',
         };
     }
 
@@ -105,6 +112,7 @@ enum TipoRegistro: string
             self::RascunhoAlteracao, self::RascunhoSubmissao => self::SECAO_RASCUNHOS,
             self::ListaFinalOficializada, self::ListaFinalProjetoAdicionado,
             self::ListaFinalProjetoRemovido => self::SECAO_LISTA_FINAL,
+            self::CredenciamentoRealizado => self::SECAO_CREDENCIAMENTO,
             default => self::SECAO_AVALIACAO,
         };
     }
@@ -114,7 +122,7 @@ enum TipoRegistro: string
     {
         return [
             self::SECAO_INSCRICOES, self::SECAO_AVALIACAO, self::SECAO_PROJETOS,
-            self::SECAO_RASCUNHOS, self::SECAO_LISTA_FINAL,
+            self::SECAO_RASCUNHOS, self::SECAO_LISTA_FINAL, self::SECAO_CREDENCIAMENTO,
         ];
     }
 

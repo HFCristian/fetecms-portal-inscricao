@@ -2,7 +2,9 @@
 
 namespace App\Services;
 
+use App\Enums\SituacaoDocumento;
 use App\Enums\TipoRegistro;
+use App\Models\Credenciamento;
 use App\Models\Projeto;
 use App\Models\RegistroAtividade;
 use App\Models\User;
@@ -148,6 +150,27 @@ class RegistroAtividadeService
         }
 
         return $this->registrarNoProjeto($tipo, $projeto, $admin, $detalhes);
+    }
+
+    /**
+     * Credenciamento de um projeto no evento: quem atendeu, quando e o que
+     * ficou pendente. O horário fica no próprio registro (`created_at`) e no
+     * `credenciamentos.finalizado_em`.
+     */
+    public function credenciamento(Credenciamento $credenciamento, Projeto $projeto, User $admin): RegistroAtividade
+    {
+        $ausentes = $credenciamento->documentos
+            ->filter(fn ($d) => $d->situacao === SituacaoDocumento::Ausente)
+            ->map(fn ($d) => $d->pessoa_nome.': '.($d->documento?->nome ?? 'documento'))
+            ->values()
+            ->all();
+
+        return $this->registrarNoProjeto(TipoRegistro::CredenciamentoRealizado, $projeto, $admin, array_filter([
+            'campo' => 'Credenciamento',
+            'para' => $credenciamento->finalizado_em?->format('d/m/Y H:i'),
+            'pendencias' => $ausentes === [] ? null : $ausentes,
+            'justificativa' => $credenciamento->observacao,
+        ], fn ($v) => $v !== null));
     }
 
     /** O admin submetendo o rascunho de outra pessoa, com a justificativa do escape. */
@@ -325,12 +348,16 @@ class RegistroAtividadeService
         $comDeEPara = in_array($registro->tipo->secao(), [
             TipoRegistro::SECAO_AVALIACAO, TipoRegistro::SECAO_PROJETOS,
             TipoRegistro::SECAO_RASCUNHOS, TipoRegistro::SECAO_LISTA_FINAL,
+            TipoRegistro::SECAO_CREDENCIAMENTO,
         ], true);
         if ($comDeEPara && array_key_exists('para', $detalhes)) {
             $valor = fn ($v) => ($v === null || $v === '') ? '(sem valor)' : (string) $v;
             // No rascunho, um registro por campo: o nome dele abre a frase.
             $prefixo = ! empty($detalhes['campo']) ? $detalhes['campo'].': ' : '';
             $partes[] = $prefixo.$valor($detalhes['de'] ?? null).' → '.$valor($detalhes['para']);
+        }
+        if (! empty($detalhes['pendencias'])) {
+            $partes[] = 'ausentes: '.implode('; ', (array) $detalhes['pendencias']);
         }
         if (! empty($detalhes['justificativa'])) {
             $partes[] = 'justificativa: '.$detalhes['justificativa'];

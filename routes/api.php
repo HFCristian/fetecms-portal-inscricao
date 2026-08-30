@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\V1\CatalogoController;
 use App\Http\Controllers\Api\V1\ChatAdminController;
 use App\Http\Controllers\Api\V1\ChatController;
 use App\Http\Controllers\Api\V1\CoorientadorController;
+use App\Http\Controllers\Api\V1\CredenciamentoController;
 use App\Http\Controllers\Api\V1\DocumentoController;
 use App\Http\Controllers\Api\V1\EdicaoController;
 use App\Http\Controllers\Api\V1\EscopoAdminController;
@@ -28,6 +29,7 @@ use App\Http\Controllers\Api\V1\InstituicaoAdminController;
 use App\Http\Controllers\Api\V1\IntegranteController;
 use App\Http\Controllers\Api\V1\OrientadorAjusteController;
 use App\Http\Controllers\Api\V1\OrientadorController;
+use App\Http\Controllers\Api\V1\ParametrizacaoCredenciamentoController;
 use App\Http\Controllers\Api\V1\PerfilController;
 use App\Http\Controllers\Api\V1\ProjetoController;
 use App\Http\Controllers\Api\V1\ProjetoSubmissaoController;
@@ -242,6 +244,14 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::delete('/avaliacao/testes', [AdminAvaliacaoController::class, 'limparTestes']);
             });
 
+            // --- Aba "Credenciamento": o balcão do evento ---
+            Route::middleware('aba:credenciamento')->prefix('credenciamento')->group(function () {
+                Route::get('/config', [CredenciamentoController::class, 'config']);
+                Route::get('/finalistas', [CredenciamentoController::class, 'index']);
+                Route::get('/projetos/{projeto}', [CredenciamentoController::class, 'show']);
+                Route::post('/projetos/{projeto}', [CredenciamentoController::class, 'store']);
+            });
+
             // --- Parametrização (as datas do período de avaliação moram nas
             //     duas abas: quem cuida da avaliação também as ajusta) ---
             Route::middleware('aba:parametrizacao,avaliacao')->group(function () {
@@ -271,6 +281,15 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::post('/escopos', [EscopoAdminController::class, 'store']);
                 Route::put('/escopos/{escopo}', [EscopoAdminController::class, 'update']);
                 Route::delete('/escopos/{escopo}', [EscopoAdminController::class, 'destroy']);
+
+                // Parametrização → Credenciamento: janela do evento e a lista de
+                // documentos exigida de cada papel no balcão.
+                Route::get('/credenciamento', [ParametrizacaoCredenciamentoController::class, 'show']);
+                Route::patch('/credenciamento/janela', [ParametrizacaoCredenciamentoController::class, 'definirJanela']);
+                Route::patch('/credenciamento/itens', [ParametrizacaoCredenciamentoController::class, 'definirItens']);
+                Route::post('/credenciamento/documentos', [ParametrizacaoCredenciamentoController::class, 'criarDocumento']);
+                Route::put('/credenciamento/documentos/{documento}', [ParametrizacaoCredenciamentoController::class, 'atualizarDocumento']);
+                Route::delete('/credenciamento/documentos/{documento}', [ParametrizacaoCredenciamentoController::class, 'excluirDocumento']);
 
                 // Parametrização do catálogo (áreas/subáreas)
                 Route::get('/catalogo', [CatalogoAdminController::class, 'index']);

@@ -34,6 +34,10 @@ import ParametrizacaoInscricoes from './pages/ParametrizacaoInscricoes.jsx';
 import ParametrizacaoAvaliacao from './pages/ParametrizacaoAvaliacao.jsx';
 import AdminManager from './pages/AdminManager.jsx';
 import AdminSuporte from './pages/AdminSuporte.jsx';
+import CredenciamentoHome from './pages/CredenciamentoHome.jsx';
+import CredenciamentoLista from './pages/CredenciamentoLista.jsx';
+import CredenciamentoFicha from './pages/CredenciamentoFicha.jsx';
+import ParametrizacaoCredenciamento from './pages/ParametrizacaoCredenciamento.jsx';
 import AdminAvaliacaoOnline from './pages/AdminAvaliacaoOnline.jsx';
 import AvaliacaoAvaliadores from './pages/AvaliacaoAvaliadores.jsx';
 import AvaliacaoDistribuicao from './pages/AvaliacaoDistribuicao.jsx';
@@ -132,6 +136,7 @@ export default function Root() {
                             <Route path="/admin/parametrizacao/areas" element={<ParametrizacaoAreas />} />
                             <Route path="/admin/parametrizacao/edicoes" element={<ParametrizacaoEdicoes />} />
                             <Route path="/admin/parametrizacao/escopos" element={<ParametrizacaoEscopos />} />
+                            <Route path="/admin/parametrizacao/credenciamento" element={<ParametrizacaoCredenciamento />} />
                             <Route path="/admin/parametrizacao/escolas" element={<ParametrizacaoEscolas />} />
                             <Route path="/admin/parametrizacao/inscricoes" element={<ParametrizacaoInscricoes />} />
                             <Route path="/admin/parametrizacao/avaliacao" element={<ParametrizacaoAvaliacao />} />
@@ -141,6 +146,12 @@ export default function Root() {
                             <Route path="/admin/registros/projetos" element={<AdminRegistros secao="projetos" />} />
                             <Route path="/admin/registros/rascunhos" element={<AdminRegistros secao="rascunhos" />} />
                             <Route path="/admin/registros/lista-final" element={<AdminRegistros secao="lista_final" />} />
+                            <Route path="/admin/registros/credenciamento" element={<AdminRegistros secao="credenciamento" />} />
+                            {/* Aba Credenciamento: o balcão do evento. */}
+                            <Route path="/admin/credenciamento" element={<CredenciamentoHome />} />
+                            <Route path="/admin/credenciamento/credenciar" element={<CredenciamentoLista situacao="pendentes" />} />
+                            <Route path="/admin/credenciamento/credenciados" element={<CredenciamentoLista situacao="credenciados" />} />
+                            <Route path="/admin/credenciamento/projetos/:id" element={<CredenciamentoFicha />} />
                             <Route path="/admin/comunicacao" element={<AdminComunicacao />} />
                             <Route path="/admin/comunicacao/avisos" element={<AdminAvisos />} />
                             <Route path="/admin/comunicacao/modelos" element={<AdminModelosEmail />} />

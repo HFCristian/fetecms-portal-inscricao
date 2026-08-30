@@ -24,7 +24,7 @@ class Edicao extends Model
     protected $fillable = [
         'nome', 'ano', 'padrao', 'inscricoes_abertas', 'inicio_em', 'fim_em',
         'avaliacao_liberada_em', 'avaliacao_encerrada_em', 'submissoes_de', 'submissoes_ate',
-        'ajustes_de', 'ajustes_ate',
+        'ajustes_de', 'ajustes_ate', 'evento_de', 'evento_ate', 'itens_credenciamento',
         'avaliacoes_min_por_avaliador', 'avaliacoes_min_por_projeto',
         'avaliacoes_max_por_avaliador', 'avaliacoes_max_por_projeto', 'avaliacoes_por_categoria',
         'distribuicao_regras', 'distribuicao_ao_cadastrar',
@@ -43,6 +43,9 @@ class Edicao extends Model
             'submissoes_ate' => 'datetime',
             'ajustes_de' => 'datetime',
             'ajustes_ate' => 'datetime',
+            'evento_de' => 'datetime',
+            'evento_ate' => 'datetime',
+            'itens_credenciamento' => 'array',
             'avaliacoes_min_por_avaliador' => 'integer',
             'avaliacoes_min_por_projeto' => 'integer',
             'avaliacoes_max_por_avaliador' => 'integer',
@@ -198,6 +201,28 @@ class Edicao extends Model
     public function ajustesAbertos(): bool
     {
         return $this->ajustesIniciados() && ! $this->ajustesEncerrados();
+    }
+
+    /**
+     * O evento já começou? Ao contrário das outras janelas, esta fica FECHADA
+     * enquanto a data não for definida: credenciar é um ato presencial, então
+     * ninguém credencia "por padrão".
+     */
+    public function eventoIniciado(): bool
+    {
+        return $this->evento_de !== null && now()->greaterThanOrEqualTo($this->evento_de);
+    }
+
+    /** O evento acabou? Sem data de fim, segue aberto depois de começar. */
+    public function eventoEncerrado(): bool
+    {
+        return $this->evento_ate !== null && now()->greaterThan($this->evento_ate);
+    }
+
+    /** O credenciamento está aberto agora? */
+    public function eventoEmAndamento(): bool
+    {
+        return $this->eventoIniciado() && ! $this->eventoEncerrado();
     }
 
     public function projetos(): HasMany
