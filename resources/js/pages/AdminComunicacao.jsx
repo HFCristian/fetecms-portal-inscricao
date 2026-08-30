@@ -40,13 +40,19 @@ export default function AdminComunicacao() {
                     to="/admin/comunicacao/modelos"
                     icon="drafts"
                     titulo="Modelos de e-mail"
-                    descricao="O texto dos e-mails que o portal manda sozinho — confirmação de cadastro e aviso de projeto submetido."
+                    descricao="O texto dos e-mails que o portal manda sozinho — cadastro, projeto submetido e convite de feedback."
                 />
                 <CardComunicacao
                     to="/admin/comunicacao/avisos"
                     icon="campaign"
                     titulo="Avisos"
                     descricao="O card na tela dos orientadores conectados, com o relatório de quem viu, fechou ou ainda não viu."
+                />
+                <CardComunicacao
+                    to="/admin/comunicacao/feedback"
+                    icon="reviews"
+                    titulo="Feedback"
+                    descricao="Questionários para um recorte da base, com convite por e-mail e resultados anônimos."
                 />
             </div>
         </AppShell>

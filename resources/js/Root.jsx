@@ -18,6 +18,9 @@ import AvaliadorPerfil from './pages/AvaliadorPerfil.jsx';
 import AdminAvisoDetalhe from './pages/AdminAvisoDetalhe.jsx';
 import AdminAvisos from './pages/AdminAvisos.jsx';
 import AdminModelosEmail from './pages/AdminModelosEmail.jsx';
+import AdminFeedbacks from './pages/AdminFeedbacks.jsx';
+import AdminFeedbackForm from './pages/AdminFeedbackForm.jsx';
+import AdminFeedbackDetalhe from './pages/AdminFeedbackDetalhe.jsx';
 import AdminComunicacao from './pages/AdminComunicacao.jsx';
 import AdminHome from './pages/AdminHome.jsx';
 import AdminInicio from './pages/AdminInicio.jsx';
@@ -173,6 +176,9 @@ export default function Root() {
                             <Route path="/admin/comunicacao" element={<AdminComunicacao />} />
                             <Route path="/admin/comunicacao/avisos" element={<AdminAvisos />} />
                             <Route path="/admin/comunicacao/modelos" element={<AdminModelosEmail />} />
+                            <Route path="/admin/comunicacao/feedback" element={<AdminFeedbacks />} />
+                            <Route path="/admin/comunicacao/feedback/novo" element={<AdminFeedbackForm />} />
+                            <Route path="/admin/comunicacao/feedback/:id" element={<AdminFeedbackDetalhe />} />
                             <Route path="/admin/comunicacao/avisos/:id" element={<AdminAvisoDetalhe />} />
                             <Route path="/admin/mala-direta" element={<AdminMalaDireta />} />
                             <Route path="/admin/mala-direta/nova" element={<AdminMalaDiretaForm />} />

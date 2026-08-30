@@ -103,14 +103,18 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     cai para a **mesma área**. (Algoritmo ainda a refinar.)
   - Cada projeto fica visível para **no máximo 5 avaliadores**.
   - O **admin pode designar manualmente** projetos a avaliadores, podendo **exceder o limite de 3**.
-- **Admin**: criado **somente por outro admin** (cadastro simples: nome, e-mail, senha). O que ele
-  enxerga do menu depende do **escopo** que recebeu **naquela edição** (Parametrização → Escopos de
-  admin): um escopo é um nome e a lista de abas que ele abre (`App\Enums\AbaAdmin`). **Sem escopo
-  atribuído na edição em curso, o admin tem acesso total** — é o comportamento histórico e o que
-  impede uma edição nova de trancar a equipe para fora. O bloqueio é de verdade: o menu esconde e o
-  middleware `aba:` responde 403. Uma trava impede deixar a edição sem nenhum admin ativo capaz de
-  abrir "Administradores". Dashboard
-  com as métricas: projetos totais / submetidos / em rascunho; **projetos por categoria**;
+- **Admin**: criado **somente por outro admin** (cadastro simples: nome, e-mail, senha). O acesso é
+  um **RBAC**: a *rule* é a aba do menu (`App\Enums\AbaAdmin`), o *role* é o **escopo**
+  (Parametrização → Escopos de admin — um nome + a lista de abas que ele abre), e cada admin carrega
+  **um ou mais escopos por edição**, abrindo a **união** das abas de todos. **Sem escopo algum na
+  edição em curso, o admin tem acesso total** — é o comportamento histórico e o que impede uma
+  edição nova de trancar a equipe para fora. O bloqueio é de verdade: o menu esconde e o middleware
+  `aba:` responde 403. Uma trava impede deixar a edição sem nenhum admin ativo capaz de abrir
+  "Administradores". Ao entrar, ele cai numa **Home** (`/admin`) com um botão para cada aba que abre;
+  cada linha da aba Administradores tem ainda um botão de **modo demo**, que libera para aquela
+  pessoa as funcionalidades presas a data (testar o credenciamento antes do evento, por exemplo).
+  A aba **Dashboards**
+  reúne as métricas: projetos totais / submetidos / em rascunho; **projetos por categoria**;
   orientadores; alunos; coorientadores; **camisetas por tamanho** (um card para orientadores, um
   para alunos e um para coorientadores, PP…XG + N.I., via `App\Support\Camisetas`); **alunos por
   classe escolar** (um card para Ensino Fundamental I, um para Fundamental II e um para Ensino
@@ -119,7 +123,9 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
   e estados **com projeto cadastrado**.
   Fora dos dois primeiros cards (que existem para mostrar o rascunho), **todo card conta só
   projetos submetidos** — categoria, pessoas e localidades. Orientador entra **uma vez**, tenha
-  um ou vários submetidos (`AdminDashboardService`).
+  um ou vários submetidos, e projeto de **orientador demo fica de fora de tudo**
+  (`AdminDashboardService`, `Projeto::semDemo()`). A aba **Projetos** guarda o recorte que tem tela
+  de detalhe atrás: total, por status, por categoria e as três localidades.
   - **Parametrização → Edições** (`/admin/parametrizacao/edicoes`): as edições da feira. O portal
     roda **várias ao mesmo tempo** — cada projeto pertence a uma (`projetos.edicao_id`) e o
     `EdicaoScope` faz toda consulta enxergar só a que está em escopo, então **trocar de edição
@@ -131,11 +137,15 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     no topo do menu (`users.edicao_id`; `GET /edicoes`, `PUT /edicoes/atual`) — nulo significa
     "seguir a padrão". `EdicaoService`.
   - **Parametrização → Escopos de admin** (`/admin/parametrizacao/escopos`): o CRUD dos perfis de
-    acesso — nome + abas do menu. A atribuição (um escopo por admin **em cada edição**) fica na aba
-    **Administradores**, no seletor de cada linha. `EscopoAdminService`,
-    `PUT /admin/admins/{admin}/escopo`.
-  - **Parametrização → Inscrições** (`/admin/parametrizacao/inscricoes`): a **janela de
-    inscrição** da edição — **abertura** (`edicoes.submissoes_de`) e **prazo de submissão**
+    acesso — nome + abas do menu. A atribuição fica na aba **Administradores**, nos chips de cada
+    linha: um admin pode receber **vários escopos em cada edição** e abre a **união** das abas de
+    todos. `EscopoAdminService`, `PUT /admin/admins/{admin}/escopos`.
+  - **Parametrização → Datas e períodos** (`/admin/parametrizacao/datas`): **todas** as janelas da
+    edição, na ordem em que a feira acontece — inscrições, avaliação online, ajustes do orientador e
+    evento (credenciamento). Cada ponta continua tendo o seu endpoint; a tela só reúne os campos, que
+    antes estavam espalhados por três telas. Em regra, **campo em branco deixa aquela ponta aberta**;
+    as exceções são os **ajustes** e o **credenciamento**, que ficam fechados sem data de início.
+    A **janela de inscrição** é a **abertura** (`edicoes.submissoes_de`) e o **prazo de submissão**
     (`edicoes.submissoes_ate`), ambos hora de parede de Campo Grande. Fora da janela a área do
     orientador fica **só de leitura** — não cria, não edita (projeto, alunos, coorientador,
     anexos), não submete, não cancela a submissão e não exclui; quem cancelou o envio para
@@ -146,18 +156,19 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     `inscricoes.iniciadas` (cadastro de orientador), além do `SubmissaoService` (que também
     explica o motivo em `pode_desfazer`/`impedimentos_desfazer`). Cada ponta sem data fica
     aberta; a tela de cadastro lê `GET /inscricoes/publico` para avisar antes da abertura.
-  - **Parametrização → Avaliação Online** (`/admin/parametrizacao/avaliacao`): **início**
-    (`edicoes.avaliacao_liberada_em`) e **fim** (`edicoes.avaliacao_encerrada_em`) do período, mais
-    os **limites de avaliação** (`App\Support\LimitesAvaliacao`): **por avaliador**, o mínimo é o
+  - **Parametrização → Avaliação Online** (`/admin/parametrizacao/avaliacao`): os **limites de
+    avaliação** (`App\Support\LimitesAvaliacao`) — as datas do período e as do período de ajustes
+    mudaram-se para *Datas e períodos*. **Por avaliador**, o mínimo é o
     tamanho da fila e o máximo é o teto de avaliações que ele acumula (em branco = sem teto); **por
     projeto**, o mínimo é o alvo da distribuição e o máximo é quantos avaliadores enxergam o
     projeto — e esse par pode ser definido **por categoria**, seguindo o geral quando fica em branco.
-    Encerrado, o avaliador ainda **lê** os projetos designados e o que respondeu, mas não
-    inicia, não salva rascunho e não envia (`AvaliacaoFluxoService::podeVer()` vs
-    `podeAvaliar()`); o demo em modo teste ignora as duas datas. Na mesma tela ficam o **início** e
-    o **fim do período de ajustes** (`edicoes.ajustes_de`/`ajustes_ate`), a janela da aba **Ajustes**
-    do orientador — **sem data de início ela fica fechada**, ao contrário das outras janelas. O "período começou" que trava
-    o cancelamento de submissão e a troca de área do avaliador continua sendo só o início.
+    Encerrado o período (`edicoes.avaliacao_encerrada_em`), o avaliador ainda **lê** os projetos
+    designados e o que respondeu, mas não inicia, não salva rascunho e não envia
+    (`AvaliacaoFluxoService::podeVer()` vs `podeAvaliar()`); o demo em modo teste ignora as duas
+    datas. O **período de ajustes** (`edicoes.ajustes_de`/`ajustes_ate`) é a janela da aba
+    **Ajustes** do orientador — **sem data de início ela fica fechada**, ao contrário das outras
+    janelas. O "período começou" que trava o cancelamento de submissão e a troca de área do
+    avaliador continua sendo só o início (`edicoes.avaliacao_liberada_em`).
   - **Avaliação Online → Algoritmo de distribuição** (`/admin/avaliacao/distribuicao`, aberta pelo
     botão *Abrir configurações* na aba): os limiares que o algoritmo respeita. Por **categoria**, o
     admin liga/desliga a participação e define a **faixa de avaliações que o projeto já recebeu**
@@ -166,11 +177,17 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     dessa categoria com nenhuma ou uma avaliação recebida. As regras moram em
     `edicoes.distribuicao_regras` (JSON, via `App\Support\RegrasDistribuicao`) e valem para a
     distribuição em massa, para a reposição da fila e para o sorteio; a **designação manual do
-    admin passa por cima**. Na mesma seção ficam **Distribuir avaliações** (completa o que falta,
-    idempotente) e **Redistribuir avaliações** (devolve ao bolo tudo que foi apenas designado e
-    sorteia de novo — o que está **em avaliação**, o concluído e o designado à mão não se mexem),
-    mais o toggle **designar ao cadastrar** (`edicoes.distribuicao_ao_cadastrar`): ligado, o
-    avaliador que acaba de se cadastrar já sai com a fila cheia.
+    admin passa por cima**. O **piso da fila do avaliador** (`edicoes.piso_fila_avaliador`, padrão 6)
+    é a rede dessa regra: ela continua escolhendo quem entra primeiro, e **só quando deixa alguém
+    abaixo do piso** uma segunda passada completa a fila **ignorando-a** — vale na distribuição, na
+    reposição ao concluir e no botão *Sortear outros projetos*; em branco, não há piso. Na mesma
+    seção ficam **Distribuir avaliações** (completa o que falta, idempotente) e **Redistribuir
+    avaliações** (devolve ao bolo tudo que foi apenas designado e sorteia de novo — o que está **em
+    avaliação**, o concluído e o designado à mão não se mexem). As duas vão para a **fila** e a tela
+    mostra uma **barra de progresso** (`distribuicoes` + `ProcessarDistribuicao`); duas rodadas ao
+    mesmo tempo são recusadas. Fecha a seção o toggle **designar ao cadastrar**
+    (`edicoes.distribuicao_ao_cadastrar`): ligado, o avaliador que acaba de se cadastrar já sai com a
+    fila cheia.
   - **Avaliação Online → Listas finais oficiais** (`/admin/avaliacao/listas-finais`): as listas
     geradas com a caixa **Lista Final Oficial** marcada ficam registradas. A **vigente** da edição
     é a que define os **finalistas** da feira (projetos + alunos + orientador + coorientador);
@@ -212,11 +229,20 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     concluir, a tela **lembra os itens a entregar** ao finalista. Só credencia dentro da **janela do
     evento**; fora dela a aba abre em leitura. O **admin demo** tem um *modo de teste* que ignora as
     datas. `CredenciamentoService`.
-  - **Parametrização → Credenciamento** (`/admin/parametrizacao/credenciamento`): o **período do
-    evento** (`edicoes.evento_de`/`evento_ate`, **fechado enquanto não for definido** — credenciar é
-    ato presencial), os **itens entregues** aos finalistas (`edicoes.itens_credenciamento`) e a
-    **lista de documentos** exigida de cada papel (`documentos_credenciamento`, catálogo do portal).
-    Documento já conferido em algum credenciamento não é excluído — desative-o.
+  - **Credenciamento → Contas temporárias** (`/admin/credenciamento/contas`): acesso de prazo curto
+    para quem atende o balcão sem ser da organização. O cadastro é o mesmo do admin (nome, e-mail,
+    senha) mais **CPF**, **nome do curso** e **por quanto tempo** a conta vale. A conta é um `users`
+    com `role = admin`, e o que a restringe é a linha em `contas_temporarias`:
+    `User::ehContaTemporaria()` faz `abasPermitidas()` devolver **só "credenciamento"**, por cima de
+    qualquer escopo. Vencido o prazo, ela é **desativada, não apagada** — reativar é informar um
+    prazo novo, sem recadastrar nada; a varredura roda ao listar e no login. Uma conta temporária
+    **não administra outras contas temporárias**. `ContaTemporariaService`.
+  - **Parametrização → Credenciamento** (`/admin/parametrizacao/credenciamento`): os **itens
+    entregues** aos finalistas (`edicoes.itens_credenciamento`) e a **lista de documentos** exigida
+    de cada papel (`documentos_credenciamento`, catálogo do portal). Documento já conferido em algum
+    credenciamento não é excluído — desative-o. O **período do evento**
+    (`edicoes.evento_de`/`evento_ate`, **fechado enquanto não for definido** — credenciar é ato
+    presencial) fica em *Datas e períodos*.
   - **Comitê especial** (`/admin/comite`): o deslocamento das equipes durante a feira, em duas
     seções. **Transporte de comitê** lista quem está com o localizador ligado e o que cada um
     configurou, e traz o botão **Habilitar localização** — um assistente de **seis passos**:
@@ -257,11 +283,26 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     com a lista nome a nome (filtro por situação, busca e export CSV) e o histórico dos avisos
     anteriores.
   - **Comunicação → Modelos de e-mail** (`/admin/comunicacao/modelos`): o texto dos e-mails que o
-    portal manda sozinho — **confirmação de cadastro** e **projeto submetido**. O admin edita
+    portal manda sozinho — **confirmação de cadastro**, **projeto submetido** e **convite de
+    feedback**. O admin edita
     assunto e corpo, insere as variáveis de cada modelo por botões e pode **restaurar o padrão**. O
     texto de fábrica mora no enum `App\Enums\ModeloEmail`; a tabela `modelos_email` guarda **só o
     que foi customizado** (salvar exatamente o padrão apaga a linha). Quem dispara pede a mensagem
     ao `ModeloEmailService` e não sabe de onde o texto veio.
+  - **Comunicação → Feedback** (`/admin/comunicacao/feedback`): questionários dirigidos a um recorte
+    da base. O admin escolhe os **públicos** (os mesmos recortes combináveis da mala direta) e monta
+    as perguntas: **alternativas** — escritas à mão ou copiadas de um modelo pronto
+    (`App\Support\ModelosAlternativas`: satisfação, concordância, frequência, Sim/Não, NPS) — ou
+    **dissertativas**, com mínimo e máximo em **palavras ou caracteres**. Ao publicar, sai um
+    **convite por e-mail** (um job por destinatário, com relatório por endereço e **reenvio só das
+    falhas**, como na mala direta) e quem é alcançado vê um **balão** ao entrar no portal: pode
+    responder ou fechar. **Fechar dispensa de vez**, mas o questionário continua acessível na lista
+    do perfil — quem se arrepender ainda responde. **As respostas são anônimas por construção**:
+    `feedback_participacoes` sabe quem viu, dispensou e respondeu; `feedback_respostas` guarda o
+    conteúdo **sem `user_id`**, agrupado por um `envio` aleatório que não leva a ninguém. A tela de
+    resultados traz a contagem de cada alternativa (**inclusive as zeradas**, que também informam) e
+    a lista das respostas escritas sem autor, com export CSV. `FeedbackService`,
+    `FeedbackResultadoService`.
   - **Comunicação → Mala direta** (`/admin/mala-direta`): comunicado por e-mail para um recorte da base.
     O admin combina quantos **públicos** quiser (todos, orientadores, avaliadores, orientadores
     com rascunho, com submetido, avaliadores com avaliação **em andamento** ou **concluída**) e/ou
@@ -431,7 +472,80 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 71 | Credenciamento: horários do atendimento (+5 min no lançamento retroativo) e itens a entregar | ✅ sim | ❌ não (manual do Pedro) | 8 |
 | 72 | Comitê especial → Transporte: assistente de 6 passos, localizador a cada 5s, rota e ETA | ✅ sim | ❌ não (manual do Pedro) | 9 |
 | 73 | Comitê especial → Mapa do comitê: tempo real e detalhe do ponto (pessoas, áreas, distância) | ✅ sim | ❌ não (manual do Pedro) | 9 |
+| 74 | Fix: salvar o período de ajustes quebrava a tela (`liberada_em_input` de `undefined`) | ✅ sim | ❌ não (manual do Pedro) | 10 |
+| 75 | Cards de camiseta e de série sem o balde "N.I." | ✅ sim | ❌ não (manual do Pedro) | 10 |
+| 76 | RBAC: admin acumula vários escopos por edição (união das abas) | ✅ sim | ❌ não (manual do Pedro) | 11 |
+| 77 | Home do admin em `/admin`, com um botão por aba liberada | ✅ sim | ❌ não (manual do Pedro) | 11 |
+| 78 | Nova aba **Dashboards**: todos os cards do painel, agrupados por assunto | ✅ sim | ❌ não (manual do Pedro) | 12 |
+| 79 | Aba Projetos enxuta: 6 cards (total, status, categoria e as 3 localidades) | ✅ sim | ❌ não (manual do Pedro) | 12 |
+| 80 | Parametrização → **Datas e períodos**: todas as janelas da edição numa tela | ✅ sim | ❌ não (manual do Pedro) | 13 |
+| 81 | Modo demo por administrador, na aba Administradores | ✅ sim | ❌ não (manual do Pedro) | 13 |
+| 82 | Credenciamento → **Contas temporárias** (CPF, curso e prazo; renováveis) | ✅ sim | ❌ não (manual do Pedro) | 14 |
+| 83 | Projeto-exemplo da aba Ajustes (`demo:ajustes`) + isolamento dos dados demo | ✅ sim | ❌ não (manual do Pedro) | 14 |
+| 84 | Distribuir/Redistribuir na fila, com barra de progresso | ✅ sim | ❌ não (manual do Pedro) | 15 |
+| 85 | Piso da fila do avaliador: a regra geral que socorre a regra por categoria | ✅ sim | ❌ não (manual do Pedro) | 15 |
+| 86 | Comunicação → **Feedback**: questionário, convite por e-mail e resultados anônimos | ✅ sim | ❌ não (manual do Pedro) | 16 |
 
+> **Sprints 74–86 (branch `feat/rbac-dashboards-feedback`, saída da `origin/main` @ `04410ee`):**
+> ciclo de acesso, painéis e escuta. Um commit a cada duas sprints.
+> (a) **Sprint 74** — o erro relatado em produção ao salvar o período de ajustes. Os helpers
+> `definirInicioAjustes`/`definirFimAjustes` desembrulhavam a resposta (`r.data.data`), mas o
+> `CampoDataCard` faz `onSalvo(resp.data)`: o card recebia `undefined` e o render seguinte estourava
+> em `config.liberada_em_input`. Os dois passam a devolver o envelope inteiro, como as datas da
+> avaliação sempre fizeram, e a regressão é coberta no nível do contrato (`lib/admin.test.js`).
+> (b) **Sprint 75** — os cards de **camiseta** e de **alunos por série** deixam de mostrar o balde
+> **"N.I."**. A remoção é na fonte (`Camisetas`/`ClassesEscolares`); o número grande continua sendo o
+> total de pessoas, então a soma da quebra pode agora ficar abaixo dele.
+> (c) **Sprint 76** — **RBAC**. A *rule* é a aba (`AbaAdmin`), o *role* é o escopo, e cada admin
+> passa a carregar **um ou mais** escopos por edição, abrindo a **união** das abas. A nomenclatura de
+> código segue "escopo"/"aba" porque `Role` já nomeia orientador/avaliador/admin. A única mudança de
+> esquema é a unicidade de `admin_escopos` — (user, edição) vira (user, edição, escopo) —, sem
+> backfill. `PUT /admin/admins/{admin}/escopos` (corpo `escopo_ids`) substitui o antigo `/escopo`, e
+> o seletor único da aba Administradores virou um grupo de chips.
+> (d) **Sprint 77** — `/admin` vira a **Home**: um botão por aba que os escopos liberam. A aba
+> Projetos foi para `/admin/projetos`. A lista de abas saiu do `AppShell` para `lib/abasAdmin.js`,
+> compartilhada com a Home.
+> (e) **Sprint 78** — nova aba **Dashboards** (`AbaAdmin::Dashboards`), com todos os cards do painel
+> agrupados por assunto: Projetos, Pessoas, Camisetas, Alunos por classe escolar e Localidades. Ali o
+> card "Projetos (total)" é só número. `GET /admin/dashboard` responde às duas abas.
+> (f) **Sprint 79** — a aba **Projetos** fica com seis cards. Os componentes saíram para
+> `components/CardsPainel.jsx`; o `verMais` mora na descrição de cada card, e é por isso que o mesmo
+> total aparece com atalho numa tela e sem atalho na outra.
+> (g) **Sprint 80** — Parametrização → **Datas e períodos**: inscrições, avaliação, ajustes e evento
+> na ordem em que a feira acontece. As telas de origem ficaram com o que não é data; a tela
+> "Inscrições" era só datas e virou um redirecionamento.
+> (h) **Sprint 81** — **modo demo por admin** (`PATCH /admin/admins/{admin}/demo`), o mesmo
+> interruptor dos avaliadores. A liberação é em duas etapas de propósito: o modo demo faz aparecer o
+> "modo de teste" na tela, e é ele que ignora as datas.
+> (i) **Sprint 82** — **contas temporárias de credenciamento**. Cadastro de admin + CPF, curso e
+> prazo; a conta é `role = admin`, e o que a restringe é a linha em `contas_temporarias`:
+> `abasPermitidas()` devolve só "credenciamento", por cima de qualquer escopo. Vencida, é
+> **desativada, não apagada** — renovar é só um prazo novo. A varredura roda ao listar e no login, e
+> **uma conta temporária não administra contas temporárias** (senão renovaria o próprio prazo).
+> (j) **Sprint 83** — `php artisan demo:ajustes` monta o **projeto-exemplo** da aba Ajustes
+> (orientador demo, avaliador demo, projeto submetido e avaliação concluída com sugestões);
+> `docs/DEMO_AJUSTES.md` traz o SQL equivalente para produção. Junto, `Projeto::semDemo()` tira os
+> projetos de orientador demo do painel, do ranking, da lista final e da distribuição automática — as
+> listagens operacionais continuam mostrando tudo.
+> (k) **Sprint 84** — **Distribuir/Redistribuir vão para a fila**: o POST responde 202 com o registro
+> da rodada (`distribuicoes`) e a tela desenha a **barra de progresso** por polling. Duas rodadas
+> simultâneas são recusadas, e reabrir a tela retoma o acompanhamento.
+> (l) **Sprint 85** — **piso da fila do avaliador** (`edicoes.piso_fila_avaliador`, padrão 6). A
+> regra por categoria continua escolhendo quem entra primeiro; só quando ela deixa alguém abaixo do
+> piso é que uma segunda passada completa a fila **ignorando-a**. Vale na distribuição, na reposição
+> e no "Sortear outros projetos". O campo ficou na tela do Algoritmo de distribuição, junto da regra
+> que ele corrige.
+> (m) **Sprint 86** — **Comunicação → Feedback**. O admin monta um questionário (alternativas
+> escritas ou de um modelo pronto de `App\Support\ModelosAlternativas`; dissertativas com limite em
+> palavras ou caracteres), escolhe os **públicos** (os mesmos da mala direta) e dispara: um job por
+> destinatário, com relatório por endereço e reenvio das falhas. Quem é alcançado vê um **balão** ao
+> entrar — fechar dispensa de vez, mas o questionário continua acessível pela lista do perfil. As
+> **respostas são anônimas por construção**: `feedback_participacoes` sabe quem respondeu,
+> `feedback_respostas` guarda o conteúdo **sem `user_id`**, agrupado por um `envio` aleatório. Os
+> resultados mostram a contagem de cada alternativa (inclusive as zeradas) e os textos sem autor,
+> com export CSV. O convite usa o modelo `feedback_solicitado`, editável em Modelos de e-mail.
+> Back **713/713**, front **353/353**, Pint limpo, build OK.
+>
 > **Sprints 72–73 (mesma branch):** nasceu a aba **Comitê especial**, com o deslocamento das
 > equipes durante a feira.
 > (a) **Sprint 72** — **Transporte de comitê**. O botão *Habilitar localização* abre um assistente
@@ -756,6 +870,27 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > e **Escolas** (`/admin/parametrizacao/escolas`): admin busca, **renomeia, mescla** (reatribui
 > projetos/alunos/orientadores) e **exclui** instituições sem uso (`InstituicaoAdminService`/Controller,
 > rotas `admin/instituicoes`). Back **117/117**, front 11/11, Pint limpo, build OK.
+> **Pendências do Pedro (Sprints 74–86):** (1) `git push origin feat/rbac-dashboards-feedback` + PR
+> para a `main` (o ambiente do Claude não tem credencial do GitHub) e, depois do merge, o deploy pela
+> §11 do [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). Esta release **tem migrations** (unicidade de
+> `admin_escopos`, `contas_temporarias`, `distribuicoes`, `edicoes.piso_fila_avaliador` e as cinco
+> tabelas de feedback). **Nenhuma variável nova de `.env` e nenhuma dependência nova de npm.** A fila
+> (`queue:work`) fica **mais importante**: além da mala direta, agora ela roda a distribuição de
+> avaliações e os convites de feedback — sem worker, a barra de progresso não anda e os convites não
+> saem.
+> (2) **A distribuição mudou de forma**: "Distribuir" e "Redistribuir" respondem na hora e trabalham
+> em segundo plano. Se a barra ficar parada em "Na fila", o worker é o primeiro lugar a olhar.
+> (3) **O piso da fila nasce em 6** para todas as edições. Se a organização quiser que as regras por
+> categoria mandem sozinhas (comportamento anterior), basta esvaziar o campo em Avaliação online →
+> Algoritmo de distribuição.
+> (4) **Escopos de admin continuam opcionais**, agora acumuláveis: sem nenhum atribuído, o admin
+> segue com acesso total. A aba nova **Dashboards** é uma permissão à parte — escopos que hoje só
+> têm "Projetos" **não abrem** os cards de pessoas e camisetas até receberem "Dashboards" também.
+> (5) **Projeto-exemplo dos ajustes**: rode `php artisan demo:ajustes` em produção (ou siga o SQL de
+> [docs/DEMO_AJUSTES.md](docs/DEMO_AJUSTES.md)) e entre com o orientador demo para conferir a aba.
+> (6) O **modelo de e-mail do feedback** (`feedback_solicitado`) já vem com um texto de fábrica —
+> vale revisar em Comunicação → Modelos de e-mail antes do primeiro disparo.
+>
 > **Pendências do Pedro (Sprints 64–73):** (1) `git push origin feat/edicoes-credenciamento-comite`
 > + PR para a `main` (o ambiente do Claude não tem credencial do GitHub) e, depois do merge, o
 > deploy pela §11 do [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). Esta release **tem migrations**

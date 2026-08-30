@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\AdminAvaliacaoController;
 use App\Http\Controllers\Api\V1\AdminAvisoController;
 use App\Http\Controllers\Api\V1\AdminController;
+use App\Http\Controllers\Api\V1\AdminFeedbackController;
 use App\Http\Controllers\Api\V1\AdminInscricoesController;
 use App\Http\Controllers\Api\V1\AdminMalaDiretaController;
 use App\Http\Controllers\Api\V1\AdminModeloEmailController;
@@ -26,6 +27,7 @@ use App\Http\Controllers\Api\V1\CredenciamentoController;
 use App\Http\Controllers\Api\V1\DocumentoController;
 use App\Http\Controllers\Api\V1\EdicaoController;
 use App\Http\Controllers\Api\V1\EscopoAdminController;
+use App\Http\Controllers\Api\V1\FeedbackController;
 use App\Http\Controllers\Api\V1\InscricoesController;
 use App\Http\Controllers\Api\V1\InstituicaoAdminController;
 use App\Http\Controllers\Api\V1\IntegranteController;
@@ -114,6 +116,16 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
 
         // Card de aviso publicado pelo admin: consultado de tempos em tempos
         // pelo front, marcado como visto quando aparece e fechado pela pessoa.
+        // Feedback: o balão que aparece ao entrar e o questionário em si.
+        // Vale para todo usuário autenticado — o público de cada pedido é quem
+        // decide quem vê.
+        Route::get('/feedbacks/pendente', [FeedbackController::class, 'pendente']);
+        Route::get('/feedbacks', [FeedbackController::class, 'index']);
+        Route::post('/feedbacks/{feedback}/visto', [FeedbackController::class, 'visto']);
+        Route::post('/feedbacks/{feedback}/dispensar', [FeedbackController::class, 'dispensar']);
+        Route::post('/feedbacks/{feedback}/responder', [FeedbackController::class, 'responder'])
+            ->middleware('throttle:20,1');
+
         Route::get('/avisos/ativo', [AvisoController::class, 'ativo']);
         Route::post('/avisos/{aviso}/visto', [AvisoController::class, 'visto']);
         Route::post('/avisos/{aviso}/fechar', [AvisoController::class, 'fechar']);
@@ -351,6 +363,16 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::get('/avisos/{aviso}', [AdminAvisoController::class, 'show']);
                 Route::get('/avisos/{aviso}/leitores', [AdminAvisoController::class, 'leitores']);
                 Route::get('/avisos/{aviso}/exportar', [AdminAvisoController::class, 'exportar']);
+
+                // Comunicação → Feedback: o questionário e os seus resultados.
+                Route::get('/feedbacks/opcoes', [AdminFeedbackController::class, 'opcoes']);
+                Route::get('/feedbacks', [AdminFeedbackController::class, 'index']);
+                Route::post('/feedbacks', [AdminFeedbackController::class, 'store']);
+                Route::get('/feedbacks/{feedback}', [AdminFeedbackController::class, 'show']);
+                Route::get('/feedbacks/{feedback}/destinatarios', [AdminFeedbackController::class, 'destinatarios']);
+                Route::get('/feedbacks/{feedback}/exportar', [AdminFeedbackController::class, 'exportar']);
+                Route::post('/feedbacks/{feedback}/reenviar-falhas', [AdminFeedbackController::class, 'reenviarFalhas']);
+                Route::post('/feedbacks/{feedback}/encerrar', [AdminFeedbackController::class, 'encerrar']);
 
                 // Comunicação → Modelos de e-mail: o texto dos e-mails automáticos.
                 Route::get('/modelos-email', [AdminModeloEmailController::class, 'index']);

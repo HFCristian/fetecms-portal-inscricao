@@ -5,6 +5,7 @@ import { getConversasNaoVistas } from '../lib/chat.js';
 import SupportFooter from './SupportFooter.jsx';
 import ChatWidget from './ChatWidget.jsx';
 import AvisoCard from './AvisoCard.jsx';
+import FeedbackCard from './FeedbackCard.jsx';
 import SeletorEdicao from './SeletorEdicao.jsx';
 import { abasPermitidas } from '../lib/abasAdmin.js';
 
@@ -209,6 +210,10 @@ export default function AppShell({ children }) {
                         orientador e avaliador consultam — o backend decide se há
                         card para esta pessoa. */}
                     <AvisoCard ativo={user?.role === 'orientador' || user?.role === 'avaliador'} />
+                    {/* Convite de feedback: o público de cada pedido decide quem
+                        vê, então basta estar autenticado — o backend responde
+                        `null` para quem nenhum pedido alcança. */}
+                    <FeedbackCard ativo={!!user} />
                     {children}
                     <SupportFooter className="mt-10 pb-2 md:hidden" />
                 </div>
