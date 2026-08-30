@@ -4,11 +4,17 @@ namespace App\Services;
 
 use App\Enums\Categoria;
 use App\Enums\StatusAvaliacao;
+use App\Enums\TipoRegistro;
 use App\Models\Area;
+use App\Models\Edicao;
+use App\Models\ListaFinal;
 use App\Models\Projeto;
+use App\Models\User;
 use App\Support\Cota;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Lista final da feira (Avaliação Online → Ranking dos projetos): o recorte dos
@@ -22,7 +28,9 @@ use Illuminate\Support\Str;
  *    dentro dela a cota de cada **área** e, dentro da área, quantas vagas ficam
  *    reservadas ao **interior** (cidade que não é a capital do estado). Cada
  *    uma pode ser número fixo ou porcentagem do recorte que a contém — é o
- *    "100 da FUNDECT, 20 para agrárias, 70% desses para o interior".
+ *    "100 da FUNDECT, 20 para agrárias, 70% desses para o interior". A reserva
+ *    do interior só existe na **FETECMS FUNDECT** — é exigência do fomento
+ *    dela; nas demais categorias a lista é só por nota.
  *
  *    Cota em branco não limita nada; cota 0 deixa o recorte de fora. A reserva
  *    do interior é PISO, não teto: se não houver projeto do interior suficiente,
@@ -38,6 +46,8 @@ class ListaFinalService
 {
     /** Sigla de projeto sem categoria ou sem área — visível de propósito, para o admin corrigir. */
     private const SIGLA_AUSENTE = 'SEM';
+
+    public function __construct(private readonly RegistroAtividadeService $registros) {}
 
     /**
      * Projetos elegíveis e quantos há em cada recorte, para a tela sugerir
@@ -66,6 +76,8 @@ class ListaFinalService
                     'label' => $c->label(),
                     'sigla' => $c->sigla(),
                     'disponiveis' => $daCategoria->count(),
+                    // Só a FUNDECT reserva vaga para o interior (regra do fomento).
+                    'permite_interior' => $c->permiteCotaInterior(),
                     'areas' => $areas->map(function (Area $a) use ($porArea) {
                         $daArea = $porArea->get($a->id, collect());
 
@@ -102,6 +114,17 @@ class ListaFinalService
      */
     public function exportarTxt(array $cotas): string
     {
+        return $this->blocos($this->gerar($cotas));
+    }
+
+    /**
+     * O texto do arquivo a partir dos itens já numerados: um bloco por projeto,
+     * separados por linha em branco.
+     *
+     * @param  list<array<string, mixed>>  $itens
+     */
+    private function blocos(array $itens): string
+    {
         $blocos = array_map(function (array $item) {
             $linhas = [
                 "{$item['codigo']} - {$item['titulo']}",
@@ -114,9 +137,239 @@ class ListaFinalService
             }
 
             return implode("\n", $linhas);
-        }, $this->gerar($cotas));
+        }, $itens);
 
         return implode("\n\n", $blocos)."\n";
+    }
+
+    /**
+     * Torna o recorte uma **lista final oficial**: grava a composição, marca-a
+     * como vigente da edição (encerrando a anterior) e devolve a lista criada.
+     *
+     * A partir daí os projetos dela — e, por tabela, alunos, orientador e
+     * coorientador — são os **finalistas** da feira.
+     *
+     * @param  array<string, mixed>  $cotas
+     */
+    public function oficializar(array $cotas, User $admin, ?string $nome = null): ListaFinal
+    {
+        $edicao = Edicao::atual();
+
+        if ($edicao === null) {
+            throw ValidationException::withMessages([
+                'oficial' => 'Nenhuma edição em curso para registrar a lista final.',
+            ]);
+        }
+
+        $itens = $this->gerar($cotas);
+
+        return DB::transaction(function () use ($cotas, $admin, $nome, $edicao, $itens) {
+            // Uma vigente por edição: publicar a nova encerra a anterior.
+            ListaFinal::where('edicao_id', $edicao->id)->update(['vigente' => false]);
+
+            $lista = ListaFinal::create([
+                'edicao_id' => $edicao->id,
+                'nome' => trim((string) $nome) !== '' ? trim((string) $nome) : $this->nomePadrao($edicao),
+                'vigente' => true,
+                'versao' => 1,
+                'cotas' => $cotas,
+                'gerada_por' => $admin->id,
+            ]);
+
+            $lista->projetos()->attach(
+                collect($itens)->mapWithKeys(fn (array $i) => [$i['projeto_id'] => ['manual' => false]])->all(),
+            );
+
+            $this->registros->listaFinal(
+                TipoRegistro::ListaFinalOficializada, $admin, $lista->nome, null, null,
+                count($itens).' projeto(s)',
+            );
+
+            return $lista->fresh();
+        });
+    }
+
+    /**
+     * As listas oficiais já registradas na edição em curso, da mais nova para a
+     * mais antiga.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function listasOficiais(): array
+    {
+        $edicao = Edicao::atual();
+
+        if ($edicao === null) {
+            return [];
+        }
+
+        return ListaFinal::where('edicao_id', $edicao->id)
+            ->with('autor:id,name')
+            ->withCount('projetos')
+            ->orderByDesc('id')
+            ->get()
+            ->map(fn (ListaFinal $l) => [
+                'id' => $l->id,
+                'nome' => $l->nome,
+                'vigente' => $l->vigente,
+                'versao' => $l->versao,
+                'projetos' => $l->projetos_count,
+                'gerada_por' => $l->autor?->name,
+                'criada_em' => $l->created_at?->toIso8601String(),
+                'atualizada_em' => $l->updated_at?->toIso8601String(),
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Os itens de uma lista **já registrada** — ordenados e numerados na hora,
+     * a partir da composição gravada. É o que o TXT de uma lista oficial
+     * exporta, e o que muda de conteúdo quando o admin altera a composição.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function itensDaLista(ListaFinal $lista): array
+    {
+        $ids = $lista->projetos()->pluck('projetos.id')->all();
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $projetos = $this->avaliados()->whereIn('id', $ids);
+
+        // Projeto que entrou à mão pode não ter avaliação concluída: ele não
+        // aparece em avaliados(), então é buscado à parte.
+        $faltantes = array_diff($ids, $projetos->pluck('id')->all());
+
+        if ($faltantes !== []) {
+            $projetos = $projetos->concat($this->porIds($faltantes));
+        }
+
+        return $this->numerar($this->ordenar($projetos->values()->all()));
+    }
+
+    /**
+     * Acrescenta um projeto à lista oficial. Sobe a versão (o arquivo baixado
+     * depois é outro) e entra na trilha com a justificativa — é uma decisão
+     * fora do recorte por nota, então precisa ficar explicada.
+     */
+    public function adicionarProjeto(ListaFinal $lista, Projeto $projeto, User $admin, string $justificativa): ListaFinal
+    {
+        if ($lista->projetos()->whereKey($projeto->id)->exists()) {
+            throw ValidationException::withMessages([
+                'projeto_id' => 'Este projeto já está na lista.',
+            ]);
+        }
+
+        return DB::transaction(function () use ($lista, $projeto, $admin, $justificativa) {
+            $lista->projetos()->attach($projeto->id, ['manual' => true]);
+            $lista->increment('versao');
+
+            $this->registros->listaFinal(
+                TipoRegistro::ListaFinalProjetoAdicionado, $admin, $lista->nome, $projeto, trim($justificativa),
+            );
+
+            return $lista->fresh();
+        });
+    }
+
+    /** Retira um projeto da lista oficial, com justificativa, e sobe a versão. */
+    public function removerProjeto(ListaFinal $lista, Projeto $projeto, User $admin, string $justificativa): ListaFinal
+    {
+        if (! $lista->projetos()->whereKey($projeto->id)->exists()) {
+            throw ValidationException::withMessages([
+                'projeto_id' => 'Este projeto não está na lista.',
+            ]);
+        }
+
+        return DB::transaction(function () use ($lista, $projeto, $admin, $justificativa) {
+            $lista->projetos()->detach($projeto->id);
+            $lista->increment('versao');
+
+            $this->registros->listaFinal(
+                TipoRegistro::ListaFinalProjetoRemovido, $admin, $lista->nome, $projeto, trim($justificativa),
+            );
+
+            return $lista->fresh();
+        });
+    }
+
+    /**
+     * A lista aberta para edição: a composição atual e os projetos avaliados
+     * que ainda podem entrar.
+     *
+     * @return array<string, mixed>
+     */
+    public function detalhar(ListaFinal $lista): array
+    {
+        $itens = $this->itensDaLista($lista);
+        $dentro = array_column($itens, 'projeto_id');
+        $manuais = $lista->projetos()->pluck('lista_final_projetos.manual', 'projetos.id');
+
+        return [
+            'lista' => [
+                'id' => $lista->id,
+                'nome' => $lista->nome,
+                'vigente' => $lista->vigente,
+                'versao' => $lista->versao,
+                'projetos' => count($itens),
+            ],
+            'itens' => array_map(fn (array $i) => $i + ['manual' => (bool) ($manuais[$i['projeto_id']] ?? false)], $itens),
+            // Candidatos: quem foi avaliado e ainda está de fora.
+            'candidatos' => $this->avaliados()
+                ->reject(fn (Projeto $p) => in_array($p->id, $dentro, true))
+                ->map(fn (Projeto $p) => [
+                    'id' => $p->id,
+                    'titulo' => $p->titulo,
+                    'categoria' => $p->categoria?->label(),
+                    'area' => $p->area?->nome,
+                    'media' => $p->media_nota === null ? null : round((float) $p->media_nota, 2),
+                ])
+                ->values()
+                ->all(),
+        ];
+    }
+
+    /** O TXT de uma lista oficial já registrada. */
+    public function exportarTxtDaLista(ListaFinal $lista): string
+    {
+        return $this->blocos($this->itensDaLista($lista));
+    }
+
+    /** Nome sugerido quando o admin não informa um. */
+    private function nomePadrao(Edicao $edicao): string
+    {
+        return 'Lista final · '.$edicao->nome;
+    }
+
+    /**
+     * Projetos por id, com as mesmas relações de avaliados() — para os que
+     * entraram na lista sem avaliação concluída.
+     *
+     * @param  array<int, int>  $ids
+     * @return Collection<int, Projeto>
+     */
+    private function porIds(array $ids): Collection
+    {
+        return Projeto::query()
+            ->whereIn('id', $ids)
+            ->withAvg(
+                ['avaliacoes as media_nota' => fn ($q) => $q->where('status', StatusAvaliacao::Concluida->value)],
+                'nota',
+            )
+            ->with([
+                'area:id,nome,sigla',
+                'user:id,name',
+                'alunos:id,projeto_id,nome',
+                'instituicao:id,nome,cidade_id',
+                'instituicao.cidade:id,nome,estado_id,capital',
+                'instituicao.cidade.estado:id,uf',
+                'cidade:id,nome,capital',
+                'estado:id,uf',
+            ])
+            ->get();
     }
 
     /**
@@ -242,6 +495,12 @@ class ListaFinalService
                 }
 
                 $limites['area'][$chave] = $cotaArea;
+
+                // A reserva do interior só existe onde a categoria a permite —
+                // hoje, a FETECMS FUNDECT. Nas outras, o campo é ignorado.
+                if (! (Categoria::tryFrom((string) $categoria)?->permiteCotaInterior() ?? false)) {
+                    continue;
+                }
 
                 $reserva = Cota::de($areaConfig['interior'] ?? null)?->resolver($cotaArea);
                 if ($reserva !== null) {

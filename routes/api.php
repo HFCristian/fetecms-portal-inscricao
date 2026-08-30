@@ -217,6 +217,14 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::get('/avaliacao/ranking-avaliadores', [AdminAvaliacaoController::class, 'rankingAvaliadores']);
                 Route::get('/avaliacao/lista-final/opcoes', [AdminAvaliacaoController::class, 'opcoesListaFinal']);
                 Route::post('/avaliacao/lista-final', [AdminAvaliacaoController::class, 'gerarListaFinal']);
+                // Listas finais oficiais registradas (a vigente define os finalistas).
+                Route::get('/avaliacao/listas-finais', [AdminAvaliacaoController::class, 'listasFinais']);
+                Route::get('/avaliacao/listas-finais/{lista}/arquivo', [AdminAvaliacaoController::class, 'baixarListaFinal']);
+                Route::get('/avaliacao/listas-finais/{lista}', [AdminAvaliacaoController::class, 'mostrarListaFinal']);
+                // Alterar a composição: justificativa obrigatória, versão nova e
+                // registro em Registros → Lista final.
+                Route::post('/avaliacao/listas-finais/{lista}/projetos', [AdminAvaliacaoController::class, 'adicionarNaListaFinal']);
+                Route::delete('/avaliacao/listas-finais/{lista}/projetos/{projeto}', [AdminAvaliacaoController::class, 'removerDaListaFinal']);
                 Route::post('/avaliacao/projetos/{projeto}/designar', [AdminAvaliacaoController::class, 'designar']);
                 // Correção manual da classificação/vídeo de um projeto submetido
                 // (justificativa obrigatória; cada campo vira registro).

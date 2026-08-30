@@ -113,6 +113,43 @@ class RegistroAtividadeService
         ]);
     }
 
+    /**
+     * Lista final oficial: a publicação e cada projeto acrescentado ou retirado
+     * depois. `$projeto` é nulo na oficialização (o registro é da lista toda).
+     */
+    public function listaFinal(
+        TipoRegistro $tipo,
+        User $admin,
+        string $lista,
+        ?Projeto $projeto,
+        ?string $justificativa,
+        ?string $detalhe = null,
+    ): RegistroAtividade {
+        $detalhes = array_filter([
+            'campo' => $lista,
+            'de' => $tipo === TipoRegistro::ListaFinalProjetoRemovido ? ($projeto?->titulo ?? $detalhe) : null,
+            'para' => $tipo === TipoRegistro::ListaFinalProjetoRemovido ? null : ($projeto?->titulo ?? $detalhe),
+            'justificativa' => $justificativa,
+        ], fn ($v) => $v !== null);
+
+        // Na remoção o "para" some de propósito (o projeto saiu), mas a chave
+        // precisa existir para o texto sair como "Título → (sem valor)".
+        $detalhes['para'] ??= null;
+
+        if ($projeto === null) {
+            return RegistroAtividade::create([
+                'tipo' => $tipo,
+                'user_id' => $admin->id,
+                'autor_email' => $admin->email,
+                'autor_nome' => $admin->name,
+                'autor_role' => $admin->role?->value,
+                'detalhes' => $detalhes,
+            ]);
+        }
+
+        return $this->registrarNoProjeto($tipo, $projeto, $admin, $detalhes);
+    }
+
     /** O admin submetendo o rascunho de outra pessoa, com a justificativa do escape. */
     public function submissaoRascunho(Projeto $projeto, User $admin, string $justificativa): RegistroAtividade
     {
@@ -286,7 +323,8 @@ class RegistroAtividadeService
             $partes[] = $detalhes['de'].' → '.$detalhes['para'];
         }
         $comDeEPara = in_array($registro->tipo->secao(), [
-            TipoRegistro::SECAO_AVALIACAO, TipoRegistro::SECAO_PROJETOS, TipoRegistro::SECAO_RASCUNHOS,
+            TipoRegistro::SECAO_AVALIACAO, TipoRegistro::SECAO_PROJETOS,
+            TipoRegistro::SECAO_RASCUNHOS, TipoRegistro::SECAO_LISTA_FINAL,
         ], true);
         if ($comDeEPara && array_key_exists('para', $detalhes)) {
             $valor = fn ($v) => ($v === null || $v === '') ? '(sem valor)' : (string) $v;

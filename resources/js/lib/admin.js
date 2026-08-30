@@ -162,6 +162,31 @@ export async function baixarListaFinal(cotas) {
     baixarBlob(r.data, nome);
 }
 
+/** Listas finais oficiais registradas na edição em curso. */
+export const getListasFinais = () =>
+    http.get('/admin/avaliacao/listas-finais').then((r) => r.data.data);
+
+/** Baixa o TXT de uma lista oficial na composição atual dela. */
+export async function baixarListaOficial(id) {
+    const r = await http.get(`/admin/avaliacao/listas-finais/${id}/arquivo`, { responseType: 'blob' });
+    const nome = /filename="([^"]+)"/.exec(r.headers['content-disposition'] ?? '')?.[1] ?? 'lista-final.txt';
+    baixarBlob(r.data, nome);
+}
+
+/** Uma lista oficial aberta para edição: composição atual + candidatos. */
+export const getListaFinal = (id) =>
+    http.get(`/admin/avaliacao/listas-finais/${id}`).then((r) => r.data.data);
+
+/** Inclui um projeto na lista oficial (justificativa obrigatória). */
+export const adicionarNaListaFinal = (id, projetoId, justificativa) =>
+    http.post(`/admin/avaliacao/listas-finais/${id}/projetos`, { projeto_id: projetoId, justificativa })
+        .then((r) => r.data.data);
+
+/** Retira um projeto da lista oficial (justificativa obrigatória). */
+export const removerDaListaFinal = (id, projetoId, justificativa) =>
+    http.delete(`/admin/avaliacao/listas-finais/${id}/projetos/${projetoId}`, { data: { justificativa } })
+        .then((r) => r.data.data);
+
 // Projetos com sugestão de reclassificação. `filtros`: { area_id, q, de, ate }.
 export const getReclassificacoes = (filtros = {}) =>
     http.get('/admin/avaliacao/reclassificacoes', { params: limpar(filtros) }).then((r) => r.data.data);

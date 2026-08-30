@@ -69,6 +69,10 @@ function CampoCota({ id, rotulo, detalhe, cota, onChange, placeholder = 'sem lim
  * "100 da FUNDECT, 20 de agrárias, 70% desses para o interior". Campo em branco
  * não limita; a reserva do interior é piso, e a vaga que ele não preencher
  * volta para os demais.
+ *
+ * A reserva do interior só existe nas categorias que a permitem (`permite_interior`
+ * — hoje só a FETECMS FUNDECT), e marcar **Lista Final Oficial** registra o
+ * recorte: ele vira a lista vigente da edição e define os finalistas.
  */
 export default function ListaFinalDialog({ open, onClose }) {
     const [opcoes, setOpcoes] = useState(null);
@@ -78,11 +82,16 @@ export default function ListaFinalDialog({ open, onClose }) {
     const [cotas, setCotas] = useState({});
     const [gerando, setGerando] = useState(false);
     const [erro, setErro] = useState('');
+    // Marcar oficial registra a lista (vira a vigente e define os finalistas).
+    const [oficial, setOficial] = useState(false);
+    const [nome, setNome] = useState('');
 
     useEffect(() => {
         if (!open) return;
         setErro('');
         setPasso(0);
+        setOficial(false);
+        setNome('');
         getOpcoesListaFinal().then(setOpcoes).catch(() => setErro('Não foi possível carregar as opções.'));
     }, [open]);
 
@@ -117,6 +126,10 @@ export default function ListaFinalDialog({ open, onClose }) {
         .find((c) => c.value === categoria)?.areas
         .filter((a) => preenchida(cotas[categoria]?.areas?.[a.id]?.cota)) ?? [];
 
+    // Só as categorias que reservam vaga ao interior (hoje, a FUNDECT) entram no
+    // passo 3 — nas demais a lista é só por nota.
+    const categoriasComInterior = categoriasAtivas.filter((c) => c.permite_interior);
+
     function montarPayload() {
         const categorias = {};
 
@@ -126,7 +139,8 @@ export default function ListaFinalDialog({ open, onClose }) {
 
             for (const [areaId, config] of Object.entries(daCategoria.areas ?? {})) {
                 const cota = paraApi(config.cota);
-                const interior = paraApi(config.interior);
+                // A reserva do interior só viaja para as categorias que a aceitam.
+                const interior = c.permite_interior ? paraApi(config.interior) : null;
                 if (cota || interior) areas[areaId] = { cota, interior };
             }
 
@@ -136,14 +150,19 @@ export default function ListaFinalDialog({ open, onClose }) {
             }
         }
 
-        return { total: paraApi(total), categorias };
+        return {
+            total: paraApi(total),
+            categorias,
+            oficial,
+            nome: oficial && nome.trim() !== '' ? nome.trim() : null,
+        };
     }
 
     async function gerar() {
         setGerando(true); setErro('');
         try {
             await baixarListaFinal(montarPayload());
-            onClose();
+            onClose(oficial);
         } catch (e) {
             setErro(extractErrors(e).message || 'Não foi possível gerar a lista. Tente novamente.');
         } finally {
@@ -243,16 +262,21 @@ export default function ListaFinalDialog({ open, onClose }) {
                     <div className="space-y-4">
                         <p className="text-xs text-on-surface-variant">
                             Quantas das vagas de cada área ficam reservadas a projetos do{' '}
-                            <strong>interior</strong> (escola fora da capital). Só aparecem as áreas
-                            com cota definida — a reserva é uma fatia dessa cota. Se não houver
-                            projeto do interior suficiente, a vaga volta para os demais.
+                            <strong>interior</strong> (escola fora da capital). A reserva existe
+                            apenas nas categorias que a preveem e nas áreas com cota definida — ela é
+                            uma fatia dessa cota. Se não houver projeto do interior suficiente, a
+                            vaga volta para os demais.
                         </p>
-                        {categoriasAtivas.every((c) => areasComCota(c.value).length === 0) ? (
+                        {categoriasComInterior.length === 0 ? (
+                            <p className="text-sm text-on-surface-variant">
+                                Nenhuma categoria selecionada reserva vagas para o interior.
+                            </p>
+                        ) : categoriasComInterior.every((c) => areasComCota(c.value).length === 0) ? (
                             <p className="text-sm text-on-surface-variant">
                                 Nenhuma área tem cota definida. Volte ao passo 2 para definir as cotas
                                 por área antes de reservar vagas para o interior.
                             </p>
-                        ) : categoriasAtivas.map((c) => {
+                        ) : categoriasComInterior.map((c) => {
                             const areas = areasComCota(c.value);
                             if (areas.length === 0) return null;
 
@@ -276,8 +300,40 @@ export default function ListaFinalDialog({ open, onClose }) {
                     </div>
                 )}
 
+                {/* Oficializar: só no último passo, junto do botão que gera. */}
+                {passo === PASSOS.length - 1 && (
+                    <div className="mt-4 rounded-lg border border-outline-variant p-3">
+                        <label className="flex items-start gap-3 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={oficial}
+                                onChange={(e) => setOficial(e.target.checked)}
+                                className="mt-0.5 w-5 h-5 rounded text-primary-container"
+                            />
+                            <span className="min-w-0">
+                                <span className="block text-sm font-semibold text-on-surface">Lista Final Oficial</span>
+                                <span className="block text-xs text-on-surface-variant">
+                                    Registra esta lista como a vigente da edição: os projetos e seus
+                                    participantes passam a ser os <strong>finalistas</strong> da feira. A
+                                    composição pode ser alterada depois, sempre gerando um arquivo novo.
+                                </span>
+                            </span>
+                        </label>
+                        {oficial && (
+                            <input
+                                value={nome}
+                                onChange={(e) => setNome(e.target.value)}
+                                placeholder="Nome da lista (opcional)"
+                                aria-label="Nome da lista"
+                                maxLength={120}
+                                className="mt-3 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm text-on-surface focus:border-primary-container focus:outline-none focus:ring-2 focus:ring-primary-container/20"
+                            />
+                        )}
+                    </div>
+                )}
+
                 <div className="flex justify-between gap-2 pt-4">
-                    <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
+                    <Button type="button" variant="outline" onClick={() => onClose(false)}>Cancelar</Button>
 
                     <div className="flex gap-2">
                         {passo > 0 && (
@@ -292,7 +348,7 @@ export default function ListaFinalDialog({ open, onClose }) {
                         ) : (
                             <Button type="button" loading={gerando} disabled={opcoes === null} onClick={gerar}>
                                 <span className="material-symbols-outlined text-[18px]">download</span>
-                                Gerar TXT
+                                {oficial ? 'Gerar e oficializar' : 'Gerar TXT'}
                             </Button>
                         )}
                     </div>

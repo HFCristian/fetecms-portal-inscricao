@@ -171,6 +171,13 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     sorteia de novo — o que está **em avaliação**, o concluído e o designado à mão não se mexem),
     mais o toggle **designar ao cadastrar** (`edicoes.distribuicao_ao_cadastrar`): ligado, o
     avaliador que acaba de se cadastrar já sai com a fila cheia.
+  - **Avaliação Online → Listas finais oficiais** (`/admin/avaliacao/listas-finais`): as listas
+    geradas com a caixa **Lista Final Oficial** marcada ficam registradas. A **vigente** da edição
+    é a que define os **finalistas** da feira (projetos + alunos + orientador + coorientador);
+    publicar uma nova encerra a anterior. Dentro de cada lista o admin **inclui e retira projetos**
+    com **justificativa obrigatória** — cada alteração **sobe a versão**, gera um TXT novo (o
+    arquivo sai sempre da composição atual, com a numeração refeita) e entra em **Registros → Lista
+    final**. `listas_finais` + `lista_final_projetos`, `ListaFinalService`.
   - **Avaliação Online → Ranking dos projetos → Gerar lista final**: exporta em **TXT** o recorte
     que vai para a programação da feira. O admin passa por **três passos** — quantos projetos por
     **categoria**, quantos por **área dentro de cada categoria** e quantas dessas vagas ficam
@@ -178,7 +185,9 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     quantidade em **número fixo ou porcentagem** do recorte acima dela (`App\Support\Cota`): "100 da
     FUNDECT, 20 de agrárias, 70% desses para o interior". Campo em branco não limita; 0 deixa o
     recorte de fora. A reserva do interior é **piso**, não teto: a vaga que ele não preencher volta
-    para os demais numa segunda passada, e ela só vale onde a área tem cota. Entram os **mais bem
+    para os demais numa segunda passada, e ela só vale onde a área tem cota. **A cota do interior
+    existe apenas na FETECMS FUNDECT** (`Categoria::permiteCotaInterior()`) — é exigência do fomento
+    dela; nas demais a lista é só por nota. Entram os **mais bem
     avaliados** que couberem em todas as cotas. O arquivo sai por categoria (FETECMS → FETEC Jr → FETECMS FUNDECT) → área em ordem
     alfabética → título, com o sequencial `001, 002…` reiniciando a cada categoria+área:
     `FET.AGR-001 - Título` / `Escola / Cidade - UF` / alunos em ordem alfabética /
@@ -190,7 +199,9 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     alterado vira um registro em **Registros → Projetos** com o "de → para"
     (`AdminProjetoEdicaoService`). No topo da tela, um **card destacado** soma todas as áreas:
     quantos projetos estão com 0, 1, 2 e 3+ avaliações concluídas, sempre no recorte dos filtros.
-  - **Registros** tem quatro seções: **Inscrições**, **Avaliação Online**, **Projetos**
+  - **Registros** tem cinco seções: **Inscrições**, **Avaliação Online**, **Lista final**
+    (`/admin/registros/lista-final` — publicação da lista oficial e cada projeto incluído ou
+    retirado, com a justificativa), **Projetos**
     (`/admin/registros/projetos`) — as correções do admin e os aceites do orientador, cada um com a
     justificativa — e **Rascunhos** (`/admin/registros/rascunhos`), com o que o admin mexeu numa
     inscrição alheia antes de submetê-la por ela.
@@ -382,7 +393,27 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 65 | Painel: 3 cards de alunos por classe escolar, quebrados por série | ✅ sim | ❌ não (manual do Pedro) | 5 |
 | 66 | Parametrização → Edições: várias edições, edição padrão e troca de escopo por usuário | ✅ sim | ❌ não (manual do Pedro) | 6 |
 | 67 | Escopos de admin: perfis de abas por edição, aplicados no menu e no backend | ✅ sim | ❌ não (manual do Pedro) | 6 |
+| 68 | Lista final: cota do interior só na FUNDECT + caixa "Lista Final Oficial" (finalistas registrados) | ✅ sim | ❌ não (manual do Pedro) | 7 |
+| 69 | Lista final oficial: incluir/retirar projeto com justificativa, versão nova e auditoria | ✅ sim | ❌ não (manual do Pedro) | 7 |
 
+> **Sprints 68–69 (mesma branch):** a lista final virou um documento vivo.
+> (a) **Sprint 68** — a **cota do interior** passou a existir **só na FETECMS FUNDECT**
+> (`Categoria::permiteCotaInterior()`): o passo 3 do assistente só mostra as categorias que a
+> preveem, e uma reserva enviada para outra categoria é ignorada no servidor. Junto veio a caixa
+> **Lista Final Oficial**: marcada, a geração **registra** a lista (`listas_finais` +
+> `lista_final_projetos`) como a **vigente** da edição — e os projetos dela, com alunos, orientador
+> e coorientador, passam a ser os **finalistas** da feira. Publicar uma nova encerra a anterior;
+> várias listas convivem, uma vigente. Sem marcar, nada é registrado: continua sendo só um TXT.
+> (b) **Sprint 69** — a composição da lista oficial ficou **editável e auditada**. Em
+> `/admin/avaliacao/listas-finais/{id}` o admin **inclui** um projeto avaliado que ficou de fora ou
+> **retira** um que está dentro, sempre com **justificativa** (mín. 5 caracteres). Cada alteração
+> **sobe a versão** da lista, e o TXT é gerado a partir da composição atual — com a numeração
+> `001, 002…` refeita —, então baixar de novo já traz o arquivo novo. Tudo entra na seção nova
+> **Registros → Lista final** (`lista_final_oficializada`, `lista_final_projeto_adicionado`,
+> `lista_final_projeto_removido`), com o "de → para" e a justificativa. Projeto que entrou à mão
+> fica marcado na composição.
+> Back **624/624**, front **281/281**, Pint limpo, build OK.
+>
 > **Sprints 66–67 (mesma branch):** o portal deixou de ser de uma edição só.
 > (a) **Sprint 66** — **Edições**. Nasceram `edicoes.padrao` (a edição que vale para quem não
 > escolheu nenhuma — cadastro público, e-mails, fila, CLI) e `users.edicao_id` (a que a pessoa está

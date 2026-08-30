@@ -18,6 +18,7 @@ use App\Http\Requests\Admin\ListarProjetosAvaliacaoRequest;
 use App\Http\Requests\Admin\MinimosAvaliacaoRequest;
 use App\Http\Requests\Admin\RegrasDistribuicaoRequest;
 use App\Models\Edicao;
+use App\Models\ListaFinal;
 use App\Models\Projeto;
 use App\Models\User;
 use App\Services\AdminAvaliacaoService;
@@ -26,6 +27,7 @@ use App\Services\DistribuicaoService;
 use App\Services\ListaFinalService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -219,14 +221,88 @@ class AdminAvaliacaoController extends Controller
         return response()->json(['data' => $this->listaFinal->opcoes()]);
     }
 
-    /** Gera a lista final em TXT, no recorte de cotas escolhido pelo admin. */
+    /**
+     * Gera a lista final em TXT, no recorte de cotas escolhido pelo admin.
+     *
+     * Com `oficial`, a lista também é **registrada**: vira a vigente da edição
+     * e os projetos dela passam a ser os finalistas da feira.
+     */
     public function gerarListaFinal(ListaFinalRequest $request): Response
     {
-        $txt = $this->listaFinal->exportarTxt($request->cotas());
+        $cotas = $request->cotas();
 
-        return response($txt, 200, [
+        if ($request->boolean('oficial')) {
+            $lista = $this->listaFinal->oficializar($cotas, $request->user(), $request->input('nome'));
+
+            return $this->txt(
+                $this->listaFinal->exportarTxtDaLista($lista),
+                'lista-final-oficial-v'.$lista->versao,
+            );
+        }
+
+        return $this->txt($this->listaFinal->exportarTxt($cotas), 'lista-final');
+    }
+
+    /** As listas finais oficiais já registradas na edição em curso. */
+    public function listasFinais(): JsonResponse
+    {
+        return response()->json(['data' => $this->listaFinal->listasOficiais()]);
+    }
+
+    /** Uma lista oficial aberta para edição: composição atual + candidatos. */
+    public function mostrarListaFinal(ListaFinal $lista): JsonResponse
+    {
+        return response()->json(['data' => $this->listaFinal->detalhar($lista)]);
+    }
+
+    /**
+     * Acrescenta um projeto à lista oficial. É uma decisão fora do recorte por
+     * nota, então a justificativa é obrigatória e a versão da lista sobe.
+     */
+    public function adicionarNaListaFinal(Request $request, ListaFinal $lista): JsonResponse
+    {
+        $dados = $request->validate([
+            'projeto_id' => ['required', 'integer', 'exists:projetos,id'],
+            'justificativa' => ['required', 'string', 'min:5', 'max:500'],
+        ]);
+
+        $this->listaFinal->adicionarProjeto(
+            $lista,
+            Projeto::findOrFail($dados['projeto_id']),
+            $request->user(),
+            $dados['justificativa'],
+        );
+
+        return response()->json(['data' => $this->listaFinal->detalhar($lista->fresh())]);
+    }
+
+    /** Retira um projeto da lista oficial (justificativa obrigatória). */
+    public function removerDaListaFinal(Request $request, ListaFinal $lista, Projeto $projeto): JsonResponse
+    {
+        $dados = $request->validate([
+            'justificativa' => ['required', 'string', 'min:5', 'max:500'],
+        ]);
+
+        $this->listaFinal->removerProjeto($lista, $projeto, $request->user(), $dados['justificativa']);
+
+        return response()->json(['data' => $this->listaFinal->detalhar($lista->fresh())]);
+    }
+
+    /** Baixa o TXT de uma lista oficial na composição atual dela. */
+    public function baixarListaFinal(ListaFinal $lista): Response
+    {
+        return $this->txt(
+            $this->listaFinal->exportarTxtDaLista($lista),
+            Str::slug($lista->nome).'-v'.$lista->versao,
+        );
+    }
+
+    /** Resposta de download de um TXT, com o nome do arquivo datado. */
+    private function txt(string $conteudo, string $nome): Response
+    {
+        return response($conteudo, 200, [
             'Content-Type' => 'text/plain; charset=UTF-8',
-            'Content-Disposition' => 'attachment; filename="lista-final-'.now()->format('Y-m-d-His').'.txt"',
+            'Content-Disposition' => 'attachment; filename="'.$nome.'-'.now()->format('Y-m-d-His').'.txt"',
         ]);
     }
 

@@ -65,6 +65,16 @@ enum Categoria: string
         return $this === self::Fetecms;
     }
 
+    /**
+     * A categoria reserva vagas da lista final para o **interior**? Só a
+     * FETECMS FUNDECT: a cota de escolas fora da capital é uma exigência do
+     * fomento dela, e nas demais a lista é só por nota.
+     */
+    public function permiteCotaInterior(): bool
+    {
+        return $this === self::FetecmsFundect;
+    }
+
     /** @return array<int, array{value: string, label: string}> */
     public static function opcoes(): array
     {

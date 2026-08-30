@@ -120,10 +120,19 @@ export default function AvaliacaoRanking() {
                         notas finais. Empate na média é desfeito por quem tem mais avaliações.
                     </p>
                 </div>
-                <Button type="button" className="shrink-0" onClick={() => setListaFinal(true)}>
-                    <span className="material-symbols-outlined text-[18px]">list_alt</span>
-                    Gerar lista final
-                </Button>
+                <div className="flex flex-wrap gap-2 shrink-0">
+                    <Link
+                        to="/admin/avaliacao/listas-finais"
+                        className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-2.5 text-sm font-semibold text-on-surface hover:bg-surface-variant transition-colors"
+                    >
+                        <span className="material-symbols-outlined text-[18px]">fact_check</span>
+                        Listas oficiais
+                    </Link>
+                    <Button type="button" onClick={() => setListaFinal(true)}>
+                        <span className="material-symbols-outlined text-[18px]">list_alt</span>
+                        Gerar lista final
+                    </Button>
+                </div>
             </div>
 
             <ListaFinalDialog open={listaFinal} onClose={() => setListaFinal(false)} />

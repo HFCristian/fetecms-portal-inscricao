@@ -49,6 +49,12 @@ export default function AdminRegistrosHome() {
                     descricao="O admin terminando e submetendo a inscrição de alguém depois do prazo: cada campo alterado e a justificativa do envio."
                 />
                 <CardSecao
+                    to="/admin/registros/lista-final"
+                    icon="fact_check"
+                    titulo="Lista final"
+                    descricao="A lista oficial da feira: publicação e cada projeto incluído ou retirado, com a justificativa."
+                />
+                <CardSecao
                     to="/admin/registros/avaliacao"
                     icon="grading"
                     titulo="Avaliação Online"

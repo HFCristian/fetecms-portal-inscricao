@@ -40,6 +40,8 @@ import AvaliacaoDistribuicao from './pages/AvaliacaoDistribuicao.jsx';
 import AvaliacaoProjetos from './pages/AvaliacaoProjetos.jsx';
 import AvaliacaoReclassificacoes from './pages/AvaliacaoReclassificacoes.jsx';
 import AvaliacaoRanking from './pages/AvaliacaoRanking.jsx';
+import AvaliacaoListasFinais from './pages/AvaliacaoListasFinais.jsx';
+import AvaliacaoListaFinalDetalhe from './pages/AvaliacaoListaFinalDetalhe.jsx';
 import AvaliacaoRankingAvaliadores from './pages/AvaliacaoRankingAvaliadores.jsx';
 import Acesso from './pages/Acesso.jsx';
 import AdminRegistros from './pages/AdminRegistros.jsx';
@@ -112,6 +114,8 @@ export default function Root() {
                             <Route path="/admin/avaliacao/projetos" element={<AvaliacaoProjetos />} />
                             <Route path="/admin/avaliacao/reclassificacoes" element={<AvaliacaoReclassificacoes />} />
                             <Route path="/admin/avaliacao/ranking" element={<AvaliacaoRanking />} />
+                            <Route path="/admin/avaliacao/listas-finais" element={<AvaliacaoListasFinais />} />
+                            <Route path="/admin/avaliacao/listas-finais/:id" element={<AvaliacaoListaFinalDetalhe />} />
                             <Route path="/admin/avaliacao/ranking-avaliadores" element={<AvaliacaoRankingAvaliadores />} />
                             <Route path="/admin/projetos-por-area" element={<AdminProjetosPorArea />} />
                             {/* Projetos em rascunho: o admin termina a inscrição de
@@ -136,6 +140,7 @@ export default function Root() {
                             <Route path="/admin/registros/avaliacao" element={<AdminRegistros secao="avaliacao" />} />
                             <Route path="/admin/registros/projetos" element={<AdminRegistros secao="projetos" />} />
                             <Route path="/admin/registros/rascunhos" element={<AdminRegistros secao="rascunhos" />} />
+                            <Route path="/admin/registros/lista-final" element={<AdminRegistros secao="lista_final" />} />
                             <Route path="/admin/comunicacao" element={<AdminComunicacao />} />
                             <Route path="/admin/comunicacao/avisos" element={<AdminAvisos />} />
                             <Route path="/admin/comunicacao/modelos" element={<AdminModelosEmail />} />

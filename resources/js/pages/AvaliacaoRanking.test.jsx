@@ -184,6 +184,9 @@ describe('AvaliacaoRanking', () => {
                     areas: { 1: { cota: { tipo: 'fixo', valor: 5 }, interior: null } },
                 },
             },
+            // Sem marcar "Lista Final Oficial", a lista não é registrada.
+            oficial: false,
+            nome: null,
         }));
     });
 

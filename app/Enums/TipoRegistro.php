@@ -23,6 +23,10 @@ namespace App\Enums;
  * Seção "Rascunhos" (o admin terminando e enviando a inscrição de alguém depois
  * do prazo): cada campo que ele mexe no rascunho vira uma linha, e a submissão
  * fecha a sequência carregando a justificativa obrigatória.
+ *
+ * Seção "Lista final" (a lista oficial da feira): a oficialização e cada
+ * projeto acrescentado ou retirado depois, sempre com justificativa — é a
+ * composição de quem sobe ao evento, então toda mexida fica registrada.
  */
 enum TipoRegistro: string
 {
@@ -47,6 +51,9 @@ enum TipoRegistro: string
     case ProjetoVideo = 'projeto_video';
     case RascunhoAlteracao = 'rascunho_alteracao';
     case RascunhoSubmissao = 'rascunho_submissao';
+    case ListaFinalOficializada = 'lista_final_oficializada';
+    case ListaFinalProjetoAdicionado = 'lista_final_projeto_adicionado';
+    case ListaFinalProjetoRemovido = 'lista_final_projeto_removido';
 
     /** Seções da tela de Registros. */
     public const SECAO_INSCRICOES = 'inscricoes';
@@ -56,6 +63,8 @@ enum TipoRegistro: string
     public const SECAO_PROJETOS = 'projetos';
 
     public const SECAO_RASCUNHOS = 'rascunhos';
+
+    public const SECAO_LISTA_FINAL = 'lista_final';
 
     public function label(): string
     {
@@ -81,6 +90,9 @@ enum TipoRegistro: string
             self::ProjetoVideo => 'Vídeo do projeto',
             self::RascunhoAlteracao => 'Alteração no rascunho',
             self::RascunhoSubmissao => 'Submissão do rascunho',
+            self::ListaFinalOficializada => 'Lista final oficializada',
+            self::ListaFinalProjetoAdicionado => 'Projeto incluído na lista',
+            self::ListaFinalProjetoRemovido => 'Projeto retirado da lista',
         };
     }
 
@@ -91,6 +103,8 @@ enum TipoRegistro: string
             self::Submissao, self::Cancelamento, self::Exclusao, self::TrocaEmail => self::SECAO_INSCRICOES,
             self::ProjetoCategoria, self::ProjetoArea, self::ProjetoSubarea, self::ProjetoVideo => self::SECAO_PROJETOS,
             self::RascunhoAlteracao, self::RascunhoSubmissao => self::SECAO_RASCUNHOS,
+            self::ListaFinalOficializada, self::ListaFinalProjetoAdicionado,
+            self::ListaFinalProjetoRemovido => self::SECAO_LISTA_FINAL,
             default => self::SECAO_AVALIACAO,
         };
     }
@@ -98,7 +112,10 @@ enum TipoRegistro: string
     /** @return list<string> */
     public static function secoes(): array
     {
-        return [self::SECAO_INSCRICOES, self::SECAO_AVALIACAO, self::SECAO_PROJETOS, self::SECAO_RASCUNHOS];
+        return [
+            self::SECAO_INSCRICOES, self::SECAO_AVALIACAO, self::SECAO_PROJETOS,
+            self::SECAO_RASCUNHOS, self::SECAO_LISTA_FINAL,
+        ];
     }
 
     /**

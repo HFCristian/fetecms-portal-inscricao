@@ -34,6 +34,9 @@ class ListaFinalRequest extends FormRequest
         return array_merge(
             $cota('total'),
             [
+                // Marcar como oficial registra a lista e define os finalistas.
+                'oficial' => ['sometimes', 'boolean'],
+                'nome' => ['nullable', 'string', 'max:120'],
                 'categorias' => ['nullable', 'array'],
                 'categorias.*' => ['nullable', 'array'],
                 'categorias.*.areas' => ['nullable', 'array'],
