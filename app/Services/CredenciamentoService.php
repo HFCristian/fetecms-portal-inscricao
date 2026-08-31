@@ -26,6 +26,11 @@ use Illuminate\Validation\ValidationException;
  * documento, pessoa a pessoa (alunos, orientador e coorientador), marcando
  * **presente**, **ausente** ou **não necessário**.
  *
+ * No **modo de teste** o balcão troca de lista: em vez da oficial ele abre a
+ * lista **demo** da edição (`php artisan demo:credenciamento`), com projetos de
+ * mentira. É por isso que ensaiar não credencia ninguém de verdade — o
+ * finalista de treinamento nem sequer está na lista oficial.
+ *
  * **Quando**: só dentro da janela do evento (`edicoes.evento_de`/`evento_ate`),
  * que fica **fechada enquanto a data não for definida** — credenciar é ato
  * presencial, ninguém credencia por padrão. O **admin demo** tem um modo de
@@ -53,11 +58,29 @@ class CredenciamentoService
     /** O evento está aberto para este usuário? O demo em modo teste ignora as datas. */
     public function podeCredenciar(?User $user, bool $teste = false): bool
     {
-        if ($teste && (bool) $user?->is_demo) {
+        if ($this->emTeste($user, $teste)) {
             return true;
         }
 
         return (bool) Edicao::atual()?->eventoEmAndamento();
+    }
+
+    /**
+     * O modo de teste está mesmo valendo para esta pessoa? O parâmetro sozinho
+     * não basta: quem não é demo pode mandar `teste=1` na URL e nada muda.
+     */
+    public function emTeste(?User $user, bool $teste): bool
+    {
+        return $teste && (bool) $user?->is_demo;
+    }
+
+    /**
+     * A lista que define os finalistas para esta pessoa: a **demo** quando o
+     * modo de teste vale, a **oficial** em qualquer outro caso.
+     */
+    public function listaFinal(?User $user = null, bool $teste = false): ?ListaFinal
+    {
+        return ListaFinal::vigente(null, $this->emTeste($user, $teste));
     }
 
     /**
@@ -68,7 +91,8 @@ class CredenciamentoService
     public function config(?User $user = null, bool $teste = false): array
     {
         $edicao = Edicao::atual();
-        $vigente = ListaFinal::vigente($edicao);
+        $emTeste = $this->emTeste($user, $teste);
+        $vigente = ListaFinal::vigente($edicao, $emTeste);
 
         return [
             'aberto' => $this->podeCredenciar($user, $teste),
@@ -80,13 +104,14 @@ class CredenciamentoService
             'fim_input' => $edicao?->evento_ate?->format('Y-m-d\TH:i'),
             // Só o admin demo enxerga o toggle de modo de teste.
             'pode_testar' => (bool) $user?->is_demo,
-            'modo_teste' => $teste && (bool) $user?->is_demo,
+            'modo_teste' => $emTeste,
             'itens' => $edicao?->itens_credenciamento ?? [],
             'minutos_atendimento' => self::MINUTOS_ATENDIMENTO,
             'lista' => $vigente === null ? null : [
                 'id' => $vigente->id,
                 'nome' => $vigente->nome,
                 'versao' => $vigente->versao,
+                'demo' => $vigente->demo,
             ],
         ];
     }
@@ -99,9 +124,13 @@ class CredenciamentoService
      *
      * @param  array<string, mixed>  $filtros
      */
-    public function finalistas(array $filtros, int $porPagina = 25): LengthAwarePaginator
-    {
-        $pagina = $this->query($filtros)->paginate($porPagina)->withQueryString();
+    public function finalistas(
+        array $filtros,
+        int $porPagina = 25,
+        ?User $user = null,
+        bool $teste = false,
+    ): LengthAwarePaginator {
+        $pagina = $this->query($filtros, $user, $teste)->paginate($porPagina)->withQueryString();
 
         $pagina->getCollection()->transform(fn (Projeto $p) => $this->linha($p));
 
@@ -115,9 +144,9 @@ class CredenciamentoService
      * @param  array<string, mixed>  $filtros
      * @return array{finalistas:int, credenciados:int, pendentes:int}
      */
-    public function resumo(array $filtros): array
+    public function resumo(array $filtros, ?User $user = null, bool $teste = false): array
     {
-        $base = $this->query(array_merge($filtros, ['situacao' => null]))->reorder();
+        $base = $this->query(array_merge($filtros, ['situacao' => null]), $user, $teste)->reorder();
 
         $total = (clone $base)->count();
         $credenciados = (clone $base)
@@ -205,7 +234,7 @@ class CredenciamentoService
             ]);
         }
 
-        if (! $this->ehFinalista($projeto)) {
+        if (! $this->ehFinalista($projeto, $admin, $teste)) {
             throw ValidationException::withMessages([
                 'credenciamento' => 'Este projeto não está na lista final vigente.',
             ]);
@@ -215,10 +244,12 @@ class CredenciamentoService
         // acontecendo agora, então o fim é calculado, não cronometrado.
         $inicio = $this->interpretar($iniciadoEm);
 
-        return DB::transaction(function () use ($projeto, $admin, $marcacoes, $observacao, $inicio) {
+        $lista = $this->listaFinal($admin, $teste);
+
+        return DB::transaction(function () use ($projeto, $admin, $marcacoes, $observacao, $inicio, $lista) {
             $credenciamento = $this->credenciamentoDe($projeto) ?? Credenciamento::create([
                 'projeto_id' => $projeto->id,
-                'lista_final_id' => ListaFinal::vigente()?->id,
+                'lista_final_id' => $lista?->id,
                 'iniciado_em' => $inicio ?? now(),
             ]);
 
@@ -253,10 +284,14 @@ class CredenciamentoService
             : 'O período do evento ainda não foi definido pela organização.';
     }
 
-    /** O projeto está na lista final vigente? */
-    public function ehFinalista(Projeto $projeto): bool
+    /**
+     * O projeto está na lista final que vale para esta pessoa? Em modo de teste
+     * a pergunta é sobre a lista demo — é o que impede o ensaio de abrir a
+     * ficha de um finalista de verdade, e vice-versa.
+     */
+    public function ehFinalista(Projeto $projeto, ?User $user = null, bool $teste = false): bool
     {
-        $vigente = ListaFinal::vigente();
+        $vigente = $this->listaFinal($user, $teste);
 
         return $vigente !== null && $vigente->projetos()->whereKey($projeto->id)->exists();
     }
@@ -272,9 +307,9 @@ class CredenciamentoService
      * @param  array<string, mixed>  $filtros
      * @return Builder<Projeto>
      */
-    private function query(array $filtros): Builder
+    private function query(array $filtros, ?User $user = null, bool $teste = false): Builder
     {
-        $vigente = ListaFinal::vigente();
+        $vigente = $this->listaFinal($user, $teste);
         $busca = trim((string) ($filtros['busca'] ?? ''));
 
         return Projeto::query()

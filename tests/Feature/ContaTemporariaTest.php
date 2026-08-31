@@ -16,6 +16,10 @@ use Tests\TestCase;
 /**
  * Sprint 82 — contas temporárias de credenciamento: acesso de prazo curto para
  * quem atende o balcão sem fazer parte da organização.
+ *
+ * Sprint 87 — a janela passou a ser contada em **horas** (padrão 5) e ganhou um
+ * **início agendável**: a conta pode nascer pronta para abrir só na hora do
+ * evento.
  */
 class ContaTemporariaTest extends TestCase
 {
@@ -38,7 +42,7 @@ class ContaTemporariaTest extends TestCase
             'password_confirmation' => 'senha-do-balcao',
             'cpf' => '52998224725',
             'curso' => 'Ciência da Computação',
-            'dias' => 3,
+            'horas' => 3,
         ], $extra);
     }
 
@@ -118,7 +122,7 @@ class ContaTemporariaTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.contas.0.vencida', true)
             ->assertJsonPath('data.contas.0.ativa', false)
-            ->assertJsonPath('data.contas.0.dias_restantes', 0);
+            ->assertJsonPath('data.contas.0.horas_restantes', 0);
 
         $this->assertFalse($conta->user->fresh()->is_active);
     }
@@ -148,7 +152,7 @@ class ContaTemporariaTest extends TestCase
 
         Sanctum::actingAs(User::factory()->admin()->create());
 
-        $this->patchJson("/api/v1/admin/credenciamento/contas/{$conta->id}/renovar", ['dias' => 5])
+        $this->patchJson("/api/v1/admin/credenciamento/contas/{$conta->id}/renovar", ['horas' => 5])
             ->assertOk()
             ->assertJsonPath('data.contas.0.ativa', true)
             ->assertJsonPath('data.contas.0.vencida', false)
@@ -168,7 +172,7 @@ class ContaTemporariaTest extends TestCase
         $conta->update(['expira_em' => now()->subDay()]);
         app(ContaTemporariaService::class)->expirarVencidas();
 
-        app(ContaTemporariaService::class)->renovar($conta, ['dias' => 5]);
+        app(ContaTemporariaService::class)->renovar($conta, ['horas' => 5]);
 
         $this->postJson('/api/v1/auth/login', [
             'email' => 'bruna@balcao.test',
@@ -219,12 +223,138 @@ class ContaTemporariaTest extends TestCase
         ]))->assertForbidden();
 
         // Nem o próprio prazo ela estica.
-        $this->patchJson("/api/v1/admin/credenciamento/contas/{$conta->id}/renovar", ['dias' => 90])
+        $this->patchJson("/api/v1/admin/credenciamento/contas/{$conta->id}/renovar", ['horas' => 90])
             ->assertForbidden();
         $this->patchJson("/api/v1/admin/credenciamento/contas/{$conta->id}/desativar")
             ->assertForbidden();
 
         // Mas o balcão em si continua aberto para ela.
         $this->getJson('/api/v1/admin/credenciamento/finalistas')->assertOk();
+    }
+
+    // --- Sprint 87: janela em horas e agendamento ---
+
+    /** Sem nada informado, a conta vale o padrão de 5 horas a contar de agora. */
+    public function test_prazo_padrao_e_de_cinco_horas(): void
+    {
+        $conta = app(ContaTemporariaService::class)->criar(
+            array_diff_key($this->payload(), ['horas' => null]),
+        );
+
+        $this->assertNull($conta->valido_de);
+        $this->assertEqualsWithDelta(
+            ContaTemporariaService::HORAS_PADRAO,
+            now()->floatDiffInHours($conta->expira_em),
+            0.05,
+        );
+    }
+
+    /** As horas contam a partir do INÍCIO agendado, não do cadastro. */
+    public function test_horas_contam_a_partir_do_inicio_agendado(): void
+    {
+        $inicio = now()->addDays(2)->startOfHour();
+
+        $conta = $this->criar([
+            'valido_de' => $inicio->format('Y-m-d\TH:i'),
+            'horas' => 5,
+        ]);
+
+        $this->assertTrue($conta->agendada());
+        $this->assertEqualsWithDelta(
+            5.0,
+            $conta->valido_de->floatDiffInHours($conta->expira_em),
+            0.05,
+        );
+    }
+
+    /** Agendada, a conta aparece na lista como tal — e continua ativa. */
+    public function test_conta_agendada_aparece_na_lista_sem_ser_desativada(): void
+    {
+        $conta = $this->criar(['valido_de' => now()->addDay()->format('Y-m-d\TH:i')]);
+
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->getJson('/api/v1/admin/credenciamento/contas')
+            ->assertOk()
+            ->assertJsonPath('data.contas.0.agendada', true)
+            ->assertJsonPath('data.contas.0.vencida', false)
+            // Quem bloqueia é a janela, não o interruptor: desativar a conta
+            // agendada a faria parecer encerrada.
+            ->assertJsonPath('data.contas.0.ativa', true);
+
+        $this->assertTrue($conta->user->fresh()->is_active);
+    }
+
+    /** Antes da hora marcada o login é recusado, com a data na mensagem. */
+    public function test_conta_agendada_nao_faz_login_antes_da_hora(): void
+    {
+        $conta = $this->criar(['valido_de' => now()->addDay()->format('Y-m-d\TH:i')]);
+
+        $this->postJson('/api/v1/auth/login', [
+            'email' => 'bruna@balcao.test',
+            'password' => 'senha-do-balcao',
+        ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('email');
+
+        // Agendar não desativa: a conta ainda vai valer.
+        $this->assertTrue($conta->user->fresh()->is_active);
+    }
+
+    /** Chegada a hora, ela entra sozinha — ninguém precisa liberar nada. */
+    public function test_conta_agendada_faz_login_depois_da_hora(): void
+    {
+        $conta = $this->criar(['valido_de' => now()->addDay()->format('Y-m-d\TH:i')]);
+
+        $this->travel(25)->hours();
+
+        $this->postJson('/api/v1/auth/login', [
+            'email' => 'bruna@balcao.test',
+            'password' => 'senha-do-balcao',
+        ])->assertOk();
+
+        $this->assertTrue($conta->fresh()->emVigor());
+    }
+
+    /** Renovar também reagenda: janela nova, começo novo. */
+    public function test_renovar_reagenda_o_inicio(): void
+    {
+        $conta = $this->criar();
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $inicio = now()->addDays(3)->startOfHour();
+
+        $this->patchJson("/api/v1/admin/credenciamento/contas/{$conta->id}/renovar", [
+            'valido_de' => $inicio->format('Y-m-d\TH:i'),
+            'horas' => 8,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.contas.0.agendada', true);
+
+        $conta->refresh();
+        $this->assertSame($inicio->format('Y-m-d H:i'), $conta->valido_de->format('Y-m-d H:i'));
+        $this->assertEqualsWithDelta(8.0, $conta->valido_de->floatDiffInHours($conta->expira_em), 0.05);
+    }
+
+    /** Início no passado é o mesmo que "vale desde já" — não fica agendada. */
+    public function test_inicio_no_passado_vira_acesso_imediato(): void
+    {
+        $conta = $this->criar(['valido_de' => now()->subDay()->format('Y-m-d\TH:i')]);
+
+        $this->assertNull($conta->valido_de);
+        $this->assertTrue($conta->emVigor());
+    }
+
+    /** Fim antes do início não passa: seria uma janela vazia. */
+    public function test_fim_antes_do_inicio_e_recusado(): void
+    {
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->postJson('/api/v1/admin/credenciamento/contas', $this->payload([
+            'valido_de' => now()->addDays(3)->format('Y-m-d\TH:i'),
+            'expira_em' => now()->addDay()->format('Y-m-d\TH:i'),
+        ]))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('expira_em');
     }
 }

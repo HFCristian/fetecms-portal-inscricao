@@ -7,6 +7,7 @@ use App\Enums\ProjetoStatus;
 use App\Enums\Role;
 use App\Enums\StatusAvaliacao;
 use App\Enums\TipoRegistro;
+use App\Models\Aluno;
 use App\Models\Avaliacao;
 use App\Models\AvaliadorAreaExtra;
 use App\Models\AvaliadorProfile;
@@ -14,6 +15,7 @@ use App\Models\Edicao;
 use App\Models\Projeto;
 use App\Models\Subarea;
 use App\Models\User;
+use App\Support\ClassesEscolares;
 use App\Support\LimitesAvaliacao;
 use App\Support\RegrasDistribuicao;
 use App\Support\Rubrica;
@@ -380,6 +382,7 @@ class AdminAvaliacaoService
             'categoria_label' => $p->categoria?->label(),
             // O diálogo de correção abre já preenchido, sem uma segunda consulta.
             'link_video' => $p->link_video,
+            'alunos' => $this->alunosDoProjeto($p),
             'realizadas' => $realizadas,
             'em_avaliacao' => (int) $p->em_avaliacao_count,
             'faltantes' => max(0, $min - $realizadas),
@@ -425,7 +428,31 @@ class AdminAvaliacaoService
             'subarea_id' => $p->subarea_id,
             'subarea' => $p->subarea?->nome,
             'link_video' => $p->link_video,
+            'alunos' => $this->alunosDoProjeto($p),
         ];
+    }
+
+    /**
+     * A equipe do projeto com a **série** de cada aluno, em uma linha legível.
+     *
+     * O diálogo de correção mostra isso logo abaixo da categoria: é a série que
+     * diz se a categoria está certa (FETEC Jr é do fundamental, as demais do
+     * médio), então conferir uma sem a outra é o caminho para corrigir errado.
+     * Só leitura — quem edita aluno é o orientador, ou o admin pela tela de
+     * rascunho.
+     *
+     * @return list<array{id:int, nome:string, serie:?string}>
+     */
+    private function alunosDoProjeto(Projeto $p): array
+    {
+        return $p->alunos
+            ->map(fn (Aluno $a) => [
+                'id' => $a->id,
+                'nome' => $a->nome,
+                'serie' => ClassesEscolares::serieLabel($a->modalidade, $a->ano_escolar),
+            ])
+            ->values()
+            ->all();
     }
 
     /**
@@ -541,7 +568,9 @@ class AdminAvaliacaoService
             ->where('projetos.status', ProjetoStatus::Submetido->value)
             ->leftJoin('areas', 'areas.id', '=', 'projetos.area_id')
             ->select('projetos.*')
-            ->with(['area:id,nome', 'subarea:id,nome'])
+            // A série dos alunos vai junto: o diálogo de correção a mostra e
+            // buscar aluno a aluno na abertura seria um N+1 por linha da tabela.
+            ->with(['area:id,nome', 'subarea:id,nome', 'alunos:id,projeto_id,nome,modalidade,ano_escolar'])
             ->withCount([
                 'avaliacoes as realizadas_count' => fn ($q) => $q->where('status', StatusAvaliacao::Concluida->value),
                 'avaliacoes as em_avaliacao_count' => fn ($q) => $q->where('status', StatusAvaliacao::EmAndamento->value),

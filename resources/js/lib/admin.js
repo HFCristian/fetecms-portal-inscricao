@@ -363,3 +363,29 @@ export const definirDemoAdmin = (adminId, demo) =>
  */
 export const definirEscoposAdmin = (adminId, escopoIds) =>
     http.put(`/admin/admins/${adminId}/escopos`, { escopo_ids: escopoIds ?? [] }).then((r) => r.data.data);
+
+/**
+ * Ordem das abas do menu (Parametrização → Ordem do menu). É da **edição**:
+ * trocar de edição no seletor do topo troca também o menu.
+ */
+export const getOrdemAbas = () => http.get('/admin/abas').then((r) => r.data.data);
+
+/** A lista inteira, na ordem em que a tela a deixou. */
+export const salvarOrdemAbas = (ordem) => http.put('/admin/abas', { ordem }).then((r) => r.data);
+
+/** Volta à ordem original do portal. */
+export const restaurarOrdemAbas = () => http.delete('/admin/abas').then((r) => r.data);
+
+/**
+ * Contas demo (Administradores → Contas demo): orientadores e avaliadores
+ * usados para ensaiar as telas presas a data.
+ *
+ * **Sem `busca` a API devolve só quem já está marcado** — é a lista das contas
+ * de treinamento existentes. Com busca, procura em toda a base de participantes.
+ */
+export const getContasDemo = (filtros = {}) =>
+    http.get('/admin/contas-demo', { params: filtros }).then((r) => r.data);
+
+/** O mesmo interruptor do admin, para um orientador ou avaliador. */
+export const definirDemoParticipante = (userId, demo) =>
+    http.patch(`/admin/contas-demo/${userId}`, { is_demo: demo }).then((r) => r.data);

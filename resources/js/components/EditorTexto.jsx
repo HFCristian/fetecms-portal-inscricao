@@ -31,9 +31,15 @@ function Ferramenta({ icone, titulo, ativo, onClick, desabilitado }) {
  * O valor sai como **HTML** — é o que vai virar o e-mail —, e cada imagem
  * carrega o `data-arquivo-id` do arquivo no servidor: é por ele que o envio
  * troca o `src` pela imagem embutida na mensagem.
+ *
+ * `permitirImagens={false}` tira a ferramenta de imagem da barra: é como os
+ * **Modelos de e-mail** usam o editor, onde o corpo é transacional e curto e
+ * não há arquivo para subir. (`podeInserirImagem` é outra coisa: a ferramenta
+ * existe, mas está no limite de imagens.)
  */
 export default function EditorTexto({
-    valor, onChange, onInserirImagem, podeInserirImagem = true, placeholder, onEditorPronto,
+    valor, onChange, onInserirImagem, podeInserirImagem = true, permitirImagens = true,
+    placeholder, onEditorPronto,
 }) {
     const arquivoRef = useRef(null);
 
@@ -131,25 +137,31 @@ export default function EditorTexto({
                     ativo={editor.isActive('orderedList')}
                     onClick={() => editor.chain().focus().toggleOrderedList().run()}
                 />
-                <span className="w-px h-6 bg-outline-variant/60 mx-1" />
-                <Ferramenta
-                    icone="image" titulo="Inserir imagem"
-                    desabilitado={!podeInserirImagem}
-                    onClick={escolherImagem}
-                />
+                {permitirImagens && (
+                    <>
+                        <span className="w-px h-6 bg-outline-variant/60 mx-1" />
+                        <Ferramenta
+                            icone="image" titulo="Inserir imagem"
+                            desabilitado={!podeInserirImagem}
+                            onClick={escolherImagem}
+                        />
+                    </>
+                )}
             </div>
 
             <EditorContent editor={editor} />
 
-            <input
-                ref={arquivoRef}
-                type="file"
-                accept="image/png,image/jpeg,image/gif,image/webp"
-                className="hidden"
-                aria-hidden="true"
-                tabIndex={-1}
-                onChange={aoEscolher}
-            />
+            {permitirImagens && (
+                <input
+                    ref={arquivoRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/gif,image/webp"
+                    className="hidden"
+                    aria-hidden="true"
+                    tabIndex={-1}
+                    onChange={aoEscolher}
+                />
+            )}
         </div>
     );
 }

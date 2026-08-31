@@ -112,7 +112,9 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
   `aba:` responde 403. Uma trava impede deixar a edição sem nenhum admin ativo capaz de abrir
   "Administradores". Ao entrar, ele cai numa **Home** (`/admin`) com um botão para cada aba que abre;
   cada linha da aba Administradores tem ainda um botão de **modo demo**, que libera para aquela
-  pessoa as funcionalidades presas a data (testar o credenciamento antes do evento, por exemplo).
+  pessoa as funcionalidades presas a data (testar o credenciamento antes do evento, por exemplo);
+  a seção **Contas demo**, no fim da mesma aba, faz o mesmo por **orientadores e avaliadores** —
+  sem busca ela lista quem já está marcado, com busca procura em toda a base.
   A aba **Dashboards**
   reúne as métricas: projetos totais / submetidos / em rascunho; **projetos por categoria**;
   orientadores; alunos; coorientadores; **camisetas por tamanho** (um card para orientadores, um
@@ -136,6 +138,10 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     **padrão ou com projeto não é excluída**. **Qualquer usuário** troca a sua edição pelo seletor
     no topo do menu (`users.edicao_id`; `GET /edicoes`, `PUT /edicoes/atual`) — nulo significa
     "seguir a padrão". `EdicaoService`.
+  - **Parametrização → Ordem do menu** (`/admin/parametrizacao/abas`): em que ordem as abas do
+    admin aparecem no menu lateral e na Home. A ordem é **da edição** (`edicoes.ordem_abas`), como os
+    prazos e os limites, e se arruma arrastando ou pelas setas. É **apresentação**: quem abre o quê
+    continua sendo dos escopos, e aba nova no código entra no fim em vez de sumir. `OrdemAbasService`.
   - **Parametrização → Escopos de admin** (`/admin/parametrizacao/escopos`): o CRUD dos perfis de
     acesso — nome + abas do menu. A atribuição fica na aba **Administradores**, nos chips de cada
     linha: um admin pode receber **vários escopos em cada edição** e abre a **união** das abas de
@@ -211,10 +217,11 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     `Orientador - Orientador(a)`. As siglas de categoria são FET, JR e PIC; as de área saem de
     `areas.sigla` (AGR, BIO, SAU, EXA, HUM, SOC, ENG, LIN), editável em Parametrização → Áreas.
   - **Avaliação Online → Projetos submetidos**: além de *Designar*, cada linha tem **Editar**, que
-    abre a correção manual de **categoria, área, subárea e link do vídeo**. É um escape do edital (o
-    orientador não mexe depois de submeter), então a **justificativa é obrigatória** e cada campo
-    alterado vira um registro em **Registros → Projetos** com o "de → para"
-    (`AdminProjetoEdicaoService`). No topo da tela, um **card destacado** soma todas as áreas:
+    abre a correção manual de **categoria, área, subárea e link do vídeo**, com a **série de cada
+    aluno** logo abaixo da categoria (só leitura) — é ela que diz se a categoria está certa. É um
+    escape do edital (o orientador não mexe depois de submeter), então a **justificativa é
+    obrigatória** e cada campo alterado vira um registro em **Registros → Projetos** com o
+    "de → para" (`AdminProjetoEdicaoService`). No topo da tela, um **card destacado** soma todas as áreas:
     quantos projetos estão com 0, 1, 2 e 3+ avaliações concluídas, sempre no recorte dos filtros.
   - **Credenciamento** (`/admin/credenciamento`): o balcão do evento, em duas seções —
     **Credenciar** (os finalistas que ainda não passaram) e **Credenciados** (quem já passou), a
@@ -223,7 +230,10 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     **documento a documento, pessoa a pessoa** (alunos, orientador e coorientador), marcando
     **presente / ausente / não necessário** — a lista de documentos de cada papel é parametrizável.
     Cada credenciamento grava **quem atendeu e o horário** e entra em Registros → Credenciamento com
-    o que ficou ausente. O **horário de início** vem preenchido com o momento do atendimento e pode
+    o que ficou ausente. O **modo demo** (conta demo, botão na aba) faz duas coisas: ignora as datas
+    do evento **e** troca a lista oficial pela **lista final de demonstração** da edição
+    (`php artisan demo:credenciamento`), então ensaiar o balcão nunca alcança um finalista de
+    verdade. O **horário de início** vem preenchido com o momento do atendimento e pode
     ser corrigido: alterado, o **fim vira início + 5 minutos**
     (`CredenciamentoService::MINUTOS_ATENDIMENTO`); intocado, o fim é o instante da conclusão. Ao
     concluir, a tela **lembra os itens a entregar** ao finalista. Só credencia dentro da **janela do
@@ -231,8 +241,11 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     datas. `CredenciamentoService`.
   - **Credenciamento → Contas temporárias** (`/admin/credenciamento/contas`): acesso de prazo curto
     para quem atende o balcão sem ser da organização. O cadastro é o mesmo do admin (nome, e-mail,
-    senha) mais **CPF**, **nome do curso** e **por quanto tempo** a conta vale. A conta é um `users`
-    com `role = admin`, e o que a restringe é a linha em `contas_temporarias`:
+    senha) mais **CPF**, **nome do curso** e a **janela de acesso**: **quando começa** (em branco,
+    agora) e **por quantas horas** vale (padrão **5**). Preenchendo o início, a conta nasce
+    **agendada** — a equipe inteira é cadastrada dias antes e cada acesso abre sozinho na hora
+    marcada; até lá o login é recusado com a data, mas a conta **não** é desativada. A conta é um
+    `users` com `role = admin`, e o que a restringe é a linha em `contas_temporarias`:
     `User::ehContaTemporaria()` faz `abasPermitidas()` devolver **só "credenciamento"**, por cima de
     qualquer escopo. Vencido o prazo, ela é **desativada, não apagada** — reativar é informar um
     prazo novo, sem recadastrar nada; a varredura roda ao listar e no login. Uma conta temporária
@@ -358,6 +371,8 @@ npm run build                     # build de produção
 npm test                          # testes de componente (Vitest)
 
 # Carga (k6 — instalar separadamente): k6 run load/k6-smoke.js
+# php artisan demo:ajustes           # projeto-exemplo da aba Ajustes do orientador demo
+# php artisan demo:credenciamento     # lista final de demonstração, para ensaiar o balcão
 # Admin padrão (seed): admin@fetecms.test / password
 ```
 
@@ -485,7 +500,64 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 84 | Distribuir/Redistribuir na fila, com barra de progresso | ✅ sim | ❌ não (manual do Pedro) | 15 |
 | 85 | Piso da fila do avaliador: a regra geral que socorre a regra por categoria | ✅ sim | ❌ não (manual do Pedro) | 15 |
 | 86 | Comunicação → **Feedback**: questionário, convite por e-mail e resultados anônimos | ✅ sim | ❌ não (manual do Pedro) | 16 |
+| 87 | Contas temporárias em **horas** (padrão 5) + acesso **agendado** (`valido_de`) | ✅ sim | ❌ não (manual do Pedro) | 17 |
+| 88 | `demo:credenciamento` + **lista final demo**, usada só no modo demo do balcão | ✅ sim | ❌ não (manual do Pedro) | 17 |
+| 89 | Administradores → **Contas demo**: marcar orientador/avaliador como demo | ✅ sim | ❌ não (manual do Pedro) | 18 |
+| 90 | Editar projeto (admin): a **série de cada aluno** abaixo da categoria | ✅ sim | ❌ não (manual do Pedro) | 18 |
+| 91 | Modelos de e-mail com **editor rico** (formatação, sem imagens) | ✅ sim | ❌ não (manual do Pedro) | 19 |
+| 92 | Parametrização → **Ordem do menu**: as abas do admin na ordem da edição | ✅ sim | ❌ não (manual do Pedro) | 19 |
 
+> **Sprints 87–92 (branch `feat/credenciamento-demo-e-menu`, saída da `origin/main` @ `7293ec5`):**
+> ciclo de ensaio do balcão, contas de treinamento e ajustes de tela. Um commit a cada duas sprints.
+> (a) **Sprint 87** — a janela das **contas temporárias** passou a ser medida em **horas** (padrão
+> **5**, o tamanho de um turno de balcão) e ganhou um **início agendável** (`valido_de`): o admin
+> cadastra a equipe inteira dias antes e cada acesso abre sozinho na hora marcada. Antes do início a
+> conta existe, aparece como *agendada* e o **login é recusado com a data** — ela **não** é
+> desativada nesse intervalo, porque quem a bloqueia é a janela, e desativar a faria parecer
+> encerrada na lista. As horas contam **a partir do início**, não do cadastro, então "5 horas a
+> partir das 8h de sábado" é exatamente o que se digita; início no passado é lido como "vale desde
+> já". Renovar virou também o caminho de **reagendar**. `venceuParaLogin` deu lugar a
+> `impedimentoDeLogin`, que devolve a mensagem certa para cada uma das duas situações.
+> (b) **Sprint 88** — o balcão ficou **ensaiável**. `listas_finais.demo` abre uma **segunda trilha**
+> de lista final: a oficial e a de demonstração convivem, cada uma com a sua vigente, e publicar uma
+> **não encerra a outra**. O **modo demo** da aba Credenciamento — que já existia e ignorava as datas
+> — passa a **trocar entre elas**. O ensaio não alcança finalista de verdade nem forçando `?teste=1`:
+> a ficha de um projeto oficial responde 404 em modo demo, e a de um projeto de demonstração responde
+> 404 fora dele. `php artisan demo:credenciamento` monta os dados (orientador demo, três projetos com
+> equipe e séries, a lista demo e — **só se o catálogo estiver vazio** — a lista de documentos
+> padrão). Documentado em [docs/DEMO_CREDENCIAMENTO.md](docs/DEMO_CREDENCIAMENTO.md).
+> (c) **Sprint 89** — **Administradores → Contas demo**. O modo demo é a permissão de treinamento do
+> portal, mas só dava para ligá-lo em **administradores** (na lista da própria aba) e em
+> **avaliadores** (em Avaliadores Online): o **orientador** só nascia demo por linha de comando — e é
+> ele quem precisa da aba Ajustes fora do período. A seção nova lista **as contas já marcadas** quando
+> não há busca ("quais contas de treinamento existem?") e procura em toda a base de orientadores e
+> avaliadores quando há. `GET/PATCH /admin/contas-demo`; a conta de admin é recusada ali de propósito,
+> porque o interruptor dela é a linha acima.
+> (d) **Sprint 90** — o diálogo **Editar projeto** (Projetos submetidos) mostra a **série de cada
+> aluno**, logo abaixo da categoria e **só para leitura**. É a série que diz se a categoria está certa
+> — FETEC Jr é do fundamental, FETECMS e FUNDECT do médio —, e conferir uma sem a outra é o caminho
+> para corrigir errado. O rótulo sai do servidor (`ClassesEscolares::serieLabel()`), então o técnico
+> integrado aparece com nome próprio mesmo contando no card do médio; os alunos vão junto da linha
+> (eager load) para o diálogo não abrir com um N+1.
+> (e) **Sprint 91** — **Modelos de e-mail** ganharam o **editor rico da mala direta**: negrito,
+> itálico, sublinhado, traçado e listas, **sem imagens e sem anexos** (estes e-mails são
+> transacionais e curtos, e não há arquivo para subir). `modelos_email.formato` distingue o corpo do
+> editor (`html`, **sanitizado na gravação** por `HtmlEmail`) do texto puro de sempre (`texto`, o
+> padrão) — nenhum e-mail muda de aparência sozinho, só o que o admin reescrever. O texto guardado
+> antes disso **abre já em parágrafos** no editor, e o **código de 6 dígitos continua saindo no bloco
+> grande**, agora achado dentro do próprio HTML (`HtmlEmail::destacar()`).
+> (f) **Sprint 92** — Parametrização → **Ordem do menu** (`/admin/parametrizacao/abas`). A ordem das
+> abas era a do enum, isto é, a ordem em que elas foram nascendo no código — que não acompanha o
+> calendário: no mês do evento o Credenciamento deveria abrir o menu; na inscrição, Projetos. Agora
+> ela é **da edição** (`edicoes.ordem_abas`), como os prazos e os limites, e vale no menu lateral e na
+> Home. A tela reordena arrastando **ou** pelas setas (teclado e celular). A ordenação é de
+> **apresentação**: `abasPermitidas()` continua sendo o conjunto que autoriza e o middleware `aba:` só
+> pergunta se a aba está lá, então **mudar a ordem nunca muda o acesso**. Aba que a ordem salva não
+> cita entra **no fim**, então acrescentar uma aba no código nunca a faz sumir do menu de quem já
+> configurou. Não vai para a trilha de Registros: é preferência de tela, e a seção de Registros existe
+> para o que muda o resultado da feira.
+> Back **751/751**, front **376/376**, Pint limpo, build OK.
+>
 > **Sprints 74–86 (branch `feat/rbac-dashboards-feedback`, saída da `origin/main` @ `04410ee`):**
 > ciclo de acesso, painéis e escuta. Um commit a cada duas sprints.
 > (a) **Sprint 74** — o erro relatado em produção ao salvar o período de ajustes. Os helpers
@@ -870,6 +942,23 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > e **Escolas** (`/admin/parametrizacao/escolas`): admin busca, **renomeia, mescla** (reatribui
 > projetos/alunos/orientadores) e **exclui** instituições sem uso (`InstituicaoAdminService`/Controller,
 > rotas `admin/instituicoes`). Back **117/117**, front 11/11, Pint limpo, build OK.
+> **Pendências do Pedro (Sprints 87–92):** (1) `git push origin feat/credenciamento-demo-e-menu` +
+> PR para a `main` (o ambiente do Claude não tem credencial do GitHub) e, depois do merge, o deploy
+> pela §11 do [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). Esta release **tem migrations**
+> (`contas_temporarias.valido_de`, `listas_finais.demo`, `modelos_email.formato` e
+> `edicoes.ordem_abas`), **nenhuma variável nova de `.env`** e **nenhuma dependência nova de npm**
+> (o editor dos modelos de e-mail é o TipTap que a mala direta já usava).
+> (2) **O prazo das contas temporárias virou horas.** As contas existentes não mudam — `expira_em`
+> continua o que era —, mas o formulário agora pede horas (padrão 5) e um início opcional. Quem
+> quiser uma conta de vários dias digita as horas equivalentes (72, por exemplo) ou usa o
+> agendamento.
+> (3) **Para ensaiar o credenciamento**: rode `php artisan demo:credenciamento`, marque o admin como
+> **demo** na aba Administradores e ligue **Modo demo** na aba Credenciamento. Detalhes em
+> [docs/DEMO_CREDENCIAMENTO.md](docs/DEMO_CREDENCIAMENTO.md). Atenção: **com o modo demo ligado o
+> balcão não enxerga a lista oficial** — é isso que impede credenciar alguém de verdade por engano.
+> (4) **Os modelos de e-mail continuam com o texto que estão** — o formato só vira HTML quando o
+> admin salvar no editor novo. Vale abrir um e conferir a formatação antes do primeiro disparo.
+> (5) A **ordem do menu** nasce igual à de hoje; mexer nela é opcional e vale por edição.
 > **Pendências do Pedro (Sprints 74–86):** (1) `git push origin feat/rbac-dashboards-feedback` + PR
 > para a `main` (o ambiente do Claude não tem credencial do GitHub) e, depois do merge, o deploy pela
 > §11 do [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). Esta release **tem migrations** (unicidade de

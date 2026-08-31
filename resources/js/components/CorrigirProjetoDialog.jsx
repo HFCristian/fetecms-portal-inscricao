@@ -12,6 +12,12 @@ const campoClass = selectClass;
  * O orientador não pode mais mexer depois de submeter, então isto é um escape
  * do edital: por isso a justificativa é obrigatória e cada campo alterado vira
  * um registro em Registros → Projetos.
+ *
+ * Logo abaixo da categoria vem a **série de cada aluno**, só para leitura: é ela
+ * que diz se a categoria está certa (FETEC Jr é do fundamental, FETECMS e
+ * FUNDECT do médio), e conferir uma sem a outra é o caminho para corrigir
+ * errado. Editar aluno continua sendo do orientador — ou do admin, pela tela de
+ * rascunho.
  */
 export default function CorrigirProjetoDialog({ projeto, areas, categorias, salvando, erro, onSalvar, onFechar }) {
     const [categoria, setCategoria] = useState(projeto.categoria ?? '');
@@ -24,6 +30,9 @@ export default function CorrigirProjetoDialog({ projeto, areas, categorias, salv
     );
     const [linkVideo, setLinkVideo] = useState(projeto.link_video ?? '');
     const [justificativa, setJustificativa] = useState('');
+
+    // Só leitura: a série vem pronta do backend (App\Support\ClassesEscolares).
+    const alunos = projeto.alunos ?? [];
 
     // Subáreas seguem a área escolhida; trocar de área zera a subárea, porque a
     // antiga pertence a outra árvore.
@@ -75,6 +84,24 @@ export default function CorrigirProjetoDialog({ projeto, areas, categorias, salv
                             <option key={c.value} value={c.value}>{c.label}</option>
                         ))}
                     </select>
+                </div>
+
+                <div className="space-y-1">
+                    <p className="text-sm font-semibold text-on-surface">Equipe</p>
+                    {alunos.length === 0 ? (
+                        <p className="text-xs text-on-surface-variant">Nenhum aluno cadastrado neste projeto.</p>
+                    ) : (
+                        <ul className="rounded-lg border border-outline-variant/40 divide-y divide-outline-variant/30">
+                            {alunos.map((a) => (
+                                <li key={a.id} className="px-3 py-2 flex items-baseline justify-between gap-3">
+                                    <span className="text-sm text-on-surface truncate">{a.nome}</span>
+                                    <span className="text-xs text-on-surface-variant whitespace-nowrap">
+                                        {a.serie ?? 'Série não informada'}
+                                    </span>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
                 </div>
 
                 <div className="space-y-1">

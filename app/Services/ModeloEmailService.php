@@ -6,6 +6,7 @@ use App\Enums\ModeloEmail;
 use App\Mail\MensagemTransacional;
 use App\Models\ModeloEmailTexto;
 use App\Models\User;
+use App\Support\HtmlEmail;
 use App\Support\MensagemEmail;
 
 /**
@@ -19,7 +20,11 @@ class ModeloEmailService
     /**
      * Assunto e corpo em vigor — o do admin, se houver, senão o de fábrica.
      *
-     * @return array{assunto: string, corpo: string, personalizado: bool, autor_nome: ?string, atualizado_em: ?string}
+     * `formato` diz como ler o corpo: `html` (escrito no editor rico, já
+     * sanitizado) ou `texto` (puro, quebrado em parágrafos na renderização).
+     * O texto de fábrica é sempre `texto`.
+     *
+     * @return array{assunto: string, corpo: string, formato: string, personalizado: bool, autor_nome: ?string, atualizado_em: ?string}
      */
     public function texto(ModeloEmail $modelo): array
     {
@@ -28,6 +33,7 @@ class ModeloEmailService
         return [
             'assunto' => $salvo->assunto ?? $modelo->assuntoPadrao(),
             'corpo' => $salvo->corpo ?? $modelo->corpoPadrao(),
+            'formato' => $salvo === null ? 'texto' : ($salvo->formato ?? 'texto'),
             'personalizado' => $salvo !== null,
             'autor_nome' => $salvo?->autor_nome,
             'atualizado_em' => $salvo?->updated_at?->toIso8601String(),
@@ -47,6 +53,7 @@ class ModeloEmailService
             assunto: MensagemEmail::personalizar($texto['assunto'], $valores),
             corpo: MensagemEmail::personalizar($texto['corpo'], $valores),
             destaque: $destaque,
+            formato: $texto['formato'],
         );
     }
 
@@ -84,12 +91,24 @@ class ModeloEmailService
      * Grava o texto do admin. Salvar exatamente o padrão apaga a customização —
      * o modelo volta a acompanhar qualquer mudança futura no texto de fábrica.
      *
-     * @param  array{assunto: string, corpo: string}  $dados
+     * O corpo em **HTML** (editor rico) é **sanitizado aqui**, na gravação: o
+     * que chega ao banco já é o que pode ir para uma caixa de entrada, e quem
+     * envia não precisa saber de onde o texto veio. A comparação com o padrão
+     * só faz sentido no formato de fábrica (texto puro) — um corpo em HTML
+     * nunca é "igual ao padrão", nem quando diz a mesma coisa.
+     *
+     * @param  array{assunto: string, corpo: string, formato?: string}  $dados
      */
     public function atualizar(ModeloEmail $modelo, array $dados, ?User $autor = null): array
     {
-        $igualAoPadrao = trim($dados['assunto']) === trim($modelo->assuntoPadrao())
-            && trim($dados['corpo']) === trim($modelo->corpoPadrao());
+        $formato = ($dados['formato'] ?? 'texto') === 'html' ? 'html' : 'texto';
+        $corpo = $formato === 'html'
+            ? HtmlEmail::sanitizar($dados['corpo'])
+            : trim($dados['corpo']);
+
+        $igualAoPadrao = $formato === 'texto'
+            && trim($dados['assunto']) === trim($modelo->assuntoPadrao())
+            && $corpo === trim($modelo->corpoPadrao());
 
         if ($igualAoPadrao) {
             return $this->restaurar($modelo);
@@ -99,7 +118,8 @@ class ModeloEmailService
             ['chave' => $modelo->value],
             [
                 'assunto' => trim($dados['assunto']),
-                'corpo' => trim($dados['corpo']),
+                'corpo' => $corpo,
+                'formato' => $formato,
                 'user_id' => $autor?->id,
                 'autor_nome' => $autor?->name,
             ],

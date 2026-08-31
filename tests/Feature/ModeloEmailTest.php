@@ -6,6 +6,8 @@ use App\Enums\ModeloEmail;
 use App\Mail\MensagemTransacional;
 use App\Models\User;
 use App\Services\ConfirmacaoCadastroService;
+use App\Services\ModeloEmailService;
+use App\Support\HtmlEmail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
 use Laravel\Sanctum\Sanctum;
@@ -113,5 +115,96 @@ class ModeloEmailTest extends TestCase
         $this->comoAdmin();
 
         $this->getJson('/api/v1/admin/modelos-email/nao_existe')->assertNotFound();
+    }
+
+    // --- Sprint 91: corpo formatado (editor rico) ---
+
+    /** O corpo em HTML é sanitizado na gravação: só formatação passa. */
+    public function test_corpo_em_html_e_sanitizado_ao_salvar(): void
+    {
+        $this->comoAdmin();
+
+        $this->putJson('/api/v1/admin/modelos-email/projeto_submetido', [
+            'assunto' => 'Projeto submetido',
+            'corpo' => '<p>Olá, <strong>{{nome}}</strong>!</p>'
+                .'<script>alert(1)</script>'
+                .'<p onclick="roubar()">Projeto <em>{{projeto}}</em>.</p>',
+            'formato' => 'html',
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.formato', 'html')
+            ->assertJsonPath('data.personalizado', true);
+
+        $corpo = app(ModeloEmailService::class)->texto(ModeloEmail::ProjetoSubmetido)['corpo'];
+
+        $this->assertStringContainsString('<strong>{{nome}}</strong>', $corpo);
+        $this->assertStringContainsString('<em>{{projeto}}</em>', $corpo);
+        $this->assertStringNotContainsString('script', $corpo);
+        $this->assertStringNotContainsString('onclick', $corpo);
+    }
+
+    /** A mensagem enviada carrega o formato: é o layout que decide como desenhar. */
+    public function test_email_sai_com_o_corpo_em_html(): void
+    {
+        $this->comoAdmin();
+
+        $this->putJson('/api/v1/admin/modelos-email/confirmacao_cadastro', [
+            'assunto' => 'Seu código',
+            'corpo' => '<p>Oi, <strong>{{nome}}</strong>!</p><p>{{codigo}}</p>',
+            'formato' => 'html',
+        ])->assertOk();
+
+        Mail::fake();
+
+        $this->postJson('/api/v1/orientadores', [
+            'name' => 'João da Silva',
+            'email' => 'joao@escola.ms.gov.br',
+            'password' => 'Senha@123',
+            'password_confirmation' => 'Senha@123',
+            'cpf' => '529.982.247-25',
+            'telefone' => '(67) 99999-1234',
+            'data_nascimento' => '1985-03-15',
+        ])->assertStatus(202);
+
+        Mail::assertSent(MensagemTransacional::class, function (MensagemTransacional $m) {
+            return $m->ehHtml()
+                && str_contains($m->corpo, '<strong>João</strong>')
+                && str_contains($m->corpo, (string) $m->destaque);
+        });
+    }
+
+    /**
+     * O código de 6 dígitos continua saindo no bloco grande, agora achado
+     * dentro do próprio HTML em vez de parágrafo a parágrafo.
+     */
+    public function test_destaque_do_codigo_vale_no_corpo_em_html(): void
+    {
+        $html = '<p>Oi!</p><p>123456</p><p>Vale 15 minutos.</p>';
+
+        $destacado = HtmlEmail::destacar($html, '123456', 'font-size:32px;');
+
+        $this->assertStringContainsString('<p style="font-size:32px;">123456</p>', $destacado);
+        $this->assertStringContainsString('<p>Oi!</p>', $destacado);
+    }
+
+    /** Sem parágrafo correspondente, o HTML volta inteiro — não é erro. */
+    public function test_destaque_sem_correspondencia_nao_mexe_no_html(): void
+    {
+        $html = '<p>Sem código aqui.</p>';
+
+        $this->assertSame($html, HtmlEmail::destacar($html, '123456', 'font-size:32px;'));
+    }
+
+    /** Texto puro segue como estava: nada muda para quem não abrir o editor. */
+    public function test_formato_padrao_continua_texto(): void
+    {
+        $this->comoAdmin();
+
+        $this->putJson('/api/v1/admin/modelos-email/projeto_submetido', [
+            'assunto' => 'Projeto submetido',
+            'corpo' => "Olá!\n\nSeu projeto foi recebido.",
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.formato', 'texto');
     }
 }

@@ -142,6 +142,17 @@ export default function CredenciamentoFicha() {
 
             {erro && <div className="mb-4"><Alert>{erro}</Alert></div>}
 
+            {/* A ficha é onde o credenciamento é de fato gravado — é a tela em que
+                confundir ensaio com realidade custaria mais caro. */}
+            {config?.lista?.demo && (
+                <div className="mb-4 max-w-3xl">
+                    <Alert type="info">
+                        <strong>Modo demo</strong> — este é um projeto fictício. A conferência é
+                        gravada, mas nenhum finalista de verdade é credenciado.
+                    </Alert>
+                </div>
+            )}
+
             {credenciamento?.concluido && (
                 <div className="mb-4 max-w-3xl">
                     <Alert type="info">

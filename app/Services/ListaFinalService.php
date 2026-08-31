@@ -164,8 +164,12 @@ class ListaFinalService
         $itens = $this->gerar($cotas);
 
         return DB::transaction(function () use ($cotas, $admin, $nome, $edicao, $itens) {
-            // Uma vigente por edição: publicar a nova encerra a anterior.
-            ListaFinal::where('edicao_id', $edicao->id)->update(['vigente' => false]);
+            // Uma vigente por edição: publicar a nova encerra a anterior. A
+            // trilha demo (Sprint 88) é independente — ensaiar o balcão não
+            // pode derrubar a lista oficial nem o contrário.
+            ListaFinal::where('edicao_id', $edicao->id)
+                ->where('demo', false)
+                ->update(['vigente' => false]);
 
             $lista = ListaFinal::create([
                 'edicao_id' => $edicao->id,
@@ -204,6 +208,9 @@ class ListaFinalService
         }
 
         return ListaFinal::where('edicao_id', $edicao->id)
+            // A lista de demonstração não é histórico oficial: ela existe só
+            // para o balcão em modo de teste.
+            ->where('demo', false)
             ->with('autor:id,name')
             ->withCount('projetos')
             ->orderByDesc('id')

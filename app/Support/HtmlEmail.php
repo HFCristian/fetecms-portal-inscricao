@@ -70,6 +70,54 @@ class HtmlEmail
         return trim($saida);
     }
 
+    /**
+     * Aplica um estilo inline no parágrafo cujo texto é exatamente `$texto`.
+     *
+     * É o que transforma a linha do **código de 6 dígitos** no bloco grande do
+     * e-mail de confirmação, também quando o corpo vem do editor rico: no texto
+     * puro o layout compara parágrafo a parágrafo, e aqui a comparação precisa
+     * acontecer dentro do HTML.
+     *
+     * Roda **depois** da sanitização, na renderização, e o estilo é escrito
+     * pelo portal — nada do admin entra em atributo aqui. Sem parágrafo
+     * correspondente, o HTML volta como estava: o admin pode ter tirado a
+     * variável do texto, e isso não é erro.
+     */
+    public static function destacar(string $html, string $texto, string $estilo): string
+    {
+        if (trim($html) === '' || trim($texto) === '') {
+            return $html;
+        }
+
+        $doc = new DOMDocument;
+        $anterior = libxml_use_internal_errors(true);
+        $doc->loadHTML(
+            '<?xml encoding="UTF-8"><div id="fetec-raiz">'.$html.'</div>',
+            LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD,
+        );
+        libxml_clear_errors();
+        libxml_use_internal_errors($anterior);
+
+        $raiz = $doc->getElementById('fetec-raiz');
+
+        if ($raiz === null) {
+            return $html;
+        }
+
+        foreach ($doc->getElementsByTagName('p') as $paragrafo) {
+            if (trim($paragrafo->textContent) === trim($texto)) {
+                $paragrafo->setAttribute('style', $estilo);
+            }
+        }
+
+        $saida = '';
+        foreach ($raiz->childNodes as $filho) {
+            $saida .= $doc->saveHTML($filho);
+        }
+
+        return trim($saida);
+    }
+
     /** Texto puro do corpo, para a versão text/plain do e-mail. */
     public static function paraTexto(string $html): string
     {

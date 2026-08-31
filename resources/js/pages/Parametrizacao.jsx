@@ -49,6 +49,12 @@ export default function Parametrizacao() {
                     descricao="Perfis de acesso: quais abas do menu cada administrador abre, edição por edição."
                 />
                 <CardParametrizacao
+                    to="/admin/parametrizacao/abas"
+                    icon="reorder"
+                    titulo="Ordem do menu"
+                    descricao="Em que ordem as abas do administrador aparecem no menu e na tela inicial."
+                />
+                <CardParametrizacao
                     to="/admin/parametrizacao/credenciamento"
                     icon="badge"
                     titulo="Credenciamento"

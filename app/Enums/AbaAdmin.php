@@ -67,6 +67,55 @@ enum AbaAdmin: string
         return array_column(self::cases(), 'value');
     }
 
+    /**
+     * Reordena um conjunto de abas pela ordem escolhida na edição
+     * (Parametrização → Ordem do menu).
+     *
+     * `$ordem` nula ou vazia devolve a **ordem canônica do enum** — o
+     * comportamento de sempre. Aba que a ordem não cita entra no **fim**, ainda
+     * na ordem do enum: uma aba nova no código nunca some do menu de quem já
+     * salvou uma ordem, e um valor inválido guardado no banco é ignorado em vez
+     * de quebrar o menu.
+     *
+     * @param  list<string>  $abas  as abas que a pessoa enxerga
+     * @param  list<string>|null  $ordem  a ordem salva na edição
+     * @return list<string>
+     */
+    public static function ordenar(array $abas, ?array $ordem): array
+    {
+        $canonica = self::valores();
+        $abas = array_values(array_intersect($canonica, $abas));
+
+        if (empty($ordem)) {
+            return $abas;
+        }
+
+        // Só o que a pessoa enxerga, na ordem pedida...
+        $escolhidas = array_values(array_filter(
+            array_unique(array_map('strval', $ordem)),
+            fn (string $aba) => in_array($aba, $abas, true),
+        ));
+
+        // ...e o que a ordem não citou, atrás, na ordem do enum.
+        return array_merge(
+            $escolhidas,
+            array_values(array_diff($abas, $escolhidas)),
+        );
+    }
+
+    /**
+     * Limpa uma ordem vinda da tela: só valores conhecidos, sem repetição, e
+     * **completa** com o que faltar. O que se guarda é sempre a lista inteira,
+     * então ler de volta não depende de nenhum preenchimento.
+     *
+     * @param  list<string>  $ordem
+     * @return list<string>
+     */
+    public static function sanitizarOrdem(array $ordem): array
+    {
+        return self::ordenar(self::valores(), $ordem);
+    }
+
     /** @return array<int, array{value: string, label: string, descricao: string}> */
     public static function opcoes(): array
     {

@@ -66,6 +66,52 @@ class AdminService
     }
 
     /**
+     * As **contas de demonstração** (Administradores → Contas demo):
+     * orientadores e avaliadores que servem para ensaiar as telas presas a data.
+     *
+     * Sem termo de busca a lista mostra **só quem já está marcado** — é o que o
+     * admin quer ver ao abrir a seção ("quais contas de treinamento existem?").
+     * Com termo, procura em toda a base de participantes, que é onde ele acha a
+     * conta nova para marcar. Administradores ficam de fora: o interruptor
+     * deles é a própria linha da lista acima.
+     *
+     * @param  array<string, mixed>  $filtros  `busca` e `papel`
+     * @return list<array<string, mixed>>
+     */
+    public function contasDemo(array $filtros = [], int $limite = 25): array
+    {
+        $busca = trim((string) ($filtros['busca'] ?? ''));
+        $papel = $filtros['papel'] ?? null;
+
+        return User::query()
+            ->whereIn('role', [Role::Orientador->value, Role::Avaliador->value])
+            ->when($papel !== null && $papel !== '', fn ($q) => $q->where('role', $papel))
+            ->when($busca === '', fn ($q) => $q->where('is_demo', true))
+            ->when($busca !== '', function ($q) use ($busca) {
+                $termo = '%'.str_replace(['%', '_'], ['\%', '\_'], mb_strtolower($busca)).'%';
+                $q->where(fn ($sub) => $sub
+                    ->whereRaw('LOWER(name) LIKE ?', [$termo])
+                    ->orWhereRaw('LOWER(email) LIKE ?', [$termo]));
+            })
+            // Quem já é demo primeiro: na busca, é o que muda de estado.
+            ->orderByDesc('is_demo')
+            ->orderBy('name')
+            ->limit($limite)
+            ->get(['id', 'name', 'email', 'role', 'is_active', 'is_demo'])
+            ->map(fn (User $u) => [
+                'id' => $u->id,
+                'name' => $u->name,
+                'email' => $u->email,
+                'role' => $u->role->value,
+                'papel' => $u->role->label(),
+                'is_active' => (bool) $u->is_active,
+                'is_demo' => (bool) $u->is_demo,
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
      * Liga/desliga o **modo demo** de um administrador.
      *
      * Com ele, as telas que dependem de data passam a oferecer o "modo de
@@ -82,6 +128,27 @@ class AdminService
         $admin->update(['is_demo' => $demo]);
 
         return $admin->refresh();
+    }
+
+    /**
+     * O mesmo interruptor, para um **participante** (orientador ou avaliador).
+     *
+     * É a mesma coluna e o mesmo efeito — só o que ela destrava muda de papel:
+     * no orientador, a aba **Ajustes** fora do período; no avaliador, a
+     * avaliação antes da data. E, nos dois, `is_demo` mantém a conta fora dos
+     * números da feira e dos públicos de comunicação.
+     */
+    public function definirDemoParticipante(User $user, bool $demo): User
+    {
+        if ($user->isAdmin()) {
+            throw ValidationException::withMessages([
+                'is_demo' => 'O modo demo de um administrador é definido na lista de administradores.',
+            ]);
+        }
+
+        $user->update(['is_demo' => $demo]);
+
+        return $user->refresh();
     }
 
     private function totalAtivos(): int

@@ -34,6 +34,7 @@ import Parametrizacao from './pages/Parametrizacao.jsx';
 import ParametrizacaoAreas from './pages/ParametrizacaoAreas.jsx';
 import ParametrizacaoEdicoes from './pages/ParametrizacaoEdicoes.jsx';
 import ParametrizacaoEscopos from './pages/ParametrizacaoEscopos.jsx';
+import ParametrizacaoAbas from './pages/ParametrizacaoAbas.jsx';
 import ParametrizacaoEscolas from './pages/ParametrizacaoEscolas.jsx';
 import ParametrizacaoDatas from './pages/ParametrizacaoDatas.jsx';
 import ParametrizacaoAvaliacao from './pages/ParametrizacaoAvaliacao.jsx';
@@ -149,6 +150,7 @@ export default function Root() {
                             <Route path="/admin/parametrizacao/areas" element={<ParametrizacaoAreas />} />
                             <Route path="/admin/parametrizacao/edicoes" element={<ParametrizacaoEdicoes />} />
                             <Route path="/admin/parametrizacao/escopos" element={<ParametrizacaoEscopos />} />
+                            <Route path="/admin/parametrizacao/abas" element={<ParametrizacaoAbas />} />
                             <Route path="/admin/parametrizacao/credenciamento" element={<ParametrizacaoCredenciamento />} />
                             <Route path="/admin/parametrizacao/escolas" element={<ParametrizacaoEscolas />} />
                             <Route path="/admin/parametrizacao/datas" element={<ParametrizacaoDatas />} />

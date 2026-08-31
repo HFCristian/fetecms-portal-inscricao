@@ -28,10 +28,25 @@ vi.mock('../lib/admin.js', () => ({
     definirStatusAdmin: vi.fn(() => Promise.resolve({})),
     definirEscoposAdmin: vi.fn(() => Promise.resolve({})),
     definirDemoAdmin: vi.fn(() => Promise.resolve({ data: { is_demo: true } })),
+    getContasDemo: vi.fn(() => Promise.resolve({
+        data: [
+            { id: 30, name: 'Marta Orientadora', email: 'marta@x.test', role: 'orientador', papel: 'Orientador', is_active: true, is_demo: true },
+        ],
+        meta: { papeis: [
+            { value: 'orientador', label: 'Orientador' },
+            { value: 'avaliador', label: 'Avaliador' },
+        ] },
+    })),
+    definirDemoParticipante: vi.fn(() => Promise.resolve({
+        data: { id: 30, is_demo: false }, meta: { message: 'Modo demo desativado.' },
+    })),
 }));
 
 import AdminManager from './AdminManager.jsx';
-import { definirStatusAdmin, definirEscoposAdmin, definirDemoAdmin } from '../lib/admin.js';
+import {
+    definirStatusAdmin, definirEscoposAdmin, definirDemoAdmin,
+    getContasDemo, definirDemoParticipante,
+} from '../lib/admin.js';
 
 describe('AdminManager — lista de administradores', () => {
     it('lista os admins com status e marca (você)', async () => {
@@ -110,7 +125,8 @@ describe('AdminManager — modo demo', () => {
         render(<AdminManager />);
         await screen.findByText('Outro Admin');
 
-        expect(screen.getByText('Modo demo')).toBeInTheDocument();
+        // A etiqueta "Modo demo" também aparece na seção de contas demo, abaixo.
+        expect(screen.getAllByText('Modo demo').length).toBeGreaterThan(0);
         expect(screen.getByTitle('Desativar o modo demo de Outro Admin'))
             .toHaveAttribute('aria-pressed', 'true');
         expect(screen.getByTitle('Liberar o modo demo para Eu Admin'))
@@ -133,5 +149,44 @@ describe('AdminManager — modo demo', () => {
         fireEvent.click(await screen.findByTitle('Desativar o modo demo de Outro Admin'));
 
         await waitFor(() => expect(definirDemoAdmin).toHaveBeenCalledWith(2, false));
+    });
+});
+
+describe('AdminManager — contas demo', () => {
+    beforeEach(() => {
+        getContasDemo.mockClear();
+        definirDemoParticipante.mockClear();
+    });
+
+    it('abre listando quem já é demo, sem busca', async () => {
+        render(<AdminManager />);
+
+        expect(await screen.findByText('Marta Orientadora')).toBeInTheDocument();
+        // O papel aparece na etiqueta da linha (e também na opção do filtro).
+        expect(screen.getAllByText('Orientador').length).toBeGreaterThan(0);
+        expect(screen.getByTitle('Desativar o modo demo de Marta Orientadora')).toBeInTheDocument();
+        // Sem termo, a API é chamada sem filtro: a lista é "os que já são demo".
+        await waitFor(() => expect(getContasDemo).toHaveBeenCalledWith({ busca: undefined, papel: undefined }));
+    });
+
+    it('busca orientadores e avaliadores pelo nome', async () => {
+        render(<AdminManager />);
+        await screen.findByText('Marta Orientadora');
+
+        fireEvent.change(screen.getByLabelText('Buscar orientador ou avaliador'), {
+            target: { value: 'marta' },
+        });
+
+        await waitFor(() => expect(getContasDemo).toHaveBeenCalledWith({ busca: 'marta', papel: undefined }));
+    });
+
+    it('liga e desliga o modo demo de um participante', async () => {
+        render(<AdminManager />);
+        await screen.findByText('Marta Orientadora');
+
+        fireEvent.click(screen.getByTitle('Desativar o modo demo de Marta Orientadora'));
+
+        await waitFor(() => expect(definirDemoParticipante).toHaveBeenCalledWith(30, false));
+        expect(await screen.findByText('Modo demo desativado.')).toBeInTheDocument();
     });
 });

@@ -4,6 +4,7 @@ namespace App\Http\Requests\Admin;
 
 use App\Http\Requests\Concerns\NormalizaEmail;
 use App\Rules\Cpf;
+use App\Services\ContaTemporariaService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rules\Password;
 
@@ -11,8 +12,9 @@ use Illuminate\Validation\Rules\Password;
  * Cadastro de uma conta temporária de credenciamento.
  *
  * É o mesmo formulário do administrador (nome, e-mail e senha) mais **CPF**,
- * **curso** e o **prazo** de validade. O prazo aceita as duas formas que a tela
- * oferece: uma data explícita ou uma quantidade de dias a contar de hoje.
+ * **curso** e a **janela** de validade: quando o acesso começa (`valido_de`, em
+ * branco = agora) e quanto dura — uma quantidade de **horas** a contar do
+ * início, ou uma data explícita de fim (`expira_em`).
  *
  * O CPF não é conferido contra os catálogos de orientador/avaliador: quem
  * atende o balcão pode perfeitamente ser um deles, e a conta é de acesso, não
@@ -45,9 +47,11 @@ class ContaTemporariaRequest extends FormRequest
             'password' => ['required', 'confirmed', Password::min(8)],
             'cpf' => ['required', 'string', 'size:11', new Cpf],
             'curso' => ['required', 'string', 'max:255'],
-            // Um dos dois basta; sem nenhum, o service usa o padrão de 7 dias.
+            // Em branco, o acesso vale a partir de agora.
+            'valido_de' => ['nullable', 'date'],
+            // Um dos dois basta; sem nenhum, o service usa o padrão de 5 horas.
             'expira_em' => ['nullable', 'date'],
-            'dias' => ['nullable', 'integer', 'min:1', 'max:365'],
+            'horas' => ['nullable', 'integer', 'min:1', 'max:'.ContaTemporariaService::HORAS_MAX],
         ];
     }
 
@@ -56,8 +60,9 @@ class ContaTemporariaRequest extends FormRequest
         return [
             'name' => 'nome',
             'curso' => 'nome do curso',
+            'valido_de' => 'início do acesso',
             'expira_em' => 'prazo',
-            'dias' => 'quantidade de dias',
+            'horas' => 'quantidade de horas',
         ];
     }
 }

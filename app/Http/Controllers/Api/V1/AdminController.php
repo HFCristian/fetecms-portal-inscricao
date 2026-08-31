@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\Role;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\RegisterAdminRequest;
 use App\Http\Requests\Admin\StatusAdminRequest;
@@ -16,6 +17,7 @@ use App\Services\AdminService;
 use App\Services\EscopoAdminService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class AdminController extends Controller
 {
@@ -86,6 +88,46 @@ class AdminController extends Controller
         return UserResource::make($atualizado)
             ->additional(['meta' => ['message' => 'Administrador atualizado.']])
             ->response();
+    }
+
+    /**
+     * As contas de demonstração: orientadores e avaliadores usados para ensaiar
+     * as telas presas a data. Sem busca, lista só quem já está marcado.
+     */
+    public function contasDemo(Request $request): JsonResponse
+    {
+        $filtros = $request->validate([
+            'busca' => ['nullable', 'string', 'max:120'],
+            'papel' => ['nullable', Rule::in([Role::Orientador->value, Role::Avaliador->value])],
+        ]);
+
+        return response()->json([
+            'data' => $this->admins->contasDemo($filtros),
+            'meta' => ['papeis' => [
+                ['value' => Role::Orientador->value, 'label' => Role::Orientador->label()],
+                ['value' => Role::Avaliador->value, 'label' => Role::Avaliador->label()],
+            ]],
+        ]);
+    }
+
+    /** Liga/desliga o modo demo de um orientador ou avaliador. */
+    public function demoParticipante(Request $request, User $usuario): JsonResponse
+    {
+        $demo = $request->validate(['is_demo' => ['required', 'boolean']])['is_demo'];
+        $atualizado = $this->admins->definirDemoParticipante($usuario, $demo);
+
+        return response()->json([
+            'data' => [
+                'id' => $atualizado->id,
+                'name' => $atualizado->name,
+                'email' => $atualizado->email,
+                'role' => $atualizado->role->value,
+                'papel' => $atualizado->role->label(),
+                'is_active' => (bool) $atualizado->is_active,
+                'is_demo' => (bool) $atualizado->is_demo,
+            ],
+            'meta' => ['message' => $demo ? 'Modo demo liberado.' : 'Modo demo desativado.'],
+        ]);
     }
 
     /** Liga/desliga o modo demo de um administrador (funcionalidades fora de data). */

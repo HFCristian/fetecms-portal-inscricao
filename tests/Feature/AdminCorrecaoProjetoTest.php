@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\Categoria;
 use App\Enums\TipoRegistro;
+use App\Models\Aluno;
 use App\Models\Area;
 use App\Models\Projeto;
 use App\Models\RegistroAtividade;
@@ -141,5 +142,57 @@ class AdminCorrecaoProjetoTest extends TestCase
             'categoria' => Categoria::FetecJr->value,
             'justificativa' => 'Não deveria passar.',
         ])->assertForbidden();
+    }
+
+    /**
+     * Sprint 90 — a série de cada aluno viaja com o projeto, para o diálogo de
+     * correção mostrá-la abaixo da categoria: é ela que diz se a categoria está
+     * certa (FETEC Jr é do fundamental, as demais do médio).
+     */
+    public function test_a_listagem_leva_a_serie_de_cada_aluno(): void
+    {
+        $projeto = $this->projeto();
+        Aluno::factory()->create([
+            'projeto_id' => $projeto->id,
+            'nome' => 'Ana Aluna',
+            'modalidade' => 'medio',
+            'ano_escolar' => '2_em',
+        ]);
+        // Sem série cadastrada: a linha existe, o rótulo é nulo.
+        Aluno::factory()->create([
+            'projeto_id' => $projeto->id,
+            'nome' => 'Bruno Aluno',
+            'modalidade' => null,
+            'ano_escolar' => null,
+        ]);
+
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $linha = collect($this->getJson('/api/v1/admin/avaliacao/projetos')->assertOk()->json('data'))
+            ->firstWhere('id', $projeto->id);
+
+        $alunos = collect($linha['alunos'])->keyBy('nome');
+
+        $this->assertSame('2º ano do Ensino Médio', $alunos['Ana Aluna']['serie']);
+        $this->assertNull($alunos['Bruno Aluno']['serie']);
+    }
+
+    /** E o técnico integrado aparece com nome próprio, mesmo contando no médio. */
+    public function test_tecnico_integrado_tem_rotulo_proprio(): void
+    {
+        $projeto = $this->projeto();
+        Aluno::factory()->create([
+            'projeto_id' => $projeto->id,
+            'nome' => 'Clara Técnica',
+            'modalidade' => 'tecnico_integrado',
+            'ano_escolar' => '4_em',
+        ]);
+
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $linha = collect($this->getJson('/api/v1/admin/avaliacao/projetos')->assertOk()->json('data'))
+            ->firstWhere('id', $projeto->id);
+
+        $this->assertSame('4º ano do Ensino Técnico Integrado', $linha['alunos'][0]['serie']);
     }
 }

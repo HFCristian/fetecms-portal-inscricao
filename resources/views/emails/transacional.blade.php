@@ -1,5 +1,9 @@
 {{-- E-mail transacional (confirmação de cadastro, projeto submetido). HTML de
-     e-mail: tabela + estilo inline, que é o que os clientes entendem. --}}
+     e-mail: tabela + estilo inline, que é o que os clientes entendem.
+
+     O corpo chega de duas formas: texto puro (quebrado em parágrafos aqui) ou
+     HTML do editor rico dos Modelos de e-mail — já sanitizado na gravação e,
+     quando há código de 6 dígitos, com o parágrafo dele já destacado. --}}
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -20,14 +24,20 @@
                     </tr>
                     <tr>
                         <td style="padding:32px;">
-                            @foreach ($paragrafos as $paragrafo)
-                                @if ($destaque !== null && trim($paragrafo) === $destaque)
-                                    {{-- O parágrafo que é só o código vira o bloco grande. --}}
-                                    <p style="margin:0 0 16px;padding:16px;background-color:#f4f1f7;border-radius:12px;text-align:center;font-family:'Courier New',Courier,monospace;font-size:32px;font-weight:700;letter-spacing:8px;color:#43157A;">{{ $paragrafo }}</p>
-                                @else
-                                    <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#1c1b1f;">{!! nl2br(e($paragrafo)) !!}</p>
-                                @endif
-                            @endforeach
+                            @if ($html ?? false)
+                                <div style="font-size:15px;line-height:1.6;color:#1c1b1f;">
+                                    {!! $corpoHtml !!}
+                                </div>
+                            @else
+                                @foreach ($paragrafos as $paragrafo)
+                                    @if ($destaque !== null && trim($paragrafo) === $destaque)
+                                        {{-- O parágrafo que é só o código vira o bloco grande. --}}
+                                        <p style="margin:0 0 16px;padding:16px;background-color:#f4f1f7;border-radius:12px;text-align:center;font-family:'Courier New',Courier,monospace;font-size:32px;font-weight:700;letter-spacing:8px;color:#43157A;">{{ $paragrafo }}</p>
+                                    @else
+                                        <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#1c1b1f;">{!! nl2br(e($paragrafo)) !!}</p>
+                                    @endif
+                                @endforeach
+                            @endif
 
                             <p style="margin:28px 0 0;font-size:15px;line-height:1.6;color:#1c1b1f;">
                                 Equipe FETECMS<br>

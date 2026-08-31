@@ -1,8 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import AppShell from '../components/AppShell.jsx';
 import { Field, Input, Button, Alert, useConfirm } from '../components/ui.jsx';
 import { extractErrors, useAuth } from '../lib/auth.jsx';
-import { criarAdmin, getAdmins, atualizarAdmin, definirStatusAdmin, definirEscoposAdmin, definirDemoAdmin } from '../lib/admin.js';
+import {
+    criarAdmin, getAdmins, atualizarAdmin, definirStatusAdmin, definirEscoposAdmin,
+    definirDemoAdmin, getContasDemo, definirDemoParticipante,
+} from '../lib/admin.js';
 
 function CriarAdminForm({ onCriado }) {
     const [form, setForm] = useState({});
@@ -318,6 +321,155 @@ function AdminList() {
     );
 }
 
+/**
+ * Administradores → **Contas demo**.
+ *
+ * O modo demo é a permissão de treinamento do portal: quem o tem enxerga o
+ * "modo de teste" nas telas presas a data — a aba **Ajustes** do orientador
+ * fora do período e o **credenciamento** antes do evento. Até aqui só dava para
+ * ligá-lo em administradores (na lista acima) e em avaliadores (em Avaliadores
+ * Online); o **orientador** só nascia demo por linha de comando.
+ *
+ * Sem busca a seção mostra **as contas já marcadas** — a pergunta natural ao
+ * abrir é "quais contas de treinamento existem?". Buscar procura em toda a base
+ * de orientadores e avaliadores, que é onde se acha a conta nova para marcar.
+ */
+function ContasDemo() {
+    const [busca, setBusca] = useState('');
+    const [termo, setTermo] = useState('');
+    const [papel, setPapel] = useState('');
+    const [contas, setContas] = useState(null);
+    const [papeis, setPapeis] = useState([]);
+    const [alert, setAlert] = useState('');
+    const [sucesso, setSucesso] = useState('');
+    const [ocupado, setOcupado] = useState(null);
+
+    // A busca é debounced: a lista acompanha a digitação sem uma requisição por tecla.
+    useEffect(() => {
+        const t = setTimeout(() => setTermo(busca.trim()), 350);
+        return () => clearTimeout(t);
+    }, [busca]);
+
+    const carregar = useCallback(async () => {
+        try {
+            const resp = await getContasDemo({ busca: termo || undefined, papel: papel || undefined });
+            setContas(resp.data);
+            setPapeis(resp.meta?.papeis ?? []);
+        } catch (e) {
+            setContas([]);
+            setAlert(extractErrors(e).message || 'Não foi possível carregar as contas.');
+        }
+    }, [termo, papel]);
+
+    useEffect(() => { carregar(); }, [carregar]);
+
+    async function alternar(conta) {
+        setOcupado(conta.id); setAlert(''); setSucesso('');
+        try {
+            const resp = await definirDemoParticipante(conta.id, !conta.is_demo);
+            setSucesso(resp.meta?.message ?? '');
+            // Sem busca a lista é "só os demo": desmarcar tira a linha dela, então
+            // vale recarregar em vez de remendar o estado local.
+            await carregar();
+        } catch (e) {
+            setAlert(extractErrors(e).message || 'Não foi possível mudar o modo demo.');
+        } finally {
+            setOcupado(null);
+        }
+    }
+
+    return (
+        <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow overflow-hidden">
+            <div className="px-4 pt-4 pb-2">
+                <h2 className="font-display text-primary font-semibold">Contas demo</h2>
+                <p className="text-sm text-on-surface-variant mt-1">
+                    Orientadores e avaliadores usados para ensaiar o portal. Com o modo demo ligado,
+                    a pessoa passa a ver o <strong>modo de teste</strong> nas telas presas a data —
+                    a aba Ajustes fora do período, por exemplo — e a conta fica fora dos números da
+                    feira e dos e-mails em massa. O modo demo de um administrador é o botão na lista
+                    acima.
+                </p>
+                {alert && <div className="mt-2"><Alert>{alert}</Alert></div>}
+                {sucesso && <div className="mt-2"><Alert type="info">{sucesso}</Alert></div>}
+            </div>
+
+            <div className="px-4 pb-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div className="sm:col-span-2">
+                    <Input
+                        aria-label="Buscar orientador ou avaliador"
+                        placeholder="Buscar por nome ou e-mail…"
+                        value={busca}
+                        onChange={(e) => setBusca(e.target.value)}
+                    />
+                </div>
+                <select
+                    aria-label="Filtrar por papel"
+                    value={papel}
+                    onChange={(e) => setPapel(e.target.value)}
+                    className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm text-on-surface focus:border-primary-container focus:outline-none focus:ring-2 focus:ring-primary-container/20"
+                >
+                    <option value="">Todos os papéis</option>
+                    {papeis.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+                </select>
+            </div>
+
+            {contas === null ? (
+                <div className="px-4 py-8 text-center text-on-surface-variant">
+                    <span className="inline-block w-6 h-6 rounded-full border-4 border-on-surface-variant/25 border-t-primary animate-spin align-[-0.2em]" role="status" aria-label="Carregando" />
+                </div>
+            ) : contas.length === 0 ? (
+                <p className="px-4 py-8 text-center text-sm text-on-surface-variant">
+                    {termo === ''
+                        ? 'Nenhuma conta está marcada como demo. Busque pelo nome para marcar uma.'
+                        : 'Nenhum orientador ou avaliador encontrado com esse termo.'}
+                </p>
+            ) : (
+                contas.map((c) => (
+                    <div key={c.id} className="px-4 py-3 border-t border-outline-variant/30 flex items-center gap-3 flex-wrap">
+                        <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-semibold text-on-surface truncate">{c.name}</span>
+                                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-surface-variant text-on-surface-variant">
+                                    {c.papel}
+                                </span>
+                                {c.is_demo && (
+                                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary-fixed text-primary-container">
+                                        Modo demo
+                                    </span>
+                                )}
+                                {!c.is_active && (
+                                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-surface-variant text-on-surface-variant">
+                                        Inativa
+                                    </span>
+                                )}
+                            </div>
+                            <p className="text-sm text-on-surface-variant truncate">{c.email}</p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => alternar(c)}
+                            disabled={ocupado === c.id}
+                            aria-pressed={!!c.is_demo}
+                            title={c.is_demo
+                                ? `Desativar o modo demo de ${c.name}`
+                                : `Liberar o modo demo para ${c.name}`}
+                            className={`p-1.5 rounded-lg transition-colors disabled:opacity-40 ${
+                                c.is_demo
+                                    ? 'text-primary-container hover:bg-primary-fixed'
+                                    : 'text-on-surface-variant hover:bg-surface-variant'
+                            }`}
+                        >
+                            <span className="material-symbols-outlined text-[20px]">
+                                {c.is_demo ? 'science' : 'science_off'}
+                            </span>
+                        </button>
+                    </div>
+                ))
+            )}
+        </div>
+    );
+}
+
 export default function AdminManager() {
     const [recarregar, setRecarregar] = useState(0);
 
@@ -331,6 +483,7 @@ export default function AdminManager() {
             <div className="space-y-6 max-w-3xl">
                 <CriarAdminForm onCriado={() => setRecarregar((n) => n + 1)} />
                 <AdminList key={recarregar} />
+                <ContasDemo />
             </div>
         </AppShell>
     );

@@ -84,11 +84,17 @@ export const ABAS_ADMIN = [
 ];
 
 /**
- * Filtra as abas pelo que esta pessoa abre. Sem lista (payload antigo em cache),
- * mostra tudo — o backend continua sendo quem barra de verdade.
+ * Filtra as abas pelo que esta pessoa abre, **na ordem em que a lista vier**.
+ *
+ * A ordem é a de Parametrização → Ordem do menu, resolvida no backend
+ * (`UserResource`): aqui a lista só é respeitada, e é por isso que o menu
+ * lateral e a Home nunca divergem. Sem lista (payload antigo em cache), mostra
+ * tudo na ordem de referência — o backend continua sendo quem barra de verdade.
  */
 export function abasPermitidas(abas) {
-    return Array.isArray(abas)
-        ? ABAS_ADMIN.filter((a) => abas.includes(a.aba))
-        : ABAS_ADMIN;
+    if (!Array.isArray(abas)) return ABAS_ADMIN;
+
+    const porChave = new Map(ABAS_ADMIN.map((a) => [a.aba, a]));
+
+    return abas.map((aba) => porChave.get(aba)).filter(Boolean);
 }
