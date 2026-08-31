@@ -365,6 +365,18 @@ export const definirEscoposAdmin = (adminId, escopoIds) =>
     http.put(`/admin/admins/${adminId}/escopos`, { escopo_ids: escopoIds ?? [] }).then((r) => r.data.data);
 
 /**
+ * Ordem das abas do menu (Parametrização → Ordem do menu). É da **edição**:
+ * trocar de edição no seletor do topo troca também o menu.
+ */
+export const getOrdemAbas = () => http.get('/admin/abas').then((r) => r.data.data);
+
+/** A lista inteira, na ordem em que a tela a deixou. */
+export const salvarOrdemAbas = (ordem) => http.put('/admin/abas', { ordem }).then((r) => r.data);
+
+/** Volta à ordem original do portal. */
+export const restaurarOrdemAbas = () => http.delete('/admin/abas').then((r) => r.data);
+
+/**
  * Contas demo (Administradores → Contas demo): orientadores e avaliadores
  * usados para ensaiar as telas presas a data.
  *

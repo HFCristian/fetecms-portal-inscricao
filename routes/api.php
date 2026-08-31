@@ -33,6 +33,7 @@ use App\Http\Controllers\Api\V1\InstituicaoAdminController;
 use App\Http\Controllers\Api\V1\IntegranteController;
 use App\Http\Controllers\Api\V1\OrientadorAjusteController;
 use App\Http\Controllers\Api\V1\OrientadorController;
+use App\Http\Controllers\Api\V1\ParametrizacaoAbasController;
 use App\Http\Controllers\Api\V1\ParametrizacaoCredenciamentoController;
 use App\Http\Controllers\Api\V1\PerfilController;
 use App\Http\Controllers\Api\V1\ProjetoController;
@@ -323,6 +324,12 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::post('/escopos', [EscopoAdminController::class, 'store']);
                 Route::put('/escopos/{escopo}', [EscopoAdminController::class, 'update']);
                 Route::delete('/escopos/{escopo}', [EscopoAdminController::class, 'destroy']);
+
+                // Parametrização → Ordem do menu: em que ordem as abas do admin
+                // aparecem no menu lateral e na Home (por edição).
+                Route::get('/abas', [ParametrizacaoAbasController::class, 'show']);
+                Route::put('/abas', [ParametrizacaoAbasController::class, 'definir']);
+                Route::delete('/abas', [ParametrizacaoAbasController::class, 'restaurar']);
 
                 // Parametrização → Credenciamento: janela do evento e a lista de
                 // documentos exigida de cada papel no balcão.

@@ -2,54 +2,74 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { Field, Input, Button, Alert, useConfirm } from '../components/ui.jsx';
+import EditorTexto from '../components/EditorTexto.jsx';
 import { getModelosEmail, salvarModeloEmail, restaurarModeloEmail } from '../lib/admin.js';
 
-// Mesmas classes do textarea do resto do app (o ui.jsx só exporta o Input).
-const campoClass = 'w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant focus:border-primary-container focus:outline-none focus:ring-2 focus:ring-primary-container/20';
+/**
+ * Texto puro guardado antes da Sprint 91 (ou vindo de fábrica) desenhado como
+ * HTML: cada linha em branco separa um parágrafo, cada quebra simples vira
+ * `<br>`. É o que o layout do e-mail já fazia na renderização, feito uma vez ao
+ * abrir o editor — assim o admin vê o texto formatado desde o primeiro clique,
+ * em vez de um bloco só.
+ */
+function textoParaHtml(texto) {
+    const escapar = (t) => t
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    return String(texto ?? '')
+        .replace(/\r\n/g, '\n')
+        .split(/\n{2,}/)
+        .map((bloco) => bloco.trim())
+        .filter(Boolean)
+        .map((bloco) => `<p>${escapar(bloco).replace(/\n/g, '<br>')}</p>`)
+        .join('');
+}
+
+/** Um corpo em HTML pode ser "vazio" cheio de tags — `<p></p>` é o editor limpo. */
+function vazio(html) {
+    return String(html ?? '').replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim() === '';
+}
 
 /**
  * Editor de um modelo: assunto, corpo e os botões que inserem as variáveis na
  * posição do cursor. Restaurar devolve o texto de fábrica.
+ *
+ * O corpo é escrito no **mesmo editor rico da mala direta** — negrito, itálico,
+ * sublinhado, traçado e listas —, sem imagens: estes e-mails são transacionais
+ * e curtos, e não há arquivo para subir. O que sai daqui é sempre HTML, e o
+ * backend o sanitiza na gravação.
  */
 function Editor({ modelo, onSalvo }) {
     const [assunto, setAssunto] = useState(modelo.assunto);
-    const [corpo, setCorpo] = useState(modelo.corpo);
+    // O editor trabalha em HTML; o que veio em texto puro é convertido na entrada.
+    const [corpo, setCorpo] = useState(() => (
+        modelo.formato === 'html' ? modelo.corpo : textoParaHtml(modelo.corpo)
+    ));
     const [salvando, setSalvando] = useState(false);
     const [msg, setMsg] = useState('');
     const [erro, setErro] = useState('');
-    const corpoRef = useRef(null);
-    const [cursor, setCursor] = useState(null);
+    const editorRef = useRef(null);
     const [confirmar, dialogo] = useConfirm();
 
-    useEffect(() => { setAssunto(modelo.assunto); setCorpo(modelo.corpo); }, [modelo]);
-
-    // Devolve o cursor ao ponto certo depois que o React redesenha o campo
-    // controlado (inserir texto não move o cursor sozinho).
     useEffect(() => {
-        if (cursor === null) return;
-        const campo = corpoRef.current;
-        if (campo) {
-            campo.focus();
-            campo.setSelectionRange(cursor, cursor);
-        }
-        setCursor(null);
-    }, [cursor]);
+        setAssunto(modelo.assunto);
+        setCorpo(modelo.formato === 'html' ? modelo.corpo : textoParaHtml(modelo.corpo));
+    }, [modelo]);
 
+    /** Insere a variável na posição do cursor dentro do editor. */
     function inserirVariavel(chave) {
-        const marcador = `{{${chave}}}`;
-        const campo = corpoRef.current;
-        const inicio = campo?.selectionStart ?? corpo.length;
-        const fim = campo?.selectionEnd ?? corpo.length;
+        const editor = editorRef.current;
+        if (!editor) return;
 
-        setCorpo(corpo.slice(0, inicio) + marcador + corpo.slice(fim));
-        setCursor(inicio + marcador.length);
+        editor.chain().focus().insertContent(`{{${chave}}}`).run();
+        setCorpo(editor.getHTML());
     }
 
     async function salvar(e) {
         e.preventDefault();
         setMsg(''); setErro(''); setSalvando(true);
         try {
-            onSalvo(await salvarModeloEmail(modelo.chave, { assunto, corpo }));
+            onSalvo(await salvarModeloEmail(modelo.chave, { assunto, corpo, formato: 'html' }));
             setMsg('Modelo salvo. Os próximos e-mails já saem com este texto.');
         } catch (error) {
             setErro(error?.response?.data?.message ?? 'Não consegui salvar o modelo.');
@@ -88,12 +108,11 @@ function Editor({ modelo, onSalvo }) {
 
             <div className="space-y-1">
                 <label className="text-sm font-semibold text-on-surface">Texto <span className="text-error">*</span></label>
-                <textarea
-                    ref={corpoRef}
-                    rows={12}
-                    className={campoClass}
-                    value={corpo}
-                    onChange={(e) => setCorpo(e.target.value)}
+                <EditorTexto
+                    valor={corpo}
+                    onChange={setCorpo}
+                    permitirImagens={false}
+                    onEditorPronto={(editor) => { editorRef.current = editor; }}
                 />
                 <div className="flex flex-wrap items-center gap-2 pt-1">
                     <span className="text-xs text-on-surface-variant">Inserir variável:</span>
@@ -117,7 +136,7 @@ function Editor({ modelo, onSalvo }) {
             </div>
 
             <div className="flex flex-wrap gap-3">
-                <Button type="submit" loading={salvando} disabled={assunto.trim() === '' || corpo.trim() === ''}>
+                <Button type="submit" loading={salvando} disabled={assunto.trim() === '' || vazio(corpo)}>
                     Salvar modelo
                 </Button>
                 {modelo.personalizado && (
