@@ -19,6 +19,10 @@ use Illuminate\Validation\Rule;
  * "Credenciar" lista os finalistas (os projetos da lista final vigente) e
  * "Credenciados" mostra quem já passou — os dois saem da mesma consulta, só
  * muda o filtro de situação.
+ *
+ * `teste=1` liga o **modo de teste** do admin demo: além de ignorar a janela do
+ * evento, ele troca a lista oficial pela lista **demo** da edição, para o
+ * ensaio nunca tocar num finalista de verdade.
  */
 class CredenciamentoController extends Controller
 {
@@ -43,7 +47,12 @@ class CredenciamentoController extends Controller
             'por_pagina' => ['nullable', 'integer', 'min:5', 'max:100'],
         ]);
 
-        $pagina = $this->credenciamento->finalistas($filtros, (int) ($filtros['por_pagina'] ?? 25));
+        $pagina = $this->credenciamento->finalistas(
+            $filtros,
+            (int) ($filtros['por_pagina'] ?? 25),
+            $request->user(),
+            $request->boolean('teste'),
+        );
 
         return response()->json([
             'data' => $pagina->items(),
@@ -51,7 +60,7 @@ class CredenciamentoController extends Controller
                 'pagina_atual' => $pagina->currentPage(),
                 'ultima_pagina' => $pagina->lastPage(),
                 'total' => $pagina->total(),
-                'resumo' => $this->credenciamento->resumo($filtros),
+                'resumo' => $this->credenciamento->resumo($filtros, $request->user(), $request->boolean('teste')),
                 'areas' => Area::query()->orderBy('nome')->get(['id', 'nome']),
                 'categorias' => Categoria::opcoes(),
                 'config' => $this->credenciamento->config($request->user(), $request->boolean('teste')),
@@ -63,7 +72,7 @@ class CredenciamentoController extends Controller
     public function show(Request $request, Projeto $projeto): JsonResponse
     {
         abort_unless(
-            $this->credenciamento->ehFinalista($projeto),
+            $this->credenciamento->ehFinalista($projeto, $request->user(), $request->boolean('teste')),
             404,
             'Este projeto não está na lista final vigente.',
         );

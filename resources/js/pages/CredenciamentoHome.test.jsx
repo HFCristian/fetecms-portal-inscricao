@@ -51,6 +51,26 @@ describe('CredenciamentoHome', () => {
         expect(await screen.findByText(/Nenhuma lista final oficial/)).toBeInTheDocument();
     });
 
+    it('no modo de teste, aponta o comando que cria a lista de demonstração', async () => {
+        getFinalistas.mockResolvedValue(resposta({ ...CONFIG, lista: null, pode_testar: true, modo_teste: true }));
+        render(<CredenciamentoHome />);
+
+        expect(await screen.findByText(/demo:credenciamento/)).toBeInTheDocument();
+        expect(screen.queryByText(/Nenhuma lista final oficial/)).not.toBeInTheDocument();
+    });
+
+    it('avisa que os projetos são fictícios quando a lista é a de demonstração', async () => {
+        getFinalistas.mockResolvedValue(resposta({
+            ...CONFIG,
+            pode_testar: true,
+            modo_teste: true,
+            lista: { id: 9, nome: 'Lista de demonstração — credenciamento', versao: 1, demo: true },
+        }));
+        render(<CredenciamentoHome />);
+
+        expect(await screen.findByText(/são fictícios/)).toBeInTheDocument();
+    });
+
     it('explica quando o credenciamento ainda não abriu', async () => {
         getFinalistas.mockResolvedValue(resposta({ ...CONFIG, aberto: false, iniciado: false }));
         render(<CredenciamentoHome />);

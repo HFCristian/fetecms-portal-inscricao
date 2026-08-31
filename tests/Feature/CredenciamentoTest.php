@@ -26,6 +26,9 @@ use Tests\TestCase;
  * Sprint 70 — credenciamento dos finalistas no evento: quem sobe sai da lista
  * final vigente, a conferência é documento a documento por pessoa, e o balcão
  * só abre dentro da janela do evento (o admin demo tem modo de teste).
+ *
+ * Sprint 88 — no modo de teste o balcão troca a lista oficial pela lista
+ * **demo** da edição, então o ensaio não alcança nenhum finalista de verdade.
  */
 class CredenciamentoTest extends TestCase
 {
@@ -72,9 +75,32 @@ class CredenciamentoTest extends TestCase
     private function listaVigente(): ListaFinal
     {
         return ListaFinal::firstOrCreate(
-            ['edicao_id' => $this->edicao->id, 'vigente' => true],
+            ['edicao_id' => $this->edicao->id, 'vigente' => true, 'demo' => false],
             ['nome' => 'Oficial', 'versao' => 1],
         );
+    }
+
+    /** A lista paralela do modo de teste, com o seu próprio projeto de mentira. */
+    private function listaDemo(): ListaFinal
+    {
+        return ListaFinal::firstOrCreate(
+            ['edicao_id' => $this->edicao->id, 'vigente' => true, 'demo' => true],
+            ['nome' => 'Demonstração', 'versao' => 1],
+        );
+    }
+
+    private function finalistaDemo(string $titulo = 'Projeto de demonstração'): Projeto
+    {
+        $projeto = Projeto::factory()->submetido()->create([
+            'user_id' => User::factory()->create(['name' => 'Orientador Demo', 'is_demo' => true])->id,
+            'titulo' => $titulo,
+            'categoria' => Categoria::Fetecms,
+            'edicao_id' => $this->edicao->id,
+        ]);
+
+        $this->listaDemo()->projetos()->syncWithoutDetaching([$projeto->id => ['manual' => false]]);
+
+        return $projeto;
     }
 
     public function test_finalistas_saem_da_lista_vigente(): void
@@ -237,7 +263,7 @@ class CredenciamentoTest extends TestCase
     public function test_admin_demo_credencia_antes_do_evento_em_modo_de_teste(): void
     {
         $this->edicao->update(['evento_de' => now()->addDays(5), 'evento_ate' => now()->addDays(6)]);
-        $projeto = $this->finalista();
+        $projeto = $this->finalistaDemo();
         $demo = User::factory()->admin()->create(['is_demo' => true]);
         Sanctum::actingAs($demo);
 
@@ -245,7 +271,9 @@ class CredenciamentoTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.aberto', true)
             ->assertJsonPath('data.pode_testar', true)
-            ->assertJsonPath('data.modo_teste', true);
+            ->assertJsonPath('data.modo_teste', true)
+            // A lista que aparece no ensaio é a de demonstração.
+            ->assertJsonPath('data.lista.demo', true);
 
         $this->postJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}?teste=1", ['marcacoes' => []])
             ->assertOk();
@@ -456,5 +484,65 @@ class CredenciamentoTest extends TestCase
         $this->patchJson('/api/v1/admin/credenciamento/itens', ['itens' => []])->assertOk();
 
         $this->assertSame([], $this->edicao->fresh()->itens_credenciamento);
+    }
+
+    // --- Sprint 88: a lista demo do modo de teste ---
+
+    /** Ligado o modo de teste, o balcão troca de lista — não vê a oficial. */
+    public function test_modo_de_teste_lista_apenas_os_finalistas_demo(): void
+    {
+        $oficial = $this->finalista('Finalista de verdade');
+        $ensaio = $this->finalistaDemo('Finalista de mentira');
+
+        Sanctum::actingAs(User::factory()->admin()->create(['is_demo' => true]));
+
+        $comTeste = $this->getJson('/api/v1/admin/credenciamento/finalistas?teste=1')->assertOk();
+        $this->assertSame([$ensaio->id], array_column($comTeste->json('data'), 'id'));
+
+        // Desligado, é a oficial de novo: a lista demo some da tela.
+        $semTeste = $this->getJson('/api/v1/admin/credenciamento/finalistas')->assertOk();
+        $this->assertSame([$oficial->id], array_column($semTeste->json('data'), 'id'));
+    }
+
+    /** O ensaio não alcança um finalista de verdade nem forçando a URL. */
+    public function test_modo_de_teste_nao_credencia_finalista_oficial(): void
+    {
+        $this->edicao->update(['evento_de' => now()->addDays(5), 'evento_ate' => now()->addDays(6)]);
+        $oficial = $this->finalista();
+        $this->finalistaDemo();
+
+        Sanctum::actingAs(User::factory()->admin()->create(['is_demo' => true]));
+
+        $this->getJson("/api/v1/admin/credenciamento/projetos/{$oficial->id}?teste=1")->assertNotFound();
+
+        $this->postJson("/api/v1/admin/credenciamento/projetos/{$oficial->id}?teste=1", ['marcacoes' => []])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('credenciamento');
+
+        $this->assertNull(Credenciamento::where('projeto_id', $oficial->id)->first());
+    }
+
+    /** E o balcão de verdade não enxerga o projeto de demonstração. */
+    public function test_balcao_oficial_ignora_a_lista_demo(): void
+    {
+        $ensaio = $this->finalistaDemo();
+
+        Sanctum::actingAs(User::factory()->admin()->create(['is_demo' => true]));
+
+        $this->getJson("/api/v1/admin/credenciamento/projetos/{$ensaio->id}")->assertNotFound();
+        $this->getJson('/api/v1/admin/credenciamento/config')
+            ->assertOk()
+            ->assertJsonPath('data.lista', null);
+    }
+
+    /** Publicar a lista oficial não encerra a demo, e vice-versa. */
+    public function test_lista_demo_e_oficial_convivem(): void
+    {
+        $this->listaDemo();
+        $this->listaVigente();
+
+        $this->assertTrue(ListaFinal::vigente($this->edicao)->exists);
+        $this->assertFalse(ListaFinal::vigente($this->edicao)->demo);
+        $this->assertTrue(ListaFinal::vigente($this->edicao, true)->demo);
     }
 }

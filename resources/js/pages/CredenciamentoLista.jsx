@@ -60,6 +60,16 @@ export default function CredenciamentoLista({ situacao = 'pendentes' }) {
 
             {erro && <div className="mb-4"><Alert>{erro}</Alert></div>}
 
+            {/* No ensaio a lista é a de demonstração: deixar isso explícito em toda
+                tela evita alguém achar que credenciou gente de verdade. */}
+            {config?.lista?.demo && (
+                <div className="mb-4 max-w-3xl">
+                    <Alert type="info">
+                        <strong>Modo demo</strong> — projetos fictícios da lista “{config.lista.nome}”.
+                    </Alert>
+                </div>
+            )}
+
             {config && !config.aberto && !credenciados && (
                 <div className="mb-4 max-w-3xl">
                     <Alert type="info">

@@ -54,14 +54,18 @@ class ContaTemporariaController extends Controller
         ], 201);
     }
 
-    /** Prazo novo e conta reativada — o caminho de quem venceu. */
+    /**
+     * Janela nova e conta reativada — o caminho de quem venceu, e também o de
+     * quem só quer **reagendar** um acesso que ainda não começou.
+     */
     public function renovar(Request $request, ContaTemporaria $conta): JsonResponse
     {
         $this->garantirGestor($request);
 
         $dados = $request->validate([
+            'valido_de' => ['nullable', 'date'],
             'expira_em' => ['nullable', 'date'],
-            'dias' => ['nullable', 'integer', 'min:1', 'max:365'],
+            'horas' => ['nullable', 'integer', 'min:1', 'max:'.ContaTemporariaService::HORAS_MAX],
         ]);
 
         $this->contas->renovar($conta, $dados);

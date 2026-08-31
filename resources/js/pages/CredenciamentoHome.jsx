@@ -36,6 +36,10 @@ function CardSecao({ to, icon, titulo, descricao, numero, rotulo }) {
  * Quem é finalista sai da **lista final vigente** — sem lista oficial não há
  * ninguém para credenciar. O balcão só abre dentro da janela do evento; fora
  * dela a aba continua consultável, apenas não credencia.
+ *
+ * O **modo demo** (só para conta demo) faz duas coisas de uma vez: ignora as
+ * datas e troca a lista oficial pela **lista de demonstração** da edição. É por
+ * isso que ensaiar o balcão não toca em ninguém de verdade.
  */
 export default function CredenciamentoHome() {
     const [teste, setTeste] = useModoTeste();
@@ -62,8 +66,21 @@ export default function CredenciamentoHome() {
             {config && !config.lista && (
                 <div className="mb-4 max-w-3xl">
                     <Alert>
-                        Nenhuma lista final oficial foi publicada nesta edição — sem ela não há
-                        finalistas para credenciar.
+                        {config.modo_teste
+                            // No ensaio a lista é outra: sem ela, o caminho é o comando, não
+                            // publicar uma lista oficial de mentira.
+                            ? 'Nenhuma lista de demonstração foi criada nesta edição. Peça à equipe técnica para rodar “php artisan demo:credenciamento”.'
+                            : 'Nenhuma lista final oficial foi publicada nesta edição — sem ela não há finalistas para credenciar.'}
+                    </Alert>
+                </div>
+            )}
+
+            {config?.lista?.demo && (
+                <div className="mb-4 max-w-3xl">
+                    <Alert type="info">
+                        Você está no <strong>modo de teste</strong>, com a lista{' '}
+                        <strong>{config.lista.nome}</strong>. Os projetos abaixo são fictícios e
+                        nenhum finalista de verdade é alcançado daqui.
                     </Alert>
                 </div>
             )}
@@ -86,8 +103,8 @@ export default function CredenciamentoHome() {
                     <Toggle
                         checked={teste}
                         onChange={setTeste}
-                        label="Modo de teste (conta demo)"
-                        description="Abre o credenciamento antes do evento, ignorando as datas. Só vale para a sua conta."
+                        label="Modo demo (teste do credenciamento)"
+                        description="Ignora as datas do evento e troca a lista oficial pela lista de demonstração. Só vale para a sua conta — nenhum finalista de verdade é credenciado."
                     />
                 </div>
             )}

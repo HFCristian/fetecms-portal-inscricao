@@ -15,17 +15,27 @@ use Illuminate\Validation\ValidationException;
  * O balcão do evento é atendido por gente de fora da organização — estudantes de
  * um curso, em geral. Em vez de virarem administradores plenos, elas ganham uma
  * conta igual à de admin (mesmo cadastro: nome, e-mail e senha) mais **CPF**,
- * **curso** e **prazo**, e o portal as tranca na aba Credenciamento.
+ * **curso** e uma **janela de acesso**, e o portal as tranca na aba
+ * Credenciamento.
  *
- * Vencido o prazo, a conta é **desativada, não apagada**: reativar é informar um
- * prazo novo, sem recadastrar nada. A varredura roda a cada leitura da lista e
- * em cada tentativa de login, então não depende de agendador — o mesmo caminho
- * que a faxina das sessões do comitê usa.
+ * A janela é contada em **horas** (padrão: 5, o tamanho de um turno de balcão) e
+ * pode **começar depois**: informando `valido_de`, o admin deixa a equipe toda
+ * cadastrada dias antes e cada conta acorda sozinha na hora marcada. Antes do
+ * início a conta existe, aparece como *agendada* e o login é recusado com a
+ * data — ela não é desativada, porque desativar a faria parecer encerrada.
+ *
+ * Vencido o prazo, aí sim a conta é **desativada, não apagada**: reativar é
+ * informar uma janela nova, sem recadastrar nada. A varredura roda a cada
+ * leitura da lista e em cada tentativa de login, então não depende de agendador
+ * — o mesmo caminho que a faxina das sessões do comitê usa.
  */
 class ContaTemporariaService
 {
-    /** Quantos dias o formulário sugere quando ninguém escolhe. */
-    public const DIAS_PADRAO = 7;
+    /** Quantas horas o formulário sugere quando ninguém escolhe. */
+    public const HORAS_PADRAO = 5;
+
+    /** Teto do campo de duração: um ano em horas, para o formulário e a API. */
+    public const HORAS_MAX = 8760;
 
     /**
      * As contas cadastradas, com a situação de cada uma. Vencidas são
@@ -45,7 +55,8 @@ class ContaTemporariaService
 
         return [
             'contas' => $contas->map(fn (ContaTemporaria $c) => $this->resumo($c))->all(),
-            'dias_padrao' => self::DIAS_PADRAO,
+            'horas_padrao' => self::HORAS_PADRAO,
+            'horas_max' => self::HORAS_MAX,
         ];
     }
 
@@ -56,9 +67,9 @@ class ContaTemporariaService
      */
     public function criar(array $dados, ?User $autor = null): ContaTemporaria
     {
-        $expiraEm = $this->prazo($dados);
+        [$validoDe, $expiraEm] = $this->janela($dados);
 
-        return DB::transaction(function () use ($dados, $autor, $expiraEm) {
+        return DB::transaction(function () use ($dados, $autor, $validoDe, $expiraEm) {
             $user = User::create([
                 'name' => trim($dados['name']),
                 'email' => $dados['email'],
@@ -71,6 +82,7 @@ class ContaTemporariaService
                 'user_id' => $user->id,
                 'cpf' => preg_replace('/\D/', '', (string) $dados['cpf']),
                 'curso' => trim($dados['curso']),
+                'valido_de' => $validoDe,
                 'expira_em' => $expiraEm,
                 'criado_por' => $autor?->id,
             ]);
@@ -78,17 +90,18 @@ class ContaTemporariaService
     }
 
     /**
-     * Renova o acesso: prazo novo e conta reativada. É o caminho de quem venceu
-     * — não se recadastra nome, e-mail, CPF nem curso.
+     * Renova o acesso: janela nova e conta reativada. É o caminho de quem venceu
+     * — não se recadastra nome, e-mail, CPF nem curso. Também serve para
+     * **reagendar** uma conta que ainda não começou.
      *
      * @param  array<string, mixed>  $dados
      */
     public function renovar(ContaTemporaria $conta, array $dados): ContaTemporaria
     {
-        $expiraEm = $this->prazo($dados);
+        [$validoDe, $expiraEm] = $this->janela($dados);
 
-        DB::transaction(function () use ($conta, $expiraEm) {
-            $conta->update(['expira_em' => $expiraEm]);
+        DB::transaction(function () use ($conta, $validoDe, $expiraEm) {
+            $conta->update(['valido_de' => $validoDe, 'expira_em' => $expiraEm]);
             $conta->user?->update(['is_active' => true]);
         });
 
@@ -126,44 +139,82 @@ class ContaTemporariaService
     }
 
     /**
-     * Esta pessoa está barrada por ser uma conta temporária vencida? Chamado no
-     * login, para o vencimento valer mesmo que ninguém abra a tela de contas.
+     * Esta pessoa está barrada por ser uma conta temporária fora da janela?
+     * Devolve a mensagem a mostrar no login, ou `null` quando pode entrar.
+     *
+     * Chamado no login, para a janela valer mesmo que ninguém abra a tela de
+     * contas. **Vencida** desativa a conta na passagem; **agendada** não —
+     * ela ainda vai valer, e desativar a faria parecer encerrada na lista.
      */
-    public function venceuParaLogin(User $user): bool
+    public function impedimentoDeLogin(User $user): ?string
     {
         $conta = $user->contaTemporaria;
 
-        if ($conta === null || ! $conta->vencida()) {
-            return false;
+        if ($conta === null) {
+            return null;
         }
 
-        $user->update(['is_active' => false]);
+        if ($conta->vencida()) {
+            $user->update(['is_active' => false]);
 
-        return true;
+            return 'O prazo de acesso desta conta temporária venceu. Peça a renovação à organização.';
+        }
+
+        if ($conta->agendada()) {
+            return 'O acesso desta conta temporária começa em '
+                .$conta->valido_de->format('d/m/Y \à\s H:i').'.';
+        }
+
+        return null;
     }
 
     /**
-     * A data de vencimento a partir do que o formulário mandou: uma data
-     * explícita (`expira_em`) ou uma quantidade de dias a contar de agora.
+     * A janela [início, fim] a partir do que o formulário mandou.
+     *
+     * O **início** é `valido_de` (em branco, agora: a conta já vale). O **fim**
+     * é uma data explícita (`expira_em`) ou uma quantidade de **horas** contada
+     * a partir do início — é isso que faz "5 horas a partir das 8h de sábado"
+     * ser exatamente o que se digita, em vez de 5 horas a partir do cadastro.
      *
      * @param  array<string, mixed>  $dados
+     * @return array{0: ?CarbonImmutable, 1: CarbonImmutable}
      */
-    private function prazo(array $dados): CarbonImmutable
+    private function janela(array $dados): array
     {
-        if (! empty($dados['expira_em'])) {
-            $data = CarbonImmutable::parse($dados['expira_em'], config('app.timezone'));
-        } else {
-            $dias = (int) ($dados['dias'] ?? self::DIAS_PADRAO);
-            $data = CarbonImmutable::now(config('app.timezone'))->addDays(max(1, $dias))->endOfDay();
+        $agora = CarbonImmutable::now(config('app.timezone'));
+
+        $validoDe = empty($dados['valido_de'])
+            ? null
+            : CarbonImmutable::parse($dados['valido_de'], config('app.timezone'));
+
+        if ($validoDe !== null && $validoDe->isPast()) {
+            // Início no passado é o mesmo que "vale desde já": guardar a data
+            // antiga só encheria a tela de "agendada" que já começou.
+            $validoDe = null;
         }
 
-        if ($data->isPast()) {
+        $inicio = $validoDe ?? $agora;
+
+        if (! empty($dados['expira_em'])) {
+            $fim = CarbonImmutable::parse($dados['expira_em'], config('app.timezone'));
+        } else {
+            $horas = (int) ($dados['horas'] ?? self::HORAS_PADRAO);
+            $fim = $inicio->addHours(max(1, $horas));
+        }
+
+        if ($fim->isPast()) {
             throw ValidationException::withMessages([
                 'expira_em' => 'O prazo precisa ser no futuro.',
             ]);
         }
 
-        return $data;
+        if ($fim->lessThanOrEqualTo($inicio)) {
+            throw ValidationException::withMessages([
+                'expira_em' => 'O prazo precisa ser depois do início do acesso.',
+            ]);
+        }
+
+        return [$validoDe, $fim];
     }
 
     /** @return array<string, mixed> */
@@ -171,6 +222,7 @@ class ContaTemporariaService
     {
         $user = $conta->user;
         $vencida = $conta->vencida();
+        $agendada = $conta->agendada();
 
         return [
             'id' => $conta->id,
@@ -179,15 +231,50 @@ class ContaTemporariaService
             'email' => $user?->email,
             'cpf' => $conta->cpfFormatado(),
             'curso' => $conta->curso,
+            // Início da janela: nulo é "vale desde a criação".
+            'valido_de' => $conta->valido_de?->toIso8601String(),
+            'valido_de_input' => $conta->valido_de?->format('Y-m-d\TH:i'),
+            'valido_de_label' => $conta->valido_de?->format('d/m/Y H:i'),
             'expira_em' => $conta->expira_em->toIso8601String(),
             'expira_em_input' => $conta->expira_em->format('Y-m-d\TH:i'),
             'expira_em_label' => $conta->expira_em->format('d/m/Y H:i'),
             'ativa' => (bool) $user?->is_active,
             'vencida' => $vencida,
+            'agendada' => $agendada,
             // Só faz sentido enquanto ela ainda vale; vencida, o número seria negativo.
-            'dias_restantes' => $vencida ? 0 : (int) ceil(now()->floatDiffInDays($conta->expira_em)),
+            'horas_restantes' => $vencida ? 0 : (int) ceil(now()->floatDiffInHours($conta->expira_em)),
+            'duracao_label' => $this->duracaoLabel($conta),
             'criada_por' => $conta->autor?->name,
             'criada_em' => $conta->created_at?->format('d/m/Y H:i'),
         ];
+    }
+
+    /**
+     * Quanto tempo ainda resta, na unidade que cabe: minutos na última hora,
+     * horas no dia, dias acima disso. A conta agendada mostra o tamanho da
+     * janela que vai receber, não o tempo até ela abrir.
+     */
+    private function duracaoLabel(ContaTemporaria $conta): string
+    {
+        if ($conta->vencida()) {
+            return 'encerrado';
+        }
+
+        $de = $conta->agendada() ? $conta->valido_de : now();
+        $minutos = (int) ceil($de->floatDiffInMinutes($conta->expira_em));
+
+        if ($minutos < 60) {
+            return $minutos.($minutos === 1 ? ' minuto' : ' minutos');
+        }
+
+        if ($minutos < 60 * 48) {
+            $horas = (int) ceil($minutos / 60);
+
+            return $horas.($horas === 1 ? ' hora' : ' horas');
+        }
+
+        $dias = (int) ceil($minutos / (60 * 24));
+
+        return $dias.' dias';
     }
 }
