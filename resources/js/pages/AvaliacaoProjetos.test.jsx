@@ -13,10 +13,15 @@ const LINHAS = [
     {
         id: 1, titulo: 'Projeto X', area_id: 1, area: 'Ciências Agrárias', subarea: 'Agronomia',
         categoria: 'fetec_jr', categoria_label: 'FETEC Jr', realizadas: 2, em_avaliacao: 1, faltantes: 1,
+        alunos: [
+            { id: 11, nome: 'Ana Aluna', serie: '9º ano do Ensino Fundamental II' },
+            { id: 12, nome: 'Bruno Aluno', serie: null },
+        ],
     },
     {
         id: 2, titulo: 'Projeto Y', area_id: 2, area: 'Ciências Exatas', subarea: null,
         categoria: 'fetecms', categoria_label: 'FETECMS', realizadas: 0, em_avaliacao: 0, faltantes: 3,
+        alunos: [],
     },
 ];
 
@@ -250,6 +255,31 @@ describe('AvaliacaoProjetos — correção manual', () => {
             link_video: 'https://youtu.be/novo',
             justificativa: 'Corrigido pela coordenação.',
         })));
+    });
+
+    /** A série é o que diz se a categoria está certa — por isso ela fica logo abaixo. */
+    it('mostra a série de cada aluno abaixo da categoria, só para leitura', async () => {
+        render(<AvaliacaoProjetos />);
+        fireEvent.click(await screen.findByLabelText('Editar Projeto X'));
+
+        const dialogo = within(screen.getByRole('dialog'));
+        expect(dialogo.getByText('Ana Aluna')).toBeInTheDocument();
+        expect(dialogo.getByText('9º ano do Ensino Fundamental II')).toBeInTheDocument();
+        // Aluno sem série cadastrada é dito, não escondido.
+        expect(dialogo.getByText('Série não informada')).toBeInTheDocument();
+
+        // Vem depois da categoria e antes da área.
+        const categoria = dialogo.getByLabelText(/Categoria/);
+        const equipe = dialogo.getByText('Equipe');
+        expect(categoria.compareDocumentPosition(equipe) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('explica o projeto sem alunos cadastrados', async () => {
+        render(<AvaliacaoProjetos />);
+        fireEvent.click(await screen.findByLabelText('Editar Projeto Y'));
+
+        const dialogo = within(screen.getByRole('dialog'));
+        expect(dialogo.getByText('Nenhum aluno cadastrado neste projeto.')).toBeInTheDocument();
     });
 });
 

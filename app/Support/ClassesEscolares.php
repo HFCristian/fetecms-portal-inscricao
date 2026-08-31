@@ -63,6 +63,45 @@ class ClassesEscolares
     ];
 
     /**
+     * O nome de cada modalidade como o formulário do aluno a apresenta. O
+     * técnico integrado tem nome próprio aqui, mesmo contando no card do médio.
+     *
+     * @var array<string, string>
+     */
+    public const MODALIDADES = [
+        'fundamental_i' => 'Ensino Fundamental I',
+        'fundamental_ii' => 'Ensino Fundamental II',
+        'medio' => 'Ensino Médio',
+        'tecnico_integrado' => 'Ensino Técnico Integrado',
+    ];
+
+    /**
+     * A série de um aluno em uma linha legível — "2º ano do Ensino Médio".
+     *
+     * Serve às telas que só exibem (a correção manual do projeto, por exemplo).
+     * Devolve o que dá para dizer: com a modalidade sozinha, só ela; sem nada,
+     * `null`, para quem chama decidir o traço.
+     */
+    public static function serieLabel(?string $modalidade, ?string $ano): ?string
+    {
+        $nomeModalidade = self::MODALIDADES[$modalidade] ?? null;
+        $nomeSerie = null;
+
+        foreach (self::CLASSES as $classe) {
+            if ($modalidade !== null && in_array($modalidade, $classe['modalidades'], true)) {
+                $nomeSerie = $classe['series'][$ano] ?? null;
+                break;
+            }
+        }
+
+        return match (true) {
+            $nomeSerie !== null && $nomeModalidade !== null => "{$nomeSerie} do {$nomeModalidade}",
+            $nomeModalidade !== null => $nomeModalidade,
+            default => null,
+        };
+    }
+
+    /**
      * Um bloco por classe, na ordem acima, mesmo as zeradas.
      *
      * @param  Builder<covariant \Illuminate\Database\Eloquent\Model>  $query  já filtrada (tabela `alunos`)

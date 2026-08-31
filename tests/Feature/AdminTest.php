@@ -11,6 +11,7 @@ use App\Models\Instituicao;
 use App\Models\OrientadorProfile;
 use App\Models\Projeto;
 use App\Models\User;
+use App\Services\AjustesOrientadorService;
 use App\Services\CredenciamentoService;
 use Database\Seeders\CatalogoSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -421,5 +422,92 @@ class AdminTest extends TestCase
 
         $this->patchJson("/api/v1/admin/admins/{$orientador->id}/demo", ['is_demo' => true])
             ->assertNotFound();
+    }
+
+    // --- Sprint 89: contas demo (orientadores e avaliadores) ---
+
+    /**
+     * O modo demo do participante é o mesmo interruptor do admin, na seção
+     * Administradores → Contas demo. Antes disso, um orientador só nascia demo
+     * por linha de comando — e é ele quem precisa da aba Ajustes fora do prazo.
+     */
+    public function test_admin_liga_o_modo_demo_de_um_orientador(): void
+    {
+        Sanctum::actingAs(User::factory()->admin()->create());
+        $orientador = User::factory()->create(['name' => 'Marta Orientadora']);
+
+        $this->patchJson("/api/v1/admin/contas-demo/{$orientador->id}", ['is_demo' => true])
+            ->assertOk()
+            ->assertJsonPath('data.is_demo', true)
+            ->assertJsonPath('data.papel', 'Orientador')
+            ->assertJsonPath('meta.message', 'Modo demo liberado.');
+
+        $this->assertTrue($orientador->fresh()->is_demo);
+
+        // E o efeito é real: a aba Ajustes passa a oferecer o modo de teste.
+        $janela = app(AjustesOrientadorService::class)->janela($orientador->fresh(), true);
+        $this->assertTrue($janela['aberta']);
+        $this->assertTrue($janela['is_demo']);
+
+        $this->patchJson("/api/v1/admin/contas-demo/{$orientador->id}", ['is_demo' => false])
+            ->assertOk()
+            ->assertJsonPath('data.is_demo', false);
+    }
+
+    public function test_admin_liga_o_modo_demo_de_um_avaliador(): void
+    {
+        Sanctum::actingAs(User::factory()->admin()->create());
+        $avaliador = User::factory()->avaliador()->create();
+
+        $this->patchJson("/api/v1/admin/contas-demo/{$avaliador->id}", ['is_demo' => true])
+            ->assertOk()
+            ->assertJsonPath('data.papel', 'Avaliador');
+
+        $this->assertTrue($avaliador->fresh()->is_demo);
+    }
+
+    /** A conta de admin tem o próprio botão, na lista de administradores. */
+    public function test_contas_demo_recusa_administrador(): void
+    {
+        Sanctum::actingAs(User::factory()->admin()->create());
+        $outro = User::factory()->admin()->create();
+
+        $this->patchJson("/api/v1/admin/contas-demo/{$outro->id}", ['is_demo' => true])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('is_demo');
+
+        $this->assertFalse($outro->fresh()->is_demo);
+    }
+
+    /** Sem busca, a lista é só quem já está marcado — a pergunta de quem abre. */
+    public function test_contas_demo_sem_busca_lista_apenas_os_marcados(): void
+    {
+        Sanctum::actingAs(User::factory()->admin()->create());
+        $demo = User::factory()->create(['name' => 'Demo Orientador', 'is_demo' => true]);
+        User::factory()->create(['name' => 'Comum Orientador']);
+
+        $resposta = $this->getJson('/api/v1/admin/contas-demo')->assertOk();
+
+        $this->assertSame([$demo->id], array_column($resposta->json('data'), 'id'));
+    }
+
+    /** Com busca, procura em toda a base de participantes — menos os admins. */
+    public function test_contas_demo_busca_por_nome_e_email(): void
+    {
+        Sanctum::actingAs(User::factory()->admin()->create(['name' => 'Zeca Admin']));
+        $orientador = User::factory()->create(['name' => 'Zeca Orientador']);
+        $avaliador = User::factory()->avaliador()->create(['name' => 'Zeca Avaliador']);
+
+        $resposta = $this->getJson('/api/v1/admin/contas-demo?busca=zeca')->assertOk();
+        $ids = array_column($resposta->json('data'), 'id');
+
+        sort($ids);
+        $esperado = [$orientador->id, $avaliador->id];
+        sort($esperado);
+        $this->assertSame($esperado, $ids);
+
+        // E o filtro por papel recorta ainda mais.
+        $so = $this->getJson('/api/v1/admin/contas-demo?busca=zeca&papel=avaliador')->assertOk();
+        $this->assertSame([$avaliador->id], array_column($so->json('data'), 'id'));
     }
 }

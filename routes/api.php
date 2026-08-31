@@ -416,6 +416,10 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::patch('/admins/{admin}/status', [AdminController::class, 'statusAdmin']);
                 Route::patch('/admins/{admin}/demo', [AdminController::class, 'demoAdmin']);
                 Route::put('/admins/{admin}/escopos', [EscopoAdminController::class, 'atribuir']);
+                // Contas demo: o mesmo interruptor, para orientadores e avaliadores
+                // (o do admin é a linha dele na lista acima).
+                Route::get('/contas-demo', [AdminController::class, 'contasDemo']);
+                Route::patch('/contas-demo/{usuario}', [AdminController::class, 'demoParticipante']);
             });
 
             // --- Aba "Suporte": inbox do chat ---

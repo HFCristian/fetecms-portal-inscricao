@@ -363,3 +363,17 @@ export const definirDemoAdmin = (adminId, demo) =>
  */
 export const definirEscoposAdmin = (adminId, escopoIds) =>
     http.put(`/admin/admins/${adminId}/escopos`, { escopo_ids: escopoIds ?? [] }).then((r) => r.data.data);
+
+/**
+ * Contas demo (Administradores → Contas demo): orientadores e avaliadores
+ * usados para ensaiar as telas presas a data.
+ *
+ * **Sem `busca` a API devolve só quem já está marcado** — é a lista das contas
+ * de treinamento existentes. Com busca, procura em toda a base de participantes.
+ */
+export const getContasDemo = (filtros = {}) =>
+    http.get('/admin/contas-demo', { params: filtros }).then((r) => r.data);
+
+/** O mesmo interruptor do admin, para um orientador ou avaliador. */
+export const definirDemoParticipante = (userId, demo) =>
+    http.patch(`/admin/contas-demo/${userId}`, { is_demo: demo }).then((r) => r.data);
