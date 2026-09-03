@@ -297,6 +297,8 @@ class AdminRegistrosTest extends TestCase
             TipoRegistro::ProjetoArea->value,
             TipoRegistro::ProjetoSubarea->value,
             TipoRegistro::ProjetoVideo->value,
+            TipoRegistro::ProjetoOrientador->value,
+            TipoRegistro::ProjetoCoorientador->value,
         ], $tipos);
 
         // O CSV descreve o "de → para" e a justificativa.

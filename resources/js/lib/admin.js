@@ -144,6 +144,10 @@ export const getDesignacoes = ({ q, areaId, categoria, situacao, avaliadorId, or
         },
     }).then((r) => r.data);
 
+/** Orientadores para a troca de dono do projeto (busca no servidor, até 20). */
+export const buscarOrientadores = (q) =>
+    http.get('/admin/avaliacao/orientadores/opcoes', { params: q ? { q } : {} }).then((r) => r.data.data);
+
 /** Retira as designações marcadas; cada projeto vai para outro avaliador na hora. */
 export const retirarDesignacoes = (avaliacaoIds) =>
     http.post('/admin/avaliacao/designacoes/retirar', { avaliacao_ids: avaliacaoIds }).then((r) => r.data);

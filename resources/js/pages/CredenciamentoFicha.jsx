@@ -3,7 +3,7 @@ import { Link, useParams, useNavigate } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { Alert, Button } from '../components/ui.jsx';
 import { extractErrors } from '../lib/auth.jsx';
-import { getFichaCredenciamento, credenciarProjeto } from '../lib/credenciamento.js';
+import { getFichaCredenciamento, credenciarProjeto, cancelarCredenciamento } from '../lib/credenciamento.js';
 import { useModoTeste } from '../lib/modoTeste.js';
 
 const dataHora = (iso) => (iso ? new Date(iso).toLocaleString('pt-BR') : '—');
@@ -48,6 +48,9 @@ export default function CredenciamentoFicha() {
     const [observacao, setObservacao] = useState('');
     const [erro, setErro] = useState('');
     const [salvando, setSalvando] = useState(false);
+    // Diálogo de cancelamento: a justificativa é obrigatória e vai para a trilha.
+    const [cancelando, setCancelando] = useState(false);
+    const [justificativa, setJustificativa] = useState('');
     // Horário sugerido x horário na tela: só mandamos o início quando ele muda,
     // e é essa mudança que faz o fim virar "início + 5 minutos".
     const [inicio, setInicio] = useState(agoraLocal());
@@ -79,6 +82,21 @@ export default function CredenciamentoFicha() {
 
     function marcar(documentoId, pessoa, situacao) {
         setMarcacoes((m) => ({ ...m, [chave(documentoId, pessoa.tipo, pessoa.id)]: situacao }));
+    }
+
+    async function cancelar() {
+        setSalvando(true);
+        setErro('');
+        try {
+            await cancelarCredenciamento(id, justificativa.trim(), teste);
+            navigate('/admin/credenciamento/credenciar', { replace: true });
+        } catch (e) {
+            setErro(extractErrors(e).message || 'Não foi possível cancelar o credenciamento.');
+            setCancelando(false);
+            carregar();
+        } finally {
+            setSalvando(false);
+        }
     }
 
     async function concluir() {
@@ -125,7 +143,11 @@ export default function CredenciamentoFicha() {
     }
 
     const { projeto, pessoas, credenciamento, situacoes, config } = dados;
-    const aberto = config?.aberto;
+    // Credenciamento de outra conta só é alterado por admin permanente — o
+    // servidor barra de qualquer forma, aqui é para a tela não mentir.
+    const podeAlterar = credenciamento?.pode_alterar !== false;
+    const aberto = config?.aberto && podeAlterar;
+    const concluido = Boolean(credenciamento?.concluido);
     // Sem nenhum documento cadastrado não há o que conferir — a lista é parametrizável.
     const semDocumentos = pessoas.every((p) => p.documentos.length === 0);
 
@@ -155,10 +177,13 @@ export default function CredenciamentoFicha() {
 
             {credenciamento?.concluido && (
                 <div className="mb-4 max-w-3xl">
-                    <Alert type="info">
+                    <Alert type={podeAlterar ? 'info' : 'error'}>
                         Credenciado em {dataHora(credenciamento.finalizado_em)}
                         {credenciamento.credenciado_por ? ` por ${credenciamento.credenciado_por}` : ''}.
-                        Uma nova conclusão substitui a conferência anterior.
+                        {' '}
+                        {podeAlterar
+                            ? 'Uma nova conclusão substitui a conferência anterior.'
+                            : credenciamento.motivo_bloqueio}
                     </Alert>
                 </div>
             )}
@@ -254,16 +279,62 @@ export default function CredenciamentoFicha() {
                     </label>
                 </section>
 
-                <div className="flex justify-end gap-3">
+                <div className="flex flex-wrap justify-end gap-3">
                     <Button type="button" variant="outline" onClick={() => navigate('/admin/credenciamento/credenciar')}>
                         Voltar
                     </Button>
+                    {concluido && (
+                        <Button
+                            type="button"
+                            variant="outline"
+                            disabled={!aberto}
+                            onClick={() => { setJustificativa(''); setCancelando(true); }}
+                        >
+                            <span className="material-symbols-outlined text-[20px]">undo</span>
+                            Cancelar credenciamento
+                        </Button>
+                    )}
                     <Button type="button" variant="success" loading={salvando} disabled={!aberto} onClick={concluir}>
                         <span className="material-symbols-outlined text-[20px]">how_to_reg</span>
-                        Concluir credenciamento
+                        {concluido ? 'Regravar credenciamento' : 'Concluir credenciamento'}
                     </Button>
                 </div>
             </div>
+
+            {cancelando && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
+                    <div className="bg-surface-container-lowest rounded-2xl fetec-card-shadow w-full max-w-md p-6 space-y-4">
+                        <h3 className="font-display text-lg font-semibold text-on-surface">Cancelar credenciamento</h3>
+                        <p className="text-sm text-on-surface-variant">
+                            A conferência dos documentos é apagada e o projeto volta para a fila de
+                            <strong> Credenciar</strong>. A justificativa entra em Registros → Credenciamento.
+                        </p>
+                        <label className="block">
+                            <span className="text-sm font-semibold text-on-surface">Justificativa</span>
+                            <textarea
+                                aria-label="Justificativa do cancelamento"
+                                value={justificativa}
+                                onChange={(e) => setJustificativa(e.target.value)}
+                                rows={3}
+                                maxLength={500}
+                                placeholder="Ex.: credenciado por engano, o projeto é de outra equipe."
+                                className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm text-on-surface focus:border-primary-container focus:outline-none focus:ring-2 focus:ring-primary-container/20"
+                            />
+                        </label>
+                        <div className="flex justify-end gap-2">
+                            <Button type="button" variant="outline" onClick={() => setCancelando(false)}>Voltar</Button>
+                            <Button
+                                type="button"
+                                loading={salvando}
+                                disabled={justificativa.trim().length < 5}
+                                onClick={cancelar}
+                            >
+                                Cancelar credenciamento
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Lembrete de entrega: os itens da parametrização, antes de sair da ficha. */}
             {entregar && (

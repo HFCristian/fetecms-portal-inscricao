@@ -230,8 +230,13 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     `Orientador - Orientador(a)`. As siglas de categoria são FET, JR e PIC; as de área saem de
     `areas.sigla` (AGR, BIO, SAU, EXA, HUM, SOC, ENG, LIN), editável em Parametrização → Áreas.
   - **Avaliação Online → Projetos submetidos**: além de *Designar*, cada linha tem **Editar**, que
-    abre a correção manual de **categoria, área, subárea e link do vídeo**, com a **série de cada
-    aluno** logo abaixo da categoria (só leitura) — é ela que diz se a categoria está certa. É um
+    abre a correção manual de **categoria, área, subárea, link do vídeo, orientador e
+    coorientador**, com a **série de cada aluno** logo abaixo da categoria (só leitura) — é ela que
+    diz se a categoria está certa. Trocar o **orientador** troca o **dono** do projeto
+    (`projetos.user_id`): a escolha é entre contas de orientador ativas, buscadas no servidor por
+    nome ou e-mail (`GET /admin/avaliacao/orientadores/opcoes`), e o dono anterior perde o acesso. O
+    **coorientador** não tem conta, então o admin **edita, inclui e remove** (nome, e-mail, CPF e
+    telefone), com um registro por campo alterado. É um
     escape do edital (o orientador não mexe depois de submeter), então a **justificativa é
     obrigatória** e cada campo alterado vira um registro em **Registros → Projetos** com o
     "de → para" (`AdminProjetoEdicaoService`). No topo da tela, um **card destacado** soma todas as áreas:
@@ -243,7 +248,10 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     **documento a documento, pessoa a pessoa** (alunos, orientador e coorientador), marcando
     **presente / ausente / não necessário** — a lista de documentos de cada papel é parametrizável.
     Cada credenciamento grava **quem atendeu e o horário** e entra em Registros → Credenciamento com
-    o que ficou ausente. O **modo demo** (conta demo, botão na aba) faz duas coisas: ignora as datas
+    o que ficou ausente. Concluído, ele ainda pode ser **regravado** ou **cancelado** (o projeto
+    volta para a fila de *Credenciar*, com **justificativa obrigatória**) — mas mexer no
+    credenciamento **de outra conta** exige **admin permanente**: a conta temporária corrige e
+    cancela só o que ela mesma registrou (`CredenciamentoService::podeAlterar()`). O **modo demo** (conta demo, botão na aba) faz duas coisas: ignora as datas
     do evento **e** troca a lista oficial pela **lista final de demonstração** da edição
     (`php artisan demo:credenciamento`), então ensaiar o balcão nunca alcança um finalista de
     verdade. O **horário de início** vem preenchido com o momento do atendimento e pode
@@ -523,6 +531,8 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 94 | Fix: caixa "Quem você quer ouvir" vazia quando as opções falhavam em silêncio | ✅ sim | ❌ não (manual do Pedro) | 20 |
 | 95 | Distribuição em rodadas iguais + cota justa da fila do avaliador | ✅ sim | ❌ não (manual do Pedro) | 21 |
 | 96 | Avaliação online → **Designações**: tabela com o tempo e retirada com redesignação | ✅ sim | ❌ não (manual do Pedro) | 21 |
+| 97 | Credenciamento: cancelar + só conta permanente mexe no credenciamento alheio | ✅ sim | ❌ não (manual do Pedro) | 22 |
+| 98 | Editar projeto submetido: trocar o orientador e editar/incluir/remover o coorientador | ✅ sim | ❌ não (manual do Pedro) | 22 |
 
 > **Sprints 93–94 (branch `feat/ajustes-distribuicao-designacoes`, saída da `origin/main` @ `385833b`):**
 > dois defeitos relatados em produção.
@@ -542,6 +552,24 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > provável em produção é o 403 do escopo (`aba:comunicacao`) para quem teve o escopo trocado com a
 > sessão aberta — o menu ainda mostra a aba porque veio do login. Agora a tela **mostra o motivo**
 > com um botão *Tentar de novo*, e uma lista vazia vinda do servidor também é avisada.
+>
+> **Sprints 97–98 (mesma branch):** o admin corrigindo o que já foi fechado.
+> (a) **Sprint 97** — o balcão ganhou **Cancelar credenciamento** (apaga a conferência e devolve o
+> projeto à fila de *Credenciar*, com justificativa obrigatória) e uma regra de quem pode desfazer:
+> mexer no credenciamento **de outra conta** exige **admin permanente**. A conta temporária continua
+> corrigindo e cancelando **o que ela mesma registrou** — ela existe para atender o turno dela, não
+> para revisar o alheio. A regra é uma só (`podeAlterar()`) e vale tanto para regravar quanto para
+> cancelar; a ficha abre em leitura, com o motivo, para quem não pode. O registro do cancelamento é
+> gravado **antes** do delete: ele precisa de quem credenciou e de quando, e isso some junto com a
+> linha. Tipo novo: `credenciamento_cancelado`.
+> (b) **Sprint 98** — o diálogo **Editar projeto** passou a trocar **quem é** o orientador, e não só
+> a classificação. Trocar o orientador troca o **dono** (`projetos.user_id`), então a escolha é
+> entre contas de orientador **ativas** e a tela avisa que o anterior perde o acesso; a busca é no
+> servidor (nome ou e-mail, 20 resultados) porque a base é grande demais para viajar inteira. O
+> **coorientador** é outra história: não tem conta, é uma linha de dados do projeto, então dá para
+> **editar, incluir e remover** — um registro por campo alterado, com o rótulo do campo abrindo a
+> frase. CPF e telefone chegam com máscara e são gravados só com dígitos, como no formulário do
+> orientador. Tipos novos: `projeto_orientador` e `projeto_coorientador`.
 >
 > **Sprints 95–96 (mesma branch):** a distribuição parou de premiar quem chegou primeiro.
 > (a) **Sprint 95** — relato do Pedro: avaliadores com 6 projetos e colegas com nenhum. Duas causas,

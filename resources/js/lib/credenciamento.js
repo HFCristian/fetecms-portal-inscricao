@@ -25,6 +25,15 @@ export const credenciarProjeto = (projetoId, payload, teste = false) =>
     http.post(`/admin/credenciamento/projetos/${projetoId}`, payload, { params: comTeste({}, teste) })
         .then((r) => r.data);
 
+/**
+ * Cancela o credenciamento: a conferência é apagada e o projeto volta para a
+ * fila de *Credenciar*. Mexer no credenciamento de outra conta exige admin
+ * permanente — quem barra é o servidor.
+ */
+export const cancelarCredenciamento = (projetoId, justificativa, teste = false) =>
+    http.post(`/admin/credenciamento/projetos/${projetoId}/cancelar`, { justificativa }, { params: comTeste({}, teste) })
+        .then((r) => r.data);
+
 // --- Parametrização → Credenciamento ---
 
 export const getParametrizacaoCredenciamento = () =>

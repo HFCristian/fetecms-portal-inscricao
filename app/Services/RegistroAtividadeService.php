@@ -88,8 +88,13 @@ class RegistroAtividadeService
         ?string $de,
         ?string $para,
         string $justificativa,
+        ?string $campo = null,
     ): RegistroAtividade {
-        return $this->registrarNoProjeto($tipo, $projeto, $admin, [
+        // `campo` abre a frase quando um mesmo tipo cobre vários campos — é o
+        // caso do coorientador (nome, e-mail, CPF, telefone). Só ele sai quando
+        // é nulo: `de` e `para` precisam CONTINUAR na lista mesmo nulos, que é
+        // como a trilha mostra "(sem valor)".
+        return $this->registrarNoProjeto($tipo, $projeto, $admin, ($campo === null ? [] : ['campo' => $campo]) + [
             'de' => $de,
             'para' => $para,
             'justificativa' => $justificativa,
@@ -190,6 +195,25 @@ class RegistroAtividadeService
             'pendencias' => $ausentes === [] ? null : $ausentes,
             'justificativa' => $credenciamento->observacao,
         ], fn ($v) => $v !== null));
+    }
+
+    /**
+     * Credenciamento cancelado: o projeto volta para a fila do balcão. Guarda
+     * quem tinha credenciado, quando, e a justificativa de quem desfez.
+     */
+    public function credenciamentoCancelado(
+        Credenciamento $credenciamento,
+        Projeto $projeto,
+        User $admin,
+        string $justificativa,
+    ): RegistroAtividade {
+        return $this->registrarNoProjeto(TipoRegistro::CredenciamentoCancelado, $projeto, $admin, [
+            'campo' => 'Credenciamento',
+            'de' => trim(($credenciamento->autor?->name ?? 'desconhecido').' · '
+                .($credenciamento->finalizado_em?->format('d/m/Y H:i') ?? '')),
+            'para' => '(cancelado)',
+            'justificativa' => $justificativa,
+        ]);
     }
 
     /** O admin submetendo o rascunho de outra pessoa, com a justificativa do escape. */

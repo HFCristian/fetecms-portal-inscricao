@@ -9,6 +9,7 @@ use App\Enums\TipoPessoaCredenciamento;
 use App\Enums\TipoRegistro;
 use App\Models\Aluno;
 use App\Models\Area;
+use App\Models\ContaTemporaria;
 use App\Models\Coorientador;
 use App\Models\Credenciamento;
 use App\Models\DocumentoCredenciamento;
@@ -18,6 +19,7 @@ use App\Models\ListaFinal;
 use App\Models\Projeto;
 use App\Models\RegistroAtividade;
 use App\Models\User;
+use App\Services\ContaTemporariaService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -101,6 +103,136 @@ class CredenciamentoTest extends TestCase
         $this->listaDemo()->projetos()->syncWithoutDetaching([$projeto->id => ['manual' => false]]);
 
         return $projeto;
+    }
+
+    /** Uma conta de balcão: admin restrito à aba Credenciamento, com prazo. */
+    private function contaTemporaria(string $email = 'balcao@fetec.test'): ContaTemporaria
+    {
+        return app(ContaTemporariaService::class)->criar([
+            'name' => 'Bruna Atendente',
+            'email' => $email,
+            'password' => 'senha-do-balcao',
+            'cpf' => '52998224725',
+            'curso' => 'Ciência da Computação',
+            'horas' => 5,
+        ]);
+    }
+
+    // ------------------------------------------------------------------ //
+    // Sprint 97 — cancelar e mexer no credenciamento alheio               //
+    // ------------------------------------------------------------------ //
+
+    public function test_admin_cancela_o_credenciamento_e_o_projeto_volta_para_a_fila(): void
+    {
+        $projeto = $this->finalista();
+        $admin = User::factory()->admin()->create(['name' => 'Ana Admin']);
+        Sanctum::actingAs($admin);
+
+        $this->postJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}", ['marcacoes' => []])->assertOk();
+        $this->assertDatabaseHas('credenciamentos', ['projeto_id' => $projeto->id]);
+
+        $this->postJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}/cancelar", [
+            'justificativa' => 'Credenciado por engano, equipe errada.',
+        ])->assertOk()->assertJsonPath('data.credenciamento', null);
+
+        $this->assertDatabaseMissing('credenciamentos', ['projeto_id' => $projeto->id]);
+
+        // Volta a aparecer como pendente no balcão.
+        $this->getJson('/api/v1/admin/credenciamento/finalistas?situacao=pendentes')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $projeto->id);
+
+        $registro = RegistroAtividade::where('tipo', TipoRegistro::CredenciamentoCancelado)->firstOrFail();
+        $this->assertSame('Credenciado por engano, equipe errada.', $registro->detalhes['justificativa']);
+        $this->assertStringContainsString('Ana Admin', $registro->detalhes['de']);
+    }
+
+    public function test_cancelamento_exige_justificativa(): void
+    {
+        $projeto = $this->finalista();
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->postJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}", ['marcacoes' => []])->assertOk();
+
+        $this->postJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}/cancelar", ['justificativa' => 'x'])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('justificativa');
+
+        $this->assertDatabaseHas('credenciamentos', ['projeto_id' => $projeto->id]);
+    }
+
+    public function test_conta_temporaria_nao_mexe_no_credenciamento_de_outra_conta(): void
+    {
+        $projeto = $this->finalista();
+        $permanente = User::factory()->admin()->create(['name' => 'Ana Admin']);
+        Sanctum::actingAs($permanente);
+        $this->postJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}", ['marcacoes' => []])->assertOk();
+
+        Sanctum::actingAs($this->contaTemporaria()->user);
+
+        // Vê a ficha, mas em leitura e com o motivo.
+        $this->getJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}")
+            ->assertOk()
+            ->assertJsonPath('data.credenciamento.pode_alterar', false)
+            ->assertJsonPath('data.credenciamento.motivo_bloqueio', 'Este credenciamento foi feito por Ana Admin. Só um administrador com conta permanente pode alterá-lo ou cancelá-lo.');
+
+        $this->postJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}/cancelar", [
+            'justificativa' => 'Quero desfazer o trabalho da colega.',
+        ])->assertStatus(422)->assertJsonValidationErrors('credenciamento');
+
+        $this->postJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}", ['marcacoes' => []])
+            ->assertStatus(422)->assertJsonValidationErrors('credenciamento');
+
+        $this->assertDatabaseHas('credenciamentos', ['projeto_id' => $projeto->id]);
+    }
+
+    public function test_conta_temporaria_corrige_e_cancela_o_que_ela_mesma_credenciou(): void
+    {
+        $projeto = $this->finalista();
+        $conta = $this->contaTemporaria();
+        Sanctum::actingAs($conta->user);
+
+        $this->postJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}", ['marcacoes' => []])->assertOk();
+
+        $this->getJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}")
+            ->assertOk()
+            ->assertJsonPath('data.credenciamento.pode_alterar', true)
+            ->assertJsonPath('data.credenciamento.credenciado_por_mim', true);
+
+        // Regravar o próprio credenciamento continua permitido...
+        $this->postJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}", ['marcacoes' => []])->assertOk();
+
+        // ...e cancelar também.
+        $this->postJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}/cancelar", [
+            'justificativa' => 'Digitei no projeto errado.',
+        ])->assertOk();
+
+        $this->assertDatabaseMissing('credenciamentos', ['projeto_id' => $projeto->id]);
+    }
+
+    public function test_admin_permanente_mexe_no_credenciamento_da_conta_temporaria(): void
+    {
+        $projeto = $this->finalista();
+        Sanctum::actingAs($this->contaTemporaria()->user);
+        $this->postJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}", ['marcacoes' => []])->assertOk();
+
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->postJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}/cancelar", [
+            'justificativa' => 'Documento conferido errado no balcão.',
+        ])->assertOk();
+
+        $this->assertDatabaseMissing('credenciamentos', ['projeto_id' => $projeto->id]);
+    }
+
+    public function test_nao_cancela_o_que_ainda_nao_foi_credenciado(): void
+    {
+        $projeto = $this->finalista();
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->postJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}/cancelar", [
+            'justificativa' => 'Não deveria estar aqui.',
+        ])->assertStatus(422)->assertJsonValidationErrors('credenciamento');
     }
 
     public function test_finalistas_saem_da_lista_vigente(): void

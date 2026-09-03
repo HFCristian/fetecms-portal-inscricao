@@ -39,10 +39,28 @@ const FICHA = {
 
 const getFichaCredenciamento = vi.fn(() => Promise.resolve(FICHA));
 const credenciarProjeto = vi.fn(() => Promise.resolve({}));
+const cancelarCredenciamento = vi.fn(() => Promise.resolve({}));
 vi.mock('../lib/credenciamento.js', () => ({
     getFichaCredenciamento: (...a) => getFichaCredenciamento(...a),
     credenciarProjeto: (...a) => credenciarProjeto(...a),
+    cancelarCredenciamento: (...a) => cancelarCredenciamento(...a),
 }));
+
+/** Ficha de um projeto já credenciado. */
+const credenciado = (over = {}) => ({
+    ...FICHA,
+    credenciamento: {
+        concluido: true,
+        finalizado_em: '2026-09-01T12:00:00-04:00',
+        credenciado_por: 'Ana Admin',
+        credenciado_por_mim: false,
+        pode_alterar: true,
+        motivo_bloqueio: null,
+        observacao: null,
+        iniciado_em: '2026-09-01T11:55:00-04:00',
+        ...over,
+    },
+});
 
 import CredenciamentoFicha from './CredenciamentoFicha.jsx';
 
@@ -51,6 +69,37 @@ describe('CredenciamentoFicha', () => {
         credenciarProjeto.mockClear();
         navigate.mockClear();
         getFichaCredenciamento.mockResolvedValue(FICHA);
+    });
+
+    it('cancela o credenciamento com justificativa obrigatória', async () => {
+        getFichaCredenciamento.mockResolvedValue(credenciado());
+        render(<CredenciamentoFicha />);
+
+        fireEvent.click(await screen.findByRole('button', { name: /Cancelar credenciamento/ }));
+
+        const confirmar = screen.getAllByRole('button', { name: 'Cancelar credenciamento' }).at(-1);
+        expect(confirmar).toBeDisabled();
+
+        fireEvent.change(screen.getByLabelText('Justificativa do cancelamento'), {
+            target: { value: 'Credenciado por engano.' },
+        });
+        fireEvent.click(confirmar);
+
+        await waitFor(() => expect(cancelarCredenciamento).toHaveBeenCalledWith(
+            '7', 'Credenciado por engano.', false,
+        ));
+    });
+
+    it('credenciamento de outra conta abre em leitura, com o motivo', async () => {
+        getFichaCredenciamento.mockResolvedValue(credenciado({
+            pode_alterar: false,
+            motivo_bloqueio: 'Este credenciamento foi feito por Ana Admin. Só um administrador com conta permanente pode alterá-lo ou cancelá-lo.',
+        }));
+        render(<CredenciamentoFicha />);
+
+        expect(await screen.findByText(/conta permanente pode alterá-lo/)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Cancelar credenciamento/ })).toBeDisabled();
+        expect(screen.getByRole('button', { name: /Regravar credenciamento/ })).toBeDisabled();
     });
 
     it('mostra cada pessoa com os documentos do papel dela', async () => {

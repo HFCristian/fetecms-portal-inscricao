@@ -78,7 +78,7 @@ class CredenciamentoController extends Controller
         );
 
         return response()->json([
-            'data' => $this->credenciamento->ficha($projeto) + [
+            'data' => $this->credenciamento->ficha($projeto, $request->user()) + [
                 'config' => $this->credenciamento->config($request->user(), $request->boolean('teste')),
             ],
         ]);
@@ -109,8 +109,38 @@ class CredenciamentoController extends Controller
         );
 
         return response()->json([
-            'data' => $this->credenciamento->ficha($projeto->fresh()),
+            'data' => $this->credenciamento->ficha($projeto->fresh(), $request->user()),
             'meta' => ['message' => 'Credenciamento concluído.'],
+        ]);
+    }
+
+    /**
+     * Cancela o credenciamento: a conferência é apagada e o projeto volta para
+     * a fila de *Credenciar*. Mexer no credenciamento de outra conta exige
+     * admin permanente — a regra vive no serviço.
+     */
+    public function cancelar(Request $request, Projeto $projeto): JsonResponse
+    {
+        abort_unless(
+            $this->credenciamento->ehFinalista($projeto, $request->user(), $request->boolean('teste')),
+            404,
+            'Este projeto não está na lista final vigente.',
+        );
+
+        $dados = $request->validate([
+            'justificativa' => ['required', 'string', 'min:5', 'max:500'],
+        ]);
+
+        $this->credenciamento->cancelar(
+            $projeto,
+            $request->user(),
+            $dados['justificativa'],
+            $request->boolean('teste'),
+        );
+
+        return response()->json([
+            'data' => $this->credenciamento->ficha($projeto->fresh(), $request->user()),
+            'meta' => ['message' => 'Credenciamento cancelado. O projeto voltou para a fila do balcão.'],
         ]);
     }
 }

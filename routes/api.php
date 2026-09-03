@@ -231,6 +231,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::get('/avaliacao/avaliadores', [AdminAvaliacaoController::class, 'avaliadores']);
                 Route::get('/avaliacao/avaliadores/opcoes', [AdminAvaliacaoController::class, 'avaliadoresOpcoes']);
                 Route::get('/avaliacao/avaliadores/exportar', [AdminAvaliacaoController::class, 'exportarAvaliadores']);
+                Route::get('/avaliacao/orientadores/opcoes', [AdminAvaliacaoController::class, 'orientadoresOpcoes']);
                 Route::get('/avaliacao/projetos', [AdminAvaliacaoController::class, 'projetos']);
                 Route::get('/avaliacao/projetos/exportar', [AdminAvaliacaoController::class, 'exportarProjetos']);
                 Route::get('/avaliacao/reclassificacoes', [AdminAvaliacaoController::class, 'reclassificacoes']);
@@ -283,6 +284,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::get('/finalistas', [CredenciamentoController::class, 'index']);
                 Route::get('/projetos/{projeto}', [CredenciamentoController::class, 'show']);
                 Route::post('/projetos/{projeto}', [CredenciamentoController::class, 'store']);
+                Route::post('/projetos/{projeto}/cancelar', [CredenciamentoController::class, 'cancelar']);
             });
 
             // --- Aba "Comitê especial": transporte e mapa em tempo real ---

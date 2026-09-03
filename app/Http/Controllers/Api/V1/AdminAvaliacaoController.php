@@ -123,6 +123,17 @@ class AdminAvaliacaoController extends Controller
         ]);
     }
 
+    /**
+     * Orientadores para a troca de dono do projeto: busca por nome ou e-mail,
+     * no máximo 20 — a base é grande demais para mandar inteira.
+     */
+    public function orientadoresOpcoes(Request $request): JsonResponse
+    {
+        return response()->json([
+            'data' => $this->service->buscarOrientadores($request->query('q')),
+        ]);
+    }
+
     /** CSV da tabela de avaliadores, no mesmo recorte de filtros da tela. */
     public function exportarAvaliadores(ListarAvaliadoresRequest $request): Response
     {
