@@ -235,7 +235,7 @@ class AdminRegistrosTest extends TestCase
                 'avaliacao_min_avaliador', 'avaliacao_min_projeto',
                 'avaliacao_max_avaliador', 'avaliacao_max_projeto', 'avaliacao_limites_categoria',
                 'avaliacao_regra_distribuicao', 'avaliacao_designacao_ao_cadastrar',
-                'avaliacao_piso_fila',
+                'avaliacao_piso_fila', 'avaliacao_designacao_retirada', 'avaliacao_parecer_editado',
                 'avaliacao_ajustes_inicio', 'avaliacao_ajustes_fim',
             ],
             array_column($avaliacao->json('meta.tipos'), 'value'),
@@ -297,6 +297,8 @@ class AdminRegistrosTest extends TestCase
             TipoRegistro::ProjetoArea->value,
             TipoRegistro::ProjetoSubarea->value,
             TipoRegistro::ProjetoVideo->value,
+            TipoRegistro::ProjetoOrientador->value,
+            TipoRegistro::ProjetoCoorientador->value,
         ], $tipos);
 
         // O CSV descreve o "de → para" e a justificativa.

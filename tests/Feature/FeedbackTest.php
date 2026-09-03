@@ -2,11 +2,15 @@
 
 namespace Tests\Feature;
 
+use App\Enums\AbaAdmin;
+use App\Enums\PublicoMala;
 use App\Enums\StatusDestinatario;
 use App\Enums\StatusFeedback;
 use App\Enums\TipoPerguntaFeedback;
 use App\Jobs\EnviarConviteFeedback;
 use App\Mail\MensagemTransacional;
+use App\Models\Edicao;
+use App\Models\EscopoAdmin;
 use App\Models\Feedback;
 use App\Models\FeedbackDestinatario;
 use App\Models\FeedbackParticipacao;
@@ -69,6 +73,46 @@ class FeedbackTest extends TestCase
     private function criar(array $extra = []): Feedback
     {
         return app(FeedbackService::class)->criar($this->payload($extra));
+    }
+
+    // ------------------------------------------------------------------ //
+    // Opções do formulário                                                //
+    // ------------------------------------------------------------------ //
+
+    /**
+     * A caixa "Quem você quer ouvir" é montada com o que esta rota devolve —
+     * ela nunca pode voltar vazia para um admin que abre a tela.
+     */
+    public function test_opcoes_trazem_todos_os_publicos_e_os_modelos(): void
+    {
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $dados = $this->getJson('/api/v1/admin/feedbacks/opcoes')->assertOk()->json('data');
+
+        $this->assertCount(count(PublicoMala::cases()), $dados['publicos']);
+        $this->assertNotEmpty($dados['modelos']);
+        $this->assertSame(
+            array_map(fn (PublicoMala $p) => $p->value, PublicoMala::cases()),
+            array_column($dados['publicos'], 'value'),
+        );
+    }
+
+    /**
+     * Quando o escopo não abre a aba, a resposta é um 403 EXPLICADO — a tela
+     * mostra o motivo em vez de desenhar a caixa de públicos vazia.
+     */
+    public function test_admin_sem_a_aba_comunicacao_recebe_403_explicado(): void
+    {
+        User::factory()->admin()->create(); // guardião do acesso total
+        $admin = User::factory()->admin()->create();
+        $escopo = EscopoAdmin::create(['nome' => 'Só projetos', 'abas' => [AbaAdmin::Projetos->value]]);
+        $admin->escopos()->attach($escopo->id, ['edicao_id' => Edicao::atual()->id]);
+
+        Sanctum::actingAs($admin);
+
+        $this->getJson('/api/v1/admin/feedbacks/opcoes')
+            ->assertForbidden()
+            ->assertJsonPath('message', 'Seu escopo de administrador não inclui esta área do portal.');
     }
 
     // ------------------------------------------------------------------ //

@@ -123,11 +123,12 @@ class DistribuicaoService
 
         $correlatas = $this->mapaCorrelatas();
 
-        // Disponíveis dentre uma lista: com folga no limite e ainda não designados.
-        $disponiveis = function (array $ids, array $proj) use (&$avaliadores): array {
+        // Disponíveis dentre uma lista: com folga no limite, abaixo do teto da
+        // rodada e ainda não designados para este projeto.
+        $disponiveis = function (array $ids, array $proj, int $tetoRodada) use (&$avaliadores): array {
             return array_values(array_filter(
                 $ids,
-                fn ($id) => $avaliadores[$id]['carga'] < $avaliadores[$id]['capacidade']
+                fn ($id) => $avaliadores[$id]['carga'] < min($avaliadores[$id]['capacidade'], $tetoRodada)
                     && ! isset($proj['assigned'][$id])
             ));
         };
@@ -139,18 +140,18 @@ class DistribuicaoService
 
         // Elegíveis de um projeto: a própria área manda; só quando ela se esgota
         // o projeto cai para as áreas irmãs (mesmo grupo de correlação).
-        $elegiveis = function (array $proj) use ($disponiveis, $irmaos, $porArea): array {
-            $proprios = $disponiveis($porArea[$proj['area_id']] ?? [], $proj);
+        $elegiveis = function (array $proj, int $tetoRodada) use ($disponiveis, $irmaos, $porArea): array {
+            $proprios = $disponiveis($porArea[$proj['area_id']] ?? [], $proj, $tetoRodada);
 
-            return $proprios !== [] ? $proprios : $disponiveis($irmaos($proj), $proj);
+            return $proprios !== [] ? $proprios : $disponiveis($irmaos($proj), $proj, $tetoRodada);
         };
 
         // Ordena os projetos por escassez (menos elegíveis primeiro; empate: menor
         // cobertura). A escassez olha o pool inteiro — própria área + irmãs —, que é
-        // de onde o projeto pode de fato ser servido.
+        // de onde o projeto pode de fato ser servido, e ignora o teto de rodada.
         foreach ($projetos as &$p) {
-            $p['elegiveis_ini'] = count($disponiveis($porArea[$p['area_id']] ?? [], $p))
-                + count($disponiveis($irmaos($p), $p));
+            $p['elegiveis_ini'] = count($disponiveis($porArea[$p['area_id']] ?? [], $p, PHP_INT_MAX))
+                + count($disponiveis($irmaos($p), $p, PHP_INT_MAX));
         }
         unset($p);
         usort($projetos, fn ($a, $b) => ($a['elegiveis_ini'] <=> $b['elegiveis_ini']) ?: ($a['coverage'] <=> $b['coverage']));
@@ -164,51 +165,94 @@ class DistribuicaoService
         $relatar = fn (int $feitos) => $progresso === null ? null : $progresso($feitos, $total);
         $relatar(0);
 
-        foreach ($projetos as &$proj) {
-            $alvo = $limites->minPorProjeto($proj['categoria']);
-            $teto = $limites->maxPorProjeto($proj['categoria']);
+        // Preferência dentro de um projeto: subárea igual → menor carga → id
+        // (desempate estável).
+        $melhor = function (array $cands, array $proj) use (&$avaliadores): int {
+            $casaSubarea = fn ($id) => $proj['subarea_id'] !== null
+                && in_array([$proj['area_id'], $proj['subarea_id']], $avaliadores[$id]['pares'], true) ? 1 : 0;
 
-            while ($proj['coverage'] < $alvo && $proj['coverage'] < $teto) {
-                $cands = $elegiveis($proj);
-                if ($cands === []) {
-                    break;
+            usort($cands, function ($x, $y) use (&$avaliadores, $casaSubarea) {
+                return ($casaSubarea($y) <=> $casaSubarea($x))
+                    ?: (($avaliadores[$x]['carga'] <=> $avaliadores[$y]['carga']) ?: ($x <=> $y));
+            });
+
+            return $cands[0];
+        };
+
+        // --- Rodadas iguais ------------------------------------------------
+        // Ninguém recebe o (k+1)-ésimo projeto antes de todos os avaliadores
+        // elegíveis terem k: o teto de carga sobe **uma unidade por passada**
+        // sobre a lista inteira de projetos. Antes disso a distribuição enchia
+        // a fila de um avaliador até o piso antes de olhar para o próximo, e a
+        // feira terminava com gente em 6 e gente em 0.
+        //
+        // A igualdade é a possível dentro do casamento por área: avaliador de
+        // Exatas não recebe projeto de Humanas para "empatar" a carga.
+        $capacidadeMax = $avaliadores === []
+            ? 0
+            : max(array_column($avaliadores, 'capacidade'));
+
+        for ($tetoRodada = 1; $tetoRodada <= $capacidadeMax; $tetoRodada++) {
+            $criou = false;
+
+            foreach ($projetos as &$proj) {
+                if ($proj['pronto'] ?? false) {
+                    continue;
                 }
 
-                // Preferência: subárea igual → menor carga → id (desempate estável).
-                $casaSubarea = fn ($id) => $proj['subarea_id'] !== null
-                    && in_array([$proj['area_id'], $proj['subarea_id']], $avaliadores[$id]['pares'], true) ? 1 : 0;
+                $alvo = $limites->minPorProjeto($proj['categoria']);
+                $teto = $limites->maxPorProjeto($proj['categoria']);
 
-                usort($cands, function ($x, $y) use (&$avaliadores, $casaSubarea) {
-                    return ($casaSubarea($y) <=> $casaSubarea($x))
-                        ?: (($avaliadores[$x]['carga'] <=> $avaliadores[$y]['carga']) ?: ($x <=> $y));
-                });
+                while ($proj['coverage'] < $alvo && $proj['coverage'] < $teto) {
+                    $cands = $elegiveis($proj, $tetoRodada);
+                    if ($cands === []) {
+                        break;
+                    }
 
-                $escolhido = $cands[0];
-                $avaliadores[$escolhido]['carga']++;
-                $proj['coverage']++;
-                $proj['assigned'][$escolhido] = true;
+                    $escolhido = $melhor($cands, $proj);
+                    $avaliadores[$escolhido]['carga']++;
+                    $proj['coverage']++;
+                    $proj['assigned'][$escolhido] = true;
+                    $criou = true;
 
-                $novas[] = [
-                    'projeto_id' => $proj['id'],
-                    'avaliador_id' => $escolhido,
-                    'status' => StatusAvaliacao::Designada->value,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ];
+                    $novas[] = [
+                        'projeto_id' => $proj['id'],
+                        'avaliador_id' => $escolhido,
+                        'status' => StatusAvaliacao::Designada->value,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ];
+                }
+
+                if ($proj['coverage'] >= $alvo || $proj['coverage'] >= $teto) {
+                    $proj['pronto'] = true;
+                    $relatar(++$feitos);
+                }
+            }
+            unset($proj);
+
+            // Uma passada inteira sem designar nada: subir o teto não vai
+            // desbloquear ninguém, o que falta é avaliador.
+            if (! $criou) {
+                break;
+            }
+        }
+
+        // O que não fechou o alvo entra no relatório para o admin resolver.
+        foreach ($projetos as $proj) {
+            if ($proj['pronto'] ?? false) {
+                continue;
             }
 
-            if ($proj['coverage'] < $alvo) {
-                $subCobertos[] = [
-                    'projeto_id' => $proj['id'],
-                    'titulo' => $proj['titulo'],
-                    'area' => $proj['area_nome'],
-                    'faltam' => $alvo - $proj['coverage'],
-                ];
-            }
+            $subCobertos[] = [
+                'projeto_id' => $proj['id'],
+                'titulo' => $proj['titulo'],
+                'area' => $proj['area_nome'],
+                'faltam' => $limites->minPorProjeto($proj['categoria']) - $proj['coverage'],
+            ];
 
             $relatar(++$feitos);
         }
-        unset($proj);
 
         if ($novas !== []) {
             DB::table('avaliacoes')->insert($novas);
@@ -282,6 +326,68 @@ class DistribuicaoService
                 'sub_cobertos' => $cobertura['sub_cobertos'],
             ];
         });
+    }
+
+    /**
+     * Escolhe UM avaliador para um projeto, pelas mesmas prioridades do edital
+     * (área+subárea → área → área irmã) e, dentro da faixa, o de menor carga.
+     * É o que repõe a cobertura quando o admin retira uma designação.
+     *
+     * Devolve null quando ninguém cabe: projeto no teto de avaliadores, área
+     * sem gente livre ou todo mundo com a fila cheia. Nesse caso o projeto fica
+     * sub-coberto de propósito — a saída é a designação manual, que é a única
+     * que passa por cima dos limites.
+     *
+     * @param  list<int>  $excluir  avaliadores que não podem receber (quem acabou de sair, por exemplo)
+     */
+    public function designarUm(Projeto $projeto, array $excluir = []): ?User
+    {
+        $limites = Edicao::limites();
+
+        $jaTem = Avaliacao::where('projeto_id', $projeto->id)->pluck('avaliador_id')->all();
+
+        if (count($jaTem) >= $limites->maxPorProjeto($projeto->categoria)) {
+            return null;
+        }
+
+        $correlatas = $this->mapaCorrelatas()[$projeto->area_id] ?? [];
+
+        $candidatos = User::query()
+            ->where('role', Role::Avaliador->value)
+            ->where('is_active', true)
+            ->where('is_demo', false)
+            ->whereNotIn('id', [...$jaTem, ...$excluir])
+            ->with('avaliadorProfile.areasExtras')
+            ->withCount('avaliacoes as carga_count')
+            ->get()
+            ->filter(function (User $u) use ($limites) {
+                $perfil = $u->avaliadorProfile;
+                $carga = (int) $u->carga_count;
+
+                return $perfil !== null
+                    && $perfil->areasAtendidas() !== []
+                    && $carga < min(array_filter([
+                        $perfil->limite_avaliacoes ?? $limites->minPorAvaliador(),
+                        $limites->maxPorAvaliador(),
+                    ], fn ($v) => $v !== null));
+            });
+
+        $faixas = [
+            fn (User $u) => $projeto->subarea_id !== null
+                && in_array([$projeto->area_id, $projeto->subarea_id], $u->avaliadorProfile->paresAtendidos(), true),
+            fn (User $u) => in_array($projeto->area_id, $u->avaliadorProfile->areasAtendidas(), true),
+            fn (User $u) => array_intersect($correlatas, $u->avaliadorProfile->areasAtendidas()) !== [],
+        ];
+
+        foreach ($faixas as $faixa) {
+            $naFaixa = $candidatos->filter($faixa);
+
+            if ($naFaixa->isNotEmpty()) {
+                return $naFaixa->sortBy(fn (User $u) => [(int) $u->carga_count, $u->id])->first();
+            }
+        }
+
+        return null;
     }
 
     /**

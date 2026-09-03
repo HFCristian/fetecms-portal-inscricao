@@ -3,6 +3,9 @@
 namespace App\Http\Requests\Admin;
 
 use App\Enums\Categoria;
+use App\Enums\Role;
+use App\Http\Requests\Concerns\NormalizaEmail;
+use App\Rules\Cpf;
 use App\Rules\SubareaDaArea;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -15,6 +18,29 @@ use Illuminate\Validation\Rule;
  */
 class CorrigirProjetoRequest extends FormRequest
 {
+    use NormalizaEmail;
+
+    /**
+     * CPF e telefone do coorientador chegam com máscara da tela e são gravados
+     * só com dígitos, como no formulário do orientador.
+     */
+    protected function prepareForValidation(): void
+    {
+        $this->limparEmails();
+
+        $coorientador = $this->input('coorientador');
+
+        if (is_array($coorientador)) {
+            foreach (['cpf', 'telefone'] as $campo) {
+                if (isset($coorientador[$campo])) {
+                    $coorientador[$campo] = preg_replace('/\D/', '', (string) $coorientador[$campo]);
+                }
+            }
+
+            $this->merge(['coorientador' => $coorientador]);
+        }
+    }
+
     public function authorize(): bool
     {
         return true;
@@ -38,6 +64,20 @@ class CorrigirProjetoRequest extends FormRequest
                 },
             ],
             'link_video' => ['sometimes', 'nullable', 'url', 'max:255'],
+            // Trocar o orientador troca o DONO do projeto, então só vale uma
+            // conta de orientador que já existe (e está ativa).
+            'user_id' => [
+                'sometimes', 'nullable', 'integer',
+                Rule::exists('users', 'id')
+                    ->where('role', Role::Orientador->value)
+                    ->where('is_active', true),
+            ],
+            // Coorientador: array edita/inclui, `null` explícito remove.
+            'coorientador' => ['sometimes', 'nullable', 'array'],
+            'coorientador.nome' => ['required_with:coorientador', 'string', 'max:255'],
+            'coorientador.email' => ['required_with:coorientador', 'email', 'max:255'],
+            'coorientador.cpf' => ['required_with:coorientador', 'string', 'size:11', new Cpf],
+            'coorientador.telefone' => ['nullable', 'string', 'max:20'],
             'justificativa' => ['required', 'string', 'min:5', 'max:500'],
         ];
     }

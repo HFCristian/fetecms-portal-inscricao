@@ -55,6 +55,55 @@ class DistribuicaoTest extends TestCase
         return app(DistribuicaoService::class)->distribuir();
     }
 
+    /**
+     * Sprint 95 — rodadas iguais: ninguém recebe o 2º projeto antes de todos os
+     * elegíveis terem o 1º.
+     *
+     * Os quatro projetos são da subárea do avaliador A, e a preferência por
+     * subárea vinha ANTES da carga: A levava os quatro e B ficava a zero. O
+     * teto de rodada corta isso — a preferência continua valendo, mas só entre
+     * quem ainda não recebeu o projeto daquela rodada.
+     */
+    public function test_reparte_em_rodadas_iguais_mesmo_com_preferencia_de_subarea(): void
+    {
+        $this->edicaoPadrao()->update(['avaliacoes_min_por_projeto' => 1]);
+
+        $area = Area::create(['nome' => 'Área A']);
+        $sub = Subarea::create(['area_id' => $area->id, 'nome' => 'Subárea 1']);
+
+        $especialista = $this->avaliador($area->id, $sub->id);
+        $generalista = $this->avaliador($area->id);
+
+        foreach (range(1, 4) as $i) {
+            $this->projetoSubmetido($area->id, $sub->id, "P{$i}");
+        }
+
+        $this->distribuir();
+
+        $this->assertSame(2, Avaliacao::where('avaliador_id', $especialista->id)->count());
+        $this->assertSame(2, Avaliacao::where('avaliador_id', $generalista->id)->count());
+    }
+
+    /** A carga fica no máximo 1 acima da menor dentro da mesma área. */
+    public function test_a_carga_nao_passa_de_um_projeto_de_diferenca_entre_avaliadores_da_area(): void
+    {
+        $this->edicaoPadrao()->update(['avaliacoes_min_por_projeto' => 2]);
+
+        $area = Area::create(['nome' => 'Área A']);
+        $avaliadores = collect(range(1, 5))->map(fn () => $this->avaliador($area->id));
+
+        foreach (range(1, 7) as $i) {
+            $this->projetoSubmetido($area->id, null, "P{$i}");
+        }
+
+        $this->distribuir();
+
+        $cargas = $avaliadores->map(fn (User $a) => Avaliacao::where('avaliador_id', $a->id)->count());
+
+        $this->assertSame(14, $cargas->sum());
+        $this->assertLessThanOrEqual(1, $cargas->max() - $cargas->min());
+    }
+
     public function test_distribui_ate_3_ignora_demo_e_e_idempotente(): void
     {
         $a = Area::create(['nome' => 'Área A']);

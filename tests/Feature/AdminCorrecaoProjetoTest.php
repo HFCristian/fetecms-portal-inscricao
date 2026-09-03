@@ -6,6 +6,7 @@ use App\Enums\Categoria;
 use App\Enums\TipoRegistro;
 use App\Models\Aluno;
 use App\Models\Area;
+use App\Models\Coorientador;
 use App\Models\Projeto;
 use App\Models\RegistroAtividade;
 use App\Models\User;
@@ -32,6 +33,122 @@ class AdminCorrecaoProjetoTest extends TestCase
             'area_id' => Area::first()->id,
             'link_video' => 'https://youtu.be/antigo00000',
         ], $over));
+    }
+
+    // ------------------------------------------------------------------ //
+    // Sprint 98 — trocar o orientador e mexer no coorientador             //
+    // ------------------------------------------------------------------ //
+
+    public function test_admin_troca_o_orientador_e_o_projeto_muda_de_dono(): void
+    {
+        $antigo = User::factory()->create(['name' => 'Marta Antiga', 'email' => 'marta@escola.test']);
+        $novo = User::factory()->create(['name' => 'João Novo', 'email' => 'joao@escola.test']);
+        $projeto = $this->projeto(['user_id' => $antigo->id]);
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->patchJson("/api/v1/admin/avaliacao/projetos/{$projeto->id}", [
+            'user_id' => $novo->id,
+            'justificativa' => 'A inscrição foi feita na conta errada.',
+        ])->assertOk()->assertJsonPath('data.orientador.id', $novo->id);
+
+        $this->assertDatabaseHas('projetos', ['id' => $projeto->id, 'user_id' => $novo->id]);
+
+        $registro = RegistroAtividade::where('tipo', TipoRegistro::ProjetoOrientador)->firstOrFail();
+        $this->assertSame('Marta Antiga (marta@escola.test)', $registro->detalhes['de']);
+        $this->assertSame('João Novo (joao@escola.test)', $registro->detalhes['para']);
+        $this->assertSame('A inscrição foi feita na conta errada.', $registro->detalhes['justificativa']);
+
+        // Quem passou a ser dono é quem enxerga o projeto.
+        Sanctum::actingAs($novo);
+        $this->getJson("/api/v1/projetos/{$projeto->id}")->assertOk();
+        Sanctum::actingAs($antigo);
+        $this->getJson("/api/v1/projetos/{$projeto->id}")->assertForbidden();
+    }
+
+    public function test_so_aceita_conta_de_orientador_ativa_como_novo_dono(): void
+    {
+        $projeto = $this->projeto();
+        $avaliador = User::factory()->avaliador()->create();
+        $inativo = User::factory()->create(['is_active' => false]);
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        foreach ([$avaliador->id, $inativo->id, 999999] as $id) {
+            $this->patchJson("/api/v1/admin/avaliacao/projetos/{$projeto->id}", [
+                'user_id' => $id,
+                'justificativa' => 'Troca indevida de dono.',
+            ])->assertStatus(422)->assertJsonValidationErrors('user_id');
+        }
+    }
+
+    public function test_admin_edita_o_coorientador_campo_a_campo(): void
+    {
+        $projeto = $this->projeto();
+        Coorientador::create([
+            'projeto_id' => $projeto->id, 'nome' => 'Caio Antigo',
+            'email' => 'caio@x.test', 'cpf' => '52998224725', 'telefone' => '67999990000',
+        ]);
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->patchJson("/api/v1/admin/avaliacao/projetos/{$projeto->id}", [
+            'coorientador' => [
+                'nome' => 'Caio Corrigido',
+                'email' => 'caio.novo@x.test',
+                'cpf' => '529.982.247-25',
+                'telefone' => '(67) 99999-0000',
+            ],
+            'justificativa' => 'Nome e e-mail digitados errados na inscrição.',
+        ])->assertOk()->assertJsonPath('data.coorientador.nome', 'Caio Corrigido');
+
+        $this->assertDatabaseHas('coorientadores', [
+            'projeto_id' => $projeto->id, 'nome' => 'Caio Corrigido', 'email' => 'caio.novo@x.test',
+            // CPF e telefone chegaram com máscara e foram gravados só com dígitos.
+            'cpf' => '52998224725', 'telefone' => '67999990000',
+        ]);
+
+        // Um registro por campo alterado — CPF e telefone não mudaram de valor.
+        $registros = RegistroAtividade::where('tipo', TipoRegistro::ProjetoCoorientador)->get();
+        $this->assertCount(2, $registros);
+        $this->assertEqualsCanonicalizing(
+            ['coorientador: nome', 'coorientador: e-mail'],
+            $registros->pluck('detalhes.campo')->all(),
+        );
+    }
+
+    public function test_admin_inclui_e_remove_o_coorientador(): void
+    {
+        $projeto = $this->projeto();
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->patchJson("/api/v1/admin/avaliacao/projetos/{$projeto->id}", [
+            'coorientador' => [
+                'nome' => 'Caio Coorientador', 'email' => 'caio@x.test', 'cpf' => '52998224725',
+            ],
+            'justificativa' => 'Coorientador ficou de fora da inscrição.',
+        ])->assertOk()->assertJsonPath('data.coorientador.nome', 'Caio Coorientador');
+
+        $this->assertDatabaseHas('coorientadores', ['projeto_id' => $projeto->id]);
+
+        $this->patchJson("/api/v1/admin/avaliacao/projetos/{$projeto->id}", [
+            'coorientador' => null,
+            'justificativa' => 'A pessoa não participou do projeto.',
+        ])->assertOk()->assertJsonPath('data.coorientador', null);
+
+        $this->assertDatabaseMissing('coorientadores', ['projeto_id' => $projeto->id]);
+
+        $tipos = RegistroAtividade::where('tipo', TipoRegistro::ProjetoCoorientador)->pluck('detalhes')->all();
+        $this->assertSame('(sem coorientador)', $tipos[0]['de']);
+        $this->assertSame('(sem coorientador)', $tipos[1]['para']);
+    }
+
+    public function test_coorientador_incompleto_e_recusado(): void
+    {
+        $projeto = $this->projeto();
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->patchJson("/api/v1/admin/avaliacao/projetos/{$projeto->id}", [
+            'coorientador' => ['nome' => 'Sem documentos'],
+            'justificativa' => 'Inclusão sem os dados obrigatórios.',
+        ])->assertStatus(422)->assertJsonValidationErrors(['coorientador.email', 'coorientador.cpf']);
     }
 
     public function test_admin_corrige_categoria_area_subarea_e_video(): void

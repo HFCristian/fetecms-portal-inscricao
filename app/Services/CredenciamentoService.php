@@ -39,6 +39,13 @@ use Illuminate\Validation\ValidationException;
  * Fora da janela a aba continua abrindo em **leitura**: dá para conferir quem
  * já foi credenciado, mas não para credenciar.
  *
+ * **Quem pode desfazer**: um credenciamento concluído pode ser **corrigido**
+ * (regravado) ou **cancelado** — cancelar apaga a conferência e devolve o
+ * projeto à fila de *Credenciar*. Mexer no credenciamento **de outra conta**
+ * exige **admin permanente**: a conta temporária do balcão corrige e cancela o
+ * que ela mesma registrou, e só isso. Cancelar pede **justificativa** e entra
+ * em Registros → Credenciamento.
+ *
  * **Horários**: o início é preenchido sozinho com o momento do atendimento, mas
  * pode ser alterado — é assim que se lança um credenciamento que aconteceu
  * antes e só está sendo digitado agora. Quando o início vem alterado, o fim é
@@ -166,7 +173,7 @@ class CredenciamentoService
      *
      * @return array<string, mixed>
      */
-    public function ficha(Projeto $projeto): array
+    public function ficha(Projeto $projeto, ?User $admin = null): array
     {
         $projeto->loadMissing(['alunos', 'coorientador', 'user', 'area', 'instituicao']);
         $credenciamento = $this->credenciamentoDe($projeto);
@@ -208,11 +215,76 @@ class CredenciamentoService
                 'iniciado_em' => $credenciamento->iniciado_em?->toIso8601String(),
                 'finalizado_em' => $credenciamento->finalizado_em?->toIso8601String(),
                 'credenciado_por' => $credenciamento->autor?->name,
+                'credenciado_por_mim' => $admin !== null && $credenciamento->credenciado_por === $admin->id,
                 'observacao' => $credenciamento->observacao,
                 'concluido' => $credenciamento->concluido(),
+                // Quem não pode alterar vê a ficha em leitura, com o motivo.
+                'pode_alterar' => $admin === null || $this->podeAlterar($credenciamento, $admin),
+                'motivo_bloqueio' => $admin !== null && ! $this->podeAlterar($credenciamento, $admin)
+                    ? $this->motivoSemPermissao($credenciamento)
+                    : null,
             ],
             'situacoes' => SituacaoDocumento::opcoes(),
         ];
+    }
+
+    /**
+     * Este admin pode mexer neste credenciamento?
+     *
+     * Enquanto ele não foi concluído não há o que proteger. Depois, quem o
+     * fez sempre pode corrigir o próprio trabalho; para mexer no de outra
+     * pessoa é preciso ser **admin permanente** — a conta temporária existe
+     * para atender o balcão naquele turno, não para revisar o turno alheio.
+     */
+    public function podeAlterar(?Credenciamento $credenciamento, User $admin): bool
+    {
+        if ($credenciamento === null || ! $credenciamento->concluido()) {
+            return true;
+        }
+
+        return $credenciamento->credenciado_por === $admin->id || ! $admin->ehContaTemporaria();
+    }
+
+    /** A explicação que a tela mostra quando `podeAlterar()` diz não. */
+    public function motivoSemPermissao(?Credenciamento $credenciamento): string
+    {
+        return 'Este credenciamento foi feito por '
+            .($credenciamento?->autor?->name ?? 'outra conta')
+            .'. Só um administrador com conta permanente pode alterá-lo ou cancelá-lo.';
+    }
+
+    /**
+     * Cancela um credenciamento concluído: a conferência é apagada e o projeto
+     * volta para a fila de *Credenciar*.
+     */
+    public function cancelar(Projeto $projeto, User $admin, string $justificativa, bool $teste = false): void
+    {
+        if (! $this->podeCredenciar($admin, $teste)) {
+            throw ValidationException::withMessages(['credenciamento' => $this->motivoFechado()]);
+        }
+
+        $credenciamento = $this->credenciamentoDe($projeto)?->load('autor', 'documentos.documento');
+
+        if ($credenciamento === null || ! $credenciamento->concluido()) {
+            throw ValidationException::withMessages([
+                'credenciamento' => 'Este projeto ainda não foi credenciado.',
+            ]);
+        }
+
+        if (! $this->podeAlterar($credenciamento, $admin)) {
+            throw ValidationException::withMessages([
+                'credenciamento' => $this->motivoSemPermissao($credenciamento),
+            ]);
+        }
+
+        DB::transaction(function () use ($credenciamento, $projeto, $admin, $justificativa) {
+            // O registro vai ANTES do delete: ele precisa de quem credenciou e
+            // de quando, e essas informações somem junto com a linha.
+            $this->registros->credenciamentoCancelado($credenciamento, $projeto, $admin, $justificativa);
+
+            $credenciamento->documentos()->delete();
+            $credenciamento->delete();
+        });
     }
 
     /**
@@ -237,6 +309,14 @@ class CredenciamentoService
         if (! $this->ehFinalista($projeto, $admin, $teste)) {
             throw ValidationException::withMessages([
                 'credenciamento' => 'Este projeto não está na lista final vigente.',
+            ]);
+        }
+
+        $existente = $this->credenciamentoDe($projeto)?->load('autor');
+
+        if (! $this->podeAlterar($existente, $admin)) {
+            throw ValidationException::withMessages([
+                'credenciamento' => $this->motivoSemPermissao($existente),
             ]);
         }
 

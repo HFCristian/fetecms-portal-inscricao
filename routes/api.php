@@ -184,6 +184,8 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::post('/{avaliacao}/iniciar', [AvaliadorAvaliacaoController::class, 'iniciar']);
             Route::post('/{avaliacao}/rascunho', [AvaliadorAvaliacaoController::class, 'rascunho']);
             Route::post('/{avaliacao}/concluir', [AvaliadorAvaliacaoController::class, 'concluir']);
+            // Depois de enviada, só o parecer final ainda muda (com justificativa).
+            Route::patch('/{avaliacao}/parecer', [AvaliadorAvaliacaoController::class, 'parecer']);
         });
 
         // Perfil do avaliador: estatísticas do certificado e troca da própria área
@@ -231,6 +233,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::get('/avaliacao/avaliadores', [AdminAvaliacaoController::class, 'avaliadores']);
                 Route::get('/avaliacao/avaliadores/opcoes', [AdminAvaliacaoController::class, 'avaliadoresOpcoes']);
                 Route::get('/avaliacao/avaliadores/exportar', [AdminAvaliacaoController::class, 'exportarAvaliadores']);
+                Route::get('/avaliacao/orientadores/opcoes', [AdminAvaliacaoController::class, 'orientadoresOpcoes']);
                 Route::get('/avaliacao/projetos', [AdminAvaliacaoController::class, 'projetos']);
                 Route::get('/avaliacao/projetos/exportar', [AdminAvaliacaoController::class, 'exportarProjetos']);
                 Route::get('/avaliacao/reclassificacoes', [AdminAvaliacaoController::class, 'reclassificacoes']);
@@ -247,6 +250,9 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 // registro em Registros → Lista final.
                 Route::post('/avaliacao/listas-finais/{lista}/projetos', [AdminAvaliacaoController::class, 'adicionarNaListaFinal']);
                 Route::delete('/avaliacao/listas-finais/{lista}/projetos/{projeto}', [AdminAvaliacaoController::class, 'removerDaListaFinal']);
+                // Designações: a tabela com tudo que está na mão de cada avaliador.
+                Route::get('/avaliacao/designacoes', [AdminAvaliacaoController::class, 'designacoes']);
+                Route::post('/avaliacao/designacoes/retirar', [AdminAvaliacaoController::class, 'retirarDesignacoes']);
                 Route::post('/avaliacao/projetos/{projeto}/designar', [AdminAvaliacaoController::class, 'designar']);
                 // Correção manual da classificação/vídeo de um projeto submetido
                 // (justificativa obrigatória; cada campo vira registro).
@@ -280,6 +286,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::get('/finalistas', [CredenciamentoController::class, 'index']);
                 Route::get('/projetos/{projeto}', [CredenciamentoController::class, 'show']);
                 Route::post('/projetos/{projeto}', [CredenciamentoController::class, 'store']);
+                Route::post('/projetos/{projeto}/cancelar', [CredenciamentoController::class, 'cancelar']);
             });
 
             // --- Aba "Comitê especial": transporte e mapa em tempo real ---

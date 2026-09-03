@@ -14,9 +14,11 @@ use App\Http\Requests\Admin\LiberacaoAvaliacaoRequest;
 use App\Http\Requests\Admin\LimiteAvaliadorRequest;
 use App\Http\Requests\Admin\ListaFinalRequest;
 use App\Http\Requests\Admin\ListarAvaliadoresRequest;
+use App\Http\Requests\Admin\ListarDesignacoesRequest;
 use App\Http\Requests\Admin\ListarProjetosAvaliacaoRequest;
 use App\Http\Requests\Admin\MinimosAvaliacaoRequest;
 use App\Http\Requests\Admin\RegrasDistribuicaoRequest;
+use App\Http\Requests\Admin\RetirarDesignacoesRequest;
 use App\Models\Distribuicao;
 use App\Models\Edicao;
 use App\Models\ListaFinal;
@@ -24,6 +26,7 @@ use App\Models\Projeto;
 use App\Models\User;
 use App\Services\AdminAvaliacaoService;
 use App\Services\AdminProjetoEdicaoService;
+use App\Services\DesignacaoService;
 use App\Services\DistribuicaoService;
 use App\Services\ListaFinalService;
 use App\Support\LimitesAvaliacao;
@@ -43,7 +46,54 @@ class AdminAvaliacaoController extends Controller
         private readonly AdminAvaliacaoService $service,
         private readonly DistribuicaoService $distribuicao,
         private readonly ListaFinalService $listaFinal,
+        private readonly DesignacaoService $designacao,
     ) {}
+
+    /** Todas as designações da edição: quem está com o quê, e há quanto tempo. */
+    public function designacoes(ListarDesignacoesRequest $request): JsonResponse
+    {
+        $filtros = $request->filtros();
+        $pagina = $this->designacao->listar($filtros, (int) ($request->validated('por_pagina') ?? 25));
+
+        return response()->json([
+            'data' => array_map(fn ($a) => $this->designacao->linha($a), $pagina->items()),
+            'meta' => [
+                'pagina_atual' => $pagina->currentPage(),
+                'por_pagina' => $pagina->perPage(),
+                'ultima_pagina' => $pagina->lastPage(),
+                'total' => $pagina->total(),
+                'resumo' => $this->designacao->resumo($filtros),
+                'areas' => $this->service->areasComProjeto(),
+                'ordenar' => $filtros['ordenar'],
+                'direcao' => $filtros['direcao'],
+            ] + $this->designacao->opcoes(),
+        ]);
+    }
+
+    /**
+     * Retira as designações marcadas e repõe cada projeto com outro avaliador.
+     * Concluída não sai; em avaliação sai descartando o rascunho.
+     */
+    public function retirarDesignacoes(RetirarDesignacoesRequest $request): JsonResponse
+    {
+        $resultado = $this->designacao->retirar(
+            $request->validated('avaliacao_ids'),
+            $request->user(),
+        );
+
+        $mensagem = $resultado['retiradas'].' designação(ões) retirada(s), '
+            .$resultado['redesignadas'].' redesignada(s) na hora.';
+
+        if ($resultado['sem_avaliador'] !== []) {
+            $mensagem .= ' Sem avaliador elegível para: '.implode('; ', $resultado['sem_avaliador'])
+                .'. Use a designação manual.';
+        }
+
+        return response()->json([
+            'data' => $resultado,
+            'meta' => ['message' => $mensagem],
+        ]);
+    }
 
     /** Avaliadores agrupados por área, com o progresso de avaliação de cada um. */
     public function avaliadores(ListarAvaliadoresRequest $request): JsonResponse
@@ -70,6 +120,17 @@ class AdminAvaliacaoController extends Controller
     {
         return response()->json([
             'data' => $this->service->opcoesAvaliadores($request->boolean('comissao')),
+        ]);
+    }
+
+    /**
+     * Orientadores para a troca de dono do projeto: busca por nome ou e-mail,
+     * no máximo 20 — a base é grande demais para mandar inteira.
+     */
+    public function orientadoresOpcoes(Request $request): JsonResponse
+    {
+        return response()->json([
+            'data' => $this->service->buscarOrientadores($request->query('q')),
         ]);
     }
 

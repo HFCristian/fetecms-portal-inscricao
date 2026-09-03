@@ -6,9 +6,11 @@ use App\Enums\ProjetoStatus;
 use App\Enums\StatusAvaliacao;
 use App\Models\Area;
 use App\Models\Avaliacao;
+use App\Models\AvaliadorProfile;
 use App\Models\Edicao;
 use App\Models\Projeto;
 use App\Models\User;
+use App\Support\LimitesAvaliacao;
 use App\Support\RegrasDistribuicao;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -36,6 +38,12 @@ use Illuminate\Support\Facades\DB;
  * O bolo de candidatos também respeita as {@see RegrasDistribuicao} do admin
  * (Avaliação Online → Algoritmo de distribuição), inclusive no sorteio: o que a
  * regra exclui não entra na fila de ninguém automaticamente.
+ *
+ * **Cota justa** (Sprint 95): o tamanho da fila é o mínimo por avaliador, mas
+ * nunca mais do que a área comporta dividida pelos avaliadores que a atendem
+ * ({@see self::cotaJusta()}). Sem isso, quem chegava primeiro saía com a fila
+ * cheia e os últimos ficavam sem projeto nenhum — o trabalho acabava antes da
+ * vez deles.
  *
  * **Piso da fila** (Sprint 85): uma regra restritiva pode deixar tão pouco
  * projeto elegível que o avaliador fica sem trabalho. Por isso, quando a
@@ -109,9 +117,11 @@ class FilaAvaliadorService
         $limites = Edicao::limites();
 
         // A fila tem o tamanho do mínimo por avaliador (ou do alvo pedido pela
-        // segunda passada) e, quando a edição define um teto total, para de
-        // crescer ao alcançá-lo.
-        $vagas = ($alvo ?? $limites->minPorAvaliador()) - $pendentes;
+        // segunda passada), **limitado pela cota justa** — é o que impede um
+        // avaliador de sair com 6 projetos enquanto o colega da mesma área fica
+        // sem nenhum. Quando a edição define um teto total, a fila também para
+        // de crescer ao alcançá-lo.
+        $vagas = min($alvo ?? $limites->minPorAvaliador(), $this->cotaJusta($perfil, $limites)) - $pendentes;
 
         if ($limites->maxPorAvaliador() !== null) {
             $vagas = min($vagas, $limites->maxPorAvaliador() - $status->count());
@@ -137,6 +147,50 @@ class FilaAvaliadorService
         }
 
         return $criadas;
+    }
+
+    /**
+     * Quantos projetos este avaliador pode ter na fila **sem passar na frente
+     * dos colegas**: o trabalho que a área dele comporta dividido pelo número
+     * de avaliadores que atendem essa mesma área.
+     *
+     * O bolo é a soma, projeto a projeto, do **máximo de avaliadores por
+     * projeto** da categoria — quantas designações a área aceita no total. Com
+     * trabalho de sobra a divisão estoura o tamanho da fila e a cota some (o
+     * teto volta a ser o mínimo por avaliador, como sempre foi); com trabalho
+     * escasso ela reparte o que existe, em vez de deixar quem chegou primeiro
+     * sair com a fila cheia e o resto sem nada.
+     *
+     * A divisão é para BAIXO, senão a soma das cotas passaria do que a área
+     * comporta; e a cota nunca é menor que 1, porque avaliador parado é pior
+     * do que projeto com um avaliador a mais. O bolo não desconta o que já foi
+     * designado de propósito: fosse dinâmico, uma redistribuição encolheria a
+     * fila de todo mundo só porque a cobertura já estava feita.
+     */
+    private function cotaJusta(AvaliadorProfile $perfil, LimitesAvaliacao $limites): int
+    {
+        $areas = $perfil->areasAtendidas();
+
+        if ($areas === []) {
+            return 0;
+        }
+
+        $bolo = Projeto::semDemo()
+            ->where('status', ProjetoStatus::Submetido->value)
+            ->whereIn('area_id', $areas)
+            ->get(['id', 'categoria'])
+            ->sum(fn (Projeto $p) => $limites->maxPorProjeto($p->categoria));
+
+        // Quem divide esse bolo: todo avaliador ativo e não-demo que atende
+        // alguma dessas áreas, pela própria classificação ou por liberação do
+        // admin. O próprio avaliador está incluído.
+        $pares = AvaliadorProfile::query()
+            ->whereHas('user', fn ($q) => $q->where('is_active', true)->where('is_demo', false))
+            ->where(fn ($q) => $q->whereIn('area_id', $areas)
+                ->orWhereHas('areasExtras', fn ($e) => $e->whereIn('area_id', $areas)))
+            ->count();
+
+        return max(1, intdiv((int) $bolo, max(1, $pares)));
     }
 
     /**

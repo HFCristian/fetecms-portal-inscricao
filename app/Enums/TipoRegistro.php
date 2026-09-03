@@ -47,18 +47,23 @@ enum TipoRegistro: string
     case AvaliacaoRegraDistribuicao = 'avaliacao_regra_distribuicao';
     case AvaliacaoDesignacaoAoCadastrar = 'avaliacao_designacao_ao_cadastrar';
     case AvaliacaoPisoFila = 'avaliacao_piso_fila';
+    case AvaliacaoDesignacaoRetirada = 'avaliacao_designacao_retirada';
+    case AvaliacaoParecerEditado = 'avaliacao_parecer_editado';
     case AvaliacaoAjustesInicio = 'avaliacao_ajustes_inicio';
     case AvaliacaoAjustesFim = 'avaliacao_ajustes_fim';
     case ProjetoCategoria = 'projeto_categoria';
     case ProjetoArea = 'projeto_area';
     case ProjetoSubarea = 'projeto_subarea';
     case ProjetoVideo = 'projeto_video';
+    case ProjetoOrientador = 'projeto_orientador';
+    case ProjetoCoorientador = 'projeto_coorientador';
     case RascunhoAlteracao = 'rascunho_alteracao';
     case RascunhoSubmissao = 'rascunho_submissao';
     case ListaFinalOficializada = 'lista_final_oficializada';
     case ListaFinalProjetoAdicionado = 'lista_final_projeto_adicionado';
     case ListaFinalProjetoRemovido = 'lista_final_projeto_removido';
     case CredenciamentoRealizado = 'credenciamento_realizado';
+    case CredenciamentoCancelado = 'credenciamento_cancelado';
 
     /** Seções da tela de Registros. */
     public const SECAO_INSCRICOES = 'inscricoes';
@@ -90,18 +95,23 @@ enum TipoRegistro: string
             self::AvaliacaoRegraDistribuicao => 'Regra da distribuição',
             self::AvaliacaoDesignacaoAoCadastrar => 'Designação ao cadastrar',
             self::AvaliacaoPisoFila => 'Piso da fila do avaliador',
+            self::AvaliacaoDesignacaoRetirada => 'Designação retirada',
+            self::AvaliacaoParecerEditado => 'Parecer do avaliador editado',
             self::AvaliacaoAjustesInicio => 'Início dos ajustes',
             self::AvaliacaoAjustesFim => 'Fim dos ajustes',
             self::ProjetoCategoria => 'Categoria do projeto',
             self::ProjetoArea => 'Área do projeto',
             self::ProjetoSubarea => 'Subárea do projeto',
             self::ProjetoVideo => 'Vídeo do projeto',
+            self::ProjetoOrientador => 'Orientador do projeto',
+            self::ProjetoCoorientador => 'Coorientador do projeto',
             self::RascunhoAlteracao => 'Alteração no rascunho',
             self::RascunhoSubmissao => 'Submissão do rascunho',
             self::ListaFinalOficializada => 'Lista final oficializada',
             self::ListaFinalProjetoAdicionado => 'Projeto incluído na lista',
             self::ListaFinalProjetoRemovido => 'Projeto retirado da lista',
             self::CredenciamentoRealizado => 'Credenciamento realizado',
+            self::CredenciamentoCancelado => 'Credenciamento cancelado',
         };
     }
 
@@ -110,11 +120,12 @@ enum TipoRegistro: string
     {
         return match ($this) {
             self::Submissao, self::Cancelamento, self::Exclusao, self::TrocaEmail => self::SECAO_INSCRICOES,
-            self::ProjetoCategoria, self::ProjetoArea, self::ProjetoSubarea, self::ProjetoVideo => self::SECAO_PROJETOS,
+            self::ProjetoCategoria, self::ProjetoArea, self::ProjetoSubarea, self::ProjetoVideo,
+            self::ProjetoOrientador, self::ProjetoCoorientador => self::SECAO_PROJETOS,
             self::RascunhoAlteracao, self::RascunhoSubmissao => self::SECAO_RASCUNHOS,
             self::ListaFinalOficializada, self::ListaFinalProjetoAdicionado,
             self::ListaFinalProjetoRemovido => self::SECAO_LISTA_FINAL,
-            self::CredenciamentoRealizado => self::SECAO_CREDENCIAMENTO,
+            self::CredenciamentoRealizado, self::CredenciamentoCancelado => self::SECAO_CREDENCIAMENTO,
             default => self::SECAO_AVALIACAO,
         };
     }

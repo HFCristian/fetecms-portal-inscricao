@@ -13,13 +13,18 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * Fluxo de avaliação do avaliador (E7): ler o projeto, iniciar (não pode
- * cancelar), concluir respondendo à rubrica da FETECMS. O avaliador demo, em
+ * cancelar), concluir respondendo à rubrica da FETECMS. Depois de enviada, só
+ * o **parecer final** (as duas recomendações escritas) ainda pode ser
+ * corrigido, com justificativa — a nota é definitiva. O avaliador demo, em
  * modo teste, ignora a data de liberação; suas avaliações são dados de teste
  * (limpáveis pelo admin).
  */
 class AvaliacaoFluxoService
 {
-    public function __construct(private readonly FilaAvaliadorService $fila) {}
+    public function __construct(
+        private readonly FilaAvaliadorService $fila,
+        private readonly RegistroAtividadeService $registros,
+    ) {}
 
     /**
      * Pode ler os projetos designados? Depois de liberada, a leitura continua
@@ -133,6 +138,56 @@ class AvaliacaoFluxoService
         if ($avaliador = $avaliacao->avaliador) {
             $this->fila->repor($avaliador);
         }
+    }
+
+    /**
+     * Corrige o **parecer final** de uma avaliação já enviada: só as duas
+     * recomendações escritas.
+     *
+     * O envio continua irreversível para tudo que vira nota — as 17 respostas
+     * da rubrica e a conferência de área/subárea não se mexem, senão o ranking
+     * mudaria depois de fechado. O que se corrige aqui é o texto que o
+     * orientador lê na aba Ajustes, e por isso cada campo alterado exige
+     * **justificativa** e vira registro em Registros → Avaliação Online.
+     *
+     * @param  array<string, mixed>  $dados  Já validado pelo EditarParecerRequest.
+     * @return list<string> os campos que mudaram
+     */
+    public function editarParecer(Avaliacao $avaliacao, array $dados, User $avaliador): array
+    {
+        if ($avaliacao->status !== StatusAvaliacao::Concluida) {
+            throw ValidationException::withMessages([
+                'avaliacao' => 'Só é possível editar o parecer de uma avaliação já enviada.',
+            ]);
+        }
+
+        $justificativa = trim((string) $dados['justificativa']);
+        $rotulos = [
+            'comentario_video' => 'recomendações sobre o vídeo',
+            'comentario_projeto' => 'recomendações sobre o projeto',
+        ];
+        $mudancas = [];
+
+        foreach ($rotulos as $campo => $rotulo) {
+            if (! array_key_exists($campo, $dados) || (string) $avaliacao->{$campo} === (string) $dados[$campo]) {
+                continue;
+            }
+
+            $mudancas[$campo] = $dados[$campo];
+
+            if ($avaliacao->projeto !== null) {
+                $this->registros->parecerEditado(
+                    $avaliacao->projeto, $avaliador, $rotulo,
+                    $avaliacao->{$campo}, $dados[$campo], $justificativa,
+                );
+            }
+        }
+
+        if ($mudancas !== []) {
+            $avaliacao->update($mudancas);
+        }
+
+        return array_values(array_intersect_key($rotulos, $mudancas));
     }
 
     private function garantirEmAndamento(Avaliacao $avaliacao, string $mensagem): void

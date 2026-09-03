@@ -383,6 +383,8 @@ class AdminAvaliacaoService
             // O diálogo de correção abre já preenchido, sem uma segunda consulta.
             'link_video' => $p->link_video,
             'alunos' => $this->alunosDoProjeto($p),
+            'orientador' => $this->orientadorDoProjeto($p),
+            'coorientador' => $this->coorientadorDoProjeto($p),
             'realizadas' => $realizadas,
             'em_avaliacao' => (int) $p->em_avaliacao_count,
             'faltantes' => max(0, $min - $realizadas),
@@ -429,7 +431,69 @@ class AdminAvaliacaoService
             'subarea' => $p->subarea?->nome,
             'link_video' => $p->link_video,
             'alunos' => $this->alunosDoProjeto($p),
+            'orientador' => $this->orientadorDoProjeto($p),
+            'coorientador' => $this->coorientadorDoProjeto($p),
         ];
+    }
+
+    /**
+     * O dono do projeto — o diálogo de correção abre com ele preenchido e
+     * permite trocá-lo por outra conta de orientador.
+     *
+     * @return array{id:int, nome:string, email:?string}|null
+     */
+    public function orientadorDoProjeto(Projeto $p): ?array
+    {
+        $dono = $p->relationLoaded('user') ? $p->user : $p->user()->first();
+
+        return $dono === null ? null : ['id' => $dono->id, 'nome' => $dono->name, 'email' => $dono->email];
+    }
+
+    /**
+     * O coorientador do projeto (no máximo um, e opcional). Diferente do
+     * orientador, ele não tem conta: é uma linha de dados que o admin edita,
+     * inclui ou remove.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function coorientadorDoProjeto(Projeto $p): ?array
+    {
+        $co = $p->relationLoaded('coorientador') ? $p->coorientador : $p->coorientador()->first();
+
+        return $co === null ? null : [
+            'id' => $co->id,
+            'nome' => $co->nome,
+            'email' => $co->email,
+            'cpf' => $co->cpf,
+            'telefone' => $co->telefone,
+        ];
+    }
+
+    /**
+     * Orientadores que podem receber um projeto na troca de dono: busca por
+     * nome ou e-mail, só contas ativas, no máximo 20 — a base é grande demais
+     * para mandar inteira para a tela.
+     *
+     * @return list<array{id:int, nome:string, email:string}>
+     */
+    public function buscarOrientadores(?string $busca, int $limite = 20): array
+    {
+        $termo = trim((string) $busca);
+
+        return User::query()
+            ->where('role', Role::Orientador->value)
+            ->where('is_active', true)
+            ->when($termo !== '', function ($q) use ($termo) {
+                $like = '%'.str_replace(['%', '_'], ['\%', '\_'], mb_strtolower($termo)).'%';
+                $q->where(fn ($sub) => $sub
+                    ->whereRaw('LOWER(name) LIKE ?', [$like])
+                    ->orWhereRaw('LOWER(email) LIKE ?', [$like]));
+            })
+            ->orderBy('name')
+            ->limit($limite)
+            ->get(['id', 'name', 'email'])
+            ->map(fn (User $u) => ['id' => $u->id, 'nome' => $u->name, 'email' => $u->email])
+            ->all();
     }
 
     /**
@@ -570,7 +634,13 @@ class AdminAvaliacaoService
             ->select('projetos.*')
             // A série dos alunos vai junto: o diálogo de correção a mostra e
             // buscar aluno a aluno na abertura seria um N+1 por linha da tabela.
-            ->with(['area:id,nome', 'subarea:id,nome', 'alunos:id,projeto_id,nome,modalidade,ano_escolar'])
+            ->with([
+                'area:id,nome', 'subarea:id,nome',
+                'alunos:id,projeto_id,nome,modalidade,ano_escolar',
+                // O diálogo de correção abre com o orientador e o coorientador
+                // preenchidos; sem o eager load seriam duas consultas por linha.
+                'user:id,name,email', 'coorientador',
+            ])
             ->withCount([
                 'avaliacoes as realizadas_count' => fn ($q) => $q->where('status', StatusAvaliacao::Concluida->value),
                 'avaliacoes as em_avaliacao_count' => fn ($q) => $q->where('status', StatusAvaliacao::EmAndamento->value),

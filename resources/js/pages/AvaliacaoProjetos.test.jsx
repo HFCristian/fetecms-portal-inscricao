@@ -13,6 +13,8 @@ const LINHAS = [
     {
         id: 1, titulo: 'Projeto X', area_id: 1, area: 'Ciências Agrárias', subarea: 'Agronomia',
         categoria: 'fetec_jr', categoria_label: 'FETEC Jr', realizadas: 2, em_avaliacao: 1, faltantes: 1,
+        orientador: { id: 9, nome: 'Marta Antiga', email: 'marta@escola.test' },
+        coorientador: { id: 3, nome: 'Caio Coorientador', email: 'caio@x.test', cpf: '52998224725', telefone: null },
         alunos: [
             { id: 11, nome: 'Ana Aluna', serie: '9º ano do Ensino Fundamental II' },
             { id: 12, nome: 'Bruno Aluno', serie: null },
@@ -45,6 +47,9 @@ const META = {
 const getAvaliacaoProjetos = vi.fn(() => Promise.resolve({ data: LINHAS, meta: META }));
 const exportarProjetosAvaliacaoCsv = vi.fn(() => Promise.resolve());
 const designarProjeto = vi.fn(() => Promise.resolve({ data: { designadas: 1 }, meta: { message: '1 designação criada.' } }));
+const buscarOrientadores = vi.fn(() => Promise.resolve([
+    { id: 42, nome: 'João Novo', email: 'joao@escola.test' },
+]));
 const corrigirProjeto = vi.fn(() => Promise.resolve({ data: {}, meta: { message: 'Projeto atualizado (categoria).' } }));
 // Com `comissao`, devolve só os membros da comissão especial.
 const getOpcoesAvaliadores = vi.fn((comissao) => Promise.resolve(comissao
@@ -60,6 +65,7 @@ vi.mock('../lib/admin.js', () => ({
     getOpcoesAvaliadores: (...a) => getOpcoesAvaliadores(...a),
     designarProjeto: (...a) => designarProjeto(...a),
     corrigirProjeto: (...a) => corrigirProjeto(...a),
+    buscarOrientadores: (...a) => buscarOrientadores(...a),
 }));
 
 import AvaliacaoProjetos from './AvaliacaoProjetos.jsx';
@@ -254,6 +260,61 @@ describe('AvaliacaoProjetos — correção manual', () => {
             area_id: 1,
             link_video: 'https://youtu.be/novo',
             justificativa: 'Corrigido pela coordenação.',
+        })));
+    });
+
+    it('troca o orientador buscando entre as contas existentes', async () => {
+        render(<AvaliacaoProjetos />);
+        fireEvent.click(await screen.findByLabelText('Editar Projeto X'));
+
+        const dialogo = within(screen.getByRole('dialog'));
+        expect(dialogo.getByText('Marta Antiga')).toBeInTheDocument();
+
+        fireEvent.click(dialogo.getByText('Trocar o orientador'));
+        fireEvent.change(dialogo.getByLabelText('Buscar orientador por nome ou e-mail'), {
+            target: { value: 'joão' },
+        });
+
+        fireEvent.click(await dialogo.findByText('João Novo'));
+        expect(dialogo.getByText(/perde o acesso a ele/)).toBeInTheDocument();
+
+        fireEvent.change(dialogo.getByLabelText(/Justificativa/), { target: { value: 'Conta errada na inscrição.' } });
+        fireEvent.click(dialogo.getByText('Salvar alterações'));
+
+        await waitFor(() => expect(corrigirProjeto).toHaveBeenCalledWith(1, expect.objectContaining({
+            user_id: 42,
+        })));
+    });
+
+    it('edita os dados do coorientador', async () => {
+        render(<AvaliacaoProjetos />);
+        fireEvent.click(await screen.findByLabelText('Editar Projeto X'));
+
+        const dialogo = within(screen.getByRole('dialog'));
+        expect(dialogo.getByLabelText('Nome do coorientador')).toHaveValue('Caio Coorientador');
+
+        fireEvent.change(dialogo.getByLabelText('Nome do coorientador'), { target: { value: 'Caio Corrigido' } });
+        fireEvent.change(dialogo.getByLabelText(/Justificativa/), { target: { value: 'Nome digitado errado.' } });
+        fireEvent.click(dialogo.getByText('Salvar alterações'));
+
+        await waitFor(() => expect(corrigirProjeto).toHaveBeenCalledWith(1, expect.objectContaining({
+            coorientador: expect.objectContaining({ nome: 'Caio Corrigido' }),
+        })));
+    });
+
+    it('remove o coorientador mandando null', async () => {
+        render(<AvaliacaoProjetos />);
+        fireEvent.click(await screen.findByLabelText('Editar Projeto X'));
+
+        const dialogo = within(screen.getByRole('dialog'));
+        fireEvent.click(dialogo.getByText('Remover coorientador'));
+        expect(dialogo.getByText('Este projeto não tem coorientador.')).toBeInTheDocument();
+
+        fireEvent.change(dialogo.getByLabelText(/Justificativa/), { target: { value: 'Não participou do projeto.' } });
+        fireEvent.click(dialogo.getByText('Salvar alterações'));
+
+        await waitFor(() => expect(corrigirProjeto).toHaveBeenCalledWith(1, expect.objectContaining({
+            coorientador: null,
         })));
     });
 

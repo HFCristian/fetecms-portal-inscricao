@@ -2,13 +2,16 @@
 
 namespace Tests\Feature;
 
+use App\Enums\StatusAvaliacao;
 use App\Enums\TipoDocumento;
+use App\Enums\TipoRegistro;
 use App\Models\Area;
 use App\Models\Avaliacao;
 use App\Models\AvaliadorProfile;
 use App\Models\Edicao;
 use App\Models\Projeto;
 use App\Models\ProjetoDocumento;
+use App\Models\RegistroAtividade;
 use App\Models\Subarea;
 use App\Models\User;
 use App\Support\Rubrica;
@@ -78,6 +81,111 @@ class AvaliacaoFluxoTest extends TestCase
             // Conferência da classificação: área é obrigatória ao concluir.
             'area_correta' => true,
         ];
+    }
+
+    // ------------------------------------------------------------------ //
+    // Sprint 100 — editar o parecer final depois do envio                 //
+    // ------------------------------------------------------------------ //
+
+    /** Envia a avaliação e devolve [avaliador, avaliacao]. */
+    private function concluida(): array
+    {
+        [$av, $aval] = $this->cenario();
+        Sanctum::actingAs($av);
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/iniciar")->assertOk();
+        $this->postJson("/api/v1/avaliacao/{$aval->id}/concluir", $this->preenchimento())->assertOk();
+
+        return [$av, $aval->fresh()];
+    }
+
+    public function test_avaliador_corrige_o_parecer_final_com_justificativa(): void
+    {
+        [$av, $aval] = $this->concluida();
+        $notaAntes = $aval->nota;
+
+        $this->patchJson("/api/v1/avaliacao/{$aval->id}/parecer", [
+            'comentario_video' => 'O áudio melhora a partir do meio do vídeo.',
+            'comentario_projeto' => 'Vale aprofundar a discussão dos resultados.',
+            'justificativa' => 'Corrigindo uma frase que ficou dúbia.',
+        ])->assertOk()
+            ->assertJsonPath('data.comentario_video', 'O áudio melhora a partir do meio do vídeo.')
+            ->assertJsonPath('meta.message', 'Parecer atualizado: recomendações sobre o vídeo.');
+
+        $aval->refresh();
+        $this->assertSame('O áudio melhora a partir do meio do vídeo.', $aval->comentario_video);
+        // A nota e o status não se mexem: o envio continua irreversível.
+        $this->assertSame($notaAntes, $aval->nota);
+        $this->assertSame(StatusAvaliacao::Concluida, $aval->status);
+
+        // Um registro por campo alterado — o do projeto ficou igual.
+        $registros = RegistroAtividade::where('tipo', TipoRegistro::AvaliacaoParecerEditado)->get();
+        $this->assertCount(1, $registros);
+        $this->assertSame('recomendações sobre o vídeo', $registros[0]->detalhes['campo']);
+        $this->assertSame('Corrigindo uma frase que ficou dúbia.', $registros[0]->detalhes['justificativa']);
+        $this->assertSame($av->id, $registros[0]->user_id);
+    }
+
+    public function test_parecer_exige_justificativa(): void
+    {
+        [, $aval] = $this->concluida();
+
+        $this->patchJson("/api/v1/avaliacao/{$aval->id}/parecer", [
+            'comentario_projeto' => 'Outro texto.',
+        ])->assertStatus(422)->assertJsonValidationErrors('justificativa');
+    }
+
+    public function test_parecer_nao_muda_nota_nem_classificacao(): void
+    {
+        [, $aval] = $this->concluida();
+
+        // Campos fora do parecer são simplesmente ignorados pela validação.
+        $this->patchJson("/api/v1/avaliacao/{$aval->id}/parecer", [
+            'comentario_projeto' => 'Texto corrigido.',
+            'nota' => 1,
+            'respostas' => [],
+            'area_correta' => false,
+            'justificativa' => 'Ajuste de redação.',
+        ])->assertOk();
+
+        $aval->refresh();
+        $this->assertNotSame(1.0, (float) $aval->nota);
+        $this->assertNotEmpty($aval->respostas);
+        $this->assertTrue((bool) $aval->area_correta);
+    }
+
+    public function test_avaliacao_ainda_nao_enviada_nao_tem_parecer_para_editar(): void
+    {
+        [$av, $aval] = $this->cenario();
+        Sanctum::actingAs($av);
+
+        $this->patchJson("/api/v1/avaliacao/{$aval->id}/parecer", [
+            'comentario_projeto' => 'Antes da hora.',
+            'justificativa' => 'Tentando editar cedo demais.',
+        ])->assertStatus(422)->assertJsonValidationErrors('avaliacao');
+    }
+
+    public function test_parecer_de_outro_avaliador_nao_pode_ser_editado(): void
+    {
+        [, $aval] = $this->concluida();
+        $outro = User::factory()->avaliador()->create();
+        AvaliadorProfile::factory()->create(['user_id' => $outro->id, 'area_id' => Area::first()->id]);
+        Sanctum::actingAs($outro);
+
+        $this->patchJson("/api/v1/avaliacao/{$aval->id}/parecer", [
+            'comentario_projeto' => 'Não é minha.',
+            'justificativa' => 'Mexendo no parecer alheio.',
+        ])->assertForbidden();
+    }
+
+    public function test_encerrado_o_periodo_o_parecer_fica_travado(): void
+    {
+        [, $aval] = $this->concluida();
+        Edicao::atual()->update(['avaliacao_encerrada_em' => now()->subHour()]);
+
+        $this->patchJson("/api/v1/avaliacao/{$aval->id}/parecer", [
+            'comentario_projeto' => 'Tarde demais.',
+            'justificativa' => 'Fora do período de avaliação.',
+        ])->assertForbidden();
     }
 
     public function test_inicia_e_conclui_com_a_rubrica_inteira(): void

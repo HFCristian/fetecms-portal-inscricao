@@ -317,10 +317,14 @@ export default function AvaliacaoAvaliadores() {
             <h1 className="font-display text-2xl font-semibold text-primary mb-1">Avaliadores Online</h1>
             <p className="text-on-surface-variant mb-4 max-w-4xl">
                 Panorama do corpo de avaliadores e o progresso de cada um. Busque por nome ou e-mail,
-                filtre por área, ordene por qualquer coluna e exporte o recorte em CSV. Você pode limitar
-                individualmente quantas avaliações cada um assume, marcar avaliadores de teste (demo),
-                incluir alguém na <strong>comissão especial</strong> e liberar <strong>outras áreas</strong>
-                para um avaliador receber projetos além da que ele escolheu.
+                filtre por área, ordene por qualquer coluna e exporte o recorte em CSV. Na ponta de cada
+                linha, o primeiro botão{' '}
+                <span className="material-symbols-outlined text-[18px] align-[-0.3em]">library_add</span>{' '}
+                <strong>libera outras áreas e subáreas</strong> para o avaliador receber projetos além da
+                que ele escolheu no cadastro; os demais marcam avaliador de <strong>teste</strong>{' '}
+                <span className="material-symbols-outlined text-[18px] align-[-0.3em]">science</span>,
+                incluem alguém na <strong>comissão especial</strong> e limitam individualmente quantas
+                avaliações cada um assume.
             </p>
 
             <PanoramaAvaliadores />
@@ -470,18 +474,26 @@ export default function AvaliacaoAvaliadores() {
                                                     <div className="flex items-center justify-end gap-1">
                                                         <button
                                                             type="button"
+                                                            onClick={() => setEditandoAreas(a)}
+                                                            title="Liberar outras áreas para este avaliador"
+                                                            aria-label={`Áreas de ${a.nome}`}
+                                                            className="shrink-0 p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-variant transition-colors"
+                                                        >
+                                                            <span className="material-symbols-outlined text-[20px]">library_add</span>
+                                                        </button>
+                                                        <button
+                                                            type="button"
                                                             onClick={() => alternarDemo(a)}
                                                             title={a.is_demo ? 'Remover marca de teste (demo)' : 'Marcar como avaliador de teste (demo)'}
                                                             aria-label={`Demo de ${a.nome}`}
                                                             aria-pressed={a.is_demo}
-                                                            className={`shrink-0 inline-flex items-center gap-1 text-xs font-semibold rounded-lg px-2.5 py-1.5 border transition-colors ${
+                                                            className={`shrink-0 p-1.5 rounded-lg transition-colors ${
                                                                 a.is_demo
-                                                                    ? 'bg-primary-fixed text-primary-container border-primary-container/30'
-                                                                    : 'text-on-surface-variant border-outline-variant hover:bg-surface-variant'
+                                                                    ? 'text-primary-container bg-primary-fixed'
+                                                                    : 'text-on-surface-variant hover:bg-surface-variant'
                                                             }`}
                                                         >
-                                                            <span className="material-symbols-outlined text-[18px]">science</span>
-                                                            Demo
+                                                            <span className="material-symbols-outlined text-[20px]">science</span>
                                                         </button>
                                                         <button
                                                             type="button"
@@ -498,15 +510,6 @@ export default function AvaliacaoAvaliadores() {
                                                             <span className="material-symbols-outlined text-[20px]">
                                                                 {a.comissao_especial ? 'star' : 'star_border'}
                                                             </span>
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setEditandoAreas(a)}
-                                                            title="Liberar outras áreas para este avaliador"
-                                                            aria-label={`Áreas de ${a.nome}`}
-                                                            className="shrink-0 p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-variant transition-colors"
-                                                        >
-                                                            <span className="material-symbols-outlined text-[20px]">library_add</span>
                                                         </button>
                                                         <button
                                                             type="button"

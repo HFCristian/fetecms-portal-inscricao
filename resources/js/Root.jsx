@@ -52,6 +52,7 @@ import AdminAvaliacaoOnline from './pages/AdminAvaliacaoOnline.jsx';
 import AvaliacaoAvaliadores from './pages/AvaliacaoAvaliadores.jsx';
 import AvaliacaoDistribuicao from './pages/AvaliacaoDistribuicao.jsx';
 import AvaliacaoProjetos from './pages/AvaliacaoProjetos.jsx';
+import AvaliacaoDesignacoes from './pages/AvaliacaoDesignacoes.jsx';
 import AvaliacaoReclassificacoes from './pages/AvaliacaoReclassificacoes.jsx';
 import AvaliacaoRanking from './pages/AvaliacaoRanking.jsx';
 import AvaliacaoListasFinais from './pages/AvaliacaoListasFinais.jsx';
@@ -130,6 +131,7 @@ export default function Root() {
                             <Route path="/admin/avaliacao/distribuicao" element={<AvaliacaoDistribuicao />} />
                             <Route path="/admin/avaliacao/avaliadores" element={<AvaliacaoAvaliadores />} />
                             <Route path="/admin/avaliacao/projetos" element={<AvaliacaoProjetos />} />
+                            <Route path="/admin/avaliacao/designacoes" element={<AvaliacaoDesignacoes />} />
                             <Route path="/admin/avaliacao/reclassificacoes" element={<AvaliacaoReclassificacoes />} />
                             <Route path="/admin/avaliacao/ranking" element={<AvaliacaoRanking />} />
                             <Route path="/admin/avaliacao/listas-finais" element={<AvaliacaoListasFinais />} />

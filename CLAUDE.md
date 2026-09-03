@@ -86,7 +86,10 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     **subárea** está correta (opcional; quem marcar como incorreta precisa sugerir a correta).
     Fecha com **dois campos descritivos opcionais** (recomendações sobre o vídeo e sobre o
     projeto). A avaliação pode ser **salva como rascunho** a qualquer momento; o envio continua
-    irreversível. As perguntas moram em `app/Support/Rubrica.php` e as respostas na coluna
+    irreversível para tudo que vira nota — depois dele, só o **parecer final** (as duas
+    recomendações escritas) ainda pode ser corrigido, com **justificativa obrigatória** e registro
+    na trilha. A aba **Avaliados** tem **busca** por título ou área entre as avaliações que ele já
+    enviou. As perguntas moram em `app/Support/Rubrica.php` e as respostas na coluna
     JSON `avaliacoes.respostas` — mexer na rubrica não pede migration.
   - **Perfil do avaliador** (`/avaliador/perfil`): cards com **projetos avaliados**, **carga
     horária do certificado** (**2h30 por avaliação concluída**, com **teto de 120 horas** —
@@ -193,7 +196,20 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     mostra uma **barra de progresso** (`distribuicoes` + `ProcessarDistribuicao`); duas rodadas ao
     mesmo tempo são recusadas. Fecha a seção o toggle **designar ao cadastrar**
     (`edicoes.distribuicao_ao_cadastrar`): ligado, o avaliador que acaba de se cadastrar já sai com a
-    fila cheia.
+    fila cheia. Acima de tudo isso está a **cota justa**: a distribuição em massa reparte **em
+    rodadas iguais** (ninguém recebe o k+1-ésimo projeto antes de todos os elegíveis terem k) e a
+    fila de cada avaliador nunca passa do que a **área comporta dividido pelos avaliadores dela**
+    (`FilaAvaliadorService::cotaJusta()`) — com trabalho de sobra a cota some e o teto volta a ser o
+    mínimo por avaliador.
+  - **Avaliação Online → Designações** (`/admin/avaliacao/designacoes`): **todas** as designações da
+    edição numa tabela — projeto, área, avaliador, situação e **há quanto tempo** está com ele —, com
+    busca por projeto ou avaliador, filtros (área, categoria, situação, avaliador), ordenação e
+    paginação. O admin marca linhas e **retira** a designação: o projeto volta ao bolo e é
+    **redesignado na hora** para outro avaliador, pelas prioridades do edital
+    (`DistribuicaoService::designarUm()`); sem ninguém elegível ele fica sub-coberto e a tela avisa.
+    Sai o que está **designada** e o que está **em avaliação** (descartando o rascunho — é a única
+    forma de destravar, já que o avaliador não desiste sozinho); **concluída nunca sai**. Cada
+    retirada entra em Registros → Avaliação Online com o "de → para". `DesignacaoService`.
   - **Avaliação Online → Listas finais oficiais** (`/admin/avaliacao/listas-finais`): as listas
     geradas com a caixa **Lista Final Oficial** marcada ficam registradas. A **vigente** da edição
     é a que define os **finalistas** da feira (projetos + alunos + orientador + coorientador);
@@ -217,8 +233,13 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     `Orientador - Orientador(a)`. As siglas de categoria são FET, JR e PIC; as de área saem de
     `areas.sigla` (AGR, BIO, SAU, EXA, HUM, SOC, ENG, LIN), editável em Parametrização → Áreas.
   - **Avaliação Online → Projetos submetidos**: além de *Designar*, cada linha tem **Editar**, que
-    abre a correção manual de **categoria, área, subárea e link do vídeo**, com a **série de cada
-    aluno** logo abaixo da categoria (só leitura) — é ela que diz se a categoria está certa. É um
+    abre a correção manual de **categoria, área, subárea, link do vídeo, orientador e
+    coorientador**, com a **série de cada aluno** logo abaixo da categoria (só leitura) — é ela que
+    diz se a categoria está certa. Trocar o **orientador** troca o **dono** do projeto
+    (`projetos.user_id`): a escolha é entre contas de orientador ativas, buscadas no servidor por
+    nome ou e-mail (`GET /admin/avaliacao/orientadores/opcoes`), e o dono anterior perde o acesso. O
+    **coorientador** não tem conta, então o admin **edita, inclui e remove** (nome, e-mail, CPF e
+    telefone), com um registro por campo alterado. É um
     escape do edital (o orientador não mexe depois de submeter), então a **justificativa é
     obrigatória** e cada campo alterado vira um registro em **Registros → Projetos** com o
     "de → para" (`AdminProjetoEdicaoService`). No topo da tela, um **card destacado** soma todas as áreas:
@@ -230,7 +251,10 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     **documento a documento, pessoa a pessoa** (alunos, orientador e coorientador), marcando
     **presente / ausente / não necessário** — a lista de documentos de cada papel é parametrizável.
     Cada credenciamento grava **quem atendeu e o horário** e entra em Registros → Credenciamento com
-    o que ficou ausente. O **modo demo** (conta demo, botão na aba) faz duas coisas: ignora as datas
+    o que ficou ausente. Concluído, ele ainda pode ser **regravado** ou **cancelado** (o projeto
+    volta para a fila de *Credenciar*, com **justificativa obrigatória**) — mas mexer no
+    credenciamento **de outra conta** exige **admin permanente**: a conta temporária corrige e
+    cancela só o que ela mesma registrou (`CredenciamentoService::podeAlterar()`). O **modo demo** (conta demo, botão na aba) faz duas coisas: ignora as datas
     do evento **e** troca a lista oficial pela **lista final de demonstração** da edição
     (`php artisan demo:credenciamento`), então ensaiar o balcão nunca alcança um finalista de
     verdade. O **horário de início** vem preenchido com o momento do atendimento e pode
@@ -506,7 +530,97 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 90 | Editar projeto (admin): a **série de cada aluno** abaixo da categoria | ✅ sim | ❌ não (manual do Pedro) | 18 |
 | 91 | Modelos de e-mail com **editor rico** (formatação, sem imagens) | ✅ sim | ❌ não (manual do Pedro) | 19 |
 | 92 | Parametrização → **Ordem do menu**: as abas do admin na ordem da edição | ✅ sim | ❌ não (manual do Pedro) | 19 |
+| 93 | Fix: mala direta quebrava em todos os destinatários (`Undefined variable $html`) | ✅ sim | ❌ não (manual do Pedro) | 20 |
+| 94 | Fix: caixa "Quem você quer ouvir" vazia quando as opções falhavam em silêncio | ✅ sim | ❌ não (manual do Pedro) | 20 |
+| 95 | Distribuição em rodadas iguais + cota justa da fila do avaliador | ✅ sim | ❌ não (manual do Pedro) | 21 |
+| 96 | Avaliação online → **Designações**: tabela com o tempo e retirada com redesignação | ✅ sim | ❌ não (manual do Pedro) | 21 |
+| 97 | Credenciamento: cancelar + só conta permanente mexe no credenciamento alheio | ✅ sim | ❌ não (manual do Pedro) | 22 |
+| 98 | Editar projeto submetido: trocar o orientador e editar/incluir/remover o coorientador | ✅ sim | ❌ não (manual do Pedro) | 22 |
+| 99 | Avaliador: busca na aba "Avaliados" | ✅ sim | ❌ não (manual do Pedro) | 23 |
+| 100 | Avaliador: editar o parecer final da avaliação enviada, com justificativa | ✅ sim | ❌ não (manual do Pedro) | 23 |
+| 101 | Avaliadores Online: botão de áreas abre a linha; demo vira só o frasco | ✅ sim | ❌ não (manual do Pedro) | 24 |
 
+> **Sprints 93–94 (branch `feat/ajustes-distribuicao-designacoes`, saída da `origin/main` @ `385833b`):**
+> dois defeitos relatados em produção.
+> (a) **Sprint 93** — o disparo de **242 destinatários** falhou em **todos** eles com
+> `Undefined variable $html (View: emails/mala-direta.blade.php)`. A causa é operacional: o
+> `queue:work` carrega as classes PHP **uma vez** e fica com elas em memória, enquanto o Blade é lido
+> do **disco a cada envio** — o worker estava com o `MalaDiretaMensagem` anterior à v1.18 (que ainda
+> não mandava `html`/`textoSimples`) renderizando a view nova. O código não impede um worker velho,
+> mas a view deixou de depender de chave nenhuma do `with`: `$mala` e `$corpo` são propriedades
+> **públicas** do Mailable e chegam sempre, então na falta de `paragrafos` a própria view quebra o
+> corpo em parágrafos. `docs/DEPLOY_AWS.md` ganhou o aviso de que o restart do worker (ou
+> `php artisan queue:restart`) não é opcional. **Os 242 e-mails não saíram** — depois do deploy, use
+> *Reenviar falhas* no relatório da mala.
+> (b) **Sprint 94** — a caixa **"Quem você quer ouvir"** aparecia **vazia** para alguns admins. O
+> servidor sempre devolve os 8 públicos; quem apagava a lista era a tela: um `.catch` engolia a falha
+> de `GET /admin/feedbacks/opcoes` e substituía tudo por `publicos: []`, sem uma palavra. O caso mais
+> provável em produção é o 403 do escopo (`aba:comunicacao`) para quem teve o escopo trocado com a
+> sessão aberta — o menu ainda mostra a aba porque veio do login. Agora a tela **mostra o motivo**
+> com um botão *Tentar de novo*, e uma lista vazia vinda do servidor também é avisada.
+>
+> **Sprint 101 (mesma branch):** liberar **áreas e subáreas extras** para um avaliador já existia
+> desde a Sprint 38, mas o botão era o terceiro da fileira de ações e ninguém o achava. Ele passou a
+> **abrir a linha**, e o botão de **demo** — que ocupava o primeiro lugar com ícone + rótulo — virou
+> **só o frasco**, no mesmo padrão dos demais. Nada mudou no backend; o texto da tela agora explica
+> os dois ícones. Back **785/785**, front **392/392**, Pint limpo, build OK.
+>
+> **Sprints 99–100 (mesma branch):** o avaliador voltando ao que já enviou.
+> (a) **Sprint 99** — **busca** na aba *Avaliados*, por título ou área. O filtro é na própria tela:
+> o histórico é pequeno por construção (o certificado tem teto de 120h, ~48 avaliações) e ir ao
+> servidor a cada tecla não pagaria a viagem. A busca vale só nessa aba — a fila de trabalho tem o
+> tamanho do mínimo por avaliador.
+> (b) **Sprint 100** — **editar o parecer final** de uma avaliação já enviada: só as **duas
+> recomendações escritas** (vídeo e projeto). As 17 respostas da rubrica e a conferência de
+> área/subárea ficam de fora de propósito — mexer nelas mudaria a nota e o ranking depois de
+> fechados. Cada campo alterado exige **justificativa** e vira registro
+> (`avaliacao_parecer_editado`, autor = o próprio avaliador), porque é esse texto que o orientador
+> lê na aba Ajustes. A edição segue o mesmo portão de escrita do resto: `podeAvaliar()`, então
+> encerrado o período o botão some e o servidor responde 403.
+>
+> **Sprints 97–98 (mesma branch):** o admin corrigindo o que já foi fechado.
+> (a) **Sprint 97** — o balcão ganhou **Cancelar credenciamento** (apaga a conferência e devolve o
+> projeto à fila de *Credenciar*, com justificativa obrigatória) e uma regra de quem pode desfazer:
+> mexer no credenciamento **de outra conta** exige **admin permanente**. A conta temporária continua
+> corrigindo e cancelando **o que ela mesma registrou** — ela existe para atender o turno dela, não
+> para revisar o alheio. A regra é uma só (`podeAlterar()`) e vale tanto para regravar quanto para
+> cancelar; a ficha abre em leitura, com o motivo, para quem não pode. O registro do cancelamento é
+> gravado **antes** do delete: ele precisa de quem credenciou e de quando, e isso some junto com a
+> linha. Tipo novo: `credenciamento_cancelado`.
+> (b) **Sprint 98** — o diálogo **Editar projeto** passou a trocar **quem é** o orientador, e não só
+> a classificação. Trocar o orientador troca o **dono** (`projetos.user_id`), então a escolha é
+> entre contas de orientador **ativas** e a tela avisa que o anterior perde o acesso; a busca é no
+> servidor (nome ou e-mail, 20 resultados) porque a base é grande demais para viajar inteira. O
+> **coorientador** é outra história: não tem conta, é uma linha de dados do projeto, então dá para
+> **editar, incluir e remover** — um registro por campo alterado, com o rótulo do campo abrindo a
+> frase. CPF e telefone chegam com máscara e são gravados só com dígitos, como no formulário do
+> orientador. Tipos novos: `projeto_orientador` e `projeto_coorientador`.
+>
+> **Sprints 95–96 (mesma branch):** a distribuição parou de premiar quem chegou primeiro.
+> (a) **Sprint 95** — relato do Pedro: avaliadores com 6 projetos e colegas com nenhum. Duas causas,
+> duas correções. A `DistribuicaoService::distribuir()` passou a repartir **em rodadas iguais** —
+> um teto de carga que sobe uma unidade por passada sobre a lista inteira —, o que também conserta
+> um caso antigo: a preferência por **subárea** era comparada ANTES da carga, então o especialista
+> levava todos os projetos da subárea dele e o generalista da mesma área ficava a zero. E a
+> `FilaAvaliadorService` ganhou a **cota justa**: o alvo da fila é o mínimo por avaliador **limitado**
+> por (o que a área comporta ÷ avaliadores que a atendem), divisão para baixo e nunca menor que 1.
+> Com projeto de sobra a cota estoura o mínimo e desaparece — o comportamento de sempre; com projeto
+> escasso ela reparte. O bolo é a **capacidade** da área (máximo de avaliadores por projeto), não o
+> que ainda falta cobrir: fosse dinâmico, uma redistribuição encolheria a fila de todo mundo só
+> porque a cobertura já estava feita.
+> (b) **Sprint 96** — nova tela **Designações**. Uma tabela com tudo que está na mão de cada
+> avaliador e **há quanto tempo** (concluída congela o relógio no fim da avaliação, não no "agora").
+> O admin marca e **retira**; cada projeto retirado é redesignado na hora pelo
+> `DistribuicaoService::designarUm()` — mesmas prioridades da distribuição, e **nunca de volta para
+> quem acabou de sair**. *Em avaliação* pode ser retirada e o rascunho vai junto (a tela avisa em
+> quantas linhas isso vai acontecer); *concluída* nem marca. A retirada respeita os limites, então
+> quando ninguém cabe o projeto fica sem designação e a resposta diz quais foram — a saída é a
+> designação manual, a única que passa por cima. Tipo novo na trilha:
+> `avaliacao_designacao_retirada`.
+>
+> Um teste antigo (`JanelaInscricoesTest`) quebrou sozinho com a passagem do calendário — usava a
+> data fixa `2026-09-01` para "ainda não abriu". Virou data relativa.
+>
 > **Sprints 87–92 (branch `feat/credenciamento-demo-e-menu`, saída da `origin/main` @ `7293ec5`):**
 > ciclo de ensaio do balcão, contas de treinamento e ajustes de tela. Um commit a cada duas sprints.
 > (a) **Sprint 87** — a janela das **contas temporárias** passou a ser medida em **horas** (padrão
