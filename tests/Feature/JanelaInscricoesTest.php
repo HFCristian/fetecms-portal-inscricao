@@ -116,9 +116,13 @@ class JanelaInscricoesTest extends TestCase
     {
         Sanctum::actingAs(User::factory()->admin()->create());
 
-        $this->patchJson('/api/v1/admin/inscricoes/inicio', ['inicio' => '2026-09-01T08:00'])
+        // Data relativa: com uma data fixa o teste passava a falhar sozinho
+        // assim que o calendário a alcançasse ("não iniciadas" vira falso).
+        $abertura = now()->addMonth()->setTime(8, 0);
+
+        $this->patchJson('/api/v1/admin/inscricoes/inicio', ['inicio' => $abertura->format('Y-m-d\TH:i')])
             ->assertOk()
-            ->assertJsonPath('data.inicio_label', '01/09/2026 08:00')
+            ->assertJsonPath('data.inicio_label', $abertura->format('d/m/Y H:i'))
             ->assertJsonPath('data.nao_iniciadas', true)
             ->assertJsonPath('data.abertas', false);
 

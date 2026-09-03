@@ -253,6 +253,12 @@ function PisoFilaCard({ config, onSalvo }) {
                 <em>Sortear outros projetos</em> do avaliador. Em branco, não há piso: a regra manda
                 sozinha, mesmo que deixe gente parada.
             </p>
+            <p className="text-sm text-on-surface-variant mb-3">
+                Acima de tudo isso vale a <strong>cota justa</strong>: quando a área não tem projeto
+                suficiente para todo mundo, a fila de cada avaliador encolhe para o que a área
+                comporta dividido pelos avaliadores dela. É o que evita terminar a feira com alguns
+                em {config.piso_fila ?? 6} projetos e outros em nenhum.
+            </p>
             {msg && <div className="mb-3"><Alert type="info">{msg}</Alert></div>}
             {erro && <div className="mb-3"><Alert>{erro}</Alert></div>}
             <div className="flex items-end gap-2 flex-wrap">

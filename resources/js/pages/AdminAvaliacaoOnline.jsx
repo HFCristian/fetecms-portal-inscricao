@@ -93,6 +93,12 @@ export default function AdminAvaliacaoOnline() {
                     descricao="Projetos submetidos por área, quantas avaliações cada um recebeu e designação manual."
                 />
                 <CardAvaliacao
+                    to="/admin/avaliacao/designacoes"
+                    icon="assignment_ind"
+                    titulo="Designações"
+                    descricao="Tudo que está na mão de cada avaliador e há quanto tempo. Retire uma designação parada e o projeto vai para outro avaliador na hora."
+                />
+                <CardAvaliacao
                     to="/admin/avaliacao/reclassificacoes"
                     icon="rule"
                     titulo="Reclassificações sugeridas"

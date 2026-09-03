@@ -62,6 +62,47 @@ class FilaAvaliadorTest extends TestCase
         ]);
     }
 
+    /**
+     * Sprint 95 — a fila deixou de ser "o primeiro que chegar leva 6".
+     *
+     * 5 projetos × teto de 5 avaliadores = 25 designações possíveis; 10
+     * avaliadores na área dividem isso em 2 cada. Antes, os cinco primeiros
+     * saíam com 5 projetos e os cinco últimos com nenhum, porque o bolo já
+     * tinha acabado quando chegou a vez deles.
+     */
+    public function test_a_fila_reparte_o_trabalho_escasso_em_vez_de_encher_os_primeiros(): void
+    {
+        $area = Area::create(['nome' => 'Área A']);
+
+        foreach (range(1, 5) as $i) {
+            $this->projeto($area->id, null, "P{$i}");
+        }
+
+        $avaliadores = collect(range(1, 10))->map(fn () => $this->avaliador($area->id));
+
+        $cargas = $avaliadores->map(fn (User $a) => $this->fila()->repor($a));
+
+        $this->assertSame([2], $cargas->unique()->values()->all());
+        $this->assertSame(20, Avaliacao::count());
+    }
+
+    /** Com trabalho de sobra a cota some: a fila volta a valer o mínimo por avaliador. */
+    public function test_com_projeto_de_sobra_a_fila_vai_ate_o_minimo_por_avaliador(): void
+    {
+        Edicao::atual()->update(['avaliacoes_min_por_avaliador' => 4]);
+        $area = Area::create(['nome' => 'Área A']);
+
+        foreach (range(1, 30) as $i) {
+            $this->projeto($area->id, null, "P{$i}");
+        }
+
+        $a = $this->avaliador($area->id);
+        $b = $this->avaliador($area->id);
+
+        $this->assertSame(4, $this->fila()->repor($a));
+        $this->assertSame(4, $this->fila()->repor($b));
+    }
+
     public function test_repoe_a_fila_ate_o_minimo_por_avaliador(): void
     {
         Edicao::atual()->update(['avaliacoes_min_por_avaliador' => 3]);

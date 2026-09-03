@@ -129,6 +129,25 @@ const projetoParams = ({ q, areaId, categoria, ordenar, direcao, page } = {}) =>
 export const getAvaliacaoProjetos = (filtros) =>
     http.get('/admin/avaliacao/projetos', projetoParams(filtros)).then((r) => r.data);
 
+// Tabela de designações: { q, areaId, categoria, situacao, avaliadorId, ordenar, direcao, page }.
+export const getDesignacoes = ({ q, areaId, categoria, situacao, avaliadorId, ordenar, direcao, page } = {}) =>
+    http.get('/admin/avaliacao/designacoes', {
+        params: {
+            ...(q ? { q } : {}),
+            ...(areaId ? { area_id: areaId } : {}),
+            ...(categoria ? { categoria } : {}),
+            ...(situacao ? { situacao } : {}),
+            ...(avaliadorId ? { avaliador_id: avaliadorId } : {}),
+            ...(ordenar ? { ordenar } : {}),
+            ...(direcao ? { direcao } : {}),
+            page: page ?? 1,
+        },
+    }).then((r) => r.data);
+
+/** Retira as designações marcadas; cada projeto vai para outro avaliador na hora. */
+export const retirarDesignacoes = (avaliacaoIds) =>
+    http.post('/admin/avaliacao/designacoes/retirar', { avaliacao_ids: avaliacaoIds }).then((r) => r.data);
+
 /** Baixa o CSV da tabela de projetos no recorte atual. */
 export async function exportarProjetosAvaliacaoCsv(filtros) {
     const r = await http.get('/admin/avaliacao/projetos/exportar', {

@@ -247,6 +247,9 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 // registro em Registros → Lista final.
                 Route::post('/avaliacao/listas-finais/{lista}/projetos', [AdminAvaliacaoController::class, 'adicionarNaListaFinal']);
                 Route::delete('/avaliacao/listas-finais/{lista}/projetos/{projeto}', [AdminAvaliacaoController::class, 'removerDaListaFinal']);
+                // Designações: a tabela com tudo que está na mão de cada avaliador.
+                Route::get('/avaliacao/designacoes', [AdminAvaliacaoController::class, 'designacoes']);
+                Route::post('/avaliacao/designacoes/retirar', [AdminAvaliacaoController::class, 'retirarDesignacoes']);
                 Route::post('/avaliacao/projetos/{projeto}/designar', [AdminAvaliacaoController::class, 'designar']);
                 // Correção manual da classificação/vídeo de um projeto submetido
                 // (justificativa obrigatória; cada campo vira registro).

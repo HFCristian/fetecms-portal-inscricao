@@ -193,7 +193,20 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     mostra uma **barra de progresso** (`distribuicoes` + `ProcessarDistribuicao`); duas rodadas ao
     mesmo tempo são recusadas. Fecha a seção o toggle **designar ao cadastrar**
     (`edicoes.distribuicao_ao_cadastrar`): ligado, o avaliador que acaba de se cadastrar já sai com a
-    fila cheia.
+    fila cheia. Acima de tudo isso está a **cota justa**: a distribuição em massa reparte **em
+    rodadas iguais** (ninguém recebe o k+1-ésimo projeto antes de todos os elegíveis terem k) e a
+    fila de cada avaliador nunca passa do que a **área comporta dividido pelos avaliadores dela**
+    (`FilaAvaliadorService::cotaJusta()`) — com trabalho de sobra a cota some e o teto volta a ser o
+    mínimo por avaliador.
+  - **Avaliação Online → Designações** (`/admin/avaliacao/designacoes`): **todas** as designações da
+    edição numa tabela — projeto, área, avaliador, situação e **há quanto tempo** está com ele —, com
+    busca por projeto ou avaliador, filtros (área, categoria, situação, avaliador), ordenação e
+    paginação. O admin marca linhas e **retira** a designação: o projeto volta ao bolo e é
+    **redesignado na hora** para outro avaliador, pelas prioridades do edital
+    (`DistribuicaoService::designarUm()`); sem ninguém elegível ele fica sub-coberto e a tela avisa.
+    Sai o que está **designada** e o que está **em avaliação** (descartando o rascunho — é a única
+    forma de destravar, já que o avaliador não desiste sozinho); **concluída nunca sai**. Cada
+    retirada entra em Registros → Avaliação Online com o "de → para". `DesignacaoService`.
   - **Avaliação Online → Listas finais oficiais** (`/admin/avaliacao/listas-finais`): as listas
     geradas com a caixa **Lista Final Oficial** marcada ficam registradas. A **vigente** da edição
     é a que define os **finalistas** da feira (projetos + alunos + orientador + coorientador);
@@ -508,6 +521,8 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 92 | Parametrização → **Ordem do menu**: as abas do admin na ordem da edição | ✅ sim | ❌ não (manual do Pedro) | 19 |
 | 93 | Fix: mala direta quebrava em todos os destinatários (`Undefined variable $html`) | ✅ sim | ❌ não (manual do Pedro) | 20 |
 | 94 | Fix: caixa "Quem você quer ouvir" vazia quando as opções falhavam em silêncio | ✅ sim | ❌ não (manual do Pedro) | 20 |
+| 95 | Distribuição em rodadas iguais + cota justa da fila do avaliador | ✅ sim | ❌ não (manual do Pedro) | 21 |
+| 96 | Avaliação online → **Designações**: tabela com o tempo e retirada com redesignação | ✅ sim | ❌ não (manual do Pedro) | 21 |
 
 > **Sprints 93–94 (branch `feat/ajustes-distribuicao-designacoes`, saída da `origin/main` @ `385833b`):**
 > dois defeitos relatados em produção.
@@ -527,6 +542,31 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > provável em produção é o 403 do escopo (`aba:comunicacao`) para quem teve o escopo trocado com a
 > sessão aberta — o menu ainda mostra a aba porque veio do login. Agora a tela **mostra o motivo**
 > com um botão *Tentar de novo*, e uma lista vazia vinda do servidor também é avisada.
+>
+> **Sprints 95–96 (mesma branch):** a distribuição parou de premiar quem chegou primeiro.
+> (a) **Sprint 95** — relato do Pedro: avaliadores com 6 projetos e colegas com nenhum. Duas causas,
+> duas correções. A `DistribuicaoService::distribuir()` passou a repartir **em rodadas iguais** —
+> um teto de carga que sobe uma unidade por passada sobre a lista inteira —, o que também conserta
+> um caso antigo: a preferência por **subárea** era comparada ANTES da carga, então o especialista
+> levava todos os projetos da subárea dele e o generalista da mesma área ficava a zero. E a
+> `FilaAvaliadorService` ganhou a **cota justa**: o alvo da fila é o mínimo por avaliador **limitado**
+> por (o que a área comporta ÷ avaliadores que a atendem), divisão para baixo e nunca menor que 1.
+> Com projeto de sobra a cota estoura o mínimo e desaparece — o comportamento de sempre; com projeto
+> escasso ela reparte. O bolo é a **capacidade** da área (máximo de avaliadores por projeto), não o
+> que ainda falta cobrir: fosse dinâmico, uma redistribuição encolheria a fila de todo mundo só
+> porque a cobertura já estava feita.
+> (b) **Sprint 96** — nova tela **Designações**. Uma tabela com tudo que está na mão de cada
+> avaliador e **há quanto tempo** (concluída congela o relógio no fim da avaliação, não no "agora").
+> O admin marca e **retira**; cada projeto retirado é redesignado na hora pelo
+> `DistribuicaoService::designarUm()` — mesmas prioridades da distribuição, e **nunca de volta para
+> quem acabou de sair**. *Em avaliação* pode ser retirada e o rascunho vai junto (a tela avisa em
+> quantas linhas isso vai acontecer); *concluída* nem marca. A retirada respeita os limites, então
+> quando ninguém cabe o projeto fica sem designação e a resposta diz quais foram — a saída é a
+> designação manual, a única que passa por cima. Tipo novo na trilha:
+> `avaliacao_designacao_retirada`.
+>
+> Um teste antigo (`JanelaInscricoesTest`) quebrou sozinho com a passagem do calendário — usava a
+> data fixa `2026-09-01` para "ainda não abriu". Virou data relativa.
 >
 > **Sprints 87–92 (branch `feat/credenciamento-demo-e-menu`, saída da `origin/main` @ `7293ec5`):**
 > ciclo de ensaio do balcão, contas de treinamento e ajustes de tela. Um commit a cada duas sprints.

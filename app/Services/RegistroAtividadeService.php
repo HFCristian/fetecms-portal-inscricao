@@ -97,6 +97,25 @@ class RegistroAtividadeService
     }
 
     /**
+     * O admin retirando a designação de um projeto do avaliador (Avaliação
+     * online → Designações). Guarda de quem saiu e para quem foi — ou que ela
+     * ficou sem dono, quando não havia ninguém elegível.
+     */
+    public function designacaoRetirada(
+        Projeto $projeto,
+        User $admin,
+        string $de,
+        ?string $para,
+        string $situacao,
+    ): RegistroAtividade {
+        return $this->registrarNoProjeto(TipoRegistro::AvaliacaoDesignacaoRetirada, $projeto, $admin, [
+            'campo' => $situacao,
+            'de' => $de,
+            'para' => $para ?? '(sem avaliador)',
+        ]);
+    }
+
+    /**
      * O admin mexendo no rascunho de outra pessoa (Projetos em rascunho): uma
      * linha por campo alterado, com o "de → para". Quem fecha a sequência é a
      * submissaoRascunho(), que carrega a justificativa obrigatória.
