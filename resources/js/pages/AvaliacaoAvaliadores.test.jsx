@@ -84,8 +84,22 @@ describe('AvaliacaoAvaliadores — tabela única', () => {
         expect(tabela.getByText('Agronomia')).toBeInTheDocument();
         expect(screen.getByText('01/03/2026')).toBeInTheDocument();
         expect(screen.getByText('Limite 2')).toBeInTheDocument();
-        expect(screen.getAllByText('Demo')).toHaveLength(2);
+        // O botão de demo virou só o frasco: quem o identifica é o aria-label.
+        expect(screen.getByLabelText('Demo de Ana')).toBeInTheDocument();
         expect(screen.getByLabelText('Limitar Ana')).toBeInTheDocument();
+    });
+
+    /** O botão de áreas abre a fileira de ações: era o mais difícil de achar. */
+    it('põe o botão de áreas antes do de demo em cada linha', async () => {
+        render(<AvaliacaoAvaliadores />);
+        await screen.findByText('Ana');
+
+        const areas = screen.getByLabelText('Áreas de Ana');
+        const demo = screen.getByLabelText('Demo de Ana');
+
+        expect(areas.compareDocumentPosition(demo) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        // Só o ícone, sem rótulo escrito.
+        expect(demo.textContent.trim()).toBe('science');
     });
 
     it('busca por nome ou e-mail (com debounce)', async () => {

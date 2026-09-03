@@ -538,6 +538,7 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 98 | Editar projeto submetido: trocar o orientador e editar/incluir/remover o coorientador | ✅ sim | ❌ não (manual do Pedro) | 22 |
 | 99 | Avaliador: busca na aba "Avaliados" | ✅ sim | ❌ não (manual do Pedro) | 23 |
 | 100 | Avaliador: editar o parecer final da avaliação enviada, com justificativa | ✅ sim | ❌ não (manual do Pedro) | 23 |
+| 101 | Avaliadores Online: botão de áreas abre a linha; demo vira só o frasco | ✅ sim | ❌ não (manual do Pedro) | 24 |
 
 > **Sprints 93–94 (branch `feat/ajustes-distribuicao-designacoes`, saída da `origin/main` @ `385833b`):**
 > dois defeitos relatados em produção.
@@ -557,6 +558,12 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > provável em produção é o 403 do escopo (`aba:comunicacao`) para quem teve o escopo trocado com a
 > sessão aberta — o menu ainda mostra a aba porque veio do login. Agora a tela **mostra o motivo**
 > com um botão *Tentar de novo*, e uma lista vazia vinda do servidor também é avisada.
+>
+> **Sprint 101 (mesma branch):** liberar **áreas e subáreas extras** para um avaliador já existia
+> desde a Sprint 38, mas o botão era o terceiro da fileira de ações e ninguém o achava. Ele passou a
+> **abrir a linha**, e o botão de **demo** — que ocupava o primeiro lugar com ícone + rótulo — virou
+> **só o frasco**, no mesmo padrão dos demais. Nada mudou no backend; o texto da tela agora explica
+> os dois ícones. Back **785/785**, front **392/392**, Pint limpo, build OK.
 >
 > **Sprints 99–100 (mesma branch):** o avaliador voltando ao que já enviou.
 > (a) **Sprint 99** — **busca** na aba *Avaliados*, por título ou área. O filtro é na própria tela:
