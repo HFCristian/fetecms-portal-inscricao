@@ -106,6 +106,32 @@ describe('AvaliadorHome', () => {
         expect(screen.getByText(/avaliado em 12\/10\/2026 09:30/)).toBeInTheDocument();
     });
 
+    it('busca entre os projetos já avaliados', async () => {
+        getMinhaAvaliacao.mockResolvedValueOnce({
+            ...LISTA_ABERTA,
+            concluidos: [
+                { avaliacao_id: 2, projeto_id: 11, titulo: 'Horta vertical', area: 'Ciências Agrárias', status: 'concluida', status_label: 'Concluída', nota: 8.5, concluida_em_label: '12/10/2026 09:30' },
+                { avaliacao_id: 3, projeto_id: 12, titulo: 'Ponte de palito', area: 'Ciências Exatas e da Terra', status: 'concluida', status_label: 'Concluída', nota: 7, concluida_em_label: '13/10/2026 10:00' },
+            ],
+        });
+        render(<MemoryRouter><AvaliadorHome /></MemoryRouter>);
+        fireEvent.click(await screen.findByRole('tab', { name: 'Avaliados (2)' }));
+
+        const busca = await screen.findByLabelText('Buscar entre os projetos que você já avaliou');
+        fireEvent.change(busca, { target: { value: 'horta' } });
+
+        expect(screen.getByText('Horta vertical')).toBeInTheDocument();
+        expect(screen.queryByText('Ponte de palito')).not.toBeInTheDocument();
+
+        // A busca alcança também a área do conhecimento.
+        fireEvent.change(busca, { target: { value: 'exatas' } });
+        expect(screen.getByText('Ponte de palito')).toBeInTheDocument();
+        expect(screen.queryByText('Horta vertical')).not.toBeInTheDocument();
+
+        fireEvent.change(busca, { target: { value: 'nada disso' } });
+        expect(screen.getByText('Nenhuma avaliação sua corresponde a essa busca.')).toBeInTheDocument();
+    });
+
     it('avisa quando ainda não há avaliação concluída', async () => {
         getMinhaAvaliacao.mockResolvedValueOnce({ ...LISTA_ABERTA, concluidos: [] });
         render(<MemoryRouter><AvaliadorHome /></MemoryRouter>);

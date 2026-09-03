@@ -48,6 +48,7 @@ enum TipoRegistro: string
     case AvaliacaoDesignacaoAoCadastrar = 'avaliacao_designacao_ao_cadastrar';
     case AvaliacaoPisoFila = 'avaliacao_piso_fila';
     case AvaliacaoDesignacaoRetirada = 'avaliacao_designacao_retirada';
+    case AvaliacaoParecerEditado = 'avaliacao_parecer_editado';
     case AvaliacaoAjustesInicio = 'avaliacao_ajustes_inicio';
     case AvaliacaoAjustesFim = 'avaliacao_ajustes_fim';
     case ProjetoCategoria = 'projeto_categoria';
@@ -95,6 +96,7 @@ enum TipoRegistro: string
             self::AvaliacaoDesignacaoAoCadastrar => 'Designação ao cadastrar',
             self::AvaliacaoPisoFila => 'Piso da fila do avaliador',
             self::AvaliacaoDesignacaoRetirada => 'Designação retirada',
+            self::AvaliacaoParecerEditado => 'Parecer do avaliador editado',
             self::AvaliacaoAjustesInicio => 'Início dos ajustes',
             self::AvaliacaoAjustesFim => 'Fim dos ajustes',
             self::ProjetoCategoria => 'Categoria do projeto',

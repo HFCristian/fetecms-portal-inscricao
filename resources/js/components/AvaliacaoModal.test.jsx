@@ -4,11 +4,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const getAvaliacao = vi.fn();
 const concluirAvaliacao = vi.fn();
 const salvarRascunhoAvaliacao = vi.fn();
+const editarParecerAvaliacao = vi.fn();
 vi.mock('../lib/avaliacao.js', () => ({
     getAvaliacao: (...a) => getAvaliacao(...a),
     iniciarAvaliacao: vi.fn(),
     concluirAvaliacao: (...a) => concluirAvaliacao(...a),
     salvarRascunhoAvaliacao: (...a) => salvarRascunhoAvaliacao(...a),
+    editarParecerAvaliacao: (...a) => editarParecerAvaliacao(...a),
     getMinhaAvaliacao: vi.fn(),
 }));
 vi.mock('../lib/catalogos.js', () => ({
@@ -277,6 +279,63 @@ describe('AvaliacaoModal — wizard da rubrica', () => {
         // O wizard volta para a seção do erro e mostra a mensagem na pergunta.
         expect(await screen.findByText('Campo obrigatório.')).toBeInTheDocument();
         expect(screen.getByText('Passo 3 de 4')).toBeInTheDocument();
+    });
+
+    /** Depois do envio, só o parecer escrito ainda muda — e com justificativa. */
+    it('edita o parecer final de uma avaliação já enviada', async () => {
+        const concluida = {
+            ...emAndamento().avaliacao,
+            status: 'concluida', status_label: 'Concluída', nota: 2.15,
+            respostas: { titulo_coerente: true },
+            comentario_video: 'Áudio oscila',
+            comentario_projeto: null,
+            area_correta: true, area_sugerida: null,
+        };
+        getAvaliacao.mockResolvedValue({ avaliacao: concluida, projeto: PROJETO, rubrica: RUBRICA });
+        editarParecerAvaliacao.mockResolvedValue({
+            data: { ...concluida, comentario_video: 'Áudio melhora no meio' },
+            meta: { message: 'Parecer atualizado: recomendações sobre o vídeo.' },
+        });
+
+        render(<AvaliacaoModal avaliacaoId={1} />);
+
+        fireEvent.click(await screen.findByRole('button', { name: /Editar parecer final/ }));
+
+        const salvar = screen.getByRole('button', { name: 'Salvar parecer' });
+        expect(salvar).toBeDisabled();
+
+        fireEvent.change(screen.getByLabelText('Recomendações sobre o vídeo'), {
+            target: { value: 'Áudio melhora no meio' },
+        });
+        fireEvent.change(screen.getByLabelText('Justificativa da alteração do parecer'), {
+            target: { value: 'Frase dúbia corrigida.' },
+        });
+        fireEvent.click(salvar);
+
+        await waitFor(() => expect(editarParecerAvaliacao).toHaveBeenCalledWith(1, {
+            comentario_video: 'Áudio melhora no meio',
+            comentario_projeto: null,
+            justificativa: 'Frase dúbia corrigida.',
+        }, undefined));
+
+        expect(await screen.findByText('Parecer atualizado: recomendações sobre o vídeo.')).toBeInTheDocument();
+    });
+
+    it('não oferece editar o parecer com o período encerrado', async () => {
+        getAvaliacao.mockResolvedValue({
+            avaliacao: {
+                ...emAndamento().avaliacao,
+                status: 'concluida', status_label: 'Concluída', nota: 2.15,
+                respostas: {}, area_correta: true,
+            },
+            projeto: PROJETO,
+            rubrica: RUBRICA,
+        });
+
+        render(<AvaliacaoModal avaliacaoId={1} somenteLeitura />);
+
+        expect(await screen.findByText('Avaliação enviada')).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /Editar parecer final/ })).not.toBeInTheDocument();
     });
 
     it('mostra a rubrica em leitura quando a avaliação já foi concluída', async () => {

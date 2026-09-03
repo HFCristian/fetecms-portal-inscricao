@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Enums\StatusAvaliacao;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Avaliador\ConcluirAvaliacaoRequest;
+use App\Http\Requests\Avaliador\EditarParecerRequest;
 use App\Http\Requests\Avaliador\RascunhoAvaliacaoRequest;
 use App\Models\Avaliacao;
 use App\Models\Edicao;
@@ -156,6 +157,26 @@ class AvaliadorAvaliacaoController extends Controller
         return response()->json([
             'data' => $this->avaliacao($avaliacao->fresh()),
             'meta' => ['message' => 'Avaliação concluída.'],
+        ]);
+    }
+
+    /**
+     * Corrige o parecer final de uma avaliação já enviada (só as recomendações
+     * escritas), com justificativa obrigatória.
+     */
+    public function parecer(EditarParecerRequest $request, Avaliacao $avaliacao): JsonResponse
+    {
+        $this->garantirAcesso($request, $avaliacao);
+
+        $alterados = $this->fluxo->editarParecer($avaliacao, $request->validated(), $request->user());
+
+        return response()->json([
+            'data' => $this->avaliacao($avaliacao->fresh()),
+            'meta' => [
+                'message' => $alterados === []
+                    ? 'Nada mudou no parecer.'
+                    : 'Parecer atualizado: '.implode(' e ', $alterados).'.',
+            ],
         ]);
     }
 

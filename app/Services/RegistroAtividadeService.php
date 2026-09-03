@@ -198,6 +198,27 @@ class RegistroAtividadeService
     }
 
     /**
+     * O avaliador corrigindo o parecer final de uma avaliação já enviada. Um
+     * registro por campo alterado, com o "de → para" e a justificativa; o autor
+     * é o próprio avaliador (é ele quem edita).
+     */
+    public function parecerEditado(
+        Projeto $projeto,
+        User $avaliador,
+        string $campo,
+        ?string $de,
+        ?string $para,
+        string $justificativa,
+    ): RegistroAtividade {
+        return $this->registrarNoProjeto(TipoRegistro::AvaliacaoParecerEditado, $projeto, $avaliador, [
+            'campo' => $campo,
+            'de' => $de,
+            'para' => $para,
+            'justificativa' => $justificativa,
+        ]);
+    }
+
+    /**
      * Credenciamento cancelado: o projeto volta para a fila do balcão. Guarda
      * quem tinha credenciado, quando, e a justificativa de quem desfez.
      */

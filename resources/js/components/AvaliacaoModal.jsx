@@ -4,7 +4,7 @@ import SubareaCombobox from './SubareaCombobox.jsx';
 import VideoPreview from './VideoPreview.jsx';
 import EscalaResposta from './EscalaResposta.jsx';
 import AjudaBalao from './AjudaBalao.jsx';
-import { getAvaliacao, iniciarAvaliacao, concluirAvaliacao, salvarRascunhoAvaliacao } from '../lib/avaliacao.js';
+import { getAvaliacao, iniciarAvaliacao, concluirAvaliacao, salvarRascunhoAvaliacao, editarParecerAvaliacao } from '../lib/avaliacao.js';
 import { loadAreas, loadSubareas, criarSubarea } from '../lib/catalogos.js';
 
 const PILL = {
@@ -389,6 +389,9 @@ export default function AvaliacaoModal({ avaliacaoId, teste, somenteLeitura = fa
     const [subareas, setSubareas] = useState([]);
     const [confirm, dialogo] = useConfirm();
     const inicioDoPasso = useRef(null);
+    // Correção do parecer final depois do envio: só as recomendações escritas.
+    const [editandoParecer, setEditandoParecer] = useState(false);
+    const [parecer, setParecer] = useState({ comentario_video: '', comentario_projeto: '', justificativa: '' });
 
     useEffect(() => {
         getAvaliacao(avaliacaoId, teste)
@@ -517,6 +520,37 @@ export default function AvaliacaoModal({ avaliacaoId, teste, somenteLeitura = fa
     const total = notaParcial(rubrica, form.respostas);
     const completa = secoes.every((s) => secaoCompleta(s, form));
     const ultimo = passo >= secoes.length - 1;
+
+    function abrirEdicaoDoParecer() {
+        setParecer({
+            comentario_video: av?.comentario_video ?? '',
+            comentario_projeto: av?.comentario_projeto ?? '',
+            justificativa: '',
+        });
+        setErro('');
+        setAviso('');
+        setEditandoParecer(true);
+    }
+
+    async function salvarParecer() {
+        setSalvando(true); setErro(''); setAviso('');
+        try {
+            const resp = await editarParecerAvaliacao(avaliacaoId, {
+                comentario_video: parecer.comentario_video.trim() || null,
+                comentario_projeto: parecer.comentario_projeto.trim() || null,
+                justificativa: parecer.justificativa.trim(),
+            }, teste);
+            setDados((d) => ({ ...d, avaliacao: resp.data }));
+            setEditandoParecer(false);
+            setAviso(resp.meta?.message || 'Parecer atualizado.');
+            onAtualizado?.();
+        } catch (e) {
+            setErro(e?.response?.data?.message || 'Não foi possível salvar o parecer.');
+            mostrarErros(e?.response?.data?.errors ?? {});
+        } finally {
+            setSalvando(false);
+        }
+    }
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
@@ -703,6 +737,77 @@ export default function AvaliacaoModal({ avaliacaoId, teste, somenteLeitura = fa
                                 Avaliação enviada
                             </h4>
                             <AvaliacaoEnviada avaliacao={av} rubrica={rubrica} />
+
+                            {/* Depois do envio só o parecer escrito ainda muda: as notas
+                                e a conferência de área são definitivas. */}
+                            {!somenteLeitura && (editandoParecer ? (
+                                <div className="rounded-xl border border-outline-variant/40 p-4 space-y-3">
+                                    <p className="text-sm font-semibold text-on-surface">Corrigir o parecer final</p>
+                                    <p className="text-xs text-on-surface-variant">
+                                        Só as recomendações escritas mudam — a nota e a conferência da área
+                                        continuam como foram enviadas.
+                                    </p>
+                                    <label className="block">
+                                        <span className="text-sm text-on-surface">Recomendações sobre o vídeo</span>
+                                        <textarea
+                                            aria-label="Recomendações sobre o vídeo"
+                                            rows={3}
+                                            maxLength={2000}
+                                            value={parecer.comentario_video}
+                                            onChange={(e) => setParecer((p) => ({ ...p, comentario_video: e.target.value }))}
+                                            className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm text-on-surface focus:border-primary-container focus:outline-none focus:ring-2 focus:ring-primary-container/20"
+                                        />
+                                    </label>
+                                    <label className="block">
+                                        <span className="text-sm text-on-surface">Recomendações sobre o projeto</span>
+                                        <textarea
+                                            aria-label="Recomendações sobre o projeto"
+                                            rows={3}
+                                            maxLength={2000}
+                                            value={parecer.comentario_projeto}
+                                            onChange={(e) => setParecer((p) => ({ ...p, comentario_projeto: e.target.value }))}
+                                            className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm text-on-surface focus:border-primary-container focus:outline-none focus:ring-2 focus:ring-primary-container/20"
+                                        />
+                                    </label>
+                                    <label className="block">
+                                        <span className="text-sm text-on-surface">
+                                            Justificativa da alteração <span className="text-error">*</span>
+                                        </span>
+                                        <textarea
+                                            aria-label="Justificativa da alteração do parecer"
+                                            rows={2}
+                                            maxLength={500}
+                                            value={parecer.justificativa}
+                                            onChange={(e) => setParecer((p) => ({ ...p, justificativa: e.target.value }))}
+                                            placeholder="Por que o parecer está sendo corrigido?"
+                                            className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm text-on-surface focus:border-primary-container focus:outline-none focus:ring-2 focus:ring-primary-container/20"
+                                        />
+                                        <span className="text-xs text-on-surface-variant">
+                                            Fica registrada na trilha da organização, junto do que mudou.
+                                        </span>
+                                    </label>
+                                    <div className="flex justify-end gap-2">
+                                        <Button type="button" variant="outline" onClick={() => setEditandoParecer(false)}>
+                                            Cancelar
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            loading={salvando}
+                                            disabled={parecer.justificativa.trim().length < 5}
+                                            onClick={salvarParecer}
+                                        >
+                                            Salvar parecer
+                                        </Button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="flex justify-end">
+                                    <Button type="button" variant="outline" onClick={abrirEdicaoDoParecer}>
+                                        <span className="material-symbols-outlined text-[18px]">edit_note</span>
+                                        Editar parecer final
+                                    </Button>
+                                </div>
+                            ))}
                         </section>
                     )}
                 </div>

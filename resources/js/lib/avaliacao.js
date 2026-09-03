@@ -15,6 +15,11 @@ export const concluirAvaliacao = (id, preenchimento, teste = false) =>
 export const salvarRascunhoAvaliacao = (id, preenchimento, teste = false) =>
     http.post(`/avaliacao/${id}/rascunho`, preenchimento, qs(teste)).then((r) => r.data.data);
 
+// Corrige o parecer final de uma avaliação já enviada — só as recomendações
+// escritas, e a justificativa é obrigatória. Devolve { data, meta }.
+export const editarParecerAvaliacao = (id, dados, teste = false) =>
+    http.patch(`/avaliacao/${id}/parecer`, dados, qs(teste)).then((r) => r.data);
+
 // Sorteia outros projetos para a fila: o que está em avaliação e o que o admin
 // designou permanecem. Devolve { data: { trocados, recebidos }, meta }.
 export const roletarFila = (teste = false) =>

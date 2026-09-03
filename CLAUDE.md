@@ -86,7 +86,10 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     **subárea** está correta (opcional; quem marcar como incorreta precisa sugerir a correta).
     Fecha com **dois campos descritivos opcionais** (recomendações sobre o vídeo e sobre o
     projeto). A avaliação pode ser **salva como rascunho** a qualquer momento; o envio continua
-    irreversível. As perguntas moram em `app/Support/Rubrica.php` e as respostas na coluna
+    irreversível para tudo que vira nota — depois dele, só o **parecer final** (as duas
+    recomendações escritas) ainda pode ser corrigido, com **justificativa obrigatória** e registro
+    na trilha. A aba **Avaliados** tem **busca** por título ou área entre as avaliações que ele já
+    enviou. As perguntas moram em `app/Support/Rubrica.php` e as respostas na coluna
     JSON `avaliacoes.respostas` — mexer na rubrica não pede migration.
   - **Perfil do avaliador** (`/avaliador/perfil`): cards com **projetos avaliados**, **carga
     horária do certificado** (**2h30 por avaliação concluída**, com **teto de 120 horas** —
@@ -533,6 +536,8 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 96 | Avaliação online → **Designações**: tabela com o tempo e retirada com redesignação | ✅ sim | ❌ não (manual do Pedro) | 21 |
 | 97 | Credenciamento: cancelar + só conta permanente mexe no credenciamento alheio | ✅ sim | ❌ não (manual do Pedro) | 22 |
 | 98 | Editar projeto submetido: trocar o orientador e editar/incluir/remover o coorientador | ✅ sim | ❌ não (manual do Pedro) | 22 |
+| 99 | Avaliador: busca na aba "Avaliados" | ✅ sim | ❌ não (manual do Pedro) | 23 |
+| 100 | Avaliador: editar o parecer final da avaliação enviada, com justificativa | ✅ sim | ❌ não (manual do Pedro) | 23 |
 
 > **Sprints 93–94 (branch `feat/ajustes-distribuicao-designacoes`, saída da `origin/main` @ `385833b`):**
 > dois defeitos relatados em produção.
@@ -552,6 +557,19 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > provável em produção é o 403 do escopo (`aba:comunicacao`) para quem teve o escopo trocado com a
 > sessão aberta — o menu ainda mostra a aba porque veio do login. Agora a tela **mostra o motivo**
 > com um botão *Tentar de novo*, e uma lista vazia vinda do servidor também é avisada.
+>
+> **Sprints 99–100 (mesma branch):** o avaliador voltando ao que já enviou.
+> (a) **Sprint 99** — **busca** na aba *Avaliados*, por título ou área. O filtro é na própria tela:
+> o histórico é pequeno por construção (o certificado tem teto de 120h, ~48 avaliações) e ir ao
+> servidor a cada tecla não pagaria a viagem. A busca vale só nessa aba — a fila de trabalho tem o
+> tamanho do mínimo por avaliador.
+> (b) **Sprint 100** — **editar o parecer final** de uma avaliação já enviada: só as **duas
+> recomendações escritas** (vídeo e projeto). As 17 respostas da rubrica e a conferência de
+> área/subárea ficam de fora de propósito — mexer nelas mudaria a nota e o ranking depois de
+> fechados. Cada campo alterado exige **justificativa** e vira registro
+> (`avaliacao_parecer_editado`, autor = o próprio avaliador), porque é esse texto que o orientador
+> lê na aba Ajustes. A edição segue o mesmo portão de escrita do resto: `podeAvaliar()`, então
+> encerrado o período o botão some e o servidor responde 403.
 >
 > **Sprints 97–98 (mesma branch):** o admin corrigindo o que já foi fechado.
 > (a) **Sprint 97** — o balcão ganhou **Cancelar credenciamento** (apaga a conferência e devolve o

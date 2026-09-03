@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import AppShell from '../components/AppShell.jsx';
 import { Alert, Toggle, Button, useConfirm } from '../components/ui.jsx';
 import AvaliacaoModal from '../components/AvaliacaoModal.jsx';
@@ -109,6 +109,9 @@ export default function AvaliadorHome() {
     const [modoTeste, setModoTeste] = useState(true);
     const [avaliando, setAvaliando] = useState(null); // avaliacao_id em avaliação
     const [aba, setAba] = useState('pendentes');
+    // A busca vale só na aba "Avaliados": a fila de trabalho tem poucos itens e
+    // o histórico é o que cresce ao longo da feira.
+    const [buscaAvaliados, setBuscaAvaliados] = useState('');
     const [sorteando, setSorteando] = useState(false);
     const [avisoSorteio, setAvisoSorteio] = useState('');
     const [confirm, confirmDialog] = useConfirm();
@@ -146,6 +149,17 @@ export default function AvaliadorHome() {
             setSorteando(false);
         }
     }
+
+    // Filtro na própria tela: o histórico do avaliador é pequeno (o certificado
+    // tem teto de 120h) e ir ao servidor a cada tecla não pagaria a viagem.
+    const avaliadosFiltrados = useMemo(() => {
+        const termo = buscaAvaliados.trim().toLowerCase();
+        const lista = dados?.concluidos ?? [];
+
+        if (termo === '') return lista;
+
+        return lista.filter((p) => `${p.titulo ?? ''} ${p.area ?? ''}`.toLowerCase().includes(termo));
+    }, [dados?.concluidos, buscaAvaliados]);
 
     return (
         <AppShell>
@@ -226,13 +240,28 @@ export default function AvaliadorHome() {
                             )}
                         </>
                     ) : (
-                        <ListaProjetos
-                            titulo="Projetos que você já avaliou"
-                            itens={dados.concluidos ?? []}
-                            dados={dados}
-                            vazio="Você ainda não concluiu nenhuma avaliação."
-                            onAbrir={setAvaliando}
-                        />
+                        <>
+                            <div className="max-w-3xl mb-3 relative">
+                                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">search</span>
+                                <input
+                                    type="text"
+                                    aria-label="Buscar entre os projetos que você já avaliou"
+                                    placeholder="Buscar por título ou área do conhecimento…"
+                                    value={buscaAvaliados}
+                                    onChange={(e) => setBuscaAvaliados(e.target.value)}
+                                    className="w-full bg-surface border border-outline-variant rounded-lg pl-10 pr-3 py-2 text-sm text-on-surface placeholder:text-outline focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 outline-none"
+                                />
+                            </div>
+                            <ListaProjetos
+                                titulo="Projetos que você já avaliou"
+                                itens={avaliadosFiltrados}
+                                dados={dados}
+                                vazio={buscaAvaliados.trim() === ''
+                                    ? 'Você ainda não concluiu nenhuma avaliação.'
+                                    : 'Nenhuma avaliação sua corresponde a essa busca.'}
+                                onAbrir={setAvaliando}
+                            />
+                        </>
                     )}
                 </>
             )}

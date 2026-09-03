@@ -184,6 +184,8 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::post('/{avaliacao}/iniciar', [AvaliadorAvaliacaoController::class, 'iniciar']);
             Route::post('/{avaliacao}/rascunho', [AvaliadorAvaliacaoController::class, 'rascunho']);
             Route::post('/{avaliacao}/concluir', [AvaliadorAvaliacaoController::class, 'concluir']);
+            // Depois de enviada, só o parecer final ainda muda (com justificativa).
+            Route::patch('/{avaliacao}/parecer', [AvaliadorAvaliacaoController::class, 'parecer']);
         });
 
         // Perfil do avaliador: estatísticas do certificado e troca da própria área
