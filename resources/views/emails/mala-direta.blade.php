@@ -20,14 +20,33 @@
                     </tr>
                     <tr>
                         <td style="padding:32px;">
-                            @if ($html)
+                            @php
+                                // Nada aqui pode depender de uma chave específica do `with` do
+                                // Mailable: em produção um worker de fila com a classe ANTIGA em
+                                // memória renderiza este arquivo NOVO (a view sai do disco a cada
+                                // envio, a classe não), e uma variável a menos derrubava a mala
+                                // inteira. `$mala` e `$corpo` são propriedades públicas do
+                                // Mailable, então chegam sempre.
+                                $corpoEmHtml = ($html ?? false) && isset($corpoHtml) && is_callable($corpoHtml);
+                                $blocos = $paragrafos ?? [];
+
+                                if (! $corpoEmHtml && $blocos === []) {
+                                    $texto = str_replace(["\r\n", "\r"], "\n", trim((string) ($corpo ?? '')));
+                                    $blocos = array_values(array_filter(
+                                        array_map('trim', preg_split('/\n{2,}/', $texto) ?: []),
+                                        fn (string $p) => $p !== '',
+                                    ));
+                                }
+                            @endphp
+
+                            @if ($corpoEmHtml)
                                 {{-- Corpo do editor: já sanitizado na gravação e com as
                                      imagens trocadas por CID (embutidas nesta mensagem). --}}
                                 <div style="font-size:15px;line-height:1.6;color:#1c1b1f;">
                                     {!! $corpoHtml($message) !!}
                                 </div>
                             @else
-                                @foreach ($paragrafos as $paragrafo)
+                                @foreach ($blocos as $paragrafo)
                                     <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#1c1b1f;">{!! nl2br(e($paragrafo)) !!}</p>
                                 @endforeach
                             @endif

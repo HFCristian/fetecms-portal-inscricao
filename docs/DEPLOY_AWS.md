@@ -285,6 +285,13 @@ sudo systemctl reload php8.4-fpm
 sudo systemctl restart fetecms-queue
 ```
 
+> ⚠️ **O `restart` do worker não é opcional.** O `queue:work` carrega as classes PHP uma vez e
+> fica com elas em memória, enquanto as views Blade são lidas do disco a cada envio. Um worker
+> antigo rodando com views novas gera erro em **todos** os e-mails da fila — foi o que produziu o
+> `Undefined variable $html` na mala direta da v1.18. Se o serviço tiver outro nome (instalação
+> Bitnami, supervisor etc.), rode ao menos `php artisan queue:restart` no fim do deploy: ele pede
+> a saída ordenada de qualquer worker em execução.
+
 > Para **zero-downtime**, faça *rolling deploy* (drene uma instância no target group, atualize,
 > re-registre) ou use deploy por imagem/AMI nova no Auto Scaling Group. Rode `migrate --force`
 > uma vez por release (idempotente), preferencialmente antes do rollout.

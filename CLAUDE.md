@@ -506,7 +506,28 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 90 | Editar projeto (admin): a **série de cada aluno** abaixo da categoria | ✅ sim | ❌ não (manual do Pedro) | 18 |
 | 91 | Modelos de e-mail com **editor rico** (formatação, sem imagens) | ✅ sim | ❌ não (manual do Pedro) | 19 |
 | 92 | Parametrização → **Ordem do menu**: as abas do admin na ordem da edição | ✅ sim | ❌ não (manual do Pedro) | 19 |
+| 93 | Fix: mala direta quebrava em todos os destinatários (`Undefined variable $html`) | ✅ sim | ❌ não (manual do Pedro) | 20 |
+| 94 | Fix: caixa "Quem você quer ouvir" vazia quando as opções falhavam em silêncio | ✅ sim | ❌ não (manual do Pedro) | 20 |
 
+> **Sprints 93–94 (branch `feat/ajustes-distribuicao-designacoes`, saída da `origin/main` @ `385833b`):**
+> dois defeitos relatados em produção.
+> (a) **Sprint 93** — o disparo de **242 destinatários** falhou em **todos** eles com
+> `Undefined variable $html (View: emails/mala-direta.blade.php)`. A causa é operacional: o
+> `queue:work` carrega as classes PHP **uma vez** e fica com elas em memória, enquanto o Blade é lido
+> do **disco a cada envio** — o worker estava com o `MalaDiretaMensagem` anterior à v1.18 (que ainda
+> não mandava `html`/`textoSimples`) renderizando a view nova. O código não impede um worker velho,
+> mas a view deixou de depender de chave nenhuma do `with`: `$mala` e `$corpo` são propriedades
+> **públicas** do Mailable e chegam sempre, então na falta de `paragrafos` a própria view quebra o
+> corpo em parágrafos. `docs/DEPLOY_AWS.md` ganhou o aviso de que o restart do worker (ou
+> `php artisan queue:restart`) não é opcional. **Os 242 e-mails não saíram** — depois do deploy, use
+> *Reenviar falhas* no relatório da mala.
+> (b) **Sprint 94** — a caixa **"Quem você quer ouvir"** aparecia **vazia** para alguns admins. O
+> servidor sempre devolve os 8 públicos; quem apagava a lista era a tela: um `.catch` engolia a falha
+> de `GET /admin/feedbacks/opcoes` e substituía tudo por `publicos: []`, sem uma palavra. O caso mais
+> provável em produção é o 403 do escopo (`aba:comunicacao`) para quem teve o escopo trocado com a
+> sessão aberta — o menu ainda mostra a aba porque veio do login. Agora a tela **mostra o motivo**
+> com um botão *Tentar de novo*, e uma lista vazia vinda do servidor também é avisada.
+>
 > **Sprints 87–92 (branch `feat/credenciamento-demo-e-menu`, saída da `origin/main` @ `7293ec5`):**
 > ciclo de ensaio do balcão, contas de treinamento e ajustes de tela. Um commit a cada duas sprints.
 > (a) **Sprint 87** — a janela das **contas temporárias** passou a ser medida em **horas** (padrão

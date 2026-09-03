@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { Alert, Button, Field, Input, Select } from '../components/ui.jsx';
@@ -178,11 +178,22 @@ export default function AdminFeedbackForm() {
     const [errors, setErrors] = useState({});
     const [alerta, setAlerta] = useState('');
     const [salvando, setSalvando] = useState(false);
+    const [erroOpcoes, setErroOpcoes] = useState('');
 
-    useEffect(() => {
-        getOpcoesFeedback().then(setOpcoes)
-            .catch(() => setOpcoes({ publicos: [], modelos: [], max_perguntas: 20, max_opcoes: 12 }));
+    // A falha aqui NÃO pode ser engolida: quando ela virava uma lista vazia em
+    // silêncio, o admin abria a tela com a caixa "Quem você quer ouvir" sem
+    // nenhuma opção e sem saber por quê (relato de produção).
+    const carregarOpcoes = useCallback(() => {
+        setErroOpcoes('');
+        setOpcoes(null);
+        getOpcoesFeedback()
+            .then(setOpcoes)
+            .catch((e) => setErroOpcoes(
+                extractErrors(e).message || 'Não foi possível carregar os públicos e os modelos de pergunta.',
+            ));
     }, []);
+
+    useEffect(() => { carregarOpcoes(); }, [carregarOpcoes]);
 
     function alternarPublico(valor) {
         setForm((f) => ({
@@ -245,7 +256,15 @@ export default function AdminFeedbackForm() {
 
             {alerta && <div className="mb-4 max-w-3xl"><Alert>{alerta}</Alert></div>}
 
-            {opcoes === null ? (
+            {erroOpcoes ? (
+                <div className="max-w-3xl space-y-3">
+                    <Alert>{erroOpcoes}</Alert>
+                    <Button type="button" variant="outline" onClick={carregarOpcoes}>
+                        <span className="material-symbols-outlined text-[20px]">refresh</span>
+                        Tentar de novo
+                    </Button>
+                </div>
+            ) : opcoes === null ? (
                 <div className="text-center py-10 text-on-surface-variant">
                     <span className="inline-block w-8 h-8 rounded-full border-4 border-on-surface-variant/25 border-t-primary animate-spin align-[-0.2em]" role="status" aria-label="Carregando" />
                 </div>
@@ -280,8 +299,14 @@ export default function AdminFeedbackForm() {
                             só um convite.
                         </p>
                         {errors.publicos && <p className="text-xs text-error mb-2">{errors.publicos}</p>}
+                        {(opcoes.publicos ?? []).length === 0 && (
+                            <p className="text-sm text-error">
+                                Nenhum público chegou do servidor. Recarregue a página; se continuar
+                                assim, avise a organização.
+                            </p>
+                        )}
                         <div role="group" aria-label="Públicos do feedback" className="space-y-2">
-                            {opcoes.publicos.map((p) => (
+                            {(opcoes.publicos ?? []).map((p) => (
                                 <label key={p.value} className="flex items-start gap-2 text-sm text-on-surface cursor-pointer">
                                     <input
                                         type="checkbox"

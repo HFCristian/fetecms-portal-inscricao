@@ -53,6 +53,31 @@ describe('AdminFeedbackForm', () => {
         expect(screen.getByText(/Muito insatisfeito · Insatisfeito/)).toBeInTheDocument();
     });
 
+    it('mostra o motivo e deixa tentar de novo quando as opções não carregam', async () => {
+        // Regressão: a falha era engolida e a tela desenhava a caixa "Quem você
+        // quer ouvir" sem nenhuma opção, sem dizer o que havia acontecido.
+        getOpcoesFeedback.mockRejectedValueOnce({
+            response: { data: { message: 'Seu escopo de administrador não inclui esta área do portal.' } },
+        });
+
+        render(<AdminFeedbackForm />);
+
+        expect(await screen.findByText('Seu escopo de administrador não inclui esta área do portal.')).toBeInTheDocument();
+        expect(screen.queryByRole('group', { name: 'Públicos do feedback' })).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: /Tentar de novo/ }));
+
+        expect(await screen.findByText('Todos os orientadores')).toBeInTheDocument();
+    });
+
+    it('avisa quando o servidor responde sem nenhum público', async () => {
+        getOpcoesFeedback.mockResolvedValueOnce({ ...opcoes, publicos: [] });
+
+        render(<AdminFeedbackForm />);
+
+        expect(await screen.findByText(/Nenhum público chegou do servidor/)).toBeInTheDocument();
+    });
+
     it('publica com um modelo pronto, mandando a chave e não as opções', async () => {
         render(<AdminFeedbackForm />);
 
