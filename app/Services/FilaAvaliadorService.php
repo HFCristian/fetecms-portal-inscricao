@@ -279,7 +279,10 @@ class FilaAvaliadorService
 
         $correlatas = $this->areasCorrelatas($areas);
         $pares = $perfil->paresAtendidos();
-        $precisa = fn (Projeto $p) => $p->total_count < $limites->minPorProjeto($p->categoria);
+        // "Precisa" é ainda ter designação a receber — o alvo do Algoritmo de
+        // distribuição, que pode ser maior que a cobertura mínima. Assim a fila
+        // e a distribuição em massa perseguem o mesmo número.
+        $precisa = fn (Projeto $p) => $p->total_count < $limites->designacoesPorProjeto($p->categoria);
 
         $faixas = [
             // 1. área e subárea que o avaliador atende

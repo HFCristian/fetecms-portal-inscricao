@@ -15,8 +15,9 @@ use Illuminate\Validation\ValidationException;
  * O balcão do evento é atendido por gente de fora da organização — estudantes de
  * um curso, em geral. Em vez de virarem administradores plenos, elas ganham uma
  * conta igual à de admin (mesmo cadastro: nome, e-mail e senha) mais **CPF**,
- * **curso** e uma **janela de acesso**, e o portal as tranca na aba
- * Credenciamento.
+ * **curso** e uma **janela de acesso**, e o portal as tranca na aba do **setor**
+ * delas — Credenciamento ou Almoxarifado. As duas abas mantêm listas
+ * independentes: cada uma cadastra, renova e encerra só as suas.
  *
  * A janela é contada em **horas** (padrão: 5, o tamanho de um turno de balcão) e
  * pode **começar depois**: informando `valido_de`, o admin deixa a equipe toda
@@ -44,11 +45,12 @@ class ContaTemporariaService
      *
      * @return array<string, mixed>
      */
-    public function listar(): array
+    public function listar(string $setor = ContaTemporaria::SETOR_CREDENCIAMENTO): array
     {
         $this->expirarVencidas();
 
         $contas = ContaTemporaria::with(['user', 'autor:id,name'])
+            ->where('setor', $setor)
             ->get()
             ->sortBy(fn (ContaTemporaria $c) => mb_strtolower($c->user?->name ?? ''))
             ->values();
@@ -65,11 +67,11 @@ class ContaTemporariaService
      *
      * @param  array<string, mixed>  $dados
      */
-    public function criar(array $dados, ?User $autor = null): ContaTemporaria
+    public function criar(array $dados, ?User $autor = null, string $setor = ContaTemporaria::SETOR_CREDENCIAMENTO): ContaTemporaria
     {
         [$validoDe, $expiraEm] = $this->janela($dados);
 
-        return DB::transaction(function () use ($dados, $autor, $validoDe, $expiraEm) {
+        return DB::transaction(function () use ($dados, $autor, $validoDe, $expiraEm, $setor) {
             $user = User::create([
                 'name' => trim($dados['name']),
                 'email' => $dados['email'],
@@ -82,6 +84,7 @@ class ContaTemporariaService
                 'user_id' => $user->id,
                 'cpf' => preg_replace('/\D/', '', (string) $dados['cpf']),
                 'curso' => trim($dados['curso']),
+                'setor' => $setor,
                 'valido_de' => $validoDe,
                 'expira_em' => $expiraEm,
                 'criado_por' => $autor?->id,
@@ -231,6 +234,7 @@ class ContaTemporariaService
             'email' => $user?->email,
             'cpf' => $conta->cpfFormatado(),
             'curso' => $conta->curso,
+            'setor' => $conta->setor,
             // Início da janela: nulo é "vale desde a criação".
             'valido_de' => $conta->valido_de?->toIso8601String(),
             'valido_de_input' => $conta->valido_de?->format('Y-m-d\TH:i'),

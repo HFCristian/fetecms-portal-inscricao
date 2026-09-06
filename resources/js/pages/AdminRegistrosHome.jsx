@@ -58,7 +58,13 @@ export default function AdminRegistrosHome() {
                     to="/admin/registros/credenciamento"
                     icon="how_to_reg"
                     titulo="Credenciamento"
-                    descricao="Quem credenciou cada finalista no evento, o horário e o que ficou ausente."
+                    descricao="Quem credenciou cada finalista, o horário, quem faltou e cada retirada de kit."
+                />
+                <CardSecao
+                    to="/admin/registros/almoxarifado"
+                    icon="inventory_2"
+                    titulo="Almoxarifado"
+                    descricao="O material guardado durante a feira: o que entrou, o que saiu e para quem, e as correções."
                 />
                 <CardSecao
                     to="/admin/registros/avaliacao"

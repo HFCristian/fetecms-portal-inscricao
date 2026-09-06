@@ -113,7 +113,8 @@ export default function AvaliadorHome() {
     // o histórico é o que cresce ao longo da feira.
     const [buscaAvaliados, setBuscaAvaliados] = useState('');
     const [sorteando, setSorteando] = useState(false);
-    const [avisoSorteio, setAvisoSorteio] = useState('');
+    // Sorteio da fila ou projeto que encheu antes de ele começar.
+    const [aviso, setAviso] = useState('');
     const [confirm, confirmDialog] = useConfirm();
 
     const carregar = useCallback((teste) => {
@@ -138,13 +139,13 @@ export default function AvaliadorHome() {
         if (!ok) return;
 
         setSorteando(true);
-        setAvisoSorteio('');
+        setAviso('');
         try {
             const resp = await roletarFila(modoTeste && dados?.is_demo);
             await carregar(modoTeste);
-            setAvisoSorteio(resp.meta?.message || 'Fila sorteada de novo.');
+            setAviso(resp.meta?.message || 'Fila sorteada de novo.');
         } catch {
-            setAvisoSorteio('Não foi possível sortear agora. Tente novamente.');
+            setAviso('Não foi possível sortear agora. Tente novamente.');
         } finally {
             setSorteando(false);
         }
@@ -218,7 +219,7 @@ export default function AvaliadorHome() {
                     />
                     {aba === 'pendentes' ? (
                         <>
-                            {avisoSorteio && <div className="mb-3 max-w-3xl"><Alert type="info">{avisoSorteio}</Alert></div>}
+                            {aviso && <div className="mb-3 max-w-3xl"><Alert type="info">{aviso}</Alert></div>}
                             <ListaProjetos
                                 titulo="Projetos designados a você"
                                 itens={dados.projetos}
@@ -273,6 +274,13 @@ export default function AvaliadorHome() {
                     somenteLeitura={!dados?.pode_avaliar}
                     onFechar={() => setAvaliando(null)}
                     onAtualizado={() => carregar(modoTeste)}
+                    onProjetoIndisponivel={(mensagem) => {
+                        // O servidor já tirou o projeto da fila e pôs outro:
+                        // fecha a avaliação, avisa e recarrega a lista.
+                        setAvaliando(null);
+                        setAviso(mensagem);
+                        carregar(modoTeste);
+                    }}
                 />
             )}
             {confirmDialog}

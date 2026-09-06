@@ -92,12 +92,22 @@ class User extends Authenticatable
     /**
      * Esta é uma conta temporária de credenciamento?
      *
-     * Vale como trava de acesso: ela abre **só** a aba Credenciamento, por cima
-     * de qualquer escopo — inclusive do "acesso total" de quem não tem nenhum.
+     * Vale como trava de acesso: ela abre **só** a aba do setor dela
+     * (Credenciamento ou Almoxarifado), por cima de qualquer escopo — inclusive
+     * do "acesso total" de quem não tem nenhum.
      */
     public function ehContaTemporaria(): bool
     {
         return $this->isAdmin() && $this->contaTemporaria()->exists();
+    }
+
+    /**
+     * A única aba que esta conta temporária abre — a do setor dela. Um valor
+     * desconhecido no banco cai no credenciamento, que é o setor histórico.
+     */
+    public function abaDaContaTemporaria(): AbaAdmin
+    {
+        return AbaAdmin::tryFrom((string) $this->contaTemporaria?->setor) ?? AbaAdmin::Credenciamento;
     }
 
     /**
@@ -113,7 +123,7 @@ class User extends Authenticatable
         }
 
         if ($this->ehContaTemporaria()) {
-            return $aba === AbaAdmin::Credenciamento;
+            return $aba === $this->abaDaContaTemporaria();
         }
 
         $escopos = $this->escoposAdmin();
@@ -136,7 +146,7 @@ class User extends Authenticatable
         // Conta temporária é balcão e nada mais: não depende de alguém lembrar
         // de atribuir o escopo certo.
         if ($this->ehContaTemporaria()) {
-            return [AbaAdmin::Credenciamento->value];
+            return [$this->abaDaContaTemporaria()->value];
         }
 
         $escopos = $this->escoposAdmin();

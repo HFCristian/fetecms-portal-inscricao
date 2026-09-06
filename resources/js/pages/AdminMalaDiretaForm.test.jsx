@@ -68,6 +68,7 @@ const getOpcoesMala = vi.fn(() => Promise.resolve(OPCOES));
 const getPreviaMala = vi.fn(() => Promise.resolve(previaPadrao));
 const dispararMala = vi.fn(() => Promise.resolve({ id: 7 }));
 const exportarPreviaCsv = vi.fn(() => Promise.resolve());
+const enviarTesteMala = vi.fn(() => Promise.resolve({ id: 9, teste: true }));
 
 vi.mock('../lib/malaDireta.js', async (importOriginal) => {
     const real = await importOriginal();
@@ -77,6 +78,7 @@ vi.mock('../lib/malaDireta.js', async (importOriginal) => {
         getPreviaMala: (...a) => getPreviaMala(...a),
         dispararMala: (...a) => dispararMala(...a),
         exportarPreviaCsv: (...a) => exportarPreviaCsv(...a),
+        enviarTesteMala: (...a) => enviarTesteMala(...a),
         subirArquivoMala: (...a) => subirArquivoMala(...a),
         removerArquivoMala: (...a) => removerArquivoMala(...a),
     };
@@ -97,6 +99,7 @@ describe('AdminMalaDiretaForm', () => {
         navigate.mockClear();
         getPreviaMala.mockClear();
         dispararMala.mockClear();
+        enviarTesteMala.mockClear();
         getPreviaMala.mockResolvedValue(previaPadrao);
     });
 
@@ -275,5 +278,33 @@ describe('AdminMalaDiretaForm — anexos', () => {
 
         await waitFor(() => expect(removerArquivoMala).toHaveBeenCalledWith(42));
         expect(screen.queryByText('edital.pdf')).not.toBeInTheDocument();
+    });
+
+    it('manda o teste só para os endereços digitados, sem público nenhum', async () => {
+        render(<AdminMalaDiretaForm />);
+        await waitFor(() => expect(screen.getByText('Todos os usuários')).toBeInTheDocument());
+        preencherMensagem();
+
+        fireEvent.click(screen.getByLabelText(/Enviar e-mail de teste para/i, { selector: 'input' }));
+        fireEvent.change(screen.getByLabelText('E-mails que recebem o teste'), {
+            target: { value: 'ana@fetecms.test, pedro@fetecms.test' },
+        });
+
+        expect(screen.getByText(/2 de 10 endereços/)).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: /Enviar teste/i }));
+
+        await waitFor(() => expect(enviarTesteMala).toHaveBeenCalledTimes(1));
+        expect(enviarTesteMala).toHaveBeenCalledWith(expect.objectContaining({
+            assunto: 'Prazo de submissão',
+            formato: 'html',
+            destinatarios: [
+                { email: 'ana@fetecms.test', nome: '' },
+                { email: 'pedro@fetecms.test', nome: '' },
+            ],
+        }));
+        // O teste não é o disparo: a mala de verdade continua por fazer.
+        expect(dispararMala).not.toHaveBeenCalled();
+        expect(navigate).not.toHaveBeenCalled();
+        await waitFor(() => expect(screen.getByText(/Teste na fila para 2 endereço/)).toBeInTheDocument());
     });
 });

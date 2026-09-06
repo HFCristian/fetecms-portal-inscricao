@@ -2,12 +2,13 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const getAvaliacao = vi.fn();
+const iniciarAvaliacao = vi.fn();
 const concluirAvaliacao = vi.fn();
 const salvarRascunhoAvaliacao = vi.fn();
 const editarParecerAvaliacao = vi.fn();
 vi.mock('../lib/avaliacao.js', () => ({
     getAvaliacao: (...a) => getAvaliacao(...a),
-    iniciarAvaliacao: vi.fn(),
+    iniciarAvaliacao: (...a) => iniciarAvaliacao(...a),
     concluirAvaliacao: (...a) => concluirAvaliacao(...a),
     salvarRascunhoAvaliacao: (...a) => salvarRascunhoAvaliacao(...a),
     editarParecerAvaliacao: (...a) => editarParecerAvaliacao(...a),
@@ -548,5 +549,44 @@ describe('AvaliacaoModal — rascunho', () => {
 
         await screen.findByText('Avaliação enviada');
         expect(screen.queryByRole('button', { name: /Salvar rascunho/i })).not.toBeInTheDocument();
+    });
+
+    it('projeto que encheu antes do início sai da tela e avisa quem chamou', async () => {
+        getAvaliacao.mockResolvedValue(emAndamento({ status: 'designada', status_label: 'Designada' }));
+        iniciarAvaliacao.mockRejectedValue({
+            response: {
+                status: 409,
+                data: {
+                    code: 'PROJETO_JA_COBERTO',
+                    message: 'Este projeto já recebeu todas as avaliações necessárias — outro avaliador chegou antes. Ele saiu da sua lista e você recebeu outro no lugar.',
+                },
+            },
+        });
+        const onProjetoIndisponivel = vi.fn();
+        render(<AvaliacaoModal avaliacaoId={1} onProjetoIndisponivel={onProjetoIndisponivel} />);
+
+        fireEvent.click(await screen.findByRole('button', { name: /Iniciar avaliação/ }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Iniciar' }));
+
+        await waitFor(() => expect(onProjetoIndisponivel).toHaveBeenCalledWith(
+            expect.stringContaining('outro avaliador chegou antes'),
+        ));
+        // A mensagem é da lista, não desta tela: aqui ela não vira erro.
+        expect(screen.queryByText(/Não foi possível iniciar/)).not.toBeInTheDocument();
+    });
+
+    it('falha comum ao iniciar continua sendo mostrada na própria tela', async () => {
+        getAvaliacao.mockResolvedValue(emAndamento({ status: 'designada', status_label: 'Designada' }));
+        iniciarAvaliacao.mockRejectedValue({
+            response: { status: 422, data: { message: 'Conclua a avaliação em andamento antes de iniciar outra.' } },
+        });
+        const onProjetoIndisponivel = vi.fn();
+        render(<AvaliacaoModal avaliacaoId={1} onProjetoIndisponivel={onProjetoIndisponivel} />);
+
+        fireEvent.click(await screen.findByRole('button', { name: /Iniciar avaliação/ }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Iniciar' }));
+
+        expect(await screen.findByText(/Conclua a avaliação em andamento/)).toBeInTheDocument();
+        expect(onProjetoIndisponivel).not.toHaveBeenCalled();
     });
 });

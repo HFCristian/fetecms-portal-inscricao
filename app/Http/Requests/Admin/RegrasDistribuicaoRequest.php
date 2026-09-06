@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Admin;
 
 use App\Enums\Categoria;
+use App\Support\LimitesAvaliacao;
 use App\Support\RegrasDistribuicao;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -38,6 +39,8 @@ class RegrasDistribuicaoRequest extends FormRequest
                 'nullable', 'integer', 'min:0', 'max:'.$teto,
                 'gte:'.$chave.'.min_concluidas',
             ];
+            // Designações desta categoria; nulo segue o número geral da edição.
+            $regras[$chave.'.designacoes'] = ['nullable', 'integer', 'min:1', 'max:'.LimitesAvaliacao::MAXIMO];
         }
 
         return $regras;
@@ -52,6 +55,7 @@ class RegrasDistribuicaoRequest extends FormRequest
             $nomes[$chave.'.ativa'] = 'distribuição da categoria '.$categoria->label();
             $nomes[$chave.'.min_concluidas'] = 'mínimo de avaliações concluídas da '.$categoria->label();
             $nomes[$chave.'.max_concluidas'] = 'máximo de avaliações concluídas da '.$categoria->label();
+            $nomes[$chave.'.designacoes'] = 'designações por projeto da '.$categoria->label();
         }
 
         return $nomes;

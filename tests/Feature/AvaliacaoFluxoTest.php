@@ -710,4 +710,122 @@ class AvaliacaoFluxoTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.nota', 10); // mesmo teto de qualquer outro projeto
     }
+
+    // ------------------------------------------------------------------ //
+    // Sprint 107 — o projeto já coberto não é iniciado                    //
+    // ------------------------------------------------------------------ //
+
+    /**
+     * Ocupa o projeto com `$quantas` avaliações de outros avaliadores, no
+     * status pedido — é o que faz o projeto "encher".
+     */
+    private function ocuparProjeto(Projeto $projeto, int $quantas, string $status = 'concluida'): void
+    {
+        for ($i = 0; $i < $quantas; $i++) {
+            $outro = User::factory()->avaliador()->create();
+            AvaliadorProfile::factory()->create(['user_id' => $outro->id, 'area_id' => $projeto->area_id]);
+            Avaliacao::create([
+                'projeto_id' => $projeto->id, 'avaliador_id' => $outro->id, 'status' => $status,
+            ]);
+        }
+    }
+
+    public function test_projeto_ja_coberto_avisa_sai_da_lista_e_da_lugar_a_outro(): void
+    {
+        [$avaliador, $avaliacao] = $this->cenario();
+        $projeto = $avaliacao->projeto;
+
+        // Um segundo projeto na mesma área, para a fila ter o que repor.
+        $reserva = Projeto::factory()->submetido()->create([
+            'user_id' => User::factory()->create()->id,
+            'area_id' => $projeto->area_id,
+            'titulo' => 'Projeto de reserva',
+        ]);
+
+        // O mínimo da edição é 3 e o projeto já tem as 3.
+        $this->ocuparProjeto($projeto, 3);
+
+        Sanctum::actingAs($avaliador);
+        $this->postJson("/api/v1/avaliacao/{$avaliacao->id}/iniciar")
+            ->assertStatus(409)
+            ->assertJsonPath('code', 'PROJETO_JA_COBERTO')
+            ->assertJsonPath('meta.recebeu_outro', true);
+
+        // A designação foi devolvida ao bolo...
+        $this->assertDatabaseMissing('avaliacoes', ['id' => $avaliacao->id]);
+        // ...e a fila do avaliador já veio reposta com o outro projeto.
+        $this->assertDatabaseHas('avaliacoes', [
+            'avaliador_id' => $avaliador->id,
+            'projeto_id' => $reserva->id,
+            'status' => StatusAvaliacao::Designada->value,
+        ]);
+    }
+
+    public function test_a_conta_inclui_quem_esta_com_a_avaliacao_em_andamento(): void
+    {
+        [$avaliador, $avaliacao] = $this->cenario();
+
+        // Duas concluídas e uma aberta agora: as três ocupam as vagas.
+        $this->ocuparProjeto($avaliacao->projeto, 2);
+        $this->ocuparProjeto($avaliacao->projeto, 1, StatusAvaliacao::EmAndamento->value);
+
+        Sanctum::actingAs($avaliador);
+        $this->postJson("/api/v1/avaliacao/{$avaliacao->id}/iniciar")->assertStatus(409);
+
+        $this->assertDatabaseMissing('avaliacoes', ['id' => $avaliacao->id]);
+    }
+
+    public function test_abaixo_do_minimo_a_avaliacao_inicia_normalmente(): void
+    {
+        [$avaliador, $avaliacao] = $this->cenario();
+        $this->ocuparProjeto($avaliacao->projeto, 2);
+
+        Sanctum::actingAs($avaliador);
+        $this->postJson("/api/v1/avaliacao/{$avaliacao->id}/iniciar")->assertOk();
+
+        $this->assertSame(StatusAvaliacao::EmAndamento, $avaliacao->fresh()->status);
+    }
+
+    public function test_o_minimo_da_categoria_manda_quando_ele_e_proprio(): void
+    {
+        [$avaliador, $avaliacao] = $this->cenario();
+        $projeto = $avaliacao->projeto;
+
+        // A categoria deste projeto pede só 2 avaliações.
+        Edicao::atual()->update([
+            'avaliacoes_por_categoria' => [
+                $projeto->categoria->value => ['min' => 2, 'max' => 5],
+            ],
+        ]);
+        $this->ocuparProjeto($projeto, 2);
+
+        Sanctum::actingAs($avaliador);
+        $this->postJson("/api/v1/avaliacao/{$avaliacao->id}/iniciar")->assertStatus(409);
+    }
+
+    public function test_designacao_manual_do_admin_passa_por_cima_da_trava(): void
+    {
+        [$avaliador, $avaliacao] = $this->cenario();
+        $avaliacao->update(['designacao_manual' => true]);
+        $this->ocuparProjeto($avaliacao->projeto, 3);
+
+        Sanctum::actingAs($avaliador);
+        $this->postJson("/api/v1/avaliacao/{$avaliacao->id}/iniciar")->assertOk();
+
+        $this->assertSame(StatusAvaliacao::EmAndamento, $avaliacao->fresh()->status);
+    }
+
+    public function test_sem_projeto_de_reposicao_o_aviso_diz_que_nao_ha_outro(): void
+    {
+        [$avaliador, $avaliacao] = $this->cenario();
+        $this->ocuparProjeto($avaliacao->projeto, 3);
+
+        Sanctum::actingAs($avaliador);
+        $resposta = $this->postJson("/api/v1/avaliacao/{$avaliacao->id}/iniciar")
+            ->assertStatus(409)
+            ->assertJsonPath('meta.recebeu_outro', false);
+
+        $this->assertStringContainsString('não há outro projeto disponível', $resposta->json('message'));
+        $this->assertDatabaseMissing('avaliacoes', ['id' => $avaliacao->id]);
+    }
 }

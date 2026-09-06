@@ -11,7 +11,7 @@ const getContasTemporarias = vi.fn();
 const criarContaTemporaria = vi.fn();
 const renovarContaTemporaria = vi.fn();
 const desativarContaTemporaria = vi.fn();
-vi.mock('../lib/credenciamento.js', () => ({
+vi.mock('../lib/contasTemporarias.js', () => ({
     getContasTemporarias: (...a) => getContasTemporarias(...a),
     criarContaTemporaria: (...a) => criarContaTemporaria(...a),
     renovarContaTemporaria: (...a) => renovarContaTemporaria(...a),
@@ -83,7 +83,7 @@ describe('CredenciamentoContas', () => {
         await waitFor(() => expect(criarContaTemporaria).toHaveBeenCalledWith(expect.objectContaining({
             name: 'Bruna Atendente', email: 'bruna@balcao.test',
             cpf: '52998224725', curso: 'Ciência da Computação', horas: 3,
-        })));
+        }), 'credenciamento'));
         expect(await screen.findByText('Conta temporária criada.')).toBeInTheDocument();
     });
 
@@ -111,7 +111,7 @@ describe('CredenciamentoContas', () => {
         fireEvent.change(screen.getByLabelText('Horas de renovação de Caio Vencido'), { target: { value: '5' } });
         fireEvent.click(screen.getByText('Renovar'));
 
-        await waitFor(() => expect(renovarContaTemporaria).toHaveBeenCalledWith(2, { horas: 5 }));
+        await waitFor(() => expect(renovarContaTemporaria).toHaveBeenCalledWith(2, { horas: 5 }, 'credenciamento'));
         expect(await screen.findByText('Acesso renovado.')).toBeInTheDocument();
     });
 
@@ -124,7 +124,7 @@ describe('CredenciamentoContas', () => {
         fireEvent.click(await screen.findByTitle('Encerrar o acesso de Bruna Atendente'));
         fireEvent.click(await screen.findByText('Encerrar'));
 
-        await waitFor(() => expect(desativarContaTemporaria).toHaveBeenCalledWith(1));
+        await waitFor(() => expect(desativarContaTemporaria).toHaveBeenCalledWith(1, 'credenciamento'));
     });
 
     it('quem venceu não mostra o botão de encerrar — já está sem acesso', async () => {
@@ -156,7 +156,7 @@ describe('CredenciamentoContas', () => {
 
         await waitFor(() => expect(criarContaTemporaria).toHaveBeenCalledWith(expect.objectContaining({
             valido_de: '2026-09-12T08:00',
-        })));
+        }), 'credenciamento'));
     });
 
     it('reagenda pelo mesmo caminho da renovação', async () => {
@@ -171,7 +171,7 @@ describe('CredenciamentoContas', () => {
         fireEvent.click(screen.getByText('Renovar'));
 
         // Campo em branco não viaja: o backend resolve pelo padrão.
-        await waitFor(() => expect(renovarContaTemporaria).toHaveBeenCalledWith(3, { valido_de: '2026-09-13T08:00' }));
+        await waitFor(() => expect(renovarContaTemporaria).toHaveBeenCalledWith(3, { valido_de: '2026-09-13T08:00' }, 'credenciamento'));
     });
 
     it('explica a lista vazia', async () => {
@@ -179,5 +179,13 @@ describe('CredenciamentoContas', () => {
         render(<CredenciamentoContas />);
 
         expect(await screen.findByText('Nenhuma conta temporária criada nesta edição.')).toBeInTheDocument();
+    });
+
+    it('a tela do almoxarifado usa a lista daquele setor', async () => {
+        getContasTemporarias.mockResolvedValue({ contas: [], horas_padrao: 5 });
+        render(<CredenciamentoContas setor="almoxarifado" />);
+
+        await waitFor(() => expect(getContasTemporarias).toHaveBeenCalledWith('almoxarifado'));
+        expect(screen.getByText(/abre .*a aba Almoxarifado/)).toBeInTheDocument();
     });
 });

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\StatusAvaliacao;
+use App\Exceptions\ProjetoJaCobertoException;
 use App\Http\Resources\DocumentoResource;
 use App\Models\Avaliacao;
 use App\Models\Edicao;
@@ -70,7 +71,20 @@ class AvaliacaoFluxoService
         return 'A avaliação ainda não está liberada.';
     }
 
-    /** Inicia a avaliação (designada → em_andamento). Só uma em andamento por vez. */
+    /**
+     * Inicia a avaliação (designada → em_andamento). Só uma em andamento por vez.
+     *
+     * Antes de abrir, confere se o projeto ainda **precisa** desta avaliação:
+     * a distribuição designa mais avaliadores do que a cobertura exige (Sprint
+     * 106), justamente para não depender de quem não aparece — então quem
+     * chega depois do projeto já ter as avaliações da categoria em mãos
+     * (concluídas **e** em andamento) não deve começar um trabalho que não vai
+     * contar. Nesse caso a designação é devolvida ao bolo, a fila do avaliador
+     * é reposta na hora e ele recebe o aviso.
+     *
+     * A **designação manual do admin** não passa por esta trava: ela é o escape
+     * do edital, e quem a fez sabe que está pondo mais um avaliador ali.
+     */
     public function iniciar(Avaliacao $avaliacao): void
     {
         if ($avaliacao->status === StatusAvaliacao::Concluida) {
@@ -91,7 +105,64 @@ class AvaliacaoFluxoService
             ]);
         }
 
+        if ($this->projetoJaCoberto($avaliacao)) {
+            // A troca é gravada antes do aviso: quando a tela recarregar a
+            // lista, o projeto já saiu e o substituto já está lá.
+            $recebidos = $this->trocarProjetoCoberto($avaliacao);
+
+            throw new ProjetoJaCobertoException(
+                'Este projeto já recebeu todas as avaliações necessárias — outro avaliador chegou antes. '
+                    .($recebidos > 0
+                        ? 'Ele saiu da sua lista e você recebeu outro no lugar.'
+                        : 'Ele saiu da sua lista; por ora não há outro projeto disponível para você.'),
+                recebeuOutro: $recebidos > 0,
+            );
+        }
+
         $avaliacao->update(['status' => StatusAvaliacao::EmAndamento]);
+    }
+
+    /**
+     * O projeto já tem as avaliações que a categoria dele pede?
+     *
+     * Conta **concluídas + em andamento**: quem já abriu está ocupando uma das
+     * vagas, e considerar só as concluídas deixaria três pessoas trabalhando no
+     * mesmo projeto para nada.
+     */
+    private function projetoJaCoberto(Avaliacao $avaliacao): bool
+    {
+        // O admin designou à mão: é escape do edital e passa por cima.
+        if ($avaliacao->designacao_manual) {
+            return false;
+        }
+
+        $projeto = $avaliacao->projeto;
+
+        if ($projeto === null) {
+            return false;
+        }
+
+        $assumidas = Avaliacao::where('projeto_id', $projeto->id)
+            ->whereIn('status', [StatusAvaliacao::Concluida->value, StatusAvaliacao::EmAndamento->value])
+            ->count();
+
+        return $assumidas >= Edicao::limites()->minPorProjeto($projeto->categoria);
+    }
+
+    /**
+     * Devolve ao bolo a designação de um projeto que já está coberto e completa
+     * a fila do avaliador. Devolve quantas designações novas ele recebeu.
+     */
+    private function trocarProjetoCoberto(Avaliacao $avaliacao): int
+    {
+        $avaliador = $avaliacao->avaliador;
+        $projetoId = $avaliacao->projeto_id;
+
+        $avaliacao->delete();
+
+        // Sem o dono da avaliação carregado não há fila a repor — não deveria
+        // acontecer, mas a troca não pode derrubar o aviso.
+        return $avaliador === null ? 0 : $this->fila->repor($avaliador, [$projetoId]);
     }
 
     /**

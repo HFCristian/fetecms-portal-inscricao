@@ -39,6 +39,13 @@ export const ABAS_ADMIN = [
         descricao: 'O balcão do evento: conferir documentos e credenciar finalistas.',
     },
     {
+        aba: 'almoxarifado',
+        to: '/admin/almoxarifado',
+        icon: 'inventory_2',
+        label: 'Almoxarifado',
+        descricao: 'Guardar e devolver o material dos finalistas durante o evento.',
+    },
+    {
         aba: 'comite',
         to: '/admin/comite',
         icon: 'directions_bus',

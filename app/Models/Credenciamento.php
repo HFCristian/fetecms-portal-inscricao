@@ -11,7 +11,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * quando começou e quando terminou. A conferência item a item está em
  * `documentos`.
  *
- * `finalizado_em` é o que separa "em atendimento" de "credenciado".
+ * `finalizado_em` é o que separa "em atendimento" de "credenciado" — e um
+ * projeto credenciado ainda pode ter **pendências**: quem faltou ao balcão e os
+ * kits que ninguém levou. As duas coisas estão em `pessoas`.
  */
 class Credenciamento extends Model
 {
@@ -43,6 +45,12 @@ class Credenciamento extends Model
     public function documentos(): HasMany
     {
         return $this->hasMany(CredenciamentoDocumento::class);
+    }
+
+    /** Presença e retirada de kit, uma linha por pessoa do projeto. */
+    public function pessoas(): HasMany
+    {
+        return $this->hasMany(CredenciamentoPessoa::class);
     }
 
     public function concluido(): bool

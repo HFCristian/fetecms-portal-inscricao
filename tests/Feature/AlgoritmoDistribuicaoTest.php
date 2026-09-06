@@ -52,10 +52,13 @@ class AlgoritmoDistribuicaoTest extends TestCase
         ]);
     }
 
-    /** @return array{ativa:bool, min_concluidas:int, max_concluidas:int|null} */
-    private function regra(bool $ativa = true, int $min = 0, ?int $max = null): array
+    /** @return array{ativa:bool, min_concluidas:int, max_concluidas:int|null, designacoes:int|null} */
+    private function regra(bool $ativa = true, int $min = 0, ?int $max = null, ?int $designacoes = null): array
     {
-        return ['ativa' => $ativa, 'min_concluidas' => $min, 'max_concluidas' => $max];
+        return [
+            'ativa' => $ativa, 'min_concluidas' => $min,
+            'max_concluidas' => $max, 'designacoes' => $designacoes,
+        ];
     }
 
     private function concluir(Projeto $projeto, int $quantas): void
@@ -420,5 +423,139 @@ class AlgoritmoDistribuicaoTest extends TestCase
         $novo = $this->cadastrarAvaliador($area->id, ['email' => 'bruno@exemplo.test']);
 
         $this->assertSame(0, Avaliacao::where('avaliador_id', $novo->id)->count());
+    }
+
+    // ------------------------------------------------------------------ //
+    // Sprint 106 — designações por projeto                                //
+    // ------------------------------------------------------------------ //
+
+    public function test_sem_configurar_a_distribuicao_continua_parando_no_minimo(): void
+    {
+        $area = Area::first();
+        $projeto = $this->projeto($area->id, Categoria::Fetecms);
+        // Gente de sobra: o que limita é o alvo, não a oferta.
+        for ($i = 0; $i < 6; $i++) {
+            $this->avaliador($area->id);
+        }
+
+        app(DistribuicaoService::class)->distribuir();
+
+        // O padrão da edição é 3, e é onde ele para.
+        $this->assertSame(3, Avaliacao::where('projeto_id', $projeto->id)->count());
+    }
+
+    public function test_designacoes_por_projeto_faz_a_distribuicao_ir_alem_do_minimo(): void
+    {
+        Sanctum::actingAs(User::factory()->admin()->create());
+        $area = Area::first();
+        $projeto = $this->projeto($area->id, Categoria::Fetecms);
+        for ($i = 0; $i < 6; $i++) {
+            $this->avaliador($area->id);
+        }
+
+        $this->patchJson('/api/v1/admin/avaliacao/distribuicao/designacoes', [
+            'designacoes_por_projeto' => 5,
+        ])->assertOk()->assertJsonPath('data.designacoes_por_projeto', 5);
+
+        app(DistribuicaoService::class)->distribuir();
+
+        $this->assertSame(5, Avaliacao::where('projeto_id', $projeto->id)->count());
+
+        // A mudança de parâmetro entra na trilha.
+        $registro = RegistroAtividade::where('tipo', TipoRegistro::AvaliacaoDesignacoesProjeto)->firstOrFail();
+        $this->assertSame('segue o mínimo por projeto', $registro->detalhes['de']);
+        $this->assertSame('5 avaliador(es)', $registro->detalhes['para']);
+    }
+
+    public function test_o_maximo_por_projeto_continua_sendo_o_teto_duro(): void
+    {
+        $area = Area::first();
+        $projeto = $this->projeto($area->id, Categoria::Fetecms);
+        for ($i = 0; $i < 10; $i++) {
+            $this->avaliador($area->id);
+        }
+
+        // Pedir 8 designações com teto de 4 entrega 4.
+        Edicao::atual()->update([
+            'designacoes_por_projeto' => 8,
+            'avaliacoes_max_por_projeto' => 4,
+        ]);
+
+        app(DistribuicaoService::class)->distribuir();
+
+        $this->assertSame(4, Avaliacao::where('projeto_id', $projeto->id)->count());
+    }
+
+    public function test_designacoes_podem_ser_definidas_por_categoria(): void
+    {
+        Sanctum::actingAs(User::factory()->admin()->create());
+        $area = Area::first();
+        $fetec = $this->projeto($area->id, Categoria::Fetecms, 'Da FETECMS');
+        $jr = $this->projeto($area->id, Categoria::FetecJr, 'Da Jr');
+        for ($i = 0; $i < 12; $i++) {
+            $this->avaliador($area->id);
+        }
+
+        $this->patchJson('/api/v1/admin/avaliacao/distribuicao', [
+            'regras' => [
+                Categoria::Fetecms->value => $this->regra(designacoes: 5),
+                Categoria::FetecJr->value => $this->regra(),
+                Categoria::FetecmsFundect->value => $this->regra(),
+            ],
+        ])->assertOk();
+
+        app(DistribuicaoService::class)->distribuir();
+
+        $this->assertSame(5, Avaliacao::where('projeto_id', $fetec->id)->count());
+        // A categoria sem número próprio segue o geral, que segue o mínimo.
+        $this->assertSame(3, Avaliacao::where('projeto_id', $jr->id)->count());
+    }
+
+    public function test_designacoes_abaixo_do_minimo_nao_deixam_o_projeto_sub_coberto(): void
+    {
+        $area = Area::first();
+        $projeto = $this->projeto($area->id, Categoria::Fetecms);
+        for ($i = 0; $i < 6; $i++) {
+            $this->avaliador($area->id);
+        }
+
+        // Pedir menos que o mínimo é contraditório: a cobertura ganha.
+        Edicao::atual()->update(['designacoes_por_projeto' => 1]);
+
+        app(DistribuicaoService::class)->distribuir();
+
+        $this->assertSame(3, Avaliacao::where('projeto_id', $projeto->id)->count());
+    }
+
+    public function test_projeto_com_cobertura_fechada_nao_entra_como_sub_coberto(): void
+    {
+        $area = Area::first();
+        $this->projeto($area->id, Categoria::Fetecms);
+        // Só 4 avaliadores para um alvo de 6: fecha o mínimo (3), não o alvo.
+        for ($i = 0; $i < 4; $i++) {
+            $this->avaliador($area->id);
+        }
+
+        Edicao::atual()->update(['designacoes_por_projeto' => 6]);
+
+        $resultado = app(DistribuicaoService::class)->distribuir();
+
+        $this->assertSame(4, Avaliacao::count());
+        // Ter menos designações que o alvo não é falta de cobertura.
+        $this->assertSame([], $resultado['sub_cobertos']);
+    }
+
+    public function test_a_fila_do_avaliador_persegue_o_mesmo_alvo(): void
+    {
+        $area = Area::first();
+        $projeto = $this->projeto($area->id, Categoria::Fetecms);
+        Edicao::atual()->update(['designacoes_por_projeto' => 5]);
+
+        // Um avaliador de cada vez: a reposição é que enche a fila dele.
+        for ($i = 0; $i < 5; $i++) {
+            app(FilaAvaliadorService::class)->repor($this->avaliador($area->id));
+        }
+
+        $this->assertSame(5, Avaliacao::where('projeto_id', $projeto->id)->count());
     }
 }

@@ -36,6 +36,9 @@ class MalaDiretaResource extends JsonResource
             // 'html' quando o texto veio do editor: a tela precisa saber se
             // renderiza como HTML ou como texto puro.
             'formato' => $this->formato,
+            // Envio de conferência: fica fora da lista de disparos, mas o
+            // relatório abre igual e a tela o rotula como teste.
+            'teste' => (bool) $this->teste,
             'status' => $this->status->value,
             'status_label' => $this->status->label(),
             'publicos' => $this->publicos ?? [],

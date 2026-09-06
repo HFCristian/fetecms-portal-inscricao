@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\V1\AdminMalaDiretaController;
 use App\Http\Controllers\Api\V1\AdminModeloEmailController;
 use App\Http\Controllers\Api\V1\AdminRascunhoController;
 use App\Http\Controllers\Api\V1\AdminRegistroController;
+use App\Http\Controllers\Api\V1\AlmoxarifadoController;
 use App\Http\Controllers\Api\V1\AlunoController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\AvaliadorAvaliacaoController;
@@ -259,6 +260,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::patch('/avaliacao/projetos/{projeto}', [AdminAvaliacaoController::class, 'corrigirProjeto']);
                 Route::get('/avaliacao/distribuicao', [AdminAvaliacaoController::class, 'distribuicaoConfig']);
                 Route::patch('/avaliacao/distribuicao', [AdminAvaliacaoController::class, 'definirRegrasDistribuicao']);
+                Route::patch('/avaliacao/distribuicao/designacoes', [AdminAvaliacaoController::class, 'definirDesignacoesPorProjeto']);
                 Route::patch('/avaliacao/distribuicao/piso', [AdminAvaliacaoController::class, 'definirPisoFila']);
                 Route::patch('/avaliacao/distribuicao/ao-cadastrar', [AdminAvaliacaoController::class, 'definirDistribuicaoAoCadastrar']);
                 Route::post('/avaliacao/distribuir', [AdminAvaliacaoController::class, 'distribuir']);
@@ -277,16 +279,36 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             // --- Aba "Credenciamento": o balcão do evento ---
             Route::middleware('aba:credenciamento')->prefix('credenciamento')->group(function () {
                 // Contas temporárias: quem atende o balcão sem ser da organização.
-                Route::get('/contas', [ContaTemporariaController::class, 'index']);
-                Route::post('/contas', [ContaTemporariaController::class, 'store']);
-                Route::patch('/contas/{conta}/renovar', [ContaTemporariaController::class, 'renovar']);
-                Route::patch('/contas/{conta}/desativar', [ContaTemporariaController::class, 'desativar']);
+                // O `setor` é o que separa a lista desta aba da do almoxarifado.
+                Route::get('/contas', [ContaTemporariaController::class, 'index'])->defaults('setor', 'credenciamento');
+                Route::post('/contas', [ContaTemporariaController::class, 'store'])->defaults('setor', 'credenciamento');
+                Route::patch('/contas/{conta}/renovar', [ContaTemporariaController::class, 'renovar'])->defaults('setor', 'credenciamento');
+                Route::patch('/contas/{conta}/desativar', [ContaTemporariaController::class, 'desativar'])->defaults('setor', 'credenciamento');
 
                 Route::get('/config', [CredenciamentoController::class, 'config']);
                 Route::get('/finalistas', [CredenciamentoController::class, 'index']);
                 Route::get('/projetos/{projeto}', [CredenciamentoController::class, 'show']);
                 Route::post('/projetos/{projeto}', [CredenciamentoController::class, 'store']);
+                Route::post('/projetos/{projeto}/kits', [CredenciamentoController::class, 'kits']);
                 Route::post('/projetos/{projeto}/cancelar', [CredenciamentoController::class, 'cancelar']);
+            });
+
+            // --- Aba "Almoxarifado": a guarda de volumes durante a feira ---
+            Route::middleware('aba:almoxarifado')->prefix('almoxarifado')->group(function () {
+                // Contas temporárias do almoxarifado: lista própria, mesmo cadastro.
+                Route::get('/contas', [ContaTemporariaController::class, 'index'])->defaults('setor', 'almoxarifado');
+                Route::post('/contas', [ContaTemporariaController::class, 'store'])->defaults('setor', 'almoxarifado');
+                Route::patch('/contas/{conta}/renovar', [ContaTemporariaController::class, 'renovar'])->defaults('setor', 'almoxarifado');
+                Route::patch('/contas/{conta}/desativar', [ContaTemporariaController::class, 'desativar'])->defaults('setor', 'almoxarifado');
+
+                Route::get('/config', [AlmoxarifadoController::class, 'config']);
+                Route::get('/registros', [AlmoxarifadoController::class, 'index']);
+                Route::get('/projetos', [AlmoxarifadoController::class, 'projetos']);
+                Route::post('/registros', [AlmoxarifadoController::class, 'store']);
+                Route::get('/registros/{guarda}', [AlmoxarifadoController::class, 'show']);
+                Route::post('/registros/{guarda}/retiradas', [AlmoxarifadoController::class, 'retirar']);
+                Route::put('/registros/{guarda}', [AlmoxarifadoController::class, 'update']);
+                Route::delete('/registros/{guarda}', [AlmoxarifadoController::class, 'destroy']);
             });
 
             // --- Aba "Comitê especial": transporte e mapa em tempo real ---
@@ -406,6 +428,10 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                     ->middleware('throttle:60,1');
                 Route::get('/mala-direta/arquivos/{arquivo}', [AdminMalaDiretaController::class, 'baixarArquivo']);
                 Route::delete('/mala-direta/arquivos/{arquivo}', [AdminMalaDiretaController::class, 'removerArquivo']);
+                // Conferência da mensagem antes do disparo: poucos endereços,
+                // escolhidos na hora. Vai para a mesma fila do disparo.
+                Route::post('/mala-direta/teste', [AdminMalaDiretaController::class, 'teste'])
+                    ->middleware('throttle:20,1');
                 // Disparo é caro e irreversível: limita a 10 malas por minuto.
                 Route::post('/mala-direta', [AdminMalaDiretaController::class, 'store'])
                     ->middleware('throttle:10,1');

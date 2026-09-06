@@ -6,7 +6,7 @@ import { extractErrors } from '../lib/auth.jsx';
 import {
     getContasTemporarias, criarContaTemporaria,
     renovarContaTemporaria, desativarContaTemporaria,
-} from '../lib/credenciamento.js';
+} from '../lib/contasTemporarias.js';
 
 /**
  * Credenciamento → **Contas temporárias**.
@@ -147,7 +147,19 @@ function LinhaConta({ conta, onRenovar, onDesativar, ocupado, horasPadrao }) {
     );
 }
 
-export default function CredenciamentoContas() {
+/**
+ * Contas temporárias de um balcão do evento.
+ *
+ * A mesma tela serve o **credenciamento** e o **almoxarifado**: o cadastro, o
+ * prazo e o agendamento são idênticos, e o que muda é a **aba** que a conta
+ * abre. As listas são independentes — cada setor só enxerga as suas contas —,
+ * então o `setor` viaja em toda chamada.
+ */
+export default function CredenciamentoContas({ setor = 'credenciamento' }) {
+    const balcao = setor === 'almoxarifado'
+        ? { aba: 'Almoxarifado', voltarPara: '/admin/almoxarifado' }
+        : { aba: 'Credenciamento', voltarPara: '/admin/credenciamento' };
+
     const [dados, setDados] = useState(null);
     const [form, setForm] = useState(VAZIO);
     const [criando, setCriando] = useState(false);
@@ -158,10 +170,10 @@ export default function CredenciamentoContas() {
     const [confirm, dialogo] = useConfirm();
 
     useEffect(() => {
-        getContasTemporarias()
+        getContasTemporarias(setor)
             .then(setDados)
             .catch(() => setDados({ contas: [], horas_padrao: 5 }));
-    }, []);
+    }, [setor]);
 
     function aplicar(resp) {
         setDados(resp.data);
@@ -186,7 +198,7 @@ export default function CredenciamentoContas() {
                 horas: form.horas ? Number(form.horas) : undefined,
                 // Em branco, o backend entende "vale a partir de agora".
                 valido_de: form.valido_de || undefined,
-            }));
+            }, setor));
             setForm(VAZIO);
             setCriando(false);
         } catch (e) {
@@ -203,7 +215,7 @@ export default function CredenciamentoContas() {
             const payload = Object.fromEntries(
                 Object.entries(janela).filter(([, v]) => v !== undefined && v !== ''),
             );
-            aplicar(await renovarContaTemporaria(conta.id, payload));
+            aplicar(await renovarContaTemporaria(conta.id, payload, setor));
         } catch (e) {
             falhar(e, 'Não foi possível renovar o acesso.');
         } finally {
@@ -221,7 +233,7 @@ export default function CredenciamentoContas() {
 
         setOcupado(true);
         try {
-            aplicar(await desativarContaTemporaria(conta.id));
+            aplicar(await desativarContaTemporaria(conta.id, setor));
         } catch (e) {
             falhar(e, 'Não foi possível encerrar o acesso.');
         } finally {
@@ -234,13 +246,13 @@ export default function CredenciamentoContas() {
 
     return (
         <AppShell>
-            <Link to="/admin/credenciamento" className="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary mb-3">
-                <span className="material-symbols-outlined text-[18px]">arrow_back</span> Credenciamento
+            <Link to={balcao.voltarPara} className="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary mb-3">
+                <span className="material-symbols-outlined text-[18px]">arrow_back</span> {balcao.aba}
             </Link>
             <h1 className="font-display text-2xl font-semibold text-primary mb-1">Contas temporárias</h1>
             <p className="text-on-surface-variant mb-6 max-w-3xl">
                 Acesso de prazo curto para quem atende o balcão sem fazer parte da organização. A conta
-                abre <strong>somente</strong> a aba Credenciamento e é desativada no fim do prazo — para
+                abre <strong>somente</strong> a aba {balcao.aba} e é desativada no fim do prazo — para
                 liberar de novo, basta informar uma janela nova, sem recadastrar nada. Deixando
                 <strong> “começa em”</strong> preenchido, a conta fica <strong>agendada</strong>: dá para
                 cadastrar toda a equipe dias antes e cada acesso abre sozinho na hora marcada.

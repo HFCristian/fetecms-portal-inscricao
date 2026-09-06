@@ -28,6 +28,7 @@ class Edicao extends Model
         'ordem_abas',
         'avaliacoes_min_por_avaliador', 'avaliacoes_min_por_projeto',
         'avaliacoes_max_por_avaliador', 'avaliacoes_max_por_projeto', 'avaliacoes_por_categoria',
+        'designacoes_por_projeto',
         'piso_fila_avaliador',
         'distribuicao_regras', 'distribuicao_ao_cadastrar',
     ];
@@ -54,6 +55,7 @@ class Edicao extends Model
             'avaliacoes_max_por_avaliador' => 'integer',
             'piso_fila_avaliador' => 'integer',
             'avaliacoes_max_por_projeto' => 'integer',
+            'designacoes_por_projeto' => 'integer',
             'avaliacoes_por_categoria' => 'array',
             'distribuicao_regras' => 'array',
             'distribuicao_ao_cadastrar' => 'boolean',

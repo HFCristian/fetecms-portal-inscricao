@@ -29,7 +29,14 @@ namespace App\Enums;
  * composição de quem sobe ao evento, então toda mexida fica registrada.
  *
  * Seção "Credenciamento" (o balcão do evento): quem credenciou cada projeto,
- * quando, e o que ficou ausente na conferência dos documentos.
+ * quando, o que ficou ausente na conferência dos documentos — e cada retirada
+ * de kit, que pode acontecer depois do credenciamento e no nome de outra
+ * pessoa.
+ *
+ * Seção "Almoxarifado" (a guarda de volumes durante a feira): o material que
+ * entrou, o que saiu e para quem, e as correções e exclusões de registro — as
+ * duas últimas com justificativa obrigatória. É material de outra pessoa na mão
+ * da organização, então toda mexida fica registrada.
  */
 enum TipoRegistro: string
 {
@@ -47,6 +54,7 @@ enum TipoRegistro: string
     case AvaliacaoRegraDistribuicao = 'avaliacao_regra_distribuicao';
     case AvaliacaoDesignacaoAoCadastrar = 'avaliacao_designacao_ao_cadastrar';
     case AvaliacaoPisoFila = 'avaliacao_piso_fila';
+    case AvaliacaoDesignacoesProjeto = 'avaliacao_designacoes_projeto';
     case AvaliacaoDesignacaoRetirada = 'avaliacao_designacao_retirada';
     case AvaliacaoParecerEditado = 'avaliacao_parecer_editado';
     case AvaliacaoAjustesInicio = 'avaliacao_ajustes_inicio';
@@ -64,6 +72,11 @@ enum TipoRegistro: string
     case ListaFinalProjetoRemovido = 'lista_final_projeto_removido';
     case CredenciamentoRealizado = 'credenciamento_realizado';
     case CredenciamentoCancelado = 'credenciamento_cancelado';
+    case CredenciamentoKitRetirado = 'credenciamento_kit_retirado';
+    case AlmoxarifadoGuarda = 'almoxarifado_guarda';
+    case AlmoxarifadoRetirada = 'almoxarifado_retirada';
+    case AlmoxarifadoEdicao = 'almoxarifado_edicao';
+    case AlmoxarifadoExclusao = 'almoxarifado_exclusao';
 
     /** Seções da tela de Registros. */
     public const SECAO_INSCRICOES = 'inscricoes';
@@ -77,6 +90,8 @@ enum TipoRegistro: string
     public const SECAO_LISTA_FINAL = 'lista_final';
 
     public const SECAO_CREDENCIAMENTO = 'credenciamento';
+
+    public const SECAO_ALMOXARIFADO = 'almoxarifado';
 
     public function label(): string
     {
@@ -95,6 +110,7 @@ enum TipoRegistro: string
             self::AvaliacaoRegraDistribuicao => 'Regra da distribuição',
             self::AvaliacaoDesignacaoAoCadastrar => 'Designação ao cadastrar',
             self::AvaliacaoPisoFila => 'Piso da fila do avaliador',
+            self::AvaliacaoDesignacoesProjeto => 'Designações por projeto',
             self::AvaliacaoDesignacaoRetirada => 'Designação retirada',
             self::AvaliacaoParecerEditado => 'Parecer do avaliador editado',
             self::AvaliacaoAjustesInicio => 'Início dos ajustes',
@@ -112,6 +128,11 @@ enum TipoRegistro: string
             self::ListaFinalProjetoRemovido => 'Projeto retirado da lista',
             self::CredenciamentoRealizado => 'Credenciamento realizado',
             self::CredenciamentoCancelado => 'Credenciamento cancelado',
+            self::CredenciamentoKitRetirado => 'Kit retirado',
+            self::AlmoxarifadoGuarda => 'Material guardado',
+            self::AlmoxarifadoRetirada => 'Material retirado',
+            self::AlmoxarifadoEdicao => 'Registro corrigido',
+            self::AlmoxarifadoExclusao => 'Registro excluído',
         };
     }
 
@@ -125,7 +146,10 @@ enum TipoRegistro: string
             self::RascunhoAlteracao, self::RascunhoSubmissao => self::SECAO_RASCUNHOS,
             self::ListaFinalOficializada, self::ListaFinalProjetoAdicionado,
             self::ListaFinalProjetoRemovido => self::SECAO_LISTA_FINAL,
-            self::CredenciamentoRealizado, self::CredenciamentoCancelado => self::SECAO_CREDENCIAMENTO,
+            self::CredenciamentoRealizado, self::CredenciamentoCancelado,
+            self::CredenciamentoKitRetirado => self::SECAO_CREDENCIAMENTO,
+            self::AlmoxarifadoGuarda, self::AlmoxarifadoRetirada,
+            self::AlmoxarifadoEdicao, self::AlmoxarifadoExclusao => self::SECAO_ALMOXARIFADO,
             default => self::SECAO_AVALIACAO,
         };
     }
@@ -136,6 +160,7 @@ enum TipoRegistro: string
         return [
             self::SECAO_INSCRICOES, self::SECAO_AVALIACAO, self::SECAO_PROJETOS,
             self::SECAO_RASCUNHOS, self::SECAO_LISTA_FINAL, self::SECAO_CREDENCIAMENTO,
+            self::SECAO_ALMOXARIFADO,
         ];
     }
 

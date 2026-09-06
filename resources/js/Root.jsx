@@ -47,6 +47,9 @@ import ComiteMapa from './pages/ComiteMapa.jsx';
 import CredenciamentoLista from './pages/CredenciamentoLista.jsx';
 import CredenciamentoFicha from './pages/CredenciamentoFicha.jsx';
 import CredenciamentoContas from './pages/CredenciamentoContas.jsx';
+import AlmoxarifadoHome from './pages/AlmoxarifadoHome.jsx';
+import AlmoxarifadoNovo from './pages/AlmoxarifadoNovo.jsx';
+import AlmoxarifadoRegistros from './pages/AlmoxarifadoRegistros.jsx';
 import ParametrizacaoCredenciamento from './pages/ParametrizacaoCredenciamento.jsx';
 import AdminAvaliacaoOnline from './pages/AdminAvaliacaoOnline.jsx';
 import AvaliacaoAvaliadores from './pages/AvaliacaoAvaliadores.jsx';
@@ -167,12 +170,19 @@ export default function Root() {
                             <Route path="/admin/registros/rascunhos" element={<AdminRegistros secao="rascunhos" />} />
                             <Route path="/admin/registros/lista-final" element={<AdminRegistros secao="lista_final" />} />
                             <Route path="/admin/registros/credenciamento" element={<AdminRegistros secao="credenciamento" />} />
+                            <Route path="/admin/registros/almoxarifado" element={<AdminRegistros secao="almoxarifado" />} />
                             {/* Aba Credenciamento: o balcão do evento. */}
                             <Route path="/admin/credenciamento" element={<CredenciamentoHome />} />
                             <Route path="/admin/credenciamento/credenciar" element={<CredenciamentoLista situacao="pendentes" />} />
                             <Route path="/admin/credenciamento/credenciados" element={<CredenciamentoLista situacao="credenciados" />} />
                             <Route path="/admin/credenciamento/projetos/:id" element={<CredenciamentoFicha />} />
                             <Route path="/admin/credenciamento/contas" element={<CredenciamentoContas />} />
+                            {/* Aba Almoxarifado: a guarda de volumes durante a feira. */}
+                            <Route path="/admin/almoxarifado" element={<AlmoxarifadoHome />} />
+                            <Route path="/admin/almoxarifado/novo" element={<AlmoxarifadoNovo />} />
+                            <Route path="/admin/almoxarifado/registros" element={<AlmoxarifadoRegistros />} />
+                            {/* Mesma tela do credenciamento: o que muda é o setor da conta. */}
+                            <Route path="/admin/almoxarifado/contas" element={<CredenciamentoContas setor="almoxarifado" />} />
                             {/* Aba Comitê especial: transporte e mapa em tempo real. */}
                             <Route path="/admin/comite" element={<ComiteHome />} />
                             <Route path="/admin/comite/transporte" element={<ComiteTransporte />} />

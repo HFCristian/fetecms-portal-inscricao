@@ -21,29 +21,33 @@
                     <tr>
                         <td style="padding:32px;">
                             @php
-                                // Nada aqui pode depender de uma chave específica do `with` do
-                                // Mailable: em produção um worker de fila com a classe ANTIGA em
-                                // memória renderiza este arquivo NOVO (a view sai do disco a cada
-                                // envio, a classe não), e uma variável a menos derrubava a mala
-                                // inteira. `$mala` e `$corpo` são propriedades públicas do
-                                // Mailable, então chegam sempre.
-                                $corpoEmHtml = ($html ?? false) && isset($corpoHtml) && is_callable($corpoHtml);
-                                $blocos = $paragrafos ?? [];
+                                // Nada aqui pode depender de uma chave do `with` do Mailable: em
+                                // produção um worker de fila com a classe ANTIGA em memória
+                                // renderiza este arquivo NOVO (a view sai do disco a cada envio, a
+                                // classe não). Isso já derrubou uma mala inteira e, depois de
+                                // remendado, passou a entregá-la SEM formatação — com as tags
+                                // aparecendo como texto na caixa de entrada.
+                                //
+                                // Por isso o formato vem da própria linha da mala e o corpo, da
+                                // propriedade pública do Mailable: as duas chegam sempre, seja qual
+                                // for a versão da classe. O corpo em HTML já foi sanitizado na
+                                // gravação (HtmlEmail::sanitizar), então nunca é escapado aqui.
+                                $ehHtml = ($mala->formato ?? 'texto') === 'html';
+                                $texto = (string) ($corpo ?? '');
 
-                                if (! $corpoEmHtml && $blocos === []) {
-                                    $texto = str_replace(["\r\n", "\r"], "\n", trim((string) ($corpo ?? '')));
-                                    $blocos = array_values(array_filter(
-                                        array_map('trim', preg_split('/\n{2,}/', $texto) ?: []),
-                                        fn (string $p) => $p !== '',
-                                    ));
-                                }
+                                // O callback é quem troca cada imagem pelo CID (embutida nesta
+                                // mensagem) e só existe na classe nova. Sem ele o corpo vai como
+                                // está: perde-se a imagem, nunca a formatação.
+                                $corpoFinal = $ehHtml
+                                    ? (isset($corpoHtml) && is_callable($corpoHtml) ? $corpoHtml($message) : $texto)
+                                    : null;
+
+                                $blocos = $ehHtml ? [] : ($paragrafos ?? \App\Support\MensagemEmail::paragrafos($texto));
                             @endphp
 
-                            @if ($corpoEmHtml)
-                                {{-- Corpo do editor: já sanitizado na gravação e com as
-                                     imagens trocadas por CID (embutidas nesta mensagem). --}}
+                            @if ($ehHtml)
                                 <div style="font-size:15px;line-height:1.6;color:#1c1b1f;">
-                                    {!! $corpoHtml($message) !!}
+                                    {!! $corpoFinal !!}
                                 </div>
                             @else
                                 @foreach ($blocos as $paragrafo)

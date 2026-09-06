@@ -7,6 +7,7 @@ import EditorTexto from '../components/EditorTexto.jsx';
 import {
     dispararMala,
     emailParecaValido,
+    enviarTesteMala,
     exportarPreviaCsv,
     getOpcoesMala,
     getPreviaMala,
@@ -122,6 +123,13 @@ export default function AdminMalaDiretaForm() {
     const [aviso, setAviso] = useState('');
     const [enviando, setEnviando] = useState(false);
     const [exportando, setExportando] = useState(false);
+
+    // Conferência da mensagem antes do disparo: endereços escolhidos na hora.
+    const [testeLigado, setTesteLigado] = useState(false);
+    const [emailsTeste, setEmailsTeste] = useState('');
+    const [enviandoTeste, setEnviandoTeste] = useState(false);
+    const [testeId, setTesteId] = useState(null);
+    const destinatariosTeste = useMemo(() => parseEmailsColados(emailsTeste), [emailsTeste]);
 
     const criterio = useMemo(
         () => ({ publicos, destinatarios: personalizados }),
@@ -263,6 +271,47 @@ export default function AdminMalaDiretaForm() {
             setAlert('Não foi possível gerar o CSV. Tente novamente.');
         } finally {
             setExportando(false);
+        }
+    }
+
+    /**
+     * Manda a mensagem em edição para os endereços de conferência. Não consome
+     * o disparo: o formulário continua como está, e o admin envia para a base
+     * depois de olhar a caixa de entrada.
+     */
+    async function enviarTeste() {
+        setAlert('');
+        setAviso('');
+        setErros({});
+
+        if (destinatariosTeste.length === 0) {
+            setAlert('Informe ao menos um e-mail para receber o teste.');
+            return;
+        }
+
+        setEnviandoTeste(true);
+        setTesteId(null);
+        try {
+            const mala = await enviarTesteMala({
+                assunto: form.assunto,
+                corpo: form.corpo,
+                formato: 'html',
+                imagens: imagens.map((i) => i.id),
+                anexos: anexos.map((a) => a.id),
+                destinatarios: destinatariosTeste,
+            });
+            setTesteId(mala?.id ?? null);
+            setAviso(
+                `Teste na fila para ${destinatariosTeste.length} endereço(s). `
+                + 'Confira a caixa de entrada antes de disparar para a base — '
+                + 'se a mensagem chegar sem formatação, o worker da fila está desatualizado.',
+            );
+        } catch (e) {
+            const { message, fields } = extractErrors(e);
+            setErros(fields);
+            setAlert(message);
+        } finally {
+            setEnviandoTeste(false);
         }
     }
 
@@ -547,6 +596,64 @@ export default function AdminMalaDiretaForm() {
                             tabIndex={-1}
                             onChange={adicionarAnexo}
                         />
+                    </div>
+
+                    {/* Conferência: a mensagem pronta, só para quem o admin escolher. */}
+                    <div className="border-t border-outline-variant/40 pt-4 space-y-2">
+                        <label className="flex items-start gap-2 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                className="mt-1 accent-primary-container"
+                                checked={testeLigado}
+                                onChange={(e) => setTesteLigado(e.target.checked)}
+                            />
+                            <span>
+                                <span className="text-sm font-semibold text-on-surface">Enviar e-mail de teste para:</span>
+                                <span className="block text-xs text-on-surface-variant">
+                                    A mensagem sai exatamente como vai sair no disparo, pelo mesmo caminho.
+                                    Não alcança a base e não consome o envio de verdade.
+                                </span>
+                            </span>
+                        </label>
+
+                        {testeLigado && (
+                            <div className="space-y-2 pl-6">
+                                <textarea
+                                    rows={2}
+                                    className={TEXTAREA}
+                                    aria-label="E-mails que recebem o teste"
+                                    placeholder="um por linha, ou separados por vírgula"
+                                    value={emailsTeste}
+                                    onChange={(e) => setEmailsTeste(e.target.value)}
+                                />
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <span className="text-xs text-on-surface-variant">
+                                        {destinatariosTeste.length} de 10 endereços
+                                        {destinatariosTeste.some((d) => !emailParecaValido(d.email))
+                                            && ' · há endereço com formato estranho'}
+                                    </span>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        loading={enviandoTeste}
+                                        disabled={destinatariosTeste.length === 0 || !form.assunto || !form.corpo}
+                                        onClick={enviarTeste}
+                                    >
+                                        <span className="material-symbols-outlined text-[20px]">outgoing_mail</span>
+                                        Enviar teste
+                                    </Button>
+                                </div>
+                                {testeId && (
+                                    <Link
+                                        to={`/admin/mala-direta/${testeId}`}
+                                        className="text-sm font-semibold text-primary hover:underline inline-flex items-center gap-1"
+                                    >
+                                        <span className="material-symbols-outlined text-[18px]">fact_check</span>
+                                        Ver o que aconteceu com cada endereço deste teste
+                                    </Link>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </section>
 

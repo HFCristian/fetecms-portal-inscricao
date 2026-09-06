@@ -1218,6 +1218,8 @@ class AdminAvaliacaoService
      */
     public function configDistribuicao(): array
     {
+        $limites = Edicao::limites();
+
         return [
             'regras' => Edicao::regrasDistribuicao()->toArray(),
             'categorias' => Categoria::opcoes(),
@@ -1227,6 +1229,12 @@ class AdminAvaliacaoService
             // projetos na fila, a distribuição completa ignorando-as.
             'piso_fila' => Edicao::pisoFilaAvaliador(),
             'piso_maximo' => LimitesAvaliacao::MAXIMO,
+            // Quantos avaliadores cada projeto recebe. Em branco segue o mínimo
+            // por projeto; as categorias mostram o número que vale de fato,
+            // já preso ao máximo de cada uma.
+            'designacoes_por_projeto' => $limites->designacoesConfiguradas(),
+            'designacoes_categorias' => $limites->categorias(),
+            'designacoes_maximo' => LimitesAvaliacao::MAXIMO,
         ];
     }
 
@@ -1248,6 +1256,32 @@ class AdminAvaliacaoService
             $admin,
             $anterior->resumo(),
             $novas->resumo(),
+        );
+
+        return $this->configDistribuicao();
+    }
+
+    /**
+     * Grava quantas designações a distribuição cria por projeto (o número
+     * geral da edição). `null` volta ao comportamento histórico: o alvo passa a
+     * ser o mínimo por projeto de cada categoria.
+     *
+     * O número por categoria não vem por aqui — ele mora nas regras, e é salvo
+     * junto delas pelo mesmo formulário.
+     */
+    public function definirDesignacoesPorProjeto(?int $designacoes, User $admin): array
+    {
+        $anterior = Edicao::limites()->designacoesConfiguradas();
+        $novo = $designacoes !== null && $designacoes > 0 ? $designacoes : null;
+
+        Edicao::atual()?->update(['designacoes_por_projeto' => $novo]);
+
+        $rotulo = fn (?int $v) => $v === null ? 'segue o mínimo por projeto' : $v.' avaliador(es)';
+        $this->registrarParametro(
+            TipoRegistro::AvaliacaoDesignacoesProjeto,
+            $admin,
+            $rotulo($anterior),
+            $rotulo($novo),
         );
 
         return $this->configDistribuicao();

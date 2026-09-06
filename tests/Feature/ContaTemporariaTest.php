@@ -357,4 +357,60 @@ class ContaTemporariaTest extends TestCase
             ->assertStatus(422)
             ->assertJsonValidationErrors('expira_em');
     }
+
+    // ------------------------------------------------------------------ //
+    // Sprint 105 — o setor: credenciamento e almoxarifado                 //
+    // ------------------------------------------------------------------ //
+
+    public function test_cada_aba_lista_e_administra_so_as_contas_dela(): void
+    {
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->postJson('/api/v1/admin/credenciamento/contas', $this->payload([
+            'name' => 'Bruna do Credenciamento', 'email' => 'bruna@fetec.test',
+        ]))->assertCreated();
+
+        $this->postJson('/api/v1/admin/almoxarifado/contas', $this->payload([
+            'name' => 'Caio do Almoxarifado', 'email' => 'caio@fetec.test',
+        ]))->assertCreated();
+
+        $credenciamento = $this->getJson('/api/v1/admin/credenciamento/contas')->assertOk()->json('data.contas');
+        $almoxarifado = $this->getJson('/api/v1/admin/almoxarifado/contas')->assertOk()->json('data.contas');
+
+        $this->assertSame(['Bruna do Credenciamento'], array_column($credenciamento, 'nome'));
+        $this->assertSame(['Caio do Almoxarifado'], array_column($almoxarifado, 'nome'));
+
+        // Renovar a conta da outra aba nem encontra a linha.
+        $doAlmoxarifado = ContaTemporaria::where('setor', 'almoxarifado')->firstOrFail();
+        $this->patchJson("/api/v1/admin/credenciamento/contas/{$doAlmoxarifado->id}/renovar", ['horas' => 3])
+            ->assertNotFound();
+    }
+
+    public function test_a_conta_do_almoxarifado_abre_so_a_aba_do_almoxarifado(): void
+    {
+        Sanctum::actingAs(User::factory()->admin()->create());
+        $this->postJson('/api/v1/admin/almoxarifado/contas', $this->payload([
+            'name' => 'Caio do Almoxarifado', 'email' => 'caio@fetec.test',
+        ]))->assertCreated();
+
+        $conta = ContaTemporaria::where('setor', 'almoxarifado')->firstOrFail();
+        Sanctum::actingAs($conta->user);
+
+        $this->assertSame(['almoxarifado'], $conta->user->abasPermitidas());
+        $this->getJson('/api/v1/admin/credenciamento/finalistas')->assertForbidden();
+        $this->getJson('/api/v1/admin/almoxarifado/registros')->assertOk();
+        // E continua sem administrar contas — inclusive as do próprio setor.
+        $this->getJson('/api/v1/admin/almoxarifado/contas')->assertForbidden();
+    }
+
+    public function test_as_contas_existentes_continuam_no_credenciamento(): void
+    {
+        Sanctum::actingAs(User::factory()->admin()->create());
+        $this->postJson('/api/v1/admin/credenciamento/contas', $this->payload())->assertCreated();
+
+        $conta = ContaTemporaria::firstOrFail();
+
+        $this->assertSame('credenciamento', $conta->setor);
+        $this->assertSame(['credenciamento'], $conta->user->abasPermitidas());
+    }
 }

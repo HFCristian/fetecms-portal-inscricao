@@ -10,16 +10,21 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * Credenciamento → Contas temporárias: as contas de prazo curto que atendem o
- * balcão do evento.
+ * Contas temporárias: as contas de prazo curto que atendem os balcões do
+ * evento — o do **credenciamento** e o do **almoxarifado**.
  *
  * Toda ação devolve a lista inteira: ela é pequena e a tela precisa dela
  * atualizada de qualquer forma (criar, renovar e desativar mudam a situação de
  * uma linha e podem vencer outras na mesma passada).
  *
- * **Quem administra as contas não pode ser uma delas.** A rota está sob
- * `aba:credenciamento`, que a conta temporária tem — sem esta trava ela
- * renovaria o próprio prazo e criaria colegas, o que esvaziaria o "temporário".
+ * As duas abas mantêm **listas independentes**: o `setor` vem do grupo de rotas
+ * (`defaults('setor', …)`), e cada aba só enxerga, renova e encerra as contas
+ * dela. Uma conta de balcão do credenciamento não abre o almoxarifado e
+ * vice-versa — é a própria linha que decide, por cima de qualquer escopo.
+ *
+ * **Quem administra as contas não pode ser uma delas.** A rota está sob a aba
+ * que a conta temporária tem — sem esta trava ela renovaria o próprio prazo e
+ * criaria colegas, o que esvaziaria o "temporário".
  */
 class ContaTemporariaController extends Controller
 {
@@ -35,21 +40,37 @@ class ContaTemporariaController extends Controller
         );
     }
 
+    /** O setor desta aba, definido no grupo de rotas. */
+    private function setor(Request $request): string
+    {
+        $setor = (string) $request->route('setor');
+
+        return in_array($setor, ContaTemporaria::setores(), true)
+            ? $setor
+            : ContaTemporaria::SETOR_CREDENCIAMENTO;
+    }
+
+    /** Cada aba mexe só nas contas dela: a de outra nem existe daqui. */
+    private function garantirMesmoSetor(Request $request, ContaTemporaria $conta): void
+    {
+        abort_unless($conta->setor === $this->setor($request), 404, 'Conta não encontrada.');
+    }
+
     public function index(Request $request): JsonResponse
     {
         $this->garantirGestor($request);
 
-        return response()->json(['data' => $this->contas->listar()]);
+        return response()->json(['data' => $this->contas->listar($this->setor($request))]);
     }
 
     public function store(ContaTemporariaRequest $request): JsonResponse
     {
         $this->garantirGestor($request);
 
-        $this->contas->criar($request->validated(), $request->user());
+        $this->contas->criar($request->validated(), $request->user(), $this->setor($request));
 
         return response()->json([
-            'data' => $this->contas->listar(),
+            'data' => $this->contas->listar($this->setor($request)),
             'meta' => ['message' => 'Conta temporária criada.'],
         ], 201);
     }
@@ -61,6 +82,7 @@ class ContaTemporariaController extends Controller
     public function renovar(Request $request, ContaTemporaria $conta): JsonResponse
     {
         $this->garantirGestor($request);
+        $this->garantirMesmoSetor($request, $conta);
 
         $dados = $request->validate([
             'valido_de' => ['nullable', 'date'],
@@ -71,7 +93,7 @@ class ContaTemporariaController extends Controller
         $this->contas->renovar($conta, $dados);
 
         return response()->json([
-            'data' => $this->contas->listar(),
+            'data' => $this->contas->listar($this->setor($request)),
             'meta' => ['message' => 'Acesso renovado.'],
         ]);
     }
@@ -80,11 +102,12 @@ class ContaTemporariaController extends Controller
     public function desativar(Request $request, ContaTemporaria $conta): JsonResponse
     {
         $this->garantirGestor($request);
+        $this->garantirMesmoSetor($request, $conta);
 
         $this->contas->desativar($conta);
 
         return response()->json([
-            'data' => $this->contas->listar(),
+            'data' => $this->contas->listar($this->setor($request)),
             'meta' => ['message' => 'Acesso encerrado.'],
         ]);
     }

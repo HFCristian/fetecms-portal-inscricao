@@ -16,6 +16,13 @@ export const exportarPreviaCsv = (criterio) =>
 
 export const dispararMala = (payload) => http.post('/admin/mala-direta', payload).then((r) => r.data.data);
 
+// Conferência antes do disparo: a mesma mensagem, só para os endereços
+// informados. Passa pela fila igual ao disparo — é o que denuncia um worker
+// desatualizado, que já entregou comunicado sem formatação.
+// `payload`: { assunto, corpo, formato, imagens, anexos, destinatarios }
+export const enviarTesteMala = (payload) =>
+    http.post('/admin/mala-direta/teste', payload).then((r) => r.data.data);
+
 // Imagens do corpo e anexos: sobem antes do disparo e ficam soltos até ele.
 // `tipo` é 'imagem' ou 'anexo'; os limites de tamanho valem por arquivo.
 export const subirArquivoMala = (arquivo, tipo) => {

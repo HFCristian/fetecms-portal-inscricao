@@ -97,6 +97,11 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     mais avaliou (só entra quem já concluiu ao menos uma; empate divide a posição). Na mesma
     tela ele **troca a própria área/subárea — só enquanto o período de avaliação não começou**
     (`Edicao::avaliacaoLiberada()`), porque depois a distribuição já foi feita em cima dela.
+  - Ao **iniciar** uma avaliação o sistema confere se o projeto ainda precisa dela: contando as
+    **concluídas + em andamento**, se ele já alcançou o **mínimo da categoria**, o avaliador é
+    avisado de que outro chegou antes, o projeto **sai da lista dele** e outro entra no lugar
+    (409 `PROJETO_JA_COBERTO`). É o que faz valer a pena designar mais gente do que o necessário.
+    A **designação manual do admin** passa por cima dessa trava.
   - Cada projeto passa pelo **mínimo de avaliadores definido pelo admin** (padrão 3), com *match* por
     **subárea** (preferencial), **área** ou **área correlata** — o grupo de áreas irmãs configurado em
     Parametrização → Áreas. Concluída uma avaliação, o avaliador **recebe outro projeto na hora**, e
@@ -189,7 +194,13 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     admin passa por cima**. O **piso da fila do avaliador** (`edicoes.piso_fila_avaliador`, padrão 6)
     é a rede dessa regra: ela continua escolhendo quem entra primeiro, e **só quando deixa alguém
     abaixo do piso** uma segunda passada completa a fila **ignorando-a** — vale na distribuição, na
-    reposição ao concluir e no botão *Sortear outros projetos*; em branco, não há piso. Na mesma
+    reposição ao concluir e no botão *Sortear outros projetos*; em branco, não há piso. As
+    **designações por projeto** (`edicoes.designacoes_por_projeto`, e o campo *Designações* de cada
+    categoria) dizem quantos avaliadores a distribuição coloca em cada projeto: pode ser **mais que
+    o mínimo de avaliações**, porque designar só o necessário deixa o projeto devendo quando alguém
+    não abre a avaliação. Em branco segue o mínimo (o comportamento histórico) e nunca passa do
+    **máximo por projeto**. Quem chega depois de o projeto reunir as avaliações da categoria é
+    avisado e trocado no momento de iniciar. Na mesma
     seção ficam **Distribuir avaliações** (completa o que falta, idempotente) e **Redistribuir
     avaliações** (devolve ao bolo tudo que foi apenas designado e sorteia de novo — o que está **em
     avaliação**, o concluído e o designado à mão não se mexem). As duas vão para a **fila** e a tela
@@ -274,6 +285,23 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     qualquer escopo. Vencido o prazo, ela é **desativada, não apagada** — reativar é informar um
     prazo novo, sem recadastrar nada; a varredura roda ao listar e no login. Uma conta temporária
     **não administra outras contas temporárias**. `ContaTemporariaService`.
+  - **Almoxarifado** (`/admin/almoxarifado`): o balcão de guarda da feira. A equipe chega com
+    maquete, ferramenta e mochila e precisa de onde deixar isso enquanto circula pelo evento.
+    A aba é uma **aba do RBAC** como as outras (escopo *Almoxarifado*), só abre dentro do
+    **período do evento** — fora dele fica em leitura — e atende apenas os **finalistas da lista
+    vigente**; o **modo demo** ignora as datas, usa a lista de demonstração e mantém os registros
+    do ensaio separados dos de verdade. Guardar é um **assistente de quatro passos**: projeto →
+    quem está deixando (sempre alguém do projeto) → os itens, **um por linha** → uma tela de
+    **conferência** com tudo e o horário, para o admin confirmar com a pessoa antes de finalizar
+    (cada bloco tem *Alterar*). Os registros ficam numa **tabela** — projeto, quem deixou,
+    quantidade de itens, data, e quem retirou e quando —, com quatro ações por linha:
+    **Retirada completa** (tudo o que ainda está guardado), **Retirada parcial** (só os itens
+    marcados; o resto sai depois, com outro responsável e outro horário), **Editar** e
+    **Excluir**, as duas últimas com **justificativa obrigatória**. Tudo entra em **Registros →
+    Almoxarifado**. A aba tem a sua própria seção de **Contas temporárias**
+    (`/admin/almoxarifado/contas`), independente da do credenciamento: cada setor cadastra e
+    renova só as suas, e a conta criada abre somente aquela aba (`contas_temporarias.setor`).
+    `AlmoxarifadoService`.
   - **Parametrização → Credenciamento** (`/admin/parametrizacao/credenciamento`): os **itens
     entregues** aos finalistas (`edicoes.itens_credenciamento`) e a **lista de documentos** exigida
     de cada papel (`documentos_credenciamento`, catálogo do portal). Documento já conferido em algum
@@ -293,10 +321,12 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     (não há WebSocket no projeto). **Privacidade**: guarda-se a última posição e o **trajeto vivo**;
     desligar o localizador — à mão ou pelo vencimento do prazo — **apaga o trajeto**.
     `ComiteTransporteService`, `localizacoes_comite` + `localizacao_comite_pontos`.
-  - **Registros** tem seis seções: **Inscrições**, **Avaliação Online**, **Lista final**
+  - **Registros** tem sete seções: **Inscrições**, **Avaliação Online**, **Lista final**
     (`/admin/registros/lista-final` — publicação da lista oficial e cada projeto incluído ou
     retirado, com a justificativa), **Credenciamento** (`/admin/registros/credenciamento` — quem
-    credenciou cada finalista, quando e o que ficou ausente), **Projetos**
+    credenciou cada finalista, quando e o que ficou ausente), **Almoxarifado**
+    (`/admin/registros/almoxarifado` — o material que entrou, o que saiu e para quem, e as
+    correções e exclusões de registro), **Projetos**
     (`/admin/registros/projetos`) — as correções do admin e os aceites do orientador, cada um com a
     justificativa — e **Rascunhos** (`/admin/registros/rascunhos`), com o que o admin mexeu numa
     inscrição alheia antes de submetê-la por ela.
@@ -539,7 +569,110 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 99 | Avaliador: busca na aba "Avaliados" | ✅ sim | ❌ não (manual do Pedro) | 23 |
 | 100 | Avaliador: editar o parecer final da avaliação enviada, com justificativa | ✅ sim | ❌ não (manual do Pedro) | 23 |
 | 101 | Avaliadores Online: botão de áreas abre a linha; demo vira só o frasco | ✅ sim | ❌ não (manual do Pedro) | 24 |
+| 102 | E-mails: formatação à prova de worker desatualizado + envio de teste da mala direta | ✅ sim | ❌ não (manual do Pedro) | 25 |
+| 103 | Credenciamento: presença por pessoa e retirada de kit por responsável | ✅ sim | ❌ não (manual do Pedro) | 25 |
+| 104 | Nova aba **Almoxarifado**: escopo, janela do evento, assistente de guarda e tabela | ✅ sim | ❌ não (manual do Pedro) | 26 |
+| 105 | Almoxarifado: retiradas, correção, exclusão, Registros e contas temporárias | ✅ sim | ❌ não (manual do Pedro) | 26 |
+| 106 | Designações por projeto: alvo próprio da distribuição, geral e por categoria | ✅ sim | ❌ não (manual do Pedro) | 27 |
+| 107 | Iniciar avaliação: trava do projeto já coberto, com troca automática | ✅ sim | ❌ não (manual do Pedro) | 27 |
 
+> **Sprints 106–107 (mesma branch):** a distribuição passou a designar mais gente do que o
+> necessário, e a disputa é resolvida na hora de iniciar.
+> (a) **Sprint 106** — a distribuição em massa parava no **mínimo por projeto** (padrão 3): o alvo
+> dela era a cobertura que a feira precisa. Designar exatamente o necessário, porém, deixa o
+> resultado nas mãos de quem não abre a avaliação — 3 designados, 1 avaliação feita. Agora o alvo é
+> **número próprio**, definido no **Algoritmo de distribuição**: um valor geral da edição
+> (`edicoes.designacoes_por_projeto`) e, por categoria, um campo a mais na tabela de regras
+> (`distribuicao_regras[cat].designacoes`, a tela onde ele é editado). Em branco, os dois seguem o
+> mínimo por projeto — o comportamento de sempre, então nada muda para quem não configurar. Quem
+> resolve o número que vale é o `LimitesAvaliacao::designacoesPorProjeto()`, que o prende entre o
+> **mínimo** (abaixo dele o projeto nasceria sub-coberto de propósito) e o **máximo por projeto** da
+> categoria, que continua sendo o teto duro de quem enxerga o projeto. Dois efeitos colaterais
+> tratados: o relatório de **sub-cobertura** passou a olhar só o mínimo — não alcançar o alvo de
+> designações, com a cobertura fechada, é sobra que não coube, não falta —, e o "precisa" da
+> **fila do avaliador** passou a perseguir o mesmo alvo, para a fila e a distribuição em massa não
+> quererem números diferentes.
+> (b) **Sprint 107** — com sobra de designados, o `iniciar` virou o ponto onde a disputa se resolve.
+> Antes de abrir, o servidor conta as avaliações do projeto **concluídas + em andamento** (quem já
+> abriu está ocupando uma vaga; contar só as concluídas deixaria três pessoas trabalhando no mesmo
+> projeto para nada) e compara com o **mínimo da categoria**. Batido o número, a designação é
+> **devolvida ao bolo**, a **fila é reposta na hora** e o avaliador recebe o aviso de que outro
+> chegou antes — a lista volta já sem o projeto e com o substituto no lugar. A resposta é um **409**
+> com `code: PROJETO_JA_COBERTO` (`ProjetoJaCobertoException`), e não um 422: não há nada de errado
+> no que ele mandou nem o que corrigir e tentar de novo. A **designação manual do admin** passa por
+> cima da trava, como passa por cima das demais regras — quem a fez sabe que está pondo mais um
+> avaliador ali. O projeto **não** some da lista sozinho antes do clique: sumir sem explicação é
+> pior do que o aviso.
+> Back **836/836**, front **410/410**, Pint limpo, build OK.
+>
+> **Sprints 104–105 (mesma branch):** nasceu a aba **Almoxarifado**, o balcão de guarda da feira.
+> (a) **Sprint 104** — a aba, o escopo e o caminho de entrada. `AbaAdmin::Almoxarifado` é uma aba
+> como as outras, então quem abre é quem tem um escopo que a lista — e o admin **sem escopo nenhum
+> continua com acesso total**, como em todas as demais: fazer desta a exceção trancaria para fora a
+> primeira pessoa a configurar os escopos. Ela só opera dentro da **janela do evento**
+> (`edicoes.evento_de`/`evento_ate`), a mesma do credenciamento, e fora dela abre em leitura; a
+> conta demo tem o *modo de teste*, que ignora as datas, usa a **lista final demo** e **isola os
+> registros do ensaio** (`almoxarifado_guardas.demo`) — treinar aqui nunca devolve o material de um
+> finalista de verdade. Quem pode deixar material são os **finalistas da lista vigente**. O
+> assistente tem **quatro passos** na ordem da conversa no balcão: projeto → quem está deixando
+> (sempre alguém do projeto) → os itens, **um por linha** → a **conferência**, que repete tudo com
+> data e hora para o admin ler em voz alta antes de gravar; cada bloco do resumo tem um *Alterar*
+> que volta ao passo dele sem perder o resto. O item é a unidade porque é o item que é retirado:
+> guardar só uma contagem impediria a retirada parcial de dizer o que saiu.
+> (b) **Sprint 105** — o que acontece depois. **Retirada completa** leva tudo o que ainda está
+> guardado; **parcial**, só o que for marcado — e as duas gravam **quem levou e quando**, escolhido
+> de novo a cada retirada, porque quase nunca é quem deixou. **Editar** troca o responsável e a
+> composição dos itens com **justificativa obrigatória**; item **já retirado** não é apagado nem
+> renomeado, que seria reescrever uma entrega concluída. **Excluir** é **soft delete** com
+> justificativa: a linha sai da tela e a trilha continua de pé. As quatro ações entram na seção nova
+> **Registros → Almoxarifado**. E o balcão ganhou **contas temporárias próprias**: a coluna
+> `contas_temporarias.setor` diz a que aba a conta pertence, `User::abasPermitidas()` devolve
+> exatamente essa aba, e cada uma cadastra, renova e encerra **só as suas** — a conta do
+> credenciamento não abre o almoxarifado e vice-versa. As contas que já existem nascem
+> `credenciamento` e não mudam de comportamento. A tela é a mesma, parametrizada pelo setor.
+> Back **823/823**, front **406/406**, Pint limpo, build OK.
+>
+> **Sprints 102–103 (branch `feat/emails-credenciamento-almoxarifado`, saída da `origin/main` @ `732656a`):**
+> (a) **Sprint 102** — o comunicado da mala direta chegou às caixas de entrada com as tags à
+> mostra (`<b>`, `<strong>`). A causa é a mesma da Sprint 93 — um `queue:work` com a classe do
+> Mailable **antiga** em memória renderizando a view **nova**, lida do disco a cada envio —, mas o
+> sintoma mudou: o remendo daquela vez fez a view não quebrar, e ela passou a cair no ramo de texto
+> puro, que **escapa** o corpo. Trocou-se um erro barulhento por um defeito silencioso. Agora
+> **nenhuma view depende das chaves do `with`**: o formato sai de `$mala->formato` (ou de
+> `$formato`, no transacional) e o corpo, da propriedade pública `$corpo` — as duas chegam sempre,
+> seja qual for a versão da classe carregada. As chaves do `with` viraram atalho (o callback que
+> embute as imagens por CID, o texto já convertido), e faltando qualquer uma o e-mail sai
+> **formatado assim mesmo**, no máximo sem imagem. O `MensagemTransacional` parou de sobrescrever
+> `corpo` no `with`, e o estilo do bloco do código de 6 dígitos virou `HtmlEmail::ESTILO_DESTAQUE`,
+> compartilhado entre o Mailable e a view. Os quatro caminhos de envio foram auditados: mala
+> direta, transacional (confirmação de cadastro, projeto submetido, convite de feedback) e o alerta
+> de conversas pendentes. Os testes que existiam só verificavam que o **texto** aparecia — passavam
+> com as tags escapadas; os novos verificam que `<strong>` chega **como marcação**.
+> Junto veio a **conferência antes do disparo**: a caixa *Enviar e-mail de teste para:* com os
+> endereços digitados na hora (até 10). O teste cria uma mala marcada `teste` e percorre **a mesma
+> fila** do disparo de verdade — um teste renderizado na hora diria que está tudo bem justamente no
+> caso que motivou o recurso. Ele **não consome o envio**: os arquivos são **copiados** para a mala
+> de teste (linha nova, mesmo arquivo em disco) em vez de vinculados, senão o disparo seguinte
+> encontraria imagens e anexos já tomados e sairia sem eles. A mala de teste fica fora da lista de
+> disparos, mas o relatório dela abre pelo id e diz o que aconteceu com cada endereço.
+> (b) **Sprint 103** — o balcão passou a registrar **quem apareceu** e **quem levou o kit de quem**
+> (`credenciamento_pessoas`). Marcar alguém como *Faltou* dispensa os documentos daquela pessoa —
+> não se confere o RG de quem não veio — e **não impede** credenciar o projeto: ele fica credenciado
+> *com pendências*, que a lista mostra, e quem chegar depois é conferido na mesma ficha. Marcar
+> ausente **apaga** o que já tinha sido conferido daquela pessoa, senão a ficha ficaria dizendo que
+> o documento de um ausente está presente. Os rótulos são *Compareceu/Faltou* de propósito:
+> *Presente/Ausente* já são os rótulos de cada documento no mesmo cartão. O **kit é por pessoa**,
+> mas sai no nome de **um responsável**, que precisa ser gente do projeto — um aluno leva o dele e o
+> de dois colegas —, e quem sobrou retira depois, com outro responsável e outro horário; por isso o
+> relógio e o nome de quem levou ficam em **cada linha**. Kit já retirado não muda de dono. Com o
+> credenciamento ainda em aberto a retirada sai junto da conclusão; já concluído, ela tem
+> **botão próprio** e **não passa pelo `podeAlterar()`** — ela só acrescenta, e uma conta temporária
+> de balcão precisa poder entregar no turno seguinte o kit que outro turno não entregou. Corrigir e
+> cancelar continuam restritos como na Sprint 97. Cada retirada vira um registro
+> (`credenciamento_kit_retirado`) com quem levou, de quem e quando; a ausência entra no registro do
+> próprio credenciamento.
+> Back **802/802**, front **396/396**, Pint limpo, build OK.
+>
 > **Sprints 93–94 (branch `feat/ajustes-distribuicao-designacoes`, saída da `origin/main` @ `385833b`):**
 > dois defeitos relatados em produção.
 > (a) **Sprint 93** — o disparo de **242 destinatários** falhou em **todos** eles com

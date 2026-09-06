@@ -14,23 +14,35 @@ use App\Models\Edicao;
  *   quantos projetos vê de uma vez na tela; o máximo é o teto de avaliações que
  *   ele pode acumular no total (em branco = sem teto, que é como a fila sempre
  *   funcionou). O bloqueio individual do admin continua valendo por cima.
- * - **por projeto**: o mínimo é o alvo da distribuição e a base das colunas de
- *   "faltantes"; o máximo é quantos avaliadores enxergam o projeto. Os dois
- *   podem ser definidos **por categoria** — o que ficar em branco segue o
- *   número geral.
+ * - **por projeto**: o mínimo é a cobertura que a feira precisa (a base das
+ *   colunas de "faltantes"); o máximo é quantos avaliadores enxergam o projeto.
+ *   Os dois podem ser definidos **por categoria** — o que ficar em branco segue
+ *   o número geral.
+ * - **designações por projeto** (Sprint 106): quantos avaliadores a distribuição
+ *   designa para cada projeto. Era o próprio mínimo, e virou número próprio —
+ *   definido no Algoritmo de distribuição — para dar para designar **mais gente
+ *   do que o necessário**: designar exatamente o mínimo deixa o resultado nas
+ *   mãos de quem não abre a avaliação. Em branco ele segue o mínimo, que é o
+ *   comportamento de sempre; e nunca passa do máximo da categoria, que continua
+ *   sendo o teto duro de quem enxerga o projeto.
  */
 final class LimitesAvaliacao
 {
     /** Teto que a tela aceita em qualquer um dos campos. */
     public const MAXIMO = 50;
 
-    /** @param  array<string, array{min:int|null, max:int|null}>  $porCategoria */
+    /**
+     * @param  array<string, array{min:int|null, max:int|null}>  $porCategoria
+     * @param  array<string, int|null>  $designacoesPorCategoria  categoria => designações (null segue o geral)
+     */
     public function __construct(
         private readonly int $minPorAvaliador,
         private readonly ?int $maxPorAvaliador,
         private readonly int $minPorProjeto,
         private readonly int $maxPorProjeto,
         private readonly array $porCategoria = [],
+        private readonly ?int $designacoesPorProjeto = null,
+        private readonly array $designacoesPorCategoria = [],
     ) {}
 
     public static function daEdicao(?Edicao $edicao): self
@@ -40,6 +52,15 @@ final class LimitesAvaliacao
 
         $maxAvaliador = $edicao?->avaliacoes_max_por_avaliador;
 
+        // O número por categoria vem das regras do Algoritmo de distribuição,
+        // que é a tela onde ele é editado.
+        $regras = RegrasDistribuicao::deArray($edicao?->distribuicao_regras);
+        $designacoesPorCategoria = [];
+
+        foreach (Categoria::cases() as $categoria) {
+            $designacoesPorCategoria[$categoria->value] = $regras->designacoesDe($categoria);
+        }
+
         return new self(
             minPorAvaliador: $minAvaliador,
             // Nunca abaixo do mínimo: um teto menor deixaria a fila impossível.
@@ -47,6 +68,8 @@ final class LimitesAvaliacao
             minPorProjeto: $minProjeto,
             maxPorProjeto: max($minProjeto, $edicao?->avaliacoes_max_por_projeto ?? Avaliacao::TETO_POR_PROJETO),
             porCategoria: self::normalizar($edicao?->avaliacoes_por_categoria),
+            designacoesPorProjeto: $edicao?->designacoes_por_projeto,
+            designacoesPorCategoria: $designacoesPorCategoria,
         );
     }
 
@@ -101,6 +124,42 @@ final class LimitesAvaliacao
     }
 
     /**
+     * Quantos avaliadores a **distribuição** designa para um projeto desta
+     * categoria.
+     *
+     * A ordem é: o número da categoria → o geral da edição → o mínimo por
+     * projeto (o comportamento histórico). O resultado é preso entre o mínimo e
+     * o máximo da categoria: abaixo do mínimo o projeto nasceria sub-coberto de
+     * propósito, e acima do máximo passaria do teto de quem pode enxergá-lo.
+     */
+    public function designacoesPorProjeto(?Categoria $categoria = null): int
+    {
+        $alvo = $this->designacoesPorCategoria[$categoria?->value]
+            ?? $this->designacoesPorProjeto
+            ?? $this->minPorProjeto($categoria);
+
+        return max($this->minPorProjeto($categoria), min($alvo, $this->maxPorProjeto($categoria)));
+    }
+
+    /** O número geral gravado — `null` quando ninguém configurou. */
+    public function designacoesConfiguradas(): ?int
+    {
+        return $this->designacoesPorProjeto;
+    }
+
+    /** A distribuição designa mais gente do que a cobertura exige? */
+    public function designaAlemDoMinimo(): bool
+    {
+        foreach (Categoria::cases() as $categoria) {
+            if ($this->designacoesPorProjeto($categoria) > $this->minPorProjeto($categoria)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * As três categorias com o que está gravado (null = segue o geral) e o
      * número que vale hoje, para a tela mostrar o efeito.
      *
@@ -115,6 +174,8 @@ final class LimitesAvaliacao
             'max' => $this->porCategoria[$c->value]['max'],
             'min_efetivo' => $this->minPorProjeto($c),
             'max_efetivo' => $this->maxPorProjeto($c),
+            'designacoes' => $this->designacoesPorCategoria[$c->value] ?? null,
+            'designacoes_efetivo' => $this->designacoesPorProjeto($c),
         ], Categoria::cases());
     }
 

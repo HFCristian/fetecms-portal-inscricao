@@ -26,6 +26,17 @@ export const credenciarProjeto = (projetoId, payload, teste = false) =>
         .then((r) => r.data);
 
 /**
+ * Registra a retirada de kits depois do credenciamento — o colega que faltou
+ * na primeira visita aparece mais tarde e leva o dele.
+ *
+ * `payload`: { responsavel_tipo, responsavel_id, pessoas: [{ pessoa_tipo, pessoa_id }] }.
+ * Só acrescenta, então vale também para quem não credenciou o projeto.
+ */
+export const registrarRetiradaKit = (projetoId, payload, teste = false) =>
+    http.post(`/admin/credenciamento/projetos/${projetoId}/kits`, payload, { params: comTeste({}, teste) })
+        .then((r) => r.data);
+
+/**
  * Cancela o credenciamento: a conferência é apagada e o projeto volta para a
  * fila de *Credenciar*. Mexer no credenciamento de outra conta exige admin
  * permanente — quem barra é o servidor.
@@ -55,20 +66,3 @@ export const atualizarDocumentoCredenciamento = (id, payload) =>
 
 export const excluirDocumentoCredenciamento = (id) =>
     http.delete(`/admin/credenciamento/documentos/${id}`).then((r) => r.data.data);
-
-// --- Credenciamento → Contas temporárias ---
-// Contas de prazo curto para quem atende o balcão sem ser da organização. Toda
-// ação devolve a lista inteira: criar/renovar/desativar pode vencer outras
-// contas na mesma passada.
-
-export const getContasTemporarias = () =>
-    http.get('/admin/credenciamento/contas').then((r) => r.data.data);
-
-export const criarContaTemporaria = (payload) =>
-    http.post('/admin/credenciamento/contas', payload).then((r) => r.data);
-
-export const renovarContaTemporaria = (id, prazo) =>
-    http.patch(`/admin/credenciamento/contas/${id}/renovar`, prazo).then((r) => r.data);
-
-export const desativarContaTemporaria = (id) =>
-    http.patch(`/admin/credenciamento/contas/${id}/desativar`).then((r) => r.data);
