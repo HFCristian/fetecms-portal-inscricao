@@ -163,6 +163,8 @@ class CredenciamentoController extends Controller
             $dados['observacao'] ?? null,
             $request->boolean('teste'),
             $dados['iniciado_em'] ?? null,
+            $dados['pessoas'] ?? [],
+            $dados['kits'] ?? null,
         );
 
         return response()->json([
@@ -197,6 +199,37 @@ class CredenciamentoController extends Controller
         return response()->json([
             'data' => $this->credenciamento->ficha($projeto->fresh(), $request->user()),
             'meta' => ['message' => 'Atendimento assumido. Você pode continuar a conferência.'],
+        ]);
+    }
+
+    /**
+     * Registra a retirada de kits depois do credenciamento: o colega que faltou
+     * no primeiro atendimento aparece mais tarde e leva o dele.
+     *
+     * Só acrescenta — por isso não exige a conta que credenciou, ao contrário
+     * de corrigir e de cancelar.
+     */
+    public function kits(Request $request, Projeto $projeto): JsonResponse
+    {
+        abort_unless(
+            $this->credenciamento->ehFinalista($projeto, $request->user(), $request->boolean('teste')),
+            404,
+            'Este projeto não está na lista final vigente.',
+        );
+
+        $dados = $request->validate([
+            'responsavel_tipo' => ['required', Rule::in(TipoPessoaCredenciamento::valores())],
+            'responsavel_id' => ['nullable', 'integer'],
+            'pessoas' => ['required', 'array', 'min:1'],
+            'pessoas.*.pessoa_tipo' => ['required', Rule::in(TipoPessoaCredenciamento::valores())],
+            'pessoas.*.pessoa_id' => ['nullable', 'integer'],
+        ]);
+
+        $this->credenciamento->retirarKits($projeto, $request->user(), $dados, $request->boolean('teste'));
+
+        return response()->json([
+            'data' => $this->credenciamento->ficha($projeto->fresh(), $request->user()),
+            'meta' => ['message' => 'Retirada de kit registrada.'],
         ]);
     }
 
