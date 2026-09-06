@@ -54,8 +54,16 @@ jobs:
           cp .env.example .env
           php artisan key:generate
 
+      # O ambiente vai para o log: quando um job morre no meio de um teste, a
+      # primeira pergunta é sempre qual PHP e qual memory_limit rodaram.
+      - name: Ambiente do PHP
+        run: php -v && php -r 'printf("memory_limit=%s\n", ini_get("memory_limit"));'
+
+      # `memory_limit=-1` tira uma variável do caminho: a suíte inteira cabe em
+      # ~64 MB, então um limite baixo do runner nunca deve ser a explicação de
+      # um "Premature end of PHP process".
       - name: Testes (PHPUnit, SQLite :memory:)
-        run: php artisan test
+        run: php -d memory_limit=-1 artisan test
 
   frontend:
     name: Frontend — Vitest + build

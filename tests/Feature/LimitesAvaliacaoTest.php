@@ -103,10 +103,10 @@ class LimitesAvaliacaoTest extends TestCase
         ])->assertStatus(422)->assertJsonValidationErrors('categorias.fetec_jr.max');
     }
 
-    public function test_distribuicao_usa_o_minimo_da_categoria_do_projeto(): void
+    public function test_distribuicao_usa_o_maximo_da_categoria_como_alvo(): void
     {
         $area = Area::create(['nome' => 'Área A']);
-        foreach (range(1, 4) as $i) {
+        foreach (range(1, 5) as $i) {
             $this->avaliador($area->id);
         }
 
@@ -121,8 +121,10 @@ class LimitesAvaliacaoTest extends TestCase
 
         app(DistribuicaoService::class)->distribuir();
 
+        // Sem "designações por projeto" configurado, o alvo é o máximo de
+        // avaliações da categoria: 1 na Jr e o geral (5) na FETECMS.
         $this->assertSame(1, Avaliacao::where('projeto_id', $jr->id)->count());
-        $this->assertSame(3, Avaliacao::where('projeto_id', $ms->id)->count());
+        $this->assertSame(5, Avaliacao::where('projeto_id', $ms->id)->count());
     }
 
     public function test_teto_por_categoria_limita_quem_enxerga_o_projeto(): void

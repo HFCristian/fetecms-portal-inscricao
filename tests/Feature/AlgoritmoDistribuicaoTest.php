@@ -429,19 +429,27 @@ class AlgoritmoDistribuicaoTest extends TestCase
     // Sprint 106 — designações por projeto                                //
     // ------------------------------------------------------------------ //
 
-    public function test_sem_configurar_a_distribuicao_continua_parando_no_minimo(): void
+    public function test_sem_configurar_o_alvo_segue_o_maximo_de_avaliacoes(): void
     {
         $area = Area::first();
         $projeto = $this->projeto($area->id, Categoria::Fetecms);
         // Gente de sobra: o que limita é o alvo, não a oferta.
-        for ($i = 0; $i < 6; $i++) {
+        for ($i = 0; $i < 8; $i++) {
             $this->avaliador($area->id);
         }
 
         app(DistribuicaoService::class)->distribuir();
 
-        // O padrão da edição é 3, e é onde ele para.
-        $this->assertSame(3, Avaliacao::where('projeto_id', $projeto->id)->count());
+        // Em branco, "designações por projeto" segue o máximo de avaliações
+        // (padrão 5) — era ele que dizia quantos avaliadores viam o projeto.
+        $this->assertSame(5, Avaliacao::where('projeto_id', $projeto->id)->count());
+
+        // E acompanha o máximo quando o admin o muda.
+        Avaliacao::query()->delete();
+        Edicao::atual()->update(['avaliacoes_max_por_projeto' => 7]);
+        app(DistribuicaoService::class)->distribuir();
+
+        $this->assertSame(7, Avaliacao::where('projeto_id', $projeto->id)->count());
     }
 
     public function test_designacoes_por_projeto_faz_a_distribuicao_ir_alem_do_minimo(): void
@@ -467,7 +475,7 @@ class AlgoritmoDistribuicaoTest extends TestCase
         $this->assertSame('5 avaliador(es)', $registro->detalhes['para']);
     }
 
-    public function test_o_maximo_por_projeto_continua_sendo_o_teto_duro(): void
+    public function test_designacoes_passam_do_maximo_de_avaliacoes_de_proposito(): void
     {
         $area = Area::first();
         $projeto = $this->projeto($area->id, Categoria::Fetecms);
@@ -475,7 +483,9 @@ class AlgoritmoDistribuicaoTest extends TestCase
             $this->avaliador($area->id);
         }
 
-        // Pedir 8 designações com teto de 4 entrega 4.
+        // 8 avaliadores com o projeto na lista para um projeto que aceita 4
+        // avaliações: a sobra é o ponto: quem não abrir a avaliação não trava o
+        // projeto, e quem chegar depois das 4 é avisado e trocado.
         Edicao::atual()->update([
             'designacoes_por_projeto' => 8,
             'avaliacoes_max_por_projeto' => 4,
@@ -483,7 +493,24 @@ class AlgoritmoDistribuicaoTest extends TestCase
 
         app(DistribuicaoService::class)->distribuir();
 
-        $this->assertSame(4, Avaliacao::where('projeto_id', $projeto->id)->count());
+        $this->assertSame(8, Avaliacao::where('projeto_id', $projeto->id)->count());
+    }
+
+    public function test_designacoes_nunca_ficam_abaixo_do_minimo_de_avaliacoes(): void
+    {
+        $area = Area::first();
+        $projeto = $this->projeto($area->id, Categoria::Fetecms);
+        for ($i = 0; $i < 6; $i++) {
+            $this->avaliador($area->id);
+        }
+
+        // Designar menos avaliadores do que a cobertura exige a tornaria
+        // impossível: o mínimo (3) vence.
+        Edicao::atual()->update(['designacoes_por_projeto' => 1]);
+
+        app(DistribuicaoService::class)->distribuir();
+
+        $this->assertSame(3, Avaliacao::where('projeto_id', $projeto->id)->count());
     }
 
     public function test_designacoes_podem_ser_definidas_por_categoria(): void
@@ -507,24 +534,8 @@ class AlgoritmoDistribuicaoTest extends TestCase
         app(DistribuicaoService::class)->distribuir();
 
         $this->assertSame(5, Avaliacao::where('projeto_id', $fetec->id)->count());
-        // A categoria sem número próprio segue o geral, que segue o mínimo.
-        $this->assertSame(3, Avaliacao::where('projeto_id', $jr->id)->count());
-    }
-
-    public function test_designacoes_abaixo_do_minimo_nao_deixam_o_projeto_sub_coberto(): void
-    {
-        $area = Area::first();
-        $projeto = $this->projeto($area->id, Categoria::Fetecms);
-        for ($i = 0; $i < 6; $i++) {
-            $this->avaliador($area->id);
-        }
-
-        // Pedir menos que o mínimo é contraditório: a cobertura ganha.
-        Edicao::atual()->update(['designacoes_por_projeto' => 1]);
-
-        app(DistribuicaoService::class)->distribuir();
-
-        $this->assertSame(3, Avaliacao::where('projeto_id', $projeto->id)->count());
+        // A categoria sem número próprio segue o geral, que segue o máximo (5).
+        $this->assertSame(5, Avaliacao::where('projeto_id', $jr->id)->count());
     }
 
     public function test_projeto_com_cobertura_fechada_nao_entra_como_sub_coberto(): void

@@ -51,9 +51,9 @@ vi.mock('../lib/admin.js', () => ({
         designacoes_por_projeto: null,
         designacoes_maximo: 50,
         designacoes_categorias: [
-            { value: 'fetec_jr', label: 'FETEC Jr', min_efetivo: 3, designacoes: null, designacoes_efetivo: 3 },
-            { value: 'fetecms', label: 'FETECMS', min_efetivo: 3, designacoes: null, designacoes_efetivo: 3 },
-            { value: 'fetecms_fundect', label: 'FETECMS FUNDECT', min_efetivo: 3, designacoes: null, designacoes_efetivo: 3 },
+            { value: 'fetec_jr', label: 'FETEC Jr', min_efetivo: 3, max_efetivo: 5, designacoes: null, designacoes_efetivo: 5 },
+            { value: 'fetecms', label: 'FETECMS', min_efetivo: 3, max_efetivo: 5, designacoes: null, designacoes_efetivo: 5 },
+            { value: 'fetecms_fundect', label: 'FETECMS FUNDECT', min_efetivo: 3, max_efetivo: 5, designacoes: null, designacoes_efetivo: 5 },
         ],
     })),
     definirRegrasDistribuicao: vi.fn(),
@@ -225,7 +225,7 @@ describe('AvaliacaoDistribuicao — piso da fila', () => {
                 piso_fila: 6, piso_maximo: 50,
                 designacoes_por_projeto: 5, designacoes_maximo: 50,
                 designacoes_categorias: [
-                    { value: 'fetecms', label: 'FETECMS', min_efetivo: 3, designacoes: null, designacoes_efetivo: 5 },
+                    { value: 'fetecms', label: 'FETECMS', min_efetivo: 3, max_efetivo: 3, designacoes: null, designacoes_efetivo: 5 },
                 ],
             },
             meta: { message: 'Designações por projeto atualizadas.' },
@@ -240,8 +240,9 @@ describe('AvaliacaoDistribuicao — piso da fila', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Salvar designações' }));
 
         await waitFor(() => expect(definirDesignacoesPorProjeto).toHaveBeenCalledWith(5));
-        // A tela passa a explicar que sobra designação além do necessário.
-        expect(await screen.findByText(/as demais são sobra/)).toBeInTheDocument();
+        // A tela passa a explicar quantos ficam de reserva além do que o
+        // projeto aceita.
+        expect(await screen.findByText(/2 ficam de reserva/)).toBeInTheDocument();
     });
 
     it('voltar ao mínimo manda null', async () => {
@@ -257,7 +258,7 @@ describe('AvaliacaoDistribuicao — piso da fila', () => {
         await screen.findByLabelText('Designações por projeto');
 
         // Com o valor em branco no servidor não há o que remover.
-        expect(screen.queryByRole('button', { name: 'Voltar ao mínimo' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Voltar ao máximo' })).not.toBeInTheDocument();
 
         fireEvent.change(screen.getByLabelText('Designações por projeto'), { target: { value: '4' } });
         fireEvent.click(screen.getByRole('button', { name: 'Salvar designações' }));

@@ -179,7 +179,10 @@ class FilaAvaliadorService
             ->where('status', ProjetoStatus::Submetido->value)
             ->whereIn('area_id', $areas)
             ->get(['id', 'categoria'])
-            ->sum(fn (Projeto $p) => $limites->maxPorProjeto($p->categoria));
+            // A capacidade da área é quantas VAGAS DE LISTA ela oferece, e isso
+            // é o número de designações por projeto — não quantas avaliações
+            // cada projeto pode receber.
+            ->sum(fn (Projeto $p) => $limites->designacoesPorProjeto($p->categoria));
 
         // Quem divide esse bolo: todo avaliador ativo e não-demo que atende
         // alguma dessas áreas, pela própria classificação ou por liberação do
@@ -270,7 +273,7 @@ class FilaAvaliadorService
                 'avaliacoes as total_count',
             ])
             ->get()
-            ->filter(fn (Projeto $p) => $p->total_count < $limites->maxPorProjeto($p->categoria)
+            ->filter(fn (Projeto $p) => $p->total_count < $limites->designacoesPorProjeto($p->categoria)
                 && ($ignorarRegras || $regras->aceita($p->categoria, $p->concluidas_count)));
 
         if ($candidatos->isEmpty()) {

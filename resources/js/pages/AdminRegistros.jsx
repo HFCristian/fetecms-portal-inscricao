@@ -50,6 +50,7 @@ const ICONE = {
     lista_final_projeto_removido: 'playlist_remove',
     credenciamento_realizado: 'how_to_reg',
     credenciamento_kit_retirado: 'local_mall',
+    credenciamento_rascunho_assumido: 'swap_horiz',
     almoxarifado_guarda: 'inventory_2',
     almoxarifado_retirada: 'outbox',
     almoxarifado_edicao: 'edit_note',
@@ -96,7 +97,8 @@ const SECOES = {
     credenciamento: {
         titulo: 'Registros · Credenciamento',
         descricao: 'O balcão do evento: quem credenciou cada projeto, quando, quem faltou, o que '
-            + 'ficou ausente na conferência dos documentos e cada retirada de kit.',
+            + 'ficou ausente na conferência dos documentos, cada retirada de kit e os atendimentos '
+            + 'em rascunho que trocaram de mãos.',
         placeholder: 'Buscar por título do projeto ou quem credenciou…',
         vazio: 'Nenhum credenciamento registrado por enquanto.',
     },

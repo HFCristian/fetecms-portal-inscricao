@@ -94,9 +94,15 @@ class MinimosAvaliacaoTest extends TestCase
         $this->patchJson('/api/v1/admin/avaliacao/minimos', ['min_por_projeto' => 2])->assertForbidden();
     }
 
-    public function test_distribuicao_usa_o_minimo_por_projeto_como_alvo(): void
+    public function test_o_alvo_da_distribuicao_e_o_das_designacoes_nao_o_minimo(): void
     {
-        Edicao::atual()->update(['avaliacoes_min_por_projeto' => 2]);
+        // O mínimo é a cobertura que a feira precisa; quantos avaliadores ficam
+        // com o projeto na lista é outro número, e é ele que a distribuição
+        // persegue. Mexer só no mínimo não muda o tamanho da distribuição.
+        Edicao::atual()->update([
+            'avaliacoes_min_por_projeto' => 2,
+            'designacoes_por_projeto' => 4,
+        ]);
 
         $area = Area::create(['nome' => 'Área A']);
         foreach (range(1, 4) as $i) {
@@ -106,8 +112,9 @@ class MinimosAvaliacaoTest extends TestCase
 
         $resultado = app(DistribuicaoService::class)->distribuir();
 
-        $this->assertSame(2, $resultado['designadas_criadas']);
-        $this->assertSame(2, Avaliacao::where('projeto_id', $projeto->id)->count());
+        $this->assertSame(4, $resultado['designadas_criadas']);
+        $this->assertSame(4, Avaliacao::where('projeto_id', $projeto->id)->count());
+        // Cobertura de sobra: nada a relatar.
         $this->assertSame([], $resultado['sub_cobertos']);
     }
 

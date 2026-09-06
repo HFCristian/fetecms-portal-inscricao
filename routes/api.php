@@ -289,6 +289,8 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::get('/finalistas', [CredenciamentoController::class, 'index']);
                 Route::get('/projetos/{projeto}', [CredenciamentoController::class, 'show']);
                 Route::post('/projetos/{projeto}', [CredenciamentoController::class, 'store']);
+                Route::post('/projetos/{projeto}/rascunho', [CredenciamentoController::class, 'rascunho']);
+                Route::post('/projetos/{projeto}/assumir', [CredenciamentoController::class, 'assumir']);
                 Route::post('/projetos/{projeto}/kits', [CredenciamentoController::class, 'kits']);
                 Route::post('/projetos/{projeto}/cancelar', [CredenciamentoController::class, 'cancelar']);
             });

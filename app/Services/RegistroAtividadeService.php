@@ -253,6 +253,31 @@ class RegistroAtividadeService
     }
 
     /**
+     * Um administrador continuou o atendimento que outra pessoa deixou em
+     * rascunho. A justificativa só existe quando o dono anterior era um admin
+     * permanente — assumir o rascunho de uma conta temporária é rotina de troca
+     * de turno.
+     */
+    public function rascunhoCredenciamentoAssumido(
+        Projeto $projeto,
+        User $admin,
+        string $anterior,
+        ?string $justificativa = null,
+    ): RegistroAtividade {
+        return $this->registrarNoProjeto(
+            TipoRegistro::CredenciamentoRascunhoAssumido,
+            $projeto,
+            $admin,
+            array_filter([
+                'campo' => 'Rascunho do credenciamento',
+                'de' => $anterior,
+                'para' => $admin->name,
+                'justificativa' => $justificativa,
+            ], fn ($v) => $v !== null),
+        );
+    }
+
+    /**
      * Credenciamento cancelado: o projeto volta para a fila do balcão. Guarda
      * quem tinha credenciado, quando, e a justificativa de quem desfez.
      */

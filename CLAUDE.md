@@ -97,11 +97,11 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     mais avaliou (só entra quem já concluiu ao menos uma; empate divide a posição). Na mesma
     tela ele **troca a própria área/subárea — só enquanto o período de avaliação não começou**
     (`Edicao::avaliacaoLiberada()`), porque depois a distribuição já foi feita em cima dela.
-  - Ao **iniciar** uma avaliação o sistema confere se o projeto ainda precisa dela: contando as
-    **concluídas + em andamento**, se ele já alcançou o **mínimo da categoria**, o avaliador é
-    avisado de que outro chegou antes, o projeto **sai da lista dele** e outro entra no lugar
-    (409 `PROJETO_JA_COBERTO`). É o que faz valer a pena designar mais gente do que o necessário.
-    A **designação manual do admin** passa por cima dessa trava.
+  - Ao **iniciar** uma avaliação o sistema confere se o projeto ainda cabe mais uma: contando as
+    **concluídas + em andamento**, se ele já atingiu o **máximo de avaliações da categoria**, o
+    avaliador é avisado de que outro chegou antes, o projeto **sai da lista dele** e outro entra no
+    lugar (409 `PROJETO_JA_COBERTO`). É o que faz valer a pena designar mais avaliadores do que o
+    projeto aceita. A **designação manual do admin** passa por cima dessa trava.
   - Cada projeto passa pelo **mínimo de avaliadores definido pelo admin** (padrão 3), com *match* por
     **subárea** (preferencial), **área** ou **área correlata** — o grupo de áreas irmãs configurado em
     Parametrização → Áreas. Concluída uma avaliação, o avaliador **recebe outro projeto na hora**, e
@@ -196,11 +196,12 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     abaixo do piso** uma segunda passada completa a fila **ignorando-a** — vale na distribuição, na
     reposição ao concluir e no botão *Sortear outros projetos*; em branco, não há piso. As
     **designações por projeto** (`edicoes.designacoes_por_projeto`, e o campo *Designações* de cada
-    categoria) dizem quantos avaliadores a distribuição coloca em cada projeto: pode ser **mais que
-    o mínimo de avaliações**, porque designar só o necessário deixa o projeto devendo quando alguém
-    não abre a avaliação. Em branco segue o mínimo (o comportamento histórico) e nunca passa do
-    **máximo por projeto**. Quem chega depois de o projeto reunir as avaliações da categoria é
-    avisado e trocado no momento de iniciar. Na mesma
+    categoria) dizem quantos avaliadores ficam com o projeto **na lista** — outro eixo que o de
+    *Avaliações por projeto*, que é quantas avaliações ele pode **receber**. Pode passar do **máximo
+    de avaliações** de propósito: com o número justo, um avaliador que não abre a avaliação deixa o
+    projeto devendo. Em branco segue o máximo, que cumpria esse papel antes do campo existir; o
+    único piso é o mínimo. Quem chega depois de o projeto atingir o máximo de avaliações é avisado e
+    trocado no momento de iniciar. Na mesma
     seção ficam **Distribuir avaliações** (completa o que falta, idempotente) e **Redistribuir
     avaliações** (devolve ao bolo tudo que foi apenas designado e sorteia de novo — o que está **em
     avaliação**, o concluído e o designado à mão não se mexem). As duas vão para a **fila** e a tela
@@ -261,6 +262,11 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     vigente**; sem lista oficial não há quem credenciar. Ao abrir um projeto, o admin confere
     **documento a documento, pessoa a pessoa** (alunos, orientador e coorientador), marcando
     **presente / ausente / não necessário** — a lista de documentos de cada papel é parametrizável.
+    O atendimento pode ser **salvo como rascunho** (o participante saiu para buscar um documento):
+    o projeto segue na fila de *Credenciar*, marcado "em rascunho", e a conferência é retomada de
+    onde parou. O rascunho tem **dono**: conta temporária só continua o próprio, o admin permanente
+    assume o de uma conta temporária direto e o de **outro admin permanente** só com
+    **justificativa** — as duas trocas ficam registradas.
     Cada credenciamento grava **quem atendeu e o horário** e entra em Registros → Credenciamento com
     o que ficou ausente. Concluído, ele ainda pode ser **regravado** ou **cancelado** (o projeto
     volta para a fila de *Credenciar*, com **justificativa obrigatória**) — mas mexer no
@@ -575,7 +581,37 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 105 | Almoxarifado: retiradas, correção, exclusão, Registros e contas temporárias | ✅ sim | ❌ não (manual do Pedro) | 26 |
 | 106 | Designações por projeto: alvo próprio da distribuição, geral e por categoria | ✅ sim | ❌ não (manual do Pedro) | 27 |
 | 107 | Iniciar avaliação: trava do projeto já coberto, com troca automática | ✅ sim | ❌ não (manual do Pedro) | 27 |
+| 108 | Avaliações x designações por projeto: dois eixos independentes | ✅ sim | ❌ não (manual do Pedro) | 28 |
+| 109 | Credenciamento em rascunho, com dono e regra de quem o assume | ✅ sim | ❌ não (manual do Pedro) | 28 |
 
+> **Sprints 108–109 (mesma branch):** os dois números da avaliação ficaram independentes, e o
+> balcão ganhou rascunho.
+> (a) **Sprint 108** — as Sprints 106–107 deixaram os dois campos se atropelando: *designações* era
+> presa ao *máximo por projeto* e a trava do início olhava o *mínimo*. Agora cada um responde a uma
+> pergunta só. **Avaliações por projeto** (Parametrização) é quantas avaliações o projeto pode
+> **receber**: o mínimo é a cobertura que a feira precisa (faltantes, ranking parcial) e o **máximo
+> é o teto** — atingido, contando concluídas **e** em andamento, quem ainda não começou perde o
+> projeto ao clicar em iniciar. **Designações por projeto** (Algoritmo) é quantos avaliadores ficam
+> com ele **na lista**, e **pode passar do máximo de propósito**: é a sobra que impede um avaliador
+> que não abre a avaliação de deixar o projeto devendo. O único piso é o mínimo — designar menos
+> gente do que a cobertura exige a tornaria impossível. Em branco, designações segue o **máximo**,
+> que era quem cumpria esse papel antes do campo existir; por isso a distribuição em massa passou a
+> designar **5** por padrão, e não mais 3. Junto, tudo que perguntava "quantos cabem na lista"
+> trocou de fonte: o teto do `designarUm()`, o filtro de candidatos da fila e a capacidade da área
+> na cota justa passaram do máximo de avaliações para as designações.
+> (b) **Sprint 109** — o atendimento nem sempre termina de uma vez: o aluno esqueceu o RG no ônibus
+> e sai para buscar. Um credenciamento com `finalizado_em` nulo virou **rascunho** — o que já foi
+> conferido fica guardado, o projeto continua na fila de *Credenciar* marcado "em rascunho, com
+> Fulano", e a ficha é retomada de onde parou. O rascunho tem **dono** (`credenciamentos.iniciado_por`,
+> que `credenciado_por` não podia representar: ele só é preenchido na conclusão). Ninguém continua o
+> atendimento alheio por cima: a **conta temporária** só retoma o próprio — nem o de outra conta
+> temporária —, o **admin permanente** assume o de uma conta temporária **sem cerimônia** (o turno
+> dela acaba e o projeto não pode ficar preso, então a troca acontece sozinha no primeiro
+> salvamento) e o de **outro admin permanente** só depois de *Assumir atendimento* com
+> **justificativa**. As duas trocas de mãos entram em Registros → Credenciamento
+> (`credenciamento_rascunho_assumido`) com o "de → para".
+> Back **843/843**, front **413/413**, Pint limpo, build OK.
+>
 > **Sprints 106–107 (mesma branch):** a distribuição passou a designar mais gente do que o
 > necessário, e a disputa é resolvida na hora de iniciar.
 > (a) **Sprint 106** — a distribuição em massa parava no **mínimo por projeto** (padrão 3): o alvo

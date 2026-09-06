@@ -23,13 +23,27 @@ class DistribuicaoTest extends TestCase
 {
     use RefreshDatabase;
 
-    /** As rodadas de distribuição pertencem a uma edição. */
+    /**
+     * As rodadas de distribuição pertencem a uma edição.
+     *
+     * Estes cenários foram escritos quando o alvo da distribuição era o mínimo
+     * por projeto (3). Hoje o alvo é o campo próprio *designações por projeto*,
+     * que em branco segue o **máximo** (5) — por isso ele vem fixado em 3 aqui:
+     * o que estes testes verificam é a mecânica (rodadas iguais, preferência de
+     * subárea, área irmã), não o tamanho do alvo.
+     */
     private function edicaoPadrao(): Edicao
     {
-        return Edicao::firstOrCreate(
+        $edicao = Edicao::firstOrCreate(
             ['ano' => 2026],
             ['nome' => 'XVI FETECMS', 'inscricoes_abertas' => true, 'padrao' => true],
         );
+
+        if ($edicao->designacoes_por_projeto === null) {
+            $edicao->update(['designacoes_por_projeto' => 3]);
+        }
+
+        return $edicao;
     }
 
     private function avaliador(int $areaId, ?int $subareaId = null, array $over = []): User
@@ -66,7 +80,9 @@ class DistribuicaoTest extends TestCase
      */
     public function test_reparte_em_rodadas_iguais_mesmo_com_preferencia_de_subarea(): void
     {
-        $this->edicaoPadrao()->update(['avaliacoes_min_por_projeto' => 1]);
+        $this->edicaoPadrao()->update([
+            'avaliacoes_min_por_projeto' => 1, 'designacoes_por_projeto' => 1,
+        ]);
 
         $area = Area::create(['nome' => 'Área A']);
         $sub = Subarea::create(['area_id' => $area->id, 'nome' => 'Subárea 1']);
@@ -87,7 +103,9 @@ class DistribuicaoTest extends TestCase
     /** A carga fica no máximo 1 acima da menor dentro da mesma área. */
     public function test_a_carga_nao_passa_de_um_projeto_de_diferenca_entre_avaliadores_da_area(): void
     {
-        $this->edicaoPadrao()->update(['avaliacoes_min_por_projeto' => 2]);
+        $this->edicaoPadrao()->update([
+            'avaliacoes_min_por_projeto' => 2, 'designacoes_por_projeto' => 2,
+        ]);
 
         $area = Area::create(['nome' => 'Área A']);
         $avaliadores = collect(range(1, 5))->map(fn () => $this->avaliador($area->id));
@@ -104,8 +122,9 @@ class DistribuicaoTest extends TestCase
         $this->assertLessThanOrEqual(1, $cargas->max() - $cargas->min());
     }
 
-    public function test_distribui_ate_3_ignora_demo_e_e_idempotente(): void
+    public function test_distribui_ate_o_alvo_ignora_demo_e_e_idempotente(): void
     {
+        $this->edicaoPadrao();
         $a = Area::create(['nome' => 'Área A']);
         $this->avaliador($a->id);
         $this->avaliador($a->id);
@@ -129,6 +148,7 @@ class DistribuicaoTest extends TestCase
 
     public function test_prefere_avaliadores_da_mesma_subarea(): void
     {
+        $this->edicaoPadrao();
         $a = Area::create(['nome' => 'Área A']);
         $s1 = Subarea::create(['area_id' => $a->id, 'nome' => 'Sub 1']);
         $s2 = Subarea::create(['area_id' => $a->id, 'nome' => 'Sub 2']);
@@ -204,6 +224,7 @@ class DistribuicaoTest extends TestCase
 
     public function test_a_propria_area_vem_antes_da_irma(): void
     {
+        $this->edicaoPadrao();
         $engenharias = Area::create(['nome' => 'Engenharias', 'grupo_correlato' => GrupoCorrelato::ExatasEngenharias]);
         $exatas = Area::create(['nome' => 'Ciências Exatas', 'grupo_correlato' => GrupoCorrelato::ExatasEngenharias]);
 

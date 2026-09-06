@@ -14,17 +14,21 @@ use App\Models\Edicao;
  *   quantos projetos vê de uma vez na tela; o máximo é o teto de avaliações que
  *   ele pode acumular no total (em branco = sem teto, que é como a fila sempre
  *   funcionou). O bloqueio individual do admin continua valendo por cima.
- * - **por projeto**: o mínimo é a cobertura que a feira precisa (a base das
- *   colunas de "faltantes"); o máximo é quantos avaliadores enxergam o projeto.
- *   Os dois podem ser definidos **por categoria** — o que ficar em branco segue
- *   o número geral.
- * - **designações por projeto** (Sprint 106): quantos avaliadores a distribuição
- *   designa para cada projeto. Era o próprio mínimo, e virou número próprio —
- *   definido no Algoritmo de distribuição — para dar para designar **mais gente
- *   do que o necessário**: designar exatamente o mínimo deixa o resultado nas
- *   mãos de quem não abre a avaliação. Em branco ele segue o mínimo, que é o
- *   comportamento de sempre; e nunca passa do máximo da categoria, que continua
- *   sendo o teto duro de quem enxerga o projeto.
+ * - **avaliações por projeto**: quantas avaliações o projeto pode **receber** —
+ *   o mínimo é a cobertura que a feira precisa (a base das colunas de
+ *   "faltantes") e o máximo é o teto: alcançado, quem ainda não começou perde o
+ *   projeto no momento de iniciar. Os dois podem ser definidos **por
+ *   categoria**; em branco, a categoria segue o número geral.
+ * - **designações por projeto**: quantos avaliadores podem ter o projeto **na
+ *   lista** — é o alvo e o teto da distribuição, definido no Algoritmo de
+ *   distribuição. Em branco segue o **máximo de avaliações**, que era o número
+ *   que cumpria esse papel antes de o campo existir.
+ *
+ * Os dois eixos são independentes de propósito: designar **mais** avaliadores do
+ * que o projeto pode aceitar é o jeito de não depender de quem não abre a
+ * avaliação — os primeiros a iniciar ficam com ele, e os demais são avisados e
+ * trocados. O único piso é o mínimo de avaliações: designar menos avaliadores do
+ * que a cobertura exige tornaria a cobertura impossível.
  */
 final class LimitesAvaliacao
 {
@@ -124,21 +128,25 @@ final class LimitesAvaliacao
     }
 
     /**
-     * Quantos avaliadores a **distribuição** designa para um projeto desta
-     * categoria.
+     * Quantos avaliadores podem ter um projeto desta categoria **na lista** —
+     * o alvo e o teto da distribuição.
      *
-     * A ordem é: o número da categoria → o geral da edição → o mínimo por
-     * projeto (o comportamento histórico). O resultado é preso entre o mínimo e
-     * o máximo da categoria: abaixo do mínimo o projeto nasceria sub-coberto de
-     * propósito, e acima do máximo passaria do teto de quem pode enxergá-lo.
+     * A ordem é: o número da categoria → o geral da edição → o **máximo de
+     * avaliações** da categoria, que era quem cumpria esse papel antes de o
+     * campo existir.
+     *
+     * Pode passar do máximo de avaliações **de propósito**: é assim que sobra
+     * gente designada para o caso de alguém não abrir a avaliação. O único piso
+     * é o mínimo de avaliações — designar menos avaliadores do que a cobertura
+     * exige a tornaria impossível de alcançar.
      */
     public function designacoesPorProjeto(?Categoria $categoria = null): int
     {
         $alvo = $this->designacoesPorCategoria[$categoria?->value]
             ?? $this->designacoesPorProjeto
-            ?? $this->minPorProjeto($categoria);
+            ?? $this->maxPorProjeto($categoria);
 
-        return max($this->minPorProjeto($categoria), min($alvo, $this->maxPorProjeto($categoria)));
+        return max($this->minPorProjeto($categoria), $alvo);
     }
 
     /** O número geral gravado — `null` quando ninguém configurou. */
@@ -147,11 +155,16 @@ final class LimitesAvaliacao
         return $this->designacoesPorProjeto;
     }
 
-    /** A distribuição designa mais gente do que a cobertura exige? */
-    public function designaAlemDoMinimo(): bool
+    /**
+     * A distribuição designa mais avaliadores do que o projeto pode aceitar?
+     *
+     * Quando sim, é esperado que alguém tente iniciar e seja trocado — e a tela
+     * precisa dizer isso antes, para não parecer defeito.
+     */
+    public function designaAlemDoMaximo(): bool
     {
         foreach (Categoria::cases() as $categoria) {
-            if ($this->designacoesPorProjeto($categoria) > $this->minPorProjeto($categoria)) {
+            if ($this->designacoesPorProjeto($categoria) > $this->maxPorProjeto($categoria)) {
                 return true;
             }
         }
