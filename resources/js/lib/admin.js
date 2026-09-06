@@ -188,6 +188,16 @@ export const definirDistribuicaoAoCadastrar = (aoCadastrar) =>
 export const redistribuirAvaliacoes = () => http.post('/admin/avaliacao/redistribuir').then((r) => r.data);
 
 /**
+ * Quantos avaliadores a distribuição designa por projeto (o número geral da
+ * edição). `null` volta ao comportamento histórico: o alvo é o mínimo por
+ * projeto de cada categoria.
+ */
+export const definirDesignacoesPorProjeto = (designacoes) =>
+    http.patch('/admin/avaliacao/distribuicao/designacoes', {
+        designacoes_por_projeto: designacoes ?? null,
+    }).then((r) => r.data);
+
+/**
  * Piso da fila do avaliador: a rede de segurança das regras por categoria.
  * `null` desliga o piso — aí a regra manda sozinha.
  */

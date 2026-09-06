@@ -376,7 +376,9 @@ function AvaliacaoEnviada({ avaliacao, rubrica }) {
  * inicia (sem poder cancelar) e responde à rubrica da FETECMS seção por seção,
  * salvando rascunho quando quiser. A nota final sai dos pesos, no servidor.
  */
-export default function AvaliacaoModal({ avaliacaoId, teste, somenteLeitura = false, onFechar, onAtualizado }) {
+export default function AvaliacaoModal({
+    avaliacaoId, teste, somenteLeitura = false, onFechar, onAtualizado, onProjetoIndisponivel,
+}) {
     const [dados, setDados] = useState(null); // { avaliacao, projeto, rubrica } | false (erro)
     const [form, setForm] = useState(formularioVazio);
     const [passo, setPasso] = useState(0);
@@ -446,6 +448,13 @@ export default function AvaliacaoModal({ avaliacaoId, teste, somenteLeitura = fa
             setDados((d) => ({ ...d, avaliacao: a }));
             onAtualizado?.();
         } catch (e) {
+            // O projeto encheu enquanto ele lia: o servidor já devolveu a
+            // designação e repôs a fila, então não há o que fazer nesta tela —
+            // quem avisa é a lista, que volta já sem ele.
+            if (e?.response?.data?.code === 'PROJETO_JA_COBERTO') {
+                onProjetoIndisponivel?.(e.response.data.message);
+                return;
+            }
             setErro(e?.response?.data?.message || 'Não foi possível iniciar.');
         } finally {
             setSalvando(false);

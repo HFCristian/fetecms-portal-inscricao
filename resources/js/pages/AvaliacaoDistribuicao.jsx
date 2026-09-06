@@ -7,6 +7,7 @@ import {
     getAvaliacaoConfig, getDistribuicaoConfig, distribuirAvaliacoes,
     redistribuirAvaliacoes, definirDistribuicaoAoCadastrar,
     getProgressoDistribuicao, getUltimaDistribuicao, definirPisoFila,
+    definirDesignacoesPorProjeto,
 } from '../lib/admin.js';
 
 /** De quanto em quanto tempo a tela pergunta como vai a rodada. */
@@ -216,6 +217,91 @@ function DistribuicaoCard({ minPorProjeto }) {
 }
 
 /**
+ * **Designações por projeto**: quantos avaliadores cada projeto recebe.
+ *
+ * Era o próprio mínimo por projeto, e virou número à parte porque designar
+ * exatamente o necessário deixa o resultado nas mãos de quem não abre a
+ * avaliação: com 3 designados e 1 avaliação feita, o projeto fica devendo. Aqui
+ * dá para designar mais gente do que a cobertura exige — quem iniciar primeiro
+ * fica com o projeto, e os demais são avisados e trocam.
+ */
+function DesignacoesCard({ config, onSalvo }) {
+    const [valor, setValor] = useState(config.designacoes_por_projeto ?? '');
+    const [salvando, setSalvando] = useState(false);
+    const [msg, setMsg] = useState('');
+    const [erro, setErro] = useState('');
+
+    async function salvar(novo) {
+        setSalvando(true); setMsg(''); setErro('');
+        try {
+            const resp = await definirDesignacoesPorProjeto(novo);
+            onSalvo?.(resp.data);
+            setValor(resp.data.designacoes_por_projeto ?? '');
+            setMsg(resp.meta?.message || 'Designações salvas.');
+        } catch (e) {
+            setErro(e?.response?.data?.message || 'Não foi possível salvar. Tente novamente.');
+        } finally {
+            setSalvando(false);
+        }
+    }
+
+    return (
+        <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-6 mb-4 max-w-3xl">
+            <h2 className="font-display text-primary font-semibold mb-1">Designações por projeto</h2>
+            <p className="text-sm text-on-surface-variant mb-3">
+                Quantos avaliadores a distribuição coloca em cada projeto. Pode ser{' '}
+                <strong>mais do que o mínimo de avaliações</strong>: designar exatamente o necessário
+                deixa o projeto devendo quando alguém não abre a avaliação. Quem iniciar primeiro fica
+                com o projeto; ao bater o mínimo da categoria, os demais são avisados e recebem outro.
+            </p>
+            <p className="text-sm text-on-surface-variant mb-3">
+                Em branco, segue o <strong>mínimo por projeto</strong> de cada categoria — o
+                comportamento de sempre. O <strong>máximo por projeto</strong>, em{' '}
+                <Link to="/admin/parametrizacao/avaliacao" className="font-semibold text-primary-container hover:text-primary">
+                    Parametrização → Avaliação Online
+                </Link>
+                , continua sendo o teto: pedir mais do que ele não designa além dele.
+            </p>
+            {msg && <div className="mb-3"><Alert type="info">{msg}</Alert></div>}
+            {erro && <div className="mb-3"><Alert>{erro}</Alert></div>}
+            <div className="flex items-end gap-2 flex-wrap">
+                <input
+                    type="number"
+                    min="1"
+                    max={config.designacoes_maximo ?? 50}
+                    aria-label="Designações por projeto"
+                    value={valor}
+                    onChange={(e) => setValor(e.target.value)}
+                    placeholder="segue o mínimo"
+                    className="w-32 bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 outline-none"
+                />
+                <Button type="button" loading={salvando} onClick={() => salvar(valor === '' ? null : Number(valor))}>
+                    Salvar designações
+                </Button>
+                {config.designacoes_por_projeto !== null && (
+                    <Button type="button" variant="outline" disabled={salvando} onClick={() => salvar(null)}>
+                        Voltar ao mínimo
+                    </Button>
+                )}
+            </div>
+
+            {/* O efeito por categoria, já com o teto de cada uma aplicado. */}
+            <ul className="mt-4 text-xs text-on-surface-variant space-y-1">
+                {(config.designacoes_categorias ?? []).map((c) => (
+                    <li key={c.value}>
+                        <strong>{c.label}</strong>: {c.designacoes_efetivo} designação(ões) por projeto
+                        {c.designacoes_efetivo > c.min_efetivo
+                            ? ` — ${c.min_efetivo} avaliações bastam, as demais são sobra`
+                            : ''}
+                        {c.designacoes !== null ? ' · número próprio da categoria' : ''}
+                    </li>
+                ))}
+            </ul>
+        </div>
+    );
+}
+
+/**
  * O **piso da fila**: a rede de segurança das regras acima.
  *
  * Uma regra restritiva ("só FUNDECT com 0 avaliações") pode deixar tão pouco
@@ -355,6 +441,7 @@ export default function AvaliacaoDistribuicao() {
             ) : (
                 <>
                     <RegrasDistribuicaoCard config={distribuicao} onSalvo={setDistribuicao} />
+                    <DesignacoesCard config={distribuicao} onSalvo={setDistribuicao} />
                     <PisoFilaCard config={distribuicao} onSalvo={setDistribuicao} />
                     <DesignacaoAoCadastrarCard config={distribuicao} onSalvo={setDistribuicao} />
                     <DistribuicaoCard minPorProjeto={janela?.min_por_projeto} />

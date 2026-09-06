@@ -32,7 +32,8 @@ class EdicaoService
     private const PARAMETROS_COPIAVEIS = [
         'avaliacoes_min_por_avaliador', 'avaliacoes_min_por_projeto',
         'avaliacoes_max_por_avaliador', 'avaliacoes_max_por_projeto',
-        'avaliacoes_por_categoria', 'distribuicao_regras', 'distribuicao_ao_cadastrar',
+        'avaliacoes_por_categoria', 'designacoes_por_projeto',
+        'distribuicao_regras', 'distribuicao_ao_cadastrar',
     ];
 
     /**

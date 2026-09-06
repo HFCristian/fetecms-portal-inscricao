@@ -260,6 +260,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::patch('/avaliacao/projetos/{projeto}', [AdminAvaliacaoController::class, 'corrigirProjeto']);
                 Route::get('/avaliacao/distribuicao', [AdminAvaliacaoController::class, 'distribuicaoConfig']);
                 Route::patch('/avaliacao/distribuicao', [AdminAvaliacaoController::class, 'definirRegrasDistribuicao']);
+                Route::patch('/avaliacao/distribuicao/designacoes', [AdminAvaliacaoController::class, 'definirDesignacoesPorProjeto']);
                 Route::patch('/avaliacao/distribuicao/piso', [AdminAvaliacaoController::class, 'definirPisoFila']);
                 Route::patch('/avaliacao/distribuicao/ao-cadastrar', [AdminAvaliacaoController::class, 'definirDistribuicaoAoCadastrar']);
                 Route::post('/avaliacao/distribuir', [AdminAvaliacaoController::class, 'distribuir']);

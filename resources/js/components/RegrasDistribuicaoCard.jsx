@@ -65,6 +65,7 @@ export default function RegrasDistribuicaoCard({ config, onSalvo }) {
                 ativa: r.ativa,
                 min_concluidas: Number(r.min_concluidas || 0),
                 max_concluidas: numeroOuNulo(r.max_concluidas),
+                designacoes: numeroOuNulo(r.designacoes),
             }]));
             const resp = await definirRegrasDistribuicao(payload);
             onSalvo?.(resp.data);
@@ -140,9 +141,25 @@ export default function RegrasDistribuicaoCard({ config, onSalvo }) {
                                         className={numeroClass}
                                     />
                                 </label>
+                                <label className="text-xs text-on-surface-variant">
+                                    <span className="block mb-1">Designações</span>
+                                    <input
+                                        type="number"
+                                        inputMode="numeric"
+                                        min={1}
+                                        max={config.designacoes_maximo ?? 50}
+                                        disabled={!regra.ativa}
+                                        placeholder="—"
+                                        aria-label={`Designações por projeto — ${label}`}
+                                        value={regra.designacoes ?? ''}
+                                        onChange={(e) => atualizar(value, 'designacoes', e.target.value)}
+                                        className={numeroClass}
+                                    />
+                                </label>
                                 <p className="text-xs text-on-surface-variant flex-1 min-w-[12rem] pb-2">
                                     avaliações <strong>recebidas pelo projeto</strong> — deixe <strong>Até</strong> em
-                                    branco para não ter teto.
+                                    branco para não ter teto. <strong>Designações</strong> em branco segue o número
+                                    geral abaixo.
                                     <span className="block text-on-surface-variant/80 mt-0.5">{resumoFaixa(regra)}</span>
                                 </p>
                             </div>

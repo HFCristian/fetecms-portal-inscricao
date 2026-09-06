@@ -23,6 +23,7 @@ const concluida = (relatorio) => ({
 const distribuirAvaliacoes = vi.fn(() => Promise.resolve(naFila('distribuir')));
 const redistribuirAvaliacoes = vi.fn(() => Promise.resolve(naFila('redistribuir')));
 const definirPisoFila = vi.fn();
+const definirDesignacoesPorProjeto = vi.fn();
 const getProgressoDistribuicao = vi.fn();
 const getUltimaDistribuicao = vi.fn(() => Promise.resolve(null));
 
@@ -47,9 +48,17 @@ vi.mock('../lib/admin.js', () => ({
         ao_cadastrar: false,
         piso_fila: 6,
         piso_maximo: 50,
+        designacoes_por_projeto: null,
+        designacoes_maximo: 50,
+        designacoes_categorias: [
+            { value: 'fetec_jr', label: 'FETEC Jr', min_efetivo: 3, designacoes: null, designacoes_efetivo: 3 },
+            { value: 'fetecms', label: 'FETECMS', min_efetivo: 3, designacoes: null, designacoes_efetivo: 3 },
+            { value: 'fetecms_fundect', label: 'FETECMS FUNDECT', min_efetivo: 3, designacoes: null, designacoes_efetivo: 3 },
+        ],
     })),
     definirRegrasDistribuicao: vi.fn(),
     definirPisoFila: (...a) => definirPisoFila(...a),
+    definirDesignacoesPorProjeto: (...a) => definirDesignacoesPorProjeto(...a),
     definirDistribuicaoAoCadastrar: vi.fn(),
     distribuirAvaliacoes: (...a) => distribuirAvaliacoes(...a),
     redistribuirAvaliacoes: (...a) => redistribuirAvaliacoes(...a),
@@ -207,5 +216,52 @@ describe('AvaliacaoDistribuicao — piso da fila', () => {
 
         await waitFor(() => expect(definirPisoFila).toHaveBeenCalledWith(null));
         expect(await screen.findByLabelText('Piso da fila do avaliador')).toHaveValue(null);
+    });
+
+    it('salva quantas designações a distribuição cria por projeto', async () => {
+        definirDesignacoesPorProjeto.mockResolvedValue({
+            data: {
+                regras: {}, categorias: [], max_concluidas: 50, ao_cadastrar: false,
+                piso_fila: 6, piso_maximo: 50,
+                designacoes_por_projeto: 5, designacoes_maximo: 50,
+                designacoes_categorias: [
+                    { value: 'fetecms', label: 'FETECMS', min_efetivo: 3, designacoes: null, designacoes_efetivo: 5 },
+                ],
+            },
+            meta: { message: 'Designações por projeto atualizadas.' },
+        });
+        render(<AvaliacaoDistribuicao />);
+
+        const campo = await screen.findByLabelText('Designações por projeto');
+        // Em branco, a tela diz que o alvo segue o mínimo.
+        expect(campo).toHaveValue(null);
+
+        fireEvent.change(campo, { target: { value: '5' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Salvar designações' }));
+
+        await waitFor(() => expect(definirDesignacoesPorProjeto).toHaveBeenCalledWith(5));
+        // A tela passa a explicar que sobra designação além do necessário.
+        expect(await screen.findByText(/as demais são sobra/)).toBeInTheDocument();
+    });
+
+    it('voltar ao mínimo manda null', async () => {
+        definirDesignacoesPorProjeto.mockResolvedValue({
+            data: {
+                regras: {}, categorias: [], max_concluidas: 50, ao_cadastrar: false,
+                piso_fila: 6, piso_maximo: 50,
+                designacoes_por_projeto: null, designacoes_maximo: 50, designacoes_categorias: [],
+            },
+            meta: { message: 'Designações por projeto atualizadas.' },
+        });
+        render(<AvaliacaoDistribuicao />);
+        await screen.findByLabelText('Designações por projeto');
+
+        // Com o valor em branco no servidor não há o que remover.
+        expect(screen.queryByRole('button', { name: 'Voltar ao mínimo' })).not.toBeInTheDocument();
+
+        fireEvent.change(screen.getByLabelText('Designações por projeto'), { target: { value: '4' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Salvar designações' }));
+
+        await waitFor(() => expect(definirDesignacoesPorProjeto).toHaveBeenCalledWith(4));
     });
 });

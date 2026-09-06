@@ -54,6 +54,7 @@ enum TipoRegistro: string
     case AvaliacaoRegraDistribuicao = 'avaliacao_regra_distribuicao';
     case AvaliacaoDesignacaoAoCadastrar = 'avaliacao_designacao_ao_cadastrar';
     case AvaliacaoPisoFila = 'avaliacao_piso_fila';
+    case AvaliacaoDesignacoesProjeto = 'avaliacao_designacoes_projeto';
     case AvaliacaoDesignacaoRetirada = 'avaliacao_designacao_retirada';
     case AvaliacaoParecerEditado = 'avaliacao_parecer_editado';
     case AvaliacaoAjustesInicio = 'avaliacao_ajustes_inicio';
@@ -109,6 +110,7 @@ enum TipoRegistro: string
             self::AvaliacaoRegraDistribuicao => 'Regra da distribuição',
             self::AvaliacaoDesignacaoAoCadastrar => 'Designação ao cadastrar',
             self::AvaliacaoPisoFila => 'Piso da fila do avaliador',
+            self::AvaliacaoDesignacoesProjeto => 'Designações por projeto',
             self::AvaliacaoDesignacaoRetirada => 'Designação retirada',
             self::AvaliacaoParecerEditado => 'Parecer do avaliador editado',
             self::AvaliacaoAjustesInicio => 'Início dos ajustes',

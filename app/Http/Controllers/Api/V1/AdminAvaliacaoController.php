@@ -208,6 +208,27 @@ class AdminAvaliacaoController extends Controller
         ]);
     }
 
+    /**
+     * Quantas designações a distribuição cria por projeto (o número geral).
+     * Em branco, o alvo volta a ser o mínimo por projeto de cada categoria.
+     */
+    public function definirDesignacoesPorProjeto(Request $request): JsonResponse
+    {
+        $dados = $request->validate([
+            'designacoes_por_projeto' => ['present', 'nullable', 'integer', 'min:1', 'max:'.LimitesAvaliacao::MAXIMO],
+        ]);
+
+        $config = $this->service->definirDesignacoesPorProjeto(
+            $dados['designacoes_por_projeto'],
+            $request->user(),
+        );
+
+        return response()->json([
+            'data' => $config,
+            'meta' => ['message' => 'Designações por projeto atualizadas.'],
+        ]);
+    }
+
     /** Regras do algoritmo de distribuição (uma por categoria). */
     public function distribuicaoConfig(): JsonResponse
     {

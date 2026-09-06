@@ -13,6 +13,10 @@ use App\Enums\Categoria;
  *   recebeu (as concluídas) para ele ainda aceitar um avaliador novo — a conta é
  *   por projeto, não pela carga do avaliador. `max` nulo = sem teto, então "só
  *   FETEC Jr com 0 avaliações" é min 0 / máx 0 e "FUNDECT de 0 a 1" é min 0 / máx 1.
+ * - `designacoes`: quantos avaliadores a distribuição designa para cada projeto
+ *   desta categoria. Nulo segue o número geral da edição, que por sua vez segue
+ *   o mínimo por projeto — o comportamento histórico. Quem sabe o valor que vale
+ *   de fato é o {@see LimitesAvaliacao}, que o limita ao máximo da categoria.
  *
  * O padrão é o comportamento histórico: toda categoria ativa, sem faixa. Vale
  * para a distribuição em massa, para a reposição da fila do avaliador e para o
@@ -23,7 +27,7 @@ final class RegrasDistribuicao
     /** Teto de avaliações que a faixa admite (mesma ordem de grandeza dos mínimos). */
     public const MAX_CONCLUIDAS = 50;
 
-    /** @var array<string, array{ativa:bool, min_concluidas:int, max_concluidas:int|null}> */
+    /** @var array<string, array{ativa:bool, min_concluidas:int, max_concluidas:int|null, designacoes:int|null}> */
     private array $regras;
 
     /** @param  array<string, mixed>  $regras */
@@ -46,7 +50,7 @@ final class RegrasDistribuicao
      * Uma regra vinda do banco/request, com os padrões preenchidos.
      *
      * @param  array<string, mixed>  $regra
-     * @return array{ativa:bool, min_concluidas:int, max_concluidas:int|null}
+     * @return array{ativa:bool, min_concluidas:int, max_concluidas:int|null, designacoes:int|null}
      */
     private static function normalizar(array $regra): array
     {
@@ -54,17 +58,33 @@ final class RegrasDistribuicao
         $max = $regra['max_concluidas'] ?? null;
         $max = $max === null || $max === '' ? null : max($min, (int) $max);
 
+        $designacoes = $regra['designacoes'] ?? null;
+
         return [
             'ativa' => (bool) ($regra['ativa'] ?? true),
             'min_concluidas' => $min,
             'max_concluidas' => $max,
+            // Em branco (ou zero) a categoria segue o número geral.
+            'designacoes' => $designacoes === null || $designacoes === '' || (int) $designacoes < 1
+                ? null
+                : (int) $designacoes,
         ];
     }
 
-    /** @return array{ativa:bool, min_concluidas:int, max_concluidas:int|null} */
+    /** @return array{ativa:bool, min_concluidas:int, max_concluidas:int|null, designacoes:int|null} */
     public function para(Categoria $categoria): array
     {
         return $this->regras[$categoria->value];
+    }
+
+    /**
+     * Quantas designações esta categoria pede, como está gravado — `null`
+     * quando ela segue o número geral. Quem resolve o valor final (com o teto do
+     * máximo por projeto) é o {@see LimitesAvaliacao}.
+     */
+    public function designacoesDe(?Categoria $categoria): ?int
+    {
+        return $categoria === null ? null : $this->para($categoria)['designacoes'];
     }
 
     /**
@@ -91,7 +111,7 @@ final class RegrasDistribuicao
         return $this->toArray() !== (new self)->toArray();
     }
 
-    /** @return array<string, array{ativa:bool, min_concluidas:int, max_concluidas:int|null}> */
+    /** @return array<string, array{ativa:bool, min_concluidas:int, max_concluidas:int|null, designacoes:int|null}> */
     public function toArray(): array
     {
         return $this->regras;
@@ -114,7 +134,9 @@ final class RegrasDistribuicao
                 ? $r['min_concluidas'].'+'
                 : $r['min_concluidas'].' a '.$r['max_concluidas'];
 
-            return $c->label().': '.$faixa;
+            $designacoes = $r['designacoes'] === null ? '' : ', '.$r['designacoes'].' designação(ões)';
+
+            return $c->label().': '.$faixa.$designacoes;
         }, Categoria::cases());
 
         return implode(' · ', $partes);

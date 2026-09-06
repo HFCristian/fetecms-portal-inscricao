@@ -95,8 +95,9 @@ class DistribuicaoService
      */
     public function distribuir(?callable $progresso = null): array
     {
-        // Limites parametrizados pelo admin (Parametrização → Avaliação Online).
-        // O alvo e o teto de cada projeto saem da categoria dele.
+        // Limites parametrizados pelo admin. O alvo de designações sai do
+        // Algoritmo de distribuição e o teto, de Parametrização → Avaliação
+        // Online; os dois pela categoria do projeto.
         $limites = Edicao::limites();
 
         $avaliadores = $this->carregarAvaliadores($limites);
@@ -200,10 +201,13 @@ class DistribuicaoService
                     continue;
                 }
 
-                $alvo = $limites->minPorProjeto($proj['categoria']);
-                $teto = $limites->maxPorProjeto($proj['categoria']);
+                // Quantos avaliadores este projeto deve receber. Pode ser mais
+                // do que a cobertura exige — designar exatamente o mínimo deixa
+                // o resultado na mão de quem não abre a avaliação —, e o valor
+                // já vem preso ao máximo por projeto da categoria.
+                $alvo = $limites->designacoesPorProjeto($proj['categoria']);
 
-                while ($proj['coverage'] < $alvo && $proj['coverage'] < $teto) {
+                while ($proj['coverage'] < $alvo) {
                     $cands = $elegiveis($proj, $tetoRodada);
                     if ($cands === []) {
                         break;
@@ -224,7 +228,7 @@ class DistribuicaoService
                     ];
                 }
 
-                if ($proj['coverage'] >= $alvo || $proj['coverage'] >= $teto) {
+                if ($proj['coverage'] >= $alvo) {
                     $proj['pronto'] = true;
                     $relatar(++$feitos);
                 }
@@ -238,18 +242,25 @@ class DistribuicaoService
             }
         }
 
-        // O que não fechou o alvo entra no relatório para o admin resolver.
+        // O que não fechou o alvo entra no relatório para o admin resolver —
+        // mas só é **sub-coberto** quem ficou abaixo do MÍNIMO da categoria.
+        // Não alcançar o alvo de designações, tendo a cobertura fechada, é
+        // apenas sobra que não coube: o projeto vai ser avaliado do mesmo jeito.
         foreach ($projetos as $proj) {
             if ($proj['pronto'] ?? false) {
                 continue;
             }
 
-            $subCobertos[] = [
-                'projeto_id' => $proj['id'],
-                'titulo' => $proj['titulo'],
-                'area' => $proj['area_nome'],
-                'faltam' => $limites->minPorProjeto($proj['categoria']) - $proj['coverage'],
-            ];
+            $faltam = $limites->minPorProjeto($proj['categoria']) - $proj['coverage'];
+
+            if ($faltam > 0) {
+                $subCobertos[] = [
+                    'projeto_id' => $proj['id'],
+                    'titulo' => $proj['titulo'],
+                    'area' => $proj['area_nome'],
+                    'faltam' => $faltam,
+                ];
+            }
 
             $relatar(++$feitos);
         }

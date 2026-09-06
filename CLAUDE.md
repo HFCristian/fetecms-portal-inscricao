@@ -97,6 +97,11 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     mais avaliou (só entra quem já concluiu ao menos uma; empate divide a posição). Na mesma
     tela ele **troca a própria área/subárea — só enquanto o período de avaliação não começou**
     (`Edicao::avaliacaoLiberada()`), porque depois a distribuição já foi feita em cima dela.
+  - Ao **iniciar** uma avaliação o sistema confere se o projeto ainda precisa dela: contando as
+    **concluídas + em andamento**, se ele já alcançou o **mínimo da categoria**, o avaliador é
+    avisado de que outro chegou antes, o projeto **sai da lista dele** e outro entra no lugar
+    (409 `PROJETO_JA_COBERTO`). É o que faz valer a pena designar mais gente do que o necessário.
+    A **designação manual do admin** passa por cima dessa trava.
   - Cada projeto passa pelo **mínimo de avaliadores definido pelo admin** (padrão 3), com *match* por
     **subárea** (preferencial), **área** ou **área correlata** — o grupo de áreas irmãs configurado em
     Parametrização → Áreas. Concluída uma avaliação, o avaliador **recebe outro projeto na hora**, e
@@ -189,7 +194,13 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     admin passa por cima**. O **piso da fila do avaliador** (`edicoes.piso_fila_avaliador`, padrão 6)
     é a rede dessa regra: ela continua escolhendo quem entra primeiro, e **só quando deixa alguém
     abaixo do piso** uma segunda passada completa a fila **ignorando-a** — vale na distribuição, na
-    reposição ao concluir e no botão *Sortear outros projetos*; em branco, não há piso. Na mesma
+    reposição ao concluir e no botão *Sortear outros projetos*; em branco, não há piso. As
+    **designações por projeto** (`edicoes.designacoes_por_projeto`, e o campo *Designações* de cada
+    categoria) dizem quantos avaliadores a distribuição coloca em cada projeto: pode ser **mais que
+    o mínimo de avaliações**, porque designar só o necessário deixa o projeto devendo quando alguém
+    não abre a avaliação. Em branco segue o mínimo (o comportamento histórico) e nunca passa do
+    **máximo por projeto**. Quem chega depois de o projeto reunir as avaliações da categoria é
+    avisado e trocado no momento de iniciar. Na mesma
     seção ficam **Distribuir avaliações** (completa o que falta, idempotente) e **Redistribuir
     avaliações** (devolve ao bolo tudo que foi apenas designado e sorteia de novo — o que está **em
     avaliação**, o concluído e o designado à mão não se mexem). As duas vão para a **fila** e a tela
@@ -562,7 +573,38 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 103 | Credenciamento: presença por pessoa e retirada de kit por responsável | ✅ sim | ❌ não (manual do Pedro) | 25 |
 | 104 | Nova aba **Almoxarifado**: escopo, janela do evento, assistente de guarda e tabela | ✅ sim | ❌ não (manual do Pedro) | 26 |
 | 105 | Almoxarifado: retiradas, correção, exclusão, Registros e contas temporárias | ✅ sim | ❌ não (manual do Pedro) | 26 |
+| 106 | Designações por projeto: alvo próprio da distribuição, geral e por categoria | ✅ sim | ❌ não (manual do Pedro) | 27 |
+| 107 | Iniciar avaliação: trava do projeto já coberto, com troca automática | ✅ sim | ❌ não (manual do Pedro) | 27 |
 
+> **Sprints 106–107 (mesma branch):** a distribuição passou a designar mais gente do que o
+> necessário, e a disputa é resolvida na hora de iniciar.
+> (a) **Sprint 106** — a distribuição em massa parava no **mínimo por projeto** (padrão 3): o alvo
+> dela era a cobertura que a feira precisa. Designar exatamente o necessário, porém, deixa o
+> resultado nas mãos de quem não abre a avaliação — 3 designados, 1 avaliação feita. Agora o alvo é
+> **número próprio**, definido no **Algoritmo de distribuição**: um valor geral da edição
+> (`edicoes.designacoes_por_projeto`) e, por categoria, um campo a mais na tabela de regras
+> (`distribuicao_regras[cat].designacoes`, a tela onde ele é editado). Em branco, os dois seguem o
+> mínimo por projeto — o comportamento de sempre, então nada muda para quem não configurar. Quem
+> resolve o número que vale é o `LimitesAvaliacao::designacoesPorProjeto()`, que o prende entre o
+> **mínimo** (abaixo dele o projeto nasceria sub-coberto de propósito) e o **máximo por projeto** da
+> categoria, que continua sendo o teto duro de quem enxerga o projeto. Dois efeitos colaterais
+> tratados: o relatório de **sub-cobertura** passou a olhar só o mínimo — não alcançar o alvo de
+> designações, com a cobertura fechada, é sobra que não coube, não falta —, e o "precisa" da
+> **fila do avaliador** passou a perseguir o mesmo alvo, para a fila e a distribuição em massa não
+> quererem números diferentes.
+> (b) **Sprint 107** — com sobra de designados, o `iniciar` virou o ponto onde a disputa se resolve.
+> Antes de abrir, o servidor conta as avaliações do projeto **concluídas + em andamento** (quem já
+> abriu está ocupando uma vaga; contar só as concluídas deixaria três pessoas trabalhando no mesmo
+> projeto para nada) e compara com o **mínimo da categoria**. Batido o número, a designação é
+> **devolvida ao bolo**, a **fila é reposta na hora** e o avaliador recebe o aviso de que outro
+> chegou antes — a lista volta já sem o projeto e com o substituto no lugar. A resposta é um **409**
+> com `code: PROJETO_JA_COBERTO` (`ProjetoJaCobertoException`), e não um 422: não há nada de errado
+> no que ele mandou nem o que corrigir e tentar de novo. A **designação manual do admin** passa por
+> cima da trava, como passa por cima das demais regras — quem a fez sabe que está pondo mais um
+> avaliador ali. O projeto **não** some da lista sozinho antes do clique: sumir sem explicação é
+> pior do que o aviso.
+> Back **836/836**, front **410/410**, Pint limpo, build OK.
+>
 > **Sprints 104–105 (mesma branch):** nasceu a aba **Almoxarifado**, o balcão de guarda da feira.
 > (a) **Sprint 104** — a aba, o escopo e o caminho de entrada. `AbaAdmin::Almoxarifado` é uma aba
 > como as outras, então quem abre é quem tem um escopo que a lista — e o admin **sem escopo nenhum
