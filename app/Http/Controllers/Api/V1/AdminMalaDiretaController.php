@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\CriarMalaDiretaRequest;
 use App\Http\Requests\Admin\MalaDiretaArquivoRequest;
 use App\Http\Requests\Admin\PreviaMalaDiretaRequest;
+use App\Http\Requests\Admin\TesteMalaDiretaRequest;
 use App\Http\Resources\MalaDiretaDestinatarioResource;
 use App\Http\Resources\MalaDiretaResource;
 use App\Models\MalaDireta;
@@ -105,6 +106,27 @@ class AdminMalaDiretaController extends Controller
         }
 
         $mala = $this->malas->criar($dados, $request->user());
+
+        return response()->json(['data' => (new MalaDiretaResource($mala->fresh()))->resolve()], 201);
+    }
+
+    /**
+     * Manda a mensagem que está sendo escrita para os endereços de conferência,
+     * sem tocar na base. Percorre a fila como o disparo de verdade — é o único
+     * jeito de o teste denunciar um worker desatualizado.
+     */
+    public function teste(TesteMalaDiretaRequest $request): JsonResponse
+    {
+        $dados = $request->dados();
+        $lista = $this->malas->resolver([], $dados['destinatarios']);
+
+        if ($lista->where('status', StatusDestinatario::Pendente->value)->isEmpty()) {
+            throw ValidationException::withMessages([
+                'destinatarios' => 'Nenhum e-mail válido para o teste — confira os endereços.',
+            ]);
+        }
+
+        $mala = $this->malas->enviarTeste($dados, $request->user());
 
         return response()->json(['data' => (new MalaDiretaResource($mala->fresh()))->resolve()], 201);
     }

@@ -27,11 +27,6 @@ class MensagemTransacional extends Mailable
 {
     use Queueable, SerializesModels;
 
-    /** Como o layout desenha o parágrafo destacado (o código de 6 dígitos). */
-    private const ESTILO_DESTAQUE = 'margin:0 0 16px;padding:16px;background-color:#f4f1f7;'
-        .'border-radius:12px;text-align:center;font-family:\'Courier New\',Courier,monospace;'
-        .'font-size:32px;font-weight:700;letter-spacing:8px;color:#43157A;';
-
     public function __construct(
         public string $assunto,
         public string $corpo,
@@ -49,6 +44,14 @@ class MensagemTransacional extends Mailable
         return new Envelope(subject: $this->assunto);
     }
 
+    /**
+     * O layout e a versão text/plain.
+     *
+     * O `with` daqui é só **atalho**: as views sabem se virar sem nenhuma destas
+     * chaves, porque um worker de fila com a classe antiga em memória renderiza
+     * as views novas do disco. Por isso `corpo` NÃO é sobrescrito aqui — a view
+     * precisa do corpo cru para decidir o que fazer com ele.
+     */
     public function content(): Content
     {
         $html = $this->ehHtml();
@@ -57,15 +60,13 @@ class MensagemTransacional extends Mailable
             view: 'emails.transacional',
             text: 'emails.transacional-texto',
             with: [
-                'html' => $html,
                 // No corpo em HTML o destaque é aplicado dentro do próprio
-                // markup; no texto puro, o layout compara parágrafo a parágrafo.
+                // markup; no texto puro o layout compara parágrafo a parágrafo.
                 'corpoHtml' => $html && $this->destaque !== null
-                    ? HtmlEmail::destacar($this->corpo, $this->destaque, self::ESTILO_DESTAQUE)
+                    ? HtmlEmail::destacar($this->corpo, $this->destaque, HtmlEmail::ESTILO_DESTAQUE)
                     : $this->corpo,
                 'paragrafos' => $html ? [] : MensagemEmail::paragrafos($this->corpo),
-                'destaque' => $this->destaque,
-                'corpo' => $html ? HtmlEmail::paraTexto($this->corpo) : $this->corpo,
+                'textoSimples' => $html ? HtmlEmail::paraTexto($this->corpo) : $this->corpo,
             ],
         );
     }

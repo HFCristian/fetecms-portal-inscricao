@@ -3,7 +3,12 @@ import { Link, useParams, useNavigate } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { Alert, Button } from '../components/ui.jsx';
 import { extractErrors } from '../lib/auth.jsx';
-import { getFichaCredenciamento, credenciarProjeto, cancelarCredenciamento } from '../lib/credenciamento.js';
+import {
+    getFichaCredenciamento,
+    credenciarProjeto,
+    cancelarCredenciamento,
+    registrarRetiradaKit,
+} from '../lib/credenciamento.js';
 import { useModoTeste } from '../lib/modoTeste.js';
 
 const dataHora = (iso) => (iso ? new Date(iso).toLocaleString('pt-BR') : '—');
@@ -26,6 +31,9 @@ function paraInput(iso) {
 /** Chave de uma marcação: documento + pessoa. */
 const chave = (documentoId, tipo, pessoaId) => `${documentoId}:${tipo}:${pessoaId}`;
 
+/** Chave de uma pessoa do projeto (presença e kit). */
+const chavePessoa = (pessoa) => `${pessoa.tipo}:${pessoa.id}`;
+
 /**
  * Ficha de credenciamento de um finalista.
  *
@@ -33,6 +41,17 @@ const chave = (documentoId, tipo, pessoaId) => `${documentoId}:${tipo}:${pessoaI
  * documentos que o papel dela exige, e cada documento é marcado como
  * **presente**, **ausente** ou **não necessário**. "Não necessário" é uma
  * decisão registrada, diferente de deixar em branco.
+ *
+ * Antes dos documentos vem a **presença**: quem não apareceu é marcado ausente
+ * e some com a lista de documentos dela — não se confere o RG de quem não veio
+ * —, e o projeto é credenciado assim mesmo. A pessoa que chegar depois é
+ * conferida numa segunda passada.
+ *
+ * O **kit é por pessoa** e sai no nome de um responsável, que precisa ser gente
+ * do projeto: um aluno leva o dele e o de dois colegas, e quem sobrou retira
+ * mais tarde. Por isso, com o credenciamento já concluído, a retirada tem botão
+ * próprio — ela só acrescenta, então vale inclusive para quem não credenciou o
+ * projeto (uma conta de balcão no turno seguinte, por exemplo).
  *
  * O **horário de início** já vem preenchido com o momento do atendimento, mas
  * pode ser corrigido — é assim que se lança um credenciamento que aconteceu
@@ -45,6 +64,11 @@ export default function CredenciamentoFicha() {
     const [teste] = useModoTeste();
     const [dados, setDados] = useState(null);
     const [marcacoes, setMarcacoes] = useState({});
+    // Presença por pessoa ("tipo:id" => bool) e o que está sendo entregue agora.
+    const [presencas, setPresencas] = useState({});
+    const [kitsSelecionados, setKitsSelecionados] = useState([]);
+    const [responsavelKit, setResponsavelKit] = useState('');
+    const [entregandoKit, setEntregandoKit] = useState(false);
     const [observacao, setObservacao] = useState('');
     const [erro, setErro] = useState('');
     const [salvando, setSalvando] = useState(false);
@@ -70,6 +94,9 @@ export default function CredenciamentoFicha() {
                     }
                 }
                 setMarcacoes(atual);
+                setPresencas(Object.fromEntries(d.pessoas.map((p) => [chavePessoa(p), p.presente !== false])));
+                setKitsSelecionados([]);
+                setResponsavelKit('');
                 const sugerido = paraInput(d.credenciamento?.iniciado_em);
                 setInicio(sugerido);
                 setInicioSugerido(sugerido);
@@ -82,6 +109,42 @@ export default function CredenciamentoFicha() {
 
     function marcar(documentoId, pessoa, situacao) {
         setMarcacoes((m) => ({ ...m, [chave(documentoId, pessoa.tipo, pessoa.id)]: situacao }));
+    }
+
+    function definirPresenca(pessoa, presente) {
+        setPresencas((p) => ({ ...p, [chavePessoa(pessoa)]: presente }));
+    }
+
+    function alternarKit(pessoa) {
+        const k = chavePessoa(pessoa);
+        setKitsSelecionados((atual) => (atual.includes(k) ? atual.filter((i) => i !== k) : [...atual, k]));
+    }
+
+    /** As pessoas escolhidas agora, no formato que a API espera. */
+    function kitsParaEnvio() {
+        return kitsSelecionados.map((k) => {
+            const [pessoaTipo, pessoaId] = k.split(':');
+            return { pessoa_tipo: pessoaTipo, pessoa_id: pessoaId === 'null' ? null : Number(pessoaId) };
+        });
+    }
+
+    /** Retirada avulsa: o credenciamento já está concluído e alguém voltou ao balcão. */
+    async function entregarKits() {
+        setEntregandoKit(true);
+        setErro('');
+        try {
+            const [responsavelTipo, responsavelId] = responsavelKit.split(':');
+            await registrarRetiradaKit(id, {
+                responsavel_tipo: responsavelTipo,
+                responsavel_id: responsavelId === 'null' ? null : Number(responsavelId),
+                pessoas: kitsParaEnvio(),
+            }, teste);
+        } catch (e) {
+            setErro(extractErrors(e).message || 'Não foi possível registrar a retirada.');
+        } finally {
+            setEntregandoKit(false);
+            carregar();
+        }
     }
 
     async function cancelar() {
@@ -113,10 +176,25 @@ export default function CredenciamentoFicha() {
                         situacao,
                     };
                 }),
+                pessoas: dados.pessoas.map((p) => ({
+                    pessoa_tipo: p.tipo,
+                    pessoa_id: p.id,
+                    presente: presencas[chavePessoa(p)] !== false,
+                })),
                 observacao: observacao.trim() === '' ? null : observacao.trim(),
                 // Só viaja quando o admin corrigiu o horário: aí o fim é calculado.
                 iniciado_em: inicio !== inicioSugerido ? inicio : null,
             };
+
+            // Kits escolhidos durante o próprio credenciamento saem junto.
+            if (kitsSelecionados.length > 0 && responsavelKit !== '') {
+                const [responsavelTipo, responsavelId] = responsavelKit.split(':');
+                payload.kits = {
+                    responsavel_tipo: responsavelTipo,
+                    responsavel_id: responsavelId === 'null' ? null : Number(responsavelId),
+                    pessoas: kitsParaEnvio(),
+                };
+            }
             await credenciarProjeto(id, payload, teste);
 
             // Lembrete dos itens a entregar antes de sair da ficha.
@@ -147,6 +225,9 @@ export default function CredenciamentoFicha() {
     // servidor barra de qualquer forma, aqui é para a tela não mentir.
     const podeAlterar = credenciamento?.pode_alterar !== false;
     const aberto = config?.aberto && podeAlterar;
+    // A retirada de kit só depende da janela do evento: ela acrescenta, nunca
+    // reescreve a conferência de outra conta.
+    const janelaAberta = Boolean(config?.aberto);
     const concluido = Boolean(credenciamento?.concluido);
     // Sem nenhum documento cadastrado não há o que conferir — a lista é parametrizável.
     const semDocumentos = pessoas.every((p) => p.documentos.length === 0);
@@ -208,12 +289,48 @@ export default function CredenciamentoFicha() {
             <div className="space-y-4 max-w-3xl">
                 {pessoas.map((pessoa) => (
                     <section key={`${pessoa.tipo}:${pessoa.id}`} className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-5">
-                        <div className="flex items-baseline gap-2 mb-3">
-                            <h2 className="font-display text-primary font-semibold">{pessoa.nome}</h2>
-                            <span className="text-xs text-on-surface-variant">{pessoa.tipo_label}</span>
+                        <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+                            <div className="flex items-baseline gap-2">
+                                <h2 className="font-display text-primary font-semibold">{pessoa.nome}</h2>
+                                <span className="text-xs text-on-surface-variant">{pessoa.tipo_label}</span>
+                            </div>
+                            {/* Presença antes de tudo: quem não veio não tem documento a conferir. */}
+                            <div className="flex gap-1" role="group" aria-label={`Presença de ${pessoa.nome}`}>
+                                {/* "Compareceu/Faltou" e não "Presente/Ausente": estes últimos já
+                                    são os rótulos de cada documento, logo abaixo, e a mesma palavra
+                                    querendo dizer duas coisas no mesmo cartão confunde no balcão. */}
+                                {[
+                                    { valor: true, rotulo: 'Compareceu' },
+                                    { valor: false, rotulo: 'Faltou' },
+                                ].map((opcao) => {
+                                    const ativo = (presencas[chavePessoa(pessoa)] !== false) === opcao.valor;
+                                    return (
+                                        <button
+                                            key={opcao.rotulo}
+                                            type="button"
+                                            disabled={!aberto}
+                                            aria-pressed={ativo}
+                                            onClick={() => definirPresenca(pessoa, opcao.valor)}
+                                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors disabled:opacity-50 ${ativo
+                                                ? (opcao.valor
+                                                    ? 'bg-primary-container text-on-primary border-primary-container'
+                                                    : 'bg-error-container text-on-error-container border-error-container')
+                                                : 'border-outline-variant text-on-surface-variant hover:bg-surface-variant'}`}
+                                        >
+                                            {opcao.rotulo}
+                                        </button>
+                                    );
+                                })}
+                            </div>
                         </div>
 
-                        {pessoa.documentos.length === 0 ? (
+                        {presencas[chavePessoa(pessoa)] === false ? (
+                            <p className="text-sm text-on-surface-variant">
+                                Faltou ao credenciamento — os documentos desta pessoa não precisam ser
+                                conferidos. Se ela aparecer depois, marque “Compareceu” e confira nesta
+                                mesma ficha.
+                            </p>
+                        ) : pessoa.documentos.length === 0 ? (
                             <p className="text-sm text-on-surface-variant">
                                 Nenhum documento exigido deste papel.
                             </p>
@@ -247,6 +364,86 @@ export default function CredenciamentoFicha() {
                         )}
                     </section>
                 ))}
+
+                {/* Kits: um por pessoa, retirados no nome de quem veio ao balcão. */}
+                <section className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-5">
+                    <h2 className="font-display text-primary font-semibold mb-1">Retirada dos kits</h2>
+                    <p className="text-sm text-on-surface-variant mb-3">
+                        Marque de quem os kits estão sendo retirados agora e quem está levando. Quem
+                        ficar de fora pode retirar o seu depois, com outro responsável e outro horário.
+                    </p>
+
+                    <ul className="space-y-2 mb-4">
+                        {pessoas.map((pessoa) => {
+                            const k = chavePessoa(pessoa);
+                            const retirado = pessoa.kit?.retirado;
+
+                            return (
+                                <li key={k} className="flex flex-wrap items-center gap-2">
+                                    <label className="flex items-center gap-2 flex-1 min-w-0">
+                                        <input
+                                            type="checkbox"
+                                            className="accent-primary-container"
+                                            disabled={retirado || !janelaAberta}
+                                            checked={retirado || kitsSelecionados.includes(k)}
+                                            onChange={() => alternarKit(pessoa)}
+                                            aria-label={`Kit de ${pessoa.nome}`}
+                                        />
+                                        <span className="text-sm text-on-surface truncate">
+                                            {pessoa.nome}
+                                            <span className="text-on-surface-variant"> · {pessoa.tipo_label}</span>
+                                        </span>
+                                    </label>
+                                    <span className="text-xs text-on-surface-variant">
+                                        {retirado
+                                            ? `Retirado por ${pessoa.kit.por_nome} em ${dataHora(pessoa.kit.em)}`
+                                            : 'Kit pendente'}
+                                    </span>
+                                </li>
+                            );
+                        })}
+                    </ul>
+
+                    <div className="flex flex-wrap items-end gap-3">
+                        <label className="block grow max-w-xs">
+                            <span className="text-sm font-semibold text-on-surface">Quem está retirando</span>
+                            <select
+                                value={responsavelKit}
+                                onChange={(e) => setResponsavelKit(e.target.value)}
+                                disabled={!janelaAberta}
+                                aria-label="Quem está retirando os kits"
+                                className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm text-on-surface focus:border-primary-container focus:outline-none focus:ring-2 focus:ring-primary-container/20 disabled:opacity-60"
+                            >
+                                <option value="">Escolha uma pessoa do projeto</option>
+                                {pessoas.map((pessoa) => (
+                                    <option key={chavePessoa(pessoa)} value={chavePessoa(pessoa)}>
+                                        {pessoa.nome} · {pessoa.tipo_label}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+
+                        {/* Com o credenciamento já concluído a retirada vale sozinha: é a
+                            segunda visita ao balcão, e ela só acrescenta. Antes disso, ela
+                            sai junto da conclusão. */}
+                        {concluido ? (
+                            <Button
+                                type="button"
+                                variant="outline"
+                                loading={entregandoKit}
+                                disabled={!janelaAberta || kitsSelecionados.length === 0 || responsavelKit === ''}
+                                onClick={entregarKits}
+                            >
+                                <span className="material-symbols-outlined text-[20px]">local_mall</span>
+                                Registrar retirada
+                            </Button>
+                        ) : (
+                            <p className="text-xs text-on-surface-variant pb-2">
+                                A retirada é gravada junto da conclusão do credenciamento.
+                            </p>
+                        )}
+                    </div>
+                </section>
 
                 <section className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-5">
                     <label className="block mb-4 max-w-xs">

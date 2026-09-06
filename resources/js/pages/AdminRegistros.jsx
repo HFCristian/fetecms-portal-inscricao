@@ -25,6 +25,7 @@ const TAG = {
     lista_final_projeto_adicionado: 'bg-primary-fixed text-primary-container',
     lista_final_projeto_removido: 'bg-error-container text-on-error-container',
     credenciamento_realizado: 'bg-secondary-container text-on-secondary-container',
+    credenciamento_kit_retirado: 'bg-primary-fixed text-primary-container',
 };
 
 const ICONE = {
@@ -46,6 +47,7 @@ const ICONE = {
     lista_final_projeto_adicionado: 'playlist_add',
     lista_final_projeto_removido: 'playlist_remove',
     credenciamento_realizado: 'how_to_reg',
+    credenciamento_kit_retirado: 'local_mall',
 };
 
 /** Título, texto e placeholder de busca de cada seção da trilha. */
@@ -87,8 +89,8 @@ const SECOES = {
     },
     credenciamento: {
         titulo: 'Registros · Credenciamento',
-        descricao: 'O balcão do evento: quem credenciou cada projeto, quando, e o que ficou ausente '
-            + 'na conferência dos documentos.',
+        descricao: 'O balcão do evento: quem credenciou cada projeto, quando, quem faltou, o que '
+            + 'ficou ausente na conferência dos documentos e cada retirada de kit.',
         placeholder: 'Buscar por título do projeto ou quem credenciou…',
         vazio: 'Nenhum credenciamento registrado por enquanto.',
     },

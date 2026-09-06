@@ -29,7 +29,9 @@ namespace App\Enums;
  * composição de quem sobe ao evento, então toda mexida fica registrada.
  *
  * Seção "Credenciamento" (o balcão do evento): quem credenciou cada projeto,
- * quando, e o que ficou ausente na conferência dos documentos.
+ * quando, o que ficou ausente na conferência dos documentos — e cada retirada
+ * de kit, que pode acontecer depois do credenciamento e no nome de outra
+ * pessoa.
  */
 enum TipoRegistro: string
 {
@@ -64,6 +66,7 @@ enum TipoRegistro: string
     case ListaFinalProjetoRemovido = 'lista_final_projeto_removido';
     case CredenciamentoRealizado = 'credenciamento_realizado';
     case CredenciamentoCancelado = 'credenciamento_cancelado';
+    case CredenciamentoKitRetirado = 'credenciamento_kit_retirado';
 
     /** Seções da tela de Registros. */
     public const SECAO_INSCRICOES = 'inscricoes';
@@ -112,6 +115,7 @@ enum TipoRegistro: string
             self::ListaFinalProjetoRemovido => 'Projeto retirado da lista',
             self::CredenciamentoRealizado => 'Credenciamento realizado',
             self::CredenciamentoCancelado => 'Credenciamento cancelado',
+            self::CredenciamentoKitRetirado => 'Kit retirado',
         };
     }
 
@@ -125,7 +129,8 @@ enum TipoRegistro: string
             self::RascunhoAlteracao, self::RascunhoSubmissao => self::SECAO_RASCUNHOS,
             self::ListaFinalOficializada, self::ListaFinalProjetoAdicionado,
             self::ListaFinalProjetoRemovido => self::SECAO_LISTA_FINAL,
-            self::CredenciamentoRealizado, self::CredenciamentoCancelado => self::SECAO_CREDENCIAMENTO,
+            self::CredenciamentoRealizado, self::CredenciamentoCancelado,
+            self::CredenciamentoKitRetirado => self::SECAO_CREDENCIAMENTO,
             default => self::SECAO_AVALIACAO,
         };
     }

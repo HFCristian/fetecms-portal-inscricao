@@ -40,10 +40,12 @@ const FICHA = {
 const getFichaCredenciamento = vi.fn(() => Promise.resolve(FICHA));
 const credenciarProjeto = vi.fn(() => Promise.resolve({}));
 const cancelarCredenciamento = vi.fn(() => Promise.resolve({}));
+const registrarRetiradaKit = vi.fn(() => Promise.resolve({}));
 vi.mock('../lib/credenciamento.js', () => ({
     getFichaCredenciamento: (...a) => getFichaCredenciamento(...a),
     credenciarProjeto: (...a) => credenciarProjeto(...a),
     cancelarCredenciamento: (...a) => cancelarCredenciamento(...a),
+    registrarRetiradaKit: (...a) => registrarRetiradaKit(...a),
 }));
 
 /** Ficha de um projeto já credenciado. */
@@ -67,6 +69,7 @@ import CredenciamentoFicha from './CredenciamentoFicha.jsx';
 describe('CredenciamentoFicha', () => {
     beforeEach(() => {
         credenciarProjeto.mockClear();
+        registrarRetiradaKit.mockClear();
         navigate.mockClear();
         getFichaCredenciamento.mockResolvedValue(FICHA);
     });
@@ -105,8 +108,9 @@ describe('CredenciamentoFicha', () => {
     it('mostra cada pessoa com os documentos do papel dela', async () => {
         render(<CredenciamentoFicha />);
 
-        expect(await screen.findByText('Ana Aluna')).toBeInTheDocument();
-        expect(screen.getByText('Marta Orientadora')).toBeInTheDocument();
+        // O nome aparece duas vezes: no cartão da pessoa e na lista de kits.
+        expect(await screen.findAllByText('Ana Aluna')).not.toHaveLength(0);
+        expect(screen.getAllByText('Marta Orientadora')).not.toHaveLength(0);
         expect(screen.getByText('RG')).toBeInTheDocument();
         expect(screen.getByText('Documento com foto')).toBeInTheDocument();
         // Três botões de situação por documento (3 documentos).
@@ -115,7 +119,7 @@ describe('CredenciamentoFicha', () => {
 
     it('já vem com o que foi conferido antes marcado', async () => {
         render(<CredenciamentoFicha />);
-        await screen.findByText('Ana Aluna');
+        await screen.findAllByText('Ana Aluna');
 
         const grupo = screen.getByRole('group', { name: 'Autorização de menor de Ana Aluna' });
         const presente = within(grupo).getByRole('button', { name: 'Presente' });
@@ -124,7 +128,7 @@ describe('CredenciamentoFicha', () => {
 
     it('envia as marcações escolhidas ao concluir', async () => {
         render(<CredenciamentoFicha />);
-        await screen.findByText('Ana Aluna');
+        await screen.findAllByText('Ana Aluna');
 
         const rg = screen.getByRole('group', { name: 'RG de Ana Aluna' });
         fireEvent.click(within(rg).getByRole('button', { name: 'Presente' }));
@@ -147,7 +151,7 @@ describe('CredenciamentoFicha', () => {
     it('fora da janela do evento a ficha fica só de leitura', async () => {
         getFichaCredenciamento.mockResolvedValue({ ...FICHA, config: { aberto: false } });
         render(<CredenciamentoFicha />);
-        await screen.findByText('Ana Aluna');
+        await screen.findAllByText('Ana Aluna');
 
         expect(screen.getByText(/O credenciamento está fechado agora/)).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /Concluir credenciamento/ })).toBeDisabled();
@@ -157,7 +161,7 @@ describe('CredenciamentoFicha', () => {
 
     it('manda o início só quando o horário sugerido é alterado', async () => {
         render(<CredenciamentoFicha />);
-        await screen.findByText('Ana Aluna');
+        await screen.findAllByText('Ana Aluna');
 
         // Sem mexer no campo, o início não viaja: o fim é o instante da conclusão.
         fireEvent.click(screen.getByRole('button', { name: /Concluir credenciamento/ }));
@@ -183,7 +187,7 @@ describe('CredenciamentoFicha', () => {
             config: { aberto: true, itens: ['Camiseta', 'Crachá'], minutos_atendimento: 5 },
         });
         render(<CredenciamentoFicha />);
-        await screen.findByText('Ana Aluna');
+        await screen.findAllByText('Ana Aluna');
 
         fireEvent.click(screen.getByRole('button', { name: /Concluir credenciamento/ }));
 
@@ -195,5 +199,84 @@ describe('CredenciamentoFicha', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Entendi' }));
         expect(navigate).toHaveBeenCalledWith('/admin/credenciamento/credenciados', { replace: true });
+    });
+
+    it('marcar que a pessoa faltou esconde os documentos dela e viaja na conclusão', async () => {
+        render(<CredenciamentoFicha />);
+        await screen.findAllByText('Ana Aluna');
+
+        // Antes: a aluna tem documentos para conferir.
+        expect(screen.getByRole('group', { name: 'RG de Ana Aluna' })).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('group', { name: 'Presença de Ana Aluna' })
+            .querySelector('button:last-child'));
+
+        expect(screen.queryByRole('group', { name: 'RG de Ana Aluna' })).not.toBeInTheDocument();
+        expect(screen.getByText(/Faltou ao credenciamento/)).toBeInTheDocument();
+        // O orientador continua conferível.
+        expect(screen.getByRole('group', { name: 'Documento com foto de Marta Orientadora' })).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: /Concluir credenciamento/ }));
+
+        await waitFor(() => expect(credenciarProjeto).toHaveBeenCalled());
+        expect(credenciarProjeto.mock.calls[0][1].pessoas).toEqual([
+            { pessoa_tipo: 'aluno', pessoa_id: 30, presente: false },
+            { pessoa_tipo: 'orientador', pessoa_id: 5, presente: true },
+        ]);
+    });
+
+    it('os kits escolhidos saem junto da conclusão, no nome de quem está retirando', async () => {
+        render(<CredenciamentoFicha />);
+        await screen.findAllByText('Ana Aluna');
+
+        fireEvent.click(screen.getByLabelText('Kit de Ana Aluna'));
+        fireEvent.click(screen.getByLabelText('Kit de Marta Orientadora'));
+        fireEvent.change(screen.getByLabelText('Quem está retirando os kits'), {
+            target: { value: 'aluno:30' },
+        });
+        fireEvent.click(screen.getByRole('button', { name: /Concluir credenciamento/ }));
+
+        await waitFor(() => expect(credenciarProjeto).toHaveBeenCalled());
+        expect(credenciarProjeto.mock.calls[0][1].kits).toEqual({
+            responsavel_tipo: 'aluno',
+            responsavel_id: 30,
+            pessoas: [
+                { pessoa_tipo: 'aluno', pessoa_id: 30 },
+                { pessoa_tipo: 'orientador', pessoa_id: 5 },
+            ],
+        });
+    });
+
+    it('com o credenciamento concluído, a retirada do kit tem botão próprio', async () => {
+        getFichaCredenciamento.mockResolvedValue({
+            ...credenciado(),
+            pessoas: [
+                {
+                    ...FICHA.pessoas[0],
+                    kit: { retirado: true, em: '2026-09-01T12:00:00-04:00', por_nome: 'Ana Aluna' },
+                },
+                FICHA.pessoas[1],
+            ],
+        });
+        render(<CredenciamentoFicha />);
+        await screen.findAllByText('Ana Aluna');
+
+        // O kit que já saiu não volta a ser marcado, e diz quem levou.
+        expect(screen.getByLabelText('Kit de Ana Aluna')).toBeDisabled();
+        expect(screen.getByText(/Retirado por Ana Aluna/)).toBeInTheDocument();
+
+        fireEvent.click(screen.getByLabelText('Kit de Marta Orientadora'));
+        fireEvent.change(screen.getByLabelText('Quem está retirando os kits'), {
+            target: { value: 'orientador:5' },
+        });
+        fireEvent.click(screen.getByRole('button', { name: /Registrar retirada/ }));
+
+        await waitFor(() => expect(registrarRetiradaKit).toHaveBeenCalledWith('7', {
+            responsavel_tipo: 'orientador',
+            responsavel_id: 5,
+            pessoas: [{ pessoa_tipo: 'orientador', pessoa_id: 5 }],
+        }, false));
+        // Retirar kit não é regravar a conferência.
+        expect(credenciarProjeto).not.toHaveBeenCalled();
     });
 });

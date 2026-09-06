@@ -539,7 +539,50 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 99 | Avaliador: busca na aba "Avaliados" | ✅ sim | ❌ não (manual do Pedro) | 23 |
 | 100 | Avaliador: editar o parecer final da avaliação enviada, com justificativa | ✅ sim | ❌ não (manual do Pedro) | 23 |
 | 101 | Avaliadores Online: botão de áreas abre a linha; demo vira só o frasco | ✅ sim | ❌ não (manual do Pedro) | 24 |
+| 102 | E-mails: formatação à prova de worker desatualizado + envio de teste da mala direta | ✅ sim | ❌ não (manual do Pedro) | 25 |
+| 103 | Credenciamento: presença por pessoa e retirada de kit por responsável | ✅ sim | ❌ não (manual do Pedro) | 25 |
 
+> **Sprints 102–103 (branch `feat/emails-credenciamento-almoxarifado`, saída da `origin/main` @ `732656a`):**
+> (a) **Sprint 102** — o comunicado da mala direta chegou às caixas de entrada com as tags à
+> mostra (`<b>`, `<strong>`). A causa é a mesma da Sprint 93 — um `queue:work` com a classe do
+> Mailable **antiga** em memória renderizando a view **nova**, lida do disco a cada envio —, mas o
+> sintoma mudou: o remendo daquela vez fez a view não quebrar, e ela passou a cair no ramo de texto
+> puro, que **escapa** o corpo. Trocou-se um erro barulhento por um defeito silencioso. Agora
+> **nenhuma view depende das chaves do `with`**: o formato sai de `$mala->formato` (ou de
+> `$formato`, no transacional) e o corpo, da propriedade pública `$corpo` — as duas chegam sempre,
+> seja qual for a versão da classe carregada. As chaves do `with` viraram atalho (o callback que
+> embute as imagens por CID, o texto já convertido), e faltando qualquer uma o e-mail sai
+> **formatado assim mesmo**, no máximo sem imagem. O `MensagemTransacional` parou de sobrescrever
+> `corpo` no `with`, e o estilo do bloco do código de 6 dígitos virou `HtmlEmail::ESTILO_DESTAQUE`,
+> compartilhado entre o Mailable e a view. Os quatro caminhos de envio foram auditados: mala
+> direta, transacional (confirmação de cadastro, projeto submetido, convite de feedback) e o alerta
+> de conversas pendentes. Os testes que existiam só verificavam que o **texto** aparecia — passavam
+> com as tags escapadas; os novos verificam que `<strong>` chega **como marcação**.
+> Junto veio a **conferência antes do disparo**: a caixa *Enviar e-mail de teste para:* com os
+> endereços digitados na hora (até 10). O teste cria uma mala marcada `teste` e percorre **a mesma
+> fila** do disparo de verdade — um teste renderizado na hora diria que está tudo bem justamente no
+> caso que motivou o recurso. Ele **não consome o envio**: os arquivos são **copiados** para a mala
+> de teste (linha nova, mesmo arquivo em disco) em vez de vinculados, senão o disparo seguinte
+> encontraria imagens e anexos já tomados e sairia sem eles. A mala de teste fica fora da lista de
+> disparos, mas o relatório dela abre pelo id e diz o que aconteceu com cada endereço.
+> (b) **Sprint 103** — o balcão passou a registrar **quem apareceu** e **quem levou o kit de quem**
+> (`credenciamento_pessoas`). Marcar alguém como *Faltou* dispensa os documentos daquela pessoa —
+> não se confere o RG de quem não veio — e **não impede** credenciar o projeto: ele fica credenciado
+> *com pendências*, que a lista mostra, e quem chegar depois é conferido na mesma ficha. Marcar
+> ausente **apaga** o que já tinha sido conferido daquela pessoa, senão a ficha ficaria dizendo que
+> o documento de um ausente está presente. Os rótulos são *Compareceu/Faltou* de propósito:
+> *Presente/Ausente* já são os rótulos de cada documento no mesmo cartão. O **kit é por pessoa**,
+> mas sai no nome de **um responsável**, que precisa ser gente do projeto — um aluno leva o dele e o
+> de dois colegas —, e quem sobrou retira depois, com outro responsável e outro horário; por isso o
+> relógio e o nome de quem levou ficam em **cada linha**. Kit já retirado não muda de dono. Com o
+> credenciamento ainda em aberto a retirada sai junto da conclusão; já concluído, ela tem
+> **botão próprio** e **não passa pelo `podeAlterar()`** — ela só acrescenta, e uma conta temporária
+> de balcão precisa poder entregar no turno seguinte o kit que outro turno não entregou. Corrigir e
+> cancelar continuam restritos como na Sprint 97. Cada retirada vira um registro
+> (`credenciamento_kit_retirado`) com quem levou, de quem e quando; a ausência entra no registro do
+> próprio credenciamento.
+> Back **802/802**, front **396/396**, Pint limpo, build OK.
+>
 > **Sprints 93–94 (branch `feat/ajustes-distribuicao-designacoes`, saída da `origin/main` @ `385833b`):**
 > dois defeitos relatados em produção.
 > (a) **Sprint 93** — o disparo de **242 destinatários** falhou em **todos** eles com

@@ -125,6 +125,16 @@ export default function CredenciamentoLista({ situacao = 'pendentes' }) {
                                             </span>
                                         )}
                                     </p>
+                                    {/* O que ficou para trás: quem faltou e o kit que ninguém levou.
+                                        Os dois se resolvem numa segunda visita ao balcão. */}
+                                    {p.credenciado && (p.ausentes > 0 || p.kits_pendentes > 0) && (
+                                        <p className="text-xs font-semibold text-error mt-0.5">
+                                            {[
+                                                p.ausentes > 0 && `${p.ausentes} ${p.ausentes === 1 ? 'pessoa faltou' : 'pessoas faltaram'}`,
+                                                p.kits_pendentes > 0 && `${p.kits_pendentes} ${p.kits_pendentes === 1 ? 'kit não retirado' : 'kits não retirados'}`,
+                                            ].filter(Boolean).join(' · ')}
+                                        </p>
+                                    )}
                                 </div>
                                 <Button
                                     type="button"

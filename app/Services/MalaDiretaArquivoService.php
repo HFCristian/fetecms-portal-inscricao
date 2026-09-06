@@ -56,18 +56,48 @@ class MalaDiretaArquivoService
             return;
         }
 
-        $maximo = MalaDiretaArquivo::maximoDe($tipo);
-
-        if (count($ids) > $maximo) {
-            throw ValidationException::withMessages([
-                $tipo === MalaDiretaArquivo::TIPO_IMAGEM ? 'imagens' : 'anexos' => "No máximo {$maximo} arquivos por mensagem.",
-            ]);
-        }
+        $this->conferirQuantidade($ids, $tipo);
 
         MalaDiretaArquivo::whereIn('id', $ids)
             ->where('tipo', $tipo)
             ->whereNull('mala_direta_id')
             ->update(['mala_direta_id' => $mala->id]);
+    }
+
+    /**
+     * Copia para uma mala os arquivos ainda soltos, **sem tomá-los** de quem
+     * está escrevendo. É o que o envio de teste usa: o disparo de verdade vem
+     * depois e precisa encontrar os originais livres para vincular.
+     *
+     * A linha é nova (id novo); o arquivo em disco é o mesmo, e ninguém o apaga
+     * — a faxina só alcança órfão, e `remover()` recusa arquivo já vinculado.
+     *
+     * @param  list<int>  $ids
+     * @return array<int, int> id original => id da cópia
+     */
+    public function copiar(MalaDireta $mala, array $ids, string $tipo): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+
+        $this->conferirQuantidade($ids, $tipo);
+
+        $copias = [];
+
+        MalaDiretaArquivo::whereIn('id', $ids)
+            ->where('tipo', $tipo)
+            ->whereNull('mala_direta_id')
+            ->get()
+            ->each(function (MalaDiretaArquivo $arquivo) use ($mala, &$copias) {
+                $copia = $arquivo->replicate();
+                $copia->mala_direta_id = $mala->id;
+                $copia->save();
+
+                $copias[$arquivo->id] = $copia->id;
+            });
+
+        return $copias;
     }
 
     /** Apaga um arquivo ainda não vinculado (o admin removeu da mensagem). */
@@ -81,6 +111,23 @@ class MalaDiretaArquivoService
 
         Storage::disk($arquivo->disk)->delete($arquivo->path);
         $arquivo->delete();
+    }
+
+    /**
+     * O limite de arquivos por mensagem, valendo tanto para vincular quanto
+     * para copiar.
+     *
+     * @param  list<int>  $ids
+     */
+    private function conferirQuantidade(array $ids, string $tipo): void
+    {
+        $maximo = MalaDiretaArquivo::maximoDe($tipo);
+
+        if (count($ids) > $maximo) {
+            throw ValidationException::withMessages([
+                $tipo === MalaDiretaArquivo::TIPO_IMAGEM ? 'imagens' : 'anexos' => "No máximo {$maximo} arquivos por mensagem.",
+            ]);
+        }
     }
 
     /** Limpa o que ficou para trás de mensagens que nunca foram disparadas. */

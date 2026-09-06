@@ -8,6 +8,7 @@ use App\Models\Credenciamento;
 use App\Models\Projeto;
 use App\Models\RegistroAtividade;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -183,11 +184,21 @@ class RegistroAtividadeService
      */
     public function credenciamento(Credenciamento $credenciamento, Projeto $projeto, User $admin): RegistroAtividade
     {
-        $ausentes = $credenciamento->documentos
+        // Duas pendências diferentes: quem não veio ao balcão e, entre os que
+        // vieram, o documento que faltou.
+        $faltaram = $credenciamento->pessoas
+            ->where('presente', false)
+            ->map(fn ($p) => $p->pessoa_nome.': ausente no credenciamento')
+            ->values()
+            ->all();
+
+        $documentos = $credenciamento->documentos
             ->filter(fn ($d) => $d->situacao === SituacaoDocumento::Ausente)
             ->map(fn ($d) => $d->pessoa_nome.': '.($d->documento?->nome ?? 'documento'))
             ->values()
             ->all();
+
+        $ausentes = array_merge($faltaram, $documentos);
 
         return $this->registrarNoProjeto(TipoRegistro::CredenciamentoRealizado, $projeto, $admin, array_filter([
             'campo' => 'Credenciamento',
@@ -215,6 +226,29 @@ class RegistroAtividadeService
             'de' => $de,
             'para' => $para,
             'justificativa' => $justificativa,
+        ]);
+    }
+
+    /**
+     * Retirada de kit: quem levou, de quem, e quando.
+     *
+     * Vale tanto para a retirada feita no próprio credenciamento quanto para a
+     * do colega que apareceu depois — é o mesmo fato, e ele precisa ficar
+     * registrado das duas vezes, porque o kit sai da mão da organização.
+     *
+     * @param  list<string>  $pessoas  nomes de quem teve o kit retirado
+     */
+    public function kitRetirado(
+        Projeto $projeto,
+        User $admin,
+        string $responsavel,
+        array $pessoas,
+        ?Carbon $quando = null,
+    ): RegistroAtividade {
+        return $this->registrarNoProjeto(TipoRegistro::CredenciamentoKitRetirado, $projeto, $admin, [
+            'responsavel' => $responsavel,
+            'kits' => $pessoas,
+            'quando' => ($quando ?? now())->format('d/m/Y H:i'),
         ]);
     }
 
@@ -405,6 +439,13 @@ class RegistroAtividadeService
     {
         $detalhes = $registro->detalhes ?? [];
         $partes = [];
+
+        // A retirada de kit não é um "de → para": é quem levou, de quem e quando.
+        if ($registro->tipo === TipoRegistro::CredenciamentoKitRetirado) {
+            return ($detalhes['responsavel'] ?? 'alguém')
+                .' retirou o kit de: '.implode('; ', (array) ($detalhes['kits'] ?? []))
+                .(empty($detalhes['quando']) ? '' : ' · em '.$detalhes['quando']);
+        }
 
         if ($registro->tipo === TipoRegistro::TrocaEmail && isset($detalhes['de'], $detalhes['para'])) {
             $partes[] = $detalhes['de'].' → '.$detalhes['para'];

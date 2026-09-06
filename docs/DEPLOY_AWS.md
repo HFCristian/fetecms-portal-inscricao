@@ -288,9 +288,17 @@ sudo systemctl restart fetecms-queue
 > ⚠️ **O `restart` do worker não é opcional.** O `queue:work` carrega as classes PHP uma vez e
 > fica com elas em memória, enquanto as views Blade são lidas do disco a cada envio. Um worker
 > antigo rodando com views novas gera erro em **todos** os e-mails da fila — foi o que produziu o
-> `Undefined variable $html` na mala direta da v1.18. Se o serviço tiver outro nome (instalação
-> Bitnami, supervisor etc.), rode ao menos `php artisan queue:restart` no fim do deploy: ele pede
-> a saída ordenada de qualquer worker em execução.
+> `Undefined variable $html` na mala direta da v1.18 — e, depois que as views passaram a se
+> defender disso, entregou os e-mails seguintes **sem formatação**, com `<strong>` aparecendo como
+> texto na caixa de entrada. Desde a Sprint 102 as views derivam tudo das propriedades públicas do
+> Mailable, então nem uma coisa nem outra acontece; ainda assim, um worker desatualizado continua
+> rodando **a lógica antiga** de tudo o mais que a fila processa. Se o serviço tiver outro nome
+> (instalação Bitnami, supervisor etc.), rode ao menos `php artisan queue:restart` no fim do
+> deploy: ele pede a saída ordenada de qualquer worker em execução.
+>
+> Para conferir sem apostar: em **Comunicação → Mala direta**, marque *Enviar e-mail de teste
+> para:*, informe um endereço seu e mande. O teste percorre a mesma fila do disparo, então uma
+> mensagem que chega formatada é prova de que o worker está no ar e atualizado.
 
 > Para **zero-downtime**, faça *rolling deploy* (drene uma instância no target group, atualize,
 > re-registre) ou use deploy por imagem/AMI nova no Auto Scaling Group. Rode `migrate --force`

@@ -677,4 +677,180 @@ class CredenciamentoTest extends TestCase
         $this->assertFalse(ListaFinal::vigente($this->edicao)->demo);
         $this->assertTrue(ListaFinal::vigente($this->edicao, true)->demo);
     }
+
+    // ------------------------------------------------------------------ //
+    // Sprint 103 — presença por pessoa e retirada de kit                  //
+    // ------------------------------------------------------------------ //
+
+    public function test_pessoa_ausente_dispensa_os_documentos_e_o_projeto_e_credenciado(): void
+    {
+        $admin = User::factory()->admin()->create();
+        Sanctum::actingAs($admin);
+        $projeto = $this->finalista();
+        $rg = $this->documento(TipoPessoaCredenciamento::Aluno, 'RG');
+        $aluno = $projeto->alunos()->first();
+
+        $this->postJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}", [
+            'marcacoes' => [],
+            'pessoas' => [
+                ['pessoa_tipo' => 'aluno', 'pessoa_id' => $aluno->id, 'presente' => false],
+            ],
+        ])->assertOk();
+
+        $credenciamento = Credenciamento::where('projeto_id', $projeto->id)->firstOrFail();
+        $this->assertNotNull($credenciamento->finalizado_em, 'o projeto é credenciado mesmo com alguém ausente');
+
+        $linha = $credenciamento->pessoas()->where('pessoa_id', $aluno->id)->firstOrFail();
+        $this->assertFalse($linha->presente);
+        // Não se confere o RG de quem não veio.
+        $this->assertSame(0, $credenciamento->documentos()->count());
+
+        // A ausência entra na trilha, junto do credenciamento.
+        $registro = RegistroAtividade::where('tipo', TipoRegistro::CredenciamentoRealizado)->firstOrFail();
+        $this->assertStringContainsString('Ana Aluna', json_encode($registro->detalhes));
+
+        // E a lista mostra a pendência.
+        $linhaLista = collect($this->getJson('/api/v1/admin/credenciamento/finalistas')->json('data'))
+            ->firstWhere('id', $projeto->id);
+        $this->assertSame(1, $linhaLista['ausentes']);
+
+        $this->assertNotNull($rg->id);
+    }
+
+    public function test_marcar_ausente_apaga_o_que_ja_tinha_sido_conferido_daquela_pessoa(): void
+    {
+        $admin = User::factory()->admin()->create();
+        Sanctum::actingAs($admin);
+        $projeto = $this->finalista();
+        $rg = $this->documento(TipoPessoaCredenciamento::Aluno, 'RG');
+        $aluno = $projeto->alunos()->first();
+
+        $marcacao = [[
+            'documento_id' => $rg->id, 'pessoa_tipo' => 'aluno',
+            'pessoa_id' => $aluno->id, 'situacao' => SituacaoDocumento::Presente->value,
+        ]];
+
+        $this->postJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}", ['marcacoes' => $marcacao])
+            ->assertOk();
+        $this->assertSame(1, Credenciamento::firstOrFail()->documentos()->count());
+
+        // O admin percebe que era o irmão que estava ali, e corrige para ausente.
+        $this->postJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}", [
+            'marcacoes' => $marcacao,
+            'pessoas' => [['pessoa_tipo' => 'aluno', 'pessoa_id' => $aluno->id, 'presente' => false]],
+        ])->assertOk();
+
+        $this->assertSame(0, Credenciamento::firstOrFail()->documentos()->count());
+    }
+
+    public function test_kit_sai_no_nome_de_um_responsavel_e_o_que_sobra_e_retirado_depois(): void
+    {
+        $admin = User::factory()->admin()->create();
+        Sanctum::actingAs($admin);
+        $projeto = $this->finalista();
+        $aluno = $projeto->alunos()->first();
+        $orientador = $projeto->user;
+        $coorientador = $projeto->coorientador;
+
+        // No balcão, a aluna leva o kit dela e o do orientador.
+        $this->postJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}", [
+            'marcacoes' => [],
+            'kits' => [
+                'responsavel_tipo' => 'aluno',
+                'responsavel_id' => $aluno->id,
+                'pessoas' => [
+                    ['pessoa_tipo' => 'aluno', 'pessoa_id' => $aluno->id],
+                    ['pessoa_tipo' => 'orientador', 'pessoa_id' => $orientador->id],
+                ],
+            ],
+        ])->assertOk();
+
+        $credenciamento = Credenciamento::where('projeto_id', $projeto->id)->firstOrFail();
+        $this->assertSame(
+            2,
+            $credenciamento->pessoas()->whereNotNull('kit_retirado_em')->count(),
+        );
+        $this->assertSame(
+            'Ana Aluna',
+            $credenciamento->pessoas()->where('pessoa_tipo', 'orientador')->first()->kit_retirado_por_nome,
+        );
+
+        // O coorientador aparece mais tarde e retira o dele.
+        $this->postJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}/kits", [
+            'responsavel_tipo' => 'coorientador',
+            'responsavel_id' => $coorientador->id,
+            'pessoas' => [['pessoa_tipo' => 'coorientador', 'pessoa_id' => $coorientador->id]],
+        ])->assertOk();
+
+        $this->assertSame(0, $credenciamento->pessoas()->whereNull('kit_retirado_em')->count());
+
+        // Cada retirada vira um registro, com quem levou e de quem.
+        $registros = RegistroAtividade::where('tipo', TipoRegistro::CredenciamentoKitRetirado)->get();
+        $this->assertCount(2, $registros);
+        $this->assertSame('Ana Aluna', $registros->first()->detalhes['responsavel']);
+        $this->assertSame(['Ana Aluna', 'Marta Orientadora'], $registros->first()->detalhes['kits']);
+    }
+
+    public function test_kit_ja_retirado_nao_muda_de_dono(): void
+    {
+        $admin = User::factory()->admin()->create();
+        Sanctum::actingAs($admin);
+        $projeto = $this->finalista();
+        $aluno = $projeto->alunos()->first();
+        $orientador = $projeto->user;
+
+        $this->postJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}", [
+            'marcacoes' => [],
+            'kits' => [
+                'responsavel_tipo' => 'aluno', 'responsavel_id' => $aluno->id,
+                'pessoas' => [['pessoa_tipo' => 'aluno', 'pessoa_id' => $aluno->id]],
+            ],
+        ])->assertOk();
+
+        $this->postJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}/kits", [
+            'responsavel_tipo' => 'orientador', 'responsavel_id' => $orientador->id,
+            'pessoas' => [['pessoa_tipo' => 'aluno', 'pessoa_id' => $aluno->id]],
+        ])->assertOk();
+
+        $linha = Credenciamento::firstOrFail()->pessoas()->where('pessoa_tipo', 'aluno')->firstOrFail();
+        $this->assertSame('Ana Aluna', $linha->kit_retirado_por_nome);
+    }
+
+    public function test_responsavel_pelo_kit_precisa_ser_do_projeto(): void
+    {
+        Sanctum::actingAs(User::factory()->admin()->create());
+        $projeto = $this->finalista();
+        $aluno = $projeto->alunos()->first();
+
+        $this->postJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}", ['marcacoes' => []])->assertOk();
+
+        $this->postJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}/kits", [
+            'responsavel_tipo' => 'aluno',
+            'responsavel_id' => $aluno->id + 999,
+            'pessoas' => [['pessoa_tipo' => 'aluno', 'pessoa_id' => $aluno->id]],
+        ])->assertStatus(422)->assertJsonValidationErrors('responsavel_id');
+    }
+
+    public function test_conta_temporaria_registra_kit_de_credenciamento_alheio(): void
+    {
+        $projeto = $this->finalista();
+        $aluno = $projeto->alunos()->first();
+
+        // Um admin permanente credencia no primeiro turno.
+        Sanctum::actingAs(User::factory()->admin()->create());
+        $this->postJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}", ['marcacoes' => []])->assertOk();
+
+        // No turno seguinte, o balcão é uma conta temporária: ela não corrige a
+        // conferência alheia, mas precisa poder entregar o kit que faltou.
+        Sanctum::actingAs($this->contaTemporaria()->user);
+
+        $this->postJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}/kits", [
+            'responsavel_tipo' => 'aluno', 'responsavel_id' => $aluno->id,
+            'pessoas' => [['pessoa_tipo' => 'aluno', 'pessoa_id' => $aluno->id]],
+        ])->assertOk();
+
+        $this->assertNotNull(
+            Credenciamento::firstOrFail()->pessoas()->where('pessoa_tipo', 'aluno')->first()->kit_retirado_em,
+        );
+    }
 }

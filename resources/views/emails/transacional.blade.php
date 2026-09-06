@@ -24,15 +24,35 @@
                     </tr>
                     <tr>
                         <td style="padding:32px;">
-                            @if ($html ?? false)
+                            @php
+                                // Nada aqui depende de uma chave do `with` do Mailable: o worker da
+                                // fila pode estar com a classe ANTIGA em memória enquanto renderiza
+                                // esta view NOVA (a view sai do disco a cada envio, a classe não).
+                                // `$corpo`, `$destaque` e `$formato` são propriedades públicas do
+                                // Mailable, então chegam sempre — e o corpo em HTML já foi
+                                // sanitizado na gravação, por isso nunca é escapado aqui.
+                                $ehHtml = ($formato ?? 'texto') === 'html';
+                                $texto = (string) ($corpo ?? '');
+                                $codigo = $destaque ?? null;
+
+                                $corpoFinal = $ehHtml
+                                    ? ($corpoHtml ?? ($codigo !== null
+                                        ? \App\Support\HtmlEmail::destacar($texto, $codigo, \App\Support\HtmlEmail::ESTILO_DESTAQUE)
+                                        : $texto))
+                                    : null;
+
+                                $blocos = $ehHtml ? [] : ($paragrafos ?? \App\Support\MensagemEmail::paragrafos($texto));
+                            @endphp
+
+                            @if ($ehHtml)
                                 <div style="font-size:15px;line-height:1.6;color:#1c1b1f;">
-                                    {!! $corpoHtml !!}
+                                    {!! $corpoFinal !!}
                                 </div>
                             @else
-                                @foreach ($paragrafos as $paragrafo)
-                                    @if ($destaque !== null && trim($paragrafo) === $destaque)
+                                @foreach ($blocos as $paragrafo)
+                                    @if ($codigo !== null && trim($paragrafo) === $codigo)
                                         {{-- O parágrafo que é só o código vira o bloco grande. --}}
-                                        <p style="margin:0 0 16px;padding:16px;background-color:#f4f1f7;border-radius:12px;text-align:center;font-family:'Courier New',Courier,monospace;font-size:32px;font-weight:700;letter-spacing:8px;color:#43157A;">{{ $paragrafo }}</p>
+                                        <p style="{!! \App\Support\HtmlEmail::ESTILO_DESTAQUE !!}">{{ $paragrafo }}</p>
                                     @else
                                         <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#1c1b1f;">{!! nl2br(e($paragrafo)) !!}</p>
                                     @endif

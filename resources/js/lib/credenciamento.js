@@ -26,6 +26,17 @@ export const credenciarProjeto = (projetoId, payload, teste = false) =>
         .then((r) => r.data);
 
 /**
+ * Registra a retirada de kits depois do credenciamento — o colega que faltou
+ * na primeira visita aparece mais tarde e leva o dele.
+ *
+ * `payload`: { responsavel_tipo, responsavel_id, pessoas: [{ pessoa_tipo, pessoa_id }] }.
+ * Só acrescenta, então vale também para quem não credenciou o projeto.
+ */
+export const registrarRetiradaKit = (projetoId, payload, teste = false) =>
+    http.post(`/admin/credenciamento/projetos/${projetoId}/kits`, payload, { params: comTeste({}, teste) })
+        .then((r) => r.data);
+
+/**
  * Cancela o credenciamento: a conferência é apagada e o projeto volta para a
  * fila de *Credenciar*. Mexer no credenciamento de outra conta exige admin
  * permanente — quem barra é o servidor.

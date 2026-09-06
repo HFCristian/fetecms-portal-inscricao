@@ -19,6 +19,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 
 /**
  * Mala direta do admin: resolve o público-alvo, congela a lista de
@@ -34,6 +35,9 @@ class MalaDiretaService
 
     /** Teto de e-mails colados/importados de uma vez (evita CSV monstro). */
     public const MAX_PERSONALIZADOS = 5000;
+
+    /** Teto de endereços do envio de teste — é uma conferência, não um disparo. */
+    public const MAX_TESTE = 10;
 
     /** Como o comunicado trata quem não tem nome conhecido. */
     public const TRATAMENTO_PADRAO = 'participante';
@@ -126,8 +130,9 @@ class MalaDiretaService
 
         // O editor manda HTML; o que chega é limpo antes de virar e-mail.
         $formato = ($dados['formato'] ?? 'texto') === 'html' ? 'html' : 'texto';
+        $teste = (bool) ($dados['teste'] ?? false);
 
-        $mala = DB::transaction(function () use ($dados, $publicos, $personalizados, $lista, $autor, $formato) {
+        $mala = DB::transaction(function () use ($dados, $publicos, $personalizados, $lista, $autor, $formato, $teste) {
             $mala = MalaDireta::create([
                 'nome' => $dados['nome'],
                 'justificativa' => $dados['justificativa'],
@@ -137,6 +142,7 @@ class MalaDiretaService
                     ? HtmlEmail::sanitizar($dados['corpo'])
                     : $dados['corpo'],
                 'formato' => $formato,
+                'teste' => $teste,
                 'publicos' => $publicos,
                 'emails_personalizados' => count($personalizados),
                 'status' => StatusMala::Enviando,
@@ -166,8 +172,22 @@ class MalaDiretaService
 
             // As imagens do corpo e os anexos deixam de ser soltos e passam a
             // ser desta mala — é o que o job usa para embutir/anexar.
-            $this->arquivos->vincular($mala, $dados['imagens'] ?? [], MalaDiretaArquivo::TIPO_IMAGEM);
-            $this->arquivos->vincular($mala, $dados['anexos'] ?? [], MalaDiretaArquivo::TIPO_ANEXO);
+            //
+            // O teste é a exceção: ele **copia** as linhas em vez de tomá-las,
+            // senão o disparo de verdade, que vem depois, encontraria os
+            // arquivos já vinculados e sairia sem imagem e sem anexo.
+            if ($teste) {
+                $mapa = $this->arquivos->copiar($mala, $dados['imagens'] ?? [], MalaDiretaArquivo::TIPO_IMAGEM);
+                $this->arquivos->copiar($mala, $dados['anexos'] ?? [], MalaDiretaArquivo::TIPO_ANEXO);
+
+                // O corpo aponta para as imagens pelo id; a cópia tem outro.
+                if ($mapa !== []) {
+                    $mala->update(['corpo' => $this->remapearImagens($mala->corpo, $mapa)]);
+                }
+            } else {
+                $this->arquivos->vincular($mala, $dados['imagens'] ?? [], MalaDiretaArquivo::TIPO_IMAGEM);
+                $this->arquivos->vincular($mala, $dados['anexos'] ?? [], MalaDiretaArquivo::TIPO_ANEXO);
+            }
 
             return $mala;
         });
@@ -175,6 +195,51 @@ class MalaDiretaService
         $this->enfileirar($mala);
 
         return $mala;
+    }
+
+    /**
+     * Manda a mensagem pronta para os endereços que o admin escolheu, antes do
+     * disparo de verdade.
+     *
+     * É o **mesmo caminho** do disparo (mala, snapshot e um job por endereço),
+     * de propósito: o defeito que motivou este recurso — o comunicado saindo
+     * com as tags à mostra porque o worker da fila estava desatualizado — só
+     * aparece em quem passa pela fila. Um teste renderizado na hora diria que
+     * está tudo bem.
+     *
+     * A mala nasce marcada como teste: não entra na lista de disparos, mas o
+     * relatório dela abre normalmente e diz o que aconteceu com cada endereço.
+     *
+     * @param  array<string, mixed>  $dados
+     */
+    public function enviarTeste(array $dados, User $autor): MalaDireta
+    {
+        return $this->criar(array_merge($dados, [
+            'teste' => true,
+            'publicos' => [],
+            'nome' => Str::limit('Teste — '.$dados['assunto'], 120),
+            'justificativa' => 'Envio de teste da mensagem, antes do disparo para a base.',
+            'solicitante' => null,
+        ]), $autor);
+    }
+
+    /**
+     * Troca no corpo o id de cada imagem pelo id da cópia da mala de teste — é
+     * por esse atributo que o Mailable acha a imagem para embutir.
+     *
+     * @param  array<int, int>  $mapa  id original => id da cópia
+     */
+    private function remapearImagens(string $corpo, array $mapa): string
+    {
+        foreach ($mapa as $original => $copia) {
+            $corpo = str_replace(
+                'data-arquivo-id="'.$original.'"',
+                'data-arquivo-id="'.$copia.'"',
+                $corpo,
+            );
+        }
+
+        return $corpo;
     }
 
     /** Recoloca na fila os destinatários que falharam (não mexe nos inválidos). */
@@ -238,6 +303,7 @@ class MalaDiretaService
     public function listar(int $porPagina = 20): LengthAwarePaginator
     {
         return MalaDireta::query()
+            ->reais()
             ->withCount([
                 'destinatarios as total_destinatarios',
                 'destinatarios as total_enviados' => fn ($q) => $q->where('status', StatusDestinatario::Enviado),

@@ -1,6 +1,12 @@
 XVI FETECMS
 
-{{ $corpo }}
+@php
+    // Mesma blindagem da versão HTML: sem `$textoSimples` (worker com a classe
+    // antiga em memória) o corpo cru sairia com as tags à mostra.
+    $simples = $textoSimples
+        ?? ((($formato ?? 'texto') === 'html') ? \App\Support\HtmlEmail::paraTexto((string) $corpo) : (string) $corpo);
+@endphp
+{{ $simples }}
 
 --
 Equipe FETECMS

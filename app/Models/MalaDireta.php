@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\StatusDestinatario;
 use App\Enums\StatusMala;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -17,7 +18,7 @@ class MalaDireta extends Model
     protected $table = 'malas_diretas';
 
     protected $fillable = [
-        'nome', 'justificativa', 'solicitante', 'assunto', 'corpo', 'formato',
+        'nome', 'justificativa', 'solicitante', 'assunto', 'corpo', 'formato', 'teste',
         'publicos', 'emails_personalizados', 'status',
         'user_id', 'autor_nome', 'autor_email',
         'enviado_em', 'concluido_em',
@@ -27,6 +28,7 @@ class MalaDireta extends Model
     {
         return [
             'publicos' => 'array',
+            'teste' => 'boolean',
             'status' => StatusMala::class,
             'enviado_em' => 'datetime',
             'concluido_em' => 'datetime',
@@ -59,6 +61,12 @@ class MalaDireta extends Model
     public function anexos(): HasMany
     {
         return $this->arquivos()->where('tipo', MalaDiretaArquivo::TIPO_ANEXO);
+    }
+
+    /** Só as malas de verdade: a de teste não entra na lista de disparos. */
+    public function scopeReais(Builder $query): Builder
+    {
+        return $query->where('teste', false);
     }
 
     /** O corpo é HTML do editor (e não texto puro)? */

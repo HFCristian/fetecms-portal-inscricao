@@ -161,7 +161,14 @@ export default function AdminMalaDiretaDetalhe() {
                     <span className="material-symbols-outlined text-[18px]">arrow_back</span>
                     Voltar para as mensagens
                 </Link>
-                <h1 className="font-display text-2xl font-semibold text-primary mt-2 mb-1">{mala.nome}</h1>
+                <h1 className="font-display text-2xl font-semibold text-primary mt-2 mb-1 flex flex-wrap items-center gap-2">
+                    {mala.nome}
+                    {mala.teste && (
+                        <span className="text-xs font-semibold uppercase tracking-wide bg-surface-variant text-on-surface-variant px-2 py-1 rounded-full">
+                            Envio de teste
+                        </span>
+                    )}
+                </h1>
                 <p className="text-on-surface-variant">
                     {mala.assunto}
                     {data ? ` · enviada em ${data.toLocaleDateString('pt-BR')} às ${data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : ''}

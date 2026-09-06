@@ -1,9 +1,15 @@
 XVI FETECMS
 
-{{-- Mesma blindagem da versão HTML: `$textoSimples` é uma chave do `with` do
-     Mailable e pode faltar quando o worker da fila está com a classe antiga em
-     memória. `$corpo` é propriedade pública, então chega sempre. --}}
-{{ $textoSimples ?? $corpo ?? '' }}
+@php
+    // Mesma blindagem da versão HTML: as chaves do `with` do Mailable podem
+    // faltar quando o worker da fila está com a classe antiga em memória, e aí
+    // o corpo cru sairia com as tags à mostra. `$mala` e `$corpo` são
+    // propriedades públicas do Mailable, então chegam sempre.
+    $ehHtml = ($mala->formato ?? 'texto') === 'html';
+    $simples = $textoSimples
+        ?? ($ehHtml ? \App\Support\HtmlEmail::paraTexto((string) $corpo) : (string) $corpo);
+@endphp
+{{ $simples }}
 
 --
 Equipe FETECMS

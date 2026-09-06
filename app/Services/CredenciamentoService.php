@@ -6,6 +6,7 @@ use App\Enums\SituacaoDocumento;
 use App\Enums\TipoPessoaCredenciamento;
 use App\Models\Credenciamento;
 use App\Models\CredenciamentoDocumento;
+use App\Models\CredenciamentoPessoa;
 use App\Models\DocumentoCredenciamento;
 use App\Models\Edicao;
 use App\Models\ListaFinal;
@@ -38,6 +39,15 @@ use Illuminate\Validation\ValidationException;
  *
  * Fora da janela a aba continua abrindo em **leitura**: dá para conferir quem
  * já foi credenciado, mas não para credenciar.
+ *
+ * **Presença e kit** (Sprint 103) ficam em `credenciamento_pessoas`, uma linha
+ * por pessoa do projeto. Marcar alguém **ausente** dispensa os documentos dela
+ * — não se confere o RG de quem não veio — e não impede credenciar o projeto:
+ * ele fica credenciado *com pendências*, e quem chegar depois é conferido numa
+ * segunda passada. O **kit é por pessoa**, mas quase nunca sai todo de uma vez:
+ * um aluno leva o dele e o de dois colegas, e o resto é retirado mais tarde, por
+ * outra pessoa e em outro horário — por isso o responsável e o relógio ficam em
+ * cada linha, e a retirada tem um caminho próprio, que só **acrescenta**.
  *
  * **Quem pode desfazer**: um credenciamento concluído pode ser **corrigido**
  * (regravado) ou **cancelado** — cancelar apaga a conferência e devolve o
@@ -178,17 +188,18 @@ class CredenciamentoService
         $projeto->loadMissing(['alunos', 'coorientador', 'user', 'area', 'instituicao']);
         $credenciamento = $this->credenciamentoDe($projeto);
         $marcado = $this->marcacoes($credenciamento);
+        $estados = $this->estados($credenciamento);
         $catalogo = $this->catalogo();
 
         $pessoas = [];
 
         foreach ($projeto->alunos as $aluno) {
-            $pessoas[] = $this->pessoa(TipoPessoaCredenciamento::Aluno, $aluno->id, $aluno->nome, $catalogo, $marcado);
+            $pessoas[] = $this->pessoa(TipoPessoaCredenciamento::Aluno, $aluno->id, $aluno->nome, $catalogo, $marcado, $estados);
         }
 
         if ($projeto->user !== null) {
             $pessoas[] = $this->pessoa(
-                TipoPessoaCredenciamento::Orientador, $projeto->user->id, $projeto->user->name, $catalogo, $marcado,
+                TipoPessoaCredenciamento::Orientador, $projeto->user->id, $projeto->user->name, $catalogo, $marcado, $estados,
             );
         }
 
@@ -199,6 +210,7 @@ class CredenciamentoService
                 $projeto->coorientador->nome,
                 $catalogo,
                 $marcado,
+                $estados,
             );
         }
 
@@ -291,6 +303,8 @@ class CredenciamentoService
      * Grava a conferência e conclui o credenciamento.
      *
      * @param  array<int, array{documento_id:int, pessoa_tipo:string, pessoa_id:?int, situacao:string}>  $marcacoes
+     * @param  array<int, array{pessoa_tipo:string, pessoa_id:?int, presente:bool}>  $pessoas
+     * @param  array{responsavel_tipo?:string, responsavel_id?:?int, pessoas?:array<int, array{pessoa_tipo:string, pessoa_id:?int}>}|null  $kits
      */
     public function registrar(
         Projeto $projeto,
@@ -299,6 +313,8 @@ class CredenciamentoService
         ?string $observacao = null,
         bool $teste = false,
         ?string $iniciadoEm = null,
+        array $pessoas = [],
+        ?array $kits = null,
     ): Credenciamento {
         if (! $this->podeCredenciar($admin, $teste)) {
             throw ValidationException::withMessages([
@@ -326,14 +342,19 @@ class CredenciamentoService
 
         $lista = $this->listaFinal($admin, $teste);
 
-        return DB::transaction(function () use ($projeto, $admin, $marcacoes, $observacao, $inicio, $lista) {
+        return DB::transaction(function () use ($projeto, $admin, $marcacoes, $observacao, $inicio, $lista, $pessoas, $kits) {
             $credenciamento = $this->credenciamentoDe($projeto) ?? Credenciamento::create([
                 'projeto_id' => $projeto->id,
                 'lista_final_id' => $lista?->id,
                 'iniciado_em' => $inicio ?? now(),
             ]);
 
+            $this->salvarPessoas($credenciamento, $projeto, $pessoas);
             $this->salvarMarcacoes($credenciamento, $projeto, $marcacoes);
+
+            if ($kits !== null) {
+                $this->salvarKits($credenciamento, $projeto, $admin, $kits);
+            }
 
             $credenciamento->update([
                 'credenciado_por' => $admin->id,
@@ -344,9 +365,9 @@ class CredenciamentoService
                 'observacao' => $observacao,
             ]);
 
-            $this->registros->credenciamento($credenciamento->fresh(), $projeto, $admin);
+            $this->registros->credenciamento($credenciamento->fresh(['documentos.documento', 'pessoas']), $projeto, $admin);
 
-            return $credenciamento->fresh(['autor']);
+            return $credenciamento->fresh(['autor', 'pessoas']);
         });
     }
 
@@ -378,7 +399,7 @@ class CredenciamentoService
 
     public function credenciamentoDe(Projeto $projeto): ?Credenciamento
     {
-        return Credenciamento::with('autor')->where('projeto_id', $projeto->id)->first();
+        return Credenciamento::with(['autor', 'pessoas'])->where('projeto_id', $projeto->id)->first();
     }
 
     /**
@@ -399,7 +420,10 @@ class CredenciamentoService
                 'id',
                 $vigente->projetos()->select('projetos.id'),
             ))
-            ->with(['area:id,nome', 'user:id,name', 'instituicao:id,nome', 'credenciamento.autor:id,name'])
+            ->with([
+                'area:id,nome', 'user:id,name', 'instituicao:id,nome',
+                'credenciamento.autor:id,name', 'credenciamento.pessoas',
+            ])
             ->when(! empty($filtros['area_id']), fn ($q) => $q->where('area_id', $filtros['area_id']))
             ->when(! empty($filtros['categoria']), fn ($q) => $q->where('categoria', $filtros['categoria']))
             ->when(($filtros['situacao'] ?? null) === 'credenciados', fn ($q) => $q
@@ -434,6 +458,10 @@ class CredenciamentoService
             'credenciado' => (bool) $credenciamento?->finalizado_em,
             'credenciado_em' => $credenciamento?->finalizado_em?->toIso8601String(),
             'credenciado_por' => $credenciamento?->autor?->name,
+            // O que ficou para trás: quem faltou ao balcão e os kits que ninguém
+            // levou. É por aqui que a lista mostra "credenciado com pendências".
+            'ausentes' => (int) $credenciamento?->pessoas->where('presente', false)->count(),
+            'kits_pendentes' => (int) $credenciamento?->pessoas->whereNull('kit_retirado_em')->count(),
         ];
     }
 
@@ -443,6 +471,7 @@ class CredenciamentoService
      *
      * @param  array<string, list<DocumentoCredenciamento>>  $catalogo
      * @param  array<string, string>  $marcado
+     * @param  array<string, CredenciamentoPessoa>  $estados
      * @return array<string, mixed>
      */
     private function pessoa(
@@ -451,18 +480,47 @@ class CredenciamentoService
         string $nome,
         array $catalogo,
         array $marcado,
+        array $estados = [],
     ): array {
+        $estado = $estados[$tipo->value.':'.$id] ?? null;
+
         return [
             'tipo' => $tipo->value,
             'tipo_label' => $tipo->label(),
             'id' => $id,
             'nome' => $nome,
+            // Quem nunca foi marcado conta como presente: é o caso comum, e a
+            // ausência é que precisa de decisão de alguém.
+            'presente' => $estado?->presente ?? true,
+            'kit' => [
+                'retirado' => (bool) $estado?->kitRetirado(),
+                'em' => $estado?->kit_retirado_em?->toIso8601String(),
+                'por_nome' => $estado?->kit_retirado_por_nome,
+                'por_tipo' => $estado?->kit_retirado_por_tipo,
+                'por_id' => $estado?->kit_retirado_por_id,
+            ],
             'documentos' => array_map(fn (DocumentoCredenciamento $d) => [
                 'id' => $d->id,
                 'nome' => $d->nome,
                 'situacao' => $marcado[$this->chave($d->id, $tipo->value, $id)] ?? null,
             ], $catalogo[$tipo->value] ?? []),
         ];
+    }
+
+    /**
+     * Presença e kit já gravados, indexados por "tipo:id".
+     *
+     * @return array<string, CredenciamentoPessoa>
+     */
+    private function estados(?Credenciamento $credenciamento): array
+    {
+        if ($credenciamento === null) {
+            return [];
+        }
+
+        return $credenciamento->pessoas
+            ->mapWithKeys(fn (CredenciamentoPessoa $p) => [$p->pessoa_tipo->value.':'.$p->pessoa_id => $p])
+            ->all();
     }
 
     /**
@@ -504,6 +562,181 @@ class CredenciamentoService
     }
 
     /**
+     * Registra a retirada de kits **depois** do credenciamento: o colega que
+     * não veio no primeiro atendimento aparece mais tarde e leva o dele.
+     *
+     * Esta ação só **acrescenta** — nunca apaga nem reescreve o que outra conta
+     * conferiu —, e por isso não passa pelo `podeAlterar()`: uma conta
+     * temporária de balcão precisa poder atender a segunda visita de um projeto
+     * que outro turno credenciou. Corrigir e cancelar continuam restritos.
+     *
+     * @param  array{responsavel_tipo:string, responsavel_id:?int, pessoas:array<int, array{pessoa_tipo:string, pessoa_id:?int}>}  $dados
+     */
+    public function retirarKits(Projeto $projeto, User $admin, array $dados, bool $teste = false): Credenciamento
+    {
+        if (! $this->podeCredenciar($admin, $teste)) {
+            throw ValidationException::withMessages(['credenciamento' => $this->motivoFechado()]);
+        }
+
+        $credenciamento = $this->credenciamentoDe($projeto);
+
+        if ($credenciamento === null) {
+            throw ValidationException::withMessages([
+                'kits' => 'Este projeto ainda não passou pelo balcão — registre o credenciamento primeiro.',
+            ]);
+        }
+
+        return DB::transaction(function () use ($credenciamento, $projeto, $admin, $dados) {
+            $this->salvarKits($credenciamento, $projeto, $admin, $dados);
+
+            return $credenciamento->fresh(['autor', 'pessoas']);
+        });
+    }
+
+    /**
+     * Presença de cada pessoa do projeto. Quem não vem informado mantém o que
+     * estava (e nasce **presente**): a ausência é que é decisão de alguém.
+     *
+     * A linha é criada para **todas** as pessoas do projeto, mesmo as que
+     * ninguém marcou — é ela que carrega o kit depois, e um projeto credenciado
+     * precisa saber quantos kits ainda faltam sair.
+     *
+     * @param  array<int, array<string, mixed>>  $pessoas
+     */
+    private function salvarPessoas(Credenciamento $credenciamento, Projeto $projeto, array $pessoas): void
+    {
+        $validos = $this->pessoasValidas($projeto);
+        $informado = [];
+
+        foreach ($pessoas as $pessoa) {
+            $chave = ((string) ($pessoa['pessoa_tipo'] ?? '')).':'.($pessoa['pessoa_id'] ?? null);
+
+            if (isset($validos[$chave])) {
+                $informado[$chave] = (bool) ($pessoa['presente'] ?? true);
+            }
+        }
+
+        foreach ($validos as $chave => $nome) {
+            [$tipo, $id] = $this->destrinchar($chave);
+
+            $linha = CredenciamentoPessoa::firstOrNew([
+                'credenciamento_id' => $credenciamento->id,
+                'pessoa_tipo' => $tipo,
+                'pessoa_id' => $id,
+            ]);
+
+            $linha->pessoa_nome = $nome;
+
+            if (array_key_exists($chave, $informado)) {
+                $linha->presente = $informado[$chave];
+            } elseif (! $linha->exists) {
+                $linha->presente = true;
+            }
+
+            $linha->save();
+        }
+
+        // Ausente dispensa os documentos: o que porventura já tenha sido
+        // conferido para quem não veio sai junto, senão a ficha ficaria dizendo
+        // que o RG de um ausente está presente.
+        $ausentes = $credenciamento->pessoas()->where('presente', false)->get();
+
+        foreach ($ausentes as $ausente) {
+            $credenciamento->documentos()
+                ->where('pessoa_tipo', $ausente->pessoa_tipo->value)
+                ->where('pessoa_id', $ausente->pessoa_id)
+                ->delete();
+        }
+
+        $credenciamento->load('pessoas');
+    }
+
+    /**
+     * Marca os kits que saíram agora, todos no nome de **um** responsável — que
+     * precisa ser gente deste projeto. Kit já retirado não é retirado de novo
+     * (o horário e o nome de quem levou são os da primeira vez).
+     *
+     * @param  array<string, mixed>  $dados
+     */
+    private function salvarKits(Credenciamento $credenciamento, Projeto $projeto, User $admin, array $dados): void
+    {
+        $escolhidas = $dados['pessoas'] ?? [];
+
+        if ($escolhidas === []) {
+            return;
+        }
+
+        $validos = $this->pessoasValidas($projeto);
+        $responsavelChave = ((string) ($dados['responsavel_tipo'] ?? '')).':'.($dados['responsavel_id'] ?? null);
+
+        if (! isset($validos[$responsavelChave])) {
+            throw ValidationException::withMessages([
+                'responsavel_id' => 'Quem retira o kit precisa ser um aluno, o orientador ou o coorientador deste projeto.',
+            ]);
+        }
+
+        [$responsavelTipo, $responsavelId] = $this->destrinchar($responsavelChave);
+        $agora = now();
+        $levados = [];
+
+        foreach ($escolhidas as $pessoa) {
+            $chave = ((string) ($pessoa['pessoa_tipo'] ?? '')).':'.($pessoa['pessoa_id'] ?? null);
+
+            if (! isset($validos[$chave])) {
+                continue;
+            }
+
+            [$tipo, $id] = $this->destrinchar($chave);
+
+            $linha = CredenciamentoPessoa::firstOrNew([
+                'credenciamento_id' => $credenciamento->id,
+                'pessoa_tipo' => $tipo,
+                'pessoa_id' => $id,
+            ]);
+
+            if ($linha->exists && $linha->kitRetirado()) {
+                continue;
+            }
+
+            $linha->pessoa_nome = $validos[$chave];
+            $linha->presente = $linha->exists ? $linha->presente : true;
+            $linha->kit_retirado_em = $agora;
+            $linha->kit_retirado_por_tipo = $responsavelTipo;
+            $linha->kit_retirado_por_id = $responsavelId;
+            $linha->kit_retirado_por_nome = $validos[$responsavelChave];
+            $linha->kit_registrado_por = $admin->id;
+            $linha->save();
+
+            $levados[] = $validos[$chave];
+        }
+
+        if ($levados !== []) {
+            $this->registros->kitRetirado(
+                $projeto,
+                $admin,
+                $validos[$responsavelChave],
+                $levados,
+                $agora,
+            );
+        }
+
+        $credenciamento->load('pessoas');
+    }
+
+    /**
+     * Quebra a chave "tipo:id" de volta em par. O id vem vazio quando a pessoa
+     * não tem linha própria — nunca é o caso hoje, mas a chave aceita.
+     *
+     * @return array{0: string, 1: ?int}
+     */
+    private function destrinchar(string $chave): array
+    {
+        [$tipo, $id] = array_pad(explode(':', $chave, 2), 2, '');
+
+        return [$tipo, $id === '' ? null : (int) $id];
+    }
+
+    /**
      * Grava a conferência. Marcações de documentos ou pessoas que não pertencem
      * a este projeto são ignoradas — o balcão não escreve fora da ficha.
      *
@@ -512,6 +745,13 @@ class CredenciamentoService
     private function salvarMarcacoes(Credenciamento $credenciamento, Projeto $projeto, array $marcacoes): void
     {
         $validos = $this->pessoasValidas($projeto);
+        // Quem foi marcado ausente não tem documento conferido: a marcação que
+        // vier para essa pessoa é descartada, e a que já existia foi apagada
+        // por `salvarPessoas()`.
+        $ausentes = $credenciamento->pessoas
+            ->where('presente', false)
+            ->map(fn (CredenciamentoPessoa $p) => $p->pessoa_tipo->value.':'.$p->pessoa_id)
+            ->all();
         // `pluck` devolve o enum já convertido; o mapa guarda o valor cru.
         $documentos = DocumentoCredenciamento::where('ativo', true)
             ->pluck('tipo_pessoa', 'id')
@@ -525,7 +765,7 @@ class CredenciamentoService
 
             $chavePessoa = $tipo.':'.$pessoaId;
 
-            if ($situacao === null || ! isset($validos[$chavePessoa])) {
+            if ($situacao === null || ! isset($validos[$chavePessoa]) || in_array($chavePessoa, $ausentes, true)) {
                 continue;
             }
 

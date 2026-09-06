@@ -12,6 +12,7 @@ use App\Models\Area;
 use App\Models\Avaliacao;
 use App\Models\AvaliadorProfile;
 use App\Models\MalaDireta;
+use App\Models\MalaDiretaArquivo;
 use App\Models\MalaDiretaDestinatario;
 use App\Models\Projeto;
 use App\Models\User;
@@ -432,5 +433,84 @@ class AdminMalaDiretaTest extends TestCase
         $this->getJson('/api/v1/admin/mala-direta/opcoes')
             ->assertOk()
             ->assertJsonFragment(['value' => 'avaliadores_comissao', 'label' => 'Avaliadores da comissão especial', 'descricao' => 'Marcado pelo admin como comissão especial.']);
+    }
+
+    public function test_envio_de_teste_nao_alcanca_a_base_e_fica_fora_da_lista(): void
+    {
+        Mail::fake();
+        $this->admin();
+        // Gente que receberia o disparo de verdade — o teste não pode alcançá-la.
+        User::factory()->create(['email' => 'orientador@fetecms.test']);
+
+        $this->postJson('/api/v1/admin/mala-direta/teste', [
+            'assunto' => 'Prazo de submissão',
+            'corpo' => '<p>Olá, <strong>{{nome}}</strong>!</p>',
+            'formato' => 'html',
+            'destinatarios' => ['confere@fetecms.test'],
+        ])->assertCreated()->assertJsonPath('data.teste', true);
+
+        $mala = MalaDireta::firstOrFail();
+        $this->assertTrue($mala->teste);
+        $this->assertSame(['confere@fetecms.test'], $mala->destinatarios()->pluck('email')->all());
+
+        // A lista de disparos não mostra malas de teste.
+        $this->getJson('/api/v1/admin/mala-direta')
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+
+        // Mas o relatório dela abre normalmente.
+        $this->getJson('/api/v1/admin/mala-direta/'.$mala->id)->assertOk();
+    }
+
+    public function test_envio_de_teste_recusa_lista_vazia_ou_so_com_email_invalido(): void
+    {
+        Mail::fake();
+        $this->admin();
+
+        $this->postJson('/api/v1/admin/mala-direta/teste', [
+            'assunto' => 'Prazo',
+            'corpo' => 'Olá!',
+            'destinatarios' => [],
+        ])->assertStatus(422)->assertJsonValidationErrors('destinatarios');
+
+        $this->postJson('/api/v1/admin/mala-direta/teste', [
+            'assunto' => 'Prazo',
+            'corpo' => 'Olá!',
+            'destinatarios' => ['nao-e-email'],
+        ])->assertStatus(422)->assertJsonValidationErrors('destinatarios');
+
+        $this->assertSame(0, MalaDireta::count());
+    }
+
+    public function test_teste_copia_os_arquivos_e_deixa_os_originais_para_o_disparo(): void
+    {
+        Mail::fake();
+        $this->admin();
+
+        $imagem = MalaDiretaArquivo::create([
+            'tipo' => MalaDiretaArquivo::TIPO_IMAGEM,
+            'disk' => 'local',
+            'path' => 'mala-direta/imagem/logo.png',
+            'nome_original' => 'logo.png',
+            'mime' => 'image/png',
+            'tamanho_bytes' => 100,
+        ]);
+
+        $this->postJson('/api/v1/admin/mala-direta/teste', [
+            'assunto' => 'Com imagem',
+            'corpo' => '<p><img src="/x" data-arquivo-id="'.$imagem->id.'"></p>',
+            'formato' => 'html',
+            'imagens' => [$imagem->id],
+            'destinatarios' => ['confere@fetecms.test'],
+        ])->assertCreated();
+
+        // O original continua solto: o disparo de verdade ainda vai precisar dele.
+        $this->assertNull($imagem->fresh()->mala_direta_id);
+
+        $teste = MalaDireta::where('teste', true)->firstOrFail();
+        $copia = $teste->imagens()->firstOrFail();
+        $this->assertSame($imagem->path, $copia->path);
+        // O corpo da mala de teste aponta para a cópia, senão a imagem não embute.
+        $this->assertStringContainsString('data-arquivo-id="'.$copia->id.'"', $teste->corpo);
     }
 }

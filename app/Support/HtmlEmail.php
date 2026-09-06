@@ -38,6 +38,18 @@ class HtmlEmail
     /** Tags cujo conteúdo também some (não é texto, é código). */
     private const DESCARTAVEIS = ['script', 'style', 'iframe', 'object', 'embed', 'noscript'];
 
+    /**
+     * Como o layout desenha o parágrafo destacado dos e-mails transacionais (o
+     * código de 6 dígitos).
+     *
+     * Mora aqui, e não no Mailable, porque a **view** também precisa dele: ela
+     * monta o destaque sozinha quando o worker da fila está com a classe antiga
+     * em memória e o corpo já pronto não chega.
+     */
+    public const ESTILO_DESTAQUE = 'margin:0 0 16px;padding:16px;background-color:#f4f1f7;'
+        .'border-radius:12px;text-align:center;font-family:\'Courier New\',Courier,monospace;'
+        .'font-size:32px;font-weight:700;letter-spacing:8px;color:#43157A;';
+
     public static function sanitizar(string $html): string
     {
         if (trim($html) === '') {
