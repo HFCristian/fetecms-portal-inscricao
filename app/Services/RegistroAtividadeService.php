@@ -271,6 +271,90 @@ class RegistroAtividadeService
         ]);
     }
 
+    /**
+     * Almoxarifado: material guardado. Quem deixou e o que entrou — a lista
+     * inteira, porque é ela que a retirada vai conferir depois.
+     *
+     * @param  list<string>  $itens
+     */
+    public function almoxarifadoGuarda(
+        Projeto $projeto,
+        User $admin,
+        string $responsavel,
+        array $itens,
+    ): RegistroAtividade {
+        return $this->registrarNoProjeto(TipoRegistro::AlmoxarifadoGuarda, $projeto, $admin, [
+            'responsavel' => $responsavel,
+            'itens' => $itens,
+        ]);
+    }
+
+    /**
+     * Almoxarifado: material retirado. Quem levou, o quê, quando — e se com
+     * isso o registro ficou zerado ou ainda tem volume no balcão.
+     *
+     * @param  list<string>  $itens
+     */
+    public function almoxarifadoRetirada(
+        Projeto $projeto,
+        User $admin,
+        string $responsavel,
+        array $itens,
+        bool $completa,
+        ?Carbon $quando = null,
+    ): RegistroAtividade {
+        return $this->registrarNoProjeto(TipoRegistro::AlmoxarifadoRetirada, $projeto, $admin, [
+            'responsavel' => $responsavel,
+            'itens' => $itens,
+            'completa' => $completa,
+            'quando' => ($quando ?? now())->format('d/m/Y H:i'),
+        ]);
+    }
+
+    /**
+     * Almoxarifado: registro corrigido. Guarda o antes e o depois inteiros —
+     * a correção pode mexer em quem deixou e na lista de itens ao mesmo tempo,
+     * e é a composição que importa reconstituir.
+     *
+     * @param  array{responsavel:string, itens:list<string>}  $antes
+     * @param  array{responsavel:string, itens:list<string>}  $depois
+     */
+    public function almoxarifadoEdicao(
+        Projeto $projeto,
+        User $admin,
+        array $antes,
+        array $depois,
+        string $justificativa,
+    ): RegistroAtividade {
+        return $this->registrarNoProjeto(TipoRegistro::AlmoxarifadoEdicao, $projeto, $admin, [
+            'de' => $antes['responsavel'].' · '.implode('; ', $antes['itens']),
+            'para' => $depois['responsavel'].' · '.implode('; ', $depois['itens']),
+            'campo' => 'Registro do almoxarifado',
+            'justificativa' => $justificativa,
+        ]);
+    }
+
+    /**
+     * Almoxarifado: registro excluído. Vai gravado **antes** do delete, com o
+     * que estava guardado — depois não há mais de onde tirar.
+     *
+     * @param  list<string>  $itens
+     */
+    public function almoxarifadoExclusao(
+        Projeto $projeto,
+        User $admin,
+        string $responsavel,
+        array $itens,
+        string $justificativa,
+    ): RegistroAtividade {
+        return $this->registrarNoProjeto(TipoRegistro::AlmoxarifadoExclusao, $projeto, $admin, [
+            'campo' => 'Registro do almoxarifado',
+            'de' => $responsavel.' · '.implode('; ', $itens),
+            'para' => '(excluído)',
+            'justificativa' => $justificativa,
+        ]);
+    }
+
     /** O admin submetendo o rascunho de outra pessoa, com a justificativa do escape. */
     public function submissaoRascunho(Projeto $projeto, User $admin, string $justificativa): RegistroAtividade
     {
@@ -439,6 +523,19 @@ class RegistroAtividadeService
     {
         $detalhes = $registro->detalhes ?? [];
         $partes = [];
+
+        // O almoxarifado descreve movimento de material, não "de → para".
+        if ($registro->tipo === TipoRegistro::AlmoxarifadoGuarda) {
+            return ($detalhes['responsavel'] ?? 'alguém').' guardou: '
+                .implode('; ', (array) ($detalhes['itens'] ?? []));
+        }
+
+        if ($registro->tipo === TipoRegistro::AlmoxarifadoRetirada) {
+            return ($detalhes['responsavel'] ?? 'alguém')
+                .(($detalhes['completa'] ?? false) ? ' retirou tudo: ' : ' retirou: ')
+                .implode('; ', (array) ($detalhes['itens'] ?? []))
+                .(empty($detalhes['quando']) ? '' : ' · em '.$detalhes['quando']);
+        }
 
         // A retirada de kit não é um "de → para": é quem levou, de quem e quando.
         if ($registro->tipo === TipoRegistro::CredenciamentoKitRetirado) {

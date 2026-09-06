@@ -274,6 +274,23 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     qualquer escopo. Vencido o prazo, ela é **desativada, não apagada** — reativar é informar um
     prazo novo, sem recadastrar nada; a varredura roda ao listar e no login. Uma conta temporária
     **não administra outras contas temporárias**. `ContaTemporariaService`.
+  - **Almoxarifado** (`/admin/almoxarifado`): o balcão de guarda da feira. A equipe chega com
+    maquete, ferramenta e mochila e precisa de onde deixar isso enquanto circula pelo evento.
+    A aba é uma **aba do RBAC** como as outras (escopo *Almoxarifado*), só abre dentro do
+    **período do evento** — fora dele fica em leitura — e atende apenas os **finalistas da lista
+    vigente**; o **modo demo** ignora as datas, usa a lista de demonstração e mantém os registros
+    do ensaio separados dos de verdade. Guardar é um **assistente de quatro passos**: projeto →
+    quem está deixando (sempre alguém do projeto) → os itens, **um por linha** → uma tela de
+    **conferência** com tudo e o horário, para o admin confirmar com a pessoa antes de finalizar
+    (cada bloco tem *Alterar*). Os registros ficam numa **tabela** — projeto, quem deixou,
+    quantidade de itens, data, e quem retirou e quando —, com quatro ações por linha:
+    **Retirada completa** (tudo o que ainda está guardado), **Retirada parcial** (só os itens
+    marcados; o resto sai depois, com outro responsável e outro horário), **Editar** e
+    **Excluir**, as duas últimas com **justificativa obrigatória**. Tudo entra em **Registros →
+    Almoxarifado**. A aba tem a sua própria seção de **Contas temporárias**
+    (`/admin/almoxarifado/contas`), independente da do credenciamento: cada setor cadastra e
+    renova só as suas, e a conta criada abre somente aquela aba (`contas_temporarias.setor`).
+    `AlmoxarifadoService`.
   - **Parametrização → Credenciamento** (`/admin/parametrizacao/credenciamento`): os **itens
     entregues** aos finalistas (`edicoes.itens_credenciamento`) e a **lista de documentos** exigida
     de cada papel (`documentos_credenciamento`, catálogo do portal). Documento já conferido em algum
@@ -293,10 +310,12 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     (não há WebSocket no projeto). **Privacidade**: guarda-se a última posição e o **trajeto vivo**;
     desligar o localizador — à mão ou pelo vencimento do prazo — **apaga o trajeto**.
     `ComiteTransporteService`, `localizacoes_comite` + `localizacao_comite_pontos`.
-  - **Registros** tem seis seções: **Inscrições**, **Avaliação Online**, **Lista final**
+  - **Registros** tem sete seções: **Inscrições**, **Avaliação Online**, **Lista final**
     (`/admin/registros/lista-final` — publicação da lista oficial e cada projeto incluído ou
     retirado, com a justificativa), **Credenciamento** (`/admin/registros/credenciamento` — quem
-    credenciou cada finalista, quando e o que ficou ausente), **Projetos**
+    credenciou cada finalista, quando e o que ficou ausente), **Almoxarifado**
+    (`/admin/registros/almoxarifado` — o material que entrou, o que saiu e para quem, e as
+    correções e exclusões de registro), **Projetos**
     (`/admin/registros/projetos`) — as correções do admin e os aceites do orientador, cada um com a
     justificativa — e **Rascunhos** (`/admin/registros/rascunhos`), com o que o admin mexeu numa
     inscrição alheia antes de submetê-la por ela.
@@ -541,7 +560,36 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 101 | Avaliadores Online: botão de áreas abre a linha; demo vira só o frasco | ✅ sim | ❌ não (manual do Pedro) | 24 |
 | 102 | E-mails: formatação à prova de worker desatualizado + envio de teste da mala direta | ✅ sim | ❌ não (manual do Pedro) | 25 |
 | 103 | Credenciamento: presença por pessoa e retirada de kit por responsável | ✅ sim | ❌ não (manual do Pedro) | 25 |
+| 104 | Nova aba **Almoxarifado**: escopo, janela do evento, assistente de guarda e tabela | ✅ sim | ❌ não (manual do Pedro) | 26 |
+| 105 | Almoxarifado: retiradas, correção, exclusão, Registros e contas temporárias | ✅ sim | ❌ não (manual do Pedro) | 26 |
 
+> **Sprints 104–105 (mesma branch):** nasceu a aba **Almoxarifado**, o balcão de guarda da feira.
+> (a) **Sprint 104** — a aba, o escopo e o caminho de entrada. `AbaAdmin::Almoxarifado` é uma aba
+> como as outras, então quem abre é quem tem um escopo que a lista — e o admin **sem escopo nenhum
+> continua com acesso total**, como em todas as demais: fazer desta a exceção trancaria para fora a
+> primeira pessoa a configurar os escopos. Ela só opera dentro da **janela do evento**
+> (`edicoes.evento_de`/`evento_ate`), a mesma do credenciamento, e fora dela abre em leitura; a
+> conta demo tem o *modo de teste*, que ignora as datas, usa a **lista final demo** e **isola os
+> registros do ensaio** (`almoxarifado_guardas.demo`) — treinar aqui nunca devolve o material de um
+> finalista de verdade. Quem pode deixar material são os **finalistas da lista vigente**. O
+> assistente tem **quatro passos** na ordem da conversa no balcão: projeto → quem está deixando
+> (sempre alguém do projeto) → os itens, **um por linha** → a **conferência**, que repete tudo com
+> data e hora para o admin ler em voz alta antes de gravar; cada bloco do resumo tem um *Alterar*
+> que volta ao passo dele sem perder o resto. O item é a unidade porque é o item que é retirado:
+> guardar só uma contagem impediria a retirada parcial de dizer o que saiu.
+> (b) **Sprint 105** — o que acontece depois. **Retirada completa** leva tudo o que ainda está
+> guardado; **parcial**, só o que for marcado — e as duas gravam **quem levou e quando**, escolhido
+> de novo a cada retirada, porque quase nunca é quem deixou. **Editar** troca o responsável e a
+> composição dos itens com **justificativa obrigatória**; item **já retirado** não é apagado nem
+> renomeado, que seria reescrever uma entrega concluída. **Excluir** é **soft delete** com
+> justificativa: a linha sai da tela e a trilha continua de pé. As quatro ações entram na seção nova
+> **Registros → Almoxarifado**. E o balcão ganhou **contas temporárias próprias**: a coluna
+> `contas_temporarias.setor` diz a que aba a conta pertence, `User::abasPermitidas()` devolve
+> exatamente essa aba, e cada uma cadastra, renova e encerra **só as suas** — a conta do
+> credenciamento não abre o almoxarifado e vice-versa. As contas que já existem nascem
+> `credenciamento` e não mudam de comportamento. A tela é a mesma, parametrizada pelo setor.
+> Back **823/823**, front **406/406**, Pint limpo, build OK.
+>
 > **Sprints 102–103 (branch `feat/emails-credenciamento-almoxarifado`, saída da `origin/main` @ `732656a`):**
 > (a) **Sprint 102** — o comunicado da mala direta chegou às caixas de entrada com as tags à
 > mostra (`<b>`, `<strong>`). A causa é a mesma da Sprint 93 — um `queue:work` com a classe do

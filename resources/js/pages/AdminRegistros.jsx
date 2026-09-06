@@ -26,6 +26,8 @@ const TAG = {
     lista_final_projeto_removido: 'bg-error-container text-on-error-container',
     credenciamento_realizado: 'bg-secondary-container text-on-secondary-container',
     credenciamento_kit_retirado: 'bg-primary-fixed text-primary-container',
+    almoxarifado_guarda: 'bg-primary-fixed text-primary-container',
+    almoxarifado_retirada: 'bg-secondary-container text-on-secondary-container',
 };
 
 const ICONE = {
@@ -48,6 +50,10 @@ const ICONE = {
     lista_final_projeto_removido: 'playlist_remove',
     credenciamento_realizado: 'how_to_reg',
     credenciamento_kit_retirado: 'local_mall',
+    almoxarifado_guarda: 'inventory_2',
+    almoxarifado_retirada: 'outbox',
+    almoxarifado_edicao: 'edit_note',
+    almoxarifado_exclusao: 'delete',
 };
 
 /** Título, texto e placeholder de busca de cada seção da trilha. */
@@ -93,6 +99,13 @@ const SECOES = {
             + 'ficou ausente na conferência dos documentos e cada retirada de kit.',
         placeholder: 'Buscar por título do projeto ou quem credenciou…',
         vazio: 'Nenhum credenciamento registrado por enquanto.',
+    },
+    almoxarifado: {
+        titulo: 'Registros · Almoxarifado',
+        descricao: 'A guarda de volumes durante a feira: o que entrou, o que saiu e para quem, '
+            + 'mais as correções e exclusões de registro — estas com justificativa.',
+        placeholder: 'Buscar por título do projeto ou quem registrou…',
+        vazio: 'Nenhuma movimentação de almoxarifado por enquanto.',
     },
 };
 

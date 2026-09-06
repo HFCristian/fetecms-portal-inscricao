@@ -9,9 +9,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * Conta de acesso temporário ao balcão de credenciamento.
  *
  * O usuário por trás dela é um `role = admin` comum; o que a distingue é esta
- * linha, que carrega CPF, curso e a **janela de validade**. Enquanto ela
- * existe, a pessoa **só** abre a aba Credenciamento (ver
- * `User::abasPermitidas()`).
+ * linha, que carrega CPF, curso, o **setor** e a **janela de validade**.
+ * Enquanto ela existe, a pessoa **só** abre a aba do setor dela —
+ * Credenciamento ou Almoxarifado (ver `User::abasPermitidas()`).
  *
  * A janela tem duas pontas: `valido_de` (nulo = vale desde já) e `expira_em`.
  * Entre elas a conta está **em vigor**; antes, **agendada**; depois, **vencida**.
@@ -20,7 +20,18 @@ class ContaTemporaria extends Model
 {
     protected $table = 'contas_temporarias';
 
-    protected $fillable = ['user_id', 'cpf', 'curso', 'valido_de', 'expira_em', 'criado_por'];
+    protected $fillable = ['user_id', 'cpf', 'curso', 'setor', 'valido_de', 'expira_em', 'criado_por'];
+
+    /** As abas que uma conta temporária pode atender. */
+    public const SETOR_CREDENCIAMENTO = 'credenciamento';
+
+    public const SETOR_ALMOXARIFADO = 'almoxarifado';
+
+    /** @return list<string> */
+    public static function setores(): array
+    {
+        return [self::SETOR_CREDENCIAMENTO, self::SETOR_ALMOXARIFADO];
+    }
 
     protected function casts(): array
     {

@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\V1\AdminMalaDiretaController;
 use App\Http\Controllers\Api\V1\AdminModeloEmailController;
 use App\Http\Controllers\Api\V1\AdminRascunhoController;
 use App\Http\Controllers\Api\V1\AdminRegistroController;
+use App\Http\Controllers\Api\V1\AlmoxarifadoController;
 use App\Http\Controllers\Api\V1\AlunoController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\AvaliadorAvaliacaoController;
@@ -277,10 +278,11 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             // --- Aba "Credenciamento": o balcão do evento ---
             Route::middleware('aba:credenciamento')->prefix('credenciamento')->group(function () {
                 // Contas temporárias: quem atende o balcão sem ser da organização.
-                Route::get('/contas', [ContaTemporariaController::class, 'index']);
-                Route::post('/contas', [ContaTemporariaController::class, 'store']);
-                Route::patch('/contas/{conta}/renovar', [ContaTemporariaController::class, 'renovar']);
-                Route::patch('/contas/{conta}/desativar', [ContaTemporariaController::class, 'desativar']);
+                // O `setor` é o que separa a lista desta aba da do almoxarifado.
+                Route::get('/contas', [ContaTemporariaController::class, 'index'])->defaults('setor', 'credenciamento');
+                Route::post('/contas', [ContaTemporariaController::class, 'store'])->defaults('setor', 'credenciamento');
+                Route::patch('/contas/{conta}/renovar', [ContaTemporariaController::class, 'renovar'])->defaults('setor', 'credenciamento');
+                Route::patch('/contas/{conta}/desativar', [ContaTemporariaController::class, 'desativar'])->defaults('setor', 'credenciamento');
 
                 Route::get('/config', [CredenciamentoController::class, 'config']);
                 Route::get('/finalistas', [CredenciamentoController::class, 'index']);
@@ -288,6 +290,24 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::post('/projetos/{projeto}', [CredenciamentoController::class, 'store']);
                 Route::post('/projetos/{projeto}/kits', [CredenciamentoController::class, 'kits']);
                 Route::post('/projetos/{projeto}/cancelar', [CredenciamentoController::class, 'cancelar']);
+            });
+
+            // --- Aba "Almoxarifado": a guarda de volumes durante a feira ---
+            Route::middleware('aba:almoxarifado')->prefix('almoxarifado')->group(function () {
+                // Contas temporárias do almoxarifado: lista própria, mesmo cadastro.
+                Route::get('/contas', [ContaTemporariaController::class, 'index'])->defaults('setor', 'almoxarifado');
+                Route::post('/contas', [ContaTemporariaController::class, 'store'])->defaults('setor', 'almoxarifado');
+                Route::patch('/contas/{conta}/renovar', [ContaTemporariaController::class, 'renovar'])->defaults('setor', 'almoxarifado');
+                Route::patch('/contas/{conta}/desativar', [ContaTemporariaController::class, 'desativar'])->defaults('setor', 'almoxarifado');
+
+                Route::get('/config', [AlmoxarifadoController::class, 'config']);
+                Route::get('/registros', [AlmoxarifadoController::class, 'index']);
+                Route::get('/projetos', [AlmoxarifadoController::class, 'projetos']);
+                Route::post('/registros', [AlmoxarifadoController::class, 'store']);
+                Route::get('/registros/{guarda}', [AlmoxarifadoController::class, 'show']);
+                Route::post('/registros/{guarda}/retiradas', [AlmoxarifadoController::class, 'retirar']);
+                Route::put('/registros/{guarda}', [AlmoxarifadoController::class, 'update']);
+                Route::delete('/registros/{guarda}', [AlmoxarifadoController::class, 'destroy']);
             });
 
             // --- Aba "Comitê especial": transporte e mapa em tempo real ---

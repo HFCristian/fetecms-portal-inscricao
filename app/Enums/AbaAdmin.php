@@ -22,6 +22,7 @@ enum AbaAdmin: string
     case Dashboards = 'dashboards';
     case Avaliacao = 'avaliacao';
     case Credenciamento = 'credenciamento';
+    case Almoxarifado = 'almoxarifado';
     case Comite = 'comite';
     case Comunicacao = 'comunicacao';
     case Suporte = 'suporte';
@@ -36,6 +37,7 @@ enum AbaAdmin: string
             self::Dashboards => 'Dashboards',
             self::Avaliacao => 'Avaliação online',
             self::Credenciamento => 'Credenciamento',
+            self::Almoxarifado => 'Almoxarifado',
             self::Comite => 'Comitê especial',
             self::Comunicacao => 'Comunicação',
             self::Suporte => 'Suporte',
@@ -52,6 +54,7 @@ enum AbaAdmin: string
             self::Dashboards => 'Os números da feira: projetos, pessoas, camisetas e localidades.',
             self::Avaliacao => 'Distribuição, avaliadores, ranking e lista final.',
             self::Credenciamento => 'Credenciar os finalistas no dia do evento e conferir os documentos.',
+            self::Almoxarifado => 'Guardar e devolver o material dos finalistas durante o evento.',
             self::Comite => 'Transporte do comitê e o mapa de quem está a caminho.',
             self::Comunicacao => 'Mala direta, avisos na tela e modelos de e-mail.',
             self::Suporte => 'Caixa de entrada do chat de orientadores e avaliadores.',

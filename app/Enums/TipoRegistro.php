@@ -32,6 +32,11 @@ namespace App\Enums;
  * quando, o que ficou ausente na conferência dos documentos — e cada retirada
  * de kit, que pode acontecer depois do credenciamento e no nome de outra
  * pessoa.
+ *
+ * Seção "Almoxarifado" (a guarda de volumes durante a feira): o material que
+ * entrou, o que saiu e para quem, e as correções e exclusões de registro — as
+ * duas últimas com justificativa obrigatória. É material de outra pessoa na mão
+ * da organização, então toda mexida fica registrada.
  */
 enum TipoRegistro: string
 {
@@ -67,6 +72,10 @@ enum TipoRegistro: string
     case CredenciamentoRealizado = 'credenciamento_realizado';
     case CredenciamentoCancelado = 'credenciamento_cancelado';
     case CredenciamentoKitRetirado = 'credenciamento_kit_retirado';
+    case AlmoxarifadoGuarda = 'almoxarifado_guarda';
+    case AlmoxarifadoRetirada = 'almoxarifado_retirada';
+    case AlmoxarifadoEdicao = 'almoxarifado_edicao';
+    case AlmoxarifadoExclusao = 'almoxarifado_exclusao';
 
     /** Seções da tela de Registros. */
     public const SECAO_INSCRICOES = 'inscricoes';
@@ -80,6 +89,8 @@ enum TipoRegistro: string
     public const SECAO_LISTA_FINAL = 'lista_final';
 
     public const SECAO_CREDENCIAMENTO = 'credenciamento';
+
+    public const SECAO_ALMOXARIFADO = 'almoxarifado';
 
     public function label(): string
     {
@@ -116,6 +127,10 @@ enum TipoRegistro: string
             self::CredenciamentoRealizado => 'Credenciamento realizado',
             self::CredenciamentoCancelado => 'Credenciamento cancelado',
             self::CredenciamentoKitRetirado => 'Kit retirado',
+            self::AlmoxarifadoGuarda => 'Material guardado',
+            self::AlmoxarifadoRetirada => 'Material retirado',
+            self::AlmoxarifadoEdicao => 'Registro corrigido',
+            self::AlmoxarifadoExclusao => 'Registro excluído',
         };
     }
 
@@ -131,6 +146,8 @@ enum TipoRegistro: string
             self::ListaFinalProjetoRemovido => self::SECAO_LISTA_FINAL,
             self::CredenciamentoRealizado, self::CredenciamentoCancelado,
             self::CredenciamentoKitRetirado => self::SECAO_CREDENCIAMENTO,
+            self::AlmoxarifadoGuarda, self::AlmoxarifadoRetirada,
+            self::AlmoxarifadoEdicao, self::AlmoxarifadoExclusao => self::SECAO_ALMOXARIFADO,
             default => self::SECAO_AVALIACAO,
         };
     }
@@ -141,6 +158,7 @@ enum TipoRegistro: string
         return [
             self::SECAO_INSCRICOES, self::SECAO_AVALIACAO, self::SECAO_PROJETOS,
             self::SECAO_RASCUNHOS, self::SECAO_LISTA_FINAL, self::SECAO_CREDENCIAMENTO,
+            self::SECAO_ALMOXARIFADO,
         ];
     }
 

@@ -61,6 +61,12 @@ export default function AdminRegistrosHome() {
                     descricao="Quem credenciou cada finalista, o horário, quem faltou e cada retirada de kit."
                 />
                 <CardSecao
+                    to="/admin/registros/almoxarifado"
+                    icon="inventory_2"
+                    titulo="Almoxarifado"
+                    descricao="O material guardado durante a feira: o que entrou, o que saiu e para quem, e as correções."
+                />
+                <CardSecao
                     to="/admin/registros/avaliacao"
                     icon="grading"
                     titulo="Avaliação Online"
