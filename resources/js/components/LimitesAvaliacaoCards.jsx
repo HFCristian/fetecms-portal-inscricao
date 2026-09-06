@@ -136,8 +136,13 @@ export function LimitesAvaliadorCard({ config, onSalvo }) {
 }
 
 /**
- * Mínimo e máximo de avaliações por projeto: um par geral e, se o edital pedir,
- * um par próprio para cada categoria (em branco, a categoria segue o geral).
+ * Quantas avaliações um projeto pode **receber**: um par geral e, se o edital
+ * pedir, um par próprio para cada categoria (em branco, ela segue o geral).
+ *
+ * Não confundir com **designações por projeto** (Avaliação online → Algoritmo de
+ * distribuição), que é quantos avaliadores ficam com o projeto na lista. São
+ * eixos diferentes de propósito: designa-se mais gente do que o projeto aceita
+ * para não depender de quem não abre a avaliação.
  */
 export function LimitesProjetoCard({ config, onSalvo }) {
     const [min, setMin] = useState(config.min_por_projeto ?? '');
@@ -186,10 +191,13 @@ export function LimitesProjetoCard({ config, onSalvo }) {
             titulo="Avaliações por projeto"
             descricao={
                 <>
-                    O <strong>mínimo</strong> é o alvo da distribuição automática e a base das colunas de
-                    <strong> faltantes</strong>; abaixo dele, a média do projeto no ranking aparece como
-                    parcial. O <strong>máximo</strong> é quantos avaliadores enxergam o mesmo projeto. Cada
-                    categoria pode ter os seus números — em branco, ela segue os gerais.
+                    Quantas avaliações cada projeto pode receber. O <strong>mínimo</strong> é a
+                    cobertura que a feira precisa: é a base das colunas de <strong>faltantes</strong> e,
+                    abaixo dele, a média do projeto no ranking aparece como parcial. O{' '}
+                    <strong>máximo</strong> é o teto — alcançado (contando as concluídas e as em
+                    andamento), quem ainda não tinha começado perde o projeto ao clicar em iniciar e
+                    recebe outro. Cada categoria pode ter os seus números; em branco, ela segue os
+                    gerais.
                 </>
             }
             invalido={invalido}

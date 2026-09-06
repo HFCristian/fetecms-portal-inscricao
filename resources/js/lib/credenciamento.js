@@ -26,6 +26,22 @@ export const credenciarProjeto = (projetoId, payload, teste = false) =>
         .then((r) => r.data);
 
 /**
+ * Salva o atendimento sem fechá-lo — o participante saiu para buscar um
+ * documento. O projeto continua na fila de *Credenciar*, marcado como rascunho.
+ */
+export const salvarRascunhoCredenciamento = (projetoId, payload, teste = false) =>
+    http.post(`/admin/credenciamento/projetos/${projetoId}/rascunho`, payload, { params: comTeste({}, teste) })
+        .then((r) => r.data);
+
+/**
+ * Assume o rascunho de outro administrador. A justificativa é exigida pelo
+ * servidor quando o dono anterior é um admin permanente.
+ */
+export const assumirCredenciamento = (projetoId, justificativa, teste = false) =>
+    http.post(`/admin/credenciamento/projetos/${projetoId}/assumir`, { justificativa }, { params: comTeste({}, teste) })
+        .then((r) => r.data);
+
+/**
  * Registra a retirada de kits depois do credenciamento — o colega que faltou
  * na primeira visita aparece mais tarde e leva o dele.
  *

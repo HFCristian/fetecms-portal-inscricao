@@ -712,7 +712,7 @@ class AvaliacaoFluxoTest extends TestCase
     }
 
     // ------------------------------------------------------------------ //
-    // Sprint 107 — o projeto já coberto não é iniciado                    //
+    // Sprint 107/108 — projeto no máximo de avaliações não é iniciado      //
     // ------------------------------------------------------------------ //
 
     /**
@@ -742,8 +742,8 @@ class AvaliacaoFluxoTest extends TestCase
             'titulo' => 'Projeto de reserva',
         ]);
 
-        // O mínimo da edição é 3 e o projeto já tem as 3.
-        $this->ocuparProjeto($projeto, 3);
+        // O máximo da edição é 5 e o projeto já tem as 5.
+        $this->ocuparProjeto($projeto, 5);
 
         Sanctum::actingAs($avaliador);
         $this->postJson("/api/v1/avaliacao/{$avaliacao->id}/iniciar")
@@ -765,8 +765,8 @@ class AvaliacaoFluxoTest extends TestCase
     {
         [$avaliador, $avaliacao] = $this->cenario();
 
-        // Duas concluídas e uma aberta agora: as três ocupam as vagas.
-        $this->ocuparProjeto($avaliacao->projeto, 2);
+        // Quatro concluídas e uma aberta agora: as cinco ocupam as vagas.
+        $this->ocuparProjeto($avaliacao->projeto, 4);
         $this->ocuparProjeto($avaliacao->projeto, 1, StatusAvaliacao::EmAndamento->value);
 
         Sanctum::actingAs($avaliador);
@@ -775,10 +775,11 @@ class AvaliacaoFluxoTest extends TestCase
         $this->assertDatabaseMissing('avaliacoes', ['id' => $avaliacao->id]);
     }
 
-    public function test_abaixo_do_minimo_a_avaliacao_inicia_normalmente(): void
+    public function test_abaixo_do_maximo_a_avaliacao_inicia_normalmente(): void
     {
         [$avaliador, $avaliacao] = $this->cenario();
-        $this->ocuparProjeto($avaliacao->projeto, 2);
+        // Quatro avaliações num projeto que aceita cinco: ainda cabe.
+        $this->ocuparProjeto($avaliacao->projeto, 4);
 
         Sanctum::actingAs($avaliador);
         $this->postJson("/api/v1/avaliacao/{$avaliacao->id}/iniciar")->assertOk();
@@ -786,15 +787,15 @@ class AvaliacaoFluxoTest extends TestCase
         $this->assertSame(StatusAvaliacao::EmAndamento, $avaliacao->fresh()->status);
     }
 
-    public function test_o_minimo_da_categoria_manda_quando_ele_e_proprio(): void
+    public function test_o_maximo_da_categoria_manda_quando_ele_e_proprio(): void
     {
         [$avaliador, $avaliacao] = $this->cenario();
         $projeto = $avaliacao->projeto;
 
-        // A categoria deste projeto pede só 2 avaliações.
+        // A categoria deste projeto aceita no máximo 2 avaliações.
         Edicao::atual()->update([
             'avaliacoes_por_categoria' => [
-                $projeto->categoria->value => ['min' => 2, 'max' => 5],
+                $projeto->categoria->value => ['min' => 1, 'max' => 2],
             ],
         ]);
         $this->ocuparProjeto($projeto, 2);
@@ -807,7 +808,7 @@ class AvaliacaoFluxoTest extends TestCase
     {
         [$avaliador, $avaliacao] = $this->cenario();
         $avaliacao->update(['designacao_manual' => true]);
-        $this->ocuparProjeto($avaliacao->projeto, 3);
+        $this->ocuparProjeto($avaliacao->projeto, 5);
 
         Sanctum::actingAs($avaliador);
         $this->postJson("/api/v1/avaliacao/{$avaliacao->id}/iniciar")->assertOk();
@@ -818,7 +819,7 @@ class AvaliacaoFluxoTest extends TestCase
     public function test_sem_projeto_de_reposicao_o_aviso_diz_que_nao_ha_outro(): void
     {
         [$avaliador, $avaliacao] = $this->cenario();
-        $this->ocuparProjeto($avaliacao->projeto, 3);
+        $this->ocuparProjeto($avaliacao->projeto, 5);
 
         Sanctum::actingAs($avaliador);
         $resposta = $this->postJson("/api/v1/avaliacao/{$avaliacao->id}/iniciar")
@@ -827,5 +828,36 @@ class AvaliacaoFluxoTest extends TestCase
 
         $this->assertStringContainsString('não há outro projeto disponível', $resposta->json('message'));
         $this->assertDatabaseMissing('avaliacoes', ['id' => $avaliacao->id]);
+    }
+
+    public function test_designacoes_de_sobra_so_travam_no_maximo_de_avaliacoes(): void
+    {
+        [$avaliador, $avaliacao] = $this->cenario();
+        $projeto = $avaliacao->projeto;
+
+        // O cenário que a sobra de designações produz: 8 avaliadores com o
+        // projeto na lista, mas ele só aceita 3 avaliações.
+        Edicao::atual()->update([
+            'avaliacoes_max_por_projeto' => 3,
+            'designacoes_por_projeto' => 8,
+        ]);
+
+        // Duas em mãos: ainda cabe a terceira, que é a deste avaliador.
+        $this->ocuparProjeto($projeto, 2);
+
+        Sanctum::actingAs($avaliador);
+        $this->postJson("/api/v1/avaliacao/{$avaliacao->id}/iniciar")->assertOk();
+
+        // A quarta pessoa a tentar já não entra.
+        $atrasado = User::factory()->avaliador()->create();
+        AvaliadorProfile::factory()->create(['user_id' => $atrasado->id, 'area_id' => $projeto->area_id]);
+        $daVez = Avaliacao::create([
+            'projeto_id' => $projeto->id, 'avaliador_id' => $atrasado->id, 'status' => 'designada',
+        ]);
+
+        Sanctum::actingAs($atrasado);
+        $this->postJson("/api/v1/avaliacao/{$daVez->id}/iniciar")
+            ->assertStatus(409)
+            ->assertJsonPath('code', 'PROJETO_JA_COBERTO');
     }
 }

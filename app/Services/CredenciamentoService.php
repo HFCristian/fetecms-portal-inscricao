@@ -49,6 +49,15 @@ use Illuminate\Validation\ValidationException;
  * outra pessoa e em outro horário — por isso o responsável e o relógio ficam em
  * cada linha, e a retirada tem um caminho próprio, que só **acrescenta**.
  *
+ * **Rascunho** (Sprint 109): o atendimento nem sempre termina de uma vez — o
+ * aluno esqueceu o RG no ônibus e sai para buscar. O balcão salva o que já
+ * conferiu (`finalizado_em` nulo) e retoma quando ele voltar. O rascunho tem
+ * **dono** (`iniciado_por`): ninguém continua o atendimento de outra pessoa por
+ * cima. A exceção é o **admin permanente**, que assume o rascunho de uma **conta
+ * temporária** livremente (o turno dela acaba e o projeto não pode ficar preso)
+ * e o de **outro admin permanente** mediante **justificativa**. Conta temporária
+ * não assume rascunho de ninguém, nem de outra conta temporária.
+ *
  * **Quem pode desfazer**: um credenciamento concluído pode ser **corrigido**
  * (regravado) ou **cancelado** — cancelar apaga a conferência e devolve o
  * projeto à fila de *Credenciar*. Mexer no credenciamento **de outra conta**
@@ -230,6 +239,13 @@ class CredenciamentoService
                 'credenciado_por_mim' => $admin !== null && $credenciamento->credenciado_por === $admin->id,
                 'observacao' => $credenciamento->observacao,
                 'concluido' => $credenciamento->concluido(),
+                // Rascunho: quem está com ele e o que esta pessoa pode fazer.
+                'em_rascunho' => $credenciamento->emRascunho(),
+                'iniciado_por' => $credenciamento->iniciador?->name,
+                'meu_rascunho' => $admin !== null && $credenciamento->emRascunho()
+                    && $this->donoDoRascunho($credenciamento, $admin),
+                'exige_justificativa' => $admin !== null
+                    && $this->exigeJustificativaParaAssumir($credenciamento, $admin),
                 // Quem não pode alterar vê a ficha em leitura, com o motivo.
                 'pode_alterar' => $admin === null || $this->podeAlterar($credenciamento, $admin),
                 'motivo_bloqueio' => $admin !== null && ! $this->podeAlterar($credenciamento, $admin)
@@ -243,23 +259,63 @@ class CredenciamentoService
     /**
      * Este admin pode mexer neste credenciamento?
      *
-     * Enquanto ele não foi concluído não há o que proteger. Depois, quem o
-     * fez sempre pode corrigir o próprio trabalho; para mexer no de outra
-     * pessoa é preciso ser **admin permanente** — a conta temporária existe
-     * para atender o balcão naquele turno, não para revisar o turno alheio.
+     * **Concluído**: quem o fez sempre pode corrigir o próprio trabalho; para
+     * mexer no de outra pessoa é preciso ser **admin permanente** — a conta
+     * temporária existe para atender o balcão naquele turno, não para revisar o
+     * turno alheio.
+     *
+     * **Rascunho**: é do dono. Um admin permanente ainda assume o de outra
+     * pessoa (com justificativa, quando ela também for permanente), mas uma
+     * conta temporária não assume o de ninguém.
      */
     public function podeAlterar(?Credenciamento $credenciamento, User $admin): bool
     {
-        if ($credenciamento === null || ! $credenciamento->concluido()) {
+        if ($credenciamento === null) {
             return true;
         }
 
-        return $credenciamento->credenciado_por === $admin->id || ! $admin->ehContaTemporaria();
+        if ($credenciamento->concluido()) {
+            return $credenciamento->credenciado_por === $admin->id || ! $admin->ehContaTemporaria();
+        }
+
+        return $this->donoDoRascunho($credenciamento, $admin) || ! $admin->ehContaTemporaria();
+    }
+
+    /** O rascunho é deste admin (ou não tem dono registrado)? */
+    public function donoDoRascunho(Credenciamento $credenciamento, User $admin): bool
+    {
+        return $credenciamento->iniciado_por === null || $credenciamento->iniciado_por === $admin->id;
+    }
+
+    /**
+     * Continuar este rascunho exige justificativa?
+     *
+     * Só quando ele é de **outro admin permanente**: o de uma conta temporária
+     * é assumido sem cerimônia, porque o turno dela acaba e o projeto não pode
+     * ficar preso esperando.
+     */
+    public function exigeJustificativaParaAssumir(?Credenciamento $credenciamento, User $admin): bool
+    {
+        if ($credenciamento === null || $credenciamento->concluido()) {
+            return false;
+        }
+
+        if ($this->donoDoRascunho($credenciamento, $admin) || $admin->ehContaTemporaria()) {
+            return false;
+        }
+
+        return ! (bool) $credenciamento->iniciador?->ehContaTemporaria();
     }
 
     /** A explicação que a tela mostra quando `podeAlterar()` diz não. */
     public function motivoSemPermissao(?Credenciamento $credenciamento): string
     {
+        if ($credenciamento !== null && $credenciamento->emRascunho()) {
+            return 'Este atendimento foi iniciado por '
+                .($credenciamento->iniciador?->name ?? 'outra conta')
+                .' e ainda está em rascunho. Só um administrador com conta permanente pode continuá-lo.';
+        }
+
         return 'Este credenciamento foi feito por '
             .($credenciamento?->autor?->name ?? 'outra conta')
             .'. Só um administrador com conta permanente pode alterá-lo ou cancelá-lo.';
@@ -300,6 +356,174 @@ class CredenciamentoService
     }
 
     /**
+     * Salva o atendimento sem fechá-lo: o que já foi conferido fica guardado e
+     * o projeto continua na fila de *Credenciar*.
+     *
+     * É o caso de quem saiu para buscar um documento — o balcão não recomeça a
+     * conferência quando a pessoa voltar. O rascunho passa a ter **dono**, e é
+     * ele quem o retoma (ver `podeAlterar()` e `assumir()`).
+     *
+     * @param  array<int, array<string, mixed>>  $marcacoes
+     * @param  array<int, array<string, mixed>>  $pessoas
+     * @param  array<string, mixed>|null  $kits
+     */
+    public function salvarRascunho(
+        Projeto $projeto,
+        User $admin,
+        array $marcacoes,
+        array $pessoas = [],
+        ?array $kits = null,
+        ?string $observacao = null,
+        bool $teste = false,
+        ?string $iniciadoEm = null,
+    ): Credenciamento {
+        if (! $this->podeCredenciar($admin, $teste)) {
+            throw ValidationException::withMessages(['credenciamento' => $this->motivoFechado()]);
+        }
+
+        if (! $this->ehFinalista($projeto, $admin, $teste)) {
+            throw ValidationException::withMessages([
+                'credenciamento' => 'Este projeto não está na lista final vigente.',
+            ]);
+        }
+
+        $existente = $this->credenciamentoDe($projeto);
+        $this->garantirPosse($existente, $admin);
+        $this->assumirSeNecessario($existente, $projeto, $admin);
+
+        if ($existente?->concluido()) {
+            throw ValidationException::withMessages([
+                'credenciamento' => 'Este projeto já foi credenciado — não há rascunho a salvar.',
+            ]);
+        }
+
+        $inicio = $this->interpretar($iniciadoEm);
+        $lista = $this->listaFinal($admin, $teste);
+
+        return DB::transaction(function () use ($projeto, $admin, $marcacoes, $pessoas, $kits, $observacao, $inicio, $lista) {
+            $credenciamento = $this->credenciamentoDe($projeto) ?? Credenciamento::create([
+                'projeto_id' => $projeto->id,
+                'lista_final_id' => $lista?->id,
+                'iniciado_em' => $inicio ?? now(),
+                'iniciado_por' => $admin->id,
+            ]);
+
+            $this->salvarPessoas($credenciamento, $projeto, $pessoas);
+            $this->salvarMarcacoes($credenciamento, $projeto, $marcacoes);
+
+            if ($kits !== null) {
+                $this->salvarKits($credenciamento, $projeto, $admin, $kits);
+            }
+
+            $credenciamento->update([
+                'iniciado_em' => $inicio ?? $credenciamento->iniciado_em ?? now(),
+                'iniciado_por' => $credenciamento->iniciado_por ?? $admin->id,
+                'observacao' => $observacao,
+            ]);
+
+            return $credenciamento->fresh(['autor', 'iniciador', 'pessoas']);
+        });
+    }
+
+    /**
+     * Assume o rascunho de outra pessoa.
+     *
+     * O de uma **conta temporária** é assumido sem cerimônia — o turno dela
+     * acaba e o projeto não pode ficar preso. O de **outro admin permanente**
+     * exige **justificativa**: alguém está continuando uma conferência que não
+     * fez, e isso precisa ficar registrado.
+     */
+    public function assumir(Projeto $projeto, User $admin, ?string $justificativa, bool $teste = false): Credenciamento
+    {
+        if (! $this->podeCredenciar($admin, $teste)) {
+            throw ValidationException::withMessages(['credenciamento' => $this->motivoFechado()]);
+        }
+
+        $credenciamento = $this->credenciamentoDe($projeto);
+
+        if ($credenciamento === null || $credenciamento->concluido()) {
+            throw ValidationException::withMessages([
+                'credenciamento' => 'Este projeto não tem atendimento em rascunho.',
+            ]);
+        }
+
+        if (! $this->podeAlterar($credenciamento, $admin)) {
+            throw ValidationException::withMessages([
+                'credenciamento' => $this->motivoSemPermissao($credenciamento),
+            ]);
+        }
+
+        if ($this->donoDoRascunho($credenciamento, $admin)) {
+            return $credenciamento; // já é dele: nada a assumir
+        }
+
+        $justificativa = trim((string) $justificativa);
+
+        if ($this->exigeJustificativaParaAssumir($credenciamento, $admin) && mb_strlen($justificativa) < 5) {
+            throw ValidationException::withMessages([
+                'justificativa' => 'Informe por que você está continuando o atendimento de outro administrador.',
+            ]);
+        }
+
+        $anterior = $credenciamento->iniciador?->name ?? 'outra conta';
+
+        return DB::transaction(function () use ($credenciamento, $projeto, $admin, $anterior, $justificativa) {
+            $credenciamento->update(['iniciado_por' => $admin->id]);
+
+            $this->registros->rascunhoCredenciamentoAssumido(
+                $projeto,
+                $admin,
+                $anterior,
+                $justificativa === '' ? null : $justificativa,
+            );
+
+            return $credenciamento->fresh(['autor', 'iniciador', 'pessoas']);
+        });
+    }
+
+    /**
+     * Passa para este admin o rascunho que era de outra pessoa e que ele pode
+     * assumir **sem justificativa** — o de uma conta temporária.
+     *
+     * Acontece sozinho, no primeiro salvamento: obrigar um clique a mais no
+     * balcão não protegeria nada, e sem isto a troca de mãos não apareceria na
+     * trilha, que é o que importa registrar.
+     */
+    private function assumirSeNecessario(?Credenciamento $credenciamento, Projeto $projeto, User $admin): void
+    {
+        if ($credenciamento === null
+            || $credenciamento->concluido()
+            || $this->donoDoRascunho($credenciamento, $admin)) {
+            return;
+        }
+
+        $anterior = $credenciamento->iniciador?->name ?? 'outra conta';
+        $credenciamento->update(['iniciado_por' => $admin->id]);
+        $this->registros->rascunhoCredenciamentoAssumido($projeto, $admin, $anterior);
+    }
+
+    /**
+     * Barra quem não pode escrever neste atendimento, com a mensagem certa: ou
+     * ele não pode mexer de jeito nenhum, ou precisa assumir o rascunho antes.
+     */
+    private function garantirPosse(?Credenciamento $credenciamento, User $admin): void
+    {
+        if (! $this->podeAlterar($credenciamento, $admin)) {
+            throw ValidationException::withMessages([
+                'credenciamento' => $this->motivoSemPermissao($credenciamento),
+            ]);
+        }
+
+        if ($this->exigeJustificativaParaAssumir($credenciamento, $admin)) {
+            throw ValidationException::withMessages([
+                'credenciamento' => 'Este atendimento foi iniciado por '
+                    .($credenciamento?->iniciador?->name ?? 'outro administrador')
+                    .'. Assuma o rascunho, com justificativa, antes de continuar.',
+            ]);
+        }
+    }
+
+    /**
      * Grava a conferência e conclui o credenciamento.
      *
      * @param  array<int, array{documento_id:int, pessoa_tipo:string, pessoa_id:?int, situacao:string}>  $marcacoes
@@ -328,13 +552,9 @@ class CredenciamentoService
             ]);
         }
 
-        $existente = $this->credenciamentoDe($projeto)?->load('autor');
-
-        if (! $this->podeAlterar($existente, $admin)) {
-            throw ValidationException::withMessages([
-                'credenciamento' => $this->motivoSemPermissao($existente),
-            ]);
-        }
+        $existente = $this->credenciamentoDe($projeto);
+        $this->garantirPosse($existente, $admin);
+        $this->assumirSeNecessario($existente, $projeto, $admin);
 
         // Início informado = lançamento retroativo: o atendimento não está
         // acontecendo agora, então o fim é calculado, não cronometrado.
@@ -347,6 +567,7 @@ class CredenciamentoService
                 'projeto_id' => $projeto->id,
                 'lista_final_id' => $lista?->id,
                 'iniciado_em' => $inicio ?? now(),
+                'iniciado_por' => $admin->id,
             ]);
 
             $this->salvarPessoas($credenciamento, $projeto, $pessoas);
@@ -358,6 +579,7 @@ class CredenciamentoService
 
             $credenciamento->update([
                 'credenciado_por' => $admin->id,
+                'iniciado_por' => $credenciamento->iniciado_por ?? $admin->id,
                 'iniciado_em' => $inicio ?? $credenciamento->iniciado_em ?? now(),
                 'finalizado_em' => $inicio !== null
                     ? $inicio->copy()->addMinutes(self::MINUTOS_ATENDIMENTO)
@@ -399,7 +621,9 @@ class CredenciamentoService
 
     public function credenciamentoDe(Projeto $projeto): ?Credenciamento
     {
-        return Credenciamento::with(['autor', 'pessoas'])->where('projeto_id', $projeto->id)->first();
+        return Credenciamento::with(['autor', 'iniciador.contaTemporaria', 'pessoas'])
+            ->where('projeto_id', $projeto->id)
+            ->first();
     }
 
     /**
@@ -422,7 +646,8 @@ class CredenciamentoService
             ))
             ->with([
                 'area:id,nome', 'user:id,name', 'instituicao:id,nome',
-                'credenciamento.autor:id,name', 'credenciamento.pessoas',
+                'credenciamento.autor:id,name', 'credenciamento.iniciador:id,name',
+                'credenciamento.pessoas',
             ])
             ->when(! empty($filtros['area_id']), fn ($q) => $q->where('area_id', $filtros['area_id']))
             ->when(! empty($filtros['categoria']), fn ($q) => $q->where('categoria', $filtros['categoria']))
@@ -458,6 +683,9 @@ class CredenciamentoService
             'credenciado' => (bool) $credenciamento?->finalizado_em,
             'credenciado_em' => $credenciamento?->finalizado_em?->toIso8601String(),
             'credenciado_por' => $credenciamento?->autor?->name,
+            // Atendimento aberto: a lista mostra com quem ele está.
+            'em_rascunho' => (bool) $credenciamento?->emRascunho(),
+            'rascunho_de' => $credenciamento?->emRascunho() ? $credenciamento->iniciador?->name : null,
             // O que ficou para trás: quem faltou ao balcão e os kits que ninguém
             // levou. É por aqui que a lista mostra "credenciado com pendências".
             'ausentes' => (int) $credenciamento?->pessoas->where('presente', false)->count(),

@@ -201,10 +201,9 @@ class DistribuicaoService
                     continue;
                 }
 
-                // Quantos avaliadores este projeto deve receber. Pode ser mais
-                // do que a cobertura exige — designar exatamente o mínimo deixa
-                // o resultado na mão de quem não abre a avaliação —, e o valor
-                // já vem preso ao máximo por projeto da categoria.
+                // Quantas vagas de lista este projeto oferece. Pode passar do
+                // máximo de avaliações que ele aceita: é assim que sobra gente
+                // designada para o caso de alguém não abrir a avaliação.
                 $alvo = $limites->designacoesPorProjeto($proj['categoria']);
 
                 while ($proj['coverage'] < $alvo) {
@@ -344,7 +343,8 @@ class DistribuicaoService
      * (área+subárea → área → área irmã) e, dentro da faixa, o de menor carga.
      * É o que repõe a cobertura quando o admin retira uma designação.
      *
-     * Devolve null quando ninguém cabe: projeto no teto de avaliadores, área
+     * Devolve null quando ninguém cabe: projeto com todas as vagas de lista
+     * ocupadas (as designações por projeto da categoria), área
      * sem gente livre ou todo mundo com a fila cheia. Nesse caso o projeto fica
      * sub-coberto de propósito — a saída é a designação manual, que é a única
      * que passa por cima dos limites.
@@ -357,7 +357,7 @@ class DistribuicaoService
 
         $jaTem = Avaliacao::where('projeto_id', $projeto->id)->pluck('avaliador_id')->all();
 
-        if (count($jaTem) >= $limites->maxPorProjeto($projeto->categoria)) {
+        if (count($jaTem) >= $limites->designacoesPorProjeto($projeto->categoria)) {
             return null;
         }
 

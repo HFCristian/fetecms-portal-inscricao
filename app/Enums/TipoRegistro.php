@@ -73,6 +73,7 @@ enum TipoRegistro: string
     case CredenciamentoRealizado = 'credenciamento_realizado';
     case CredenciamentoCancelado = 'credenciamento_cancelado';
     case CredenciamentoKitRetirado = 'credenciamento_kit_retirado';
+    case CredenciamentoRascunhoAssumido = 'credenciamento_rascunho_assumido';
     case AlmoxarifadoGuarda = 'almoxarifado_guarda';
     case AlmoxarifadoRetirada = 'almoxarifado_retirada';
     case AlmoxarifadoEdicao = 'almoxarifado_edicao';
@@ -129,6 +130,7 @@ enum TipoRegistro: string
             self::CredenciamentoRealizado => 'Credenciamento realizado',
             self::CredenciamentoCancelado => 'Credenciamento cancelado',
             self::CredenciamentoKitRetirado => 'Kit retirado',
+            self::CredenciamentoRascunhoAssumido => 'Rascunho assumido',
             self::AlmoxarifadoGuarda => 'Material guardado',
             self::AlmoxarifadoRetirada => 'Material retirado',
             self::AlmoxarifadoEdicao => 'Registro corrigido',
@@ -147,7 +149,8 @@ enum TipoRegistro: string
             self::ListaFinalOficializada, self::ListaFinalProjetoAdicionado,
             self::ListaFinalProjetoRemovido => self::SECAO_LISTA_FINAL,
             self::CredenciamentoRealizado, self::CredenciamentoCancelado,
-            self::CredenciamentoKitRetirado => self::SECAO_CREDENCIAMENTO,
+            self::CredenciamentoKitRetirado,
+            self::CredenciamentoRascunhoAssumido => self::SECAO_CREDENCIAMENTO,
             self::AlmoxarifadoGuarda, self::AlmoxarifadoRetirada,
             self::AlmoxarifadoEdicao, self::AlmoxarifadoExclusao => self::SECAO_ALMOXARIFADO,
             default => self::SECAO_AVALIACAO,

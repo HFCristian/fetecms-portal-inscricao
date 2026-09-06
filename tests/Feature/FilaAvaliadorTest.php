@@ -171,7 +171,13 @@ class FilaAvaliadorTest extends TestCase
 
     public function test_prioridade_4_sorteia_quando_todos_alcancaram_o_minimo(): void
     {
-        Edicao::atual()->update(['avaliacoes_min_por_avaliador' => 1, 'avaliacoes_min_por_projeto' => 1]);
+        // "Precisa" é ter vaga de lista sobrando: com 1 designação por projeto,
+        // o da área já está completo e o sorteio precisa alcançar outro.
+        Edicao::atual()->update([
+            'avaliacoes_min_por_avaliador' => 1,
+            'avaliacoes_min_por_projeto' => 1,
+            'designacoes_por_projeto' => 1,
+        ]);
         $area = Area::create(['nome' => 'Área A']);
         $outra = Area::create(['nome' => 'Área sem correlação']);
 

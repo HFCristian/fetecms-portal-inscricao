@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * quando começou e quando terminou. A conferência item a item está em
  * `documentos`.
  *
- * `finalizado_em` é o que separa "em atendimento" de "credenciado" — e um
+ * `finalizado_em` é o que separa o **rascunho** do "credenciado" — e um
  * projeto credenciado ainda pode ter **pendências**: quem faltou ao balcão e os
  * kits que ninguém levou. As duas coisas estão em `pessoas`.
  */
@@ -20,7 +20,7 @@ class Credenciamento extends Model
     protected $table = 'credenciamentos';
 
     protected $fillable = [
-        'projeto_id', 'lista_final_id', 'credenciado_por',
+        'projeto_id', 'lista_final_id', 'credenciado_por', 'iniciado_por',
         'iniciado_em', 'finalizado_em', 'observacao',
     ];
 
@@ -42,6 +42,12 @@ class Credenciamento extends Model
         return $this->belongsTo(User::class, 'credenciado_por');
     }
 
+    /** Quem abriu o atendimento — o dono do rascunho enquanto ele não fecha. */
+    public function iniciador(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'iniciado_por');
+    }
+
     public function documentos(): HasMany
     {
         return $this->hasMany(CredenciamentoDocumento::class);
@@ -56,5 +62,11 @@ class Credenciamento extends Model
     public function concluido(): bool
     {
         return $this->finalizado_em !== null;
+    }
+
+    /** Atendimento aberto: começou e ainda não fechou. */
+    public function emRascunho(): bool
+    {
+        return $this->finalizado_em === null;
     }
 }

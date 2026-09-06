@@ -158,7 +158,8 @@ export default function RegrasDistribuicaoCard({ config, onSalvo }) {
                                 </label>
                                 <p className="text-xs text-on-surface-variant flex-1 min-w-[12rem] pb-2">
                                     avaliações <strong>recebidas pelo projeto</strong> — deixe <strong>Até</strong> em
-                                    branco para não ter teto. <strong>Designações</strong> em branco segue o número
+                                    branco para não ter teto. <strong>Designações</strong> é quantos
+                                    avaliadores ficam com o projeto na lista — em branco, segue o número
                                     geral abaixo.
                                     <span className="block text-on-surface-variant/80 mt-0.5">{resumoFaixa(regra)}</span>
                                 </p>

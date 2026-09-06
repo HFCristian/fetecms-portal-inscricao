@@ -217,13 +217,14 @@ function DistribuicaoCard({ minPorProjeto }) {
 }
 
 /**
- * **Designações por projeto**: quantos avaliadores cada projeto recebe.
+ * **Designações por projeto**: quantos avaliadores ficam com o projeto **na
+ * lista**.
  *
- * Era o próprio mínimo por projeto, e virou número à parte porque designar
- * exatamente o necessário deixa o resultado nas mãos de quem não abre a
- * avaliação: com 3 designados e 1 avaliação feita, o projeto fica devendo. Aqui
- * dá para designar mais gente do que a cobertura exige — quem iniciar primeiro
- * fica com o projeto, e os demais são avisados e trocam.
+ * É um eixo diferente de *Avaliações por projeto*, que é quantas avaliações ele
+ * pode **receber**. Designar mais gente do que ele aceita é o ponto: com o
+ * número justo, um avaliador que não abre a avaliação deixa o projeto devendo.
+ * Quem iniciar primeiro fica com ele; ao bater o máximo de avaliações, os
+ * demais são avisados e trocam de projeto.
  */
 function DesignacoesCard({ config, onSalvo }) {
     const [valor, setValor] = useState(config.designacoes_por_projeto ?? '');
@@ -249,18 +250,21 @@ function DesignacoesCard({ config, onSalvo }) {
         <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-6 mb-4 max-w-3xl">
             <h2 className="font-display text-primary font-semibold mb-1">Designações por projeto</h2>
             <p className="text-sm text-on-surface-variant mb-3">
-                Quantos avaliadores a distribuição coloca em cada projeto. Pode ser{' '}
-                <strong>mais do que o mínimo de avaliações</strong>: designar exatamente o necessário
-                deixa o projeto devendo quando alguém não abre a avaliação. Quem iniciar primeiro fica
-                com o projeto; ao bater o mínimo da categoria, os demais são avisados e recebem outro.
+                Quantos avaliadores ficam com o projeto <strong>na lista</strong>. Pode ser{' '}
+                <strong>mais do que o máximo de avaliações</strong> que ele aceita, e é justamente
+                para isso que serve: com o número justo, um avaliador que não abre a avaliação deixa
+                o projeto devendo. Quem iniciar primeiro fica com ele; batido o máximo de avaliações
+                da categoria, os demais são avisados e recebem outro projeto.
             </p>
             <p className="text-sm text-on-surface-variant mb-3">
-                Em branco, segue o <strong>mínimo por projeto</strong> de cada categoria — o
-                comportamento de sempre. O <strong>máximo por projeto</strong>, em{' '}
+                Em branco, segue o <strong>máximo de avaliações por projeto</strong> de cada
+                categoria, em{' '}
                 <Link to="/admin/parametrizacao/avaliacao" className="font-semibold text-primary-container hover:text-primary">
                     Parametrização → Avaliação Online
                 </Link>
-                , continua sendo o teto: pedir mais do que ele não designa além dele.
+                {' '}— era ele que cumpria este papel antes deste campo existir. O único piso é o{' '}
+                <strong>mínimo de avaliações</strong>: designar menos avaliadores do que a cobertura
+                exige a tornaria impossível.
             </p>
             {msg && <div className="mb-3"><Alert type="info">{msg}</Alert></div>}
             {erro && <div className="mb-3"><Alert>{erro}</Alert></div>}
@@ -272,7 +276,7 @@ function DesignacoesCard({ config, onSalvo }) {
                     aria-label="Designações por projeto"
                     value={valor}
                     onChange={(e) => setValor(e.target.value)}
-                    placeholder="segue o mínimo"
+                    placeholder="segue o máximo"
                     className="w-32 bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 outline-none"
                 />
                 <Button type="button" loading={salvando} onClick={() => salvar(valor === '' ? null : Number(valor))}>
@@ -280,19 +284,19 @@ function DesignacoesCard({ config, onSalvo }) {
                 </Button>
                 {config.designacoes_por_projeto !== null && (
                     <Button type="button" variant="outline" disabled={salvando} onClick={() => salvar(null)}>
-                        Voltar ao mínimo
+                        Voltar ao máximo
                     </Button>
                 )}
             </div>
 
-            {/* O efeito por categoria, já com o teto de cada uma aplicado. */}
+            {/* O efeito por categoria, comparado com o que o projeto aceita. */}
             <ul className="mt-4 text-xs text-on-surface-variant space-y-1">
                 {(config.designacoes_categorias ?? []).map((c) => (
                     <li key={c.value}>
-                        <strong>{c.label}</strong>: {c.designacoes_efetivo} designação(ões) por projeto
-                        {c.designacoes_efetivo > c.min_efetivo
-                            ? ` — ${c.min_efetivo} avaliações bastam, as demais são sobra`
-                            : ''}
+                        <strong>{c.label}</strong>: {c.designacoes_efetivo} avaliador(es) com o projeto na lista
+                        {c.designacoes_efetivo > c.max_efetivo
+                            ? ` — o projeto aceita ${c.max_efetivo} avaliações, então ${c.designacoes_efetivo - c.max_efetivo} ficam de reserva`
+                            : ` — o mesmo que o máximo de ${c.max_efetivo} avaliações`}
                         {c.designacoes !== null ? ' · número próprio da categoria' : ''}
                     </li>
                 ))}

@@ -87,7 +87,34 @@ class CredenciamentoController extends Controller
     /** Conclui o credenciamento do projeto com a conferência dos documentos. */
     public function store(Request $request, Projeto $projeto): JsonResponse
     {
-        $dados = $request->validate([
+        $dados = $request->validate($this->regrasDaConferencia());
+
+        $this->credenciamento->registrar(
+            $projeto,
+            $request->user(),
+            $dados['marcacoes'],
+            $dados['observacao'] ?? null,
+            $request->boolean('teste'),
+            $dados['iniciado_em'] ?? null,
+            $dados['pessoas'] ?? [],
+            $dados['kits'] ?? null,
+        );
+
+        return response()->json([
+            'data' => $this->credenciamento->ficha($projeto->fresh(), $request->user()),
+            'meta' => ['message' => 'Credenciamento concluído.'],
+        ]);
+    }
+
+    /**
+     * As regras da conferência, iguais para o rascunho e para a conclusão: o
+     * que muda entre os dois é o que o serviço faz com elas, não o formulário.
+     *
+     * @return array<string, mixed>
+     */
+    private function regrasDaConferencia(): array
+    {
+        return [
             'marcacoes' => ['present', 'array'],
             'marcacoes.*.documento_id' => ['required', 'integer', 'exists:documentos_credenciamento,id'],
             'marcacoes.*.pessoa_tipo' => ['required', Rule::in(TipoPessoaCredenciamento::valores())],
@@ -110,22 +137,66 @@ class CredenciamentoController extends Controller
             // Só chega quando o admin altera o horário sugerido: aí o fim vira
             // início + 5 minutos, em vez do instante da conclusão.
             'iniciado_em' => ['nullable', 'date'],
-        ]);
+        ];
+    }
 
-        $this->credenciamento->registrar(
+    /**
+     * Salva o atendimento sem fechá-lo — o participante saiu para buscar um
+     * documento e volta depois. O projeto continua na fila de *Credenciar*.
+     */
+    public function rascunho(Request $request, Projeto $projeto): JsonResponse
+    {
+        abort_unless(
+            $this->credenciamento->ehFinalista($projeto, $request->user(), $request->boolean('teste')),
+            404,
+            'Este projeto não está na lista final vigente.',
+        );
+
+        $dados = $request->validate($this->regrasDaConferencia());
+
+        $this->credenciamento->salvarRascunho(
             $projeto,
             $request->user(),
             $dados['marcacoes'],
+            $dados['pessoas'] ?? [],
+            $dados['kits'] ?? null,
             $dados['observacao'] ?? null,
             $request->boolean('teste'),
             $dados['iniciado_em'] ?? null,
-            $dados['pessoas'] ?? [],
-            $dados['kits'] ?? null,
         );
 
         return response()->json([
             'data' => $this->credenciamento->ficha($projeto->fresh(), $request->user()),
-            'meta' => ['message' => 'Credenciamento concluído.'],
+            'meta' => ['message' => 'Rascunho salvo. O projeto continua na fila de Credenciar.'],
+        ]);
+    }
+
+    /**
+     * Assume o rascunho de outra pessoa. A justificativa é exigida no serviço
+     * quando o dono anterior é um admin permanente.
+     */
+    public function assumir(Request $request, Projeto $projeto): JsonResponse
+    {
+        abort_unless(
+            $this->credenciamento->ehFinalista($projeto, $request->user(), $request->boolean('teste')),
+            404,
+            'Este projeto não está na lista final vigente.',
+        );
+
+        $dados = $request->validate([
+            'justificativa' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $this->credenciamento->assumir(
+            $projeto,
+            $request->user(),
+            $dados['justificativa'] ?? null,
+            $request->boolean('teste'),
+        );
+
+        return response()->json([
+            'data' => $this->credenciamento->ficha($projeto->fresh(), $request->user()),
+            'meta' => ['message' => 'Atendimento assumido. Você pode continuar a conferência.'],
         ]);
     }
 

@@ -125,6 +125,12 @@ export default function CredenciamentoLista({ situacao = 'pendentes' }) {
                                             </span>
                                         )}
                                     </p>
+                                    {/* Atendimento em aberto: quem está com ele. */}
+                                    {p.em_rascunho && (
+                                        <p className="text-xs font-semibold text-primary-container mt-0.5">
+                                            Em rascunho{p.rascunho_de ? ` — com ${p.rascunho_de}` : ''}
+                                        </p>
+                                    )}
                                     {/* O que ficou para trás: quem faltou e o kit que ninguém levou.
                                         Os dois se resolvem numa segunda visita ao balcão. */}
                                     {p.credenciado && (p.ausentes > 0 || p.kits_pendentes > 0) && (
@@ -144,7 +150,7 @@ export default function CredenciamentoLista({ situacao = 'pendentes' }) {
                                     <span className="material-symbols-outlined text-[20px]">
                                         {credenciados ? 'visibility' : 'how_to_reg'}
                                     </span>
-                                    {credenciados ? 'Ver ficha' : 'Credenciar'}
+                                    {credenciados ? 'Ver ficha' : (p.em_rascunho ? 'Continuar' : 'Credenciar')}
                                 </Button>
                             </li>
                         ))}

@@ -41,11 +41,15 @@ const getFichaCredenciamento = vi.fn(() => Promise.resolve(FICHA));
 const credenciarProjeto = vi.fn(() => Promise.resolve({}));
 const cancelarCredenciamento = vi.fn(() => Promise.resolve({}));
 const registrarRetiradaKit = vi.fn(() => Promise.resolve({}));
+const salvarRascunhoCredenciamento = vi.fn(() => Promise.resolve({}));
+const assumirCredenciamento = vi.fn(() => Promise.resolve({}));
 vi.mock('../lib/credenciamento.js', () => ({
     getFichaCredenciamento: (...a) => getFichaCredenciamento(...a),
     credenciarProjeto: (...a) => credenciarProjeto(...a),
     cancelarCredenciamento: (...a) => cancelarCredenciamento(...a),
     registrarRetiradaKit: (...a) => registrarRetiradaKit(...a),
+    salvarRascunhoCredenciamento: (...a) => salvarRascunhoCredenciamento(...a),
+    assumirCredenciamento: (...a) => assumirCredenciamento(...a),
 }));
 
 /** Ficha de um projeto já credenciado. */
@@ -70,6 +74,8 @@ describe('CredenciamentoFicha', () => {
     beforeEach(() => {
         credenciarProjeto.mockClear();
         registrarRetiradaKit.mockClear();
+        salvarRascunhoCredenciamento.mockClear();
+        assumirCredenciamento.mockClear();
         navigate.mockClear();
         getFichaCredenciamento.mockResolvedValue(FICHA);
     });
@@ -278,5 +284,69 @@ describe('CredenciamentoFicha', () => {
         }, false));
         // Retirar kit não é regravar a conferência.
         expect(credenciarProjeto).not.toHaveBeenCalled();
+    });
+
+    it('salva o atendimento como rascunho, com a conferência já feita', async () => {
+        render(<CredenciamentoFicha />);
+        await screen.findAllByText('Ana Aluna');
+
+        fireEvent.click(within(screen.getByRole('group', { name: 'RG de Ana Aluna' }))
+            .getByRole('button', { name: 'Presente' }));
+        fireEvent.click(screen.getByRole('button', { name: /Salvar rascunho/ }));
+
+        await waitFor(() => expect(salvarRascunhoCredenciamento).toHaveBeenCalled());
+        expect(salvarRascunhoCredenciamento.mock.calls[0][1].marcacoes).toContainEqual({
+            documento_id: 1, pessoa_tipo: 'aluno', pessoa_id: 30, situacao: 'presente',
+        });
+        // Rascunho volta para a fila de credenciar, não para credenciados.
+        expect(navigate).toHaveBeenCalledWith('/admin/credenciamento/credenciar', { replace: true });
+    });
+
+    it('rascunho de outro admin permanente exige assumir com justificativa', async () => {
+        getFichaCredenciamento.mockResolvedValue({
+            ...FICHA,
+            credenciamento: {
+                concluido: false, em_rascunho: true, iniciado_por: 'Ana Admin',
+                meu_rascunho: false, exige_justificativa: true, pode_alterar: true,
+                motivo_bloqueio: null, observacao: null, iniciado_em: '2026-09-01T11:55:00-04:00',
+                finalizado_em: null, credenciado_por: null, credenciado_por_mim: false,
+            },
+        });
+        render(<CredenciamentoFicha />);
+
+        // A ficha abre travada: nem conferir, nem concluir, nem salvar rascunho.
+        expect(await screen.findByText(/assuma o atendimento informando o motivo/i)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Concluir credenciamento/ })).toBeDisabled();
+        expect(screen.getByRole('button', { name: /Salvar rascunho/ })).toBeDisabled();
+
+        fireEvent.click(screen.getByRole('button', { name: /Assumir atendimento/ }));
+        const confirmar = screen.getByRole('button', { name: 'Assumir' });
+        expect(confirmar).toBeDisabled();
+
+        fireEvent.change(screen.getByLabelText('Justificativa para assumir o atendimento'), {
+            target: { value: 'A Ana saiu do evento.' },
+        });
+        fireEvent.click(confirmar);
+
+        await waitFor(() => expect(assumirCredenciamento).toHaveBeenCalledWith(
+            '7', 'A Ana saiu do evento.', false,
+        ));
+    });
+
+    it('rascunho de conta temporária é continuado direto, com aviso', async () => {
+        getFichaCredenciamento.mockResolvedValue({
+            ...FICHA,
+            credenciamento: {
+                concluido: false, em_rascunho: true, iniciado_por: 'Bruna Atendente',
+                meu_rascunho: false, exige_justificativa: false, pode_alterar: true,
+                motivo_bloqueio: null, observacao: null, iniciado_em: '2026-09-01T11:55:00-04:00',
+                finalizado_em: null, credenciado_por: null, credenciado_por_mim: false,
+            },
+        });
+        render(<CredenciamentoFicha />);
+
+        expect(await screen.findByText(/ele passa para você/i)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Concluir credenciamento/ })).toBeEnabled();
+        expect(screen.queryByRole('button', { name: /Assumir atendimento/ })).not.toBeInTheDocument();
     });
 });

@@ -8,6 +8,8 @@ import {
     credenciarProjeto,
     cancelarCredenciamento,
     registrarRetiradaKit,
+    salvarRascunhoCredenciamento,
+    assumirCredenciamento,
 } from '../lib/credenciamento.js';
 import { useModoTeste } from '../lib/modoTeste.js';
 
@@ -42,6 +44,12 @@ const chavePessoa = (pessoa) => `${pessoa.tipo}:${pessoa.id}`;
  * **presente**, **ausente** ou **não necessário**. "Não necessário" é uma
  * decisão registrada, diferente de deixar em branco.
  *
+ * O atendimento pode ser **salvo como rascunho**: o aluno esqueceu o RG no
+ * ônibus e sai para buscar, e o balcão guarda o que já conferiu em vez de
+ * recomeçar. O rascunho tem dono — quem o abriu —, e continuar o de outra
+ * pessoa exige ser admin permanente; o de outro permanente, ainda por cima,
+ * pede **justificativa**.
+ *
  * Antes dos documentos vem a **presença**: quem não apareceu é marcado ausente
  * e some com a lista de documentos dela — não se confere o RG de quem não veio
  * —, e o projeto é credenciado assim mesmo. A pessoa que chegar depois é
@@ -69,6 +77,9 @@ export default function CredenciamentoFicha() {
     const [kitsSelecionados, setKitsSelecionados] = useState([]);
     const [responsavelKit, setResponsavelKit] = useState('');
     const [entregandoKit, setEntregandoKit] = useState(false);
+    // Assumir o rascunho de outro admin permanente pede justificativa.
+    const [assumindo, setAssumindo] = useState(false);
+    const [motivoAssumir, setMotivoAssumir] = useState('');
     const [observacao, setObservacao] = useState('');
     const [erro, setErro] = useState('');
     const [salvando, setSalvando] = useState(false);
@@ -162,40 +173,79 @@ export default function CredenciamentoFicha() {
         }
     }
 
+    /** Guarda o que já foi conferido sem fechar o atendimento. */
+    async function salvarRascunho() {
+        setSalvando(true);
+        setErro('');
+        try {
+            await salvarRascunhoCredenciamento(id, payloadDaConferencia(), teste);
+            navigate('/admin/credenciamento/credenciar', { replace: true });
+        } catch (e) {
+            setErro(extractErrors(e).message || 'Não foi possível salvar o rascunho.');
+            carregar();
+        } finally {
+            setSalvando(false);
+        }
+    }
+
+    /** Assume o atendimento que outra pessoa deixou em aberto. */
+    async function assumir() {
+        setSalvando(true);
+        setErro('');
+        try {
+            await assumirCredenciamento(id, motivoAssumir.trim(), teste);
+            setAssumindo(false);
+            carregar();
+        } catch (e) {
+            setErro(extractErrors(e).message || 'Não foi possível assumir o atendimento.');
+        } finally {
+            setSalvando(false);
+        }
+    }
+
+    /**
+     * O que a conferência manda ao servidor — o mesmo corpo para o rascunho e
+     * para a conclusão: o que muda é o que o servidor faz com ele.
+     */
+    function payloadDaConferencia() {
+        const payload = {
+            marcacoes: Object.entries(marcacoes).map(([k, situacao]) => {
+                const [documentoId, pessoaTipo, pessoaId] = k.split(':');
+                return {
+                    documento_id: Number(documentoId),
+                    pessoa_tipo: pessoaTipo,
+                    pessoa_id: pessoaId === 'null' ? null : Number(pessoaId),
+                    situacao,
+                };
+            }),
+            pessoas: dados.pessoas.map((p) => ({
+                pessoa_tipo: p.tipo,
+                pessoa_id: p.id,
+                presente: presencas[chavePessoa(p)] !== false,
+            })),
+            observacao: observacao.trim() === '' ? null : observacao.trim(),
+            // Só viaja quando o admin corrigiu o horário: aí o fim é calculado.
+            iniciado_em: inicio !== inicioSugerido ? inicio : null,
+        };
+
+        // Kits escolhidos durante o próprio atendimento saem junto.
+        if (kitsSelecionados.length > 0 && responsavelKit !== '') {
+            const [responsavelTipo, responsavelId] = responsavelKit.split(':');
+            payload.kits = {
+                responsavel_tipo: responsavelTipo,
+                responsavel_id: responsavelId === 'null' ? null : Number(responsavelId),
+                pessoas: kitsParaEnvio(),
+            };
+        }
+
+        return payload;
+    }
+
     async function concluir() {
         setSalvando(true);
         setErro('');
         try {
-            const payload = {
-                marcacoes: Object.entries(marcacoes).map(([k, situacao]) => {
-                    const [documentoId, pessoaTipo, pessoaId] = k.split(':');
-                    return {
-                        documento_id: Number(documentoId),
-                        pessoa_tipo: pessoaTipo,
-                        pessoa_id: pessoaId === 'null' ? null : Number(pessoaId),
-                        situacao,
-                    };
-                }),
-                pessoas: dados.pessoas.map((p) => ({
-                    pessoa_tipo: p.tipo,
-                    pessoa_id: p.id,
-                    presente: presencas[chavePessoa(p)] !== false,
-                })),
-                observacao: observacao.trim() === '' ? null : observacao.trim(),
-                // Só viaja quando o admin corrigiu o horário: aí o fim é calculado.
-                iniciado_em: inicio !== inicioSugerido ? inicio : null,
-            };
-
-            // Kits escolhidos durante o próprio credenciamento saem junto.
-            if (kitsSelecionados.length > 0 && responsavelKit !== '') {
-                const [responsavelTipo, responsavelId] = responsavelKit.split(':');
-                payload.kits = {
-                    responsavel_tipo: responsavelTipo,
-                    responsavel_id: responsavelId === 'null' ? null : Number(responsavelId),
-                    pessoas: kitsParaEnvio(),
-                };
-            }
-            await credenciarProjeto(id, payload, teste);
+            await credenciarProjeto(id, payloadDaConferencia(), teste);
 
             // Lembrete dos itens a entregar antes de sair da ficha.
             if ((dados.config?.itens ?? []).length > 0) setEntregar(dados.config.itens);
@@ -224,7 +274,10 @@ export default function CredenciamentoFicha() {
     // Credenciamento de outra conta só é alterado por admin permanente — o
     // servidor barra de qualquer forma, aqui é para a tela não mentir.
     const podeAlterar = credenciamento?.pode_alterar !== false;
-    const aberto = config?.aberto && podeAlterar;
+    // Rascunho de outro admin permanente: só depois de assumir, com motivo.
+    const precisaAssumir = Boolean(credenciamento?.exige_justificativa);
+    const emRascunho = Boolean(credenciamento?.em_rascunho);
+    const aberto = config?.aberto && podeAlterar && !precisaAssumir;
     // A retirada de kit só depende da janela do evento: ela acrescenta, nunca
     // reescreve a conferência de outra conta.
     const janelaAberta = Boolean(config?.aberto);
@@ -269,7 +322,46 @@ export default function CredenciamentoFicha() {
                 </div>
             )}
 
-            {!aberto && (
+            {emRascunho && !podeAlterar && (
+                <div className="mb-4 max-w-3xl">
+                    <Alert type="error">{credenciamento.motivo_bloqueio}</Alert>
+                </div>
+            )}
+
+            {precisaAssumir && (
+                <div className="mb-4 max-w-3xl space-y-2">
+                    <Alert type="error">
+                        Atendimento em rascunho, iniciado por{' '}
+                        <strong>{credenciamento.iniciado_por}</strong>. Para continuar a conferência
+                        dele, assuma o atendimento informando o motivo — a troca fica registrada.
+                    </Alert>
+                    <Button type="button" variant="outline" onClick={() => { setMotivoAssumir(''); setAssumindo(true); }}>
+                        <span className="material-symbols-outlined text-[20px]">how_to_reg</span>
+                        Assumir atendimento
+                    </Button>
+                </div>
+            )}
+
+            {emRascunho && podeAlterar && !precisaAssumir && !credenciamento.meu_rascunho && (
+                <div className="mb-4 max-w-3xl">
+                    <Alert type="info">
+                        Atendimento em rascunho, iniciado por{' '}
+                        <strong>{credenciamento.iniciado_por}</strong> (conta temporária). Ao salvar
+                        ou concluir, ele passa para você — e a troca fica registrada.
+                    </Alert>
+                </div>
+            )}
+
+            {emRascunho && credenciamento.meu_rascunho && (
+                <div className="mb-4 max-w-3xl">
+                    <Alert type="info">
+                        Seu atendimento em rascunho, desde {dataHora(credenciamento.iniciado_em)}.
+                        Conclua quando a equipe voltar com o que faltou.
+                    </Alert>
+                </div>
+            )}
+
+            {!aberto && !precisaAssumir && podeAlterar && (
                 <div className="mb-4 max-w-3xl">
                     <Alert type="info">
                         O credenciamento está fechado agora. A ficha abre em leitura.
@@ -491,6 +583,14 @@ export default function CredenciamentoFicha() {
                             Cancelar credenciamento
                         </Button>
                     )}
+                    {/* Rascunho: guarda o que já foi conferido sem fechar. Não
+                        faz sentido para quem já está credenciado. */}
+                    {!concluido && (
+                        <Button type="button" variant="outline" loading={salvando} disabled={!aberto} onClick={salvarRascunho}>
+                            <span className="material-symbols-outlined text-[20px]">save</span>
+                            Salvar rascunho
+                        </Button>
+                    )}
                     <Button type="button" variant="success" loading={salvando} disabled={!aberto} onClick={concluir}>
                         <span className="material-symbols-outlined text-[20px]">how_to_reg</span>
                         {concluido ? 'Regravar credenciamento' : 'Concluir credenciamento'}
@@ -527,6 +627,41 @@ export default function CredenciamentoFicha() {
                                 onClick={cancelar}
                             >
                                 Cancelar credenciamento
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {assumindo && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
+                    <div className="bg-surface-container-lowest rounded-2xl fetec-card-shadow w-full max-w-md p-6 space-y-4">
+                        <h3 className="font-display text-lg font-semibold text-on-surface">Assumir atendimento</h3>
+                        <p className="text-sm text-on-surface-variant">
+                            A conferência que <strong>{credenciamento?.iniciado_por}</strong> começou passa
+                            para você. O motivo entra em Registros → Credenciamento.
+                        </p>
+                        <label className="block">
+                            <span className="text-sm font-semibold text-on-surface">Justificativa</span>
+                            <textarea
+                                aria-label="Justificativa para assumir o atendimento"
+                                value={motivoAssumir}
+                                onChange={(e) => setMotivoAssumir(e.target.value)}
+                                rows={3}
+                                maxLength={500}
+                                placeholder="Ex.: o colega saiu do evento e a equipe está esperando."
+                                className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm text-on-surface focus:border-primary-container focus:outline-none focus:ring-2 focus:ring-primary-container/20"
+                            />
+                        </label>
+                        <div className="flex justify-end gap-2">
+                            <Button type="button" variant="outline" onClick={() => setAssumindo(false)}>Voltar</Button>
+                            <Button
+                                type="button"
+                                loading={salvando}
+                                disabled={motivoAssumir.trim().length < 5}
+                                onClick={assumir}
+                            >
+                                Assumir
                             </Button>
                         </div>
                     </div>

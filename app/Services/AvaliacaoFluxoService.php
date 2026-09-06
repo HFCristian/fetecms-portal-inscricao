@@ -74,13 +74,13 @@ class AvaliacaoFluxoService
     /**
      * Inicia a avaliação (designada → em_andamento). Só uma em andamento por vez.
      *
-     * Antes de abrir, confere se o projeto ainda **precisa** desta avaliação:
-     * a distribuição designa mais avaliadores do que a cobertura exige (Sprint
-     * 106), justamente para não depender de quem não aparece — então quem
-     * chega depois do projeto já ter as avaliações da categoria em mãos
-     * (concluídas **e** em andamento) não deve começar um trabalho que não vai
-     * contar. Nesse caso a designação é devolvida ao bolo, a fila do avaliador
-     * é reposta na hora e ele recebe o aviso.
+     * Antes de abrir, confere se o projeto ainda **cabe** mais uma avaliação:
+     * a distribuição designa mais avaliadores do que o projeto pode aceitar,
+     * justamente para não depender de quem não aparece — então quem chega
+     * depois de ele atingir o **máximo de avaliações** da categoria (contando
+     * as concluídas **e** as em andamento) não deve começar um trabalho que não
+     * vai contar. Nesse caso a designação é devolvida ao bolo, a fila do
+     * avaliador é reposta na hora e ele recebe o aviso.
      *
      * A **designação manual do admin** não passa por esta trava: ela é o escape
      * do edital, e quem a fez sabe que está pondo mais um avaliador ali.
@@ -111,7 +111,7 @@ class AvaliacaoFluxoService
             $recebidos = $this->trocarProjetoCoberto($avaliacao);
 
             throw new ProjetoJaCobertoException(
-                'Este projeto já recebeu todas as avaliações necessárias — outro avaliador chegou antes. '
+                'Este projeto já atingiu o número máximo de avaliações — outro avaliador chegou antes. '
                     .($recebidos > 0
                         ? 'Ele saiu da sua lista e você recebeu outro no lugar.'
                         : 'Ele saiu da sua lista; por ora não há outro projeto disponível para você.'),
@@ -123,11 +123,11 @@ class AvaliacaoFluxoService
     }
 
     /**
-     * O projeto já tem as avaliações que a categoria dele pede?
+     * O projeto já atingiu o máximo de avaliações da categoria dele?
      *
      * Conta **concluídas + em andamento**: quem já abriu está ocupando uma das
-     * vagas, e considerar só as concluídas deixaria três pessoas trabalhando no
-     * mesmo projeto para nada.
+     * vagas, e considerar só as concluídas deixaria mais gente trabalhando no
+     * mesmo projeto do que ele pode aceitar.
      */
     private function projetoJaCoberto(Avaliacao $avaliacao): bool
     {
@@ -146,7 +146,7 @@ class AvaliacaoFluxoService
             ->whereIn('status', [StatusAvaliacao::Concluida->value, StatusAvaliacao::EmAndamento->value])
             ->count();
 
-        return $assumidas >= Edicao::limites()->minPorProjeto($projeto->categoria);
+        return $assumidas >= Edicao::limites()->maxPorProjeto($projeto->categoria);
     }
 
     /**

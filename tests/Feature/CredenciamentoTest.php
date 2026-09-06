@@ -853,4 +853,145 @@ class CredenciamentoTest extends TestCase
             Credenciamento::firstOrFail()->pessoas()->where('pessoa_tipo', 'aluno')->first()->kit_retirado_em,
         );
     }
+
+    // ------------------------------------------------------------------ //
+    // Sprint 109 — rascunho do credenciamento e a posse dele              //
+    // ------------------------------------------------------------------ //
+
+    public function test_rascunho_guarda_a_conferencia_sem_credenciar(): void
+    {
+        $admin = User::factory()->admin()->create();
+        Sanctum::actingAs($admin);
+        $projeto = $this->finalista();
+        $rg = $this->documento(TipoPessoaCredenciamento::Aluno, 'RG');
+        $aluno = $projeto->alunos()->first();
+
+        $this->postJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}/rascunho", [
+            'marcacoes' => [[
+                'documento_id' => $rg->id, 'pessoa_tipo' => 'aluno',
+                'pessoa_id' => $aluno->id, 'situacao' => SituacaoDocumento::Presente->value,
+            ]],
+            'observacao' => 'Foi buscar o RG no ônibus.',
+        ])->assertOk()->assertJsonPath('data.credenciamento.em_rascunho', true);
+
+        $credenciamento = Credenciamento::where('projeto_id', $projeto->id)->firstOrFail();
+        $this->assertNull($credenciamento->finalizado_em, 'rascunho não credencia');
+        $this->assertSame($admin->id, $credenciamento->iniciado_por);
+        $this->assertSame(1, $credenciamento->documentos()->count());
+
+        // O projeto continua na fila de quem falta credenciar, marcado.
+        $linha = collect($this->getJson('/api/v1/admin/credenciamento/finalistas?situacao=pendentes')->json('data'))
+            ->firstWhere('id', $projeto->id);
+        $this->assertTrue($linha['em_rascunho']);
+        $this->assertSame($admin->name, $linha['rascunho_de']);
+    }
+
+    public function test_o_dono_retoma_o_rascunho_e_conclui(): void
+    {
+        $admin = User::factory()->admin()->create();
+        Sanctum::actingAs($admin);
+        $projeto = $this->finalista();
+
+        $this->postJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}/rascunho", ['marcacoes' => []])
+            ->assertOk();
+        $this->postJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}", ['marcacoes' => []])
+            ->assertOk();
+
+        $credenciamento = Credenciamento::where('projeto_id', $projeto->id)->firstOrFail();
+        $this->assertNotNull($credenciamento->finalizado_em);
+        $this->assertSame($admin->id, $credenciamento->iniciado_por);
+        $this->assertSame($admin->id, $credenciamento->credenciado_por);
+    }
+
+    public function test_admin_permanente_precisa_de_justificativa_para_assumir_rascunho_de_outro(): void
+    {
+        $dono = User::factory()->admin()->create(['name' => 'Ana Admin']);
+        Sanctum::actingAs($dono);
+        $projeto = $this->finalista();
+        $this->postJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}/rascunho", ['marcacoes' => []])
+            ->assertOk();
+
+        $outro = User::factory()->admin()->create(['name' => 'Bruno Admin']);
+        Sanctum::actingAs($outro);
+
+        // Continuar direto não passa: primeiro assume, com justificativa.
+        $this->postJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}/rascunho", ['marcacoes' => []])
+            ->assertStatus(422)->assertJsonValidationErrors('credenciamento');
+        $this->postJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}", ['marcacoes' => []])
+            ->assertStatus(422)->assertJsonValidationErrors('credenciamento');
+
+        $this->postJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}/assumir", ['justificativa' => ''])
+            ->assertStatus(422)->assertJsonValidationErrors('justificativa');
+
+        $this->postJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}/assumir", [
+            'justificativa' => 'A Ana saiu do evento e a equipe está esperando.',
+        ])->assertOk()->assertJsonPath('data.credenciamento.meu_rascunho', true);
+
+        $this->assertSame(
+            $outro->id,
+            Credenciamento::where('projeto_id', $projeto->id)->firstOrFail()->iniciado_por,
+        );
+
+        // A troca de mãos fica registrada, com o de → para e a justificativa.
+        $registro = RegistroAtividade::where('tipo', TipoRegistro::CredenciamentoRascunhoAssumido)->firstOrFail();
+        $this->assertSame('Ana Admin', $registro->detalhes['de']);
+        $this->assertSame('Bruno Admin', $registro->detalhes['para']);
+
+        // E agora ele continua normalmente.
+        $this->postJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}/rascunho", ['marcacoes' => []])
+            ->assertOk();
+    }
+
+    public function test_admin_permanente_assume_rascunho_de_conta_temporaria_sem_justificativa(): void
+    {
+        $projeto = $this->finalista();
+        $conta = $this->contaTemporaria();
+
+        Sanctum::actingAs($conta->user);
+        $this->postJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}/rascunho", ['marcacoes' => []])
+            ->assertOk();
+
+        // O turno da conta acabou: o projeto não pode ficar preso.
+        Sanctum::actingAs(User::factory()->admin()->create());
+        $this->postJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}/assumir", [])
+            ->assertOk()
+            ->assertJsonPath('data.credenciamento.meu_rascunho', true);
+    }
+
+    public function test_conta_temporaria_nao_assume_rascunho_de_ninguem(): void
+    {
+        $projeto = $this->finalista();
+        $primeira = $this->contaTemporaria('balcao1@fetec.test');
+        $segunda = $this->contaTemporaria('balcao2@fetec.test');
+
+        Sanctum::actingAs($primeira->user);
+        $this->postJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}/rascunho", ['marcacoes' => []])
+            ->assertOk();
+
+        Sanctum::actingAs($segunda->user);
+        $this->postJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}/rascunho", ['marcacoes' => []])
+            ->assertStatus(422)->assertJsonValidationErrors('credenciamento');
+        $this->postJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}/assumir", [
+            'justificativa' => 'Quero continuar.',
+        ])->assertStatus(422);
+
+        // A ficha abre em leitura, dizendo de quem é o atendimento.
+        $ficha = $this->getJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}")->assertOk();
+        $this->assertFalse($ficha->json('data.credenciamento.pode_alterar'));
+        $this->assertStringContainsString(
+            'ainda está em rascunho',
+            $ficha->json('data.credenciamento.motivo_bloqueio'),
+        );
+    }
+
+    public function test_rascunho_de_projeto_ja_credenciado_e_recusado(): void
+    {
+        Sanctum::actingAs(User::factory()->admin()->create());
+        $projeto = $this->finalista();
+
+        $this->postJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}", ['marcacoes' => []])->assertOk();
+
+        $this->postJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}/rascunho", ['marcacoes' => []])
+            ->assertStatus(422)->assertJsonValidationErrors('credenciamento');
+    }
 }
