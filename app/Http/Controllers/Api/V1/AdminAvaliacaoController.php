@@ -248,6 +248,29 @@ class AdminAvaliacaoController extends Controller
     }
 
     /**
+     * Os prazos do ciclo de vida de uma designação: horas de sessão sem
+     * atividade e dias que uma avaliação pode ficar aberta.
+     */
+    public function definirPrazosSessao(Request $request): JsonResponse
+    {
+        $dados = $request->validate([
+            'horas_sessao' => ['present', 'nullable', 'integer', 'min:1', 'max:720'],
+            'dias_avaliacao_aberta' => ['present', 'nullable', 'integer', 'min:1', 'max:365'],
+        ]);
+
+        $config = $this->service->definirPrazosSessao(
+            $dados['horas_sessao'],
+            $dados['dias_avaliacao_aberta'],
+            $request->user(),
+        );
+
+        return response()->json([
+            'data' => $config,
+            'meta' => ['message' => 'Prazos atualizados.'],
+        ]);
+    }
+
+    /**
      * Troca o modo de distribuição da edição (total × por atividade). A troca
      * não mexe no que já está designado — vale daqui para a frente.
      */

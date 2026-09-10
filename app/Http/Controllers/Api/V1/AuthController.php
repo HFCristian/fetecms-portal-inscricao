@@ -49,6 +49,13 @@ class AuthController extends Controller
 
     public function logout(Request $request): JsonResponse
     {
+        // Modo "Distribuição por Atividade": a fila de sessão volta ao bolo
+        // agora, para outro avaliador poder pegar aqueles projetos ainda hoje.
+        // Antes do logout, senão não há mais quem devolver.
+        if ($user = $request->user()) {
+            $this->sessao->aoSair($user);
+        }
+
         Auth::guard('web')->logout();
 
         if ($request->hasSession()) {

@@ -20,6 +20,13 @@ use Illuminate\Database\Eloquent\Builder;
  */
 class RegistroAtividadeService
 {
+    /**
+     * O "autor" das linhas que ninguém escreveu — as que o relógio do portal
+     * gera sozinho. A coluna `autor_email` não é nula, e um endereço inventado
+     * de gente seria pior do que um rótulo que se lê como rótulo.
+     */
+    public const AUTOR_SISTEMA = 'sistema@fetecms';
+
     /** Colunas do CSV exportado, na ordem em que aparecem. */
     private const CABECALHO_CSV = [
         'Data', 'Hora', 'Tipo', 'E-mail do autor', 'Nome do autor', 'Papel',
@@ -118,6 +125,44 @@ class RegistroAtividadeService
             'campo' => $situacao,
             'de' => $de,
             'para' => $para ?? '(sem avaliador)',
+        ]);
+    }
+
+    /**
+     * O prazo estourou: uma avaliação que ficou aberta tempo demais foi
+     * devolvida ao bolo pelo próprio sistema.
+     *
+     * O autor não é ninguém — foi o relógio —, então o registro sai em nome do
+     * portal. É intervenção de verdade (tira um projeto das mãos de quem já
+     * começou), e por isso entra na trilha; a devolução rotineira de fim de
+     * sessão não entra, senão cada logout viraria uma linha.
+     *
+     * O que o avaliador já preencheu **não é apagado**: ele retoma de onde
+     * parou, se o projeto ainda aceitar avaliação.
+     */
+    public function avaliacaoDevolvidaPorPrazo(
+        Projeto $projeto,
+        string $avaliador,
+        int $dias,
+    ): RegistroAtividade {
+        $dono = $projeto->relationLoaded('user') ? $projeto->user : $projeto->user()->first();
+
+        return RegistroAtividade::create([
+            'tipo' => TipoRegistro::AvaliacaoDevolvidaPorPrazo,
+            'user_id' => null,
+            'autor_email' => self::AUTOR_SISTEMA,
+            'autor_nome' => 'Sistema',
+            'autor_role' => null,
+            'projeto_id' => $projeto->id,
+            'projeto_titulo' => $projeto->titulo,
+            'projeto_categoria' => $projeto->categoria?->value,
+            'dono_email' => $dono?->email,
+            'dono_nome' => $dono?->name,
+            'detalhes' => [
+                'campo' => 'Avaliação aberta há mais de '.$dias.' dia(s)',
+                'de' => $avaliador,
+                'para' => '(devolvida para a distribuição)',
+            ],
         ]);
     }
 

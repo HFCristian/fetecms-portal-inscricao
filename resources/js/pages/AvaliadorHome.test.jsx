@@ -11,6 +11,7 @@ vi.mock('../lib/auth.jsx', () => ({
     homeFor: () => '/avaliador',
 }));
 const roletarFila = vi.fn();
+const retomarAvaliacao = vi.fn();
 const LISTA_ABERTA = {
     liberada: true, liberada_em: null, encerrada: false, pode_ver: true, pode_avaliar: true, is_demo: false,
     nota_maxima: 10, min_por_avaliador: 3,
@@ -40,6 +41,7 @@ vi.mock('../lib/avaliacao.js', () => ({
     iniciarAvaliacao: vi.fn(),
     concluirAvaliacao: vi.fn(),
     roletarFila: (...a) => roletarFila(...a),
+    retomarAvaliacao: (...a) => retomarAvaliacao(...a),
 }));
 
 import { getMinhaAvaliacao } from '../lib/avaliacao.js';
@@ -158,5 +160,38 @@ describe('AvaliadorHome', () => {
 
         await screen.findByText('Projeto X');
         expect(screen.queryByText('Sortear outros projetos')).not.toBeInTheDocument();
+    });
+
+    // Sprint 112: o que o prazo devolveu ao bolo aparece numa seção própria, com
+    // o rascunho guardado e o botão de retomar.
+    it('lista as avaliações devolvidas pelo prazo e retoma uma', async () => {
+        getMinhaAvaliacao.mockResolvedValue({
+            ...LISTA_ABERTA,
+            devolvidos: [{
+                avaliacao_id: 9, projeto_id: 30, titulo: 'Projeto Devolvido',
+                area: 'Ciências Exatas e da Terra', status: 'em_andamento',
+                status_label: 'Em andamento', nota: null, devolvida_em_label: '05/09/2026 10:00',
+            }],
+        });
+        retomarAvaliacao.mockResolvedValue({ data: {}, meta: { message: 'Avaliação retomada de onde você parou.' } });
+
+        render(<MemoryRouter><AvaliadorHome /></MemoryRouter>);
+
+        expect(await screen.findByText('Avaliações devolvidas')).toBeInTheDocument();
+        expect(screen.getByText('Projeto Devolvido')).toBeInTheDocument();
+        expect(screen.getByText(/devolvida em 05\/09\/2026 10:00/)).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Retomar' }));
+
+        await waitFor(() => expect(retomarAvaliacao).toHaveBeenCalledWith(9, false));
+    });
+
+    it('sem devolvidas, a seção não aparece', async () => {
+        getMinhaAvaliacao.mockResolvedValue({ ...LISTA_ABERTA, devolvidos: [] });
+
+        render(<MemoryRouter><AvaliadorHome /></MemoryRouter>);
+
+        expect(await screen.findByText('Projeto X')).toBeInTheDocument();
+        expect(screen.queryByText('Avaliações devolvidas')).not.toBeInTheDocument();
     });
 });

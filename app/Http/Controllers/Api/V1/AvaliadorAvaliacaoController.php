@@ -11,6 +11,7 @@ use App\Models\Avaliacao;
 use App\Models\Edicao;
 use App\Services\AvaliacaoFluxoService;
 use App\Services\FilaAvaliadorService;
+use App\Services\SessaoAvaliadorService;
 use App\Support\Rubrica;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -27,6 +28,7 @@ class AvaliadorAvaliacaoController extends Controller
     public function __construct(
         private readonly AvaliacaoFluxoService $fluxo,
         private readonly FilaAvaliadorService $fila,
+        private readonly SessaoAvaliadorService $sessao,
     ) {}
 
     /** Lista os projetos designados ao avaliador (se puder avaliar agora). */
@@ -42,8 +44,14 @@ class AvaliadorAvaliacaoController extends Controller
         // já avaliou fica na seção de concluídos, sem limite.
         $minPorAvaliador = Edicao::minPorAvaliador();
 
+        // Abrir o painel é sinal de vida: adia o vencimento da sessão e, de
+        // passagem, roda a varredura dos prazos.
+        $this->sessao->marcarAtividade($user);
+        $this->sessao->varrer();
+
         $projetos = [];
         $concluidos = [];
+        $devolvidos = [];
 
         if ($podeVer) {
             $avaliacoes = Avaliacao::query()
@@ -66,6 +74,21 @@ class AvaliadorAvaliacaoController extends Controller
                 ->map(fn (Avaliacao $a) => $this->linha($a))
                 ->values()
                 ->all();
+
+            // O que o prazo devolveu ao bolo: o projeto voltou para a
+            // distribuição, mas o rascunho ficou guardado e ele pode retomar
+            // enquanto o projeto ainda aceitar avaliação.
+            $devolvidos = Avaliacao::comDevolvidas()
+                ->where('avaliador_id', $user->id)
+                ->whereNotNull('devolvida_em')
+                ->with(['projeto:id,titulo,area_id', 'projeto.area:id,nome'])
+                ->orderByDesc('devolvida_em')
+                ->get()
+                ->map(fn (Avaliacao $a) => $this->linha($a) + [
+                    'devolvida_em_label' => $a->devolvida_em?->format('d/m/Y H:i'),
+                ])
+                ->values()
+                ->all();
         }
 
         $edicao = Edicao::atual();
@@ -86,6 +109,7 @@ class AvaliadorAvaliacaoController extends Controller
             // avaliador mostra cada uma na sua seção.
             'projetos' => $projetos,
             'concluidos' => $concluidos,
+            'devolvidos' => $devolvidos,
         ]]);
     }
 
@@ -134,6 +158,23 @@ class AvaliadorAvaliacaoController extends Controller
         $this->fluxo->iniciar($avaliacao);
 
         return response()->json(['data' => $this->avaliacao($avaliacao->fresh())]);
+    }
+
+    /**
+     * Retoma uma avaliação que o prazo devolveu ao bolo, com o rascunho que
+     * ficou guardado. Só vale se o projeto ainda aceitar avaliação.
+     */
+    public function retomar(Request $request, string $avaliacao): JsonResponse
+    {
+        $alvo = Avaliacao::comDevolvidas()->findOrFail($avaliacao);
+
+        $this->garantirAcesso($request, $alvo);
+        $this->fluxo->retomar($alvo);
+
+        return response()->json([
+            'data' => $this->avaliacao($alvo->fresh()),
+            'meta' => ['message' => 'Avaliação retomada de onde você parou.'],
+        ]);
     }
 
     /** Salva o preenchimento parcial sem enviar (segue em_andamento). */

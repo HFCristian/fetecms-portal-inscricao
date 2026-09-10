@@ -1242,6 +1242,13 @@ class AdminAvaliacaoService
             'modo' => Edicao::modoDistribuicao()->value,
             'modos' => ModoDistribuicao::opcoes(),
             'distribui_em_massa' => Edicao::modoDistribuicao()->distribuiEmMassa(),
+            // Os dois prazos do ciclo de vida de uma designação: quanto tempo a
+            // sessão do avaliador sobrevive sem atividade (só no modo por
+            // atividade) e por quantos dias uma avaliação pode ficar aberta
+            // antes de o projeto voltar para a pilha (nos dois modos).
+            'horas_sessao' => Edicao::horasSessaoAvaliador(),
+            'horas_sessao_padrao' => Edicao::PADRAO_HORAS_SESSAO,
+            'dias_avaliacao_aberta' => Edicao::diasAvaliacaoAberta(),
         ];
     }
 
@@ -1265,6 +1272,44 @@ class AdminAvaliacaoService
             $admin,
             $anterior->label(),
             $novo->label(),
+        );
+
+        return $this->configDistribuicao();
+    }
+
+    /**
+     * Grava os **prazos do ciclo de vida** de uma designação: quantas horas sem
+     * atividade encerram a sessão do avaliador e por quantos dias uma avaliação
+     * pode ficar aberta antes de o projeto voltar para a pilha.
+     *
+     * As horas de sessão nunca ficam em branco — o modo por atividade sem
+     * varredura prenderia os projetos de quem fecha o navegador para sempre —,
+     * então em branco elas voltam ao padrão. Os dias, sim: em branco a regra
+     * fica desligada, que é como o portal se comportou até a Sprint 112.
+     */
+    public function definirPrazosSessao(?int $horas, ?int $dias, User $admin): array
+    {
+        $horasAntes = Edicao::horasSessaoAvaliador();
+        $diasAntes = Edicao::diasAvaliacaoAberta();
+
+        Edicao::atual()?->update([
+            'horas_sessao_avaliador' => $horas !== null && $horas > 0 ? $horas : null,
+            'dias_avaliacao_aberta' => $dias !== null && $dias > 0 ? $dias : null,
+        ]);
+
+        $this->registrarParametro(
+            TipoRegistro::AvaliacaoHorasSessao,
+            $admin,
+            $horasAntes.'h',
+            Edicao::horasSessaoAvaliador().'h',
+        );
+
+        $rotuloDias = fn (?int $v) => $v === null ? 'sem prazo' : $v.' dia(s)';
+        $this->registrarParametro(
+            TipoRegistro::AvaliacaoDiasAberta,
+            $admin,
+            $rotuloDias($diasAntes),
+            $rotuloDias(Edicao::diasAvaliacaoAberta()),
         );
 
         return $this->configDistribuicao();

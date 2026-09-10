@@ -183,6 +183,9 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 ->middleware('throttle:20,1');
             Route::get('/{avaliacao}', [AvaliadorAvaliacaoController::class, 'show']);
             Route::post('/{avaliacao}/iniciar', [AvaliadorAvaliacaoController::class, 'iniciar']);
+            // Retomar não usa route model binding: a avaliação devolvida está
+            // escondida pelo AvaliacaoAtivaScope, e é justamente ela o alvo.
+            Route::post('/{avaliacao}/retomar', [AvaliadorAvaliacaoController::class, 'retomar']);
             Route::post('/{avaliacao}/rascunho', [AvaliadorAvaliacaoController::class, 'rascunho']);
             Route::post('/{avaliacao}/concluir', [AvaliadorAvaliacaoController::class, 'concluir']);
             // Depois de enviada, só o parecer final ainda muda (com justificativa).
@@ -264,6 +267,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::patch('/avaliacao/distribuicao/piso', [AdminAvaliacaoController::class, 'definirPisoFila']);
                 Route::patch('/avaliacao/distribuicao/ao-cadastrar', [AdminAvaliacaoController::class, 'definirDistribuicaoAoCadastrar']);
                 Route::patch('/avaliacao/distribuicao/modo', [AdminAvaliacaoController::class, 'definirModoDistribuicao']);
+                Route::patch('/avaliacao/distribuicao/prazos', [AdminAvaliacaoController::class, 'definirPrazosSessao']);
                 Route::post('/avaliacao/distribuir', [AdminAvaliacaoController::class, 'distribuir']);
                 Route::post('/avaliacao/redistribuir', [AdminAvaliacaoController::class, 'redistribuir']);
                 // As duas ações acima vão para a fila; a tela acompanha por aqui.

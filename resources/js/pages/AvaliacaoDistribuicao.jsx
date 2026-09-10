@@ -7,7 +7,7 @@ import {
     getAvaliacaoConfig, getDistribuicaoConfig, distribuirAvaliacoes,
     redistribuirAvaliacoes, definirDistribuicaoAoCadastrar,
     getProgressoDistribuicao, getUltimaDistribuicao, definirPisoFila,
-    definirDesignacoesPorProjeto, definirModoDistribuicao,
+    definirDesignacoesPorProjeto, definirModoDistribuicao, definirPrazosSessao,
 } from '../lib/admin.js';
 
 /** De quanto em quanto tempo a tela pergunta como vai a rodada. */
@@ -319,6 +319,105 @@ function ModoDistribuicaoCard({ config, onSalvo }) {
 }
 
 /**
+ * Os dois prazos do **ciclo de vida** de uma designação.
+ *
+ * *Sessão do avaliador* só vale no modo por atividade: é quanto tempo sem
+ * atividade devolve ao bolo a fila de quem fechou o navegador em vez de sair.
+ * Nunca fica em branco — sem varredura, esses projetos ficariam presos para
+ * sempre, que é o problema que o modo veio resolver.
+ *
+ * *Avaliação aberta* vale nos **dois** modos: avaliação começada e largada trava
+ * o projeto do mesmo jeito, tenha ela vindo do login ou da distribuição em
+ * massa. Em branco a regra fica desligada, e aí só a retirada manual do admin
+ * destrava. O que o avaliador já preencheu fica guardado em qualquer caso.
+ */
+function PrazosCard({ config, onSalvo }) {
+    const [horas, setHoras] = useState(config.horas_sessao ?? '');
+    const [dias, setDias] = useState(config.dias_avaliacao_aberta ?? '');
+    const [salvando, setSalvando] = useState(false);
+    const [msg, setMsg] = useState('');
+    const [erro, setErro] = useState('');
+
+    async function salvar(evento) {
+        evento.preventDefault();
+        setSalvando(true); setMsg(''); setErro('');
+        try {
+            const resp = await definirPrazosSessao(
+                horas === '' ? null : Number(horas),
+                dias === '' ? null : Number(dias),
+            );
+            onSalvo?.(resp.data);
+            setHoras(resp.data.horas_sessao ?? '');
+            setDias(resp.data.dias_avaliacao_aberta ?? '');
+            setMsg(resp.meta?.message || 'Prazos salvos.');
+        } catch (e) {
+            setErro(e?.response?.data?.message || 'Não foi possível salvar. Tente novamente.');
+        } finally {
+            setSalvando(false);
+        }
+    }
+
+    return (
+        <form onSubmit={salvar} className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-6 mb-4 max-w-3xl">
+            <h2 className="font-display text-primary font-semibold mb-1">Prazos das designações</h2>
+            <p className="text-sm text-on-surface-variant mb-4">
+                Quanto tempo um projeto pode ficar parado na mão de alguém antes de voltar para a
+                distribuição.
+            </p>
+            {msg && <div className="mb-3"><Alert type="info">{msg}</Alert></div>}
+            {erro && <div className="mb-3"><Alert>{erro}</Alert></div>}
+            <fieldset disabled={salvando} className="space-y-4">
+                <div>
+                    <label htmlFor="horas-sessao" className="block text-sm font-semibold text-on-surface mb-1">
+                        Sessão do avaliador (horas)
+                    </label>
+                    <input
+                        id="horas-sessao"
+                        type="number"
+                        min={1}
+                        max={720}
+                        value={horas}
+                        onChange={(e) => setHoras(e.target.value)}
+                        placeholder={String(config.horas_sessao_padrao ?? 12)}
+                        className="w-32 bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 outline-none"
+                    />
+                    <p className="text-xs text-on-surface-variant mt-1">
+                        Só no modo <strong>por atividade</strong>: sem atividade por esse tempo, a fila
+                        de sessão do avaliador volta ao bolo. Em branco vale o padrão de{' '}
+                        {config.horas_sessao_padrao ?? 12}h — a varredura não pode ser desligada, senão
+                        quem fecha o navegador prende os projetos.
+                    </p>
+                </div>
+                <div>
+                    <label htmlFor="dias-aberta" className="block text-sm font-semibold text-on-surface mb-1">
+                        Avaliação aberta (dias)
+                    </label>
+                    <input
+                        id="dias-aberta"
+                        type="number"
+                        min={1}
+                        max={365}
+                        value={dias}
+                        onChange={(e) => setDias(e.target.value)}
+                        placeholder="sem prazo"
+                        className="w-32 bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 outline-none"
+                    />
+                    <p className="text-xs text-on-surface-variant mt-1">
+                        Vale nos <strong>dois modos</strong>. Passado esse prazo sem o avaliador mexer,
+                        o projeto volta para a pilha de distribuição e a devolução entra em Registros.
+                        O que ele já tinha preenchido fica guardado: ele retoma de onde parou se o
+                        projeto ainda aceitar avaliação. Em branco, a regra fica desligada.
+                    </p>
+                </div>
+            </fieldset>
+            <div className="mt-4">
+                <Button type="submit" loading={salvando}>Salvar prazos</Button>
+            </div>
+        </form>
+    );
+}
+
+/**
  * **Designações por projeto**: quantos avaliadores ficam com o projeto **na
  * lista**.
  *
@@ -547,6 +646,7 @@ export default function AvaliacaoDistribuicao() {
             ) : (
                 <>
                     <ModoDistribuicaoCard config={distribuicao} onSalvo={setDistribuicao} />
+                    <PrazosCard config={distribuicao} onSalvo={setDistribuicao} />
                     <RegrasDistribuicaoCard config={distribuicao} onSalvo={setDistribuicao} />
                     <DesignacoesCard config={distribuicao} onSalvo={setDistribuicao} />
                     <PisoFilaCard config={distribuicao} onSalvo={setDistribuicao} />

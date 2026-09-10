@@ -24,6 +24,7 @@ const distribuirAvaliacoes = vi.fn(() => Promise.resolve(naFila('distribuir')));
 const redistribuirAvaliacoes = vi.fn(() => Promise.resolve(naFila('redistribuir')));
 const definirPisoFila = vi.fn();
 const definirModoDistribuicao = vi.fn();
+const definirPrazosSessao = vi.fn();
 const definirDesignacoesPorProjeto = vi.fn();
 const getProgressoDistribuicao = vi.fn();
 const getUltimaDistribuicao = vi.fn(() => Promise.resolve(null));
@@ -49,6 +50,9 @@ vi.mock('../lib/admin.js', () => ({
         ao_cadastrar: false,
         modo: 'total',
         distribui_em_massa: true,
+        horas_sessao: 12,
+        horas_sessao_padrao: 12,
+        dias_avaliacao_aberta: null,
         modos: [
             { value: 'total', label: 'Distribuição Total', descricao: 'O admin distribui em massa.' },
             { value: 'atividade', label: 'Distribuição por Atividade', descricao: 'A fila nasce no login.' },
@@ -66,6 +70,7 @@ vi.mock('../lib/admin.js', () => ({
     definirRegrasDistribuicao: vi.fn(),
     definirPisoFila: (...a) => definirPisoFila(...a),
     definirModoDistribuicao: (...a) => definirModoDistribuicao(...a),
+    definirPrazosSessao: (...a) => definirPrazosSessao(...a),
     definirDesignacoesPorProjeto: (...a) => definirDesignacoesPorProjeto(...a),
     definirDistribuicaoAoCadastrar: vi.fn(),
     distribuirAvaliacoes: (...a) => distribuirAvaliacoes(...a),
@@ -85,6 +90,7 @@ describe('AvaliacaoDistribuicao', () => {
         getUltimaDistribuicao.mockReset().mockResolvedValue(null);
         definirPisoFila.mockReset();
         definirModoDistribuicao.mockReset();
+        definirPrazosSessao.mockReset();
     });
 
     it('reúne regras, toggle e as duas ações de distribuição', async () => {
@@ -197,6 +203,7 @@ describe('AvaliacaoDistribuicao — piso da fila', () => {
         getUltimaDistribuicao.mockReset().mockResolvedValue(null);
         definirPisoFila.mockReset();
         definirModoDistribuicao.mockReset();
+        definirPrazosSessao.mockReset();
     });
 
     it('mostra o piso em vigor', async () => {
@@ -310,5 +317,23 @@ describe('AvaliacaoDistribuicao — piso da fila', () => {
         expect(await screen.findByRole('button', { name: /Distribuir avaliações/ })).toBeDisabled();
         expect(screen.getByRole('button', { name: /Redistribuir avaliações/ })).toBeDisabled();
         expect(screen.getByText(/são\s+designados quando o avaliador entra no portal/)).toBeInTheDocument();
+    });
+
+    it('salva os prazos da sessão e da avaliação aberta', async () => {
+        const { getDistribuicaoConfig } = await import('../lib/admin.js');
+        const base = await getDistribuicaoConfig();
+        definirPrazosSessao.mockResolvedValue({
+            data: { ...base, horas_sessao: 6, dias_avaliacao_aberta: 5 },
+            meta: { message: 'Prazos atualizados.' },
+        });
+
+        render(<AvaliacaoDistribuicao />);
+
+        fireEvent.change(await screen.findByLabelText('Sessão do avaliador (horas)'), { target: { value: '6' } });
+        fireEvent.change(screen.getByLabelText('Avaliação aberta (dias)'), { target: { value: '5' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Salvar prazos' }));
+
+        await waitFor(() => expect(definirPrazosSessao).toHaveBeenCalledWith(6, 5));
+        expect(await screen.findByText('Prazos atualizados.')).toBeInTheDocument();
     });
 });

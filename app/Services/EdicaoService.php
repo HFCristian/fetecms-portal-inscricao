@@ -34,6 +34,7 @@ class EdicaoService
         'avaliacoes_max_por_avaliador', 'avaliacoes_max_por_projeto',
         'avaliacoes_por_categoria', 'designacoes_por_projeto',
         'distribuicao_regras', 'distribuicao_ao_cadastrar', 'modo_distribuicao',
+        'dias_avaliacao_aberta', 'horas_sessao_avaliador',
     ];
 
     /**
