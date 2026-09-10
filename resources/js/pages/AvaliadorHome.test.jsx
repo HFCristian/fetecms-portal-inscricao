@@ -11,6 +11,7 @@ vi.mock('../lib/auth.jsx', () => ({
     homeFor: () => '/avaliador',
 }));
 const roletarFila = vi.fn();
+const retomarAvaliacao = vi.fn();
 const LISTA_ABERTA = {
     liberada: true, liberada_em: null, encerrada: false, pode_ver: true, pode_avaliar: true, is_demo: false,
     nota_maxima: 10, min_por_avaliador: 3,
@@ -40,6 +41,7 @@ vi.mock('../lib/avaliacao.js', () => ({
     iniciarAvaliacao: vi.fn(),
     concluirAvaliacao: vi.fn(),
     roletarFila: (...a) => roletarFila(...a),
+    retomarAvaliacao: (...a) => retomarAvaliacao(...a),
 }));
 
 import { getMinhaAvaliacao } from '../lib/avaliacao.js';
@@ -158,5 +160,77 @@ describe('AvaliadorHome', () => {
 
         await screen.findByText('Projeto X');
         expect(screen.queryByText('Sortear outros projetos')).not.toBeInTheDocument();
+    });
+
+    // Sprint 112: o que o prazo devolveu ao bolo aparece numa seção própria, com
+    // o rascunho guardado e o botão de retomar.
+    it('lista as avaliações devolvidas pelo prazo e retoma uma', async () => {
+        getMinhaAvaliacao.mockResolvedValue({
+            ...LISTA_ABERTA,
+            devolvidos: [{
+                avaliacao_id: 9, projeto_id: 30, titulo: 'Projeto Devolvido',
+                area: 'Ciências Exatas e da Terra', status: 'em_andamento',
+                status_label: 'Em andamento', nota: null, devolvida_em_label: '05/09/2026 10:00',
+            }],
+        });
+        retomarAvaliacao.mockResolvedValue({ data: {}, meta: { message: 'Avaliação retomada de onde você parou.' } });
+
+        render(<MemoryRouter><AvaliadorHome /></MemoryRouter>);
+
+        expect(await screen.findByText('Avaliações devolvidas')).toBeInTheDocument();
+        expect(screen.getByText('Projeto Devolvido')).toBeInTheDocument();
+        expect(screen.getByText(/devolvida em 05\/09\/2026 10:00/)).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Retomar' }));
+
+        await waitFor(() => expect(retomarAvaliacao).toHaveBeenCalledWith(9, false));
+    });
+
+    it('sem devolvidas, a seção não aparece', async () => {
+        getMinhaAvaliacao.mockResolvedValue({ ...LISTA_ABERTA, devolvidos: [] });
+
+        render(<MemoryRouter><AvaliadorHome /></MemoryRouter>);
+
+        expect(await screen.findByText('Projeto X')).toBeInTheDocument();
+        expect(screen.queryByText('Avaliações devolvidas')).not.toBeInTheDocument();
+    });
+
+    // Sprint 115: o que a organização designou vem numa lista própria, ACIMA da
+    // fila comum — antes ele era cortado pelo limite e sumia da tela.
+    it('separa os projetos designados pela organização, acima da fila comum', async () => {
+        getMinhaAvaliacao.mockResolvedValue({
+            ...LISTA_ABERTA,
+            designados_organizacao: [{
+                avaliacao_id: 5, projeto_id: 40, titulo: 'Escolhido pela comissão',
+                area: 'Ciências Exatas e da Terra', status: 'designada',
+                status_label: 'Designada', nota: null, designacao_manual: true,
+            }],
+        });
+
+        render(<MemoryRouter><AvaliadorHome /></MemoryRouter>);
+
+        expect(await screen.findByText('Designados pela organização')).toBeInTheDocument();
+        expect(screen.getByText('Escolhido pela comissão')).toBeInTheDocument();
+        expect(screen.getByText(/Não saem da sua lista no sorteio/)).toBeInTheDocument();
+
+        // A fila comum muda de nome para não parecer a lista inteira.
+        expect(screen.getByText('Outros projetos da sua fila')).toBeInTheDocument();
+
+        // E a lista destacada vem antes no DOM.
+        const titulos = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent.trim());
+        expect(titulos.indexOf('Designados pela organização'))
+            .toBeLessThan(titulos.indexOf('Outros projetos da sua fila'));
+
+        // A aba conta as duas listas.
+        expect(screen.getByRole('tab', { name: /A avaliar \(2\)/ })).toBeInTheDocument();
+    });
+
+    it('sem designação da organização, a lista destacada não aparece', async () => {
+        getMinhaAvaliacao.mockResolvedValue({ ...LISTA_ABERTA, designados_organizacao: [] });
+
+        render(<MemoryRouter><AvaliadorHome /></MemoryRouter>);
+
+        expect(await screen.findByText('Projetos designados a você')).toBeInTheDocument();
+        expect(screen.queryByText('Designados pela organização')).not.toBeInTheDocument();
     });
 });

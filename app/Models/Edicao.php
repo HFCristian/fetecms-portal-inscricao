@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\Categoria;
+use App\Enums\ModoDistribuicao;
 use App\Support\LimitesAvaliacao;
 use App\Support\RegrasDistribuicao;
 use Illuminate\Database\Eloquent\Model;
@@ -21,6 +22,13 @@ class Edicao extends Model
 
     public const PADRAO_MIN_POR_PROJETO = 3;
 
+    /**
+     * Quanto tempo sem atividade encerra a sessão do avaliador, no modo por
+     * atividade. Serve para quem fecha o navegador em vez de sair: sem isso os
+     * projetos dele ficariam presos até ele voltar, que pode ser nunca.
+     */
+    public const PADRAO_HORAS_SESSAO = 12;
+
     protected $fillable = [
         'nome', 'ano', 'padrao', 'inscricoes_abertas', 'inicio_em', 'fim_em',
         'avaliacao_liberada_em', 'avaliacao_encerrada_em', 'submissoes_de', 'submissoes_ate',
@@ -30,7 +38,8 @@ class Edicao extends Model
         'avaliacoes_max_por_avaliador', 'avaliacoes_max_por_projeto', 'avaliacoes_por_categoria',
         'designacoes_por_projeto',
         'piso_fila_avaliador',
-        'distribuicao_regras', 'distribuicao_ao_cadastrar',
+        'distribuicao_regras', 'distribuicao_ao_cadastrar', 'modo_distribuicao',
+        'dias_avaliacao_aberta', 'horas_sessao_avaliador',
     ];
 
     protected function casts(): array
@@ -59,6 +68,9 @@ class Edicao extends Model
             'avaliacoes_por_categoria' => 'array',
             'distribuicao_regras' => 'array',
             'distribuicao_ao_cadastrar' => 'boolean',
+            'modo_distribuicao' => ModoDistribuicao::class,
+            'dias_avaliacao_aberta' => 'integer',
+            'horas_sessao_avaliador' => 'integer',
         ];
     }
 
@@ -170,6 +182,44 @@ class Edicao extends Model
     public static function distribuiAoCadastrar(): bool
     {
         return (bool) static::atual()?->distribuicao_ao_cadastrar;
+    }
+
+    /**
+     * Como a fila do avaliador é montada nesta edição: em massa pelo admin
+     * (**total**) ou no login de cada avaliador (**por atividade**). Sem edição
+     * atual vale o padrão histórico, que é o total.
+     */
+    public static function modoDistribuicao(): ModoDistribuicao
+    {
+        return static::atual()?->modo_distribuicao ?? ModoDistribuicao::Total;
+    }
+
+    /**
+     * Quantos dias uma avaliação pode ficar **aberta** antes de o projeto voltar
+     * para a pilha de distribuição. `null` desliga a regra — é como o portal se
+     * comportou até a Sprint 112, quando só a retirada manual do admin
+     * destravava um projeto parado.
+     *
+     * Vale nos dois modos de distribuição: avaliação aberta e abandonada trava o
+     * projeto do mesmo jeito, tenha ela vindo do login ou da distribuição em massa.
+     */
+    public static function diasAvaliacaoAberta(): ?int
+    {
+        $dias = static::atual()?->dias_avaliacao_aberta;
+
+        return $dias !== null && $dias > 0 ? (int) $dias : null;
+    }
+
+    /**
+     * Quanto tempo sem atividade devolve ao bolo a fila de sessão do avaliador.
+     * Sem valor gravado vale o padrão: a varredura não é opcional no modo por
+     * atividade, senão quem fecha o navegador prende os projetos para sempre.
+     */
+    public static function horasSessaoAvaliador(): int
+    {
+        $horas = static::atual()?->horas_sessao_avaliador;
+
+        return $horas !== null && $horas > 0 ? (int) $horas : self::PADRAO_HORAS_SESSAO;
     }
 
     /** O prazo de submissão já passou? Sem prazo definido, as inscrições ficam abertas. */

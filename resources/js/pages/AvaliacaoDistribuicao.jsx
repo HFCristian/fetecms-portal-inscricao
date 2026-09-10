@@ -7,7 +7,7 @@ import {
     getAvaliacaoConfig, getDistribuicaoConfig, distribuirAvaliacoes,
     redistribuirAvaliacoes, definirDistribuicaoAoCadastrar,
     getProgressoDistribuicao, getUltimaDistribuicao, definirPisoFila,
-    definirDesignacoesPorProjeto,
+    definirDesignacoesPorProjeto, definirModoDistribuicao, definirPrazosSessao,
 } from '../lib/admin.js';
 
 /** De quanto em quanto tempo a tela pergunta como vai a rodada. */
@@ -59,7 +59,7 @@ function BarraProgresso({ rodada }) {
 // As duas ações vão para a FILA: o POST volta na hora com o registro da rodada e
 // a tela acompanha por polling até `finalizada`. Antes era uma requisição só,
 // que segurava a tela até o fim — uma espera cega e um bom candidato a timeout.
-function DistribuicaoCard({ minPorProjeto }) {
+function DistribuicaoCard({ minPorProjeto, emMassa = true }) {
     const [confirm, dialogo] = useConfirm();
     const [rodada, setRodada] = useState(null);
     const [enviando, setEnviando] = useState('');
@@ -69,6 +69,9 @@ function DistribuicaoCard({ minPorProjeto }) {
 
     const alvo = minPorProjeto ?? 3;
     const emAndamento = rodada !== null && !rodada.finalizada;
+    // No modo por atividade a fila nasce no login: distribuir em massa criaria
+    // designações que a próxima sessão devolveria ao bolo.
+    const bloqueado = !emMassa;
 
     // Consulta em laço enquanto a rodada não termina. O timeout é reagendado a
     // cada resposta (e não um setInterval) para duas consultas nunca se
@@ -145,13 +148,22 @@ function DistribuicaoCard({ minPorProjeto }) {
                 ou área. Idempotente: pode rodar quantas vezes quiser — só completa o que falta, sem
                 mexer no que já foi designado.
             </p>
+            {bloqueado && (
+                <div className="mb-3">
+                    <Alert type="info">
+                        A edição está no modo <strong>Distribuição por Atividade</strong>: os projetos são
+                        designados quando o avaliador entra no portal, então não há o que distribuir em massa.
+                        Troque o modo acima para <strong>Distribuição Total</strong> para usar estes botões.
+                    </Alert>
+                </div>
+            )}
             {msg && <div className="mb-3"><Alert type="info">{msg}</Alert></div>}
             {erro && <div className="mb-3"><Alert>{erro}</Alert></div>}
             <div className="flex items-center gap-2 flex-wrap">
                 <Button
                     type="button"
                     loading={enviando === 'distribuir'}
-                    disabled={enviando !== '' || emAndamento}
+                    disabled={bloqueado || enviando !== '' || emAndamento}
                     onClick={distribuir}
                 >
                     <span className="material-symbols-outlined text-[18px]">shuffle</span>
@@ -161,7 +173,7 @@ function DistribuicaoCard({ minPorProjeto }) {
                     type="button"
                     variant="outline"
                     loading={enviando === 'redistribuir'}
-                    disabled={enviando !== '' || emAndamento}
+                    disabled={bloqueado || enviando !== '' || emAndamento}
                     onClick={redistribuir}
                 >
                     <span className="material-symbols-outlined text-[18px]">autorenew</span>
@@ -169,8 +181,9 @@ function DistribuicaoCard({ minPorProjeto }) {
                 </Button>
             </div>
             <p className="mt-2 text-xs text-on-surface-variant">
-                Redistribuir troca o que ainda não foi aberto: em avaliação, concluído e designação
-                manual do admin ficam como estão.
+                Redistribuir troca <strong>apenas</strong> o que o algoritmo designou e ninguém abriu.
+                O que você designou à mão nunca sai do avaliador por rotina automática — só pela
+                retirada em <em>Designações</em>. Em avaliação e concluído também ficam como estão.
             </p>
 
             {rodada && <BarraProgresso rodada={rodada} />}
@@ -184,6 +197,13 @@ function DistribuicaoCard({ minPorProjeto }) {
             {relatorio?.devolvidas > 0 && (
                 <p className="mt-3 text-sm text-on-surface">
                     {relatorio.devolvidas} designação(ões) devolvidas ao bolo e {relatorio.recebidas} nova(s) no lugar.
+                </p>
+            )}
+            {relatorio?.preservadas > 0 && (
+                <p className="mt-2 text-sm text-on-surface-variant">
+                    {relatorio.preservadas} designação(ões) foram preservadas:{' '}
+                    {relatorio.manuais_preservadas} designada(s) por você e{' '}
+                    {relatorio.em_avaliacao_preservadas} já em avaliação.
                 </p>
             )}
             {ignorados > 0 && (
@@ -213,6 +233,187 @@ function DistribuicaoCard({ minPorProjeto }) {
             )}
             {dialogo}
         </div>
+    );
+}
+
+/**
+ * **Modo de distribuição**: de onde vem a fila de trabalho do avaliador.
+ *
+ * *Total* é o comportamento histórico — o admin distribui em massa e cada
+ * avaliador encontra a fila pronta ao entrar. *Por atividade* inverte a ordem:
+ * ninguém recebe nada de antemão, a fila nasce no login e volta ao bolo quando
+ * a sessão acaba, então só ocupa projeto quem está de fato avaliando.
+ *
+ * A troca não mexe no que já está designado: quem estiver com um projeto aberto
+ * não o perde no meio do caminho. Vale daqui para a frente.
+ */
+function ModoDistribuicaoCard({ config, onSalvo }) {
+    const [salvando, setSalvando] = useState('');
+    const [msg, setMsg] = useState('');
+    const [erro, setErro] = useState('');
+
+    const modos = config.modos ?? [];
+
+    async function escolher(modo) {
+        if (modo === config.modo) return;
+
+        setSalvando(modo); setMsg(''); setErro('');
+        try {
+            const resp = await definirModoDistribuicao(modo);
+            onSalvo?.(resp.data);
+            setMsg(resp.meta?.message || 'Modo salvo.');
+        } catch (e) {
+            setErro(e?.response?.data?.message || 'Não foi possível salvar. Tente novamente.');
+        } finally {
+            setSalvando('');
+        }
+    }
+
+    return (
+        <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-6 mb-4 max-w-3xl">
+            <h2 className="font-display text-primary font-semibold mb-1">Modo de distribuição</h2>
+            <p className="text-sm text-on-surface-variant mb-3">
+                De onde vem a fila de trabalho do avaliador. As designações que você fizer à mão não
+                dependem do modo: elas ficam com o avaliador em qualquer um dos dois.
+            </p>
+            {msg && <div className="mb-3"><Alert type="info">{msg}</Alert></div>}
+            {erro && <div className="mb-3"><Alert>{erro}</Alert></div>}
+            <div role="radiogroup" aria-label="Modo de distribuição" className="space-y-2">
+                {modos.map((m) => {
+                    const ativo = m.value === config.modo;
+
+                    return (
+                        <button
+                            key={m.value}
+                            type="button"
+                            role="radio"
+                            aria-checked={ativo}
+                            disabled={salvando !== ''}
+                            onClick={() => escolher(m.value)}
+                            className={`w-full text-left rounded-xl border p-4 transition disabled:opacity-60 ${
+                                ativo
+                                    ? 'border-primary-container bg-primary-container/10'
+                                    : 'border-outline-variant hover:border-primary-container'
+                            }`}
+                        >
+                            <span className="flex items-start gap-3">
+                                <span
+                                    aria-hidden="true"
+                                    className={`material-symbols-outlined text-[20px] mt-0.5 ${
+                                        ativo ? 'text-primary-container' : 'text-on-surface-variant'
+                                    }`}
+                                >
+                                    {ativo ? 'radio_button_checked' : 'radio_button_unchecked'}
+                                </span>
+                                <span>
+                                    <span className="block font-semibold text-on-surface">{m.label}</span>
+                                    <span className="block text-sm text-on-surface-variant">{m.descricao}</span>
+                                </span>
+                            </span>
+                        </button>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
+/**
+ * Os dois prazos do **ciclo de vida** de uma designação.
+ *
+ * *Sessão do avaliador* só vale no modo por atividade: é quanto tempo sem
+ * atividade devolve ao bolo a fila de quem fechou o navegador em vez de sair.
+ * Nunca fica em branco — sem varredura, esses projetos ficariam presos para
+ * sempre, que é o problema que o modo veio resolver.
+ *
+ * *Avaliação aberta* vale nos **dois** modos: avaliação começada e largada trava
+ * o projeto do mesmo jeito, tenha ela vindo do login ou da distribuição em
+ * massa. Em branco a regra fica desligada, e aí só a retirada manual do admin
+ * destrava. O que o avaliador já preencheu fica guardado em qualquer caso.
+ */
+function PrazosCard({ config, onSalvo }) {
+    const [horas, setHoras] = useState(config.horas_sessao ?? '');
+    const [dias, setDias] = useState(config.dias_avaliacao_aberta ?? '');
+    const [salvando, setSalvando] = useState(false);
+    const [msg, setMsg] = useState('');
+    const [erro, setErro] = useState('');
+
+    async function salvar(evento) {
+        evento.preventDefault();
+        setSalvando(true); setMsg(''); setErro('');
+        try {
+            const resp = await definirPrazosSessao(
+                horas === '' ? null : Number(horas),
+                dias === '' ? null : Number(dias),
+            );
+            onSalvo?.(resp.data);
+            setHoras(resp.data.horas_sessao ?? '');
+            setDias(resp.data.dias_avaliacao_aberta ?? '');
+            setMsg(resp.meta?.message || 'Prazos salvos.');
+        } catch (e) {
+            setErro(e?.response?.data?.message || 'Não foi possível salvar. Tente novamente.');
+        } finally {
+            setSalvando(false);
+        }
+    }
+
+    return (
+        <form onSubmit={salvar} className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-6 mb-4 max-w-3xl">
+            <h2 className="font-display text-primary font-semibold mb-1">Prazos das designações</h2>
+            <p className="text-sm text-on-surface-variant mb-4">
+                Quanto tempo um projeto pode ficar parado na mão de alguém antes de voltar para a
+                distribuição.
+            </p>
+            {msg && <div className="mb-3"><Alert type="info">{msg}</Alert></div>}
+            {erro && <div className="mb-3"><Alert>{erro}</Alert></div>}
+            <fieldset disabled={salvando} className="space-y-4">
+                <div>
+                    <label htmlFor="horas-sessao" className="block text-sm font-semibold text-on-surface mb-1">
+                        Sessão do avaliador (horas)
+                    </label>
+                    <input
+                        id="horas-sessao"
+                        type="number"
+                        min={1}
+                        max={720}
+                        value={horas}
+                        onChange={(e) => setHoras(e.target.value)}
+                        placeholder={String(config.horas_sessao_padrao ?? 12)}
+                        className="w-32 bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 outline-none"
+                    />
+                    <p className="text-xs text-on-surface-variant mt-1">
+                        Só no modo <strong>por atividade</strong>: sem atividade por esse tempo, a fila
+                        de sessão do avaliador volta ao bolo. Em branco vale o padrão de{' '}
+                        {config.horas_sessao_padrao ?? 12}h — a varredura não pode ser desligada, senão
+                        quem fecha o navegador prende os projetos.
+                    </p>
+                </div>
+                <div>
+                    <label htmlFor="dias-aberta" className="block text-sm font-semibold text-on-surface mb-1">
+                        Avaliação aberta (dias)
+                    </label>
+                    <input
+                        id="dias-aberta"
+                        type="number"
+                        min={1}
+                        max={365}
+                        value={dias}
+                        onChange={(e) => setDias(e.target.value)}
+                        placeholder="sem prazo"
+                        className="w-32 bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 outline-none"
+                    />
+                    <p className="text-xs text-on-surface-variant mt-1">
+                        Vale nos <strong>dois modos</strong>. Passado esse prazo sem o avaliador mexer,
+                        o projeto volta para a pilha de distribuição e a devolução entra em Registros.
+                        O que ele já tinha preenchido fica guardado: ele retoma de onde parou se o
+                        projeto ainda aceitar avaliação. Em branco, a regra fica desligada.
+                    </p>
+                </div>
+            </fieldset>
+            <div className="mt-4">
+                <Button type="submit" loading={salvando}>Salvar prazos</Button>
+            </div>
+        </form>
     );
 }
 
@@ -444,11 +645,16 @@ export default function AvaliacaoDistribuicao() {
                 </div>
             ) : (
                 <>
+                    <ModoDistribuicaoCard config={distribuicao} onSalvo={setDistribuicao} />
+                    <PrazosCard config={distribuicao} onSalvo={setDistribuicao} />
                     <RegrasDistribuicaoCard config={distribuicao} onSalvo={setDistribuicao} />
                     <DesignacoesCard config={distribuicao} onSalvo={setDistribuicao} />
                     <PisoFilaCard config={distribuicao} onSalvo={setDistribuicao} />
                     <DesignacaoAoCadastrarCard config={distribuicao} onSalvo={setDistribuicao} />
-                    <DistribuicaoCard minPorProjeto={janela?.min_por_projeto} />
+                    <DistribuicaoCard
+                        minPorProjeto={janela?.min_por_projeto}
+                        emMassa={distribuicao.distribui_em_massa !== false}
+                    />
                 </>
             )}
         </AppShell>

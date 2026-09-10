@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Enums\Categoria;
+use App\Enums\ModoDistribuicao;
 use App\Enums\ProjetoStatus;
 use App\Enums\StatusAvaliacao;
 use App\Http\Controllers\Controller;
@@ -246,6 +247,47 @@ class AdminAvaliacaoController extends Controller
         ]);
     }
 
+    /**
+     * Os prazos do ciclo de vida de uma designação: horas de sessão sem
+     * atividade e dias que uma avaliação pode ficar aberta.
+     */
+    public function definirPrazosSessao(Request $request): JsonResponse
+    {
+        $dados = $request->validate([
+            'horas_sessao' => ['present', 'nullable', 'integer', 'min:1', 'max:720'],
+            'dias_avaliacao_aberta' => ['present', 'nullable', 'integer', 'min:1', 'max:365'],
+        ]);
+
+        $config = $this->service->definirPrazosSessao(
+            $dados['horas_sessao'],
+            $dados['dias_avaliacao_aberta'],
+            $request->user(),
+        );
+
+        return response()->json([
+            'data' => $config,
+            'meta' => ['message' => 'Prazos atualizados.'],
+        ]);
+    }
+
+    /**
+     * Troca o modo de distribuição da edição (total × por atividade). A troca
+     * não mexe no que já está designado — vale daqui para a frente.
+     */
+    public function definirModoDistribuicao(Request $request): JsonResponse
+    {
+        $modo = $request->validate([
+            'modo' => ['required', Rule::enum(ModoDistribuicao::class)],
+        ])['modo'];
+
+        $config = $this->service->definirModoDistribuicao($modo, $request->user());
+
+        return response()->json([
+            'data' => $config,
+            'meta' => ['message' => 'Modo de distribuição: '.ModoDistribuicao::deValor($modo)->label().'.'],
+        ]);
+    }
+
     /** Liga/desliga a designação automática ao cadastrar um avaliador. */
     public function definirDistribuicaoAoCadastrar(Request $request): JsonResponse
     {
@@ -471,7 +513,7 @@ class AdminAvaliacaoController extends Controller
 
         $alvoId = $request->validated('alvo_id');
 
-        $novas = $this->service->designar(
+        $resultado = $this->service->designar(
             $projeto,
             $request->validated('tipo'),
             $alvoId === null ? null : (int) $alvoId,
@@ -479,9 +521,55 @@ class AdminAvaliacaoController extends Controller
         );
 
         return response()->json([
-            'data' => ['designadas' => $novas],
-            'meta' => ['message' => $novas === 1 ? '1 designação criada.' : "{$novas} designações criadas."],
+            'data' => $resultado,
+            'meta' => [
+                'message' => $this->mensagemDaDesignacao($resultado),
+                // Quem já avaliou este projeto não pode recebê-lo de novo. A
+                // tela mostra esta lista em destaque: designar uma área inteira
+                // quase sempre alcança alguém assim, e o admin precisa saber se
+                // a cobertura que ele queria de fato aconteceu.
+                'ja_avaliaram' => $resultado['ja_avaliaram'],
+            ],
         ]);
+    }
+
+    /**
+     * A frase que a tela mostra depois de designar: o que foi criado e, com o
+     * mesmo peso, o que **não** foi — e por quê.
+     *
+     * @param  array{designadas:int, ja_avaliaram:list<string>, ja_tem:list<string>, retomadas:list<string>}  $r
+     */
+    private function mensagemDaDesignacao(array $r): string
+    {
+        $lista = fn (array $nomes) => count($nomes) === 1
+            ? $nomes[0]
+            : implode(', ', array_slice($nomes, 0, -1)).' e '.$nomes[array_key_last($nomes)];
+
+        $partes = [];
+
+        $partes[] = match ($r['designadas']) {
+            0 => 'Nenhuma designação nova criada',
+            1 => '1 designação criada',
+            default => $r['designadas'].' designações criadas',
+        };
+
+        if ($r['retomadas'] !== []) {
+            $partes[] = count($r['retomadas']).' avaliação(ões) devolvida(s) voltaram para '
+                .$lista($r['retomadas']).', com o rascunho de cada um';
+        }
+
+        if ($r['ja_tem'] !== []) {
+            $partes[] = $lista($r['ja_tem']).(count($r['ja_tem']) === 1 ? ' já estava' : ' já estavam')
+                .' com este projeto na fila';
+        }
+
+        if ($r['ja_avaliaram'] !== []) {
+            $partes[] = $lista($r['ja_avaliaram'])
+                .(count($r['ja_avaliaram']) === 1 ? ' não pôde receber' : ' não puderam receber')
+                .' porque já avaliou este projeto — a mesma pessoa não avalia o mesmo trabalho duas vezes';
+        }
+
+        return implode('. ', $partes).'.';
     }
 
     /**

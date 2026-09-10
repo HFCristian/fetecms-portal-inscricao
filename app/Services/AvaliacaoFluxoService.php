@@ -119,7 +119,10 @@ class AvaliacaoFluxoService
             );
         }
 
-        $avaliacao->update(['status' => StatusAvaliacao::EmAndamento]);
+        $avaliacao->update([
+            'status' => StatusAvaliacao::EmAndamento,
+            'atividade_em' => now(),
+        ]);
     }
 
     /**
@@ -166,6 +169,51 @@ class AvaliacaoFluxoService
     }
 
     /**
+     * Retoma uma avaliação que o prazo devolveu ao bolo.
+     *
+     * A devolução por prazo (Sprint 112) tira o projeto das mãos de quem o
+     * deixou aberto tempo demais, mas **guarda o que ele já tinha preenchido**.
+     * Se ninguém tomou o lugar dele — o projeto ainda cabe mais uma avaliação —,
+     * ele volta de onde parou em vez de recomeçar do zero.
+     *
+     * As mesmas travas do `iniciar()` valem aqui: uma avaliação aberta por vez e
+     * o projeto ainda com vaga. A diferença é que aqui a designação já existe;
+     * o que se desfaz é só a marca de devolvida.
+     */
+    public function retomar(Avaliacao $avaliacao): void
+    {
+        if (! $avaliacao->foiDevolvida()) {
+            return; // idempotente: já está de volta na fila
+        }
+
+        $emAndamento = Avaliacao::where('avaliador_id', $avaliacao->avaliador_id)
+            ->where('status', StatusAvaliacao::EmAndamento->value)
+            ->exists();
+
+        if ($emAndamento) {
+            throw ValidationException::withMessages([
+                'avaliacao' => 'Conclua a avaliação em andamento antes de retomar esta.',
+            ]);
+        }
+
+        // A trava do início vale de novo: enquanto ela esteve devolvida, o
+        // projeto voltou para a distribuição e pode ter sido coberto por outros.
+        if ($this->projetoJaCoberto($avaliacao)) {
+            throw new ProjetoJaCobertoException(
+                'Este projeto já atingiu o número máximo de avaliações enquanto esteve devolvido. '
+                    .'O que você havia preenchido continua guardado, mas ele não pode mais ser avaliado.',
+                recebeuOutro: false,
+            );
+        }
+
+        $avaliacao->update([
+            'devolvida_em' => null,
+            'status' => StatusAvaliacao::EmAndamento,
+            'atividade_em' => now(),
+        ]);
+    }
+
+    /**
      * Salva o preenchimento parcial sem enviar: a avaliação segue em_andamento e
      * o avaliador pode voltar depois. Nada é obrigatório aqui — a validação
      * completa só acontece ao concluir.
@@ -179,6 +227,9 @@ class AvaliacaoFluxoService
         $avaliacao->update([
             ...$this->camposPreenchiveis($dados),
             'rascunho_em' => now(),
+            // Salvar rascunho é o sinal mais honesto de que o avaliador está
+            // trabalhando: adia o prazo da avaliação aberta.
+            'atividade_em' => now(),
         ]);
     }
 

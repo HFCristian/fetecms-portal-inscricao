@@ -3,7 +3,7 @@ import AppShell from '../components/AppShell.jsx';
 import { Alert, Toggle, Button, useConfirm } from '../components/ui.jsx';
 import AvaliacaoModal from '../components/AvaliacaoModal.jsx';
 import { useAuth } from '../lib/auth.jsx';
-import { getMinhaAvaliacao, roletarFila } from '../lib/avaliacao.js';
+import { getMinhaAvaliacao, roletarFila, retomarAvaliacao } from '../lib/avaliacao.js';
 
 const PILL = {
     designada: 'bg-surface-variant text-on-surface-variant',
@@ -22,11 +22,25 @@ function botaoLabel(status) {
 }
 
 // Uma lista de projetos (a fila de trabalho ou o histórico de avaliados).
-function ListaProjetos({ titulo, itens, dados, vazio, onAbrir }) {
+//
+// `destaque` marca a lista dos projetos que a ORGANIZAÇÃO designou: ela vem
+// acima da fila comum, com moldura própria, porque é a que o avaliador precisa
+// perceber primeiro — e a que, antes da Sprint 115, sumia da tela.
+function ListaProjetos({ titulo, subtitulo, itens, dados, vazio, onAbrir, destaque = false }) {
     return (
-        <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow overflow-hidden max-w-3xl">
-            <div className="px-4 py-3 bg-surface-variant/40">
-                <h2 className="font-display font-semibold text-on-surface">{titulo}</h2>
+        <div className={`bg-surface-container-lowest rounded-xl fetec-card-shadow overflow-hidden max-w-3xl ${
+            destaque ? 'border-2 border-primary-container' : ''
+        }`}>
+            <div className={`px-4 py-3 ${destaque ? 'bg-primary-container/15' : 'bg-surface-variant/40'}`}>
+                <h2 className="font-display font-semibold text-on-surface flex items-center gap-2">
+                    {destaque && (
+                        <span className="material-symbols-outlined text-primary-container text-[20px]" aria-hidden="true">
+                            push_pin
+                        </span>
+                    )}
+                    {titulo}
+                </h2>
+                {subtitulo && <p className="text-xs text-on-surface-variant mt-0.5">{subtitulo}</p>}
             </div>
             {itens.length === 0 ? (
                 <p className="px-4 py-8 text-center text-sm text-on-surface-variant">{vazio}</p>
@@ -65,6 +79,55 @@ function ListaProjetos({ titulo, itens, dados, vazio, onAbrir }) {
                     ))}
                 </ul>
             )}
+        </div>
+    );
+}
+
+/**
+ * As avaliações que o **prazo devolveu ao bolo**.
+ *
+ * Uma avaliação aberta e largada trava o projeto: passados os dias que o admin
+ * definiu, ele volta para a distribuição. O que o avaliador já tinha preenchido
+ * **não é jogado fora** — fica aqui, e ele retoma de onde parou enquanto o
+ * projeto ainda aceitar avaliação. Quem tomou o lugar dele nesse meio-tempo é
+ * avisado ao clicar, não silenciosamente.
+ */
+function ListaDevolvidas({ itens, onRetomar, retomando }) {
+    if (itens.length === 0) return null;
+
+    return (
+        <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow overflow-hidden max-w-3xl mt-4">
+            <div className="px-4 py-3 bg-surface-variant/40">
+                <h2 className="font-display font-semibold text-on-surface">Avaliações devolvidas</h2>
+                <p className="text-xs text-on-surface-variant mt-0.5">
+                    Ficaram abertas tempo demais e o projeto voltou para a organização. O que você já
+                    tinha preenchido continua guardado: dá para retomar enquanto o projeto ainda
+                    aceitar avaliação.
+                </p>
+            </div>
+            <ul className="divide-y divide-outline-variant/30">
+                {itens.map((p) => (
+                    <li key={p.avaliacao_id} className="px-4 py-3 flex items-center gap-3">
+                        <span className="material-symbols-outlined text-on-surface-variant">history</span>
+                        <div className="flex-1 min-w-0">
+                            <p className="text-sm text-on-surface truncate">{p.titulo}</p>
+                            <p className="text-xs text-on-surface-variant truncate">
+                                {p.area}
+                                {p.area && p.devolvida_em_label ? ' · ' : ''}
+                                {p.devolvida_em_label ? `devolvida em ${p.devolvida_em_label}` : ''}
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            disabled={retomando === p.avaliacao_id}
+                            onClick={() => onRetomar(p.avaliacao_id)}
+                            className="shrink-0 text-sm font-semibold text-primary-container hover:text-primary border border-outline-variant rounded-lg px-3 py-1.5 hover:bg-surface-variant transition-colors disabled:opacity-60"
+                        >
+                            Retomar
+                        </button>
+                    </li>
+                ))}
+            </ul>
         </div>
     );
 }
@@ -113,6 +176,7 @@ export default function AvaliadorHome() {
     // o histórico é o que cresce ao longo da feira.
     const [buscaAvaliados, setBuscaAvaliados] = useState('');
     const [sorteando, setSorteando] = useState(false);
+    const [retomando, setRetomando] = useState(null);
     // Sorteio da fila ou projeto que encheu antes de ele começar.
     const [aviso, setAviso] = useState('');
     const [confirm, confirmDialog] = useConfirm();
@@ -122,7 +186,7 @@ export default function AvaliadorHome() {
             .then(setDados)
             .catch(() => setDados({
                 liberada: false, pode_ver: false, pode_avaliar: false, is_demo: false,
-                projetos: [], concluidos: [],
+                projetos: [], designados_organizacao: [], concluidos: [], devolvidos: [],
             }));
     }, []);
 
@@ -148,6 +212,25 @@ export default function AvaliadorHome() {
             setAviso('Não foi possível sortear agora. Tente novamente.');
         } finally {
             setSorteando(false);
+        }
+    }
+
+    // Retoma uma avaliação devolvida pelo prazo, com o rascunho guardado. Se
+    // outro avaliador cobriu o projeto nesse meio-tempo, o servidor recusa e a
+    // mensagem dele é o que a pessoa lê.
+    async function retomar(id) {
+        setRetomando(id);
+        setAviso('');
+        try {
+            const resp = await retomarAvaliacao(id, modoTeste && dados?.is_demo);
+            await carregar(modoTeste);
+            setAviso(resp.meta?.message || 'Avaliação retomada.');
+            setAvaliando(id);
+        } catch (e) {
+            setAviso(e?.response?.data?.message || 'Não foi possível retomar agora. Tente novamente.');
+            await carregar(modoTeste);
+        } finally {
+            setRetomando(null);
         }
     }
 
@@ -214,14 +297,29 @@ export default function AvaliadorHome() {
                     <Abas
                         aba={aba}
                         setAba={setAba}
-                        pendentes={dados.projetos.length}
+                        pendentes={dados.projetos.length + (dados.designados_organizacao ?? []).length}
                         concluidos={(dados.concluidos ?? []).length}
                     />
                     {aba === 'pendentes' ? (
                         <>
                             {aviso && <div className="mb-3 max-w-3xl"><Alert type="info">{aviso}</Alert></div>}
+                            {(dados.designados_organizacao ?? []).length > 0 && (
+                                <div className="mb-4">
+                                    <ListaProjetos
+                                        destaque
+                                        titulo="Designados pela organização"
+                                        subtitulo="Escolhidos para você pela comissão. Não saem da sua lista no sorteio."
+                                        itens={dados.designados_organizacao}
+                                        dados={dados}
+                                        vazio=""
+                                        onAbrir={setAvaliando}
+                                    />
+                                </div>
+                            )}
                             <ListaProjetos
-                                titulo="Projetos designados a você"
+                                titulo={(dados.designados_organizacao ?? []).length > 0
+                                    ? 'Outros projetos da sua fila'
+                                    : 'Projetos designados a você'}
                                 itens={dados.projetos}
                                 dados={dados}
                                 vazio="Nenhum projeto designado a você por enquanto."
@@ -239,6 +337,11 @@ export default function AvaliadorHome() {
                                     </p>
                                 </div>
                             )}
+                            <ListaDevolvidas
+                                itens={dados.devolvidos ?? []}
+                                onRetomar={retomar}
+                                retomando={retomando}
+                            />
                         </>
                     ) : (
                         <>

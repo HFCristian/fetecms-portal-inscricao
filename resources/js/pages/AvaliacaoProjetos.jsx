@@ -256,6 +256,8 @@ export default function AvaliacaoProjetos() {
     const [exportando, setExportando] = useState(false);
     const [alert, setAlert] = useState('');
     const [success, setSuccess] = useState('');
+    // Separado do sucesso: é o que o admin PEDIU e não aconteceu.
+    const [avisoDesignacao, setAvisoDesignacao] = useState('');
 
     // A busca é aplicada com debounce; os demais filtros, na hora.
     useEffect(() => {
@@ -295,10 +297,25 @@ export default function AvaliacaoProjetos() {
     }
 
     async function designar(payload) {
-        setSalvando(true); setAlert(''); setSuccess('');
+        setSalvando(true); setAlert(''); setSuccess(''); setAvisoDesignacao('');
         try {
             const resp = await designarProjeto(designando.id, payload);
             setSuccess(resp.meta?.message || 'Designação criada.');
+
+            // Quem já avaliou este projeto não pode recebê-lo de novo. Isso vai
+            // num aviso separado do "deu certo": designar uma área inteira quase
+            // sempre alcança alguém assim, e o admin precisa perceber que a
+            // cobertura que ele pediu não aconteceu inteira.
+            const jaAvaliaram = resp.meta?.ja_avaliaram ?? [];
+            if (jaAvaliaram.length > 0) {
+                setAvisoDesignacao(
+                    jaAvaliaram.length === 1
+                        ? `${jaAvaliaram[0]} não recebeu este projeto: já o avaliou.`
+                        : `${jaAvaliaram.length} avaliadores não receberam este projeto porque já o avaliaram: `
+                            + `${jaAvaliaram.join(', ')}.`
+                );
+            }
+
             setDesignando(null);
             await carregar();
         } catch (e) {
@@ -391,6 +408,14 @@ export default function AvaliacaoProjetos() {
 
             {alert && <div className="mb-4 max-w-4xl"><Alert>{alert}</Alert></div>}
             {success && <div className="mb-4 max-w-4xl"><Alert type="info">{success}</Alert></div>}
+            {avisoDesignacao && (
+                <div className="mb-4 max-w-4xl">
+                    <Alert type="warning">
+                        {avisoDesignacao} A mesma pessoa não avalia o mesmo trabalho duas vezes — escolha
+                        outro avaliador se este projeto ainda precisa de cobertura.
+                    </Alert>
+                </div>
+            )}
 
             <div className="max-w-4xl">
                 <div className="flex flex-col md:flex-row gap-2 mb-3">

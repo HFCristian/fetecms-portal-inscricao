@@ -3,7 +3,10 @@
 namespace App\Models;
 
 use App\Enums\StatusAvaliacao;
+use App\Models\Scopes\AvaliacaoAtivaScope;
 use App\Support\Rubrica;
+use Illuminate\Database\Eloquent\Attributes\ScopedBy;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -16,6 +19,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * Fora da pontuação, o avaliador ainda confere a classificação do projeto
  * (área e subárea) e deixa recomendações sobre o vídeo e sobre o projeto.
  */
+#[ScopedBy([AvaliacaoAtivaScope::class])]
 class Avaliacao extends Model
 {
     protected $table = 'avaliacoes';
@@ -38,7 +42,7 @@ class Avaliacao extends Model
         'comentario_video', 'comentario_projeto',
         'area_correta', 'area_sugerida_id',
         'subarea_correta', 'subarea_sugerida_id',
-        'rascunho_em', 'concluida_em',
+        'rascunho_em', 'concluida_em', 'atividade_em', 'devolvida_em',
         'designacao_manual',
     ];
 
@@ -68,8 +72,69 @@ class Avaliacao extends Model
             'subarea_correta' => 'boolean',
             'rascunho_em' => 'datetime',
             'concluida_em' => 'datetime',
+            'atividade_em' => 'datetime',
+            'devolvida_em' => 'datetime',
             'designacao_manual' => 'boolean',
         ];
+    }
+
+    /**
+     * As designações que uma devolução **automática** pode desfazer — o rodízio
+     * do avaliador, a redistribuição em massa e a devolução no fim da sessão.
+     *
+     * Duas coisas nunca entram aqui, e é o que esta consulta existe para
+     * garantir num lugar só:
+     *
+     * - **Designação manual do admin**: é o escape do edital. Quem a fez sabe
+     *   o que está pondo na fila daquela pessoa, e nenhuma rotina automática
+     *   tem autoridade para desfazer isso. Só a retirada explícita do admin,
+     *   na tela de Designações, tira uma dessas.
+     * - **Avaliação já assumida** (em andamento ou concluída): o avaliador
+     *   abriu o projeto e começou a trabalhar. Puxá-lo de volta jogaria fora o
+     *   que já foi preenchido.
+     *
+     * Sobra o que é de fato reversível: o projeto que o algoritmo pôs na fila e
+     * que ninguém abriu.
+     *
+     * @param  Builder<self>  $query
+     */
+    public function scopeDevolvivel(Builder $query): void
+    {
+        $query->where('status', StatusAvaliacao::Designada->value)
+            ->where('designacao_manual', false);
+    }
+
+    /**
+     * O contrário do {@see self::scopeDevolvivel()}: o que uma devolução
+     * automática precisa preservar. Serve para o relatório dizer ao admin
+     * quantas designações a rodada respeitou.
+     *
+     * @param  Builder<self>  $query
+     */
+    public function scopeProtegida(Builder $query): void
+    {
+        $query->where(fn (Builder $q) => $q
+            ->where('status', '!=', StatusAvaliacao::Designada->value)
+            ->orWhere('designacao_manual', true));
+    }
+
+    /**
+     * Atravessa o {@see AvaliacaoAtivaScope} de propósito: a consulta passa a
+     * enxergar também as avaliações devolvidas ao bolo. Só duas telas precisam
+     * disso — a lista de rascunhos que o avaliador pode retomar e a retomada
+     * em si.
+     *
+     * @return Builder<self>
+     */
+    public static function comDevolvidas(): Builder
+    {
+        return static::withoutGlobalScope(AvaliacaoAtivaScope::class);
+    }
+
+    /** Esta avaliação foi devolvida ao bolo (e o rascunho ficou guardado)? */
+    public function foiDevolvida(): bool
+    {
+        return $this->devolvida_em !== null;
     }
 
     public function areaSugerida(): BelongsTo

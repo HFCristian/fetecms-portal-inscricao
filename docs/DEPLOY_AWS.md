@@ -126,6 +126,17 @@ php artisan optimize
 sudo chown -R www-data:www-data storage bootstrap/cache
 ```
 
+> ⚠️ **`storage/app/private` precisa sobreviver ao deploy e ser o mesmo do worker.**
+> É onde ficam os anexos e as imagens da mala direta. O upload acontece no processo web
+> e a leitura acontece no `queue:work`, na hora do envio — se o deploy trocar o diretório
+> (release nova sem symlink para um storage compartilhado) ou se a fila rodar noutra
+> máquina, o arquivo some entre um e outro. Antes da Sprint 114 isso saía **em silêncio**:
+> o disco privado roda com `throw => false`, o e-mail ia com um anexo de 0 byte e o
+> relatório dizia "enviado". Hoje o disparo é recusado na hora e, se o arquivo sumir
+> depois, o destinatário vira **falha** com o motivo — use *Reenviar falhas* depois de
+> arrumar o storage. Em servidor único, mantenha `storage/` como diretório compartilhado
+> entre releases; em mais de uma máquina, aponte o disco para S3.
+
 > ⚠️ **`php artisan optimize` cacheia o `.env`.** Sempre que mudar o `.env`, rode
 > `php artisan optimize:clear && php artisan optimize` — senão a alteração é ignorada
 > (mesmo sintoma do bug de sessão local).

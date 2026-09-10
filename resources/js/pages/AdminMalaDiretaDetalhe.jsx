@@ -34,6 +34,15 @@ function Cartao({ valor, rotulo, destaque = false }) {
 }
 
 /** Barra de progresso do disparo — some quando a mala fecha. */
+/** "1,2 MB" — o mesmo formato do formulário de composição. */
+function tamanhoLegivel(bytes) {
+    if (!bytes && bytes !== 0) return '?';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+
+    return `${(bytes / (1024 * 1024)).toFixed(1).replace('.', ',')} MB`;
+}
+
 function Progresso({ totais }) {
     const pct = totais.total > 0 ? Math.round((totais.processados / totais.total) * 100) : 100;
 
@@ -199,6 +208,21 @@ export default function AdminMalaDiretaDetalhe() {
                         <div>
                             <dt className="text-xs font-semibold text-on-surface-variant">Solicitante</dt>
                             <dd className="text-on-surface">{mala.solicitante || '—'}</dd>
+                        </div>
+                        <div className="sm:col-span-2">
+                            <dt className="text-xs font-semibold text-on-surface-variant">Anexos</dt>
+                            <dd className="text-on-surface">
+                                {(mala.anexos ?? []).length === 0
+                                    ? 'Nenhum anexo'
+                                    : (mala.anexos ?? [])
+                                        .map((a) => `${a.nome} (${tamanhoLegivel(a.tamanho_bytes)})`)
+                                        .join(' · ')}
+                                {mala.imagens_no_corpo > 0 && (
+                                    <span className="text-on-surface-variant">
+                                        {' '}· {mala.imagens_no_corpo} imagem(ns) embutida(s) no corpo
+                                    </span>
+                                )}
+                            </dd>
                         </div>
                         <div className="sm:col-span-2">
                             <dt className="text-xs font-semibold text-on-surface-variant">Públicos</dt>

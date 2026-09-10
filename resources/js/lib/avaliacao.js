@@ -20,6 +20,11 @@ export const salvarRascunhoAvaliacao = (id, preenchimento, teste = false) =>
 export const editarParecerAvaliacao = (id, dados, teste = false) =>
     http.patch(`/avaliacao/${id}/parecer`, dados, qs(teste)).then((r) => r.data);
 
+// Retoma uma avaliação que o prazo devolveu ao bolo, com o rascunho que ficou
+// guardado. Falha com 409 se outro avaliador cobriu o projeto nesse meio-tempo.
+export const retomarAvaliacao = (id, teste = false) =>
+    http.post(`/avaliacao/${id}/retomar`, {}, qs(teste)).then((r) => r.data);
+
 // Sorteia outros projetos para a fila: o que está em avaliação e o que o admin
 // designou permanecem. Devolve { data: { trocados, recebidos }, meta }.
 export const roletarFila = (teste = false) =>

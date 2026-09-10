@@ -212,11 +212,16 @@ export function Alert({ children, type = 'error' }) {
     const styles = {
         error: 'bg-error-container text-on-error-container',
         info: 'bg-surface-container-low text-on-surface border border-outline-variant',
+        // "Deu certo, mas não inteiro": a ação passou e algo que a pessoa
+        // pediu não aconteceu. Nem erro (não há o que corrigir e repetir) nem
+        // info (que se lê como confirmação e passa despercebido).
+        warning: 'bg-primary-fixed/60 text-on-surface border border-primary-container/40',
     };
+    const icones = { error: 'error', warning: 'warning', info: 'info' };
     return (
-        <div className={`flex items-start gap-2 rounded-lg p-3 text-sm ${styles[type]}`} role="alert">
+        <div className={`flex items-start gap-2 rounded-lg p-3 text-sm ${styles[type] ?? styles.info}`} role="alert">
             <span className="material-symbols-outlined text-[20px] shrink-0">
-                {type === 'error' ? 'error' : 'info'}
+                {icones[type] ?? 'info'}
             </span>
             <span>{children}</span>
         </div>

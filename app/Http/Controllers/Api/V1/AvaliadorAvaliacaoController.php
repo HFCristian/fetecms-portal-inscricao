@@ -11,6 +11,7 @@ use App\Models\Avaliacao;
 use App\Models\Edicao;
 use App\Services\AvaliacaoFluxoService;
 use App\Services\FilaAvaliadorService;
+use App\Services\SessaoAvaliadorService;
 use App\Support\Rubrica;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -27,6 +28,7 @@ class AvaliadorAvaliacaoController extends Controller
     public function __construct(
         private readonly AvaliacaoFluxoService $fluxo,
         private readonly FilaAvaliadorService $fila,
+        private readonly SessaoAvaliadorService $sessao,
     ) {}
 
     /** Lista os projetos designados ao avaliador (se puder avaliar agora). */
@@ -38,12 +40,20 @@ class AvaliadorAvaliacaoController extends Controller
         $pode = $this->fluxo->podeAvaliar($user, $teste);
 
         // Quantos projetos o avaliador enxerga de uma vez: o mínimo por avaliador
-        // definido pelo admin. O teto vale só para a fila de trabalho — o que ele
-        // já avaliou fica na seção de concluídos, sem limite.
+        // definido pelo admin. O teto vale só para a **fila automática** — o que
+        // a organização designou à mão, o que ele já abriu e o que ele já
+        // avaliou não são cortados por ele.
         $minPorAvaliador = Edicao::minPorAvaliador();
 
+        // Abrir o painel é sinal de vida: adia o vencimento da sessão e, de
+        // passagem, roda a varredura dos prazos.
+        $this->sessao->marcarAtividade($user);
+        $this->sessao->varrer();
+
         $projetos = [];
+        $designadosOrganizacao = [];
         $concluidos = [];
+        $devolvidos = [];
 
         if ($podeVer) {
             $avaliacoes = Avaliacao::query()
@@ -56,7 +66,31 @@ class AvaliadorAvaliacaoController extends Controller
                 fn (Avaliacao $a) => $a->status === StatusAvaliacao::Concluida,
             );
 
-            $projetos = $pendentes->take($minPorAvaliador)
+            // O que a ORGANIZAÇÃO designou à mão sai numa lista à parte, acima
+            // da fila comum. Duas razões:
+            //
+            // 1. **Ele nunca é cortado.** O `take()` abaixo existe para limitar
+            //    o tamanho da fila automática, e antes disto ele cortava a lista
+            //    inteira ordenada por id — uma designação manual, sendo mais
+            //    nova, caía fora e simplesmente não aparecia para o avaliador.
+            //    Foi assim que uma avaliadora recebeu projetos e não os viu.
+            // 2. Ela pediu atenção diferente: alguém escolheu aquele projeto
+            //    para aquela pessoa, e ele não sai da lista dela num sorteio.
+            //
+            // Avaliação já ABERTA entra aqui pela mesma lógica de não cortar:
+            // esconder o que a pessoa começou seria pior ainda.
+            [$daOrganizacao, $daFila] = $pendentes->partition(
+                fn (Avaliacao $a) => $a->designacao_manual || $a->status === StatusAvaliacao::EmAndamento,
+            );
+
+            $designadosOrganizacao = $daOrganizacao
+                ->map(fn (Avaliacao $a) => $this->linha($a) + ['designacao_manual' => (bool) $a->designacao_manual])
+                ->values()
+                ->all();
+
+            // O limite vale só para a fila automática: ela é que precisa caber
+            // na tela, e é ela que o sorteio troca.
+            $projetos = $daFila->take($minPorAvaliador)
                 ->map(fn (Avaliacao $a) => $this->linha($a))
                 ->values()
                 ->all();
@@ -64,6 +98,21 @@ class AvaliadorAvaliacaoController extends Controller
             // Mais recentes primeiro: o que ele acabou de enviar aparece no topo.
             $concluidos = $concluidas->sortByDesc(fn (Avaliacao $a) => $a->concluida_em ?? $a->updated_at)
                 ->map(fn (Avaliacao $a) => $this->linha($a))
+                ->values()
+                ->all();
+
+            // O que o prazo devolveu ao bolo: o projeto voltou para a
+            // distribuição, mas o rascunho ficou guardado e ele pode retomar
+            // enquanto o projeto ainda aceitar avaliação.
+            $devolvidos = Avaliacao::comDevolvidas()
+                ->where('avaliador_id', $user->id)
+                ->whereNotNull('devolvida_em')
+                ->with(['projeto:id,titulo,area_id', 'projeto.area:id,nome'])
+                ->orderByDesc('devolvida_em')
+                ->get()
+                ->map(fn (Avaliacao $a) => $this->linha($a) + [
+                    'devolvida_em_label' => $a->devolvida_em?->format('d/m/Y H:i'),
+                ])
                 ->values()
                 ->all();
         }
@@ -85,7 +134,10 @@ class AvaliadorAvaliacaoController extends Controller
             // Fila de trabalho e histórico ficam em listas separadas: a tela do
             // avaliador mostra cada uma na sua seção.
             'projetos' => $projetos,
+            // Designados pela organização: lista própria, acima da fila comum.
+            'designados_organizacao' => $designadosOrganizacao,
             'concluidos' => $concluidos,
+            'devolvidos' => $devolvidos,
         ]]);
     }
 
@@ -134,6 +186,23 @@ class AvaliadorAvaliacaoController extends Controller
         $this->fluxo->iniciar($avaliacao);
 
         return response()->json(['data' => $this->avaliacao($avaliacao->fresh())]);
+    }
+
+    /**
+     * Retoma uma avaliação que o prazo devolveu ao bolo, com o rascunho que
+     * ficou guardado. Só vale se o projeto ainda aceitar avaliação.
+     */
+    public function retomar(Request $request, string $avaliacao): JsonResponse
+    {
+        $alvo = Avaliacao::comDevolvidas()->findOrFail($avaliacao);
+
+        $this->garantirAcesso($request, $alvo);
+        $this->fluxo->retomar($alvo);
+
+        return response()->json([
+            'data' => $this->avaliacao($alvo->fresh()),
+            'meta' => ['message' => 'Avaliação retomada de onde você parou.'],
+        ]);
     }
 
     /** Salva o preenchimento parcial sem enviar (segue em_andamento). */

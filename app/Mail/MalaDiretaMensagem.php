@@ -13,6 +13,7 @@ use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Mail\Message;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Storage;
+use RuntimeException;
 
 /**
  * A mensagem de uma mala direta. O corpo chega já personalizado (variáveis
@@ -59,15 +60,52 @@ class MalaDiretaMensagem extends Mailable
      * Anexos do e-mail. As imagens do corpo NÃO entram aqui: elas são embutidas
      * no HTML pelo withSymfonyMessage, com o CID no lugar do src.
      *
+     * O conteúdo é lido **aqui**, e não deixado a cargo do
+     * `Attachment::fromStorageDisk()`. O disco privado do portal roda com
+     * `throw => false`, então um arquivo que sumiu do storage devolve vazio em
+     * silêncio: o e-mail sai com um anexo de 0 byte, o relatório diz "enviado" e
+     * o destinatário recebe uma mensagem que promete o edital e não o entrega.
+     * Foi assim que a mala direta chegou sem anexo em produção.
+     *
+     * Ler e conferir transforma esse silêncio em **falha**: o job estoura, o
+     * destinatário aparece como falha no relatório com o motivo, e *Reenviar
+     * falhas* resolve depois que o storage for consertado. Um e-mail que não sai
+     * é melhor do que um que sai mentindo.
+     *
      * @return array<int, Attachment>
      */
     public function attachments(): array
     {
         return $this->mala->anexos->map(function (MalaDiretaArquivo $arquivo) {
-            return Attachment::fromStorageDisk($arquivo->disk, $arquivo->path)
-                ->as($arquivo->nome_original)
-                ->withMime($arquivo->mime ?? 'application/octet-stream');
+            $conteudo = self::conteudoDoAnexo($arquivo);
+
+            return Attachment::fromData(fn () => $conteudo, $arquivo->nome_original)
+                ->withMime($arquivo->mime ?: 'application/octet-stream');
         })->all();
+    }
+
+    /**
+     * O conteúdo de um anexo, ou uma exceção que diz exatamente o que faltou.
+     *
+     * Ausente é `null` — o disco com `throw => false` devolve isso para arquivo
+     * que não existe. Arquivo genuinamente **vazio** devolve `''` e passa: se o
+     * admin anexou um arquivo de 0 byte de propósito, o problema é dele, e
+     * recusar por palpite barraria disparo legítimo.
+     */
+    public static function conteudoDoAnexo(MalaDiretaArquivo $arquivo): string
+    {
+        $conteudo = Storage::disk($arquivo->disk)->get($arquivo->path);
+
+        if ($conteudo === null) {
+            throw new RuntimeException(
+                'O anexo "'.$arquivo->nome_original.'" não está no storage ('
+                    .$arquivo->disk.':'.$arquivo->path.'). '
+                    .'O e-mail não foi enviado para não sair sem ele. '
+                    .'Confira se storage/app/private sobreviveu ao deploy e se a fila roda na mesma máquina do upload.'
+            );
+        }
+
+        return $conteudo;
     }
 
     /**

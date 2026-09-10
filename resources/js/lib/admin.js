@@ -204,6 +204,26 @@ export const definirDesignacoesPorProjeto = (designacoes) =>
 export const definirPisoFila = (piso) =>
     http.patch('/admin/avaliacao/distribuicao/piso', { piso_fila: piso ?? null }).then((r) => r.data);
 
+/**
+ * Modo de distribuição da edição: `total` (o admin distribui em massa) ou
+ * `atividade` (a fila nasce no login do avaliador e volta ao bolo no fim da
+ * sessão). A troca não mexe no que já está designado.
+ */
+export const definirModoDistribuicao = (modo) =>
+    http.patch('/admin/avaliacao/distribuicao/modo', { modo }).then((r) => r.data);
+
+/**
+ * Os dois prazos do ciclo de vida de uma designação: horas sem atividade que
+ * encerram a sessão do avaliador (modo por atividade) e dias que uma avaliação
+ * pode ficar aberta antes de o projeto voltar para a pilha (os dois modos).
+ * Dias em branco desliga a regra; horas em branco volta ao padrão.
+ */
+export const definirPrazosSessao = (horas, dias) =>
+    http.patch('/admin/avaliacao/distribuicao/prazos', {
+        horas_sessao: horas ?? null,
+        dias_avaliacao_aberta: dias ?? null,
+    }).then((r) => r.data);
+
 // Lista final da feira: o que dá para pedir e o TXT do recorte escolhido.
 export const getOpcoesListaFinal = () => http.get('/admin/avaliacao/lista-final/opcoes').then((r) => r.data.data);
 

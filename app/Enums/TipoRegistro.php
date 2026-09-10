@@ -55,6 +55,10 @@ enum TipoRegistro: string
     case AvaliacaoDesignacaoAoCadastrar = 'avaliacao_designacao_ao_cadastrar';
     case AvaliacaoPisoFila = 'avaliacao_piso_fila';
     case AvaliacaoDesignacoesProjeto = 'avaliacao_designacoes_projeto';
+    case AvaliacaoModoDistribuicao = 'avaliacao_modo_distribuicao';
+    case AvaliacaoDevolvidaPorPrazo = 'avaliacao_devolvida_por_prazo';
+    case AvaliacaoHorasSessao = 'avaliacao_horas_sessao';
+    case AvaliacaoDiasAberta = 'avaliacao_dias_aberta';
     case AvaliacaoDesignacaoRetirada = 'avaliacao_designacao_retirada';
     case AvaliacaoParecerEditado = 'avaliacao_parecer_editado';
     case AvaliacaoAjustesInicio = 'avaliacao_ajustes_inicio';
@@ -112,6 +116,10 @@ enum TipoRegistro: string
             self::AvaliacaoDesignacaoAoCadastrar => 'Designação ao cadastrar',
             self::AvaliacaoPisoFila => 'Piso da fila do avaliador',
             self::AvaliacaoDesignacoesProjeto => 'Designações por projeto',
+            self::AvaliacaoModoDistribuicao => 'Modo de distribuição',
+            self::AvaliacaoDevolvidaPorPrazo => 'Avaliação devolvida por prazo',
+            self::AvaliacaoHorasSessao => 'Sessão do avaliador (horas)',
+            self::AvaliacaoDiasAberta => 'Prazo da avaliação aberta',
             self::AvaliacaoDesignacaoRetirada => 'Designação retirada',
             self::AvaliacaoParecerEditado => 'Parecer do avaliador editado',
             self::AvaliacaoAjustesInicio => 'Início dos ajustes',

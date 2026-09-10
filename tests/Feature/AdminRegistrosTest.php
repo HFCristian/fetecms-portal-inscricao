@@ -236,6 +236,8 @@ class AdminRegistrosTest extends TestCase
                 'avaliacao_max_avaliador', 'avaliacao_max_projeto', 'avaliacao_limites_categoria',
                 'avaliacao_regra_distribuicao', 'avaliacao_designacao_ao_cadastrar',
                 'avaliacao_piso_fila', 'avaliacao_designacoes_projeto',
+                'avaliacao_modo_distribuicao', 'avaliacao_devolvida_por_prazo',
+                'avaliacao_horas_sessao', 'avaliacao_dias_aberta',
                 'avaliacao_designacao_retirada', 'avaliacao_parecer_editado',
                 'avaliacao_ajustes_inicio', 'avaliacao_ajustes_fim',
             ],

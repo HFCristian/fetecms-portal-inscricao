@@ -10,13 +10,17 @@ use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\RedefinirSenhaRequest;
 use App\Http\Resources\UserResource;
 use App\Services\AuthService;
+use App\Services\SessaoAvaliadorService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class AuthController extends Controller
 {
-    public function __construct(private readonly AuthService $auth) {}
+    public function __construct(
+        private readonly AuthService $auth,
+        private readonly SessaoAvaliadorService $sessao,
+    ) {}
 
     public function login(LoginRequest $request): UserResource
     {
@@ -35,11 +39,23 @@ class AuthController extends Controller
             $request->session()->regenerate();
         }
 
+        // Modo "Distribuição por Atividade": a fila do avaliador nasce agora, e
+        // não numa distribuição em massa feita dias antes. Nos demais modos (e
+        // para os demais papéis) isto não faz nada.
+        $this->sessao->aoEntrar($user);
+
         return UserResource::make($user->load(['orientadorProfile', 'avaliadorProfile.area', 'avaliadorProfile.subarea']));
     }
 
     public function logout(Request $request): JsonResponse
     {
+        // Modo "Distribuição por Atividade": a fila de sessão volta ao bolo
+        // agora, para outro avaliador poder pegar aqueles projetos ainda hoje.
+        // Antes do logout, senão não há mais quem devolver.
+        if ($user = $request->user()) {
+            $this->sessao->aoSair($user);
+        }
+
         Auth::guard('web')->logout();
 
         if ($request->hasSession()) {

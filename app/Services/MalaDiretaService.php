@@ -189,6 +189,12 @@ class MalaDiretaService
                 $this->arquivos->vincular($mala, $dados['anexos'] ?? [], MalaDiretaArquivo::TIPO_ANEXO);
             }
 
+            // Conferência antes de a fila começar: um anexo que não está no
+            // storage falharia UMA VEZ POR DESTINATÁRIO, e o admin descobriria
+            // pelo relatório de 242 falhas. Aqui ele descobre agora, com uma
+            // mensagem só, e nada é enfileirado.
+            $this->arquivos->garantirNoDisco($mala);
+
             return $mala;
         });
 

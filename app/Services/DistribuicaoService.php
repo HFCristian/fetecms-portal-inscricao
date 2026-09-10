@@ -53,6 +53,17 @@ class DistribuicaoService
             ]);
         }
 
+        // No modo **por atividade** a fila nasce no login de cada avaliador, e
+        // é devolvida ao bolo quando a sessão acaba: distribuir em massa aqui
+        // criaria filas que a próxima sessão apagaria.
+        if (! Edicao::modoDistribuicao()->distribuiEmMassa()) {
+            throw ValidationException::withMessages([
+                'distribuicao' => 'A edição está no modo "Distribuição por Atividade": os projetos são '
+                    .'designados quando o avaliador entra no portal. Troque o modo para "Distribuição Total" '
+                    .'para distribuir em massa.',
+            ]);
+        }
+
         $emAndamento = Distribuicao::where('edicao_id', $edicao->id)
             ->whereIn('status', [StatusDistribuicao::Pendente->value, StatusDistribuicao::Processando->value])
             ->first();
@@ -285,17 +296,31 @@ class DistribuicaoService
      * Depois do rodízio, uma passada da distribuição normal completa os
      * projetos que ficaram abaixo do alvo e devolve o relatório de sub-cobertura.
      *
+     * **Nada aqui desfaz uma designação manual do admin nem uma avaliação já
+     * aberta**: o rodízio só alcança o que o {@see Avaliacao::scopeDevolvivel()}
+     * considera reversível, e a passada de cobertura apenas cria. O relatório
+     * diz quantas designações a rodada preservou.
+     *
      * @param  ?callable(int, int, string): void  $progresso  recebe (processados,
      *                                                        total, etapa). São duas etapas:
      *                                                        o rodízio, avaliador a avaliador,
      *                                                        e a passada de cobertura.
-     * @return array{devolvidas:int, recebidas:int, designadas_criadas:int, ignorados_pela_regra:int, sub_cobertos: array<int, array{projeto_id:int, titulo:string, area:?string, faltam:int}>}
+     * @return array{devolvidas:int, recebidas:int, preservadas:int, manuais_preservadas:int, em_avaliacao_preservadas:int, designadas_criadas:int, ignorados_pela_regra:int, sub_cobertos: array<int, array{projeto_id:int, titulo:string, area:?string, faltam:int}>}
      */
     public function redistribuir(?callable $progresso = null): array
     {
         return DB::transaction(function () use ($progresso) {
             $devolvidas = 0;
             $recebidas = 0;
+
+            // O que a rodada NÃO vai tocar, contado antes de começar: é o que o
+            // relatório mostra ao admin para ele não precisar acreditar na
+            // promessa. A regra em si mora no Avaliacao::scopeDevolvivel().
+            $manuais = Avaliacao::query()
+                ->where('status', StatusAvaliacao::Designada->value)
+                ->where('designacao_manual', true)
+                ->count();
+            $emAvaliacao = Avaliacao::where('status', StatusAvaliacao::EmAndamento->value)->count();
 
             $avaliadores = User::query()
                 ->where('role', Role::Avaliador->value)
@@ -331,6 +356,11 @@ class DistribuicaoService
             return [
                 'devolvidas' => $devolvidas,
                 'recebidas' => $recebidas,
+                // Designação manual e avaliação já aberta atravessam a rodada
+                // inteiras — nenhuma rotina automática as desfaz.
+                'preservadas' => $manuais + $emAvaliacao,
+                'manuais_preservadas' => $manuais,
+                'em_avaliacao_preservadas' => $emAvaliacao,
                 'designadas_criadas' => $recebidas + $cobertura['designadas_criadas'],
                 'ignorados_pela_regra' => $cobertura['ignorados_pela_regra'],
                 'sub_cobertos' => $cobertura['sub_cobertos'],
