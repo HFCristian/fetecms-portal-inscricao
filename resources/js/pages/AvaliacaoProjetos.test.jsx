@@ -355,4 +355,45 @@ describe('AvaliacaoProjetos — card geral', () => {
         const area = screen.getAllByText('Ciências Agrárias')[0];
         expect(geral.compareDocumentPosition(area) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
+
+    // Sprint 113: designar não some em silêncio com quem já avaliou o projeto.
+    it('avisa quais avaliadores não puderam receber por já terem avaliado', async () => {
+        designarProjeto.mockResolvedValue({
+            data: { designadas: 2, ja_avaliaram: ['Ana Souza', 'Bruno Lima'], ja_tem: [], retomadas: [] },
+            meta: {
+                message: '2 designações criadas. Ana Souza e Bruno Lima não puderam receber porque já avaliou este projeto.',
+                ja_avaliaram: ['Ana Souza', 'Bruno Lima'],
+            },
+        });
+
+        render(<AvaliacaoProjetos />);
+
+        fireEvent.click(await screen.findByLabelText('Designar Projeto X'));
+        await screen.findByText('Designar avaliação');
+        fireEvent.change(screen.getByPlaceholderText('Digite o nome do avaliador…'), { target: { value: 'zil' } });
+        fireEvent.mouseDown(screen.getByText('Zilda Rocha', { exact: false }));
+        fireEvent.click(within(screen.getByRole('dialog')).getByText('Designar'));
+
+        expect(await screen.findByText(/2 avaliadores não receberam este projeto porque já o avaliaram/))
+            .toBeInTheDocument();
+        expect(screen.getByText(/Ana Souza, Bruno Lima/)).toBeInTheDocument();
+    });
+
+    it('sem ninguém barrado, nenhum aviso aparece', async () => {
+        designarProjeto.mockResolvedValue({
+            data: { designadas: 1, ja_avaliaram: [], ja_tem: [], retomadas: [] },
+            meta: { message: '1 designação criada.', ja_avaliaram: [] },
+        });
+
+        render(<AvaliacaoProjetos />);
+
+        fireEvent.click(await screen.findByLabelText('Designar Projeto X'));
+        await screen.findByText('Designar avaliação');
+        fireEvent.change(screen.getByPlaceholderText('Digite o nome do avaliador…'), { target: { value: 'zil' } });
+        fireEvent.mouseDown(screen.getByText('Zilda Rocha', { exact: false }));
+        fireEvent.click(within(screen.getByRole('dialog')).getByText('Designar'));
+
+        expect(await screen.findByText('1 designação criada.')).toBeInTheDocument();
+        expect(screen.queryByText(/não receberam este projeto/)).not.toBeInTheDocument();
+    });
 });

@@ -513,7 +513,7 @@ class AdminAvaliacaoController extends Controller
 
         $alvoId = $request->validated('alvo_id');
 
-        $novas = $this->service->designar(
+        $resultado = $this->service->designar(
             $projeto,
             $request->validated('tipo'),
             $alvoId === null ? null : (int) $alvoId,
@@ -521,9 +521,55 @@ class AdminAvaliacaoController extends Controller
         );
 
         return response()->json([
-            'data' => ['designadas' => $novas],
-            'meta' => ['message' => $novas === 1 ? '1 designação criada.' : "{$novas} designações criadas."],
+            'data' => $resultado,
+            'meta' => [
+                'message' => $this->mensagemDaDesignacao($resultado),
+                // Quem já avaliou este projeto não pode recebê-lo de novo. A
+                // tela mostra esta lista em destaque: designar uma área inteira
+                // quase sempre alcança alguém assim, e o admin precisa saber se
+                // a cobertura que ele queria de fato aconteceu.
+                'ja_avaliaram' => $resultado['ja_avaliaram'],
+            ],
         ]);
+    }
+
+    /**
+     * A frase que a tela mostra depois de designar: o que foi criado e, com o
+     * mesmo peso, o que **não** foi — e por quê.
+     *
+     * @param  array{designadas:int, ja_avaliaram:list<string>, ja_tem:list<string>, retomadas:list<string>}  $r
+     */
+    private function mensagemDaDesignacao(array $r): string
+    {
+        $lista = fn (array $nomes) => count($nomes) === 1
+            ? $nomes[0]
+            : implode(', ', array_slice($nomes, 0, -1)).' e '.$nomes[array_key_last($nomes)];
+
+        $partes = [];
+
+        $partes[] = match ($r['designadas']) {
+            0 => 'Nenhuma designação nova criada',
+            1 => '1 designação criada',
+            default => $r['designadas'].' designações criadas',
+        };
+
+        if ($r['retomadas'] !== []) {
+            $partes[] = count($r['retomadas']).' avaliação(ões) devolvida(s) voltaram para '
+                .$lista($r['retomadas']).', com o rascunho de cada um';
+        }
+
+        if ($r['ja_tem'] !== []) {
+            $partes[] = $lista($r['ja_tem']).(count($r['ja_tem']) === 1 ? ' já estava' : ' já estavam')
+                .' com este projeto na fila';
+        }
+
+        if ($r['ja_avaliaram'] !== []) {
+            $partes[] = $lista($r['ja_avaliaram'])
+                .(count($r['ja_avaliaram']) === 1 ? ' não pôde receber' : ' não puderam receber')
+                .' porque já avaliou este projeto — a mesma pessoa não avalia o mesmo trabalho duas vezes';
+        }
+
+        return implode('. ', $partes).'.';
     }
 
     /**

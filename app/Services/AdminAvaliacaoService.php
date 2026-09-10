@@ -14,6 +14,7 @@ use App\Models\AvaliadorAreaExtra;
 use App\Models\AvaliadorProfile;
 use App\Models\Edicao;
 use App\Models\Projeto;
+use App\Models\Scopes\AvaliacaoAtivaScope;
 use App\Models\Subarea;
 use App\Models\User;
 use App\Support\ClassesEscolares;
@@ -1001,13 +1002,29 @@ class AdminAvaliacaoService
     }
 
     /**
-     * Designa um projeto submetido para avaliação, criando avaliações "designadas".
-     * Alvo: um avaliador específico, ou todos os avaliadores de uma área/subárea.
-     * Pula quem já tem esse projeto e pode exceder o teto de 5 (override do admin).
+     * Designa um projeto submetido para avaliação, criando avaliações
+     * "designadas". Alvo: um avaliador específico, ou todos os avaliadores de
+     * uma área/subárea. Pode exceder o teto de avaliadores por projeto — é o
+     * override do admin, e passa por cima das regras da distribuição.
      *
-     * @return int quantas designações novas foram criadas
+     * Quem **já avaliou** aquele projeto não recebe de novo, e nem poderia: a
+     * mesma pessoa avaliando duas vezes o mesmo trabalho distorce a nota. Em vez
+     * de sumir com o nome em silêncio, o serviço devolve **quem ficou de fora e
+     * por quê**, para a tela dizer ao admin. Designar uma área inteira quase
+     * sempre alcança alguém que já avaliou, e o admin precisa saber se a
+     * cobertura que ele queria de fato aconteceu.
+     *
+     * Um caso pede cuidado: o avaliador cuja avaliação foi **devolvida pelo
+     * prazo** (Sprint 112) tem uma linha escondida pelo
+     * {@see AvaliacaoAtivaScope}. Designá-lo de novo não
+     * pode criar uma segunda linha — a tabela tem chave única por
+     * (projeto, avaliador) —, então a devolvida é **revivida** como designação
+     * manual, com o rascunho dele intacto. É o que o admin quis dizer ao
+     * escolhê-lo: devolver aquele projeto para aquela pessoa.
+     *
+     * @return array{designadas:int, ja_avaliaram:list<string>, ja_tem:list<string>, retomadas:list<string>}
      */
-    public function designar(Projeto $projeto, string $tipo, ?int $alvoId, array $selecionados = []): int
+    public function designar(Projeto $projeto, string $tipo, ?int $alvoId, array $selecionados = []): array
     {
         $avaliadorIds = match ($tipo) {
             'avaliador' => [$alvoId],
@@ -1016,22 +1033,65 @@ class AdminAvaliacaoService
             'comissao' => $this->idsDaComissao($selecionados),
             default => [],
         };
+        $avaliadorIds = array_values(array_filter($avaliadorIds, fn ($id) => $id !== null));
 
-        $novas = 0;
+        // As avaliações que estas pessoas já têm neste projeto — inclusive as
+        // devolvidas, que o escopo esconde por padrão e que são justamente as
+        // que a chave única faria explodir num insert.
+        $existentes = Avaliacao::comDevolvidas()
+            ->where('projeto_id', $projeto->id)
+            ->whereIn('avaliador_id', $avaliadorIds)
+            ->get()
+            ->keyBy('avaliador_id');
+
+        $nomes = User::whereIn('id', $avaliadorIds)->pluck('name', 'id');
+        $nome = fn (int $id) => $nomes[$id] ?? 'Avaliador #'.$id;
+
+        $resultado = ['designadas' => 0, 'ja_avaliaram' => [], 'ja_tem' => [], 'retomadas' => []];
+
         foreach ($avaliadorIds as $uid) {
-            // `designacao_manual` protege a designação: o avaliador não consegue
-            // sortear para fora um projeto que o admin colocou na fila dele.
-            $avaliacao = Avaliacao::firstOrCreate(
-                ['projeto_id' => $projeto->id, 'avaliador_id' => $uid],
-                ['status' => StatusAvaliacao::Designada, 'designacao_manual' => true],
-            );
+            $uid = (int) $uid;
+            $existente = $existentes->get($uid);
 
-            if ($avaliacao->wasRecentlyCreated) {
-                $novas++;
+            if ($existente === null) {
+                // `designacao_manual` protege a designação: nenhuma rotina
+                // automática desfaz o que o admin pôs na fila daquela pessoa.
+                Avaliacao::create([
+                    'projeto_id' => $projeto->id,
+                    'avaliador_id' => $uid,
+                    'status' => StatusAvaliacao::Designada,
+                    'designacao_manual' => true,
+                ]);
+                $resultado['designadas']++;
+
+                continue;
             }
+
+            if ($existente->status === StatusAvaliacao::Concluida) {
+                $resultado['ja_avaliaram'][] = $nome($uid);
+
+                continue;
+            }
+
+            if ($existente->foiDevolvida()) {
+                // O prazo tinha devolvido esta avaliação; o admin está pondo o
+                // projeto de volta com ela, e o rascunho vem junto.
+                $existente->update(['devolvida_em' => null, 'designacao_manual' => true]);
+                $resultado['retomadas'][] = $nome($uid);
+
+                continue;
+            }
+
+            // Já está com o projeto (designada ou em avaliação): nada muda,
+            // mas a designação manual passa a protegê-la.
+            if (! $existente->designacao_manual) {
+                $existente->update(['designacao_manual' => true]);
+            }
+
+            $resultado['ja_tem'][] = $nome($uid);
         }
 
-        return $novas;
+        return $resultado;
     }
 
     /**
