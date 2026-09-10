@@ -110,6 +110,7 @@ describe('AvaliacaoDistribuicao', () => {
             })
             .mockResolvedValue(concluida({
                 devolvidas: 2, recebidas: 2, designadas_criadas: 2,
+                preservadas: 3, manuais_preservadas: 1, em_avaliacao_preservadas: 2,
                 ignorados_pela_regra: 0, sub_cobertos: [],
             }));
 
@@ -132,6 +133,9 @@ describe('AvaliacaoDistribuicao', () => {
         expect(await screen.findByText(/2 designação\(ões\) devolvidas ao bolo/, {}, { timeout: 4000 }))
             .toBeInTheDocument();
         expect(screen.getByText('Todos os projetos elegíveis têm ao menos 3 avaliadores.')).toBeInTheDocument();
+        // E diz o que a rodada NÃO tocou: designação manual e avaliação aberta.
+        expect(screen.getByText(/3 designação\(ões\) foram preservadas/)).toBeInTheDocument();
+        expect(screen.getByText(/1 designada\(s\) por você/)).toBeInTheDocument();
     }, 10000);
 
     it('enquanto a rodada corre, os dois botões ficam travados', async () => {

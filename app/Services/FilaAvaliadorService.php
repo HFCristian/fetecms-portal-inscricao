@@ -201,9 +201,10 @@ class FilaAvaliadorService
      * ainda não abriu e puxa outros no lugar, pelas mesmas prioridades.
      *
      * Ficam de fora do sorteio o que já está em avaliação (iniciado não volta
-     * atrás), o que já foi concluído e o que o ADMIN designou à mão. Se não
-     * houver alternativa suficiente, os projetos devolvidos podem voltar — a
-     * fila nunca encolhe por causa de um sorteio.
+     * atrás), o que já foi concluído e o que o ADMIN designou à mão — a regra
+     * mora no {@see Avaliacao::scopeDevolvivel()}, que vale para toda devolução
+     * automática. Se não houver alternativa suficiente, os projetos devolvidos
+     * podem voltar — a fila nunca encolhe por causa de um sorteio.
      *
      * O piso vale aqui como na reposição: se as regras não encherem a fila até
      * ele, a segunda passada completa ignorando-as.
@@ -213,8 +214,7 @@ class FilaAvaliadorService
     public function roletar(User $avaliador): array
     {
         $devolvidos = Avaliacao::where('avaliador_id', $avaliador->id)
-            ->where('status', StatusAvaliacao::Designada->value)
-            ->where('designacao_manual', false)
+            ->devolvivel()
             ->get(['id', 'projeto_id']);
 
         if ($devolvidos->isEmpty()) {

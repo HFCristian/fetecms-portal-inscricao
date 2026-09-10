@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\StatusAvaliacao;
 use App\Support\Rubrica;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -70,6 +71,46 @@ class Avaliacao extends Model
             'concluida_em' => 'datetime',
             'designacao_manual' => 'boolean',
         ];
+    }
+
+    /**
+     * As designações que uma devolução **automática** pode desfazer — o rodízio
+     * do avaliador, a redistribuição em massa e a devolução no fim da sessão.
+     *
+     * Duas coisas nunca entram aqui, e é o que esta consulta existe para
+     * garantir num lugar só:
+     *
+     * - **Designação manual do admin**: é o escape do edital. Quem a fez sabe
+     *   o que está pondo na fila daquela pessoa, e nenhuma rotina automática
+     *   tem autoridade para desfazer isso. Só a retirada explícita do admin,
+     *   na tela de Designações, tira uma dessas.
+     * - **Avaliação já assumida** (em andamento ou concluída): o avaliador
+     *   abriu o projeto e começou a trabalhar. Puxá-lo de volta jogaria fora o
+     *   que já foi preenchido.
+     *
+     * Sobra o que é de fato reversível: o projeto que o algoritmo pôs na fila e
+     * que ninguém abriu.
+     *
+     * @param  Builder<self>  $query
+     */
+    public function scopeDevolvivel(Builder $query): void
+    {
+        $query->where('status', StatusAvaliacao::Designada->value)
+            ->where('designacao_manual', false);
+    }
+
+    /**
+     * O contrário do {@see self::scopeDevolvivel()}: o que uma devolução
+     * automática precisa preservar. Serve para o relatório dizer ao admin
+     * quantas designações a rodada respeitou.
+     *
+     * @param  Builder<self>  $query
+     */
+    public function scopeProtegida(Builder $query): void
+    {
+        $query->where(fn (Builder $q) => $q
+            ->where('status', '!=', StatusAvaliacao::Designada->value)
+            ->orWhere('designacao_manual', true));
     }
 
     public function areaSugerida(): BelongsTo

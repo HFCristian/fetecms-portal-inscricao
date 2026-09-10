@@ -181,8 +181,9 @@ function DistribuicaoCard({ minPorProjeto, emMassa = true }) {
                 </Button>
             </div>
             <p className="mt-2 text-xs text-on-surface-variant">
-                Redistribuir troca o que ainda não foi aberto: em avaliação, concluído e designação
-                manual do admin ficam como estão.
+                Redistribuir troca <strong>apenas</strong> o que o algoritmo designou e ninguém abriu.
+                O que você designou à mão nunca sai do avaliador por rotina automática — só pela
+                retirada em <em>Designações</em>. Em avaliação e concluído também ficam como estão.
             </p>
 
             {rodada && <BarraProgresso rodada={rodada} />}
@@ -196,6 +197,13 @@ function DistribuicaoCard({ minPorProjeto, emMassa = true }) {
             {relatorio?.devolvidas > 0 && (
                 <p className="mt-3 text-sm text-on-surface">
                     {relatorio.devolvidas} designação(ões) devolvidas ao bolo e {relatorio.recebidas} nova(s) no lugar.
+                </p>
+            )}
+            {relatorio?.preservadas > 0 && (
+                <p className="mt-2 text-sm text-on-surface-variant">
+                    {relatorio.preservadas} designação(ões) foram preservadas:{' '}
+                    {relatorio.manuais_preservadas} designada(s) por você e{' '}
+                    {relatorio.em_avaliacao_preservadas} já em avaliação.
                 </p>
             )}
             {ignorados > 0 && (
