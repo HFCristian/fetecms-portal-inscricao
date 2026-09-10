@@ -22,11 +22,25 @@ function botaoLabel(status) {
 }
 
 // Uma lista de projetos (a fila de trabalho ou o histórico de avaliados).
-function ListaProjetos({ titulo, itens, dados, vazio, onAbrir }) {
+//
+// `destaque` marca a lista dos projetos que a ORGANIZAÇÃO designou: ela vem
+// acima da fila comum, com moldura própria, porque é a que o avaliador precisa
+// perceber primeiro — e a que, antes da Sprint 115, sumia da tela.
+function ListaProjetos({ titulo, subtitulo, itens, dados, vazio, onAbrir, destaque = false }) {
     return (
-        <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow overflow-hidden max-w-3xl">
-            <div className="px-4 py-3 bg-surface-variant/40">
-                <h2 className="font-display font-semibold text-on-surface">{titulo}</h2>
+        <div className={`bg-surface-container-lowest rounded-xl fetec-card-shadow overflow-hidden max-w-3xl ${
+            destaque ? 'border-2 border-primary-container' : ''
+        }`}>
+            <div className={`px-4 py-3 ${destaque ? 'bg-primary-container/15' : 'bg-surface-variant/40'}`}>
+                <h2 className="font-display font-semibold text-on-surface flex items-center gap-2">
+                    {destaque && (
+                        <span className="material-symbols-outlined text-primary-container text-[20px]" aria-hidden="true">
+                            push_pin
+                        </span>
+                    )}
+                    {titulo}
+                </h2>
+                {subtitulo && <p className="text-xs text-on-surface-variant mt-0.5">{subtitulo}</p>}
             </div>
             {itens.length === 0 ? (
                 <p className="px-4 py-8 text-center text-sm text-on-surface-variant">{vazio}</p>
@@ -172,7 +186,7 @@ export default function AvaliadorHome() {
             .then(setDados)
             .catch(() => setDados({
                 liberada: false, pode_ver: false, pode_avaliar: false, is_demo: false,
-                projetos: [], concluidos: [], devolvidos: [],
+                projetos: [], designados_organizacao: [], concluidos: [], devolvidos: [],
             }));
     }, []);
 
@@ -283,14 +297,29 @@ export default function AvaliadorHome() {
                     <Abas
                         aba={aba}
                         setAba={setAba}
-                        pendentes={dados.projetos.length}
+                        pendentes={dados.projetos.length + (dados.designados_organizacao ?? []).length}
                         concluidos={(dados.concluidos ?? []).length}
                     />
                     {aba === 'pendentes' ? (
                         <>
                             {aviso && <div className="mb-3 max-w-3xl"><Alert type="info">{aviso}</Alert></div>}
+                            {(dados.designados_organizacao ?? []).length > 0 && (
+                                <div className="mb-4">
+                                    <ListaProjetos
+                                        destaque
+                                        titulo="Designados pela organização"
+                                        subtitulo="Escolhidos para você pela comissão. Não saem da sua lista no sorteio."
+                                        itens={dados.designados_organizacao}
+                                        dados={dados}
+                                        vazio=""
+                                        onAbrir={setAvaliando}
+                                    />
+                                </div>
+                            )}
                             <ListaProjetos
-                                titulo="Projetos designados a você"
+                                titulo={(dados.designados_organizacao ?? []).length > 0
+                                    ? 'Outros projetos da sua fila'
+                                    : 'Projetos designados a você'}
                                 itens={dados.projetos}
                                 dados={dados}
                                 vazio="Nenhum projeto designado a você por enquanto."

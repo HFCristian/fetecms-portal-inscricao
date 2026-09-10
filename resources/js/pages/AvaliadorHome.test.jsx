@@ -194,4 +194,43 @@ describe('AvaliadorHome', () => {
         expect(await screen.findByText('Projeto X')).toBeInTheDocument();
         expect(screen.queryByText('Avaliações devolvidas')).not.toBeInTheDocument();
     });
+
+    // Sprint 115: o que a organização designou vem numa lista própria, ACIMA da
+    // fila comum — antes ele era cortado pelo limite e sumia da tela.
+    it('separa os projetos designados pela organização, acima da fila comum', async () => {
+        getMinhaAvaliacao.mockResolvedValue({
+            ...LISTA_ABERTA,
+            designados_organizacao: [{
+                avaliacao_id: 5, projeto_id: 40, titulo: 'Escolhido pela comissão',
+                area: 'Ciências Exatas e da Terra', status: 'designada',
+                status_label: 'Designada', nota: null, designacao_manual: true,
+            }],
+        });
+
+        render(<MemoryRouter><AvaliadorHome /></MemoryRouter>);
+
+        expect(await screen.findByText('Designados pela organização')).toBeInTheDocument();
+        expect(screen.getByText('Escolhido pela comissão')).toBeInTheDocument();
+        expect(screen.getByText(/Não saem da sua lista no sorteio/)).toBeInTheDocument();
+
+        // A fila comum muda de nome para não parecer a lista inteira.
+        expect(screen.getByText('Outros projetos da sua fila')).toBeInTheDocument();
+
+        // E a lista destacada vem antes no DOM.
+        const titulos = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent.trim());
+        expect(titulos.indexOf('Designados pela organização'))
+            .toBeLessThan(titulos.indexOf('Outros projetos da sua fila'));
+
+        // A aba conta as duas listas.
+        expect(screen.getByRole('tab', { name: /A avaliar \(2\)/ })).toBeInTheDocument();
+    });
+
+    it('sem designação da organização, a lista destacada não aparece', async () => {
+        getMinhaAvaliacao.mockResolvedValue({ ...LISTA_ABERTA, designados_organizacao: [] });
+
+        render(<MemoryRouter><AvaliadorHome /></MemoryRouter>);
+
+        expect(await screen.findByText('Projetos designados a você')).toBeInTheDocument();
+        expect(screen.queryByText('Designados pela organização')).not.toBeInTheDocument();
+    });
 });

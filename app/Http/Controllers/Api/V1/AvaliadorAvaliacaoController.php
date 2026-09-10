@@ -40,8 +40,9 @@ class AvaliadorAvaliacaoController extends Controller
         $pode = $this->fluxo->podeAvaliar($user, $teste);
 
         // Quantos projetos o avaliador enxerga de uma vez: o mínimo por avaliador
-        // definido pelo admin. O teto vale só para a fila de trabalho — o que ele
-        // já avaliou fica na seção de concluídos, sem limite.
+        // definido pelo admin. O teto vale só para a **fila automática** — o que
+        // a organização designou à mão, o que ele já abriu e o que ele já
+        // avaliou não são cortados por ele.
         $minPorAvaliador = Edicao::minPorAvaliador();
 
         // Abrir o painel é sinal de vida: adia o vencimento da sessão e, de
@@ -50,6 +51,7 @@ class AvaliadorAvaliacaoController extends Controller
         $this->sessao->varrer();
 
         $projetos = [];
+        $designadosOrganizacao = [];
         $concluidos = [];
         $devolvidos = [];
 
@@ -64,7 +66,31 @@ class AvaliadorAvaliacaoController extends Controller
                 fn (Avaliacao $a) => $a->status === StatusAvaliacao::Concluida,
             );
 
-            $projetos = $pendentes->take($minPorAvaliador)
+            // O que a ORGANIZAÇÃO designou à mão sai numa lista à parte, acima
+            // da fila comum. Duas razões:
+            //
+            // 1. **Ele nunca é cortado.** O `take()` abaixo existe para limitar
+            //    o tamanho da fila automática, e antes disto ele cortava a lista
+            //    inteira ordenada por id — uma designação manual, sendo mais
+            //    nova, caía fora e simplesmente não aparecia para o avaliador.
+            //    Foi assim que uma avaliadora recebeu projetos e não os viu.
+            // 2. Ela pediu atenção diferente: alguém escolheu aquele projeto
+            //    para aquela pessoa, e ele não sai da lista dela num sorteio.
+            //
+            // Avaliação já ABERTA entra aqui pela mesma lógica de não cortar:
+            // esconder o que a pessoa começou seria pior ainda.
+            [$daOrganizacao, $daFila] = $pendentes->partition(
+                fn (Avaliacao $a) => $a->designacao_manual || $a->status === StatusAvaliacao::EmAndamento,
+            );
+
+            $designadosOrganizacao = $daOrganizacao
+                ->map(fn (Avaliacao $a) => $this->linha($a) + ['designacao_manual' => (bool) $a->designacao_manual])
+                ->values()
+                ->all();
+
+            // O limite vale só para a fila automática: ela é que precisa caber
+            // na tela, e é ela que o sorteio troca.
+            $projetos = $daFila->take($minPorAvaliador)
                 ->map(fn (Avaliacao $a) => $this->linha($a))
                 ->values()
                 ->all();
@@ -108,6 +134,8 @@ class AvaliadorAvaliacaoController extends Controller
             // Fila de trabalho e histórico ficam em listas separadas: a tela do
             // avaliador mostra cada uma na sua seção.
             'projetos' => $projetos,
+            // Designados pela organização: lista própria, acima da fila comum.
+            'designados_organizacao' => $designadosOrganizacao,
             'concluidos' => $concluidos,
             'devolvidos' => $devolvidos,
         ]]);
