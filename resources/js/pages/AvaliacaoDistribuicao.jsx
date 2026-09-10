@@ -7,7 +7,7 @@ import {
     getAvaliacaoConfig, getDistribuicaoConfig, distribuirAvaliacoes,
     redistribuirAvaliacoes, definirDistribuicaoAoCadastrar,
     getProgressoDistribuicao, getUltimaDistribuicao, definirPisoFila,
-    definirDesignacoesPorProjeto,
+    definirDesignacoesPorProjeto, definirModoDistribuicao,
 } from '../lib/admin.js';
 
 /** De quanto em quanto tempo a tela pergunta como vai a rodada. */
@@ -59,7 +59,7 @@ function BarraProgresso({ rodada }) {
 // As duas ações vão para a FILA: o POST volta na hora com o registro da rodada e
 // a tela acompanha por polling até `finalizada`. Antes era uma requisição só,
 // que segurava a tela até o fim — uma espera cega e um bom candidato a timeout.
-function DistribuicaoCard({ minPorProjeto }) {
+function DistribuicaoCard({ minPorProjeto, emMassa = true }) {
     const [confirm, dialogo] = useConfirm();
     const [rodada, setRodada] = useState(null);
     const [enviando, setEnviando] = useState('');
@@ -69,6 +69,9 @@ function DistribuicaoCard({ minPorProjeto }) {
 
     const alvo = minPorProjeto ?? 3;
     const emAndamento = rodada !== null && !rodada.finalizada;
+    // No modo por atividade a fila nasce no login: distribuir em massa criaria
+    // designações que a próxima sessão devolveria ao bolo.
+    const bloqueado = !emMassa;
 
     // Consulta em laço enquanto a rodada não termina. O timeout é reagendado a
     // cada resposta (e não um setInterval) para duas consultas nunca se
@@ -145,13 +148,22 @@ function DistribuicaoCard({ minPorProjeto }) {
                 ou área. Idempotente: pode rodar quantas vezes quiser — só completa o que falta, sem
                 mexer no que já foi designado.
             </p>
+            {bloqueado && (
+                <div className="mb-3">
+                    <Alert type="info">
+                        A edição está no modo <strong>Distribuição por Atividade</strong>: os projetos são
+                        designados quando o avaliador entra no portal, então não há o que distribuir em massa.
+                        Troque o modo acima para <strong>Distribuição Total</strong> para usar estes botões.
+                    </Alert>
+                </div>
+            )}
             {msg && <div className="mb-3"><Alert type="info">{msg}</Alert></div>}
             {erro && <div className="mb-3"><Alert>{erro}</Alert></div>}
             <div className="flex items-center gap-2 flex-wrap">
                 <Button
                     type="button"
                     loading={enviando === 'distribuir'}
-                    disabled={enviando !== '' || emAndamento}
+                    disabled={bloqueado || enviando !== '' || emAndamento}
                     onClick={distribuir}
                 >
                     <span className="material-symbols-outlined text-[18px]">shuffle</span>
@@ -161,7 +173,7 @@ function DistribuicaoCard({ minPorProjeto }) {
                     type="button"
                     variant="outline"
                     loading={enviando === 'redistribuir'}
-                    disabled={enviando !== '' || emAndamento}
+                    disabled={bloqueado || enviando !== '' || emAndamento}
                     onClick={redistribuir}
                 >
                     <span className="material-symbols-outlined text-[18px]">autorenew</span>
@@ -212,6 +224,88 @@ function DistribuicaoCard({ minPorProjeto }) {
                 </div>
             )}
             {dialogo}
+        </div>
+    );
+}
+
+/**
+ * **Modo de distribuição**: de onde vem a fila de trabalho do avaliador.
+ *
+ * *Total* é o comportamento histórico — o admin distribui em massa e cada
+ * avaliador encontra a fila pronta ao entrar. *Por atividade* inverte a ordem:
+ * ninguém recebe nada de antemão, a fila nasce no login e volta ao bolo quando
+ * a sessão acaba, então só ocupa projeto quem está de fato avaliando.
+ *
+ * A troca não mexe no que já está designado: quem estiver com um projeto aberto
+ * não o perde no meio do caminho. Vale daqui para a frente.
+ */
+function ModoDistribuicaoCard({ config, onSalvo }) {
+    const [salvando, setSalvando] = useState('');
+    const [msg, setMsg] = useState('');
+    const [erro, setErro] = useState('');
+
+    const modos = config.modos ?? [];
+
+    async function escolher(modo) {
+        if (modo === config.modo) return;
+
+        setSalvando(modo); setMsg(''); setErro('');
+        try {
+            const resp = await definirModoDistribuicao(modo);
+            onSalvo?.(resp.data);
+            setMsg(resp.meta?.message || 'Modo salvo.');
+        } catch (e) {
+            setErro(e?.response?.data?.message || 'Não foi possível salvar. Tente novamente.');
+        } finally {
+            setSalvando('');
+        }
+    }
+
+    return (
+        <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-6 mb-4 max-w-3xl">
+            <h2 className="font-display text-primary font-semibold mb-1">Modo de distribuição</h2>
+            <p className="text-sm text-on-surface-variant mb-3">
+                De onde vem a fila de trabalho do avaliador. As designações que você fizer à mão não
+                dependem do modo: elas ficam com o avaliador em qualquer um dos dois.
+            </p>
+            {msg && <div className="mb-3"><Alert type="info">{msg}</Alert></div>}
+            {erro && <div className="mb-3"><Alert>{erro}</Alert></div>}
+            <div role="radiogroup" aria-label="Modo de distribuição" className="space-y-2">
+                {modos.map((m) => {
+                    const ativo = m.value === config.modo;
+
+                    return (
+                        <button
+                            key={m.value}
+                            type="button"
+                            role="radio"
+                            aria-checked={ativo}
+                            disabled={salvando !== ''}
+                            onClick={() => escolher(m.value)}
+                            className={`w-full text-left rounded-xl border p-4 transition disabled:opacity-60 ${
+                                ativo
+                                    ? 'border-primary-container bg-primary-container/10'
+                                    : 'border-outline-variant hover:border-primary-container'
+                            }`}
+                        >
+                            <span className="flex items-start gap-3">
+                                <span
+                                    aria-hidden="true"
+                                    className={`material-symbols-outlined text-[20px] mt-0.5 ${
+                                        ativo ? 'text-primary-container' : 'text-on-surface-variant'
+                                    }`}
+                                >
+                                    {ativo ? 'radio_button_checked' : 'radio_button_unchecked'}
+                                </span>
+                                <span>
+                                    <span className="block font-semibold text-on-surface">{m.label}</span>
+                                    <span className="block text-sm text-on-surface-variant">{m.descricao}</span>
+                                </span>
+                            </span>
+                        </button>
+                    );
+                })}
+            </div>
         </div>
     );
 }
@@ -444,11 +538,15 @@ export default function AvaliacaoDistribuicao() {
                 </div>
             ) : (
                 <>
+                    <ModoDistribuicaoCard config={distribuicao} onSalvo={setDistribuicao} />
                     <RegrasDistribuicaoCard config={distribuicao} onSalvo={setDistribuicao} />
                     <DesignacoesCard config={distribuicao} onSalvo={setDistribuicao} />
                     <PisoFilaCard config={distribuicao} onSalvo={setDistribuicao} />
                     <DesignacaoAoCadastrarCard config={distribuicao} onSalvo={setDistribuicao} />
-                    <DistribuicaoCard minPorProjeto={janela?.min_por_projeto} />
+                    <DistribuicaoCard
+                        minPorProjeto={janela?.min_por_projeto}
+                        emMassa={distribuicao.distribui_em_massa !== false}
+                    />
                 </>
             )}
         </AppShell>

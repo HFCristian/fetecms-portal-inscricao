@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\Categoria;
+use App\Enums\ModoDistribuicao;
 use App\Enums\ProjetoStatus;
 use App\Enums\Role;
 use App\Enums\StatusAvaliacao;
@@ -1235,7 +1236,38 @@ class AdminAvaliacaoService
             'designacoes_por_projeto' => $limites->designacoesConfiguradas(),
             'designacoes_categorias' => $limites->categorias(),
             'designacoes_maximo' => LimitesAvaliacao::MAXIMO,
+            // Como a fila do avaliador nasce: em massa pelo admin (total) ou no
+            // login de cada um (por atividade). O modo em vigor decide se os
+            // botões de distribuição em massa ainda têm o que fazer.
+            'modo' => Edicao::modoDistribuicao()->value,
+            'modos' => ModoDistribuicao::opcoes(),
+            'distribui_em_massa' => Edicao::modoDistribuicao()->distribuiEmMassa(),
         ];
+    }
+
+    /**
+     * Troca o **modo de distribuição** da edição.
+     *
+     * A troca não mexe no que já está designado: sair do modo total não devolve
+     * as filas ao bolo (o avaliador que estiver trabalhando não perde o projeto
+     * no meio do caminho) e entrar nele não distribui sozinho — quem distribui
+     * continua sendo o botão. O que muda é daqui para a frente.
+     */
+    public function definirModoDistribuicao(string $modo, User $admin): array
+    {
+        $anterior = Edicao::modoDistribuicao();
+        $novo = ModoDistribuicao::deValor($modo);
+
+        Edicao::atual()?->update(['modo_distribuicao' => $novo]);
+
+        $this->registrarParametro(
+            TipoRegistro::AvaliacaoModoDistribuicao,
+            $admin,
+            $anterior->label(),
+            $novo->label(),
+        );
+
+        return $this->configDistribuicao();
     }
 
     /**

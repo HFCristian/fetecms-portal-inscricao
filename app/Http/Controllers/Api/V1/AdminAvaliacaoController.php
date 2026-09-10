@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Enums\Categoria;
+use App\Enums\ModoDistribuicao;
 use App\Enums\ProjetoStatus;
 use App\Enums\StatusAvaliacao;
 use App\Http\Controllers\Controller;
@@ -243,6 +244,24 @@ class AdminAvaliacaoController extends Controller
         return response()->json([
             'data' => $config,
             'meta' => ['message' => 'Regras da distribuição atualizadas.'],
+        ]);
+    }
+
+    /**
+     * Troca o modo de distribuição da edição (total × por atividade). A troca
+     * não mexe no que já está designado — vale daqui para a frente.
+     */
+    public function definirModoDistribuicao(Request $request): JsonResponse
+    {
+        $modo = $request->validate([
+            'modo' => ['required', Rule::enum(ModoDistribuicao::class)],
+        ])['modo'];
+
+        $config = $this->service->definirModoDistribuicao($modo, $request->user());
+
+        return response()->json([
+            'data' => $config,
+            'meta' => ['message' => 'Modo de distribuição: '.ModoDistribuicao::deValor($modo)->label().'.'],
         ]);
     }
 

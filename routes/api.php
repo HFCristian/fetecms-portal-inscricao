@@ -263,6 +263,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::patch('/avaliacao/distribuicao/designacoes', [AdminAvaliacaoController::class, 'definirDesignacoesPorProjeto']);
                 Route::patch('/avaliacao/distribuicao/piso', [AdminAvaliacaoController::class, 'definirPisoFila']);
                 Route::patch('/avaliacao/distribuicao/ao-cadastrar', [AdminAvaliacaoController::class, 'definirDistribuicaoAoCadastrar']);
+                Route::patch('/avaliacao/distribuicao/modo', [AdminAvaliacaoController::class, 'definirModoDistribuicao']);
                 Route::post('/avaliacao/distribuir', [AdminAvaliacaoController::class, 'distribuir']);
                 Route::post('/avaliacao/redistribuir', [AdminAvaliacaoController::class, 'redistribuir']);
                 // As duas ações acima vão para a fila; a tela acompanha por aqui.

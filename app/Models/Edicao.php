@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\Categoria;
+use App\Enums\ModoDistribuicao;
 use App\Support\LimitesAvaliacao;
 use App\Support\RegrasDistribuicao;
 use Illuminate\Database\Eloquent\Model;
@@ -30,7 +31,7 @@ class Edicao extends Model
         'avaliacoes_max_por_avaliador', 'avaliacoes_max_por_projeto', 'avaliacoes_por_categoria',
         'designacoes_por_projeto',
         'piso_fila_avaliador',
-        'distribuicao_regras', 'distribuicao_ao_cadastrar',
+        'distribuicao_regras', 'distribuicao_ao_cadastrar', 'modo_distribuicao',
     ];
 
     protected function casts(): array
@@ -59,6 +60,7 @@ class Edicao extends Model
             'avaliacoes_por_categoria' => 'array',
             'distribuicao_regras' => 'array',
             'distribuicao_ao_cadastrar' => 'boolean',
+            'modo_distribuicao' => ModoDistribuicao::class,
         ];
     }
 
@@ -170,6 +172,16 @@ class Edicao extends Model
     public static function distribuiAoCadastrar(): bool
     {
         return (bool) static::atual()?->distribuicao_ao_cadastrar;
+    }
+
+    /**
+     * Como a fila do avaliador é montada nesta edição: em massa pelo admin
+     * (**total**) ou no login de cada avaliador (**por atividade**). Sem edição
+     * atual vale o padrão histórico, que é o total.
+     */
+    public static function modoDistribuicao(): ModoDistribuicao
+    {
+        return static::atual()?->modo_distribuicao ?? ModoDistribuicao::Total;
     }
 
     /** O prazo de submissão já passou? Sem prazo definido, as inscrições ficam abertas. */

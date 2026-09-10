@@ -23,6 +23,7 @@ const concluida = (relatorio) => ({
 const distribuirAvaliacoes = vi.fn(() => Promise.resolve(naFila('distribuir')));
 const redistribuirAvaliacoes = vi.fn(() => Promise.resolve(naFila('redistribuir')));
 const definirPisoFila = vi.fn();
+const definirModoDistribuicao = vi.fn();
 const definirDesignacoesPorProjeto = vi.fn();
 const getProgressoDistribuicao = vi.fn();
 const getUltimaDistribuicao = vi.fn(() => Promise.resolve(null));
@@ -46,6 +47,12 @@ vi.mock('../lib/admin.js', () => ({
         ],
         max_concluidas: 50,
         ao_cadastrar: false,
+        modo: 'total',
+        distribui_em_massa: true,
+        modos: [
+            { value: 'total', label: 'Distribuição Total', descricao: 'O admin distribui em massa.' },
+            { value: 'atividade', label: 'Distribuição por Atividade', descricao: 'A fila nasce no login.' },
+        ],
         piso_fila: 6,
         piso_maximo: 50,
         designacoes_por_projeto: null,
@@ -58,6 +65,7 @@ vi.mock('../lib/admin.js', () => ({
     })),
     definirRegrasDistribuicao: vi.fn(),
     definirPisoFila: (...a) => definirPisoFila(...a),
+    definirModoDistribuicao: (...a) => definirModoDistribuicao(...a),
     definirDesignacoesPorProjeto: (...a) => definirDesignacoesPorProjeto(...a),
     definirDistribuicaoAoCadastrar: vi.fn(),
     distribuirAvaliacoes: (...a) => distribuirAvaliacoes(...a),
@@ -76,6 +84,7 @@ describe('AvaliacaoDistribuicao', () => {
         getProgressoDistribuicao.mockReset();
         getUltimaDistribuicao.mockReset().mockResolvedValue(null);
         definirPisoFila.mockReset();
+        definirModoDistribuicao.mockReset();
     });
 
     it('reúne regras, toggle e as duas ações de distribuição', async () => {
@@ -183,6 +192,7 @@ describe('AvaliacaoDistribuicao — piso da fila', () => {
     beforeEach(() => {
         getUltimaDistribuicao.mockReset().mockResolvedValue(null);
         definirPisoFila.mockReset();
+        definirModoDistribuicao.mockReset();
     });
 
     it('mostra o piso em vigor', async () => {
@@ -264,5 +274,37 @@ describe('AvaliacaoDistribuicao — piso da fila', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Salvar designações' }));
 
         await waitFor(() => expect(definirDesignacoesPorProjeto).toHaveBeenCalledWith(4));
+    });
+
+    it('mostra o modo em vigor e troca para "por atividade"', async () => {
+        const { getDistribuicaoConfig } = await import('../lib/admin.js');
+        const base = await getDistribuicaoConfig();
+        // O endpoint devolve a configuração inteira, e não só o campo trocado.
+        definirModoDistribuicao.mockResolvedValue({
+            data: { ...base, modo: 'atividade', distribui_em_massa: false },
+            meta: { message: 'Modo de distribuição: Distribuição por Atividade.' },
+        });
+
+        render(<AvaliacaoDistribuicao />);
+
+        const total = await screen.findByRole('radio', { name: /Distribuição Total/ });
+        expect(total).toHaveAttribute('aria-checked', 'true');
+
+        fireEvent.click(screen.getByRole('radio', { name: /Distribuição por Atividade/ }));
+
+        await waitFor(() => expect(definirModoDistribuicao).toHaveBeenCalledWith('atividade'));
+        expect(await screen.findByText(/Distribuição por Atividade\.$/)).toBeInTheDocument();
+    });
+
+    it('no modo por atividade, os botões de distribuição em massa ficam desabilitados', async () => {
+        const { getDistribuicaoConfig } = await import('../lib/admin.js');
+        const base = await getDistribuicaoConfig();
+        getDistribuicaoConfig.mockResolvedValueOnce({ ...base, modo: 'atividade', distribui_em_massa: false });
+
+        render(<AvaliacaoDistribuicao />);
+
+        expect(await screen.findByRole('button', { name: /Distribuir avaliações/ })).toBeDisabled();
+        expect(screen.getByRole('button', { name: /Redistribuir avaliações/ })).toBeDisabled();
+        expect(screen.getByText(/são\s+designados quando o avaliador entra no portal/)).toBeInTheDocument();
     });
 });

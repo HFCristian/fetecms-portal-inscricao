@@ -204,6 +204,14 @@ export const definirDesignacoesPorProjeto = (designacoes) =>
 export const definirPisoFila = (piso) =>
     http.patch('/admin/avaliacao/distribuicao/piso', { piso_fila: piso ?? null }).then((r) => r.data);
 
+/**
+ * Modo de distribuição da edição: `total` (o admin distribui em massa) ou
+ * `atividade` (a fila nasce no login do avaliador e volta ao bolo no fim da
+ * sessão). A troca não mexe no que já está designado.
+ */
+export const definirModoDistribuicao = (modo) =>
+    http.patch('/admin/avaliacao/distribuicao/modo', { modo }).then((r) => r.data);
+
 // Lista final da feira: o que dá para pedir e o TXT do recorte escolhido.
 export const getOpcoesListaFinal = () => http.get('/admin/avaliacao/lista-final/opcoes').then((r) => r.data.data);
 

@@ -53,6 +53,17 @@ class DistribuicaoService
             ]);
         }
 
+        // No modo **por atividade** a fila nasce no login de cada avaliador, e
+        // é devolvida ao bolo quando a sessão acaba: distribuir em massa aqui
+        // criaria filas que a próxima sessão apagaria.
+        if (! Edicao::modoDistribuicao()->distribuiEmMassa()) {
+            throw ValidationException::withMessages([
+                'distribuicao' => 'A edição está no modo "Distribuição por Atividade": os projetos são '
+                    .'designados quando o avaliador entra no portal. Troque o modo para "Distribuição Total" '
+                    .'para distribuir em massa.',
+            ]);
+        }
+
         $emAndamento = Distribuicao::where('edicao_id', $edicao->id)
             ->whereIn('status', [StatusDistribuicao::Pendente->value, StatusDistribuicao::Processando->value])
             ->first();
