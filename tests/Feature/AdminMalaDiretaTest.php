@@ -20,6 +20,7 @@ use App\Services\MalaDiretaService;
 use Database\Seeders\CatalogoSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use RuntimeException;
 use Tests\TestCase;
@@ -486,6 +487,12 @@ class AdminMalaDiretaTest extends TestCase
     {
         Mail::fake();
         $this->admin();
+
+        // O arquivo precisa existir de fato: desde a Sprint 114 o disparo
+        // confere o storage antes de enfileirar, justamente porque um arquivo
+        // ausente saía como anexo vazio, em silêncio.
+        Storage::fake('local');
+        Storage::disk('local')->put('mala-direta/imagem/logo.png', 'PNG-bytes');
 
         $imagem = MalaDiretaArquivo::create([
             'tipo' => MalaDiretaArquivo::TIPO_IMAGEM,

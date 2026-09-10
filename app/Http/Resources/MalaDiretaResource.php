@@ -52,6 +52,15 @@ class MalaDiretaResource extends JsonResource
             'enviado_em' => $this->enviado_em?->toIso8601String(),
             'concluido_em' => $this->concluido_em?->toIso8601String(),
             'totais' => $totais,
+            // Os anexos que de fato foram junto do e-mail. Sem isto, uma mala
+            // que saiu sem anexo é indistinguível de uma que nunca teve um — e
+            // foi essa dúvida que atrasou o diagnóstico do envio sem anexo.
+            'anexos' => $this->anexos->map(fn ($a) => [
+                'id' => $a->id,
+                'nome' => $a->nome_original,
+                'tamanho_bytes' => $a->tamanho_bytes,
+            ])->values()->all(),
+            'imagens_no_corpo' => $this->imagens->count(),
         ];
     }
 }

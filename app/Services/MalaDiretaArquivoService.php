@@ -100,6 +100,38 @@ class MalaDiretaArquivoService
         return $copias;
     }
 
+    /**
+     * Confere que todo arquivo da mala está mesmo no storage, antes de o
+     * disparo ir para a fila.
+     *
+     * O disco privado roda com `throw => false`: um arquivo que sumiu devolve
+     * vazio em silêncio, e o e-mail sairia com um anexo de 0 byte — que na
+     * caixa de entrada é indistinguível de anexo nenhum. Sem esta conferência o
+     * admin só descobriria pelo relatório, um destinatário de cada vez, depois
+     * de a mensagem já ter chegado errada em centenas de caixas.
+     *
+     * A pergunta aqui é só "o arquivo existe?". Um arquivo de 0 byte que o
+     * admin escolheu de propósito não é problema nosso — inventar que é
+     * barraria disparos legítimos por um palpite.
+     */
+    public function garantirNoDisco(MalaDireta $mala): void
+    {
+        $faltando = $mala->arquivos()
+            ->get()
+            ->filter(fn (MalaDiretaArquivo $a) => ! Storage::disk($a->disk)->exists($a->path))
+            ->pluck('nome_original')
+            ->all();
+
+        if ($faltando === []) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'anexos' => 'Não encontrei no servidor: '.implode(', ', $faltando).'. '
+                .'Suba os arquivos de novo antes de disparar — o e-mail sairia sem eles.',
+        ]);
+    }
+
     /** Apaga um arquivo ainda não vinculado (o admin removeu da mensagem). */
     public function remover(MalaDiretaArquivo $arquivo): void
     {
