@@ -106,11 +106,17 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     **subárea** (preferencial), **área** ou **área correlata** — o grupo de áreas irmãs configurado em
     Parametrização → Áreas. Concluída uma avaliação, o avaliador **recebe outro projeto na hora**, e
     ele pode **sortear de novo** o que ainda não abriu (o que está em avaliação e o que o admin
-    designou permanecem).
+    designou permanecem). Na tela dele, o que a **organização designou** e o que ele **já abriu**
+    ficam numa lista própria, **acima** da fila comum, e **nunca são cortados** pelo mínimo por
+    avaliador — o limite manda só na fila automática. Antes disso o corte era feito sobre a lista
+    inteira ordenada por id, e a designação manual, sendo a mais nova, sumia da tela.
   - **Distribuição automática**: casa subárea do projeto ↔ subárea do avaliador; se não houver,
     cai para a **mesma área**. (Algoritmo ainda a refinar.)
   - Cada projeto fica visível para **no máximo 5 avaliadores**.
   - O **admin pode designar manualmente** projetos a avaliadores, podendo **exceder o limite de 3**.
+    Quem **já avaliou** aquele projeto não recebe de novo, e a tela **diz quais foram** em vez de
+    sumir com os nomes: os elegíveis são designados e o aviso lista o resto. Designar alguém cuja
+    avaliação foi devolvida pelo prazo **revive** aquela avaliação, com o rascunho dele.
 - **Admin**: criado **somente por outro admin** (cadastro simples: nome, e-mail, senha). O acesso é
   um **RBAC**: a *rule* é a aba do menu (`App\Enums\AbaAdmin`), o *role* é o **escopo**
   (Parametrização → Escopos de admin — um nome + a lista de abas que ele abre), e cada admin carrega
@@ -184,7 +190,25 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     janelas. O "período começou" que trava o cancelamento de submissão e a troca de área do
     avaliador continua sendo só o início (`edicoes.avaliacao_liberada_em`).
   - **Avaliação Online → Algoritmo de distribuição** (`/admin/avaliacao/distribuicao`, aberta pelo
-    botão *Abrir configurações* na aba): os limiares que o algoritmo respeita. Por **categoria**, o
+    botão *Abrir configurações* na aba): o **modo de distribuição**, os prazos das designações e os
+    limiares que o algoritmo respeita.
+    O **modo** (`edicoes.modo_distribuicao`, `App\Enums\ModoDistribuicao`) diz de onde vem a fila do
+    avaliador. **Distribuição Total** é o comportamento histórico e o padrão: o admin distribui em
+    massa e cada um encontra a fila pronta. **Distribuição por Atividade** monta a fila **no login**
+    (`SessaoAvaliadorService`), com o mesmo **mínimo por avaliador**, e a devolve ao bolo quando a
+    sessão acaba — assim só ocupa projeto quem está de fato avaliando; nele *Distribuir* e
+    *Redistribuir* ficam desabilitados, e o servidor recusa. A sessão acaba de três jeitos, e os três
+    devolvem: **sair**, **entrar de novo** (o login limpa o que sobrou) e **sumir** — a varredura por
+    inatividade (`edicoes.horas_sessao_avaliador`, padrão 12h) cobre quem só fecha o navegador.
+    O **prazo da avaliação aberta** (`edicoes.dias_avaliacao_aberta`, em branco desliga) vale nos
+    **dois modos**: passados Y dias sem o avaliador mexer, o projeto volta para a pilha — mas a linha
+    **não é apagada**, `avaliacoes.devolvida_em` a esconde das contas de cobertura
+    (`App\Models\Scopes\AvaliacaoAtivaScope`) e guarda o rascunho, que ele **retoma** de onde parou
+    se o projeto ainda aceitar avaliação. A devolução por prazo entra em Registros em nome do
+    sistema; a de fim de sessão, não.
+    **Nada disso alcança a designação manual do admin nem a avaliação já assumida**: só a retirada
+    explícita, em *Designações*, tira uma dessas (`Avaliacao::scopeDevolvivel()`).
+    Os demais limiares: Por **categoria**, o
     admin liga/desliga a participação e define a **faixa de avaliações que o projeto já recebeu**
     (as concluídas; de/até, "até" em branco = sem teto) para ele ainda aceitar avaliador novo — a
     conta é **por projeto**, não pela carga do avaliador: "FUNDECT de 0 a 1" designa só os projetos
@@ -396,7 +420,12 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     **10 MB** cada, arrastáveis para reposicionar), mais **anexos** no e-mail (até **10**, **20 MB**
     cada). O corpo vai como **HTML sanitizado** (`App\Support\HtmlEmail`) e as imagens viajam
     **embutidas por CID**, nunca por link; os arquivos ficam em `mala_direta_arquivos`, num disco
-    privado, e só são vinculados à mala no disparo.
+    privado, e só são vinculados à mala no disparo. O arquivo precisa **estar no storage** na hora
+    do envio: o disparo confere antes de enfileirar e o envio confere de novo, e faltando o
+    destinatário vira **falha** com o motivo — nunca um e-mail com anexo de 0 byte, que é o que
+    acontecia em silêncio. O upload é no processo web e a leitura é no `queue:work`, então
+    `storage/app/private` precisa sobreviver ao deploy e ser o mesmo dos dois
+    (ver [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md)).
 
 Regras-chave:
 - **Equipe: 1 a 4 alunos por projeto, condicionado à categoria** — *FETEC Jr* permite até 4;
@@ -583,7 +612,79 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 107 | Iniciar avaliação: trava do projeto já coberto, com troca automática | ✅ sim | ❌ não (manual do Pedro) | 27 |
 | 108 | Avaliações x designações por projeto: dois eixos independentes | ✅ sim | ❌ não (manual do Pedro) | 28 |
 | 109 | Credenciamento em rascunho, com dono e regra de quem o assume | ✅ sim | ❌ não (manual do Pedro) | 28 |
+| 110 | Modo de distribuição: Total × por Atividade (fila montada no login) | ✅ sim | ❌ não (manual do Pedro) | 29 |
+| 111 | Designação manual e avaliação aberta imunes à devolução automática | ✅ sim | ❌ não (manual do Pedro) | 29 |
+| 112 | Fim de sessão devolve a fila; avaliação parada há Y dias volta à pilha | ✅ sim | ❌ não (manual do Pedro) | 30 |
+| 113 | Designação manual avisa quem já avaliou aquele projeto | ✅ sim | ❌ não (manual do Pedro) | 30 |
+| 114 | Fix: anexo sumido do storage virava e-mail sem anexo, em silêncio | ✅ sim | ❌ não (manual do Pedro) | 31 |
+| 115 | Fix: designação da organização sumia da tela do avaliador; lista separada | ✅ sim | ❌ não (manual do Pedro) | 31 |
+| 116 | Merge das branches do dependabot (20 PRs) | ✅ sim | ❌ não (manual do Pedro) | 32 |
 
+> **Sprints 110–116 (branch `feat/distribuicao-por-atividade`, saída da `origin/main` @ `5fa3e81`):**
+> ciclo do ciclo de vida da designação, mais dois defeitos de produção e as dependências.
+> (a) **Sprint 110** — a fila do avaliador só sabia nascer de um jeito: o admin distribuía em
+> massa e cada um saía com ela cheia, esperando ele aparecer. Numa feira em que boa parte dos
+> cadastrados nunca entra, isso manda projeto para o limbo — três designados, nenhuma avaliação —
+> enquanto quem está trabalhando fica sem o que avaliar. Agora a edição escolhe o **modo**
+> (`edicoes.modo_distribuicao`, enum `App\Enums\ModoDistribuicao`), na tela do Algoritmo de
+> distribuição: **Total** é o comportamento histórico e continua o padrão; **por Atividade** monta
+> a fila no **login** (`SessaoAvaliadorService::aoEntrar`), com o mesmo **mínimo por avaliador** de
+> sempre — reusar o campo é de propósito, ele já significa "quantos projetos o avaliador enxerga de
+> uma vez". Neste modo **Distribuir** e **Redistribuir** ficam desabilitados, com a recusa também no
+> servidor: designar em massa criaria filas que a próxima sessão devolveria. O login só designa
+> dentro do período de avaliação, e a troca de modo não mexe no que já está designado.
+> (b) **Sprint 111** — a garantia de que a **designação manual** não é desfeita existia, mas morava
+> numa cláusula solta dentro do rodízio; nada impedia um caminho novo de esquecê-la. A regra ganhou
+> um lugar só (`Avaliacao::scopeDevolvivel()`): uma devolução automática só alcança o que o
+> algoritmo pôs na fila e ninguém abriu. Ficam de fora, sempre, a designação manual (escape do
+> edital — só a retirada explícita do admin, em *Designações*, tira uma dessas) e a avaliação já
+> assumida. A redistribuição passou a **relatar o que preservou**, para o admin não ter de acreditar
+> na promessa.
+> (c) **Sprint 112** — fecha o modo por atividade: a fila que nascia no login agora sabe morrer. A
+> **sessão acaba de três jeitos** e os três devolvem — sair pelo menu, entrar de novo (o login limpa
+> o que sobrou) e **fechar o navegador**, coberto pela varredura por inatividade
+> (`edicoes.horas_sessao_avaliador`, padrão 12h; nunca fica em branco, senão quem some prende os
+> projetos para sempre). Junto veio o **prazo da avaliação aberta**
+> (`edicoes.dias_avaliacao_aberta`, em branco desliga), que vale nos **dois modos**: avaliação
+> começada e largada trava o projeto do mesmo jeito. Passado o prazo o projeto volta na hora para a
+> pilha, mas **a linha não é apagada** — `avaliacoes.devolvida_em` a esconde das contas de cobertura
+> e guarda dentro dela o que o avaliador respondeu; ele vê a avaliação numa seção própria do painel
+> e **retoma de onde parou** se o projeto ainda aceitar avaliação. Esconder as devolvidas é um
+> **global scope** (`AvaliacaoAtivaScope`), e não um `whereNull` repetido: as contas de cobertura
+> estão espalhadas por meia dúzia de serviços e esquecer uma faria o projeto continuar ocupado
+> depois de devolvido. A devolução por prazo entra em Registros em nome do sistema; a de fim de
+> sessão não, senão cada logout viraria uma linha.
+> (d) **Sprint 113** — designar uma área inteira quase sempre alcança alguém que **já avaliou**
+> aquele trabalho, e esse nome sumia em silêncio: o admin lia "2 designações criadas" e ia embora
+> achando que a cobertura aconteceu inteira. Agora `designar()` devolve quem ficou de fora e por
+> quê, e a tela mostra isso num aviso separado do "deu certo". Os elegíveis são designados
+> normalmente. De quebra, conserta um caso que a Sprint 112 abriu: o avaliador com avaliação
+> **devolvida pelo prazo** tem uma linha escondida pelo escopo, e o `firstOrCreate` bateria na chave
+> única de (projeto, avaliador) — designá-lo agora **revive** aquela avaliação com o rascunho dele.
+> (e) **Sprint 114** — defeito de produção: a mala direta chegava **sem anexo**. O disco privado
+> roda com `throw => false`, então um arquivo que não está mais em `storage/app/private` devolve
+> `null` em silêncio e o `Attachment::fromStorageDisk` monta um anexo de **0 byte**: o e-mail sai, o
+> relatório diz "enviado" e o destinatário recebe uma mensagem que promete o edital e não o entrega.
+> O teste que existia parava em `assertCount(1, $mensagem->attachments())` — confirmava que o
+> Mailable sabia **listar** o anexo, não que a mensagem o **carregava** (a mesma armadilha da Sprint
+> 102). Três camadas: o disparo recusa antes de enfileirar (uma mensagem, não 242 falhas); o envio
+> lê e confere, e faltando o destinatário vira **falha** com o motivo (*Reenviar falhas* resolve
+> depois); e o detalhe da mala passa a **listar os anexos** que foram junto — sem isso, uma mala que
+> saiu sem anexo é indistinguível de uma que nunca teve um. A causa raiz é de infraestrutura (o
+> upload é no web, a leitura é no `queue:work`), documentada na §deploy.
+> (f) **Sprint 115** — defeito de produção: uma avaliadora recebeu projetos designados pelo admin e
+> **eles não apareceram** na tela dela. O painel ordenava as avaliações por id e truncava a lista
+> inteira no mínimo por avaliador — uma designação manual, que por definição vem depois da
+> distribuição, caía fora do corte. Agora a fila é partida antes de cortar: **Designados pela
+> organização** (a manual e a que ele já abriu) fica **acima**, com moldura própria e **nunca
+> truncada**; o limite manda só na fila automática, que é a que o sorteio troca.
+> (g) **Sprint 116** — merge das **20 branches do dependabot**, a mais nova de cada pacote (as
+> superadas entraram com `-s ours`, para os PRs fecharem sem reabrir versão vencida). Dois majors:
+> **jsdom 29 → 30** (que exige Node `^22.22.2 || ^24.15.0 || >=26` para rodar `npm test`) e
+> **concurrently 9 → 10**. A **família TipTap subiu junta** para 3.31.3: o bump isolado do
+> `@tiptap/pm` quebrava os peers, porque o `@tiptap/core` fixa o `pm` na versão exata dele.
+> Back **892/892**, front **422/422**, Pint limpo, build OK.
+>
 > **Sprints 108–109 (mesma branch):** os dois números da avaliação ficaram independentes, e o
 > balcão ganhou rascunho.
 > (a) **Sprint 108** — as Sprints 106–107 deixaram os dois campos se atropelando: *designações* era
@@ -1225,6 +1326,33 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > e **Escolas** (`/admin/parametrizacao/escolas`): admin busca, **renomeia, mescla** (reatribui
 > projetos/alunos/orientadores) e **exclui** instituições sem uso (`InstituicaoAdminService`/Controller,
 > rotas `admin/instituicoes`). Back **117/117**, front 11/11, Pint limpo, build OK.
+> **Pendências do Pedro (Sprints 110–116):** (1) `git push origin feat/distribuicao-por-atividade`
+> + PR para a `main` (o ambiente do Claude não tem credencial do GitHub) e, depois do merge, o
+> deploy pela §11 do [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). Esta release **tem migrations**
+> (`edicoes.modo_distribuicao`, `edicoes.dias_avaliacao_aberta`, `edicoes.horas_sessao_avaliador`,
+> `avaliacoes.atividade_em` e `avaliacoes.devolvida_em`), **nenhuma variável nova de `.env`** e
+> **nenhuma dependência nova** além das atualizações do dependabot. O merge do dependabot mexeu no
+> `composer.lock` e no `package-lock.json`: rode `composer install` e `npm ci && npm run build` no
+> deploy.
+> (2) **`npm test` agora pede Node ≥ 22.22.2** (ou ≥ 24.15.0): é o piso do **jsdom 30**, que entrou
+> no merge do dependabot. Só afeta quem roda os testes — o build e a produção não usam jsdom.
+> (3) **O modo de distribuição nasce em "Total"**, o comportamento de hoje: nada muda até você
+> trocar em Avaliação online → Algoritmo de distribuição. Se trocar para **por Atividade**, confira
+> antes o **mínimo por avaliador** (é ele que diz quantos projetos cada um recebe ao entrar) e as
+> **horas de sessão** (padrão 12h). Nesse modo os botões *Distribuir* e *Redistribuir* ficam
+> desabilitados de propósito.
+> (4) **O prazo da avaliação aberta nasce em branco, ou seja, desligado.** Ligá-lo (Algoritmo de
+> distribuição → Prazos das designações) é o que passa a destravar sozinho projeto preso com quem
+> abriu a avaliação e sumiu — hoje isso só sai pela retirada manual em *Designações*.
+> (5) **O anexo da mala direta** (Sprint 114): a causa é o arquivo não estar mais em
+> `storage/app/private` na hora em que o worker envia. Antes de o próximo disparo com anexo sair,
+> confirme que o deploy **preserva `storage/`** entre releases (symlink para um diretório
+> compartilhado) e que o `queue:work` roda **na mesma máquina** do upload; com mais de uma máquina,
+> aponte o disco para S3. As malas que já saíram sem anexo podem ser reenviadas pelo relatório, em
+> *Reenviar falhas*, depois de arrumar isso.
+> (6) O relato da avaliadora (Sprint 115) está corrigido: os projetos que você designa à mão agora
+> aparecem numa lista destacada, acima da fila comum, e não são mais cortados pelo limite.
+>
 > **Pendências do Pedro (Sprints 87–92):** (1) `git push origin feat/credenciamento-demo-e-menu` +
 > PR para a `main` (o ambiente do Claude não tem credencial do GitHub) e, depois do merge, o deploy
 > pela §11 do [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). Esta release **tem migrations**
