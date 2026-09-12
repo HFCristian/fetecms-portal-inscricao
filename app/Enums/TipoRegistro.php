@@ -34,8 +34,8 @@ namespace App\Enums;
  * pessoa.
  *
  * Seção "Mapa do evento" (a ocupação do ginásio): a geração da lista de turnos
- * — que substitui a anterior por inteiro — e cada projeto que o admin move de
- * turno à mão depois dela. A troca manual não pede justificativa (é rearranjo de
+ * e a dos estandes — cada uma substitui a anterior por inteiro — e cada projeto
+ * que o admin move de turno ou de estande à mão depois delas. A troca manual não pede justificativa (é rearranjo de
  * logística, não escape do edital), mas fica registrada: no dia do evento é
  * preciso saber por que um projeto está em outro horário do que a lista dizia.
  *
@@ -90,6 +90,8 @@ enum TipoRegistro: string
     case AlmoxarifadoExclusao = 'almoxarifado_exclusao';
     case TurnosGerados = 'turnos_gerados';
     case TurnosProjetoMovido = 'turnos_projeto_movido';
+    case EstandesGerados = 'estandes_gerados';
+    case EstandeProjetoMovido = 'estande_projeto_movido';
 
     /** Seções da tela de Registros. */
     public const SECAO_INSCRICOES = 'inscricoes';
@@ -155,6 +157,8 @@ enum TipoRegistro: string
             self::AlmoxarifadoExclusao => 'Registro excluído',
             self::TurnosGerados => 'Turnos gerados',
             self::TurnosProjetoMovido => 'Projeto movido de turno',
+            self::EstandesGerados => 'Estandes gerados',
+            self::EstandeProjetoMovido => 'Projeto movido de estande',
         };
     }
 
@@ -173,7 +177,8 @@ enum TipoRegistro: string
             self::CredenciamentoRascunhoAssumido => self::SECAO_CREDENCIAMENTO,
             self::AlmoxarifadoGuarda, self::AlmoxarifadoRetirada,
             self::AlmoxarifadoEdicao, self::AlmoxarifadoExclusao => self::SECAO_ALMOXARIFADO,
-            self::TurnosGerados, self::TurnosProjetoMovido => self::SECAO_MAPA,
+            self::TurnosGerados, self::TurnosProjetoMovido,
+            self::EstandesGerados, self::EstandeProjetoMovido => self::SECAO_MAPA,
             default => self::SECAO_AVALIACAO,
         };
     }

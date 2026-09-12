@@ -521,6 +521,38 @@ class RegistroAtividadeService
     }
 
     /**
+     * Mapa do evento: os estandes foram distribuídos (ou redistribuídos).
+     *
+     * @param  array<string, mixed>  $resumo
+     */
+    public function estandesGerados(User $admin, array $resumo): RegistroAtividade
+    {
+        return RegistroAtividade::create([
+            'tipo' => TipoRegistro::EstandesGerados,
+            'user_id' => $admin->id,
+            'autor_email' => $admin->email,
+            'autor_nome' => $admin->name,
+            'autor_role' => $admin->role?->value,
+            'detalhes' => $resumo,
+        ]);
+    }
+
+    /**
+     * Mapa do evento: o admin trocou um projeto de estande.
+     *
+     * Quando o número de destino já era de outro projeto, os dois trocam de
+     * lugar — e cada um vira um registro, para a trilha explicar as duas pontas
+     * da troca em vez de só a que foi clicada.
+     */
+    public function estandeProjetoMovido(Projeto $projeto, User $admin, string $de, string $para): RegistroAtividade
+    {
+        return $this->registrarNoProjeto(TipoRegistro::EstandeProjetoMovido, $projeto, $admin, [
+            'de' => $de,
+            'para' => $para,
+        ]);
+    }
+
+    /**
      * Consulta filtrada do painel. Filtros aceitos: `tipos` (lista), `de`/`ate`
      * (datas, inclusivas) e `busca` (e-mail, nome ou título do projeto).
      *
@@ -661,6 +693,16 @@ class RegistroAtividadeService
                 (int) ($detalhes['turno_a'] ?? 0),
                 (int) ($detalhes['turno_b'] ?? 0),
                 $regras === [] ? 'nenhuma' : implode('; ', $regras),
+            );
+        }
+
+        if ($registro->tipo === TipoRegistro::EstandesGerados) {
+            $faixas = (array) ($detalhes['faixas'] ?? []);
+
+            return sprintf(
+                '%d projeto(s) em estande · faixas: %s',
+                (int) ($detalhes['total'] ?? 0),
+                $faixas === [] ? 'nenhuma (numeração corrida)' : implode('; ', $faixas),
             );
         }
 

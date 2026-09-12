@@ -47,6 +47,8 @@ import ComiteTransporte from './pages/ComiteTransporte.jsx';
 import ComiteMapa from './pages/ComiteMapa.jsx';
 import MapaEventoHome from './pages/MapaEventoHome.jsx';
 import MapaTurnos from './pages/MapaTurnos.jsx';
+import MapaEstandes from './pages/MapaEstandes.jsx';
+import MapaPlanta from './pages/MapaPlanta.jsx';
 import CredenciamentoLista from './pages/CredenciamentoLista.jsx';
 import CredenciamentoFicha from './pages/CredenciamentoFicha.jsx';
 import CredenciamentoContas from './pages/CredenciamentoContas.jsx';
@@ -156,6 +158,8 @@ export default function Root() {
                             <Route path="/admin/projetos-por-escola" element={<AdminProjetosPorEscola />} />
                             <Route path="/admin/mapa" element={<MapaEventoHome />} />
                             <Route path="/admin/mapa/turnos" element={<MapaTurnos />} />
+                            <Route path="/admin/mapa/estandes" element={<MapaEstandes />} />
+                            <Route path="/admin/mapa/planta" element={<MapaPlanta />} />
                             <Route path="/admin/parametrizacao" element={<Parametrizacao />} />
                             <Route path="/admin/parametrizacao/areas" element={<ParametrizacaoAreas />} />
                             <Route path="/admin/parametrizacao/edicoes" element={<ParametrizacaoEdicoes />} />

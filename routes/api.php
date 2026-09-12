@@ -33,6 +33,8 @@ use App\Http\Controllers\Api\V1\FeedbackController;
 use App\Http\Controllers\Api\V1\InscricoesController;
 use App\Http\Controllers\Api\V1\InstituicaoAdminController;
 use App\Http\Controllers\Api\V1\IntegranteController;
+use App\Http\Controllers\Api\V1\MapaEstandesController;
+use App\Http\Controllers\Api\V1\MapaPlantaController;
 use App\Http\Controllers\Api\V1\MapaTurnosController;
 use App\Http\Controllers\Api\V1\OrientadorAjusteController;
 use App\Http\Controllers\Api\V1\OrientadorController;
@@ -344,6 +346,19 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::patch('/turnos/mover', [MapaTurnosController::class, 'mover']);
                 Route::get('/turnos/exportar/{formato}', [MapaTurnosController::class, 'exportar'])
                     ->where('formato', 'txt|csv|pdf');
+
+                // Estandes dos projetos: em que número cada um fica, por turno.
+                Route::get('/estandes', [MapaEstandesController::class, 'index']);
+                Route::put('/estandes/config', [MapaEstandesController::class, 'salvarConfig']);
+                Route::post('/estandes/gerar', [MapaEstandesController::class, 'gerar']);
+                Route::patch('/estandes/mover', [MapaEstandesController::class, 'mover']);
+                Route::get('/estandes/exportar/{formato}', [MapaEstandesController::class, 'exportar'])
+                    ->where('formato', 'txt|csv|pdf');
+
+                // A planta do ginásio: o desenho (versionado) e a ocupação.
+                Route::get('/planta', [MapaPlantaController::class, 'index']);
+                Route::post('/planta', [MapaPlantaController::class, 'salvar']);
+                Route::post('/planta/{layout}/restaurar', [MapaPlantaController::class, 'restaurar']);
             });
 
             // --- Parametrização (as datas do período de avaliação moram nas
