@@ -12,6 +12,7 @@ use App\Models\Edicao;
 use App\Models\ListaFinal;
 use App\Models\Projeto;
 use App\Models\User;
+use App\Support\CodigoParticipante;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -617,6 +618,103 @@ class CredenciamentoService
         $vigente = $this->listaFinal($user, $teste);
 
         return $vigente !== null && $vigente->projetos()->whereKey($projeto->id)->exists();
+    }
+
+    /**
+     * Resolve o **código lido no balcão** (QR ou código de barras) e devolve a
+     * quem ele pertence — é o atalho que evita procurar o projeto pelo nome numa
+     * fila de 230 equipes.
+     *
+     * O código é o da identificação da lista final
+     * ({@see CodigoParticipante}): ano, projeto, três dígitos do
+     * CPF e o papel + id da pessoa. A conferência é em três camadas, e cada uma
+     * responde a uma coisa diferente:
+     *
+     * 1. **formato** — etiqueta amassada, QR de outro evento, dígito a menos;
+     * 2. **finalista** — o projeto existe, mas não está na lista que vale para
+     *    esta pessoa (o ensaio não abre a ficha de um finalista de verdade, e
+     *    vice-versa);
+     * 3. **pessoa** — o par papel+id existe naquele projeto, e os três dígitos
+     *    do CPF batem. É o que pega o crachá trocado entre dois colegas.
+     *
+     * @return array<string, mixed>
+     *
+     * @throws ValidationException
+     */
+    public function resolverCodigo(string $codigo, ?User $user = null, bool $teste = false): array
+    {
+        $lido = CodigoParticipante::ler($codigo);
+
+        if ($lido === null) {
+            throw ValidationException::withMessages([
+                'codigo' => 'Código não reconhecido. Leia de novo ou digite o que está escrito na etiqueta.',
+            ]);
+        }
+
+        $projeto = Projeto::with(['alunos', 'coorientador', 'user.orientadorProfile', 'instituicao'])
+            ->find($lido['projeto_id']);
+
+        if ($projeto === null || ! $this->ehFinalista($projeto, $user, $teste)) {
+            throw ValidationException::withMessages([
+                'codigo' => $teste
+                    ? 'Este código não é de um projeto da lista de demonstração. Desligue o modo de teste para atender um finalista de verdade.'
+                    : 'Este código não é de um projeto da lista final vigente.',
+            ]);
+        }
+
+        $pessoa = $this->acharPessoa($projeto, $lido['papel'], $lido['participante_id']);
+
+        if ($pessoa === null) {
+            throw ValidationException::withMessages([
+                'codigo' => 'O código é deste projeto, mas a pessoa não está mais na equipe dele.',
+            ]);
+        }
+
+        if (substr((string) preg_replace('/\D/', '', (string) $pessoa['cpf']), 0, 3) !== $lido['cpf3']) {
+            throw ValidationException::withMessages([
+                'codigo' => 'A etiqueta não confere com o cadastro desta pessoa. Confira se o crachá é dela mesma.',
+            ]);
+        }
+
+        return [
+            'codigo' => $codigo,
+            'projeto' => [
+                'id' => $projeto->id,
+                'titulo' => $projeto->titulo,
+                'categoria' => $projeto->categoria?->label(),
+                'escola' => $projeto->instituicao?->nome,
+            ],
+            'participante' => [
+                'nome' => $pessoa['nome'],
+                'papel' => $lido['papel'],
+                'papel_label' => CodigoParticipante::papelLabel($lido['papel']),
+            ],
+            'credenciado' => $this->credenciamentoDe($projeto)?->finalizado_em !== null,
+        ];
+    }
+
+    /**
+     * A pessoa do projeto por papel + id.
+     *
+     * @return array{nome:string, cpf:?string}|null
+     */
+    private function acharPessoa(Projeto $projeto, string $papel, int $id): ?array
+    {
+        if ($papel === CodigoParticipante::PAPEL_ALUNO) {
+            $aluno = $projeto->alunos->firstWhere('id', $id);
+
+            return $aluno === null ? null : ['nome' => $aluno->nome, 'cpf' => $aluno->cpf];
+        }
+
+        if ($papel === CodigoParticipante::PAPEL_ORIENTADOR) {
+            return $projeto->user?->id === $id
+                ? ['nome' => $projeto->user->name, 'cpf' => $projeto->user->orientadorProfile?->cpf]
+                : null;
+        }
+
+        return $projeto->coorientador?->id === $id
+            ? ['nome' => $projeto->coorientador->nome, 'cpf' => $projeto->coorientador->cpf]
+            : null;
     }
 
     public function credenciamentoDe(Projeto $projeto): ?Credenciamento

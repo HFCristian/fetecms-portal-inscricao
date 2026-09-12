@@ -109,6 +109,22 @@ const SECOES = {
         placeholder: 'Buscar por título do projeto ou quem registrou…',
         vazio: 'Nenhuma movimentação de almoxarifado por enquanto.',
     },
+    mapa: {
+        titulo: 'Registros · Mapa do evento',
+        descricao: 'A ocupação do ginásio: cada geração da lista de turnos e da distribuição de '
+            + 'estandes — que substituem a anterior por inteiro — e cada projeto que o admin moveu '
+            + 'de horário ou de lugar à mão.',
+        placeholder: 'Buscar por título do projeto ou quem gerou…',
+        vazio: 'Nenhuma movimentação do mapa por enquanto.',
+    },
+    notas: {
+        titulo: 'Registros · Notas',
+        descricao: 'Quem abriu a nota que um avaliador deu a um projeto, quando e qual era o valor '
+            + 'na tela. A consulta não muda nada, mas o parecer é anônimo para o orientador — e é '
+            + 'este registro que protege esse sigilo.',
+        placeholder: 'Buscar por título do projeto ou quem consultou…',
+        vazio: 'Nenhuma consulta de nota registrada por enquanto.',
+    },
 };
 
 const PAPEL = { orientador: 'Orientador', avaliador: 'Avaliador', admin: 'Administrador' };

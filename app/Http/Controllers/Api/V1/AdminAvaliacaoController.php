@@ -20,6 +20,7 @@ use App\Http\Requests\Admin\ListarProjetosAvaliacaoRequest;
 use App\Http\Requests\Admin\MinimosAvaliacaoRequest;
 use App\Http\Requests\Admin\RegrasDistribuicaoRequest;
 use App\Http\Requests\Admin\RetirarDesignacoesRequest;
+use App\Models\Avaliacao;
 use App\Models\Distribuicao;
 use App\Models\Edicao;
 use App\Models\ListaFinal;
@@ -93,6 +94,56 @@ class AdminAvaliacaoController extends Controller
         return response()->json([
             'data' => $resultado,
             'meta' => ['message' => $mensagem],
+        ]);
+    }
+
+    /**
+     * A nota que um avaliador deu a um projeto, seção por seção, com a soma.
+     *
+     * É POST, e não GET, porque **abrir a nota vira registro** (Registros →
+     * Notas): num GET, um prefetch do navegador ou um F5 gravariam consultas que
+     * ninguém fez.
+     */
+    public function notasDaDesignacao(Request $request, Avaliacao $avaliacao): JsonResponse
+    {
+        return response()->json([
+            'data' => $this->designacao->notas($avaliacao, $request->user()),
+        ]);
+    }
+
+    /** As duas listas do diálogo de designação em massa, filtradas pela busca. */
+    public function opcoesDeDesignacao(Request $request): JsonResponse
+    {
+        return response()->json([
+            'data' => $this->designacao->opcoesDeDesignacao(
+                (string) $request->query('projeto', ''),
+                (string) $request->query('avaliador', ''),
+            ),
+        ]);
+    }
+
+    /**
+     * Designa vários projetos para vários avaliadores de uma vez — o cruzamento
+     * de tudo com tudo, pulando quem já avaliou aquele projeto.
+     */
+    public function designarEmMassa(Request $request): JsonResponse
+    {
+        $dados = $request->validate([
+            'projeto_ids' => ['required', 'array', 'min:1', 'max:200'],
+            'projeto_ids.*' => ['integer'],
+            'avaliador_ids' => ['required', 'array', 'min:1', 'max:200'],
+            'avaliador_ids.*' => ['integer'],
+        ]);
+
+        $resultado = $this->designacao->designar(
+            $dados['projeto_ids'],
+            $dados['avaliador_ids'],
+            $request->user(),
+        );
+
+        return response()->json([
+            'data' => $resultado,
+            'meta' => ['message' => $resultado['resumo'].' '.$resultado['problemas']],
         ]);
     }
 

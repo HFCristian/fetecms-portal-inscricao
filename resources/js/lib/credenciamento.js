@@ -11,6 +11,13 @@ const comTeste = (params = {}, teste = false) => (teste ? { ...params, teste: 1 
 export const getCredenciamentoConfig = (teste = false) =>
     http.get('/admin/credenciamento/config', { params: comTeste({}, teste) }).then((r) => r.data.data);
 
+/**
+ * A leitura do crachá no balcão: devolve de quem é o código e qual projeto
+ * abrir. Quem valida (formato, lista vigente, pessoa da equipe) é o servidor.
+ */
+export const lerCodigoCredenciamento = (codigo, teste = false) =>
+    http.post('/admin/credenciamento/codigo', comTeste({ codigo }, teste)).then((r) => r.data.data);
+
 /** Finalistas com a situação de cada um. `filtros`: { busca, area_id, categoria, situacao, page }. */
 export const getFinalistas = (filtros = {}, teste = false) =>
     http.get('/admin/credenciamento/finalistas', { params: comTeste(filtros, teste) }).then((r) => r.data);

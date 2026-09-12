@@ -72,6 +72,18 @@ export default function AdminRegistrosHome() {
                     titulo="Avaliação Online"
                     descricao="Mudanças de parâmetro do período: início, fim e os mínimos de avaliações."
                 />
+                <CardSecao
+                    to="/admin/registros/notas"
+                    icon="scoreboard"
+                    titulo="Notas"
+                    descricao="Quem abriu a nota que um avaliador deu a um projeto, quando e qual era o valor."
+                />
+                <CardSecao
+                    to="/admin/registros/mapa"
+                    icon="map"
+                    titulo="Mapa do evento"
+                    descricao="A geração dos turnos e dos estandes e cada projeto movido de horário ou de lugar à mão."
+                />
             </div>
         </AppShell>
     );

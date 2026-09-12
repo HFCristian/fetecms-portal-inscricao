@@ -15,6 +15,8 @@ enum ModeloEmail: string
     case ConfirmacaoCadastro = 'confirmacao_cadastro';
     case ProjetoSubmetido = 'projeto_submetido';
     case FeedbackSolicitado = 'feedback_solicitado';
+    case ProjetosDesignados = 'projetos_designados';
+    case DesignacaoConcluida = 'designacao_concluida';
 
     /** Texto de fábrica do comprovante de submissão. */
     private const CORPO_PROJETO_SUBMETIDO = <<<'TXT'
@@ -38,12 +40,36 @@ enum ModeloEmail: string
         Para responder, entre no portal: o convite aparece assim que você acessa.
         TXT;
 
+    /** Texto de fábrica do aviso de projetos designados ao avaliador. */
+    private const CORPO_PROJETOS_DESIGNADOS = <<<'TXT'
+        Olá, {{nome}}!
+
+        A organização da XVI FETECMS designou {{quantidade}} projeto(s) para a sua avaliação:
+
+        {{projetos}}
+
+        Eles já estão na sua tela de avaliação, na lista "Designados pela organização". Entre no portal para começar.
+        TXT;
+
+    /** Texto de fábrica do resumo que volta para quem fez a designação. */
+    private const CORPO_DESIGNACAO_CONCLUIDA = <<<'TXT'
+        Olá, {{nome}}!
+
+        A designação que você fez no portal terminou.
+
+        {{resumo}}
+
+        {{problemas}}
+        TXT;
+
     public function label(): string
     {
         return match ($this) {
             self::ConfirmacaoCadastro => 'Confirmação de cadastro',
             self::ProjetoSubmetido => 'Projeto submetido',
             self::FeedbackSolicitado => 'Pedido de feedback',
+            self::ProjetosDesignados => 'Projetos designados ao avaliador',
+            self::DesignacaoConcluida => 'Designação concluída (para o admin)',
         };
     }
 
@@ -53,6 +79,8 @@ enum ModeloEmail: string
             self::ConfirmacaoCadastro => 'Vai para quem acabou de preencher o cadastro de orientador ou de avaliador, com o código de 6 dígitos que libera a conta.',
             self::ProjetoSubmetido => 'O comprovante que o orientador recebe assim que submete a inscrição, com o título, a data e a categoria do projeto.',
             self::FeedbackSolicitado => 'O convite que sai para cada pessoa alcançada por um pedido de feedback publicado em Comunicação → Feedback.',
+            self::ProjetosDesignados => 'O aviso que o avaliador recebe quando o admin designa projetos a ele em Avaliação online → Designações, com a lista do que chegou.',
+            self::DesignacaoConcluida => 'O resumo que volta para o administrador que fez a designação: quantas foram criadas e o que não pôde ser designado.',
         };
     }
 
@@ -62,6 +90,8 @@ enum ModeloEmail: string
             self::ConfirmacaoCadastro => ConfirmacaoCadastroService::ASSUNTO_PADRAO,
             self::ProjetoSubmetido => 'Projeto submetido — XVI FETECMS',
             self::FeedbackSolicitado => '{{titulo}} — XVI FETECMS',
+            self::ProjetosDesignados => 'Novos projetos para avaliar — XVI FETECMS',
+            self::DesignacaoConcluida => 'Designação concluída — XVI FETECMS',
         };
     }
 
@@ -71,6 +101,8 @@ enum ModeloEmail: string
             self::ConfirmacaoCadastro => ConfirmacaoCadastroService::CORPO_PADRAO,
             self::ProjetoSubmetido => self::CORPO_PROJETO_SUBMETIDO,
             self::FeedbackSolicitado => self::CORPO_FEEDBACK,
+            self::ProjetosDesignados => self::CORPO_PROJETOS_DESIGNADOS,
+            self::DesignacaoConcluida => self::CORPO_DESIGNACAO_CONCLUIDA,
         };
     }
 
@@ -100,6 +132,20 @@ enum ModeloEmail: string
                 ['chave' => 'titulo', 'descricao' => 'Título do pedido de feedback'],
                 ['chave' => 'descricao', 'descricao' => 'A descrição escrita no pedido'],
                 ['chave' => 'perguntas', 'descricao' => 'Quantas perguntas o questionário tem'],
+            ],
+            self::ProjetosDesignados => [
+                ['chave' => 'nome', 'descricao' => 'Primeiro nome do avaliador'],
+                ['chave' => 'nome_completo', 'descricao' => 'Nome completo do avaliador'],
+                ['chave' => 'email', 'descricao' => 'E-mail do avaliador'],
+                ['chave' => 'quantidade', 'descricao' => 'Quantos projetos foram designados agora'],
+                ['chave' => 'projetos', 'descricao' => 'A lista dos projetos designados, um por linha'],
+            ],
+            self::DesignacaoConcluida => [
+                ['chave' => 'nome', 'descricao' => 'Primeiro nome do administrador'],
+                ['chave' => 'nome_completo', 'descricao' => 'Nome completo do administrador'],
+                ['chave' => 'email', 'descricao' => 'E-mail do administrador'],
+                ['chave' => 'resumo', 'descricao' => 'Quantas designações foram criadas e para quantos avaliadores'],
+                ['chave' => 'problemas', 'descricao' => 'O que não pôde ser designado — ou a confirmação de que deu tudo certo'],
             ],
             self::ConfirmacaoCadastro => [
                 ['chave' => 'nome', 'descricao' => 'Primeiro nome de quem se cadastrou'],

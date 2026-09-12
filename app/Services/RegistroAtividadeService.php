@@ -484,6 +484,101 @@ class RegistroAtividadeService
     }
 
     /**
+     * Mapa do evento: a lista de turnos foi gerada (ou gerada de novo).
+     *
+     * Não aponta para projeto nenhum de propósito — a geração é um ato sobre a
+     * lista inteira, e amarrá-la a um projeto qualquer daria a entender que só
+     * aquele mudou. O resumo guarda o que a geração decidiu: quantos em cada
+     * turno, as capacidades e quais regras estavam ligadas.
+     *
+     * @param  array<string, mixed>  $resumo
+     */
+    public function turnosGerados(User $admin, array $resumo): RegistroAtividade
+    {
+        return RegistroAtividade::create([
+            'tipo' => TipoRegistro::TurnosGerados,
+            'user_id' => $admin->id,
+            'autor_email' => $admin->email,
+            'autor_nome' => $admin->name,
+            'autor_role' => $admin->role?->value,
+            'detalhes' => $resumo,
+        ]);
+    }
+
+    /**
+     * Mapa do evento: o admin moveu um projeto de turno à mão.
+     *
+     * Sem justificativa — é rearranjo de logística, não escape do edital —, mas
+     * registrado: no dia do evento é preciso saber por que um projeto está num
+     * horário diferente do que a lista gerada dizia.
+     */
+    public function turnoProjetoMovido(Projeto $projeto, User $admin, string $de, string $para): RegistroAtividade
+    {
+        return $this->registrarNoProjeto(TipoRegistro::TurnosProjetoMovido, $projeto, $admin, [
+            'de' => $de,
+            'para' => $para,
+        ]);
+    }
+
+    /**
+     * Mapa do evento: os estandes foram distribuídos (ou redistribuídos).
+     *
+     * @param  array<string, mixed>  $resumo
+     */
+    public function estandesGerados(User $admin, array $resumo): RegistroAtividade
+    {
+        return RegistroAtividade::create([
+            'tipo' => TipoRegistro::EstandesGerados,
+            'user_id' => $admin->id,
+            'autor_email' => $admin->email,
+            'autor_nome' => $admin->name,
+            'autor_role' => $admin->role?->value,
+            'detalhes' => $resumo,
+        ]);
+    }
+
+    /**
+     * Mapa do evento: o admin trocou um projeto de estande.
+     *
+     * Quando o número de destino já era de outro projeto, os dois trocam de
+     * lugar — e cada um vira um registro, para a trilha explicar as duas pontas
+     * da troca em vez de só a que foi clicada.
+     */
+    public function estandeProjetoMovido(Projeto $projeto, User $admin, string $de, string $para): RegistroAtividade
+    {
+        return $this->registrarNoProjeto(TipoRegistro::EstandeProjetoMovido, $projeto, $admin, [
+            'de' => $de,
+            'para' => $para,
+        ]);
+    }
+
+    /**
+     * Um administrador abriu a **nota** que um avaliador deu a um projeto
+     * (Avaliação online → Designações → Ver notas).
+     *
+     * Consulta não muda nada, e mesmo assim vira registro: a nota decide a lista
+     * final, e o avaliador é anônimo para o orientador. Saber **quem viu** a nota
+     * de quem, e quando, é o que protege o sigilo do parecer — e o que permite
+     * responder a uma contestação sobre vazamento sem depender da memória de
+     * ninguém.
+     *
+     * A nota vai junto, congelada no valor que estava na tela: a edição do
+     * parecer (Sprint 100) não mexe na nota, mas uma reescala futura mexeria, e o
+     * registro precisa continuar dizendo o que aquela pessoa leu.
+     */
+    public function notasVisualizadas(
+        Projeto $projeto,
+        User $admin,
+        string $avaliador,
+        ?float $nota,
+    ): RegistroAtividade {
+        return $this->registrarNoProjeto(TipoRegistro::NotasVisualizadas, $projeto, $admin, [
+            'avaliador' => $avaliador,
+            'nota' => $nota === null ? null : number_format($nota, 2, ',', ''),
+        ]);
+    }
+
+    /**
      * Consulta filtrada do painel. Filtros aceitos: `tipos` (lista), `de`/`ate`
      * (datas, inclusivas) e `busca` (e-mail, nome ou título do projeto).
      *
@@ -614,13 +709,45 @@ class RegistroAtividadeService
                 .(empty($detalhes['quando']) ? '' : ' · em '.$detalhes['quando']);
         }
 
+        // A geração dos turnos é um ato sobre a lista inteira: o que interessa
+        // é o placar dos dois turnos e quais regras estavam ligadas.
+        if ($registro->tipo === TipoRegistro::TurnosGerados) {
+            $regras = (array) ($detalhes['regras'] ?? []);
+
+            return sprintf(
+                'turno A: %d · turno B: %d · regras: %s',
+                (int) ($detalhes['turno_a'] ?? 0),
+                (int) ($detalhes['turno_b'] ?? 0),
+                $regras === [] ? 'nenhuma' : implode('; ', $regras),
+            );
+        }
+
+        // Consulta de nota não é "de → para": é quem foi lido, e quanto.
+        if ($registro->tipo === TipoRegistro::NotasVisualizadas) {
+            return sprintf(
+                'viu a nota de %s%s',
+                $detalhes['avaliador'] ?? 'um avaliador',
+                empty($detalhes['nota']) ? '' : ' · nota '.$detalhes['nota'],
+            );
+        }
+
+        if ($registro->tipo === TipoRegistro::EstandesGerados) {
+            $faixas = (array) ($detalhes['faixas'] ?? []);
+
+            return sprintf(
+                '%d projeto(s) em estande · faixas: %s',
+                (int) ($detalhes['total'] ?? 0),
+                $faixas === [] ? 'nenhuma (numeração corrida)' : implode('; ', $faixas),
+            );
+        }
+
         if ($registro->tipo === TipoRegistro::TrocaEmail && isset($detalhes['de'], $detalhes['para'])) {
             $partes[] = $detalhes['de'].' → '.$detalhes['para'];
         }
         $comDeEPara = in_array($registro->tipo->secao(), [
             TipoRegistro::SECAO_AVALIACAO, TipoRegistro::SECAO_PROJETOS,
             TipoRegistro::SECAO_RASCUNHOS, TipoRegistro::SECAO_LISTA_FINAL,
-            TipoRegistro::SECAO_CREDENCIAMENTO,
+            TipoRegistro::SECAO_CREDENCIAMENTO, TipoRegistro::SECAO_MAPA,
         ], true);
         if ($comDeEPara && array_key_exists('para', $detalhes)) {
             $valor = fn ($v) => ($v === null || $v === '') ? '(sem valor)' : (string) $v;

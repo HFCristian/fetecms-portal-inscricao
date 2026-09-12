@@ -243,6 +243,18 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     paginação. O admin marca linhas e **retira** a designação: o projeto volta ao bolo e é
     **redesignado na hora** para outro avaliador, pelas prioridades do edital
     (`DistribuicaoService::designarUm()`); sem ninguém elegível ele fica sub-coberto e a tela avisa.
+    Cada linha tem ainda **Ver notas**, que abre a nota daquela avaliação **seção por
+    seção** da rubrica (com a resposta em palavras e os pontos de cada pergunta), a
+    **soma geral** e o parecer escrito. Só avaliação **concluída** tem nota, e **abrir
+    fica registrado** em Registros → Notas — a nota decide a lista final e o parecer é
+    anônimo para o orientador.
+    O botão **Designar** faz o caminho inverso, em massa: o admin marca **um ou mais
+    projetos** e **um ou mais avaliadores** e o portal cruza tudo com tudo (3 × 2 = 6
+    designações). Quem **já avaliou** aquele projeto é pulado — a tela lista quem ficou
+    de fora e por quê — e quem teve a avaliação devolvida pelo prazo é **revivido** com
+    o rascunho. No fim, cada avaliador recebe **um** e-mail com a lista do que chegou
+    para ele e o admin que designou recebe o resumo da operação
+    (`DesignacaoService::designar()`, `NotificacaoDesignacaoService`).
     Sai o que está **designada** e o que está **em avaliação** (descartando o rascunho — é a única
     forma de destravar, já que o avaliador não desiste sozinho); **concluída nunca sai**. Cada
     retirada entra em Registros → Avaliação Online com o "de → para". `DesignacaoService`.
@@ -280,6 +292,33 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     obrigatória** e cada campo alterado vira um registro em **Registros → Projetos** com o
     "de → para" (`AdminProjetoEdicaoService`). No topo da tela, um **card destacado** soma todas as áreas:
     quantos projetos estão com 0, 1, 2 e 3+ avaliações concluídas, sempre no recorte dos filtros.
+  - **Mapa do Evento** (`/admin/mapa`): onde cada projeto apresenta, em três etapas
+    que dependem uma da outra e saem todas da **lista final vigente**.
+    **Turnos de Apresentação** (`/admin/mapa/turnos`) divide os finalistas entre o
+    **turno A (matutino)** e o **B (vespertino)** — o mesmo estande recebe um projeto
+    de manhã e outro à tarde, e é assim que 230 estandes acomodam até 460 trabalhos.
+    O admin informa a capacidade **de cada turno** e liga as regras que quiser, que
+    valem **em ordem de prioridade**: *Justificativa por Vestibular* e *Justificativa
+    (Outras)* têm listas próprias (várias por regra, com busca por projeto **ou por
+    participante**); as três de localidade — *fora do MS*, *fora da capital* e
+    *Campo Grande* — só escolhem o turno. Na justificativa o admin marca o turno em
+    que a pessoa **não pode** estar, e o projeto vai para o outro. O que nenhuma
+    regra alcança entra no **equilíbrio** 50/50. Capacidade é **teto**: turno cheio
+    empurra o projeto para o outro com aviso; lista maior que os dois somados
+    **recusa** a geração. Só a **última** lista vale, e o admin move projetos de
+    turno à mão — sem justificativa, com registro. Exporta em PDF, TXT e CSV
+    (`TurnosApresentacaoService`, `App\Support\RegrasTurnos`).
+    **Estandes dos Projetos** (`/admin/mapa/estandes`) diz **em que número** cada um
+    fica: uma faixa por categoria, escrita como no papel (`1-4, 7-9, 10-52`), e quem
+    não tem faixa ocupa o que sobrou. Faixa pequena demais manda o excedente para os
+    livres e avisa; o mesmo estande em duas categorias é recusado. Mandar um projeto
+    para um número ocupado **troca os dois de lugar** (`EstandesProjetosService`,
+    `App\Support\FaixaEstandes`).
+    **Mapa do Evento** (`/admin/mapa/planta`) é a planta do ginásio em SVG: clicar
+    num estande mostra quem apresenta nele nos dois turnos. Ela nasce com a prancha
+    da montadora (`App\Support\PlantaEvento`) e é **editável e versionada por
+    edição** (`mapa_layouts`) — cada gravação é uma versão nova, e restaurar uma
+    antiga também.
   - **Credenciamento** (`/admin/credenciamento`): o balcão do evento, em duas seções —
     **Credenciar** (os finalistas que ainda não passaram) e **Credenciados** (quem já passou), a
     mesma lista pesquisável com filtro por área e categoria. **Finalista é quem está na lista final
@@ -332,6 +371,14 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     (`/admin/almoxarifado/contas`), independente da do credenciamento: cada setor cadastra e
     renova só as suas, e a conta criada abre somente aquela aba (`contas_temporarias.setor`).
     `AlmoxarifadoService`.
+  - **Parametrização → Dados de demonstração** (`/admin/parametrizacao/demo`): tudo que
+    existe no portal para ensaio, num lugar só — contas marcadas `is_demo`, os projetos
+    delas (de **todas** as edições), avaliações (inclusive as devolvidas), listas finais
+    demo, credenciamentos, guardas do almoxarifado, ajustes e a trilha que isso gerou. Dá
+    para **desmarcar** uma conta (os projetos dela voltam a contar), **apagar** um item ou
+    **limpar tudo** — e **nada que não esteja marcado como demonstração é apagado aqui**.
+    Existe porque cada dado de ensaio sumia de uma tela diferente e ninguém conseguia
+    responder "o que ainda é de mentira no sistema?". `DadosDemoService`.
   - **Parametrização → Credenciamento** (`/admin/parametrizacao/credenciamento`): os **itens
     entregues** aos finalistas (`edicoes.itens_credenciamento`) e a **lista de documentos** exigida
     de cada papel (`documentos_credenciamento`, catálogo do portal). Documento já conferido em algum
@@ -351,7 +398,17 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     (não há WebSocket no projeto). **Privacidade**: guarda-se a última posição e o **trajeto vivo**;
     desligar o localizador — à mão ou pelo vencimento do prazo — **apaga o trajeto**.
     `ComiteTransporteService`, `localizacoes_comite` + `localizacao_comite_pontos`.
-  - **Registros** tem sete seções: **Inscrições**, **Avaliação Online**, **Lista final**
+  - **Registros** tem nove seções. A nona é **Notas** (`/admin/registros/notas`):
+    cada vez que um admin abre, em Designações, a nota que um avaliador deu a um
+    projeto — com o projeto, o avaliador e o valor que estava na tela. A consulta
+    não muda nada, mas a nota decide a lista final e o parecer é anônimo para o
+    orientador, então quem a lê fica rastreável. A oitava é **Mapa do evento**
+    (`turnos_gerados`, `turnos_projeto_movido`, `estandes_gerados`,
+    `estande_projeto_movido`): a geração de cada lista, que substitui a anterior por
+    inteiro, e cada projeto que o admin move de turno ou de estande à mão. Trocar de
+    lugar não pede justificativa (é logística, não escape do edital), mas fica
+    registrado: no dia do evento é preciso saber por que um projeto está em outro
+    horário do que a lista dizia. As outras sete: **Inscrições**, **Avaliação Online**, **Lista final**
     (`/admin/registros/lista-final` — publicação da lista oficial e cada projeto incluído ou
     retirado, com a justificativa), **Credenciamento** (`/admin/registros/credenciamento` — quem
     credenciou cada finalista, quando e o que ficou ausente), **Almoxarifado**
@@ -460,7 +517,7 @@ npm run build                     # build de produção
 npm test                          # testes de componente (Vitest)
 
 # Carga (k6 — instalar separadamente): k6 run load/k6-smoke.js
-# php artisan demo:ajustes           # projeto-exemplo da aba Ajustes do orientador demo
+# php artisan demo:ajustes           # projeto-exemplo da aba Ajustes (3 sugestões, 3 avaliadores)
 # php artisan demo:credenciamento     # lista final de demonstração, para ensaiar o balcão
 # Admin padrão (seed): admin@fetecms.test / password
 ```
@@ -619,7 +676,109 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 114 | Fix: anexo sumido do storage virava e-mail sem anexo, em silêncio | ✅ sim | ❌ não (manual do Pedro) | 31 |
 | 115 | Fix: designação da organização sumia da tela do avaliador; lista separada | ✅ sim | ❌ não (manual do Pedro) | 31 |
 | 116 | Merge das branches do dependabot (20 PRs) | ✅ sim | ❌ não (manual do Pedro) | 32 |
+| 117 | Parametrização → Dados de demonstração + corte do vazamento demo na avaliação | ✅ sim | ❌ não (manual do Pedro) | 33 |
+| 118 | Nova aba **Mapa do Evento** → Turnos de Apresentação (5 regras, equilíbrio, export) | ✅ sim | ❌ não (manual do Pedro) | 33 |
+| 119 | Mapa do Evento → Estandes dos Projetos (faixa por categoria, troca de lugar) | ✅ sim | ❌ não (manual do Pedro) | 34 |
+| 120 | Mapa do Evento → planta interativa do ginásio, editável e versionada | ✅ sim | ❌ não (manual do Pedro) | 34 |
+| 121 | Designações: botão **Designar** (N×N) + e-mail ao avaliador e ao admin | ✅ sim | ❌ não (manual do Pedro) | 35 |
+| 122 | Ajustes demo: 3 sugestões de 3 avaliadores em `orientador@fetecms.test` | ✅ sim | ❌ não (manual do Pedro) | 35 |
+| 123 | Identificação: QR Code + código de barras por participante da lista final | ✅ sim | ❌ não (manual do Pedro) | 36 |
+| 124 | Credenciamento: leitura do crachá (leitor USB ou câmera) abre a ficha | ✅ sim | ❌ não (manual do Pedro) | 36 |
+| 125 | Designações: **Ver notas** (seção por seção + soma) e Registros → **Notas** | ✅ sim | ❌ não (manual do Pedro) | 37 |
 
+> **Sprint 125 (mesma branch `feat/mapa-do-evento`):** a tabela de **Designações**
+> mostrava a situação de cada avaliação, mas não o que saiu dela — e é a nota que
+> decide a lista final. Cada linha ganhou **Ver notas**: um diálogo com a nota
+> **seção por seção** da rubrica oficial (o subtotal de cada uma sobre o teto
+> dela), cada pergunta com o **rótulo da escala** que o avaliador leu ("8 — Bom",
+> "Sim") e os pontos que rendeu, a **soma geral** em destaque e o parecer escrito,
+> que é o que explica o número. Pergunta em branco é dita como **não respondida**,
+> em vez de virar um zero silencioso; só **avaliação concluída** tem nota, então
+> nas outras o botão fica desabilitado dizendo o porquê.
+> Abrir a nota **vira registro** na seção nova **Registros → Notas**
+> (`notas_visualizadas`), com o projeto, o avaliador e o valor que estava na tela.
+> Consulta não muda nada, mas o parecer é **anônimo para o orientador**: saber quem
+> leu o quê é o que protege esse sigilo e o que responde a uma contestação sem
+> depender da memória de ninguém. Por isso o endpoint é **POST** — num GET, um
+> prefetch do navegador ou um F5 gravariam consultas que ninguém fez — e **cada
+> abertura** gera uma linha: o registro conta acessos, não avaliações.
+> De quebra, a seção **Mapa do evento** dos Registros (criada nas Sprints 118–119)
+> ganhou o card e a rota que faltavam no front — os registros existiam e não
+> tinham tela.
+> Back **978/978**, front **477/477**, Pint limpo, build OK.
+>
+> **Sprints 117–124 (branch `feat/mapa-do-evento`, saída da `origin/main` @ `3a49ba2`):**
+> o ciclo do **dia do evento** — onde cada projeto apresenta, em que estande, e
+> como o balcão reconhece quem chega — mais a faxina dos dados de ensaio.
+> (a) **Sprint 117** — **Parametrização → Dados de demonstração**. O portal
+> acumulou ensaio (contas de treinamento, o projeto-exemplo dos ajustes, a lista
+> final demo do balcão, as guardas do almoxarifado) e cada coisa sumia de uma
+> tela diferente: ninguém conseguia responder "o que ainda é de mentira aqui
+> dentro?". A tela nova responde e deixa limpar — desmarcar uma conta, apagar um
+> item ou tudo —, e **nada que não esteja marcado como demonstração sai por ali**
+> (`DadosDemoService`). Junto veio o conserto do vazamento que a motivou: o
+> projeto de um orientador demo aparecia em *Projetos submetidos* e podia ser
+> designado a um avaliador de verdade. As três consultas daquela tela e a de
+> *Designações* passaram a aplicar `Projeto::semDemo()`, como o painel, o ranking,
+> a lista final e a distribuição já faziam.
+> (b) **Sprint 118** — nasce a aba **Mapa do Evento** (`AbaAdmin::Mapa`, do RBAC
+> como as demais), com a primeira seção: **Turnos de Apresentação**. A feira tem
+> mais finalistas do que estandes — o mesmo estande recebe um projeto de manhã e
+> outro à tarde —, e dividir quem apresenta em cada turno era trabalho de
+> planilha que não sabia das justificativas. Agora a divisão sai da **lista final
+> vigente** por cinco regras **em ordem de prioridade** (vestibular, outras
+> justificativas, fora do MS, interior, capital): a primeira que alcança um
+> projeto decide o turno dele, e o resto é repartido para os dois turnos ficarem
+> equilibrados. A capacidade é **teto**: turno cheio manda o projeto para o outro
+> e a tela diz quais foram; não cabendo nos dois somados, a geração é **recusada**
+> com o número de lugares que faltam. Só a última lista vale, a troca manual de
+> turno não pede justificativa mas fica registrada, e o recorte exporta em PDF,
+> TXT e CSV (`TurnosApresentacaoService`, `RegrasTurnos`).
+> (c) **Sprint 119** — **Estandes dos Projetos**. A faixa de cada categoria é
+> escrita como se escreve no papel (`1-4, 7-9, 10-52`, em `FaixaEstandes`), saem
+> **duas listas** (uma por turno) e quem não tem faixa ocupa os números que
+> sobraram. O mesmo estande em duas categorias é recusado — seriam dois projetos
+> no mesmo lugar físico. Depois de gerada, mandar um projeto para um número
+> ocupado **troca os dois de lugar**, e a trilha conta os dois lados da troca.
+> (d) **Sprint 120** — a **planta do ginásio**, em SVG e na identidade do portal:
+> clicar num estande abre quem apresenta nele **de manhã e à tarde**. O desenho
+> começa na prancha da montadora (`PlantaEvento`: 230 estandes em dois blocos, com
+> a numeração serpenteante escrita à mão, porque a prancha não segue uma regra
+> única) e é **editável e versionado por edição** (`mapa_layouts`) — mover, 
+> renumerar, acrescentar e remover, com cada gravação virando uma **versão nova**.
+> Restaurar uma antiga também cria versão, para o histórico continuar sendo a
+> sequência do que esteve em vigor.
+> (e) **Sprint 121** — **Designações → Designar**. O admin marca um ou mais
+> projetos e um ou mais avaliadores e o portal cruza tudo com tudo (3 × 2 = 6).
+> Quem **já avaliou** aquele projeto é pulado, o resto é designado e a tela lista
+> quem ficou de fora e por quê; avaliação devolvida pelo prazo é **revivida** com
+> o rascunho. No fim, cada avaliador recebe **um** e-mail com a lista do que
+> chegou para ele e o admin recebe o resumo — os dois textos editáveis em
+> Comunicação → Modelos de e-mail (`projetos_designados`, `designacao_concluida`).
+> (f) **Sprint 122** — o ensaio da aba **Ajustes** passou a ter **três
+> avaliadores**: uma sugestão de área, uma de subárea e outra de área que
+> **disputa** com a primeira. É o caso difícil que o orientador precisa ver antes
+> — aceitar uma desliga a outra —, e com um avaliador só a tela parecia sempre
+> consensual. O orientador padrão do `demo:ajustes` agora é
+> **`orientador@fetecms.test`**, a conta do seed, marcada como demo.
+> (g) **Sprint 123** — **identificação dos participantes** da lista final: um QR
+> Code e um código de barras para cada aluno, orientador e coorientador. O código
+> é **derivado** (`CodigoParticipante`): ano da edição, id do projeto, três
+> dígitos do CPF e o id da pessoa com o prefixo do papel (`A`/`O`/`C`, sem o qual
+> os ids das três tabelas colidiriam). **Nada nele vem da composição da lista**,
+> então o crachá impresso hoje continua valendo depois de a lista subir de versão.
+> Os dois formatos servem aos dois leitores do evento — QR para a câmera, Code 128
+> para o leitor USB —, saem em **SVG** (imprime nítido, não depende da extensão
+> GD) e são baixáveis como **PDF de etiquetas** e **ZIP** por projeto.
+> (h) **Sprint 124** — o balcão passou a **ler o crachá**: campo com foco
+> automático (o leitor USB bipa e dá Enter, a ficha abre) e leitura por **câmera**
+> onde o navegador tem `BarcodeDetector` — onde não tem, o botão não aparece e a
+> tela explica. A conferência é em três camadas: **formato**, **finalista** (a
+> lista que vale para aquela pessoa — o modo de teste continua sem alcançar
+> finalista de verdade) e **pessoa** (papel+id na equipe e os três dígitos do CPF,
+> o que pega o crachá trocado entre colegas).
+> Back **970/970**, front **474/474**, Pint limpo, build OK.
+>
 > **Sprints 110–116 (branch `feat/distribuicao-por-atividade`, saída da `origin/main` @ `5fa3e81`):**
 > ciclo do ciclo de vida da designação, mais dois defeitos de produção e as dependências.
 > (a) **Sprint 110** — a fila do avaliador só sabia nascer de um jeito: o admin distribuía em
@@ -1326,6 +1485,36 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > e **Escolas** (`/admin/parametrizacao/escolas`): admin busca, **renomeia, mescla** (reatribui
 > projetos/alunos/orientadores) e **exclui** instituições sem uso (`InstituicaoAdminService`/Controller,
 > rotas `admin/instituicoes`). Back **117/117**, front 11/11, Pint limpo, build OK.
+> **Pendências do Pedro (Sprints 117–124):** (1) `git push origin feat/mapa-do-evento`
+> + PR para a `main` (o ambiente do Claude não tem credencial do GitHub) e, depois do
+> merge, o deploy pela §11 do [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). Esta release
+> **tem migrations** (`turnos_apresentacao`, `estandes_projetos`, `mapa_layouts` e as
+> colunas novas de `edicoes`), **nenhuma variável nova de `.env`** e **três dependências
+> novas de composer** — `dompdf/dompdf` (os PDFs do mapa e das etiquetas),
+> `bacon/bacon-qr-code` e `picqer/php-barcode-generator`. Todas são **puro PHP**: não
+> exigem a extensão GD, porque tudo sai em SVG. Rode `composer install` no deploy;
+> `npm` não mudou.
+> (2) **A aba Mapa do Evento é do RBAC**: quem já tem escopo atribuído **não a enxerga**
+> até você acrescentar "Mapa do Evento" ao escopo dele (Parametrização → Escopos de
+> admin). Admin sem escopo nenhum continua vendo tudo.
+> (3) **A ordem das três seções importa**: Turnos → Estandes → Planta. Os estandes
+> pedem a lista de turnos, e a planta só mostra ocupação depois dos estandes. Tudo parte
+> da **lista final oficial vigente** — sem ela, a primeira tela avisa e não gera nada.
+> (4) **A capacidade dos turnos nasce em 0.** Antes da primeira geração, informe quantos
+> estandes cada turno tem (na planta de 2026 são **230** nos dois) — senão a geração é
+> recusada dizendo que faltam lugares.
+> (5) **A planta padrão é a prancha de 03.08.26** (230 estandes). Se a montadora mudar o
+> desenho, ajuste na tela e salve: vira a versão vigente e a anterior fica no histórico.
+> (6) **Os crachás**: os códigos já existem assim que a lista final é publicada — baixe o
+> **PDF de etiquetas** na tela da lista. Vale conferir um código no leitor USB do balcão
+> antes do evento (o campo de leitura fica em Credenciamento → Credenciar).
+> (7) **`orientador@fetecms.test` virou conta demo** ao rodar `php artisan demo:ajustes`:
+> os projetos dela saem do painel, do ranking e da lista final. Para desfazer, use
+> Parametrização → **Dados de demonstração** e desmarque a conta.
+> (8) O projeto de `orientador.credenciamento@fetecms.test` **não aparece mais** em
+> Projetos submetidos nem em Designações — era o vazamento que você relatou. Ele continua
+> visível (e apagável) em Parametrização → Dados de demonstração.
+>
 > **Pendências do Pedro (Sprints 110–116):** (1) `git push origin feat/distribuicao-por-atividade`
 > + PR para a `main` (o ambiente do Claude não tem credencial do GitHub) e, depois do merge, o
 > deploy pela §11 do [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). Esta release **tem migrations**

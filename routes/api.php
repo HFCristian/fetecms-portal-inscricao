@@ -25,13 +25,18 @@ use App\Http\Controllers\Api\V1\ComiteTransporteController;
 use App\Http\Controllers\Api\V1\ContaTemporariaController;
 use App\Http\Controllers\Api\V1\CoorientadorController;
 use App\Http\Controllers\Api\V1\CredenciamentoController;
+use App\Http\Controllers\Api\V1\DadosDemoController;
 use App\Http\Controllers\Api\V1\DocumentoController;
 use App\Http\Controllers\Api\V1\EdicaoController;
 use App\Http\Controllers\Api\V1\EscopoAdminController;
 use App\Http\Controllers\Api\V1\FeedbackController;
+use App\Http\Controllers\Api\V1\IdentificacaoController;
 use App\Http\Controllers\Api\V1\InscricoesController;
 use App\Http\Controllers\Api\V1\InstituicaoAdminController;
 use App\Http\Controllers\Api\V1\IntegranteController;
+use App\Http\Controllers\Api\V1\MapaEstandesController;
+use App\Http\Controllers\Api\V1\MapaPlantaController;
+use App\Http\Controllers\Api\V1\MapaTurnosController;
 use App\Http\Controllers\Api\V1\OrientadorAjusteController;
 use App\Http\Controllers\Api\V1\OrientadorController;
 use App\Http\Controllers\Api\V1\ParametrizacaoAbasController;
@@ -254,9 +259,23 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 // registro em Registros → Lista final.
                 Route::post('/avaliacao/listas-finais/{lista}/projetos', [AdminAvaliacaoController::class, 'adicionarNaListaFinal']);
                 Route::delete('/avaliacao/listas-finais/{lista}/projetos/{projeto}', [AdminAvaliacaoController::class, 'removerDaListaFinal']);
+
+                // Identificação dos participantes: o QR Code e o código de
+                // barras de cada pessoa da lista, para o evento.
+                Route::get('/avaliacao/listas-finais/{lista}/identificacao', [IdentificacaoController::class, 'index']);
+                Route::get('/avaliacao/listas-finais/{lista}/identificacao/pdf', [IdentificacaoController::class, 'pdf']);
+                Route::get('/avaliacao/listas-finais/{lista}/identificacao/zip', [IdentificacaoController::class, 'zip']);
+                Route::get('/avaliacao/identificacao/{tipo}/{codigo}.svg', [IdentificacaoController::class, 'svg'])
+                    ->where(['tipo' => 'qr|barras', 'codigo' => '[0-9A-Za-z\\-]+']);
                 // Designações: a tabela com tudo que está na mão de cada avaliador.
                 Route::get('/avaliacao/designacoes', [AdminAvaliacaoController::class, 'designacoes']);
                 Route::post('/avaliacao/designacoes/retirar', [AdminAvaliacaoController::class, 'retirarDesignacoes']);
+                // Designação em massa: N projetos × N avaliadores de uma vez.
+                Route::get('/avaliacao/designacoes/opcoes', [AdminAvaliacaoController::class, 'opcoesDeDesignacao']);
+                Route::post('/avaliacao/designacoes/designar', [AdminAvaliacaoController::class, 'designarEmMassa']);
+                // Ver a nota de uma avaliação concluída. POST porque a consulta
+                // fica registrada em Registros → Notas.
+                Route::post('/avaliacao/designacoes/{avaliacao}/notas', [AdminAvaliacaoController::class, 'notasDaDesignacao']);
                 Route::post('/avaliacao/projetos/{projeto}/designar', [AdminAvaliacaoController::class, 'designar']);
                 // Correção manual da classificação/vídeo de um projeto submetido
                 // (justificativa obrigatória; cada campo vira registro).
@@ -291,6 +310,8 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::patch('/contas/{conta}/desativar', [ContaTemporariaController::class, 'desativar'])->defaults('setor', 'credenciamento');
 
                 Route::get('/config', [CredenciamentoController::class, 'config']);
+                // A leitura do crachá: o atalho do balcão para a ficha certa.
+                Route::post('/codigo', [CredenciamentoController::class, 'lerCodigo']);
                 Route::get('/finalistas', [CredenciamentoController::class, 'index']);
                 Route::get('/projetos/{projeto}', [CredenciamentoController::class, 'show']);
                 Route::post('/projetos/{projeto}', [CredenciamentoController::class, 'store']);
@@ -329,6 +350,32 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                     ->middleware('throttle:60,1');
                 Route::get('/mapa', [ComiteTransporteController::class, 'mapa']);
                 Route::get('/mapa/{localizacao}', [ComiteTransporteController::class, 'detalhe']);
+            });
+
+            // --- Aba "Mapa do Evento": a ocupação do ginásio ---
+            Route::middleware('aba:mapa')->prefix('mapa')->group(function () {
+                // Turnos de apresentação: a divisão dos finalistas entre o
+                // matutino e o vespertino, a partir da lista final vigente.
+                Route::get('/turnos', [MapaTurnosController::class, 'index']);
+                Route::get('/turnos/opcoes', [MapaTurnosController::class, 'opcoes']);
+                Route::put('/turnos/config', [MapaTurnosController::class, 'salvarConfig']);
+                Route::post('/turnos/gerar', [MapaTurnosController::class, 'gerar']);
+                Route::patch('/turnos/mover', [MapaTurnosController::class, 'mover']);
+                Route::get('/turnos/exportar/{formato}', [MapaTurnosController::class, 'exportar'])
+                    ->where('formato', 'txt|csv|pdf');
+
+                // Estandes dos projetos: em que número cada um fica, por turno.
+                Route::get('/estandes', [MapaEstandesController::class, 'index']);
+                Route::put('/estandes/config', [MapaEstandesController::class, 'salvarConfig']);
+                Route::post('/estandes/gerar', [MapaEstandesController::class, 'gerar']);
+                Route::patch('/estandes/mover', [MapaEstandesController::class, 'mover']);
+                Route::get('/estandes/exportar/{formato}', [MapaEstandesController::class, 'exportar'])
+                    ->where('formato', 'txt|csv|pdf');
+
+                // A planta do ginásio: o desenho (versionado) e a ocupação.
+                Route::get('/planta', [MapaPlantaController::class, 'index']);
+                Route::post('/planta', [MapaPlantaController::class, 'salvar']);
+                Route::post('/planta/{layout}/restaurar', [MapaPlantaController::class, 'restaurar']);
             });
 
             // --- Parametrização (as datas do período de avaliação moram nas
@@ -386,6 +433,17 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::put('/subareas/{subarea}', [CatalogoAdminController::class, 'updateSubarea']);
                 Route::post('/subareas/{subarea}/mesclar', [CatalogoAdminController::class, 'mergeSubarea']);
                 Route::delete('/subareas/{subarea}', [CatalogoAdminController::class, 'destroySubarea']);
+
+                // Parametrização → Dados de demonstração: o que existe de
+                // ensaio no portal (contas, projetos, listas, guardas) e a
+                // limpeza. Só apaga o que está marcado como demonstração.
+                Route::get('/demo', [DadosDemoController::class, 'index']);
+                Route::patch('/demo/contas/{usuario}', [DadosDemoController::class, 'definirDemo']);
+                Route::delete('/demo/contas/{usuario}', [DadosDemoController::class, 'excluirConta']);
+                Route::delete('/demo/projetos/{projeto}', [DadosDemoController::class, 'excluirProjeto']);
+                Route::delete('/demo/listas/{lista}', [DadosDemoController::class, 'excluirLista']);
+                Route::delete('/demo/guardas/{guarda}', [DadosDemoController::class, 'excluirGuarda']);
+                Route::post('/demo/limpar', [DadosDemoController::class, 'limpar']);
 
                 // Parametrização das instituições de ensino (escolas)
                 Route::get('/instituicoes', [InstituicaoAdminController::class, 'index']);

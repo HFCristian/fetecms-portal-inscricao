@@ -33,6 +33,18 @@ namespace App\Enums;
  * de kit, que pode acontecer depois do credenciamento e no nome de outra
  * pessoa.
  *
+ * Seção "Notas" (quem abriu a nota de quem): cada vez que um administrador abre
+ * o detalhe da nota que um avaliador deu a um projeto, em Avaliação online →
+ * Designações. A nota é o que decide a lista final, e o avaliador é anônimo para
+ * o orientador — então quem a consulta fica registrado, com o projeto, o
+ * avaliador e o valor que estava na tela naquele momento.
+ *
+ * Seção "Mapa do evento" (a ocupação do ginásio): a geração da lista de turnos
+ * e a dos estandes — cada uma substitui a anterior por inteiro — e cada projeto
+ * que o admin move de turno ou de estande à mão depois delas. A troca manual não pede justificativa (é rearranjo de
+ * logística, não escape do edital), mas fica registrada: no dia do evento é
+ * preciso saber por que um projeto está em outro horário do que a lista dizia.
+ *
  * Seção "Almoxarifado" (a guarda de volumes durante a feira): o material que
  * entrou, o que saiu e para quem, e as correções e exclusões de registro — as
  * duas últimas com justificativa obrigatória. É material de outra pessoa na mão
@@ -82,6 +94,11 @@ enum TipoRegistro: string
     case AlmoxarifadoRetirada = 'almoxarifado_retirada';
     case AlmoxarifadoEdicao = 'almoxarifado_edicao';
     case AlmoxarifadoExclusao = 'almoxarifado_exclusao';
+    case TurnosGerados = 'turnos_gerados';
+    case TurnosProjetoMovido = 'turnos_projeto_movido';
+    case EstandesGerados = 'estandes_gerados';
+    case EstandeProjetoMovido = 'estande_projeto_movido';
+    case NotasVisualizadas = 'notas_visualizadas';
 
     /** Seções da tela de Registros. */
     public const SECAO_INSCRICOES = 'inscricoes';
@@ -97,6 +114,10 @@ enum TipoRegistro: string
     public const SECAO_CREDENCIAMENTO = 'credenciamento';
 
     public const SECAO_ALMOXARIFADO = 'almoxarifado';
+
+    public const SECAO_MAPA = 'mapa';
+
+    public const SECAO_NOTAS = 'notas';
 
     public function label(): string
     {
@@ -143,6 +164,11 @@ enum TipoRegistro: string
             self::AlmoxarifadoRetirada => 'Material retirado',
             self::AlmoxarifadoEdicao => 'Registro corrigido',
             self::AlmoxarifadoExclusao => 'Registro excluído',
+            self::TurnosGerados => 'Turnos gerados',
+            self::TurnosProjetoMovido => 'Projeto movido de turno',
+            self::EstandesGerados => 'Estandes gerados',
+            self::EstandeProjetoMovido => 'Projeto movido de estande',
+            self::NotasVisualizadas => 'Notas consultadas',
         };
     }
 
@@ -161,6 +187,9 @@ enum TipoRegistro: string
             self::CredenciamentoRascunhoAssumido => self::SECAO_CREDENCIAMENTO,
             self::AlmoxarifadoGuarda, self::AlmoxarifadoRetirada,
             self::AlmoxarifadoEdicao, self::AlmoxarifadoExclusao => self::SECAO_ALMOXARIFADO,
+            self::TurnosGerados, self::TurnosProjetoMovido,
+            self::EstandesGerados, self::EstandeProjetoMovido => self::SECAO_MAPA,
+            self::NotasVisualizadas => self::SECAO_NOTAS,
             default => self::SECAO_AVALIACAO,
         };
     }
@@ -171,7 +200,7 @@ enum TipoRegistro: string
         return [
             self::SECAO_INSCRICOES, self::SECAO_AVALIACAO, self::SECAO_PROJETOS,
             self::SECAO_RASCUNHOS, self::SECAO_LISTA_FINAL, self::SECAO_CREDENCIAMENTO,
-            self::SECAO_ALMOXARIFADO,
+            self::SECAO_ALMOXARIFADO, self::SECAO_MAPA, self::SECAO_NOTAS,
         ];
     }
 

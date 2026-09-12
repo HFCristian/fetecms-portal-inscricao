@@ -570,7 +570,7 @@ class AdminAvaliacaoService
     /** Áreas que têm ao menos um projeto submetido — as opções do filtro. */
     public function areasComProjeto(): array
     {
-        return Projeto::query()
+        return Projeto::semDemo()
             ->where('projetos.status', ProjetoStatus::Submetido->value)
             ->join('areas', 'areas.id', '=', 'projetos.area_id')
             ->select('areas.id', 'areas.nome')
@@ -630,7 +630,11 @@ class AdminAvaliacaoService
         $direcaoSql = $ordenar === 'faltantes' ? ($direcao === 'asc' ? 'desc' : 'asc') : $direcao;
         $busca = trim((string) ($filtros['q'] ?? ''));
 
-        return Projeto::query()
+        // `semDemo`: o projeto-exemplo de um orientador de treinamento não pode
+        // aparecer na tabela de onde se designa avaliador — ele já estava fora
+        // do painel, do ranking e da distribuição, e aqui era a última fresta
+        // por onde chegava a um avaliador de verdade.
+        return Projeto::semDemo()
             ->where('projetos.status', ProjetoStatus::Submetido->value)
             ->leftJoin('areas', 'areas.id', '=', 'projetos.area_id')
             ->select('projetos.*')
@@ -667,7 +671,7 @@ class AdminAvaliacaoService
     {
         $limites = Edicao::limites();
 
-        $projetos = Projeto::query()
+        $projetos = Projeto::semDemo()
             ->where('status', ProjetoStatus::Submetido->value)
             ->with('area:id,nome')
             ->withCount([

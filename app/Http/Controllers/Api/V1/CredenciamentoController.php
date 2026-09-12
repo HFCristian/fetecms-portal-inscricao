@@ -36,6 +36,25 @@ class CredenciamentoController extends Controller
         ]);
     }
 
+    /**
+     * Resolve o código lido no balcão (QR pela câmera ou barras pelo leitor USB)
+     * e diz de quem ele é — a tela abre a ficha daquele projeto.
+     */
+    public function lerCodigo(Request $request): JsonResponse
+    {
+        $dados = $request->validate([
+            'codigo' => ['required', 'string', 'max:60'],
+        ]);
+
+        return response()->json([
+            'data' => $this->credenciamento->resolverCodigo(
+                $dados['codigo'],
+                $request->user(),
+                $request->boolean('teste'),
+            ),
+        ]);
+    }
+
     /** Finalistas com a situação de cada um (a mesma lista das duas seções). */
     public function index(Request $request): JsonResponse
     {

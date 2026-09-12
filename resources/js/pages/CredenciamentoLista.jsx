@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { Alert, Button, Input, Select } from '../components/ui.jsx';
 import { getFinalistas } from '../lib/credenciamento.js';
+import LeitorCodigo from '../components/LeitorCodigo.jsx';
 import { useModoTeste } from '../lib/modoTeste.js';
 
 const dataHora = (iso) => (iso ? new Date(iso).toLocaleString('pt-BR') : '—');
@@ -57,6 +58,16 @@ export default function CredenciamentoLista({ situacao = 'pendentes' }) {
                     ? 'Os finalistas que já passaram pelo balcão, com quem atendeu e o horário.'
                     : 'Os finalistas que ainda não foram credenciados. Abra um projeto para conferir a documentação de cada pessoa.'}
             </p>
+
+            {/* O atalho da fila: bipar o crachá abre a ficha sem procurar pelo
+                nome entre centenas de equipes. Só na seção de credenciar — em
+                "Credenciados" não há atendimento para abrir. */}
+            {!credenciados && (
+                <LeitorCodigo
+                    teste={teste}
+                    onAbrir={(dados) => navigate(`/admin/credenciamento/projetos/${dados.projeto.id}`)}
+                />
+            )}
 
             {erro && <div className="mb-4"><Alert>{erro}</Alert></div>}
 
