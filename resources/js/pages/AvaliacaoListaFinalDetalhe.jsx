@@ -4,6 +4,7 @@ import AppShell from '../components/AppShell.jsx';
 import { Button, Alert } from '../components/ui.jsx';
 import BuscaCombobox from '../components/BuscaCombobox.jsx';
 import { extractErrors } from '../lib/auth.jsx';
+import IdentificacaoParticipantes from '../components/IdentificacaoParticipantes.jsx';
 import {
     getListaFinal, adicionarNaListaFinal, removerDaListaFinal, baixarListaOficial,
 } from '../lib/admin.js';
@@ -210,6 +211,8 @@ export default function AvaliacaoListaFinalDetalhe() {
                     )}
                 </>
             )}
+
+            {lista && <IdentificacaoParticipantes listaId={lista.id} />}
 
             {dialogo && (
                 <JustificativaDialog

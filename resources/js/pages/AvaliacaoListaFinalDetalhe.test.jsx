@@ -27,6 +27,14 @@ vi.mock('../lib/admin.js', () => ({
     adicionarNaListaFinal: (...a) => adicionarNaListaFinal(...a),
     removerDaListaFinal: (...a) => removerDaListaFinal(...a),
     baixarListaOficial: vi.fn(),
+    // A seção de identificação (Sprint 123) mora dentro desta tela e busca os
+    // participantes sozinha; aqui ela responde vazia, e tem teste próprio.
+    getIdentificacao: () => Promise.resolve({
+        lista: { id: 1, nome: 'Lista oficial', versao: 1, demo: false },
+        total: 0, por_papel: {}, participantes: [],
+    }),
+    baixarIdentificacao: vi.fn(),
+    urlCodigo: (codigo, tipo) => `/api/v1/admin/avaliacao/identificacao/${tipo}/${codigo}.svg`,
 }));
 
 import AvaliacaoListaFinalDetalhe from './AvaliacaoListaFinalDetalhe.jsx';

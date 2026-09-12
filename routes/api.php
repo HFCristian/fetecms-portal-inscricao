@@ -30,6 +30,7 @@ use App\Http\Controllers\Api\V1\DocumentoController;
 use App\Http\Controllers\Api\V1\EdicaoController;
 use App\Http\Controllers\Api\V1\EscopoAdminController;
 use App\Http\Controllers\Api\V1\FeedbackController;
+use App\Http\Controllers\Api\V1\IdentificacaoController;
 use App\Http\Controllers\Api\V1\InscricoesController;
 use App\Http\Controllers\Api\V1\InstituicaoAdminController;
 use App\Http\Controllers\Api\V1\IntegranteController;
@@ -258,6 +259,14 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 // registro em Registros → Lista final.
                 Route::post('/avaliacao/listas-finais/{lista}/projetos', [AdminAvaliacaoController::class, 'adicionarNaListaFinal']);
                 Route::delete('/avaliacao/listas-finais/{lista}/projetos/{projeto}', [AdminAvaliacaoController::class, 'removerDaListaFinal']);
+
+                // Identificação dos participantes: o QR Code e o código de
+                // barras de cada pessoa da lista, para o evento.
+                Route::get('/avaliacao/listas-finais/{lista}/identificacao', [IdentificacaoController::class, 'index']);
+                Route::get('/avaliacao/listas-finais/{lista}/identificacao/pdf', [IdentificacaoController::class, 'pdf']);
+                Route::get('/avaliacao/listas-finais/{lista}/identificacao/zip', [IdentificacaoController::class, 'zip']);
+                Route::get('/avaliacao/identificacao/{tipo}/{codigo}.svg', [IdentificacaoController::class, 'svg'])
+                    ->where(['tipo' => 'qr|barras', 'codigo' => '[0-9A-Za-z\\-]+']);
                 // Designações: a tabela com tudo que está na mão de cada avaliador.
                 Route::get('/avaliacao/designacoes', [AdminAvaliacaoController::class, 'designacoes']);
                 Route::post('/avaliacao/designacoes/retirar', [AdminAvaliacaoController::class, 'retirarDesignacoes']);
@@ -298,6 +307,8 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::patch('/contas/{conta}/desativar', [ContaTemporariaController::class, 'desativar'])->defaults('setor', 'credenciamento');
 
                 Route::get('/config', [CredenciamentoController::class, 'config']);
+                // A leitura do crachá: o atalho do balcão para a ficha certa.
+                Route::post('/codigo', [CredenciamentoController::class, 'lerCodigo']);
                 Route::get('/finalistas', [CredenciamentoController::class, 'index']);
                 Route::get('/projetos/{projeto}', [CredenciamentoController::class, 'show']);
                 Route::post('/projetos/{projeto}', [CredenciamentoController::class, 'store']);

@@ -457,3 +457,32 @@ export const designarEmMassa = (projetoIds, avaliadorIds) =>
         projeto_ids: projetoIds,
         avaliador_ids: avaliadorIds,
     }).then((r) => r.data);
+
+/**
+ * Identificação dos participantes da lista final (QR Code e código de barras).
+ *
+ * Os SVGs não vêm no JSON: cada linha os carrega por `<img src>` na rota
+ * própria — mandar dois desenhos por pessoa numa lista de centenas seria
+ * megabytes de payload que ninguém olha de uma vez.
+ */
+export const getIdentificacao = (listaId) =>
+    http.get(`/admin/avaliacao/listas-finais/${listaId}/identificacao`).then((r) => r.data.data);
+
+/** A URL do desenho de um código — usada direto no `src` da imagem. */
+export const urlCodigo = (codigo, tipo) =>
+    `/api/v1/admin/avaliacao/identificacao/${tipo}/${codigo}.svg`;
+
+/** Baixa as etiquetas de todo mundo: 'pdf' (folha para recortar) ou 'zip' (SVGs). */
+export async function baixarIdentificacao(listaId, formato) {
+    const resp = await http.get(`/admin/avaliacao/listas-finais/${listaId}/identificacao/${formato}`, {
+        responseType: 'blob',
+    });
+    const url = URL.createObjectURL(resp.data);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `identificacao-participantes.${formato}`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+}
