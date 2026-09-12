@@ -181,6 +181,8 @@ export default function Root() {
                             <Route path="/admin/registros/lista-final" element={<AdminRegistros secao="lista_final" />} />
                             <Route path="/admin/registros/credenciamento" element={<AdminRegistros secao="credenciamento" />} />
                             <Route path="/admin/registros/almoxarifado" element={<AdminRegistros secao="almoxarifado" />} />
+                            <Route path="/admin/registros/mapa" element={<AdminRegistros secao="mapa" />} />
+                            <Route path="/admin/registros/notas" element={<AdminRegistros secao="notas" />} />
                             {/* Aba Credenciamento: o balcão do evento. */}
                             <Route path="/admin/credenciamento" element={<CredenciamentoHome />} />
                             <Route path="/admin/credenciamento/credenciar" element={<CredenciamentoLista situacao="pendentes" />} />

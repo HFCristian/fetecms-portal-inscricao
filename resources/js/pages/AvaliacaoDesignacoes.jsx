@@ -10,6 +10,7 @@ import {
     getOpcoesAvaliadores,
     getOpcoesDesignacao,
     designarEmMassa,
+    verNotasDaDesignacao,
 } from '../lib/admin.js';
 
 /**
@@ -33,6 +34,9 @@ const CORES_SITUACAO = {
     em_andamento: 'bg-primary-fixed text-primary-container',
     concluida: 'bg-secondary-container text-on-secondary-container',
 };
+
+/** Nota com vírgula e duas casas, como o resto do portal a mostra. */
+const nota = (valor) => (valor === null || valor === undefined ? '—' : Number(valor).toFixed(2).replace('.', ','));
 
 const selectClass =
     'w-full bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface ' +
@@ -302,6 +306,114 @@ function DialogoDesignar({ onFechar, onConcluido }) {
     );
 }
 
+/**
+ * O detalhe da nota de uma avaliação concluída: **seção por seção**, com o que
+ * o avaliador respondeu em cada pergunta e a soma geral.
+ *
+ * Mostra o rótulo da escala ("Bom"), e não só o número, porque é assim que a
+ * pergunta aparece para quem avaliou — o admin precisa ler a mesma coisa que
+ * ele leu. Pergunta não respondida é dita como tal, em vez de virar um zero
+ * silencioso.
+ *
+ * Abrir esta caixa **fica registrado** (Registros → Notas): a nota decide a
+ * lista final e o parecer é anônimo para o orientador, então quem o consulta
+ * precisa ficar rastreável.
+ */
+function DialogoNotas({ dados, carregando, erro, onFechar }) {
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
+            <div className="bg-surface-container-lowest rounded-2xl fetec-card-shadow w-full max-w-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+                <h3 className="font-display text-lg font-semibold text-on-surface">Notas da avaliação</h3>
+
+                {erro && <Alert>{erro}</Alert>}
+                {carregando && <p className="text-sm text-on-surface-variant">Carregando…</p>}
+
+                {dados && (
+                    <>
+                        <div className="text-sm">
+                            <p className="font-medium text-on-surface">{dados.projeto.titulo}</p>
+                            <p className="text-xs text-on-surface-variant">
+                                {[dados.projeto.categoria, dados.projeto.area].filter(Boolean).join(' · ')}
+                            </p>
+                            <p className="text-xs text-on-surface-variant">
+                                Avaliador: {dados.avaliador}
+                                {dados.concluida_em_label && ` · concluída em ${dados.concluida_em_label}`}
+                            </p>
+                        </div>
+
+                        {/* A soma geral em cima: é o número que decide o ranking. */}
+                        <div className="bg-primary-fixed rounded-xl p-4 flex items-baseline gap-2">
+                            <span className="font-display text-3xl font-semibold text-primary-container">
+                                {nota(dados.nota)}
+                            </span>
+                            <span className="text-sm text-on-surface-variant">
+                                de {nota(dados.nota_maxima)} — soma de todas as seções
+                            </span>
+                        </div>
+
+                        {dados.nota_calculada !== dados.nota && (
+                            <Alert type="warning">
+                                A nota gravada ({nota(dados.nota)}) difere do recálculo pela rubrica de
+                                hoje ({nota(dados.nota_calculada)}). Vale a gravada, que foi a que entrou
+                                no ranking.
+                            </Alert>
+                        )}
+
+                        <ul className="space-y-3">
+                            {dados.secoes.map((secao) => (
+                                <li key={secao.chave} className="border border-outline-variant/50 rounded-lg p-3">
+                                    <div className="flex items-baseline gap-2">
+                                        <h4 className="font-semibold text-sm text-on-surface mr-auto">{secao.titulo}</h4>
+                                        <span className="text-sm font-semibold text-primary-container whitespace-nowrap">
+                                            {nota(secao.pontos)} / {nota(secao.maximo)}
+                                        </span>
+                                    </div>
+
+                                    <ul className="mt-2 divide-y divide-outline-variant/30">
+                                        {secao.perguntas.map((p) => (
+                                            <li key={p.chave} className="py-1.5 flex items-start gap-3 text-xs">
+                                                <span className="min-w-0 flex-1">
+                                                    <span className="block text-on-surface">{p.rotulo}</span>
+                                                    <span className="block text-on-surface-variant">
+                                                        {p.respondida ? p.resposta : 'Não respondida'}
+                                                    </span>
+                                                </span>
+                                                <span className="text-on-surface-variant whitespace-nowrap">
+                                                    {nota(p.pontos)} / {nota(p.peso)}
+                                                </span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </li>
+                            ))}
+                        </ul>
+
+                        {(dados.recomendacao_video || dados.recomendacao_projeto) && (
+                            <div className="text-sm space-y-2">
+                                <h4 className="font-semibold text-on-surface">Parecer escrito</h4>
+                                {dados.recomendacao_video && (
+                                    <p className="text-on-surface-variant">
+                                        <strong>Sobre o vídeo:</strong> {dados.recomendacao_video}
+                                    </p>
+                                )}
+                                {dados.recomendacao_projeto && (
+                                    <p className="text-on-surface-variant">
+                                        <strong>Sobre o projeto:</strong> {dados.recomendacao_projeto}
+                                    </p>
+                                )}
+                            </div>
+                        )}
+                    </>
+                )}
+
+                <div className="flex justify-end">
+                    <Button type="button" onClick={onFechar}>Fechar</Button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export default function AvaliacaoDesignacoes() {
     const [busca, setBusca] = useState('');
     const [filtros, setFiltros] = useState({
@@ -316,6 +428,7 @@ export default function AvaliacaoDesignacoes() {
     const [marcadas, setMarcadas] = useState([]);
     const [confirmando, setConfirmando] = useState(false);
     const [designando, setDesignando] = useState(false);
+    const [notas, setNotas] = useState(null);        // { carregando, dados, erro }
     const [salvando, setSalvando] = useState(false);
     const [alert, setAlert] = useState('');
     const [success, setSuccess] = useState('');
@@ -372,6 +485,24 @@ export default function AvaliacaoDesignacoes() {
     function alternarTodas() {
         const ids = retiraveis.map((l) => l.id);
         setMarcadas((m) => (todasMarcadas ? m.filter((x) => !ids.includes(x)) : [...new Set([...m, ...ids])]));
+    }
+
+    /**
+     * Abre a nota de uma avaliação concluída. A chamada é o que grava o registro
+     * da consulta, então ela só acontece no clique — nunca ao montar a tabela.
+     */
+    async function verNotas(linha) {
+        setNotas({ carregando: true, dados: null, erro: '' });
+        try {
+            setNotas({ carregando: false, dados: await verNotasDaDesignacao(linha.id), erro: '' });
+        } catch (e) {
+            const { message, fields } = extractErrors(e);
+            setNotas({
+                carregando: false,
+                dados: null,
+                erro: Object.values(fields ?? {})[0] || message || 'Não foi possível abrir as notas.',
+            });
+        }
     }
 
     async function retirar() {
@@ -524,13 +655,16 @@ export default function AvaliacaoDesignacoes() {
                                             onOrdenar={ordenarPor}
                                         />
                                     ))}
+                                    <th scope="col" className="px-3 py-2 text-xs font-semibold text-on-surface-variant text-right">
+                                        Notas
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-outline-variant/30">
                                 {lista === null ? (
-                                    <tr><td colSpan={COLUNAS.length + 1} className="px-3 py-8 text-center text-on-surface-variant">Carregando…</td></tr>
+                                    <tr><td colSpan={COLUNAS.length + 2} className="px-3 py-8 text-center text-on-surface-variant">Carregando…</td></tr>
                                 ) : linhas.length === 0 ? (
-                                    <tr><td colSpan={COLUNAS.length + 1} className="px-3 py-8 text-center text-on-surface-variant">Nenhuma designação neste recorte.</td></tr>
+                                    <tr><td colSpan={COLUNAS.length + 2} className="px-3 py-8 text-center text-on-surface-variant">Nenhuma designação neste recorte.</td></tr>
                                 ) : linhas.map((l) => (
                                     <tr key={l.id} className="hover:bg-surface-variant/20">
                                         <td className="px-3 py-2">
@@ -561,6 +695,24 @@ export default function AvaliacaoDesignacoes() {
                                             {l.tempo_label}
                                             <span className="block text-xs">{l.designado_em_label}</span>
                                         </td>
+                                        <td className="px-3 py-2 text-right">
+                                            {/* Só avaliação concluída tem nota: no resto o botão
+                                                fica desabilitado dizendo o porquê, em vez de sumir
+                                                e deixar a coluna irregular. */}
+                                            <button
+                                                type="button"
+                                                disabled={l.situacao !== 'concluida'}
+                                                onClick={() => verNotas(l)}
+                                                title={l.situacao === 'concluida'
+                                                    ? 'Ver a nota seção por seção'
+                                                    : 'A avaliação ainda não foi enviada'}
+                                                aria-label={`Ver notas de ${l.projeto} por ${l.avaliador}`}
+                                                className="inline-flex items-center gap-1 text-sm text-primary hover:underline disabled:text-on-surface-variant disabled:no-underline disabled:opacity-50"
+                                            >
+                                                <span className="material-symbols-outlined text-[18px]">scoreboard</span>
+                                                Ver notas
+                                            </button>
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -583,6 +735,15 @@ export default function AvaliacaoDesignacoes() {
                 <DialogoDesignar
                     onFechar={() => { setDesignando(false); carregar(); }}
                     onConcluido={(mensagem) => { setSuccess(mensagem); setAlert(''); }}
+                />
+            )}
+
+            {notas && (
+                <DialogoNotas
+                    dados={notas.dados}
+                    carregando={notas.carregando}
+                    erro={notas.erro}
+                    onFechar={() => setNotas(null)}
                 />
             )}
 

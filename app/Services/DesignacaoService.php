@@ -10,6 +10,7 @@ use App\Models\Avaliacao;
 use App\Models\Edicao;
 use App\Models\Projeto;
 use App\Models\User;
+use App\Support\Rubrica;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
@@ -355,6 +356,127 @@ class DesignacaoService
             ->when($filtros['avaliador_id'] ?? null, fn ($q, $id) => $q->where('avaliacoes.avaliador_id', $id))
             ->orderBy(self::ORDENACOES[$ordenar], $direcao)
             ->orderBy('avaliacoes.id');
+    }
+
+    /**
+     * A nota que um avaliador deu a um projeto, **seção por seção**, com a soma
+     * geral (Designações → Ver notas).
+     *
+     * A tabela de Designações mostra a situação de cada avaliação, mas não o que
+     * saiu dela — e é a nota que decide a lista final. Quando um orientador
+     * contesta, ou quando duas avaliações do mesmo projeto divergem muito, o
+     * admin precisa abrir o detalhe sem ter de entrar na conta do avaliador.
+     *
+     * Só **avaliação concluída** tem nota: rascunho é resposta pela metade, e
+     * mostrá-lo como "nota" seria comparar coisas diferentes no mesmo lugar.
+     *
+     * Ver a nota **fica registrado** (Registros → Notas). A consulta não muda
+     * nada, mas o parecer é anônimo para o orientador: saber quem leu o quê é o
+     * que protege esse sigilo.
+     *
+     * @return array<string, mixed>
+     */
+    public function notas(Avaliacao $avaliacao, User $admin): array
+    {
+        if ($avaliacao->status !== StatusAvaliacao::Concluida) {
+            throw ValidationException::withMessages([
+                'avaliacao' => 'Esta avaliação ainda não foi enviada — só há nota depois que o avaliador conclui.',
+            ]);
+        }
+
+        $avaliacao->loadMissing(['projeto.area:id,nome', 'avaliador:id,name']);
+        $respostas = $avaliacao->respostas ?? [];
+
+        $secoes = array_map(function (array $secao) use ($respostas) {
+            $perguntas = array_values(array_filter(
+                Rubrica::perguntas(),
+                fn (array $p) => $p['secao'] === $secao['chave'],
+            ));
+
+            return [
+                'chave' => $secao['chave'],
+                'titulo' => $secao['titulo'],
+                'pontos' => round(Rubrica::pontosDaSecao($secao['chave'], $respostas), 2),
+                'maximo' => round($secao['maximo'], 2),
+                'perguntas' => array_map(
+                    fn (array $p) => $this->linhaDaPergunta($p, $respostas[$p['chave']] ?? null),
+                    $perguntas,
+                ),
+            ];
+        }, Rubrica::secoesPontuadas());
+
+        // A nota gravada é a que vale (foi ela que entrou no ranking); a
+        // calculada vai junto para a tela denunciar qualquer divergência em vez
+        // de escondê-la — elas só divergem se a rubrica mudou depois do envio.
+        $gravada = $avaliacao->nota === null ? null : round((float) $avaliacao->nota, 2);
+        $calculada = round($avaliacao->notaCalculada(), 2);
+
+        $this->registros->notasVisualizadas(
+            $avaliacao->projeto,
+            $admin,
+            $avaliacao->avaliador?->name ?? 'Avaliador #'.$avaliacao->avaliador_id,
+            $gravada ?? $calculada,
+        );
+
+        return [
+            'avaliacao_id' => $avaliacao->id,
+            'projeto' => [
+                'id' => $avaliacao->projeto?->id,
+                'titulo' => $avaliacao->projeto?->titulo,
+                'area' => $avaliacao->projeto?->area?->nome,
+                'categoria' => $avaliacao->projeto?->categoria?->label(),
+            ],
+            'avaliador' => $avaliacao->avaliador?->name,
+            'concluida_em' => $avaliacao->concluida_em?->toIso8601String(),
+            'concluida_em_label' => $avaliacao->concluida_em?->format('d/m/Y H:i'),
+            'secoes' => $secoes,
+            'nota' => $gravada ?? $calculada,
+            'nota_calculada' => $calculada,
+            'nota_maxima' => Rubrica::NOTA_MAXIMA,
+            // O parecer escrito acompanha a nota: é o que explica o número.
+            'recomendacao_video' => $avaliacao->comentario_video,
+            'recomendacao_projeto' => $avaliacao->comentario_projeto,
+        ];
+    }
+
+    /**
+     * Uma linha do detalhe: o que foi perguntado, o que o avaliador respondeu e
+     * quanto aquilo rendeu.
+     *
+     * A resposta sai com o **rótulo** da escala ("Bom"), e não só o número: é
+     * assim que ela aparece para quem avaliou, e o admin precisa ler a mesma
+     * coisa que o avaliador leu.
+     *
+     * @param  array<string, mixed>  $pergunta
+     * @return array<string, mixed>
+     */
+    private function linhaDaPergunta(array $pergunta, mixed $resposta): array
+    {
+        $peso = round((float) $pergunta['peso'], 4);
+
+        if ($pergunta['tipo'] === Rubrica::TIPO_SIM_NAO) {
+            $rotulo = $resposta === null ? null : ($resposta ? 'Sim' : 'Não');
+            $pontos = $resposta ? $peso : 0.0;
+        } else {
+            $valor = $resposta === null || $resposta === '' ? null : (int) $resposta;
+            $rotulo = $valor === null ? null : ($valor.' — '.(Rubrica::ESCALA[$valor] ?? '—'));
+            $pontos = $valor === null ? 0.0 : ($valor / max(array_keys(Rubrica::ESCALA))) * $peso;
+        }
+
+        return [
+            'chave' => $pergunta['chave'],
+            // `rotulo` é o nome curto do quesito e `texto` é a pergunta inteira:
+            // os dois vão, porque a tela usa um como título e o outro como corpo.
+            'rotulo' => $pergunta['rotulo'] ?? $pergunta['chave'],
+            'pergunta' => $pergunta['texto'] ?? $pergunta['rotulo'] ?? $pergunta['chave'],
+            'tipo' => $pergunta['tipo'],
+            // Sem resposta é diferente de resposta zero: a tela precisa dizer
+            // "não respondida" em vez de fingir um "Não possui".
+            'resposta' => $rotulo,
+            'respondida' => $rotulo !== null,
+            'peso' => $peso,
+            'pontos' => round($pontos, 2),
+        ];
     }
 
     /**

@@ -243,6 +243,11 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     paginação. O admin marca linhas e **retira** a designação: o projeto volta ao bolo e é
     **redesignado na hora** para outro avaliador, pelas prioridades do edital
     (`DistribuicaoService::designarUm()`); sem ninguém elegível ele fica sub-coberto e a tela avisa.
+    Cada linha tem ainda **Ver notas**, que abre a nota daquela avaliação **seção por
+    seção** da rubrica (com a resposta em palavras e os pontos de cada pergunta), a
+    **soma geral** e o parecer escrito. Só avaliação **concluída** tem nota, e **abrir
+    fica registrado** em Registros → Notas — a nota decide a lista final e o parecer é
+    anônimo para o orientador.
     O botão **Designar** faz o caminho inverso, em massa: o admin marca **um ou mais
     projetos** e **um ou mais avaliadores** e o portal cruza tudo com tudo (3 × 2 = 6
     designações). Quem **já avaliou** aquele projeto é pulado — a tela lista quem ficou
@@ -393,7 +398,11 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     (não há WebSocket no projeto). **Privacidade**: guarda-se a última posição e o **trajeto vivo**;
     desligar o localizador — à mão ou pelo vencimento do prazo — **apaga o trajeto**.
     `ComiteTransporteService`, `localizacoes_comite` + `localizacao_comite_pontos`.
-  - **Registros** tem oito seções — a oitava é **Mapa do evento**
+  - **Registros** tem nove seções. A nona é **Notas** (`/admin/registros/notas`):
+    cada vez que um admin abre, em Designações, a nota que um avaliador deu a um
+    projeto — com o projeto, o avaliador e o valor que estava na tela. A consulta
+    não muda nada, mas a nota decide a lista final e o parecer é anônimo para o
+    orientador, então quem a lê fica rastreável. A oitava é **Mapa do evento**
     (`turnos_gerados`, `turnos_projeto_movido`, `estandes_gerados`,
     `estande_projeto_movido`): a geração de cada lista, que substitui a anterior por
     inteiro, e cada projeto que o admin move de turno ou de estande à mão. Trocar de
@@ -675,7 +684,29 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 122 | Ajustes demo: 3 sugestões de 3 avaliadores em `orientador@fetecms.test` | ✅ sim | ❌ não (manual do Pedro) | 35 |
 | 123 | Identificação: QR Code + código de barras por participante da lista final | ✅ sim | ❌ não (manual do Pedro) | 36 |
 | 124 | Credenciamento: leitura do crachá (leitor USB ou câmera) abre a ficha | ✅ sim | ❌ não (manual do Pedro) | 36 |
+| 125 | Designações: **Ver notas** (seção por seção + soma) e Registros → **Notas** | ✅ sim | ❌ não (manual do Pedro) | 37 |
 
+> **Sprint 125 (mesma branch `feat/mapa-do-evento`):** a tabela de **Designações**
+> mostrava a situação de cada avaliação, mas não o que saiu dela — e é a nota que
+> decide a lista final. Cada linha ganhou **Ver notas**: um diálogo com a nota
+> **seção por seção** da rubrica oficial (o subtotal de cada uma sobre o teto
+> dela), cada pergunta com o **rótulo da escala** que o avaliador leu ("8 — Bom",
+> "Sim") e os pontos que rendeu, a **soma geral** em destaque e o parecer escrito,
+> que é o que explica o número. Pergunta em branco é dita como **não respondida**,
+> em vez de virar um zero silencioso; só **avaliação concluída** tem nota, então
+> nas outras o botão fica desabilitado dizendo o porquê.
+> Abrir a nota **vira registro** na seção nova **Registros → Notas**
+> (`notas_visualizadas`), com o projeto, o avaliador e o valor que estava na tela.
+> Consulta não muda nada, mas o parecer é **anônimo para o orientador**: saber quem
+> leu o quê é o que protege esse sigilo e o que responde a uma contestação sem
+> depender da memória de ninguém. Por isso o endpoint é **POST** — num GET, um
+> prefetch do navegador ou um F5 gravariam consultas que ninguém fez — e **cada
+> abertura** gera uma linha: o registro conta acessos, não avaliações.
+> De quebra, a seção **Mapa do evento** dos Registros (criada nas Sprints 118–119)
+> ganhou o card e a rota que faltavam no front — os registros existiam e não
+> tinham tela.
+> Back **978/978**, front **477/477**, Pint limpo, build OK.
+>
 > **Sprints 117–124 (branch `feat/mapa-do-evento`, saída da `origin/main` @ `3a49ba2`):**
 > o ciclo do **dia do evento** — onde cada projeto apresenta, em que estande, e
 > como o balcão reconhece quem chega — mais a faxina dos dados de ensaio.

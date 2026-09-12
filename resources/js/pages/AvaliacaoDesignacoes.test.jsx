@@ -3,7 +3,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../components/AppShell.jsx', () => ({ default: ({ children }) => <div>{children}</div> }));
 vi.mock('react-router-dom', () => ({ Link: ({ children }) => <a>{children}</a> }));
-vi.mock('../lib/auth.jsx', () => ({ extractErrors: (e) => ({ message: e?.message ?? '', fields: {} }) }));
+// Espelha o extractErrors de verdade: mensagem geral + os erros por campo, que
+// é de onde saem as recusas de validação (422) que a tela mostra.
+vi.mock('../lib/auth.jsx', () => ({
+    extractErrors: (e) => ({
+        message: e?.response?.data?.message ?? e?.message ?? '',
+        fields: e?.response?.data?.errors
+            ? Object.fromEntries(Object.entries(e.response.data.errors).map(([k, v]) => [k, v[0]]))
+            : {},
+    }),
+}));
 
 const LINHAS = [
     {
@@ -46,13 +55,43 @@ const getDesignacoes = vi.fn();
 const retirarDesignacoes = vi.fn();
 const getOpcoesDesignacao = vi.fn();
 const designarEmMassa = vi.fn();
+const verNotasDaDesignacao = vi.fn();
 vi.mock('../lib/admin.js', () => ({
     getDesignacoes: (...a) => getDesignacoes(...a),
     retirarDesignacoes: (...a) => retirarDesignacoes(...a),
     getOpcoesAvaliadores: () => Promise.resolve([{ id: 5, nome: 'Ana Souza', area: 'Ciências Exatas' }]),
     getOpcoesDesignacao: (...a) => getOpcoesDesignacao(...a),
     designarEmMassa: (...a) => designarEmMassa(...a),
+    verNotasDaDesignacao: (...a) => verNotasDaDesignacao(...a),
 }));
+
+const NOTAS = {
+    avaliacao_id: 12,
+    projeto: { id: 3, titulo: 'Ponte de palito', area: 'Ciências Exatas', categoria: 'FETECMS' },
+    avaliador: 'Carla Dias',
+    concluida_em: '2026-08-20T10:00:00-04:00',
+    concluida_em_label: '20/08/2026 10:00',
+    secoes: [
+        {
+            chave: 'introducao', titulo: 'Introdução', pontos: 0.86, maximo: 1.08,
+            perguntas: [
+                { chave: 'intro_1', rotulo: 'Contextualização', pergunta: 'O tema está contextualizado?', tipo: 'escala', resposta: '8 — Bom', respondida: true, peso: 0.54, pontos: 0.43 },
+                { chave: 'intro_2', rotulo: 'Justificativa', pergunta: 'A justificativa é clara?', tipo: 'escala', resposta: null, respondida: false, peso: 0.54, pontos: 0 },
+            ],
+        },
+        {
+            chave: 'video', titulo: 'Vídeo', pontos: 2, maximo: 2,
+            perguntas: [
+                { chave: 'video_1', rotulo: 'Domínio do tema', pergunta: 'A equipe domina o tema?', tipo: 'sim_nao', resposta: 'Sim', respondida: true, peso: 2, pontos: 2 },
+            ],
+        },
+    ],
+    nota: 8.45,
+    nota_calculada: 8.45,
+    nota_maxima: 10,
+    recomendacao_video: 'Melhorar o áudio da narração.',
+    recomendacao_projeto: 'Detalhar a metodologia.',
+};
 
 const OPCOES = {
     projetos: [
@@ -76,6 +115,7 @@ describe('AvaliacaoDesignacoes', () => {
         });
         getOpcoesDesignacao.mockReset().mockResolvedValue(OPCOES);
         designarEmMassa.mockReset();
+        verNotasDaDesignacao.mockReset().mockResolvedValue(NOTAS);
     });
 
     /**
@@ -208,5 +248,55 @@ describe('AvaliacaoDesignacoes', () => {
         await waitFor(() => expect(getDesignacoes).toHaveBeenCalledWith(
             expect.objectContaining({ situacao: 'em_andamento' }),
         ));
+    });
+
+    // --- Ver notas (Sprint 125) ------------------------------------------
+
+    it('só oferece "Ver notas" em avaliação concluída', async () => {
+        render(<AvaliacaoDesignacoes />);
+
+        // Designada e em avaliação ainda não têm nota: o botão fica desabilitado
+        // dizendo o porquê, em vez de sumir e deixar a coluna irregular.
+        expect(await screen.findByRole('button', { name: 'Ver notas de Robô seguidor por Ana Souza' })).toBeDisabled();
+        expect(screen.getByRole('button', { name: 'Ver notas de Horta vertical por Bruno Lima' })).toBeDisabled();
+        expect(screen.getByRole('button', { name: 'Ver notas de Ponte de palito por Carla Dias' })).toBeEnabled();
+    });
+
+    it('abre a nota seção por seção, com a soma geral', async () => {
+        render(<AvaliacaoDesignacoes />);
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Ver notas de Ponte de palito por Carla Dias' }));
+
+        await waitFor(() => expect(verNotasDaDesignacao).toHaveBeenCalledWith(12));
+
+        const dialogo = within(await screen.findByRole('dialog'));
+        expect(dialogo.getByText('Notas da avaliação')).toBeInTheDocument();
+        // A soma geral em destaque, em pt-BR.
+        expect(dialogo.getByText('8,45')).toBeInTheDocument();
+        expect(dialogo.getByText(/de 10,00 — soma de todas as seções/)).toBeInTheDocument();
+        // Cada seção com o seu subtotal…
+        expect(dialogo.getByText('Introdução')).toBeInTheDocument();
+        expect(dialogo.getByText('0,86 / 1,08')).toBeInTheDocument();
+        expect(dialogo.getByText('Vídeo')).toBeInTheDocument();
+        // …e cada pergunta com a resposta em palavras.
+        expect(dialogo.getByText('8 — Bom')).toBeInTheDocument();
+        expect(dialogo.getByText('Sim')).toBeInTheDocument();
+        // Pergunta em branco é dita, não vira zero silencioso.
+        expect(dialogo.getByText('Não respondida')).toBeInTheDocument();
+        // O parecer escrito acompanha o número.
+        expect(dialogo.getByText(/Melhorar o áudio da narração/)).toBeInTheDocument();
+    });
+
+    it('mostra o motivo quando o servidor recusa abrir a nota', async () => {
+        verNotasDaDesignacao.mockRejectedValue({
+            message: '',
+            response: { data: { errors: { avaliacao: ['Esta avaliação ainda não foi enviada.'] } } },
+        });
+
+        render(<AvaliacaoDesignacoes />);
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Ver notas de Ponte de palito por Carla Dias' }));
+
+        expect(await screen.findByText('Esta avaliação ainda não foi enviada.')).toBeInTheDocument();
     });
 });

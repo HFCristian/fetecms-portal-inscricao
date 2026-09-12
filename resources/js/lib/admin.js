@@ -486,3 +486,13 @@ export async function baixarIdentificacao(listaId, formato) {
     link.remove();
     URL.revokeObjectURL(url);
 }
+
+/**
+ * A nota que um avaliador deu a um projeto, seção por seção (Designações → Ver
+ * notas).
+ *
+ * É POST porque **abrir a nota vira registro** em Registros → Notas: num GET,
+ * um prefetch do navegador ou um F5 gravariam consultas que ninguém fez.
+ */
+export const verNotasDaDesignacao = (avaliacaoId) =>
+    http.post(`/admin/avaliacao/designacoes/${avaliacaoId}/notas`).then((r) => r.data.data);

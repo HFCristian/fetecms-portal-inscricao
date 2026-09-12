@@ -553,6 +553,32 @@ class RegistroAtividadeService
     }
 
     /**
+     * Um administrador abriu a **nota** que um avaliador deu a um projeto
+     * (Avaliação online → Designações → Ver notas).
+     *
+     * Consulta não muda nada, e mesmo assim vira registro: a nota decide a lista
+     * final, e o avaliador é anônimo para o orientador. Saber **quem viu** a nota
+     * de quem, e quando, é o que protege o sigilo do parecer — e o que permite
+     * responder a uma contestação sobre vazamento sem depender da memória de
+     * ninguém.
+     *
+     * A nota vai junto, congelada no valor que estava na tela: a edição do
+     * parecer (Sprint 100) não mexe na nota, mas uma reescala futura mexeria, e o
+     * registro precisa continuar dizendo o que aquela pessoa leu.
+     */
+    public function notasVisualizadas(
+        Projeto $projeto,
+        User $admin,
+        string $avaliador,
+        ?float $nota,
+    ): RegistroAtividade {
+        return $this->registrarNoProjeto(TipoRegistro::NotasVisualizadas, $projeto, $admin, [
+            'avaliador' => $avaliador,
+            'nota' => $nota === null ? null : number_format($nota, 2, ',', ''),
+        ]);
+    }
+
+    /**
      * Consulta filtrada do painel. Filtros aceitos: `tipos` (lista), `de`/`ate`
      * (datas, inclusivas) e `busca` (e-mail, nome ou título do projeto).
      *
@@ -693,6 +719,15 @@ class RegistroAtividadeService
                 (int) ($detalhes['turno_a'] ?? 0),
                 (int) ($detalhes['turno_b'] ?? 0),
                 $regras === [] ? 'nenhuma' : implode('; ', $regras),
+            );
+        }
+
+        // Consulta de nota não é "de → para": é quem foi lido, e quanto.
+        if ($registro->tipo === TipoRegistro::NotasVisualizadas) {
+            return sprintf(
+                'viu a nota de %s%s',
+                $detalhes['avaliador'] ?? 'um avaliador',
+                empty($detalhes['nota']) ? '' : ' · nota '.$detalhes['nota'],
             );
         }
 
