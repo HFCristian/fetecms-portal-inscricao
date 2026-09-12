@@ -33,6 +33,12 @@ namespace App\Enums;
  * de kit, que pode acontecer depois do credenciamento e no nome de outra
  * pessoa.
  *
+ * Seção "Mapa do evento" (a ocupação do ginásio): a geração da lista de turnos
+ * — que substitui a anterior por inteiro — e cada projeto que o admin move de
+ * turno à mão depois dela. A troca manual não pede justificativa (é rearranjo de
+ * logística, não escape do edital), mas fica registrada: no dia do evento é
+ * preciso saber por que um projeto está em outro horário do que a lista dizia.
+ *
  * Seção "Almoxarifado" (a guarda de volumes durante a feira): o material que
  * entrou, o que saiu e para quem, e as correções e exclusões de registro — as
  * duas últimas com justificativa obrigatória. É material de outra pessoa na mão
@@ -82,6 +88,8 @@ enum TipoRegistro: string
     case AlmoxarifadoRetirada = 'almoxarifado_retirada';
     case AlmoxarifadoEdicao = 'almoxarifado_edicao';
     case AlmoxarifadoExclusao = 'almoxarifado_exclusao';
+    case TurnosGerados = 'turnos_gerados';
+    case TurnosProjetoMovido = 'turnos_projeto_movido';
 
     /** Seções da tela de Registros. */
     public const SECAO_INSCRICOES = 'inscricoes';
@@ -97,6 +105,8 @@ enum TipoRegistro: string
     public const SECAO_CREDENCIAMENTO = 'credenciamento';
 
     public const SECAO_ALMOXARIFADO = 'almoxarifado';
+
+    public const SECAO_MAPA = 'mapa';
 
     public function label(): string
     {
@@ -143,6 +153,8 @@ enum TipoRegistro: string
             self::AlmoxarifadoRetirada => 'Material retirado',
             self::AlmoxarifadoEdicao => 'Registro corrigido',
             self::AlmoxarifadoExclusao => 'Registro excluído',
+            self::TurnosGerados => 'Turnos gerados',
+            self::TurnosProjetoMovido => 'Projeto movido de turno',
         };
     }
 
@@ -161,6 +173,7 @@ enum TipoRegistro: string
             self::CredenciamentoRascunhoAssumido => self::SECAO_CREDENCIAMENTO,
             self::AlmoxarifadoGuarda, self::AlmoxarifadoRetirada,
             self::AlmoxarifadoEdicao, self::AlmoxarifadoExclusao => self::SECAO_ALMOXARIFADO,
+            self::TurnosGerados, self::TurnosProjetoMovido => self::SECAO_MAPA,
             default => self::SECAO_AVALIACAO,
         };
     }
@@ -171,7 +184,7 @@ enum TipoRegistro: string
         return [
             self::SECAO_INSCRICOES, self::SECAO_AVALIACAO, self::SECAO_PROJETOS,
             self::SECAO_RASCUNHOS, self::SECAO_LISTA_FINAL, self::SECAO_CREDENCIAMENTO,
-            self::SECAO_ALMOXARIFADO,
+            self::SECAO_ALMOXARIFADO, self::SECAO_MAPA,
         ];
     }
 

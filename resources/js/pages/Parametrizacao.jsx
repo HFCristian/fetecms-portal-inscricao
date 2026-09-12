@@ -73,6 +73,12 @@ export default function Parametrizacao() {
                     descricao="Renomeie, mescle e exclua instituições de ensino — limpe as cadastradas em duplicidade."
                 />
                 <CardParametrizacao
+                    to="/admin/parametrizacao/demo"
+                    icon="science"
+                    titulo="Dados de demonstração"
+                    descricao="Tudo que existe no portal para ensaio: contas, projetos, listas e registros — e a limpeza."
+                />
+                <CardParametrizacao
                     to="/admin/parametrizacao/avaliacao"
                     icon="grading"
                     titulo="Avaliação Online"

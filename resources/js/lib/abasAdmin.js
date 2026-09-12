@@ -53,6 +53,13 @@ export const ABAS_ADMIN = [
         descricao: 'O transporte das equipes e o mapa de quem está a caminho.',
     },
     {
+        aba: 'mapa',
+        to: '/admin/mapa',
+        icon: 'map',
+        label: 'Mapa do Evento',
+        descricao: 'Turnos de apresentação, estandes dos projetos e a planta do ginásio.',
+    },
+    {
         aba: 'comunicacao',
         to: '/admin/comunicacao',
         icon: 'campaign',

@@ -67,8 +67,13 @@ class Projeto extends Model
      * As contas demo existem para ensaiar o portal (mostrar a aba de ajustes
      * antes do prazo, treinar o balcão), e os projetos delas são de mentira. Eles
      * ficam de fora de tudo que vira número ou decisão real — painel, ranking,
-     * lista final e distribuição automática —, mas continuam visíveis nas
-     * listagens administrativas e para o próprio dono.
+     * lista final, distribuição automática e também as telas de **avaliação
+     * online** (projetos submetidos, designações), que eram a última fresta por
+     * onde um projeto de ensaio chegava a um avaliador de verdade.
+     *
+     * Onde eles continuam aparecendo: para o **próprio dono**, no balcão em
+     * **modo demo** e em Parametrização → **Dados de demonstração**, que existe
+     * justamente para enxergar (e apagar) o que é de mentira.
      */
     #[Scope]
     protected function semDemo(Builder $query): void

@@ -203,9 +203,10 @@ class DesignacaoService
             ->join('projetos', 'projetos.id', '=', 'avaliacoes.projeto_id')
             ->join('users', 'users.id', '=', 'avaliacoes.avaliador_id')
             ->leftJoin('areas', 'areas.id', '=', 'projetos.area_id')
-            // O join é só para buscar e ordenar; quem aplica o escopo de edição
-            // e o soft delete é o `whereHas`, que passa pelo model do projeto.
-            ->whereHas('projeto')
+            // O join é só para buscar e ordenar; quem aplica o escopo de edição,
+            // o soft delete e o corte dos projetos de demonstração é o
+            // `whereHas`, que passa pelo model do projeto.
+            ->whereHas('projeto', fn (Builder $q) => $q->semDemo())
             ->select('avaliacoes.*')
             ->with(['projeto.area:id,nome', 'avaliador:id,name'])
             ->when($busca !== '', function ($q) use ($busca) {

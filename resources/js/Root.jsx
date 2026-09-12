@@ -37,6 +37,7 @@ import ParametrizacaoEscopos from './pages/ParametrizacaoEscopos.jsx';
 import ParametrizacaoAbas from './pages/ParametrizacaoAbas.jsx';
 import ParametrizacaoEscolas from './pages/ParametrizacaoEscolas.jsx';
 import ParametrizacaoDatas from './pages/ParametrizacaoDatas.jsx';
+import ParametrizacaoDemo from './pages/ParametrizacaoDemo.jsx';
 import ParametrizacaoAvaliacao from './pages/ParametrizacaoAvaliacao.jsx';
 import AdminManager from './pages/AdminManager.jsx';
 import AdminSuporte from './pages/AdminSuporte.jsx';
@@ -44,6 +45,8 @@ import CredenciamentoHome from './pages/CredenciamentoHome.jsx';
 import ComiteHome from './pages/ComiteHome.jsx';
 import ComiteTransporte from './pages/ComiteTransporte.jsx';
 import ComiteMapa from './pages/ComiteMapa.jsx';
+import MapaEventoHome from './pages/MapaEventoHome.jsx';
+import MapaTurnos from './pages/MapaTurnos.jsx';
 import CredenciamentoLista from './pages/CredenciamentoLista.jsx';
 import CredenciamentoFicha from './pages/CredenciamentoFicha.jsx';
 import CredenciamentoContas from './pages/CredenciamentoContas.jsx';
@@ -151,6 +154,8 @@ export default function Root() {
                             <Route path="/admin/projetos-por-estado" element={<AdminProjetosPorEstado />} />
                             <Route path="/admin/projetos-por-cidade" element={<AdminProjetosPorCidade />} />
                             <Route path="/admin/projetos-por-escola" element={<AdminProjetosPorEscola />} />
+                            <Route path="/admin/mapa" element={<MapaEventoHome />} />
+                            <Route path="/admin/mapa/turnos" element={<MapaTurnos />} />
                             <Route path="/admin/parametrizacao" element={<Parametrizacao />} />
                             <Route path="/admin/parametrizacao/areas" element={<ParametrizacaoAreas />} />
                             <Route path="/admin/parametrizacao/edicoes" element={<ParametrizacaoEdicoes />} />
@@ -159,6 +164,7 @@ export default function Root() {
                             <Route path="/admin/parametrizacao/credenciamento" element={<ParametrizacaoCredenciamento />} />
                             <Route path="/admin/parametrizacao/escolas" element={<ParametrizacaoEscolas />} />
                             <Route path="/admin/parametrizacao/datas" element={<ParametrizacaoDatas />} />
+                            <Route path="/admin/parametrizacao/demo" element={<ParametrizacaoDemo />} />
                             {/* A tela de Inscrições só tinha datas; o link antigo
                                 segue valendo, agora apontando para a tela nova. */}
                             <Route path="/admin/parametrizacao/inscricoes" element={<Navigate to="/admin/parametrizacao/datas" replace />} />

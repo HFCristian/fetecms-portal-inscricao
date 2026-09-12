@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\V1\ComiteTransporteController;
 use App\Http\Controllers\Api\V1\ContaTemporariaController;
 use App\Http\Controllers\Api\V1\CoorientadorController;
 use App\Http\Controllers\Api\V1\CredenciamentoController;
+use App\Http\Controllers\Api\V1\DadosDemoController;
 use App\Http\Controllers\Api\V1\DocumentoController;
 use App\Http\Controllers\Api\V1\EdicaoController;
 use App\Http\Controllers\Api\V1\EscopoAdminController;
@@ -32,6 +33,7 @@ use App\Http\Controllers\Api\V1\FeedbackController;
 use App\Http\Controllers\Api\V1\InscricoesController;
 use App\Http\Controllers\Api\V1\InstituicaoAdminController;
 use App\Http\Controllers\Api\V1\IntegranteController;
+use App\Http\Controllers\Api\V1\MapaTurnosController;
 use App\Http\Controllers\Api\V1\OrientadorAjusteController;
 use App\Http\Controllers\Api\V1\OrientadorController;
 use App\Http\Controllers\Api\V1\ParametrizacaoAbasController;
@@ -331,6 +333,19 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::get('/mapa/{localizacao}', [ComiteTransporteController::class, 'detalhe']);
             });
 
+            // --- Aba "Mapa do Evento": a ocupação do ginásio ---
+            Route::middleware('aba:mapa')->prefix('mapa')->group(function () {
+                // Turnos de apresentação: a divisão dos finalistas entre o
+                // matutino e o vespertino, a partir da lista final vigente.
+                Route::get('/turnos', [MapaTurnosController::class, 'index']);
+                Route::get('/turnos/opcoes', [MapaTurnosController::class, 'opcoes']);
+                Route::put('/turnos/config', [MapaTurnosController::class, 'salvarConfig']);
+                Route::post('/turnos/gerar', [MapaTurnosController::class, 'gerar']);
+                Route::patch('/turnos/mover', [MapaTurnosController::class, 'mover']);
+                Route::get('/turnos/exportar/{formato}', [MapaTurnosController::class, 'exportar'])
+                    ->where('formato', 'txt|csv|pdf');
+            });
+
             // --- Parametrização (as datas do período de avaliação moram nas
             //     duas abas: quem cuida da avaliação também as ajusta) ---
             Route::middleware('aba:parametrizacao,avaliacao')->group(function () {
@@ -386,6 +401,17 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::put('/subareas/{subarea}', [CatalogoAdminController::class, 'updateSubarea']);
                 Route::post('/subareas/{subarea}/mesclar', [CatalogoAdminController::class, 'mergeSubarea']);
                 Route::delete('/subareas/{subarea}', [CatalogoAdminController::class, 'destroySubarea']);
+
+                // Parametrização → Dados de demonstração: o que existe de
+                // ensaio no portal (contas, projetos, listas, guardas) e a
+                // limpeza. Só apaga o que está marcado como demonstração.
+                Route::get('/demo', [DadosDemoController::class, 'index']);
+                Route::patch('/demo/contas/{usuario}', [DadosDemoController::class, 'definirDemo']);
+                Route::delete('/demo/contas/{usuario}', [DadosDemoController::class, 'excluirConta']);
+                Route::delete('/demo/projetos/{projeto}', [DadosDemoController::class, 'excluirProjeto']);
+                Route::delete('/demo/listas/{lista}', [DadosDemoController::class, 'excluirLista']);
+                Route::delete('/demo/guardas/{guarda}', [DadosDemoController::class, 'excluirGuarda']);
+                Route::post('/demo/limpar', [DadosDemoController::class, 'limpar']);
 
                 // Parametrização das instituições de ensino (escolas)
                 Route::get('/instituicoes', [InstituicaoAdminController::class, 'index']);

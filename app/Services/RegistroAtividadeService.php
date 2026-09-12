@@ -484,6 +484,43 @@ class RegistroAtividadeService
     }
 
     /**
+     * Mapa do evento: a lista de turnos foi gerada (ou gerada de novo).
+     *
+     * Não aponta para projeto nenhum de propósito — a geração é um ato sobre a
+     * lista inteira, e amarrá-la a um projeto qualquer daria a entender que só
+     * aquele mudou. O resumo guarda o que a geração decidiu: quantos em cada
+     * turno, as capacidades e quais regras estavam ligadas.
+     *
+     * @param  array<string, mixed>  $resumo
+     */
+    public function turnosGerados(User $admin, array $resumo): RegistroAtividade
+    {
+        return RegistroAtividade::create([
+            'tipo' => TipoRegistro::TurnosGerados,
+            'user_id' => $admin->id,
+            'autor_email' => $admin->email,
+            'autor_nome' => $admin->name,
+            'autor_role' => $admin->role?->value,
+            'detalhes' => $resumo,
+        ]);
+    }
+
+    /**
+     * Mapa do evento: o admin moveu um projeto de turno à mão.
+     *
+     * Sem justificativa — é rearranjo de logística, não escape do edital —, mas
+     * registrado: no dia do evento é preciso saber por que um projeto está num
+     * horário diferente do que a lista gerada dizia.
+     */
+    public function turnoProjetoMovido(Projeto $projeto, User $admin, string $de, string $para): RegistroAtividade
+    {
+        return $this->registrarNoProjeto(TipoRegistro::TurnosProjetoMovido, $projeto, $admin, [
+            'de' => $de,
+            'para' => $para,
+        ]);
+    }
+
+    /**
      * Consulta filtrada do painel. Filtros aceitos: `tipos` (lista), `de`/`ate`
      * (datas, inclusivas) e `busca` (e-mail, nome ou título do projeto).
      *
@@ -614,13 +651,26 @@ class RegistroAtividadeService
                 .(empty($detalhes['quando']) ? '' : ' · em '.$detalhes['quando']);
         }
 
+        // A geração dos turnos é um ato sobre a lista inteira: o que interessa
+        // é o placar dos dois turnos e quais regras estavam ligadas.
+        if ($registro->tipo === TipoRegistro::TurnosGerados) {
+            $regras = (array) ($detalhes['regras'] ?? []);
+
+            return sprintf(
+                'turno A: %d · turno B: %d · regras: %s',
+                (int) ($detalhes['turno_a'] ?? 0),
+                (int) ($detalhes['turno_b'] ?? 0),
+                $regras === [] ? 'nenhuma' : implode('; ', $regras),
+            );
+        }
+
         if ($registro->tipo === TipoRegistro::TrocaEmail && isset($detalhes['de'], $detalhes['para'])) {
             $partes[] = $detalhes['de'].' → '.$detalhes['para'];
         }
         $comDeEPara = in_array($registro->tipo->secao(), [
             TipoRegistro::SECAO_AVALIACAO, TipoRegistro::SECAO_PROJETOS,
             TipoRegistro::SECAO_RASCUNHOS, TipoRegistro::SECAO_LISTA_FINAL,
-            TipoRegistro::SECAO_CREDENCIAMENTO,
+            TipoRegistro::SECAO_CREDENCIAMENTO, TipoRegistro::SECAO_MAPA,
         ], true);
         if ($comDeEPara && array_key_exists('para', $detalhes)) {
             $valor = fn ($v) => ($v === null || $v === '') ? '(sem valor)' : (string) $v;
