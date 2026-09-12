@@ -442,3 +442,18 @@ export const getContasDemo = (filtros = {}) =>
 /** O mesmo interruptor do admin, para um orientador ou avaliador. */
 export const definirDemoParticipante = (userId, demo) =>
     http.patch(`/admin/contas-demo/${userId}`, { is_demo: demo }).then((r) => r.data);
+
+/**
+ * Designação em massa (Avaliação online → Designações): as duas listas do
+ * diálogo, buscadas no servidor porque a base é grande demais para viajar
+ * inteira a cada abertura.
+ */
+export const getOpcoesDesignacao = (params = {}) =>
+    http.get('/admin/avaliacao/designacoes/opcoes', { params }).then((r) => r.data.data);
+
+/** N projetos × N avaliadores de uma vez. */
+export const designarEmMassa = (projetoIds, avaliadorIds) =>
+    http.post('/admin/avaliacao/designacoes/designar', {
+        projeto_ids: projetoIds,
+        avaliador_ids: avaliadorIds,
+    }).then((r) => r.data);

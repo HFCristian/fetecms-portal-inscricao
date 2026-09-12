@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use App\Enums\ModeloEmail;
 use App\Support\HtmlEmail;
 use App\Support\MensagemEmail;
 use Illuminate\Bus\Queueable;
@@ -32,6 +33,10 @@ class MensagemTransacional extends Mailable
         public string $corpo,
         public ?string $destaque = null,
         public string $formato = 'texto',
+        // Qual e-mail automático é este. Não muda nada na renderização — serve
+        // para o log (e para o teste) saberem o que foi enviado sem depender do
+        // assunto, que o admin edita em Comunicação → Modelos de e-mail.
+        public ?ModeloEmail $modelo = null,
     ) {}
 
     public function ehHtml(): bool

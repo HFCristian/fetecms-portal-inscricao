@@ -5,6 +5,13 @@ um projeto **submetido** que recebeu uma **avaliação concluída** em que o
 avaliador disse que a classificação está errada. Sem esse conjunto a tela abre
 vazia, mesmo com o período aberto — não há bug a procurar.
 
+> **Desde a Sprint 122** o comando monta **três avaliadores**, com **três
+> sugestões**: uma de área (Avaliador 1), uma de subárea (Avaliador 2) e outra de
+> área (Avaliador 3), que **disputa** com a primeira. É assim que a aba fica
+> quando o projeto recebe o mínimo de avaliações da feira, e é o caso difícil que
+> o orientador precisa ver antes: aceitar uma sugestão de área **desliga** a
+> outra. O orientador padrão passou a ser **`orientador@fetecms.test`**.
+
 Este documento explica como montar esse conjunto **em produção**: primeiro pelo
 comando do portal (recomendado), depois em SQL puro, para quem só tem acesso ao
 banco.
@@ -18,9 +25,9 @@ Quatro registros, nesta ordem de dependência:
 | # | Tabela | Papel no exemplo |
 |---|--------|------------------|
 | 1 | `users` + `orientador_profiles` | o **orientador demo**, dono do projeto |
-| 2 | `users` + `avaliador_profiles` | o **avaliador demo**, autor da avaliação |
+| 2 | `users` + `avaliador_profiles` | os **três avaliadores demo**, autores das avaliações (o SQL abaixo mostra um; repita para os outros dois, com CPFs distintos — a coluna é única) |
 | 3 | `projetos` | o projeto de mentira, com `status = 'submetido'` |
-| 4 | `avaliacoes` | a avaliação **concluída** que carrega as sugestões |
+| 4 | `avaliacoes` | as avaliações **concluídas** que carregam as sugestões |
 
 As duas contas nascem com **`is_demo = 1`**. Isso não é enfeite: é o que mantém
 o projeto de mentira **fora do painel, do ranking dos projetos, da lista final e
@@ -48,16 +55,20 @@ que aparecem só para leitura.
 php artisan demo:ajustes
 ```
 
-Ele cria (ou atualiza, sem duplicar) as duas contas, o projeto e a avaliação
-completa, com as respostas da rubrica preenchidas e a nota calculada.
+Ele cria (ou atualiza, sem duplicar) as **quatro contas** (um orientador e três
+avaliadores), o projeto e as **três avaliações** completas, com as respostas da
+rubrica preenchidas e a nota calculada.
 
 ```bash
 # personalizando os e-mails e a senha inicial
 php artisan demo:ajustes \
-  --orientador=orientador.demo@fetecms.test \
+  --orientador=orientador@fetecms.test \
   --avaliador=avaliador.demo@fetecms.test \
   --senha='uma-senha-forte'
 ```
+
+Os outros dois avaliadores saem do e-mail informado em `--avaliador`, com o
+número no fim do usuário: `avaliador.demo2@…` e `avaliador.demo3@…`.
 
 **Prefira este caminho.** A senha passa pelo hash do framework, as respostas da
 rubrica são gravadas no formato JSON que o portal lê, a nota sai coerente com os
@@ -220,8 +231,17 @@ Apagar o orientador demo leva junto o projeto e a avaliação (as FKs são
 `cascadeOnDelete`):
 
 ```sql
-DELETE FROM users WHERE email IN ('orientador.demo@fetecms.test', 'avaliador.demo@fetecms.test');
+DELETE FROM users WHERE email IN (
+  'orientador@fetecms.test',
+  'avaliador.demo@fetecms.test',
+  'avaliador.demo2@fetecms.test',
+  'avaliador.demo3@fetecms.test'
+);
 ```
 
 Enquanto ele existir, não atrapalha: as contas `is_demo` já ficam fora de todo
 número e de toda decisão do portal.
+
+Desde a Sprint 117 há um caminho de tela para isso: **Parametrização → Dados de
+demonstração** lista tudo que é de ensaio (contas, projetos, avaliações, listas,
+credenciamentos) e apaga item a item ou de uma vez — sem SQL.

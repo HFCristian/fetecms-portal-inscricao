@@ -4,7 +4,13 @@ import AppShell from '../components/AppShell.jsx';
 import { Alert, Button } from '../components/ui.jsx';
 import BuscaCombobox from '../components/BuscaCombobox.jsx';
 import { extractErrors } from '../lib/auth.jsx';
-import { getDesignacoes, retirarDesignacoes, getOpcoesAvaliadores } from '../lib/admin.js';
+import {
+    getDesignacoes,
+    retirarDesignacoes,
+    getOpcoesAvaliadores,
+    getOpcoesDesignacao,
+    designarEmMassa,
+} from '../lib/admin.js';
 
 /**
  * Avaliação online → Designações: tudo que está na mão de cada avaliador, com
@@ -97,6 +103,205 @@ function ConfirmarRetirada({ linhas, salvando, erro, onConfirmar, onFechar }) {
     );
 }
 
+/**
+ * Uma das duas colunas do diálogo de designação: busca no servidor + marcação.
+ *
+ * A lista vem filtrada e limitada de propósito — a base tem centenas de
+ * projetos e de avaliadores, e mandar tudo para a tela a cada abertura seria
+ * pagar caro por uma lista que ninguém lê inteira.
+ */
+function Escolha({ titulo, itens, marcados, onAlternar, busca, onBuscar, rotuloBusca, render }) {
+    return (
+        <div className="flex-1 min-w-0">
+            <h4 className="text-sm font-semibold text-on-surface mb-2">
+                {titulo} <span className="text-on-surface-variant">({marcados.length} marcado(s))</span>
+            </h4>
+            <input
+                type="text"
+                aria-label={rotuloBusca}
+                placeholder={`${rotuloBusca}…`}
+                value={busca}
+                onChange={(e) => onBuscar(e.target.value)}
+                className={selectClass}
+            />
+            <ul className="mt-2 max-h-64 overflow-y-auto rounded-lg border border-outline-variant/40 divide-y divide-outline-variant/30">
+                {itens.length === 0 && (
+                    <li className="px-3 py-2 text-sm text-on-surface-variant">Nada encontrado.</li>
+                )}
+                {itens.map((item) => (
+                    <li key={item.id}>
+                        <label className="flex items-start gap-2 px-3 py-2 cursor-pointer hover:bg-surface-container-low">
+                            <input
+                                type="checkbox"
+                                className="mt-1"
+                                checked={marcados.includes(item.id)}
+                                onChange={() => onAlternar(item.id)}
+                            />
+                            <span className="min-w-0">{render(item)}</span>
+                        </label>
+                    </li>
+                ))}
+            </ul>
+        </div>
+    );
+}
+
+/**
+ * O diálogo de **designação em massa**: um ou mais projetos para um ou mais
+ * avaliadores, no cruzamento de tudo com tudo.
+ *
+ * Quem já avaliou um projeto não o recebe de novo — o par é pulado e o diálogo
+ * mostra quais foram, em vez de sumir com eles em silêncio.
+ */
+function DialogoDesignar({ onFechar, onConcluido }) {
+    const [opcoes, setOpcoes] = useState({ projetos: [], avaliadores: [] });
+    const [buscaProjeto, setBuscaProjeto] = useState('');
+    const [buscaAvaliador, setBuscaAvaliador] = useState('');
+    const [projetos, setProjetos] = useState([]);
+    const [avaliadores, setAvaliadores] = useState([]);
+    const [salvando, setSalvando] = useState(false);
+    const [erro, setErro] = useState('');
+    const [resultado, setResultado] = useState(null);
+
+    useEffect(() => {
+        const t = setTimeout(() => {
+            getOpcoesDesignacao({
+                ...(buscaProjeto.trim() ? { projeto: buscaProjeto.trim() } : {}),
+                ...(buscaAvaliador.trim() ? { avaliador: buscaAvaliador.trim() } : {}),
+            })
+                .then(setOpcoes)
+                .catch(() => setErro('Não foi possível carregar projetos e avaliadores.'));
+        }, 300);
+
+        return () => clearTimeout(t);
+    }, [buscaProjeto, buscaAvaliador]);
+
+    const alternar = (lista, set) => (id) =>
+        set(lista.includes(id) ? lista.filter((x) => x !== id) : [...lista, id]);
+
+    const total = projetos.length * avaliadores.length;
+
+    async function designar() {
+        setSalvando(true);
+        setErro('');
+        try {
+            const resp = await designarEmMassa(projetos, avaliadores);
+            setResultado(resp.data);
+            onConcluido(resp.meta?.message ?? 'Designações realizadas.');
+        } catch (e) {
+            const { message, fields } = extractErrors(e);
+            setErro(Object.values(fields ?? {})[0] || message || 'Não foi possível designar.');
+        } finally {
+            setSalvando(false);
+        }
+    }
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
+            <div className="bg-surface-container-lowest rounded-2xl fetec-card-shadow w-full max-w-3xl p-6 space-y-4">
+                <h3 className="font-display text-lg font-semibold text-on-surface">Designar projetos</h3>
+
+                {erro && <Alert>{erro}</Alert>}
+
+                {resultado ? (
+                    <>
+                        <Alert type="info">{resultado.resumo}</Alert>
+
+                        {resultado.avaliadores.length > 0 && (
+                            <ul className="max-h-40 overflow-y-auto rounded-lg border border-outline-variant/40 divide-y divide-outline-variant/30">
+                                {resultado.avaliadores.map((a) => (
+                                    <li key={a.id} className="px-3 py-2 text-sm">
+                                        <p className="text-on-surface">{a.nome}</p>
+                                        <p className="text-xs text-on-surface-variant">{a.projetos.join(' · ')}</p>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+
+                        {resultado.ignoradas.length > 0 ? (
+                            <Alert type="warning">
+                                <p className="font-semibold mb-1">
+                                    {resultado.ignoradas.length} designação(ões) não foram feitas:
+                                </p>
+                                <ul className="list-disc pl-5 text-sm max-h-32 overflow-y-auto">
+                                    {resultado.ignoradas.map((i, n) => (
+                                        <li key={n}>{i.projeto} → {i.avaliador}: {i.motivo}</li>
+                                    ))}
+                                </ul>
+                            </Alert>
+                        ) : (
+                            <p className="text-sm text-on-surface-variant">
+                                Todas as designações foram realizadas, sem nenhum problema. Cada
+                                avaliador recebeu um e-mail com a lista do que chegou para ele.
+                            </p>
+                        )}
+
+                        <div className="flex justify-end">
+                            <Button type="button" onClick={onFechar}>Fechar</Button>
+                        </div>
+                    </>
+                ) : (
+                    <>
+                        <p className="text-sm text-on-surface-variant">
+                            Cada avaliador marcado recebe <strong>todos</strong> os projetos marcados.
+                            Quem já avaliou um projeto não o recebe de novo — o portal avisa quais
+                            foram e designa o resto.
+                        </p>
+
+                        <div className="flex flex-col md:flex-row gap-4">
+                            <Escolha
+                                titulo="Projetos"
+                                rotuloBusca="Buscar projeto"
+                                busca={buscaProjeto}
+                                onBuscar={setBuscaProjeto}
+                                itens={opcoes.projetos}
+                                marcados={projetos}
+                                onAlternar={alternar(projetos, setProjetos)}
+                                render={(p) => (
+                                    <>
+                                        <span className="block text-sm text-on-surface truncate">{p.titulo}</span>
+                                        <span className="block text-xs text-on-surface-variant truncate">
+                                            {[p.categoria, p.area].filter(Boolean).join(' · ')} · {p.concluidas} avaliação(ões)
+                                        </span>
+                                    </>
+                                )}
+                            />
+                            <Escolha
+                                titulo="Avaliadores"
+                                rotuloBusca="Buscar avaliador"
+                                busca={buscaAvaliador}
+                                onBuscar={setBuscaAvaliador}
+                                itens={opcoes.avaliadores}
+                                marcados={avaliadores}
+                                onAlternar={alternar(avaliadores, setAvaliadores)}
+                                render={(a) => (
+                                    <>
+                                        <span className="block text-sm text-on-surface truncate">{a.nome}</span>
+                                        <span className="block text-xs text-on-surface-variant truncate">
+                                            {[a.area, `${a.na_fila} na fila`].filter(Boolean).join(' · ')}
+                                        </span>
+                                    </>
+                                )}
+                            />
+                        </div>
+
+                        <div className="flex flex-wrap items-center justify-end gap-3">
+                            <span className="text-sm text-on-surface-variant mr-auto">
+                                {projetos.length} projeto(s) × {avaliadores.length} avaliador(es) ={' '}
+                                <strong>{total} designação(ões)</strong>
+                            </span>
+                            <Button type="button" variant="outline" onClick={onFechar}>Cancelar</Button>
+                            <Button type="button" loading={salvando} disabled={total === 0} onClick={designar}>
+                                Designar
+                            </Button>
+                        </div>
+                    </>
+                )}
+            </div>
+        </div>
+    );
+}
+
 export default function AvaliacaoDesignacoes() {
     const [busca, setBusca] = useState('');
     const [filtros, setFiltros] = useState({
@@ -110,6 +315,7 @@ export default function AvaliacaoDesignacoes() {
     const [avaliadorSel, setAvaliadorSel] = useState(null);
     const [marcadas, setMarcadas] = useState([]);
     const [confirmando, setConfirmando] = useState(false);
+    const [designando, setDesignando] = useState(false);
     const [salvando, setSalvando] = useState(false);
     const [alert, setAlert] = useState('');
     const [success, setSuccess] = useState('');
@@ -193,7 +399,10 @@ export default function AvaliacaoDesignacoes() {
             <Link to="/admin/avaliacao" className="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary mb-3">
                 <span className="material-symbols-outlined text-[18px]">arrow_back</span> Avaliação online
             </Link>
-            <h1 className="font-display text-2xl font-semibold text-primary mb-1">Designações</h1>
+            <div className="flex flex-wrap items-center gap-3 mb-1">
+                <h1 className="font-display text-2xl font-semibold text-primary mr-auto">Designações</h1>
+                <Button type="button" onClick={() => setDesignando(true)}>Designar</Button>
+            </div>
             <p className="text-on-surface-variant mb-4 max-w-4xl">
                 Todos os projetos designados, com <strong>há quanto tempo</strong> cada um está com o
                 avaliador. Marque as designações que quer tirar de alguém: elas voltam ao bolo e são
@@ -369,6 +578,13 @@ export default function AvaliacaoDesignacoes() {
                     </div>
                 )}
             </div>
+
+            {designando && (
+                <DialogoDesignar
+                    onFechar={() => { setDesignando(false); carregar(); }}
+                    onConcluido={(mensagem) => { setSuccess(mensagem); setAlert(''); }}
+                />
+            )}
 
             {confirmando && (
                 <ConfirmarRetirada

@@ -261,6 +261,9 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 // Designações: a tabela com tudo que está na mão de cada avaliador.
                 Route::get('/avaliacao/designacoes', [AdminAvaliacaoController::class, 'designacoes']);
                 Route::post('/avaliacao/designacoes/retirar', [AdminAvaliacaoController::class, 'retirarDesignacoes']);
+                // Designação em massa: N projetos × N avaliadores de uma vez.
+                Route::get('/avaliacao/designacoes/opcoes', [AdminAvaliacaoController::class, 'opcoesDeDesignacao']);
+                Route::post('/avaliacao/designacoes/designar', [AdminAvaliacaoController::class, 'designarEmMassa']);
                 Route::post('/avaliacao/projetos/{projeto}/designar', [AdminAvaliacaoController::class, 'designar']);
                 // Correção manual da classificação/vídeo de um projeto submetido
                 // (justificativa obrigatória; cada campo vira registro).

@@ -96,6 +96,42 @@ class AdminAvaliacaoController extends Controller
         ]);
     }
 
+    /** As duas listas do diálogo de designação em massa, filtradas pela busca. */
+    public function opcoesDeDesignacao(Request $request): JsonResponse
+    {
+        return response()->json([
+            'data' => $this->designacao->opcoesDeDesignacao(
+                (string) $request->query('projeto', ''),
+                (string) $request->query('avaliador', ''),
+            ),
+        ]);
+    }
+
+    /**
+     * Designa vários projetos para vários avaliadores de uma vez — o cruzamento
+     * de tudo com tudo, pulando quem já avaliou aquele projeto.
+     */
+    public function designarEmMassa(Request $request): JsonResponse
+    {
+        $dados = $request->validate([
+            'projeto_ids' => ['required', 'array', 'min:1', 'max:200'],
+            'projeto_ids.*' => ['integer'],
+            'avaliador_ids' => ['required', 'array', 'min:1', 'max:200'],
+            'avaliador_ids.*' => ['integer'],
+        ]);
+
+        $resultado = $this->designacao->designar(
+            $dados['projeto_ids'],
+            $dados['avaliador_ids'],
+            $request->user(),
+        );
+
+        return response()->json([
+            'data' => $resultado,
+            'meta' => ['message' => $resultado['resumo'].' '.$resultado['problemas']],
+        ]);
+    }
+
     /** Avaliadores agrupados por área, com o progresso de avaliação de cada um. */
     public function avaliadores(ListarAvaliadoresRequest $request): JsonResponse
     {

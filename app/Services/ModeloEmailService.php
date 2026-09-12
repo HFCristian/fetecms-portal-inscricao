@@ -54,6 +54,7 @@ class ModeloEmailService
             corpo: MensagemEmail::personalizar($texto['corpo'], $valores),
             destaque: $destaque,
             formato: $texto['formato'],
+            modelo: $modelo,
         );
     }
 

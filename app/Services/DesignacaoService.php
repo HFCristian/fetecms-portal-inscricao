@@ -3,9 +3,12 @@
 namespace App\Services;
 
 use App\Enums\Categoria;
+use App\Enums\ProjetoStatus;
+use App\Enums\Role;
 use App\Enums\StatusAvaliacao;
 use App\Models\Avaliacao;
 use App\Models\Edicao;
+use App\Models\Projeto;
 use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -45,7 +48,138 @@ class DesignacaoService
     public function __construct(
         private readonly DistribuicaoService $distribuicao,
         private readonly RegistroAtividadeService $registros,
+        private readonly NotificacaoDesignacaoService $notificacoes,
     ) {}
+
+    /**
+     * Designa **vários projetos para vários avaliadores** de uma vez, no
+     * cruzamento de tudo com tudo: 3 projetos × 2 avaliadores = 6 designações.
+     *
+     * É o que a organização faz na véspera — "estes cinco trabalhos precisam de
+     * mais gente, mandem para estes três avaliadores" —, e fazer isso projeto a
+     * projeto pela tela antiga significava abrir cinco diálogos.
+     *
+     * **Quem já avaliou aquele projeto não o recebe de novo**: a mesma pessoa
+     * avaliando duas vezes o mesmo trabalho distorce a nota. O par é pulado, o
+     * resto continua sendo designado, e a resposta diz **quais foram e por quê**
+     * — sumir com o nome em silêncio deixaria o admin achando que a cobertura
+     * aconteceu inteira.
+     *
+     * Como toda designação manual, esta passa por cima dos limites da
+     * distribuição e fica protegida das devoluções automáticas
+     * (`designacao_manual`). Quem teve a avaliação **devolvida pelo prazo** é
+     * revivido com o rascunho intacto — é o que o admin quis dizer ao
+     * escolhê-lo.
+     *
+     * Terminado tudo, cada avaliador recebe **um** e-mail com a lista do que
+     * chegou, e o admin recebe o resumo da operação.
+     *
+     * @param  list<int>  $projetoIds
+     * @param  list<int>  $avaliadorIds
+     * @return array<string, mixed>
+     */
+    public function designar(array $projetoIds, array $avaliadorIds, User $admin): array
+    {
+        $projetos = Projeto::whereIn('id', $projetoIds)
+            ->where('status', ProjetoStatus::Submetido->value)
+            ->get(['id', 'titulo']);
+
+        $avaliadores = User::whereIn('id', $avaliadorIds)
+            ->where('role', Role::Avaliador->value)
+            ->where('is_active', true)
+            ->get(['id', 'name', 'email']);
+
+        if ($projetos->isEmpty()) {
+            throw ValidationException::withMessages([
+                'projeto_ids' => 'Escolha ao menos um projeto submetido.',
+            ]);
+        }
+
+        if ($avaliadores->isEmpty()) {
+            throw ValidationException::withMessages([
+                'avaliador_ids' => 'Escolha ao menos um avaliador ativo.',
+            ]);
+        }
+
+        // Tudo que estas pessoas já têm nestes projetos, numa consulta só — as
+        // devolvidas incluídas, que o escopo esconde e que são justamente as
+        // que a chave única (projeto, avaliador) faria explodir num insert.
+        $existentes = Avaliacao::comDevolvidas()
+            ->whereIn('projeto_id', $projetos->pluck('id'))
+            ->whereIn('avaliador_id', $avaliadores->pluck('id'))
+            ->get()
+            ->keyBy(fn (Avaliacao $a) => $a->projeto_id.':'.$a->avaliador_id);
+
+        $resultado = [
+            'designadas' => 0,
+            'retomadas' => 0,
+            'ignoradas' => [],
+            'por_avaliador' => [],
+        ];
+
+        DB::transaction(function () use ($projetos, $avaliadores, $existentes, &$resultado) {
+            foreach ($projetos as $projeto) {
+                foreach ($avaliadores as $avaliador) {
+                    $existente = $existentes->get($projeto->id.':'.$avaliador->id);
+
+                    if ($existente === null) {
+                        Avaliacao::create([
+                            'projeto_id' => $projeto->id,
+                            'avaliador_id' => $avaliador->id,
+                            'status' => StatusAvaliacao::Designada,
+                            'designacao_manual' => true,
+                        ]);
+
+                        $resultado['designadas']++;
+                        $this->creditar($resultado, $avaliador, $projeto->titulo);
+
+                        continue;
+                    }
+
+                    if ($existente->status === StatusAvaliacao::Concluida) {
+                        $resultado['ignoradas'][] = [
+                            'projeto' => $projeto->titulo,
+                            'avaliador' => $avaliador->name,
+                            'motivo' => 'já avaliou este projeto',
+                        ];
+
+                        continue;
+                    }
+
+                    if ($existente->foiDevolvida()) {
+                        $existente->update(['devolvida_em' => null, 'designacao_manual' => true]);
+
+                        $resultado['retomadas']++;
+                        $this->creditar($resultado, $avaliador, $projeto->titulo);
+
+                        continue;
+                    }
+
+                    // Já está com o projeto: nada muda, mas a partir de agora a
+                    // designação manual o protege das devoluções automáticas.
+                    if (! $existente->designacao_manual) {
+                        $existente->update(['designacao_manual' => true]);
+                    }
+
+                    $resultado['ignoradas'][] = [
+                        'projeto' => $projeto->titulo,
+                        'avaliador' => $avaliador->name,
+                        'motivo' => 'já está com este projeto',
+                    ];
+                }
+            }
+        });
+
+        // Os e-mails saem depois da transação: nada de avisar alguém sobre uma
+        // designação que um rollback desfez.
+        foreach ($resultado['por_avaliador'] as $linha) {
+            $this->notificacoes->avaliador($linha['avaliador'], $linha['projetos']);
+        }
+
+        $this->notificacoes->resumoParaAdmin($admin, $resultado);
+
+        return $this->resumoParaTela($resultado);
+    }
 
     /**
      * @param  array<string, mixed>  $filtros
@@ -221,6 +355,104 @@ class DesignacaoService
             ->when($filtros['avaliador_id'] ?? null, fn ($q, $id) => $q->where('avaliacoes.avaliador_id', $id))
             ->orderBy(self::ORDENACOES[$ordenar], $direcao)
             ->orderBy('avaliacoes.id');
+    }
+
+    /**
+     * As duas listas do diálogo de designação: projetos submetidos e
+     * avaliadores ativos, filtrados pelo que o admin digitou.
+     *
+     * A busca é no servidor e limitada porque a base é grande: mandar 600
+     * projetos e 300 avaliadores para a tela a cada abertura seria pagar caro
+     * por uma lista que ninguém lê inteira.
+     *
+     * @return array<string, mixed>
+     */
+    public function opcoesDeDesignacao(string $projeto = '', string $avaliador = '', int $limite = 30): array
+    {
+        $como = fn (string $termo) => '%'.str_replace(['%', '_'], ['\%', '\_'], mb_strtolower(trim($termo))).'%';
+
+        $projetos = Projeto::semDemo()
+            ->where('status', ProjetoStatus::Submetido->value)
+            ->when(trim($projeto) !== '', fn ($q) => $q->whereRaw('LOWER(titulo) LIKE ?', [$como($projeto)]))
+            ->with('area:id,nome')
+            ->withCount([
+                'avaliacoes as concluidas_count' => fn ($q) => $q->where('status', StatusAvaliacao::Concluida->value),
+            ])
+            ->orderBy('titulo')
+            ->limit($limite)
+            ->get();
+
+        $avaliadores = User::where('role', Role::Avaliador->value)
+            ->where('is_active', true)
+            ->where('is_demo', false)
+            ->when(trim($avaliador) !== '', fn ($q) => $q->where(fn ($sub) => $sub
+                ->whereRaw('LOWER(name) LIKE ?', [$como($avaliador)])
+                ->orWhereRaw('LOWER(email) LIKE ?', [$como($avaliador)])))
+            ->with('avaliadorProfile.area:id,nome')
+            ->withCount([
+                'avaliacoes as designadas_count' => fn ($q) => $q->whereIn('status', [
+                    StatusAvaliacao::Designada->value, StatusAvaliacao::EmAndamento->value,
+                ]),
+            ])
+            ->orderBy('name')
+            ->limit($limite)
+            ->get();
+
+        return [
+            'projetos' => $projetos->map(fn (Projeto $p) => [
+                'id' => $p->id,
+                'titulo' => $p->titulo,
+                'area' => $p->area?->nome,
+                'categoria' => $p->categoria?->label(),
+                'concluidas' => (int) $p->concluidas_count,
+            ])->all(),
+            'avaliadores' => $avaliadores->map(fn (User $u) => [
+                'id' => $u->id,
+                'nome' => $u->name,
+                'email' => $u->email,
+                'area' => $u->avaliadorProfile?->area?->nome,
+                'na_fila' => (int) $u->designadas_count,
+            ])->all(),
+        ];
+    }
+
+    /**
+     * Guarda, por avaliador, o que ele ganhou nesta operação — é a lista que vai
+     * no e-mail dele.
+     *
+     * @param  array<string, mixed>  $resultado
+     */
+    private function creditar(array &$resultado, User $avaliador, string $titulo): void
+    {
+        $resultado['por_avaliador'][$avaliador->id] ??= [
+            'avaliador' => $avaliador,
+            'projetos' => [],
+        ];
+
+        $resultado['por_avaliador'][$avaliador->id]['projetos'][] = $titulo;
+    }
+
+    /**
+     * O mesmo resultado, no formato que a tela lê: sem os models do e-mail e
+     * com as frases prontas do resumo.
+     *
+     * @param  array<string, mixed>  $resultado
+     * @return array<string, mixed>
+     */
+    private function resumoParaTela(array $resultado): array
+    {
+        return [
+            'designadas' => $resultado['designadas'],
+            'retomadas' => $resultado['retomadas'],
+            'ignoradas' => $resultado['ignoradas'],
+            'avaliadores' => array_values(array_map(fn (array $linha) => [
+                'id' => $linha['avaliador']->id,
+                'nome' => $linha['avaliador']->name,
+                'projetos' => $linha['projetos'],
+            ], $resultado['por_avaliador'])),
+            'resumo' => NotificacaoDesignacaoService::descreverResumo($resultado),
+            'problemas' => NotificacaoDesignacaoService::descreverProblemas($resultado),
+        ];
     }
 
     /** "há 3 dias", "há 5 horas" — o tempo que a tela mostra na coluna. */
