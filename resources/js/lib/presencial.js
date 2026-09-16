@@ -45,3 +45,40 @@ export const excluirItemChecagem = (id) =>
 
 /** O PDF do termo de responsabilidade, servido pela rota autenticada. */
 export const urlTermo = (documentoId) => `/api/v1/documentos/${documentoId}/preview`;
+
+// --- Credenciais (vagas de premiação) ---------------------------------------
+
+export const getCredenciais = () =>
+    http.get('/admin/presencial/credenciais').then((r) => r.data);
+
+export const criarCredencial = (dados) =>
+    http.post('/admin/presencial/credenciais', dados).then((r) => r.data.data);
+
+export const atualizarCredencial = (id, dados) =>
+    http.patch(`/admin/presencial/credenciais/${id}`, dados).then((r) => r.data.data);
+
+export const excluirCredencial = (id) =>
+    http.delete(`/admin/presencial/credenciais/${id}`).then((r) => r.data.data);
+
+export const atribuirCredencial = (id, projetoId, observacao = null) =>
+    http.post(`/admin/presencial/credenciais/${id}/projetos`, { projeto_id: projetoId, observacao })
+        .then((r) => r.data);
+
+export const retirarCredencial = (id, projetoId) =>
+    http.delete(`/admin/presencial/credenciais/${id}/projetos/${projetoId}`).then((r) => r.data);
+
+export const getPremiacao = () =>
+    http.get('/admin/presencial/credenciais/premiacao').then((r) => r.data.data);
+
+/** Baixa a lista de premiação em TXT (a que se lê na cerimônia). */
+export async function baixarPremiacao() {
+    const r = await http.get('/admin/presencial/credenciais/premiacao/arquivo', { responseType: 'blob' });
+    const url = URL.createObjectURL(r.data);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'lista-premiacao.txt';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+}

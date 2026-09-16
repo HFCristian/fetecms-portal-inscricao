@@ -26,6 +26,12 @@ const SECOES = [
         descricao: 'Contas de prazo curto para quem trabalha no evento, com os turnos de cada um.',
     },
     {
+        to: '/admin/presencial/credenciais',
+        icon: 'workspace_premium',
+        titulo: 'Credenciais',
+        descricao: 'As vagas de premiação da feira, o projeto de cada uma e a lista da cerimônia.',
+    },
+    {
         to: '/admin/presencial/espelho',
         icon: 'table_view',
         titulo: 'Espelho da checagem',

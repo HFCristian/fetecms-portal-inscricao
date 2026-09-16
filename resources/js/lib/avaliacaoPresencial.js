@@ -11,3 +11,23 @@ export const getPresencial = (teste = false) =>
 export const responderPresencial = (presencial, teste = false) =>
     http.put('/avaliador/presencial', { presencial, teste: teste ? 1 : 0 })
         .then((r) => r.data);
+
+// --- A avaliação no estande (durante o evento) -------------------------------
+
+export const getPainelPresencial = (teste = false) =>
+    http.get('/avaliador/presencial/avaliacoes', params(teste)).then((r) => r.data.data);
+
+export const iniciarAvaliacaoPresencial = (projetoId, teste = false) =>
+    http.post(`/avaliador/presencial/avaliacoes/projetos/${projetoId}`, { teste: teste ? 1 : 0 })
+        .then((r) => r.data.data);
+
+export const getAvaliacaoPresencial = (id, teste = false) =>
+    http.get(`/avaliador/presencial/avaliacoes/${id}`, params(teste)).then((r) => r.data.data);
+
+export const salvarRascunhoPresencial = (id, dados, teste = false) =>
+    http.post(`/avaliador/presencial/avaliacoes/${id}/rascunho`, { ...dados, teste: teste ? 1 : 0 })
+        .then((r) => r.data);
+
+export const concluirAvaliacaoPresencial = (id, dados, teste = false) =>
+    http.post(`/avaliador/presencial/avaliacoes/${id}/concluir`, { ...dados, teste: teste ? 1 : 0 })
+        .then((r) => r.data);

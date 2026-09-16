@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\V1\AvaliacaoPresencialAdminController;
 use App\Http\Controllers\Api\V1\AvaliadorAvaliacaoController;
 use App\Http\Controllers\Api\V1\AvaliadorController;
 use App\Http\Controllers\Api\V1\AvaliadorPerfilController;
+use App\Http\Controllers\Api\V1\AvaliadorPresencialAvaliacaoController;
 use App\Http\Controllers\Api\V1\AvaliadorPresencialController;
 use App\Http\Controllers\Api\V1\AvisoController;
 use App\Http\Controllers\Api\V1\CadastroPendenteController;
@@ -226,6 +227,12 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             // Intenção de avaliar presencialmente, e as orientações de quem aceita.
             Route::get('/presencial', [AvaliadorPresencialController::class, 'show']);
             Route::put('/presencial', [AvaliadorPresencialController::class, 'update']);
+            // A avaliação no estande, para quem aceitou e durante o evento.
+            Route::get('/presencial/avaliacoes', [AvaliadorPresencialAvaliacaoController::class, 'index']);
+            Route::post('/presencial/avaliacoes/projetos/{projeto}', [AvaliadorPresencialAvaliacaoController::class, 'iniciar']);
+            Route::get('/presencial/avaliacoes/{avaliacao}', [AvaliadorPresencialAvaliacaoController::class, 'show']);
+            Route::post('/presencial/avaliacoes/{avaliacao}/rascunho', [AvaliadorPresencialAvaliacaoController::class, 'rascunho']);
+            Route::post('/presencial/avaliacoes/{avaliacao}/concluir', [AvaliadorPresencialAvaliacaoController::class, 'concluir']);
         });
 
         // Chat de suporte — orientador/avaliador falam com o suporte (admin)
@@ -274,6 +281,19 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::post('/itens', [AvaliacaoPresencialAdminController::class, 'criarItem']);
                 Route::patch('/itens/{item}', [AvaliacaoPresencialAdminController::class, 'atualizarItem']);
                 Route::delete('/itens/{item}', [AvaliacaoPresencialAdminController::class, 'excluirItem']);
+                // Avaliações presenciais: designar estandes e acompanhar.
+                Route::get('/avaliacoes', [AvaliacaoPresencialAdminController::class, 'avaliacoes']);
+                Route::post('/avaliacoes/designar', [AvaliacaoPresencialAdminController::class, 'designarAvaliacoes']);
+                Route::delete('/avaliacoes/{avaliacao}', [AvaliacaoPresencialAdminController::class, 'retirarAvaliacao']);
+                // Credenciais: as vagas de premiação e a lista da cerimônia.
+                Route::get('/credenciais', [AvaliacaoPresencialAdminController::class, 'credenciais']);
+                Route::post('/credenciais', [AvaliacaoPresencialAdminController::class, 'criarCredencial']);
+                Route::get('/credenciais/premiacao', [AvaliacaoPresencialAdminController::class, 'premiacao']);
+                Route::get('/credenciais/premiacao/arquivo', [AvaliacaoPresencialAdminController::class, 'premiacaoTxt']);
+                Route::patch('/credenciais/{credencial}', [AvaliacaoPresencialAdminController::class, 'atualizarCredencial']);
+                Route::delete('/credenciais/{credencial}', [AvaliacaoPresencialAdminController::class, 'excluirCredencial']);
+                Route::post('/credenciais/{credencial}/projetos', [AvaliacaoPresencialAdminController::class, 'atribuirCredencial']);
+                Route::delete('/credenciais/{credencial}/projetos/{projeto}', [AvaliacaoPresencialAdminController::class, 'retirarCredencial']);
                 // Voluntários: contas temporárias próprias desta aba, com
                 // vários turnos de trabalho definidos de uma vez.
                 Route::get('/contas', [ContaTemporariaController::class, 'index'])->defaults('setor', 'avaliacao_presencial');
