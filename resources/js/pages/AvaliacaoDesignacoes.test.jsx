@@ -2,7 +2,14 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../components/AppShell.jsx', () => ({ default: ({ children }) => <div>{children}</div> }));
-vi.mock('react-router-dom', () => ({ Link: ({ children }) => <a>{children}</a> }));
+// A tela lê ?projeto=&q= para abrir o diálogo já com o projeto marcado (quem
+// manda um projeto para cá é a verificação de disparidade).
+let searchParams = new URLSearchParams();
+const setSearchParams = vi.fn();
+vi.mock('react-router-dom', () => ({
+    Link: ({ children }) => <a>{children}</a>,
+    useSearchParams: () => [searchParams, setSearchParams],
+}));
 // Espelha o extractErrors de verdade: mensagem geral + os erros por campo, que
 // é de onde saem as recusas de validação (422) que a tela mostra.
 vi.mock('../lib/auth.jsx', () => ({
@@ -190,6 +197,26 @@ describe('AvaliacaoDesignacoes', () => {
 
         expect(await screen.findByText(/1 designação\(ões\) não foram feitas/)).toBeInTheDocument();
         expect(screen.getByText(/Robô seguidor → Ana Souza: já avaliou este projeto/)).toBeInTheDocument();
+    });
+
+    it('abre o diálogo já com o projeto que veio na URL', async () => {
+        // ?projeto=1&q=Robô seguidor — é o que a verificação de disparidade manda.
+        searchParams = new URLSearchParams({ projeto: '1', q: 'Robô seguidor' });
+        render(<AvaliacaoDesignacoes />);
+
+        await screen.findByText('Designar projetos');
+        const dialogo = within(screen.getByRole('dialog'));
+
+        // Já marcado: o admin só escolhe o avaliador.
+        await waitFor(() =>
+            expect(dialogo.getByRole('checkbox', { name: /Robô seguidor/ })).toBeChecked());
+        // E a busca já foi feita pelo título, para o projeto estar na lista.
+        await waitFor(() =>
+            expect(getOpcoesDesignacao).toHaveBeenCalledWith({ projeto: 'Robô seguidor' }));
+        // A URL é limpa: um F5 não deve reabrir a designação já feita.
+        expect(setSearchParams).toHaveBeenCalledWith({}, { replace: true });
+
+        searchParams = new URLSearchParams();
     });
 
     it('busca projeto e avaliador no servidor', async () => {

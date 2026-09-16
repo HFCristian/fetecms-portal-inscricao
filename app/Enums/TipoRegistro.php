@@ -72,6 +72,7 @@ enum TipoRegistro: string
     case AvaliacaoHorasSessao = 'avaliacao_horas_sessao';
     case AvaliacaoDiasAberta = 'avaliacao_dias_aberta';
     case AvaliacaoDesignacaoRetirada = 'avaliacao_designacao_retirada';
+    case AvaliacaoDisparidadeVerificada = 'avaliacao_disparidade_verificada';
     case AvaliacaoParecerEditado = 'avaliacao_parecer_editado';
     case AvaliacaoAjustesInicio = 'avaliacao_ajustes_inicio';
     case AvaliacaoAjustesFim = 'avaliacao_ajustes_fim';
@@ -142,6 +143,7 @@ enum TipoRegistro: string
             self::AvaliacaoHorasSessao => 'Sessão do avaliador (horas)',
             self::AvaliacaoDiasAberta => 'Prazo da avaliação aberta',
             self::AvaliacaoDesignacaoRetirada => 'Designação retirada',
+            self::AvaliacaoDisparidadeVerificada => 'Disparidade verificada',
             self::AvaliacaoParecerEditado => 'Parecer do avaliador editado',
             self::AvaliacaoAjustesInicio => 'Início dos ajustes',
             self::AvaliacaoAjustesFim => 'Fim dos ajustes',

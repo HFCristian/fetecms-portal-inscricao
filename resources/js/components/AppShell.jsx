@@ -76,6 +76,12 @@ function NavLinks({ role, abas, onNavigate, suporteBadge = 0 }) {
                 <span className="material-symbols-outlined">rule_settings</span>
                 Ajustes
             </NavLink>
+            {/* Mesma janela dos ajustes: as duas abas mostram o resultado da
+                avaliação online, liberado pela organização na mesma data. */}
+            <NavLink to="/pareceres" className={navClass} onClick={onNavigate}>
+                <span className="material-symbols-outlined">reviews</span>
+                Pareceres
+            </NavLink>
             <NavLink to="/perfil" className={navClass} onClick={onNavigate}>
                 <span className="material-symbols-outlined">account_circle</span>
                 Perfil

@@ -39,6 +39,7 @@ use App\Http\Controllers\Api\V1\MapaPlantaController;
 use App\Http\Controllers\Api\V1\MapaTurnosController;
 use App\Http\Controllers\Api\V1\OrientadorAjusteController;
 use App\Http\Controllers\Api\V1\OrientadorController;
+use App\Http\Controllers\Api\V1\OrientadorParecerController;
 use App\Http\Controllers\Api\V1\ParametrizacaoAbasController;
 use App\Http\Controllers\Api\V1\ParametrizacaoCredenciamentoController;
 use App\Http\Controllers\Api\V1\PerfilController;
@@ -181,6 +182,13 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::post('/projetos/{projeto}/decidir', [OrientadorAjusteController::class, 'decidir']);
         });
 
+        // Aba "Pareceres" do orientador: a nota média de cada projeto dele e o
+        // que os avaliadores escreveram — sem nome e sem a nota das seções.
+        Route::middleware('role:orientador')->prefix('pareceres')->group(function () {
+            Route::get('/', [OrientadorParecerController::class, 'index']);
+            Route::get('/projetos/{projeto}', [OrientadorParecerController::class, 'show']);
+        });
+
         // Avaliação online — lado do avaliador (E7): ler, iniciar e concluir com nota
         Route::middleware('role:avaliador')->prefix('avaliacao')->group(function () {
             Route::get('/', [AvaliadorAvaliacaoController::class, 'index']);
@@ -251,6 +259,11 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::get('/avaliacao/ranking-avaliadores', [AdminAvaliacaoController::class, 'rankingAvaliadores']);
                 Route::get('/avaliacao/lista-final/opcoes', [AdminAvaliacaoController::class, 'opcoesListaFinal']);
                 Route::post('/avaliacao/lista-final', [AdminAvaliacaoController::class, 'gerarListaFinal']);
+                // Verificação de disparidade: os projetos cujas notas se
+                // afastaram mais do que o admin considera aceitável.
+                Route::get('/avaliacao/disparidades', [AdminAvaliacaoController::class, 'disparidades']);
+                Route::post('/avaliacao/disparidades', [AdminAvaliacaoController::class, 'gerarDisparidade']);
+                Route::get('/avaliacao/disparidades/{verificacao}', [AdminAvaliacaoController::class, 'mostrarDisparidade']);
                 // Listas finais oficiais registradas (a vigente define os finalistas).
                 Route::get('/avaliacao/listas-finais', [AdminAvaliacaoController::class, 'listasFinais']);
                 Route::get('/avaliacao/listas-finais/{lista}/arquivo', [AdminAvaliacaoController::class, 'baixarListaFinal']);

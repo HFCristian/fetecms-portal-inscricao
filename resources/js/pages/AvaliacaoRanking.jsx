@@ -121,6 +121,15 @@ export default function AvaliacaoRanking() {
                     </p>
                 </div>
                 <div className="flex flex-wrap gap-2 shrink-0">
+                    {/* A média esconde o desacordo: 9,50 com 4,50 dá o mesmo
+                        7,00 que 7,00 com 7,00. */}
+                    <Link
+                        to="/admin/avaliacao/disparidade"
+                        className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-2.5 text-sm font-semibold text-on-surface hover:bg-surface-variant transition-colors"
+                    >
+                        <span className="material-symbols-outlined text-[18px]">rule</span>
+                        Verificar disparidade
+                    </Link>
                     <Link
                         to="/admin/avaliacao/listas-finais"
                         className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-2.5 text-sm font-semibold text-on-surface hover:bg-surface-variant transition-colors"

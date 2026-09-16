@@ -233,6 +233,17 @@ export async function baixarListaFinal(cotas) {
     baixarBlob(r.data, nome);
 }
 
+// Verificação de disparidade: projetos cujas notas se afastaram demais.
+export const getVerificacoesDisparidade = () =>
+    http.get('/admin/avaliacao/disparidades').then((r) => r.data.data);
+
+/** Gera e registra uma verificação; devolve a lista já congelada. */
+export const gerarVerificacaoDisparidade = (diferenca) =>
+    http.post('/admin/avaliacao/disparidades', { diferenca }).then((r) => r.data.data);
+
+export const getVerificacaoDisparidade = (id) =>
+    http.get(`/admin/avaliacao/disparidades/${id}`).then((r) => r.data.data);
+
 /** Listas finais oficiais registradas na edição em curso. */
 export const getListasFinais = () =>
     http.get('/admin/avaliacao/listas-finais').then((r) => r.data.data);

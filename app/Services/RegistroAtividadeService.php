@@ -579,6 +579,30 @@ class RegistroAtividadeService
     }
 
     /**
+     * O admin pediu a lista dos projetos com notas díspares (Ranking →
+     * Verificar disparidade).
+     *
+     * Não aponta para projeto nenhum: a verificação é um ato sobre a edição
+     * inteira. Fica registrada porque o que costuma vir depois dela é uma
+     * designação a mais no projeto — e é preciso poder dizer, meses depois, o
+     * que motivou aquele parecer extra.
+     */
+    public function disparidadeVerificada(User $admin, float $diferenca, int $total): RegistroAtividade
+    {
+        return RegistroAtividade::create([
+            'tipo' => TipoRegistro::AvaliacaoDisparidadeVerificada,
+            'user_id' => $admin->id,
+            'autor_email' => $admin->email,
+            'autor_nome' => $admin->name,
+            'autor_role' => $admin->role?->value,
+            'detalhes' => [
+                'diferenca' => number_format($diferenca, 2, ',', ''),
+                'total' => $total,
+            ],
+        ]);
+    }
+
+    /**
      * Consulta filtrada do painel. Filtros aceitos: `tipos` (lista), `de`/`ate`
      * (datas, inclusivas) e `busca` (e-mail, nome ou título do projeto).
      *
@@ -728,6 +752,16 @@ class RegistroAtividadeService
                 'viu a nota de %s%s',
                 $detalhes['avaliador'] ?? 'um avaliador',
                 empty($detalhes['nota']) ? '' : ' · nota '.$detalhes['nota'],
+            );
+        }
+
+        // A verificação de disparidade não é "de → para": é o corte pedido e
+        // quantos projetos passaram dele.
+        if ($registro->tipo === TipoRegistro::AvaliacaoDisparidadeVerificada) {
+            return sprintf(
+                'diferença de %s ponto(s) · %d projeto(s)',
+                $detalhes['diferenca'] ?? '?',
+                (int) ($detalhes['total'] ?? 0),
             );
         }
 

@@ -12,6 +12,7 @@ import ProjetoForm from './pages/ProjetoForm.jsx';
 import Integrantes from './pages/Integrantes.jsx';
 import Resumo from './pages/Resumo.jsx';
 import Ajustes from './pages/Ajustes.jsx';
+import Pareceres from './pages/Pareceres.jsx';
 import Perfil from './pages/Perfil.jsx';
 import AvaliadorHome from './pages/AvaliadorHome.jsx';
 import AvaliadorPerfil from './pages/AvaliadorPerfil.jsx';
@@ -64,6 +65,7 @@ import AvaliacaoDesignacoes from './pages/AvaliacaoDesignacoes.jsx';
 import AvaliacaoReclassificacoes from './pages/AvaliacaoReclassificacoes.jsx';
 import AvaliacaoRanking from './pages/AvaliacaoRanking.jsx';
 import AvaliacaoListasFinais from './pages/AvaliacaoListasFinais.jsx';
+import AvaliacaoDisparidade from './pages/AvaliacaoDisparidade.jsx';
 import AvaliacaoListaFinalDetalhe from './pages/AvaliacaoListaFinalDetalhe.jsx';
 import AvaliacaoRankingAvaliadores from './pages/AvaliacaoRankingAvaliadores.jsx';
 import Acesso from './pages/Acesso.jsx';
@@ -119,6 +121,7 @@ export default function Root() {
                             <Route path="/projetos/:id/integrantes" element={<Integrantes />} />
                             <Route path="/projetos/:id/resumo" element={<Resumo />} />
                             <Route path="/ajustes" element={<Ajustes />} />
+                            <Route path="/pareceres" element={<Pareceres />} />
                             <Route path="/perfil" element={<Perfil />} />
                         </Route>
 
@@ -142,6 +145,7 @@ export default function Root() {
                             <Route path="/admin/avaliacao/designacoes" element={<AvaliacaoDesignacoes />} />
                             <Route path="/admin/avaliacao/reclassificacoes" element={<AvaliacaoReclassificacoes />} />
                             <Route path="/admin/avaliacao/ranking" element={<AvaliacaoRanking />} />
+                            <Route path="/admin/avaliacao/disparidade" element={<AvaliacaoDisparidade />} />
                             <Route path="/admin/avaliacao/listas-finais" element={<AvaliacaoListasFinais />} />
                             <Route path="/admin/avaliacao/listas-finais/:id" element={<AvaliacaoListaFinalDetalhe />} />
                             <Route path="/admin/avaliacao/ranking-avaliadores" element={<AvaliacaoRankingAvaliadores />} />
