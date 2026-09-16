@@ -7,11 +7,13 @@ vi.mock('../lib/auth.jsx', () => ({
     extractErrors: (e) => ({ message: e?.response?.data?.message ?? '', fields: e?.response?.data?.errors ?? {} }),
 }));
 
+const decidirPresenca = vi.fn();
 const getContasTemporarias = vi.fn();
 const criarContaTemporaria = vi.fn();
 const renovarContaTemporaria = vi.fn();
 const desativarContaTemporaria = vi.fn();
 vi.mock('../lib/contasTemporarias.js', () => ({
+    decidirPresenca: (...a) => decidirPresenca(...a),
     getContasTemporarias: (...a) => getContasTemporarias(...a),
     criarContaTemporaria: (...a) => criarContaTemporaria(...a),
     renovarContaTemporaria: (...a) => renovarContaTemporaria(...a),
@@ -248,5 +250,59 @@ describe('CredenciamentoContas — voluntários (turnos)', () => {
 
         expect(screen.getByLabelText('Disponível por (horas)')).toBeInTheDocument();
         expect(screen.queryByLabelText('Início do turno 1')).not.toBeInTheDocument();
+    });
+});
+
+describe('CredenciamentoContas — presença do turno', () => {
+    const PENDENTE = {
+        id: 9, nome: 'Bruna Atendente', email: 'bruna@balcao.test', cpf: '529.982.247-25',
+        curso: 'Computação', setor: 'credenciamento', ativa: true, vencida: false, agendada: false,
+        duracao_label: '5 horas', expira_em_label: '20/10/2026 13:00', horas_restantes: 5,
+        turnos: [], em_turno: true,
+        presenca: 'pendente', presenca_label: 'Aguardando aprovação', presenca_em_label: '20/10/2026 08:02',
+    };
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        getContasTemporarias.mockResolvedValue({ contas: [PENDENTE], horas_padrao: 5 });
+        decidirPresenca.mockResolvedValue({
+            data: { contas: [{ ...PENDENTE, presenca: 'aprovada', presenca_label: 'Presença aprovada' }], horas_padrao: 5 },
+            meta: { message: 'Presença aprovada — a conta já abre a aba.' },
+        });
+    });
+
+    it('mostra quem está esperando aprovação', async () => {
+        render(<CredenciamentoContas />);
+
+        expect(await screen.findByText(/Aguardando aprovação/)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Aprovar presença/i })).toBeInTheDocument();
+    });
+
+    it('aprova a presença direto', async () => {
+        render(<CredenciamentoContas />);
+
+        fireEvent.click(await screen.findByRole('button', { name: /Aprovar presença/i }));
+
+        await waitFor(() => expect(decidirPresenca).toHaveBeenCalledWith(9, true, null, 'credenciamento'));
+    });
+
+    it('rejeitar exige o motivo antes de enviar', async () => {
+        render(<CredenciamentoContas />);
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Rejeitar' }));
+
+        const dialogo = await screen.findByRole('dialog');
+        const enviar = within(dialogo).getByRole('button', { name: 'Rejeitar' });
+
+        expect(enviar).toBeDisabled();
+
+        fireEvent.change(screen.getByLabelText('Motivo da rejeição'), {
+            target: { value: 'Não é a pessoa escalada.' },
+        });
+        fireEvent.click(within(dialogo).getByRole('button', { name: 'Rejeitar' }));
+
+        await waitFor(() => expect(decidirPresenca).toHaveBeenCalledWith(
+            9, false, 'Não é a pessoa escalada.', 'credenciamento',
+        ));
     });
 });

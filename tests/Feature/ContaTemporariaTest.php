@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\AbaAdmin;
+use App\Enums\StatusPresenca;
 use App\Models\ContaTemporaria;
 use App\Models\Edicao;
 use App\Models\EscopoAdmin;
@@ -51,6 +52,19 @@ class ContaTemporariaTest extends TestCase
         return app(ContaTemporariaService::class)->criar($this->payload($extra));
     }
 
+    /**
+     * A conta com a **presença aprovada** — o estado de quem chegou ao balcão e
+     * foi confirmado pela organização (Sprint 136). Sem isso ela não abre aba
+     * nenhuma, e é o que os testes de acesso querem exercitar.
+     */
+    private function criarComPresenca(array $extra = []): ContaTemporaria
+    {
+        $conta = $this->criar($extra);
+        $conta->forceFill(['presenca_status' => StatusPresenca::Aprovada])->save();
+
+        return $conta->refresh();
+    }
+
     public function test_admin_cria_conta_temporaria_com_cpf_curso_e_prazo(): void
     {
         Sanctum::actingAs(User::factory()->admin()->create());
@@ -83,7 +97,7 @@ class ContaTemporariaTest extends TestCase
      */
     public function test_conta_temporaria_so_abre_a_aba_credenciamento(): void
     {
-        $conta = $this->criar();
+        $conta = $this->criarComPresenca();
         $user = $conta->user->fresh();
 
         $this->assertSame([AbaAdmin::Credenciamento->value], $user->abasPermitidas());
@@ -100,7 +114,7 @@ class ContaTemporariaTest extends TestCase
     /** Nem um escopo de acesso total dado por engano fura a trava. */
     public function test_escopo_amplo_nao_amplia_uma_conta_temporaria(): void
     {
-        $conta = $this->criar();
+        $conta = $this->criarComPresenca();
         $total = EscopoAdmin::create(['nome' => 'Acesso total', 'abas' => AbaAdmin::valores()]);
         $conta->user->escopos()->attach($total->id, ['edicao_id' => Edicao::padrao()->id]);
 
@@ -213,7 +227,7 @@ class ContaTemporariaTest extends TestCase
      */
     public function test_conta_temporaria_nao_administra_contas_temporarias(): void
     {
-        $conta = $this->criar();
+        $conta = $this->criarComPresenca();
         Sanctum::actingAs($conta->user->fresh());
 
         $this->getJson('/api/v1/admin/credenciamento/contas')->assertForbidden();
@@ -394,9 +408,10 @@ class ContaTemporariaTest extends TestCase
         ]))->assertCreated();
 
         $conta = ContaTemporaria::where('setor', 'almoxarifado')->firstOrFail();
+        $conta->forceFill(['presenca_status' => StatusPresenca::Aprovada])->save();
         Sanctum::actingAs($conta->user);
 
-        $this->assertSame(['almoxarifado'], $conta->user->abasPermitidas());
+        $this->assertSame(['almoxarifado'], $conta->user->fresh()->abasPermitidas());
         $this->getJson('/api/v1/admin/credenciamento/finalistas')->assertForbidden();
         $this->getJson('/api/v1/admin/almoxarifado/registros')->assertOk();
         // E continua sem administrar contas — inclusive as do próprio setor.
@@ -409,8 +424,9 @@ class ContaTemporariaTest extends TestCase
         $this->postJson('/api/v1/admin/credenciamento/contas', $this->payload())->assertCreated();
 
         $conta = ContaTemporaria::firstOrFail();
+        $conta->forceFill(['presenca_status' => StatusPresenca::Aprovada])->save();
 
         $this->assertSame('credenciamento', $conta->setor);
-        $this->assertSame(['credenciamento'], $conta->user->abasPermitidas());
+        $this->assertSame(['credenciamento'], $conta->user->fresh()->abasPermitidas());
     }
 }

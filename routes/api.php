@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\V1\CatalogoAdminController;
 use App\Http\Controllers\Api\V1\CatalogoController;
 use App\Http\Controllers\Api\V1\ChatAdminController;
 use App\Http\Controllers\Api\V1\ChatController;
+use App\Http\Controllers\Api\V1\ComiteDesignacaoController;
 use App\Http\Controllers\Api\V1\ComiteTransporteController;
 use App\Http\Controllers\Api\V1\ContaTemporariaController;
 use App\Http\Controllers\Api\V1\CoorientadorController;
@@ -47,6 +48,7 @@ use App\Http\Controllers\Api\V1\OrientadorParecerController;
 use App\Http\Controllers\Api\V1\ParametrizacaoAbasController;
 use App\Http\Controllers\Api\V1\ParametrizacaoCredenciamentoController;
 use App\Http\Controllers\Api\V1\PerfilController;
+use App\Http\Controllers\Api\V1\PresencaContaTemporariaController;
 use App\Http\Controllers\Api\V1\ProjetoController;
 use App\Http\Controllers\Api\V1\ProjetoSubmissaoController;
 use Illuminate\Support\Facades\Route;
@@ -116,6 +118,12 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
         // Troca do e-mail de acesso (qualquer papel) — registrada na trilha do admin.
         Route::put('/auth/email', [AuthController::class, 'alterarEmail'])
             ->middleware('throttle:6,1');
+
+        // Presença da conta temporária: fora do grupo `aba:`, porque é aqui
+        // que quem ainda não foi aprovado precisa conseguir entrar.
+        Route::get('/contas-temporarias/presenca', [PresencaContaTemporariaController::class, 'show']);
+        Route::post('/contas-temporarias/presenca', [PresencaContaTemporariaController::class, 'store'])
+            ->middleware('throttle:10,1');
 
         Route::get('/perfil', [PerfilController::class, 'show']);
         Route::put('/perfil', [PerfilController::class, 'update']);
@@ -300,6 +308,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::post('/contas', [ContaTemporariaController::class, 'store'])->defaults('setor', 'avaliacao_presencial');
                 Route::patch('/contas/{conta}/renovar', [ContaTemporariaController::class, 'renovar'])->defaults('setor', 'avaliacao_presencial');
                 Route::patch('/contas/{conta}/desativar', [ContaTemporariaController::class, 'desativar'])->defaults('setor', 'avaliacao_presencial');
+                Route::patch('/contas/{conta}/presenca', [ContaTemporariaController::class, 'presenca'])->defaults('setor', 'avaliacao_presencial');
             });
 
             // --- Aba "Avaliação online" ---
@@ -381,6 +390,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::post('/contas', [ContaTemporariaController::class, 'store'])->defaults('setor', 'credenciamento');
                 Route::patch('/contas/{conta}/renovar', [ContaTemporariaController::class, 'renovar'])->defaults('setor', 'credenciamento');
                 Route::patch('/contas/{conta}/desativar', [ContaTemporariaController::class, 'desativar'])->defaults('setor', 'credenciamento');
+                Route::patch('/contas/{conta}/presenca', [ContaTemporariaController::class, 'presenca'])->defaults('setor', 'credenciamento');
 
                 Route::get('/config', [CredenciamentoController::class, 'config']);
                 // A leitura do crachá: o atalho do balcão para a ficha certa.
@@ -401,6 +411,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::post('/contas', [ContaTemporariaController::class, 'store'])->defaults('setor', 'almoxarifado');
                 Route::patch('/contas/{conta}/renovar', [ContaTemporariaController::class, 'renovar'])->defaults('setor', 'almoxarifado');
                 Route::patch('/contas/{conta}/desativar', [ContaTemporariaController::class, 'desativar'])->defaults('setor', 'almoxarifado');
+                Route::patch('/contas/{conta}/presenca', [ContaTemporariaController::class, 'presenca'])->defaults('setor', 'almoxarifado');
 
                 Route::get('/config', [AlmoxarifadoController::class, 'config']);
                 Route::get('/registros', [AlmoxarifadoController::class, 'index']);
@@ -423,6 +434,9 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                     ->middleware('throttle:60,1');
                 Route::get('/mapa', [ComiteTransporteController::class, 'mapa']);
                 Route::get('/mapa/{localizacao}', [ComiteTransporteController::class, 'detalhe']);
+                // Designação do comitê: só para os avaliadores da comissão especial.
+                Route::get('/designacoes/opcoes', [ComiteDesignacaoController::class, 'opcoes']);
+                Route::post('/designacoes', [ComiteDesignacaoController::class, 'designar']);
             });
 
             // --- Aba "Mapa do Evento": a ocupação do ginásio ---

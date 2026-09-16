@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\Role;
+use App\Enums\StatusPresenca;
 use App\Models\ContaTemporaria;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -56,7 +57,7 @@ class ContaTemporariaService
     {
         $this->expirarVencidas();
 
-        $contas = ContaTemporaria::with(['user', 'autor:id,name', 'turnos'])
+        $contas = ContaTemporaria::with(['user', 'autor:id,name', 'turnos', 'decisor:id,name'])
             ->where('setor', $setor)
             ->get()
             ->sortBy(fn (ContaTemporaria $c) => mb_strtolower($c->user?->name ?? ''))
@@ -140,6 +141,112 @@ class ContaTemporariaService
         $conta->user?->update(['is_active' => false]);
 
         return $conta->refresh();
+    }
+
+    /**
+     * A pessoa marca presença no primeiro acesso do turno.
+     *
+     * Só dentro da janela: antes dela não há plantão a assumir, e depois a
+     * conta já venceu. Marcar de novo não reabre nada — quem já foi decidido
+     * continua decidido, e uma segunda marcação só reescreveria o horário.
+     */
+    public function marcarPresenca(ContaTemporaria $conta): ContaTemporaria
+    {
+        if (! $conta->emVigor()) {
+            throw ValidationException::withMessages([
+                'presenca' => $conta->agendada()
+                    ? 'O seu acesso ainda não começou.'
+                    : 'O prazo desta conta já venceu.',
+            ]);
+        }
+
+        if ($conta->presenca_status !== null) {
+            throw ValidationException::withMessages([
+                'presenca' => 'A sua presença já foi registrada.',
+            ]);
+        }
+
+        $conta->update([
+            'presenca_status' => StatusPresenca::Pendente,
+            'presenca_em' => now(),
+        ]);
+
+        return $conta->refresh();
+    }
+
+    /**
+     * O admin do setor aprova ou rejeita a presença.
+     *
+     * Rejeitar exige **motivo escrito** e **desativa** a conta: a pessoa está
+     * ali, na frente de alguém, e "não pode entrar" sem explicação não se
+     * sustenta — nem para ela, nem para quem for perguntar depois.
+     */
+    public function decidirPresenca(
+        ContaTemporaria $conta,
+        bool $aprovar,
+        ?string $motivo,
+        User $admin,
+    ): ContaTemporaria {
+        if ($conta->presenca_status === null) {
+            throw ValidationException::withMessages([
+                'presenca' => 'Esta pessoa ainda não marcou presença.',
+            ]);
+        }
+
+        if (! $aprovar && trim((string) $motivo) === '') {
+            throw ValidationException::withMessages([
+                'motivo' => 'Explique por que a presença foi rejeitada.',
+            ]);
+        }
+
+        DB::transaction(function () use ($conta, $aprovar, $motivo, $admin) {
+            $conta->update([
+                'presenca_status' => $aprovar ? StatusPresenca::Aprovada : StatusPresenca::Rejeitada,
+                'presenca_decidida_por' => $admin->id,
+                'presenca_decidida_em' => now(),
+                'presenca_motivo' => $aprovar ? null : trim((string) $motivo),
+            ]);
+
+            // Rejeitada, a conta sai do ar na hora; aprovada, volta se estava
+            // fora (o caso de quem foi rejeitado por engano).
+            $conta->user?->update(['is_active' => $aprovar]);
+        });
+
+        return $conta->refresh();
+    }
+
+    /**
+     * O que a conta temporária precisa saber sobre a própria presença — é o que
+     * a tela de espera mostra.
+     *
+     * @return array<string, mixed>|null null quando a pessoa não é conta temporária
+     */
+    public function presencaDe(User $user): ?array
+    {
+        $conta = $user->contaTemporaria;
+
+        if ($conta === null) {
+            return null;
+        }
+
+        return [
+            'setor' => $conta->setor,
+            'setor_label' => $conta->quemDecide()?->label(),
+            'status' => $conta->presenca_status?->value,
+            'status_label' => $conta->presenca_status?->label(),
+            'motivo' => $conta->presenca_motivo,
+            'precisa_marcar' => $conta->precisaMarcarPresenca(),
+            'aprovada' => $conta->presencaAprovada(),
+            'agendada' => $conta->agendada(),
+            'vencida' => $conta->vencida(),
+            'valido_de_label' => $conta->valido_de?->format('d/m/Y H:i'),
+            'expira_em_label' => $conta->expira_em->format('d/m/Y H:i'),
+            'turnos' => $conta->turnos->map(fn ($t) => [
+                'inicio_label' => $t->inicio->format('d/m/Y H:i'),
+                'fim_label' => $t->fim->format('d/m/Y H:i'),
+                'agora' => $t->agora(),
+            ])->all(),
+        ];
     }
 
     /**
@@ -359,6 +466,11 @@ class ContaTemporariaService
             ])->all(),
             // Com escala, estar no prazo não basta: tem de haver turno aberto.
             'em_turno' => $conta->dentroDeTurno(),
+            'presenca' => $conta->presenca_status?->value,
+            'presenca_label' => $conta->presenca_status?->label(),
+            'presenca_em_label' => $conta->presenca_em?->format('d/m/Y H:i'),
+            'presenca_motivo' => $conta->presenca_motivo,
+            'presenca_decidida_por' => $conta->decisor?->name,
         ];
     }
 

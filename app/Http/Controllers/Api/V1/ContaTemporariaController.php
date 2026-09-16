@@ -104,6 +104,37 @@ class ContaTemporariaController extends Controller
         ]);
     }
 
+    /**
+     * Aprova ou rejeita a presença de quem se anunciou no turno.
+     *
+     * Rejeitar exige motivo escrito e tira a conta do ar — quem decide é o
+     * admin do setor, que é quem está no balcão com a pessoa.
+     */
+    public function presenca(Request $request, ContaTemporaria $conta): JsonResponse
+    {
+        $this->garantirGestor($request);
+        $this->garantirMesmoSetor($request, $conta);
+
+        $dados = $request->validate([
+            'aprovar' => ['required', 'boolean'],
+            'motivo' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $this->contas->decidirPresenca(
+            $conta,
+            (bool) $dados['aprovar'],
+            $dados['motivo'] ?? null,
+            $request->user(),
+        );
+
+        return response()->json([
+            'data' => $this->contas->listar($this->setor($request)),
+            'meta' => ['message' => $dados['aprovar']
+                ? 'Presença aprovada — a conta já abre a aba.'
+                : 'Presença rejeitada e acesso encerrado.'],
+        ]);
+    }
+
     /** Desativa antes do prazo (a pessoa saiu da equipe, por exemplo). */
     public function desativar(Request $request, ContaTemporaria $conta): JsonResponse
     {

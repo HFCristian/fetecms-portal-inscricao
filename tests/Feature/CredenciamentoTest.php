@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\AbaAdmin;
 use App\Enums\Categoria;
 use App\Enums\SituacaoDocumento;
+use App\Enums\StatusPresenca;
 use App\Enums\TipoPessoaCredenciamento;
 use App\Enums\TipoRegistro;
 use App\Models\Aluno;
@@ -105,10 +106,16 @@ class CredenciamentoTest extends TestCase
         return $projeto;
     }
 
-    /** Uma conta de balcão: admin restrito à aba Credenciamento, com prazo. */
+    /**
+     * Uma conta de balcão: admin restrito à aba Credenciamento, com prazo.
+     *
+     * A **presença já vem aprovada** — é o estado de quem chegou ao balcão e
+     * foi confirmado pela organização (Sprint 136). Sem isso a conta não abre
+     * aba nenhuma, e o que estes testes exercitam é o atendimento.
+     */
     private function contaTemporaria(string $email = 'balcao@fetec.test'): ContaTemporaria
     {
-        return app(ContaTemporariaService::class)->criar([
+        $conta = app(ContaTemporariaService::class)->criar([
             'name' => 'Bruna Atendente',
             'email' => $email,
             'password' => 'senha-do-balcao',
@@ -116,6 +123,10 @@ class CredenciamentoTest extends TestCase
             'curso' => 'Ciência da Computação',
             'horas' => 5,
         ]);
+
+        $conta->forceFill(['presenca_status' => StatusPresenca::Aprovada])->save();
+
+        return $conta->refresh();
     }
 
     // ------------------------------------------------------------------ //

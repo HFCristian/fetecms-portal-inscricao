@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\StatusPresenca;
 use App\Models\ContaTemporaria;
 use App\Models\Edicao;
 use App\Models\User;
@@ -74,9 +75,11 @@ class VoluntariosPresenciaisTest extends TestCase
             'turnos' => [['inicio' => now()->subHour()->toDateTimeString(), 'fim' => now()->addHours(4)->toDateTimeString()]],
         ]))->assertCreated();
 
-        $voluntario = ContaTemporaria::sole()->user;
+        $conta = ContaTemporaria::sole();
+        // A presença aprovada é o que abre a aba (Sprint 136).
+        $conta->forceFill(['presenca_status' => StatusPresenca::Aprovada])->save();
 
-        $this->assertSame(['avaliacao_presencial'], $voluntario->abasPermitidas());
+        $this->assertSame(['avaliacao_presencial'], $conta->user->fresh()->abasPermitidas());
     }
 
     public function test_entre_turnos_a_conta_nao_abre(): void

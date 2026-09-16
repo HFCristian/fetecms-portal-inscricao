@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\AbaAdmin;
+use App\Enums\StatusPresenca;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -21,7 +23,10 @@ class ContaTemporaria extends Model
 {
     protected $table = 'contas_temporarias';
 
-    protected $fillable = ['user_id', 'cpf', 'curso', 'setor', 'valido_de', 'expira_em', 'criado_por'];
+    protected $fillable = [
+        'user_id', 'cpf', 'curso', 'setor', 'valido_de', 'expira_em', 'criado_por',
+        'presenca_status', 'presenca_em', 'presenca_decidida_por', 'presenca_decidida_em', 'presenca_motivo',
+    ];
 
     /** As abas que uma conta temporária pode atender. */
     public const SETOR_CREDENCIAMENTO = 'credenciamento';
@@ -39,7 +44,14 @@ class ContaTemporaria extends Model
 
     protected function casts(): array
     {
-        return ['valido_de' => 'datetime', 'expira_em' => 'datetime'];
+        return [
+            'valido_de' => 'datetime',
+            'expira_em' => 'datetime',
+            // Nulo = a pessoa ainda não marcou presença.
+            'presenca_status' => StatusPresenca::class,
+            'presenca_em' => 'datetime',
+            'presenca_decidida_em' => 'datetime',
+        ];
     }
 
     public function user(): BelongsTo
@@ -50,6 +62,12 @@ class ContaTemporaria extends Model
     public function autor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'criado_por');
+    }
+
+    /** Quem aprovou (ou rejeitou) a presença. */
+    public function decisor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'presenca_decidida_por');
     }
 
     /**
@@ -98,6 +116,35 @@ class ContaTemporaria extends Model
     public function emVigor(): bool
     {
         return ! $this->agendada() && ! $this->vencida();
+    }
+
+    /** A organização já confirmou que esta pessoa está de plantão? */
+    public function presencaAprovada(): bool
+    {
+        return $this->presenca_status === StatusPresenca::Aprovada;
+    }
+
+    /** Marcou presença e ainda espera a decisão do setor. */
+    public function presencaPendente(): bool
+    {
+        return $this->presenca_status === StatusPresenca::Pendente;
+    }
+
+    /**
+     * A pessoa precisa marcar presença agora?
+     *
+     * Só dentro da janela: antes dela o botão não faria sentido, e depois a
+     * conta já está vencida.
+     */
+    public function precisaMarcarPresenca(): bool
+    {
+        return $this->presenca_status === null && $this->emVigor();
+    }
+
+    /** Quem decide a presença é o admin do setor desta conta. */
+    public function quemDecide(): ?AbaAdmin
+    {
+        return AbaAdmin::tryFrom($this->setor);
     }
 
     /** CPF com a máscara de exibição — o banco guarda só os dígitos. */

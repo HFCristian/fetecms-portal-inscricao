@@ -5,7 +5,7 @@ import { Alert, Button, Field, Input, useConfirm } from '../components/ui.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import {
     getContasTemporarias, criarContaTemporaria,
-    renovarContaTemporaria, desativarContaTemporaria,
+    renovarContaTemporaria, desativarContaTemporaria, decidirPresenca,
 } from '../lib/contasTemporarias.js';
 
 /**
@@ -83,7 +83,75 @@ function Turnos({ turnos }) {
     );
 }
 
-function LinhaConta({ conta, onRenovar, onDesativar, ocupado, horasPadrao }) {
+/**
+ * A presença do turno: quem marcou está esperando alguém confirmar, e é essa
+ * espera que trava o acesso.
+ */
+function PresencaPill({ conta }) {
+    if (!conta.presenca) return null;
+
+    const cor = {
+        pendente: 'bg-primary-fixed text-primary-container',
+        aprovada: 'bg-secondary-container text-on-secondary-container',
+        rejeitada: 'bg-error-container text-on-error-container',
+    }[conta.presenca];
+
+    return (
+        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${cor}`}>
+            {conta.presenca_label}
+            {conta.presenca_em_label && conta.presenca === 'pendente' ? ` · ${conta.presenca_em_label}` : ''}
+        </span>
+    );
+}
+
+/**
+ * Rejeitar a presença tira a conta do ar — e a pessoa precisa saber por quê,
+ * então o motivo é obrigatório e fica guardado na linha dela.
+ */
+function RejeitarPresencaDialog({ conta, salvando, onConfirmar, onFechar }) {
+    const [motivo, setMotivo] = useState('');
+
+    return (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
+            <div className="bg-surface-container-lowest rounded-2xl fetec-card-shadow w-full max-w-md p-6 space-y-4">
+                <div>
+                    <h3 className="font-display text-lg font-semibold text-on-surface">Rejeitar a presença</h3>
+                    <p className="text-sm text-on-surface-variant">
+                        {conta.nome} perde o acesso e vê este motivo ao entrar.
+                    </p>
+                </div>
+
+                <label className="block">
+                    <span className="text-sm font-semibold text-on-surface">
+                        Motivo <span className="text-error">*</span>
+                    </span>
+                    <textarea
+                        rows={3}
+                        maxLength={500}
+                        aria-label="Motivo da rejeição"
+                        value={motivo}
+                        onChange={(e) => setMotivo(e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm text-on-surface focus:border-primary-container focus:outline-none focus:ring-2 focus:ring-primary-container/20"
+                    />
+                </label>
+
+                <div className="flex justify-end gap-3">
+                    <Button type="button" variant="outline" onClick={onFechar} disabled={salvando}>Cancelar</Button>
+                    <Button
+                        type="button"
+                        loading={salvando}
+                        disabled={motivo.trim() === ''}
+                        onClick={() => onConfirmar(motivo.trim())}
+                    >
+                        Rejeitar
+                    </Button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function LinhaConta({ conta, onRenovar, onDesativar, onDecidirPresenca, ocupado, horasPadrao }) {
     const [horas, setHoras] = useState('');
     // Reagendar é o mesmo caminho de renovar: janela nova, começo novo.
     const [validoDe, setValidoDe] = useState('');
@@ -97,6 +165,7 @@ function LinhaConta({ conta, onRenovar, onDesativar, ocupado, horasPadrao }) {
                     <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-semibold text-on-surface truncate">{conta.nome}</span>
                         <SituacaoPill conta={conta} />
+                        <PresencaPill conta={conta} />
                     </div>
                     <p className="text-sm text-on-surface-variant truncate">{conta.email}</p>
                     <p className="text-xs text-on-surface-variant">
@@ -106,6 +175,29 @@ function LinhaConta({ conta, onRenovar, onDesativar, ocupado, horasPadrao }) {
                         {conta.criada_por && ` · criada por ${conta.criada_por}`}
                     </p>
                     <Turnos turnos={conta.turnos} />
+                    {conta.presenca === 'rejeitada' && conta.presenca_motivo && (
+                        <p className="text-xs text-on-surface-variant mt-1">
+                            Recusada{conta.presenca_decidida_por ? ` por ${conta.presenca_decidida_por}` : ''}:{' '}
+                            {conta.presenca_motivo}
+                        </p>
+                    )}
+                    {conta.presenca === 'pendente' && (
+                        <div className="flex flex-wrap gap-2 mt-2">
+                            <Button type="button" disabled={ocupado} onClick={() => onDecidirPresenca(conta, true)}>
+                                <span className="material-symbols-outlined text-[20px]">check</span>
+                                Aprovar presença
+                            </Button>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                className="text-error border-error/40 hover:bg-error-container/40"
+                                disabled={ocupado}
+                                onClick={() => onDecidirPresenca(conta, false)}
+                            >
+                                Rejeitar
+                            </Button>
+                        </div>
+                    )}
                 </div>
                 <div className="flex gap-1 shrink-0">
                     {!renovando && (
@@ -203,6 +295,8 @@ export default function CredenciamentoContas({ setor = 'credenciamento' }) {
     const [sucesso, setSucesso] = useState('');
     const [ocupado, setOcupado] = useState(false);
     const [confirm, dialogo] = useConfirm();
+    // Rejeitar presença é a única decisão que pede texto.
+    const [rejeitando, setRejeitando] = useState(null);
 
     useEffect(() => {
         getContasTemporarias(setor)
@@ -257,6 +351,39 @@ export default function CredenciamentoContas({ setor = 'credenciamento' }) {
             aplicar(await renovarContaTemporaria(conta.id, payload, setor));
         } catch (e) {
             falhar(e, 'Não foi possível renovar o acesso.');
+        } finally {
+            setOcupado(false);
+        }
+    }
+
+    /**
+     * Aprovar é direto; **rejeitar pede o motivo**, porque a pessoa está no
+     * balcão esperando e "não pode entrar" sem explicação não se sustenta.
+     */
+    async function decidir(conta, aprovar) {
+        if (!aprovar) {
+            setRejeitando(conta);
+
+            return;
+        }
+
+        setOcupado(true);
+        try {
+            aplicar(await decidirPresenca(conta.id, true, null, setor));
+        } catch (e) {
+            falhar(e, 'Não foi possível registrar a decisão.');
+        } finally {
+            setOcupado(false);
+        }
+    }
+
+    async function rejeitar(motivo) {
+        setOcupado(true);
+        try {
+            aplicar(await decidirPresenca(rejeitando.id, false, motivo, setor));
+            setRejeitando(null);
+        } catch (e) {
+            falhar(e, 'Não foi possível registrar a decisão.');
         } finally {
             setOcupado(false);
         }
@@ -467,10 +594,20 @@ export default function CredenciamentoContas({ setor = 'credenciamento' }) {
                             horasPadrao={horasPadrao}
                             onRenovar={renovar}
                             onDesativar={desativar}
+                            onDecidirPresenca={decidir}
                         />
                     ))
                 )}
             </div>
+
+            {rejeitando && (
+                <RejeitarPresencaDialog
+                    conta={rejeitando}
+                    salvando={ocupado}
+                    onConfirmar={rejeitar}
+                    onFechar={() => setRejeitando(null)}
+                />
+            )}
 
             {dialogo}
         </AppShell>

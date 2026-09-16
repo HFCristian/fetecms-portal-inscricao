@@ -29,3 +29,15 @@ export const renovarContaTemporaria = (id, prazo, setor = 'credenciamento') =>
 
 export const desativarContaTemporaria = (id, setor = 'credenciamento') =>
     http.patch(`${base(setor)}/${id}/desativar`).then((r) => r.data);
+
+// --- Presença do turno (lado de quem trabalha) -------------------------------
+
+export const getPresencaContaTemporaria = () =>
+    http.get('/contas-temporarias/presenca').then((r) => r.data.data);
+
+export const marcarPresenca = () =>
+    http.post('/contas-temporarias/presenca').then((r) => r.data);
+
+/** Aprova ou rejeita a presença de alguém (rejeitar exige motivo). */
+export const decidirPresenca = (id, aprovar, motivo = null, setor = 'credenciamento') =>
+    http.patch(`${base(setor)}/${id}/presenca`, { aprovar, motivo }).then((r) => r.data);

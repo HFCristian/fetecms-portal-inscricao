@@ -79,15 +79,26 @@ class DesignacaoService
      * @param  list<int>  $avaliadorIds
      * @return array<string, mixed>
      */
-    public function designar(array $projetoIds, array $avaliadorIds, User $admin): array
-    {
+    public function designar(
+        array $projetoIds,
+        array $avaliadorIds,
+        User $admin,
+        bool $soComissao = false,
+    ): array {
         $projetos = Projeto::whereIn('id', $projetoIds)
             ->where('status', ProjetoStatus::Submetido->value)
             ->get(['id', 'titulo']);
 
+        // `$soComissao` é a trava da tela do comitê (Sprint 137): a tela já
+        // oferece só a comissão, e o servidor recusa o resto — senão bastaria
+        // trocar o id no payload para designar a base inteira.
         $avaliadores = User::whereIn('id', $avaliadorIds)
             ->where('role', Role::Avaliador->value)
             ->where('is_active', true)
+            ->when($soComissao, fn ($q) => $q->whereHas(
+                'avaliadorProfile',
+                fn ($p) => $p->where('comissao_especial', true),
+            ))
             ->get(['id', 'name', 'email']);
 
         if ($projetos->isEmpty()) {
@@ -98,7 +109,9 @@ class DesignacaoService
 
         if ($avaliadores->isEmpty()) {
             throw ValidationException::withMessages([
-                'avaliador_ids' => 'Escolha ao menos um avaliador ativo.',
+                'avaliador_ids' => $soComissao
+                    ? 'Escolha ao menos um avaliador ativo da comissão especial.'
+                    : 'Escolha ao menos um avaliador ativo.',
             ]);
         }
 
@@ -487,10 +500,18 @@ class DesignacaoService
      * projetos e 300 avaliadores para a tela a cada abertura seria pagar caro
      * por uma lista que ninguém lê inteira.
      *
+     * `$soComissao` recorta a lista de avaliadores para a **comissão
+     * especial** — é o que a tela da aba Comitê usa (Sprint 137): quem
+     * administra o comitê designa para o comitê, e não para a base inteira.
+     *
      * @return array<string, mixed>
      */
-    public function opcoesDeDesignacao(string $projeto = '', string $avaliador = '', int $limite = 30): array
-    {
+    public function opcoesDeDesignacao(
+        string $projeto = '',
+        string $avaliador = '',
+        int $limite = 30,
+        bool $soComissao = false,
+    ): array {
         $como = fn (string $termo) => '%'.str_replace(['%', '_'], ['\%', '\_'], mb_strtolower(trim($termo))).'%';
 
         $projetos = Projeto::semDemo()
@@ -510,6 +531,10 @@ class DesignacaoService
             ->when(trim($avaliador) !== '', fn ($q) => $q->where(fn ($sub) => $sub
                 ->whereRaw('LOWER(name) LIKE ?', [$como($avaliador)])
                 ->orWhereRaw('LOWER(email) LIKE ?', [$como($avaliador)])))
+            ->when($soComissao, fn ($q) => $q->whereHas(
+                'avaliadorProfile',
+                fn ($p) => $p->where('comissao_especial', true),
+            ))
             ->with('avaliadorProfile.area:id,nome')
             ->withCount([
                 'avaliacoes as designadas_count' => fn ($q) => $q->whereIn('status', [

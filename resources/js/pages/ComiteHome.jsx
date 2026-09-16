@@ -37,6 +37,12 @@ export default function ComiteHome() {
                     descricao="Quem está com o localizador ligado, com o que cada um configurou — e o botão para habilitar o seu."
                 />
                 <CardSecao
+                    to="/admin/comite/designacoes"
+                    icon="person_add"
+                    titulo="Designações do comitê"
+                    descricao="Projetos para os avaliadores da comissão especial — e só para eles."
+                />
+                <CardSecao
                     to="/admin/comite/mapa"
                     icon="map"
                     titulo="Mapa do comitê"

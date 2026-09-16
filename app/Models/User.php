@@ -123,7 +123,8 @@ class User extends Authenticatable
         }
 
         if ($this->ehContaTemporaria()) {
-            return $aba === $this->abaDaContaTemporaria();
+            return (bool) $this->contaTemporaria?->presencaAprovada()
+                && $aba === $this->abaDaContaTemporaria();
         }
 
         $escopos = $this->escoposAdmin();
@@ -144,9 +145,13 @@ class User extends Authenticatable
         }
 
         // Conta temporária é balcão e nada mais: não depende de alguém lembrar
-        // de atribuir o escopo certo.
+        // de atribuir o escopo certo. E, enquanto a **presença** não é aprovada
+        // pelo setor (Sprint 136), ela não abre aba nenhuma: ter crachá não é
+        // estar de plantão.
         if ($this->ehContaTemporaria()) {
-            return [$this->abaDaContaTemporaria()->value];
+            return $this->contaTemporaria?->presencaAprovada()
+                ? [$this->abaDaContaTemporaria()->value]
+                : [];
         }
 
         $escopos = $this->escoposAdmin();

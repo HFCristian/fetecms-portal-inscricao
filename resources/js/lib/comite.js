@@ -34,3 +34,19 @@ export const getMapaComite = () => http.get('/admin/comite/mapa').then((r) => r.
 /** O detalhe de um ponto do mapa, com o trajeto percorrido. */
 export const getPontoComite = (id) =>
     http.get(`/admin/comite/mapa/${id}`).then((r) => r.data.data);
+
+// --- Designação do comitê (Sprint 137) --------------------------------------
+//
+// A aba Comitê designa projetos **só** para os avaliadores da comissão
+// especial; a restrição é do servidor, não da tela.
+
+export const getOpcoesDesignacaoComite = (filtros = {}) =>
+    http.get('/admin/comite/designacoes/opcoes', {
+        params: Object.fromEntries(Object.entries(filtros).filter(([, v]) => v)),
+    }).then((r) => r.data.data);
+
+export const designarPeloComite = (projetoIds, avaliadorIds) =>
+    http.post('/admin/comite/designacoes', {
+        projeto_ids: projetoIds,
+        avaliador_ids: avaliadorIds,
+    }).then((r) => r.data);
