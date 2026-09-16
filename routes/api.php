@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\V1\AdminRegistroController;
 use App\Http\Controllers\Api\V1\AlmoxarifadoController;
 use App\Http\Controllers\Api\V1\AlunoController;
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\AvaliacaoPresencialAdminController;
 use App\Http\Controllers\Api\V1\AvaliadorAvaliacaoController;
 use App\Http\Controllers\Api\V1\AvaliadorController;
 use App\Http\Controllers\Api\V1\AvaliadorPerfilController;
@@ -257,6 +258,28 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 // ficou pela metade, mesmo com o prazo vencido (a edição em si
                 // reaproveita as rotas de projeto/integrantes/documentos acima).
                 Route::get('/projetos-rascunho', [AdminRascunhoController::class, 'index']);
+            });
+
+            // --- Aba "Avaliação presencial" (o dia da feira) ---
+            Route::middleware('aba:avaliacao_presencial')->prefix('presencial')->group(function () {
+                Route::get('/config', [AvaliacaoPresencialAdminController::class, 'config']);
+                Route::patch('/informacoes', [AvaliacaoPresencialAdminController::class, 'definirInformacoes']);
+                // Checagem dos estandes no dia do evento.
+                Route::get('/checagem', [AvaliacaoPresencialAdminController::class, 'index']);
+                Route::get('/checagem/espelho', [AvaliacaoPresencialAdminController::class, 'espelho']);
+                Route::get('/checagem/{projeto}', [AvaliacaoPresencialAdminController::class, 'show']);
+                Route::post('/checagem/{projeto}', [AvaliacaoPresencialAdminController::class, 'store']);
+                // Catálogo do que se confere em cada estande.
+                Route::get('/itens', [AvaliacaoPresencialAdminController::class, 'itens']);
+                Route::post('/itens', [AvaliacaoPresencialAdminController::class, 'criarItem']);
+                Route::patch('/itens/{item}', [AvaliacaoPresencialAdminController::class, 'atualizarItem']);
+                Route::delete('/itens/{item}', [AvaliacaoPresencialAdminController::class, 'excluirItem']);
+                // Voluntários: contas temporárias próprias desta aba, com
+                // vários turnos de trabalho definidos de uma vez.
+                Route::get('/contas', [ContaTemporariaController::class, 'index'])->defaults('setor', 'avaliacao_presencial');
+                Route::post('/contas', [ContaTemporariaController::class, 'store'])->defaults('setor', 'avaliacao_presencial');
+                Route::patch('/contas/{conta}/renovar', [ContaTemporariaController::class, 'renovar'])->defaults('setor', 'avaliacao_presencial');
+                Route::patch('/contas/{conta}/desativar', [ContaTemporariaController::class, 'desativar'])->defaults('setor', 'avaliacao_presencial');
             });
 
             // --- Aba "Avaliação online" ---

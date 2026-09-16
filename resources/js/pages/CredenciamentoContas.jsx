@@ -22,12 +22,21 @@ import {
  *
  * Vencido o prazo, a conta é **desativada, não apagada**: reativar é informar
  * uma janela nova, sem recadastrar nada. E, enquanto existir, ela abre **só** a
- * aba Credenciamento, por cima de qualquer escopo.
+ * aba do setor dela, por cima de qualquer escopo.
+ *
+ * O **voluntário** da avaliação presencial usa a mesma tela com uma diferença:
+ * em vez de uma janela, ele recebe vários **turnos de trabalho** de uma vez. A
+ * janela passa a ser o envelope deles, e entre um turno e outro a conta não
+ * abre — que é o que "turno" quer dizer.
  */
 const VAZIO = {
     name: '', email: '', password: '', password_confirmation: '',
     cpf: '', curso: '', horas: '', valido_de: '',
 };
+
+const TURNO_VAZIO = { inicio: '', fim: '' };
+
+const dataHoraCurta = (label) => label ?? '—';
 
 function mascaraCpf(valor) {
     const d = (valor ?? '').replace(/\D/g, '').slice(0, 11);
@@ -52,6 +61,28 @@ function SituacaoPill({ conta }) {
     return <span className={`text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${cor}`}>{txt}</span>;
 }
 
+/** Os turnos de um voluntário, com destaque para o que está acontecendo. */
+function Turnos({ turnos }) {
+    if (!turnos?.length) return null;
+
+    return (
+        <ul className="flex flex-wrap gap-1 mt-1">
+            {turnos.map((t) => (
+                <li
+                    key={t.id}
+                    className={`text-xs px-2 py-0.5 rounded-full ${
+                        t.agora
+                            ? 'bg-secondary-container text-on-secondary-container font-semibold'
+                            : 'bg-surface-variant text-on-surface-variant'
+                    }`}
+                >
+                    {dataHoraCurta(t.inicio_label)} → {dataHoraCurta(t.fim_label)}
+                </li>
+            ))}
+        </ul>
+    );
+}
+
 function LinhaConta({ conta, onRenovar, onDesativar, ocupado, horasPadrao }) {
     const [horas, setHoras] = useState('');
     // Reagendar é o mesmo caminho de renovar: janela nova, começo novo.
@@ -74,6 +105,7 @@ function LinhaConta({ conta, onRenovar, onDesativar, ocupado, horasPadrao }) {
                         {' · vence em '}{conta.expira_em_label}
                         {conta.criada_por && ` · criada por ${conta.criada_por}`}
                     </p>
+                    <Turnos turnos={conta.turnos} />
                 </div>
                 <div className="flex gap-1 shrink-0">
                     {!renovando && (
@@ -156,13 +188,16 @@ function LinhaConta({ conta, onRenovar, onDesativar, ocupado, horasPadrao }) {
  * então o `setor` viaja em toda chamada.
  */
 export default function CredenciamentoContas({ setor = 'credenciamento' }) {
-    const balcao = setor === 'almoxarifado'
-        ? { aba: 'Almoxarifado', voltarPara: '/admin/almoxarifado' }
-        : { aba: 'Credenciamento', voltarPara: '/admin/credenciamento' };
+    const balcao = {
+        almoxarifado: { aba: 'Almoxarifado', voltarPara: '/admin/almoxarifado', turnos: false },
+        avaliacao_presencial: { aba: 'Avaliação presencial', voltarPara: '/admin/presencial', turnos: true },
+    }[setor] ?? { aba: 'Credenciamento', voltarPara: '/admin/credenciamento', turnos: false };
 
     const [dados, setDados] = useState(null);
     const [form, setForm] = useState(VAZIO);
     const [criando, setCriando] = useState(false);
+    // Escala do voluntário: vários pares início/fim numa submissão só.
+    const [turnos, setTurnos] = useState([{ ...TURNO_VAZIO }]);
     const [errors, setErrors] = useState({});
     const [alerta, setAlerta] = useState('');
     const [sucesso, setSucesso] = useState('');
@@ -198,6 +233,10 @@ export default function CredenciamentoContas({ setor = 'credenciamento' }) {
                 horas: form.horas ? Number(form.horas) : undefined,
                 // Em branco, o backend entende "vale a partir de agora".
                 valido_de: form.valido_de || undefined,
+                // Com turnos, o backend ignora horas/valido_de e usa o envelope.
+                turnos: balcao.turnos
+                    ? turnos.filter((t) => t.inicio && t.fim)
+                    : undefined,
             }, setor));
             setForm(VAZIO);
             setCriando(false);
@@ -249,13 +288,21 @@ export default function CredenciamentoContas({ setor = 'credenciamento' }) {
             <Link to={balcao.voltarPara} className="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary mb-3">
                 <span className="material-symbols-outlined text-[18px]">arrow_back</span> {balcao.aba}
             </Link>
-            <h1 className="font-display text-2xl font-semibold text-primary mb-1">Contas temporárias</h1>
+            <h1 className="font-display text-2xl font-semibold text-primary mb-1">
+                {balcao.turnos ? 'Voluntários' : 'Contas temporárias'}
+            </h1>
             <p className="text-on-surface-variant mb-6 max-w-3xl">
-                Acesso de prazo curto para quem atende o balcão sem fazer parte da organização. A conta
-                abre <strong>somente</strong> a aba {balcao.aba} e é desativada no fim do prazo — para
-                liberar de novo, basta informar uma janela nova, sem recadastrar nada. Deixando
-                <strong> “começa em”</strong> preenchido, a conta fica <strong>agendada</strong>: dá para
-                cadastrar toda a equipe dias antes e cada acesso abre sozinho na hora marcada.
+                Acesso de prazo curto para quem trabalha no evento sem fazer parte da organização. A
+                conta abre <strong>somente</strong> a aba {balcao.aba} e é desativada no fim do prazo —
+                para liberar de novo, basta informar uma janela nova, sem recadastrar nada.
+                {balcao.turnos ? (
+                    <> Aqui a escala é cadastrada de uma vez: informe <strong>todos os turnos</strong> do
+                    voluntário, e a conta abre só durante eles.</>
+                ) : (
+                    <> Deixando <strong>“começa em”</strong> preenchido, a conta fica{' '}
+                    <strong>agendada</strong>: dá para cadastrar toda a equipe dias antes e cada acesso
+                    abre sozinho na hora marcada.</>
+                )}
             </p>
 
             {alerta && <div className="mb-4 max-w-3xl"><Alert>{alerta}</Alert></div>}
@@ -289,48 +336,113 @@ export default function CredenciamentoContas({ setor = 'credenciamento' }) {
                         <Field label="Confirmar senha" error={errors.password_confirmation}>
                             <Input type="password" aria-label="Confirmar senha" value={form.password_confirmation} onChange={campo('password_confirmation')} />
                         </Field>
-                        <Field
-                            label="Começa em"
-                            error={errors.valido_de}
-                            hint="Em branco, o acesso vale desde já."
-                        >
-                            <Input
-                                type="datetime-local"
-                                aria-label="Começa em"
-                                value={form.valido_de}
-                                onChange={campo('valido_de')}
-                                error={errors.valido_de}
-                            />
-                        </Field>
-                        <Field
-                            label="Disponível por (horas)"
-                            error={errors.horas || errors.expira_em}
-                            hint={`Em branco, vale ${horasPadrao} horas a partir do início.`}
-                        >
-                            <Input
-                                type="number"
-                                min="1"
-                                max="8760"
-                                aria-label="Disponível por (horas)"
-                                value={form.horas}
-                                onChange={campo('horas')}
-                                error={errors.horas}
-                                placeholder={String(horasPadrao)}
-                            />
-                        </Field>
+                        {!balcao.turnos && (
+                            <>
+                                <Field
+                                    label="Começa em"
+                                    error={errors.valido_de}
+                                    hint="Em branco, o acesso vale desde já."
+                                >
+                                    <Input
+                                        type="datetime-local"
+                                        aria-label="Começa em"
+                                        value={form.valido_de}
+                                        onChange={campo('valido_de')}
+                                        error={errors.valido_de}
+                                    />
+                                </Field>
+                                <Field
+                                    label="Disponível por (horas)"
+                                    error={errors.horas || errors.expira_em}
+                                    hint={`Em branco, vale ${horasPadrao} horas a partir do início.`}
+                                >
+                                    <Input
+                                        type="number"
+                                        min="1"
+                                        max="8760"
+                                        aria-label="Disponível por (horas)"
+                                        value={form.horas}
+                                        onChange={campo('horas')}
+                                        error={errors.horas}
+                                        placeholder={String(horasPadrao)}
+                                    />
+                                </Field>
+                            </>
+                        )}
                     </div>
+
+                    {/* Escala do voluntário: cadastrada de uma vez, no cadastro. */}
+                    {balcao.turnos && (
+                        <fieldset className="mt-4">
+                            <legend className="text-sm font-semibold text-on-surface mb-1">
+                                Turnos de trabalho
+                            </legend>
+                            <p className="text-xs text-on-surface-variant mb-3">
+                                A conta abre <strong>durante</strong> os turnos e fica fechada entre
+                                eles. O prazo geral é calculado sozinho, do primeiro início ao último fim.
+                            </p>
+                            {errors.turnos && <div className="mb-3"><Alert>{errors.turnos}</Alert></div>}
+                            <div className="space-y-2">
+                                {turnos.map((t, i) => (
+                                    <div key={i} className="flex flex-wrap items-end gap-2">
+                                        <Field label={`Início do turno ${i + 1}`} error={errors[`turnos.${i}.inicio`]}>
+                                            <Input
+                                                type="datetime-local"
+                                                aria-label={`Início do turno ${i + 1}`}
+                                                value={t.inicio}
+                                                onChange={(e) => setTurnos((ts) => ts.map(
+                                                    (x, j) => (j === i ? { ...x, inicio: e.target.value } : x),
+                                                ))}
+                                            />
+                                        </Field>
+                                        <Field label={`Fim do turno ${i + 1}`} error={errors[`turnos.${i}.fim`]}>
+                                            <Input
+                                                type="datetime-local"
+                                                aria-label={`Fim do turno ${i + 1}`}
+                                                value={t.fim}
+                                                onChange={(e) => setTurnos((ts) => ts.map(
+                                                    (x, j) => (j === i ? { ...x, fim: e.target.value } : x),
+                                                ))}
+                                            />
+                                        </Field>
+                                        {turnos.length > 1 && (
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                className="text-error border-error/40 hover:bg-error-container/40"
+                                                onClick={() => setTurnos((ts) => ts.filter((_, j) => j !== i))}
+                                            >
+                                                Remover
+                                            </Button>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                className="mt-2"
+                                onClick={() => setTurnos((ts) => [...ts, { ...TURNO_VAZIO }])}
+                            >
+                                <span className="material-symbols-outlined text-[20px]">add</span>
+                                Acrescentar turno
+                            </Button>
+                        </fieldset>
+                    )}
                     <div className="flex gap-2 justify-end mt-4">
                         <Button type="button" variant="outline" onClick={() => { setCriando(false); setErrors({}); }}>
                             Cancelar
                         </Button>
-                        <Button type="submit" loading={ocupado}>Criar conta</Button>
+                        <Button type="submit" loading={ocupado}>
+                            {balcao.turnos ? 'Cadastrar voluntário' : 'Criar conta'}
+                        </Button>
                     </div>
                 </form>
             ) : (
                 <div className="mb-6">
                     <Button type="button" onClick={() => { setCriando(true); setAlerta(''); setSucesso(''); }}>
                         <span className="material-symbols-outlined text-[20px]">person_add</span>
-                        Nova conta temporária
+                        {balcao.turnos ? 'Novo voluntário' : 'Nova conta temporária'}
                     </Button>
                 </div>
             )}
@@ -342,7 +454,9 @@ export default function CredenciamentoContas({ setor = 'credenciamento' }) {
                     </div>
                 ) : dados.contas.length === 0 ? (
                     <p className="px-4 py-8 text-center text-sm text-on-surface-variant">
-                        Nenhuma conta temporária criada nesta edição.
+                        {balcao.turnos
+                            ? 'Nenhum voluntário cadastrado nesta edição.'
+                            : 'Nenhuma conta temporária criada nesta edição.'}
                     </p>
                 ) : (
                     dados.contas.map((c) => (

@@ -45,6 +45,9 @@ import ParametrizacaoAvaliacao from './pages/ParametrizacaoAvaliacao.jsx';
 import AdminManager from './pages/AdminManager.jsx';
 import AdminSuporte from './pages/AdminSuporte.jsx';
 import CredenciamentoHome from './pages/CredenciamentoHome.jsx';
+import PresencialHome from './pages/PresencialHome.jsx';
+import PresencialChecagem from './pages/PresencialChecagem.jsx';
+import PresencialEspelho from './pages/PresencialEspelho.jsx';
 import ComiteHome from './pages/ComiteHome.jsx';
 import ComiteTransporte from './pages/ComiteTransporte.jsx';
 import ComiteMapa from './pages/ComiteMapa.jsx';
@@ -204,6 +207,10 @@ export default function Root() {
                             {/* Mesma tela do credenciamento: o que muda é o setor da conta. */}
                             <Route path="/admin/almoxarifado/contas" element={<CredenciamentoContas setor="almoxarifado" />} />
                             {/* Aba Comitê especial: transporte e mapa em tempo real. */}
+                            <Route path="/admin/presencial" element={<PresencialHome />} />
+                            <Route path="/admin/presencial/checagem" element={<PresencialChecagem />} />
+                            <Route path="/admin/presencial/espelho" element={<PresencialEspelho />} />
+                            <Route path="/admin/presencial/voluntarios" element={<CredenciamentoContas setor="avaliacao_presencial" />} />
                             <Route path="/admin/comite" element={<ComiteHome />} />
                             <Route path="/admin/comite/transporte" element={<ComiteTransporte />} />
                             <Route path="/admin/comite/mapa" element={<ComiteMapa />} />

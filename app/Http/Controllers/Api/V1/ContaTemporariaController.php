@@ -11,7 +11,8 @@ use Illuminate\Http\Request;
 
 /**
  * Contas temporárias: as contas de prazo curto que atendem os balcões do
- * evento — o do **credenciamento** e o do **almoxarifado**.
+ * evento — o do **credenciamento**, o do **almoxarifado** e os **voluntários**
+ * da avaliação presencial, que trabalham em turnos.
  *
  * Toda ação devolve a lista inteira: ela é pequena e a tela precisa dela
  * atualizada de qualquer forma (criar, renovar e desativar mudam a situação de
@@ -88,6 +89,11 @@ class ContaTemporariaController extends Controller
             'valido_de' => ['nullable', 'date'],
             'expira_em' => ['nullable', 'date'],
             'horas' => ['nullable', 'integer', 'min:1', 'max:'.ContaTemporariaService::HORAS_MAX],
+            // Renovar sem citar turnos prorroga a mesma escala; citando, ela é
+            // substituída pela nova.
+            'turnos' => ['nullable', 'array', 'max:20'],
+            'turnos.*.inicio' => ['required', 'date'],
+            'turnos.*.fim' => ['required', 'date'],
         ]);
 
         $this->contas->renovar($conta, $dados);

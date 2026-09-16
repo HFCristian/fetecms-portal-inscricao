@@ -189,3 +189,64 @@ describe('CredenciamentoContas', () => {
         expect(screen.getByText(/abre .*a aba Almoxarifado/)).toBeInTheDocument();
     });
 });
+
+describe('CredenciamentoContas — voluntários (turnos)', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        getContasTemporarias.mockResolvedValue({ contas: [], horas_padrao: 5 });
+        criarContaTemporaria.mockResolvedValue({
+            data: { contas: [], horas_padrao: 5 },
+            meta: { message: 'Conta temporária criada.' },
+        });
+    });
+
+    it('no setor presencial troca o prazo por turnos de trabalho', async () => {
+        render(<CredenciamentoContas setor="avaliacao_presencial" />);
+
+        fireEvent.click(await screen.findByRole('button', { name: /Novo voluntário/i }));
+
+        // A janela única dá lugar à escala.
+        expect(screen.queryByLabelText('Disponível por (horas)')).not.toBeInTheDocument();
+        expect(screen.getByLabelText('Início do turno 1')).toBeInTheDocument();
+    });
+
+    it('acrescenta turnos e manda todos de uma vez', async () => {
+        render(<CredenciamentoContas setor="avaliacao_presencial" />);
+
+        fireEvent.click(await screen.findByRole('button', { name: /Novo voluntário/i }));
+
+        fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Joana' } });
+        fireEvent.change(screen.getByLabelText('E-mail'), { target: { value: 'joana@fetecms.test' } });
+        fireEvent.change(screen.getByLabelText('CPF'), { target: { value: '529.982.247-25' } });
+        fireEvent.change(screen.getByLabelText('Nome do curso'), { target: { value: 'Engenharia' } });
+        fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'senhaforte123' } });
+        fireEvent.change(screen.getByLabelText('Confirmar senha'), { target: { value: 'senhaforte123' } });
+
+        fireEvent.change(screen.getByLabelText('Início do turno 1'), { target: { value: '2026-10-20T08:00' } });
+        fireEvent.change(screen.getByLabelText('Fim do turno 1'), { target: { value: '2026-10-20T12:00' } });
+
+        fireEvent.click(screen.getByRole('button', { name: /Acrescentar turno/i }));
+        fireEvent.change(screen.getByLabelText('Início do turno 2'), { target: { value: '2026-10-21T13:00' } });
+        fireEvent.change(screen.getByLabelText('Fim do turno 2'), { target: { value: '2026-10-21T18:00' } });
+
+        fireEvent.click(screen.getByRole('button', { name: /Cadastrar voluntário/i }));
+
+        await waitFor(() => expect(criarContaTemporaria).toHaveBeenCalled());
+        const [payload, setor] = criarContaTemporaria.mock.calls[0];
+
+        expect(setor).toBe('avaliacao_presencial');
+        expect(payload.turnos).toEqual([
+            { inicio: '2026-10-20T08:00', fim: '2026-10-20T12:00' },
+            { inicio: '2026-10-21T13:00', fim: '2026-10-21T18:00' },
+        ]);
+    });
+
+    it('o balcão do credenciamento continua sem turnos', async () => {
+        render(<CredenciamentoContas />);
+
+        fireEvent.click(await screen.findByRole('button', { name: /Nova conta temporária/i }));
+
+        expect(screen.getByLabelText('Disponível por (horas)')).toBeInTheDocument();
+        expect(screen.queryByLabelText('Início do turno 1')).not.toBeInTheDocument();
+    });
+});
