@@ -42,6 +42,7 @@ class Edicao extends Model
         'piso_fila_avaliador',
         'distribuicao_regras', 'distribuicao_ao_cadastrar', 'modo_distribuicao',
         'dias_avaliacao_aberta', 'horas_sessao_avaliador',
+        'info_avaliacao_presencial',
     ];
 
     protected function casts(): array

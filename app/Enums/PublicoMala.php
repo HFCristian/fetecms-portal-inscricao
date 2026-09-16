@@ -20,6 +20,7 @@ enum PublicoMala: string
     case AvaliadoresPendentes = 'avaliadores_pendentes';
     case AvaliadoresConcluidas = 'avaliadores_concluidas';
     case AvaliadoresComissao = 'avaliadores_comissao';
+    case FinalistasSemTermo = 'finalistas_sem_termo';
 
     public function label(): string
     {
@@ -32,6 +33,7 @@ enum PublicoMala: string
             self::AvaliadoresPendentes => 'Avaliadores com avaliações pendentes',
             self::AvaliadoresConcluidas => 'Avaliadores com avaliações concluídas',
             self::AvaliadoresComissao => 'Avaliadores da comissão especial',
+            self::FinalistasSemTermo => 'Finalistas sem o termo de responsabilidade',
         };
     }
 
@@ -46,6 +48,7 @@ enum PublicoMala: string
             self::AvaliadoresPendentes => 'Abriu uma avaliação e ainda não concluiu.',
             self::AvaliadoresConcluidas => 'Já concluiu ao menos uma avaliação.',
             self::AvaliadoresComissao => 'Marcado pelo admin como comissão especial.',
+            self::FinalistasSemTermo => 'Tem projeto na lista final vigente e ainda não anexou o termo.',
         };
     }
 
@@ -53,7 +56,8 @@ enum PublicoMala: string
     public function role(): Role
     {
         return match ($this) {
-            self::Orientadores, self::OrientadoresRascunho, self::OrientadoresSubmetidos => Role::Orientador,
+            self::Orientadores, self::OrientadoresRascunho, self::OrientadoresSubmetidos,
+            self::FinalistasSemTermo => Role::Orientador,
             self::Avaliadores, self::AvaliadoresPendentes, self::AvaliadoresConcluidas,
             self::AvaliadoresComissao => Role::Avaliador,
             self::Todos => Role::Orientador,

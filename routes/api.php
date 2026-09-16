@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\AvaliadorAvaliacaoController;
 use App\Http\Controllers\Api\V1\AvaliadorController;
 use App\Http\Controllers\Api\V1\AvaliadorPerfilController;
+use App\Http\Controllers\Api\V1\AvaliadorPresencialController;
 use App\Http\Controllers\Api\V1\AvisoController;
 use App\Http\Controllers\Api\V1\CadastroPendenteController;
 use App\Http\Controllers\Api\V1\CatalogoAdminController;
@@ -221,6 +222,9 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::get('/perfil', [AvaliadorPerfilController::class, 'show']);
             Route::put('/perfil/classificacao', [AvaliadorPerfilController::class, 'atualizarClassificacao']);
             Route::put('/perfil/localidade', [AvaliadorPerfilController::class, 'atualizarLocalidade']);
+            // Intenção de avaliar presencialmente, e as orientações de quem aceita.
+            Route::get('/presencial', [AvaliadorPresencialController::class, 'show']);
+            Route::put('/presencial', [AvaliadorPresencialController::class, 'update']);
         });
 
         // Chat de suporte — orientador/avaliador falam com o suporte (admin)
