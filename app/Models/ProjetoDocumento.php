@@ -17,6 +17,7 @@ class ProjetoDocumento extends Model
 
     protected $fillable = [
         'projeto_id', 'tipo', 'disk', 'path', 'nome_original', 'mime', 'tamanho_bytes',
+        'assinatura_valida', 'assinatura',
     ];
 
     protected function casts(): array
@@ -24,6 +25,10 @@ class ProjetoDocumento extends Model
         return [
             'tipo' => TipoDocumento::class,
             'tamanho_bytes' => 'integer',
+            // Nulo = assinatura não conferida (documento de outro tipo, ou
+            // anexado antes de a conferência existir).
+            'assinatura_valida' => 'boolean',
+            'assinatura' => 'array',
         ];
     }
 

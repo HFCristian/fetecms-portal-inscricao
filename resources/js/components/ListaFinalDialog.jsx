@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button, Alert } from './ui.jsx';
 import { extractErrors } from '../lib/auth.jsx';
-import { getOpcoesListaFinal, baixarListaFinal } from '../lib/admin.js';
+import { getOpcoesListaFinal, gerarListaFinal } from '../lib/admin.js';
 
 const inputClass =
     'w-24 bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface ' +
@@ -161,8 +161,10 @@ export default function ListaFinalDialog({ open, onClose }) {
     async function gerar() {
         setGerando(true); setErro('');
         try {
-            await baixarListaFinal(montarPayload());
-            onClose(oficial);
+            // A geração não baixa mais o arquivo: ela abre a PRÉVIA, onde o
+            // recorte é revisado (e corrigido à mão) antes do TXT.
+            const previa = await gerarListaFinal(montarPayload());
+            onClose(oficial, previa.lista.id);
         } catch (e) {
             setErro(extractErrors(e).message || 'Não foi possível gerar a lista. Tente novamente.');
         } finally {
@@ -178,6 +180,7 @@ export default function ListaFinalDialog({ open, onClose }) {
                     Entram os projetos <strong>mais bem avaliados</strong> que couberem nas quantidades
                     que você definir. Cada quantidade pode ser um <strong>número</strong> ou uma{' '}
                     <strong>porcentagem</strong> do recorte acima dela; em branco não limita nada.
+                    A lista abre para <strong>revisão</strong> antes do download.
                 </p>
 
                 {/* Trilha dos três passos */}
@@ -316,6 +319,8 @@ export default function ListaFinalDialog({ open, onClose }) {
                                     Registra esta lista como a vigente da edição: os projetos e seus
                                     participantes passam a ser os <strong>finalistas</strong> da feira. A
                                     composição pode ser alterada depois, sempre gerando um arquivo novo.
+                                    Sem marcar, a lista fica como <strong>rascunho</strong>: dá para
+                                    revisar, baixar o TXT e publicar mais tarde.
                                 </span>
                             </span>
                         </label>
@@ -347,8 +352,8 @@ export default function ListaFinalDialog({ open, onClose }) {
                             </Button>
                         ) : (
                             <Button type="button" loading={gerando} disabled={opcoes === null} onClick={gerar}>
-                                <span className="material-symbols-outlined text-[18px]">download</span>
-                                {oficial ? 'Gerar e oficializar' : 'Gerar TXT'}
+                                <span className="material-symbols-outlined text-[18px]">preview</span>
+                                {oficial ? 'Gerar e oficializar' : 'Gerar prévia'}
                             </Button>
                         )}
                     </div>

@@ -82,6 +82,12 @@ function NavLinks({ role, abas, onNavigate, suporteBadge = 0 }) {
                 <span className="material-symbols-outlined">reviews</span>
                 Pareceres
             </NavLink>
+            {/* Só tem conteúdo para quem ficou entre os finalistas; para os
+                demais a aba abre explicando isso. */}
+            <NavLink to="/documentos" className={navClass} onClick={onNavigate}>
+                <span className="material-symbols-outlined">description</span>
+                Documentos
+            </NavLink>
             <NavLink to="/perfil" className={navClass} onClick={onNavigate}>
                 <span className="material-symbols-outlined">account_circle</span>
                 Perfil

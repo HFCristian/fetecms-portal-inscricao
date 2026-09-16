@@ -44,11 +44,13 @@ export default function AvaliacaoListasFinais() {
             <Link to="/admin/avaliacao/ranking" className="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary mb-3">
                 <span className="material-symbols-outlined text-[18px]">arrow_back</span> Ranking dos projetos
             </Link>
-            <h1 className="font-display text-2xl font-semibold text-primary mb-1">Listas finais oficiais</h1>
+            <h1 className="font-display text-2xl font-semibold text-primary mb-1">Listas finais</h1>
             <p className="text-sm text-on-surface-variant mb-6 max-w-3xl">
-                As listas geradas com <strong>Lista Final Oficial</strong> marcada. A lista{' '}
-                <strong>vigente</strong> define os finalistas da feira. O arquivo sai sempre na
-                composição atual da lista, então cada alteração gera um TXT novo.
+                Toda lista gerada no Ranking dos projetos fica aqui. As que ainda não foram
+                publicadas aparecem como <strong>rascunho</strong> — são prévias em revisão e não
+                definem finalista nenhum. A lista <strong>vigente</strong> é que define os
+                finalistas da feira. O arquivo sai sempre na composição atual, então cada
+                alteração gera um TXT novo.
             </p>
 
             {erro && <div className="mb-4"><Alert>{erro}</Alert></div>}
@@ -59,8 +61,8 @@ export default function AvaliacaoListasFinais() {
                 </div>
             ) : listas.length === 0 ? (
                 <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-6 text-center text-on-surface-variant text-sm max-w-3xl">
-                    Nenhuma lista oficial ainda. Gere uma no Ranking dos projetos marcando
-                    “Lista Final Oficial”.
+                    Nenhuma lista ainda. Gere uma no Ranking dos projetos, em
+                    “Gerar lista final”.
                 </div>
             ) : (
                 <ul className="bg-surface-container-lowest rounded-xl fetec-card-shadow divide-y divide-outline-variant/40 max-w-3xl">
@@ -74,6 +76,11 @@ export default function AvaliacaoListasFinais() {
                                             vigente
                                         </span>
                                     )}
+                                    {l.rascunho && (
+                                        <span className="ml-2 text-xs font-semibold px-2 py-0.5 rounded-full bg-surface-variant text-on-surface-variant">
+                                            rascunho
+                                        </span>
+                                    )}
                                 </p>
                                 <p className="text-xs text-on-surface-variant">
                                     versão {l.versao} · {l.projetos} {l.projetos === 1 ? 'projeto' : 'projetos'}
@@ -85,6 +92,13 @@ export default function AvaliacaoListasFinais() {
                                 </p>
                             </div>
                             <div className="flex flex-wrap gap-2">
+                                <Link
+                                    to={`/admin/avaliacao/listas-finais/${l.id}`}
+                                    className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-2.5 text-sm font-semibold text-on-surface hover:bg-surface-variant transition-colors"
+                                >
+                                    <span className="material-symbols-outlined text-[20px]">edit_note</span>
+                                    {l.rascunho ? 'Revisar' : 'Abrir'}
+                                </Link>
                                 <Button type="button" variant="outline" loading={baixando === l.id} onClick={() => baixar(l.id)}>
                                     <span className="material-symbols-outlined text-[20px]">download</span>
                                     Baixar TXT

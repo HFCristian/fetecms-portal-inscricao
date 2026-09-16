@@ -227,11 +227,16 @@ export const definirPrazosSessao = (horas, dias) =>
 // Lista final da feira: o que dá para pedir e o TXT do recorte escolhido.
 export const getOpcoesListaFinal = () => http.get('/admin/avaliacao/lista-final/opcoes').then((r) => r.data.data);
 
-export async function baixarListaFinal(cotas) {
-    const r = await http.post('/admin/avaliacao/lista-final', cotas, { responseType: 'blob' });
-    const nome = /filename="([^"]+)"/.exec(r.headers['content-disposition'] ?? '')?.[1] ?? 'lista-final.txt';
-    baixarBlob(r.data, nome);
-}
+/**
+ * Gera a lista no recorte pedido e devolve a **prévia** já registrada (a lista
+ * em rascunho, com a composição). O TXT sai depois, da tela de revisão.
+ */
+export const gerarListaFinal = (cotas) =>
+    http.post('/admin/avaliacao/lista-final', cotas).then((r) => r.data.data);
+
+/** Publica um rascunho revisado: ele vira a lista oficial vigente. */
+export const publicarListaFinal = (id) =>
+    http.post(`/admin/avaliacao/listas-finais/${id}/publicar`).then((r) => r.data);
 
 // Verificação de disparidade: projetos cujas notas se afastaram demais.
 export const getVerificacoesDisparidade = () =>

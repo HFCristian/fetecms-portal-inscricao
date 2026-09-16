@@ -136,6 +136,12 @@ class ListaFinalService
                 $linhas[] = $item['orientador'].' - Orientador(a)';
             }
 
+            // O coorientador é opcional e vem logo abaixo do orientador — no
+            // evento, os dois sobem ao estande.
+            if ($item['coorientador'] !== null) {
+                $linhas[] = $item['coorientador'].' - Coorientador(a)';
+            }
+
             return implode("\n", $linhas);
         }, $itens);
 
@@ -143,38 +149,34 @@ class ListaFinalService
     }
 
     /**
-     * Torna o recorte uma **lista final oficial**: grava a composição, marca-a
-     * como vigente da edição (encerrando a anterior) e devolve a lista criada.
+     * Gera o recorte e o registra como **rascunho** — a prévia que o admin vê
+     * antes de baixar o TXT.
      *
-     * A partir daí os projetos dela — e, por tabela, alunos, orientador e
-     * coorientador — são os **finalistas** da feira.
+     * O rascunho é uma lista como outra qualquer: tem composição, versão e a
+     * mesma trilha de inclusão/retirada da oficial. O que ele **não** é: a
+     * vigente da edição. Ninguém vira finalista por causa dele, então revisar
+     * um recorte não mexe no credenciamento nem no mapa do evento.
      *
      * @param  array<string, mixed>  $cotas
      */
-    public function oficializar(array $cotas, User $admin, ?string $nome = null): ListaFinal
+    public function rascunhar(array $cotas, User $admin, ?string $nome = null): ListaFinal
     {
         $edicao = Edicao::atual();
 
         if ($edicao === null) {
             throw ValidationException::withMessages([
-                'oficial' => 'Nenhuma edição em curso para registrar a lista final.',
+                'total' => 'Nenhuma edição em curso para gerar a lista final.',
             ]);
         }
 
         $itens = $this->gerar($cotas);
 
         return DB::transaction(function () use ($cotas, $admin, $nome, $edicao, $itens) {
-            // Uma vigente por edição: publicar a nova encerra a anterior. A
-            // trilha demo (Sprint 88) é independente — ensaiar o balcão não
-            // pode derrubar a lista oficial nem o contrário.
-            ListaFinal::where('edicao_id', $edicao->id)
-                ->where('demo', false)
-                ->update(['vigente' => false]);
-
             $lista = ListaFinal::create([
                 'edicao_id' => $edicao->id,
                 'nome' => trim((string) $nome) !== '' ? trim((string) $nome) : $this->nomePadrao($edicao),
-                'vigente' => true,
+                'vigente' => false,
+                'rascunho' => true,
                 'versao' => 1,
                 'cotas' => $cotas,
                 'gerada_por' => $admin->id,
@@ -184,9 +186,44 @@ class ListaFinalService
                 collect($itens)->mapWithKeys(fn (array $i) => [$i['projeto_id'] => ['manual' => false]])->all(),
             );
 
+            return $lista->fresh();
+        });
+    }
+
+    /**
+     * Publica um rascunho: ele vira a lista **oficial vigente** da edição,
+     * encerrando a anterior.
+     *
+     * A composição publicada é a que está na tela — incluindo o que o admin
+     * acrescentou ou retirou à mão durante a revisão. A versão **não** é
+     * zerada: o histórico de alterações do rascunho continua valendo depois de
+     * publicado, que é justamente o que explica por que a lista oficial não é
+     * igual ao que as cotas produziram.
+     */
+    public function publicar(ListaFinal $lista, User $admin): ListaFinal
+    {
+        if (! $lista->rascunho) {
+            throw ValidationException::withMessages([
+                'lista' => 'Esta lista já foi publicada.',
+            ]);
+        }
+
+        if ($lista->projetos()->count() === 0) {
+            throw ValidationException::withMessages([
+                'lista' => 'Uma lista final sem nenhum projeto não pode ser publicada.',
+            ]);
+        }
+
+        return DB::transaction(function () use ($lista, $admin) {
+            ListaFinal::where('edicao_id', $lista->edicao_id)
+                ->where('demo', $lista->demo)
+                ->update(['vigente' => false]);
+
+            $lista->forceFill(['vigente' => true, 'rascunho' => false])->save();
+
             $this->registros->listaFinal(
                 TipoRegistro::ListaFinalOficializada, $admin, $lista->nome, null, null,
-                count($itens).' projeto(s)',
+                $lista->projetos()->count().' projeto(s)',
             );
 
             return $lista->fresh();
@@ -194,8 +231,11 @@ class ListaFinalService
     }
 
     /**
-     * As listas oficiais já registradas na edição em curso, da mais nova para a
-     * mais antiga.
+     * As listas registradas na edição em curso — rascunhos e oficiais —, da
+     * mais nova para a mais antiga.
+     *
+     * Os rascunhos aparecem junto de propósito: uma prévia que ficou pelo
+     * caminho precisa ser encontrável, senão vira lixo invisível no banco.
      *
      * @return list<array<string, mixed>>
      */
@@ -219,6 +259,7 @@ class ListaFinalService
                 'id' => $l->id,
                 'nome' => $l->nome,
                 'vigente' => $l->vigente,
+                'rascunho' => $l->rascunho,
                 'versao' => $l->versao,
                 'projetos' => $l->projetos_count,
                 'gerada_por' => $l->autor?->name,
@@ -320,6 +361,7 @@ class ListaFinalService
                 'id' => $lista->id,
                 'nome' => $lista->nome,
                 'vigente' => $lista->vigente,
+                'rascunho' => $lista->rascunho,
                 'versao' => $lista->versao,
                 'projetos' => count($itens),
             ],
@@ -370,6 +412,7 @@ class ListaFinalService
                 'area:id,nome,sigla',
                 'user:id,name',
                 'alunos:id,projeto_id,nome',
+                'coorientador:id,projeto_id,nome',
                 'instituicao:id,nome,cidade_id',
                 'instituicao.cidade:id,nome,estado_id,capital',
                 'instituicao.cidade.estado:id,uf',
@@ -399,6 +442,7 @@ class ListaFinalService
                 'area:id,nome,sigla',
                 'user:id,name',
                 'alunos:id,projeto_id,nome',
+                'coorientador:id,projeto_id,nome',
                 'instituicao:id,nome,cidade_id',
                 'instituicao.cidade:id,nome,estado_id,capital',
                 'instituicao.cidade.estado:id,uf',
@@ -646,6 +690,7 @@ class ListaFinalService
                     ->values()
                     ->all(),
                 'orientador' => $projeto->user?->name,
+                'coorientador' => $projeto->coorientador?->nome,
                 'media' => $projeto->media_nota === null ? null : round((float) $projeto->media_nota, 2),
             ];
         }, $projetos);

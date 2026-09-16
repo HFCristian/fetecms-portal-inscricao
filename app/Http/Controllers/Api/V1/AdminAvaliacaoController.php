@@ -426,25 +426,43 @@ class AdminAvaliacaoController extends Controller
     }
 
     /**
-     * Gera a lista final em TXT, no recorte de cotas escolhido pelo admin.
+     * Gera a lista final no recorte de cotas escolhido pelo admin e devolve a
+     * **prévia**: a composição registrada como rascunho, para revisão.
      *
-     * Com `oficial`, a lista também é **registrada**: vira a vigente da edição
-     * e os projetos dela passam a ser os finalistas da feira.
+     * O TXT sai depois, da tela de revisão — é lá que o admin inclui e retira
+     * projetos com justificativa antes de baixar o arquivo. Com `oficial`, a
+     * lista já nasce publicada: vira a vigente da edição e os projetos dela
+     * passam a ser os finalistas da feira.
      */
-    public function gerarListaFinal(ListaFinalRequest $request): Response
+    public function gerarListaFinal(ListaFinalRequest $request): JsonResponse
     {
-        $cotas = $request->cotas();
+        $lista = $this->listaFinal->rascunhar(
+            $request->cotas(),
+            $request->user(),
+            $request->input('nome'),
+        );
 
+        // Marcar "Lista Final Oficial" na hora de gerar publica direto — o
+        // caminho é o mesmo, só não passa pela revisão.
         if ($request->boolean('oficial')) {
-            $lista = $this->listaFinal->oficializar($cotas, $request->user(), $request->input('nome'));
-
-            return $this->txt(
-                $this->listaFinal->exportarTxtDaLista($lista),
-                'lista-final-oficial-v'.$lista->versao,
-            );
+            $lista = $this->listaFinal->publicar($lista, $request->user());
         }
 
-        return $this->txt($this->listaFinal->exportarTxt($cotas), 'lista-final');
+        return response()->json(
+            ['data' => $this->listaFinal->detalhar($lista)],
+            Response::HTTP_CREATED,
+        );
+    }
+
+    /** Publica um rascunho: ele vira a lista oficial vigente da edição. */
+    public function publicarListaFinal(Request $request, ListaFinal $lista): JsonResponse
+    {
+        $this->listaFinal->publicar($lista, $request->user());
+
+        return response()->json([
+            'data' => $this->listaFinal->detalhar($lista->fresh()),
+            'meta' => ['message' => 'Lista publicada — ela define os finalistas da feira.'],
+        ]);
     }
 
     /** As verificações de disparidade já feitas na edição em curso. */

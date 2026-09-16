@@ -27,6 +27,7 @@ use App\Http\Controllers\Api\V1\CoorientadorController;
 use App\Http\Controllers\Api\V1\CredenciamentoController;
 use App\Http\Controllers\Api\V1\DadosDemoController;
 use App\Http\Controllers\Api\V1\DocumentoController;
+use App\Http\Controllers\Api\V1\DocumentoPresencialController;
 use App\Http\Controllers\Api\V1\EdicaoController;
 use App\Http\Controllers\Api\V1\EscopoAdminController;
 use App\Http\Controllers\Api\V1\FeedbackController;
@@ -182,6 +183,16 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::post('/projetos/{projeto}/decidir', [OrientadorAjusteController::class, 'decidir']);
         });
 
+        // Aba "Documentos" do orientador: o termo de responsabilidade dos
+        // projetos finalistas, enviado para o evento (não é anexo de inscrição:
+        // exige lista final publicada, não rascunho).
+        Route::middleware('role:orientador')->prefix('documentos-presenciais')->group(function () {
+            Route::get('/', [DocumentoPresencialController::class, 'index']);
+            Route::post('/projetos/{projeto}/termo', [DocumentoPresencialController::class, 'store'])
+                ->middleware('throttle:20,1');
+            Route::delete('/projetos/{projeto}/termo', [DocumentoPresencialController::class, 'destroy']);
+        });
+
         // Aba "Pareceres" do orientador: a nota média de cada projeto dele e o
         // que os avaliadores escreveram — sem nome e sem a nota das seções.
         Route::middleware('role:orientador')->prefix('pareceres')->group(function () {
@@ -270,6 +281,8 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::get('/avaliacao/listas-finais/{lista}', [AdminAvaliacaoController::class, 'mostrarListaFinal']);
                 // Alterar a composição: justificativa obrigatória, versão nova e
                 // registro em Registros → Lista final.
+                // Publica um rascunho revisado: ele passa a ser a vigente.
+                Route::post('/avaliacao/listas-finais/{lista}/publicar', [AdminAvaliacaoController::class, 'publicarListaFinal']);
                 Route::post('/avaliacao/listas-finais/{lista}/projetos', [AdminAvaliacaoController::class, 'adicionarNaListaFinal']);
                 Route::delete('/avaliacao/listas-finais/{lista}/projetos/{projeto}', [AdminAvaliacaoController::class, 'removerDaListaFinal']);
 

@@ -2,7 +2,12 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../components/AppShell.jsx', () => ({ default: ({ children }) => <div>{children}</div> }));
-vi.mock('react-router-dom', () => ({ Link: ({ children }) => <a>{children}</a> }));
+// Gerar a lista leva à prévia (/listas-finais/:id) em vez de baixar o TXT.
+const navigate = vi.fn();
+vi.mock('react-router-dom', () => ({
+    Link: ({ children }) => <a>{children}</a>,
+    useNavigate: () => navigate,
+}));
 
 const getRankingAvaliacao = vi.fn();
 const AREAS_LISTA = [
@@ -17,11 +22,11 @@ const getOpcoesListaFinal = vi.fn(() => Promise.resolve({
         { value: 'fetecms_fundect', label: 'FETECMS FUNDECT', sigla: 'PIC', disponiveis: 0, areas: AREAS_LISTA },
     ],
 }));
-const baixarListaFinal = vi.fn(() => Promise.resolve());
+const gerarListaFinal = vi.fn(() => Promise.resolve({ lista: { id: 12 } }));
 vi.mock('../lib/admin.js', () => ({
     getRankingAvaliacao: (...a) => getRankingAvaliacao(...a),
     getOpcoesListaFinal: (...a) => getOpcoesListaFinal(...a),
-    baixarListaFinal: (...a) => baixarListaFinal(...a),
+    gerarListaFinal: (...a) => gerarListaFinal(...a),
 }));
 vi.mock('../lib/catalogos.js', () => ({
     loadAreas: vi.fn(() => Promise.resolve([
@@ -174,9 +179,9 @@ describe('AvaliacaoRanking', () => {
         fireEvent.change(camposArea[1], { target: { value: '5' } });
 
         fireEvent.click(screen.getByText('Continuar'));
-        fireEvent.click(screen.getByRole('button', { name: /Gerar TXT/ }));
+        fireEvent.click(screen.getByRole('button', { name: /Gerar prévia/ }));
 
-        await waitFor(() => expect(baixarListaFinal).toHaveBeenCalledWith({
+        await waitFor(() => expect(gerarListaFinal).toHaveBeenCalledWith({
             total: { tipo: 'fixo', valor: 10 },
             categorias: {
                 fetec_jr: {
@@ -184,7 +189,7 @@ describe('AvaliacaoRanking', () => {
                     areas: { 1: { cota: { tipo: 'fixo', valor: 5 }, interior: null } },
                 },
             },
-            // Sem marcar "Lista Final Oficial", a lista não é registrada.
+            // Sem marcar "Lista Final Oficial", a lista nasce como rascunho.
             oficial: false,
             nome: null,
         }));

@@ -9,6 +9,7 @@ use App\Models\Aluno;
 use App\Models\Area;
 use App\Models\Avaliacao;
 use App\Models\Cidade;
+use App\Models\Coorientador;
 use App\Models\Edicao;
 use App\Models\Estado;
 use App\Models\Instituicao;
@@ -122,6 +123,41 @@ class ListaFinalTest extends TestCase
         );
     }
 
+    public function test_txt_traz_o_coorientador_abaixo_do_orientador(): void
+    {
+        $agrarias = $this->area('Ciências Agrárias', 'AGR');
+
+        $projeto = $this->projeto(
+            'Horta na escola',
+            Categoria::Fetecms,
+            $agrarias,
+            9.0,
+            ['Ana Paula'],
+            'EE Maria Constança',
+        );
+
+        Coorientador::factory()->create([
+            'projeto_id' => $projeto->id,
+            'nome' => 'Carlos Pereira',
+        ]);
+
+        $this->assertSame(
+            "FET.AGR-001 - Horta na escola\n"
+            ."EE Maria Constança / Campo Grande - MS\n"
+            ."Ana Paula\n"
+            ."Marta Orientadora - Orientador(a)\n"
+            ."Carlos Pereira - Coorientador(a)\n",
+            $this->servico()->exportarTxt([]),
+        );
+    }
+
+    public function test_projeto_sem_coorientador_nao_ganha_linha_a_toa(): void
+    {
+        $this->projeto('Sozinho', Categoria::Fetecms, $this->area('Ciências Agrárias', 'AGR'), 9.0);
+
+        $this->assertStringNotContainsString('Coorientador(a)', $this->servico()->exportarTxt([]));
+    }
+
     public function test_ordena_por_categoria_area_e_titulo_com_sequencial_proprio(): void
     {
         $agrarias = $this->area('Ciências Agrárias', 'AGR');
@@ -199,7 +235,7 @@ class ListaFinalTest extends TestCase
         $this->assertSame('JR.ROB-001', $this->servico()->gerar([])[0]['codigo']);
     }
 
-    public function test_endpoint_baixa_o_txt_e_lista_as_opcoes(): void
+    public function test_endpoint_devolve_a_previa_e_lista_as_opcoes(): void
     {
         $area = $this->area('Ciências Agrárias', 'AGR');
         $this->projeto('Horta', Categoria::Fetecms, $area, 8.0, [], 'EE Maria Constança');
@@ -213,12 +249,24 @@ class ListaFinalTest extends TestCase
             ->assertJsonPath('data.categorias.0.areas.0.sigla', 'AGR')
             ->assertJsonPath('data.categorias.0.areas.0.disponiveis', 1);
 
-        $resposta = $this->post('/api/v1/admin/avaliacao/lista-final', [
+        // Gerar não baixa mais o arquivo: devolve a prévia registrada como
+        // rascunho, para o admin revisar antes do TXT.
+        $previa = $this->postJson('/api/v1/admin/avaliacao/lista-final', [
             'total' => ['tipo' => 'fixo', 'valor' => 1],
-        ]);
+        ])->assertCreated();
 
-        $resposta->assertOk()->assertHeader('Content-Type', 'text/plain; charset=UTF-8');
-        $this->assertStringContainsString('FET.AGR-001 - Horta', $resposta->getContent());
+        $previa->assertJsonPath('data.lista.rascunho', true)
+            ->assertJsonPath('data.lista.vigente', false)
+            ->assertJsonPath('data.itens.0.codigo', 'FET.AGR-001');
+
+        // O TXT sai da lista gerada, na composição atual dela.
+        $id = $previa->json('data.lista.id');
+        $txt = $this->get("/api/v1/admin/avaliacao/listas-finais/{$id}/arquivo")
+            ->assertOk()
+            ->assertHeader('Content-Type', 'text/plain; charset=UTF-8')
+            ->getContent();
+
+        $this->assertStringContainsString('FET.AGR-001 - Horta', $txt);
     }
 
     public function test_admin_define_a_sigla_da_area(): void
@@ -402,7 +450,7 @@ class ListaFinalTest extends TestCase
             'oficial' => true,
             'nome' => 'Lista oficial 2026',
             'total' => ['tipo' => 'fixo', 'valor' => 1],
-        ])->assertOk()->assertSee('Melhor', false);
+        ])->assertCreated()->assertJsonPath('data.itens.0.titulo', 'Melhor');
 
         $lista = ListaFinal::where('nome', 'Lista oficial 2026')->first();
         $this->assertNotNull($lista);
@@ -415,15 +463,69 @@ class ListaFinalTest extends TestCase
         $this->assertSame($lista->id, ListaFinal::vigente()->id);
     }
 
-    public function test_gerar_sem_marcar_oficial_nao_registra_nada(): void
+    public function test_gerar_sem_marcar_oficial_cria_um_rascunho_que_nao_e_vigente(): void
     {
         $this->projeto('Único', Categoria::Fetecms, $this->area('Ciências Agrárias', 'AGR'), 9.0);
 
         Sanctum::actingAs(User::factory()->admin()->create());
 
-        $this->postJson('/api/v1/admin/avaliacao/lista-final', [])->assertOk();
+        $this->postJson('/api/v1/admin/avaliacao/lista-final', [])->assertCreated();
 
-        $this->assertSame(0, ListaFinal::count());
+        // A prévia é registrada — é ela que o admin revisa —, mas ninguém vira
+        // finalista por causa dela.
+        $lista = ListaFinal::sole();
+        $this->assertTrue($lista->rascunho);
+        $this->assertFalse($lista->vigente);
+        $this->assertNull(ListaFinal::vigente());
+    }
+
+    public function test_rascunho_revisado_pode_ser_publicado_depois(): void
+    {
+        $agrarias = $this->area('Ciências Agrárias', 'AGR');
+        $this->projeto('Melhor', Categoria::Fetecms, $agrarias, 9.9);
+        $forade = $this->projeto('De fora', Categoria::Fetecms, $agrarias, 4.0);
+
+        $admin = User::factory()->admin()->create();
+        Sanctum::actingAs($admin);
+
+        $id = $this->postJson('/api/v1/admin/avaliacao/lista-final', [
+            'nome' => 'Prévia', 'total' => ['tipo' => 'fixo', 'valor' => 1],
+        ])->assertCreated()->json('data.lista.id');
+
+        // A correção à mão acontece ANTES de publicar — é o que a prévia existe
+        // para permitir.
+        $this->postJson("/api/v1/admin/avaliacao/listas-finais/{$id}/projetos", [
+            'projeto_id' => $forade->id,
+            'justificativa' => 'Recurso deferido pela comissão organizadora.',
+        ])->assertOk();
+
+        $this->postJson("/api/v1/admin/avaliacao/listas-finais/{$id}/publicar")
+            ->assertOk()
+            ->assertJsonPath('data.lista.vigente', true)
+            ->assertJsonPath('data.lista.rascunho', false);
+
+        $this->assertSame($id, ListaFinal::vigente()->id);
+        // A composição publicada é a revisada, com os dois projetos.
+        $this->assertSame(2, ListaFinal::vigente()->projetos()->count());
+
+        // Publicar duas vezes não faz sentido: a lista já não é rascunho.
+        $this->postJson("/api/v1/admin/avaliacao/listas-finais/{$id}/publicar")
+            ->assertStatus(422);
+    }
+
+    public function test_rascunho_vazio_nao_e_publicado(): void
+    {
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $id = $this->postJson('/api/v1/admin/avaliacao/lista-final', [
+            'total' => ['tipo' => 'fixo', 'valor' => 0],
+        ])->assertCreated()->json('data.lista.id');
+
+        $this->postJson("/api/v1/admin/avaliacao/listas-finais/{$id}/publicar")
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('lista');
+
+        $this->assertNull(ListaFinal::vigente());
     }
 
     public function test_uma_lista_oficial_por_vez_encerra_a_anterior(): void
@@ -431,8 +533,8 @@ class ListaFinalTest extends TestCase
         $this->projeto('Único', Categoria::Fetecms, $this->area('Ciências Agrárias', 'AGR'), 9.0);
         Sanctum::actingAs(User::factory()->admin()->create());
 
-        $this->postJson('/api/v1/admin/avaliacao/lista-final', ['oficial' => true, 'nome' => 'Primeira'])->assertOk();
-        $this->postJson('/api/v1/admin/avaliacao/lista-final', ['oficial' => true, 'nome' => 'Segunda'])->assertOk();
+        $this->postJson('/api/v1/admin/avaliacao/lista-final', ['oficial' => true, 'nome' => 'Primeira'])->assertCreated();
+        $this->postJson('/api/v1/admin/avaliacao/lista-final', ['oficial' => true, 'nome' => 'Segunda'])->assertCreated();
 
         $this->assertFalse(ListaFinal::where('nome', 'Primeira')->first()->vigente);
         $this->assertSame('Segunda', ListaFinal::vigente()->nome);
@@ -445,7 +547,7 @@ class ListaFinalTest extends TestCase
         $this->projeto('Bioplástico', Categoria::Fetecms, $agrarias, 9.0, ['Ana'], 'EE Alfa');
 
         Sanctum::actingAs(User::factory()->admin()->create());
-        $this->postJson('/api/v1/admin/avaliacao/lista-final', ['oficial' => true, 'nome' => 'Oficial'])->assertOk();
+        $this->postJson('/api/v1/admin/avaliacao/lista-final', ['oficial' => true, 'nome' => 'Oficial'])->assertCreated();
 
         $listas = $this->getJson('/api/v1/admin/avaliacao/listas-finais')->assertOk()->json('data');
         $this->assertCount(1, $listas);
@@ -471,7 +573,7 @@ class ListaFinalTest extends TestCase
     {
         Sanctum::actingAs($admin);
         $this->postJson('/api/v1/admin/avaliacao/lista-final', $payload + ['oficial' => true, 'nome' => 'Oficial'])
-            ->assertOk();
+            ->assertCreated();
 
         return ListaFinal::where('nome', 'Oficial')->firstOrFail();
     }
