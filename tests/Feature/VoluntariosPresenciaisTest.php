@@ -39,8 +39,8 @@ class VoluntariosPresenciaisTest extends TestCase
         return array_merge([
             'name' => 'Joana Voluntária',
             'email' => 'joana@fetecms.test',
-            'password' => 'senhaforte123',
-            'password_confirmation' => 'senhaforte123',
+            'password' => 'senha-do-balcao',
+            'password_confirmation' => 'senha-do-balcao',
             'cpf' => '52998224725',
             'curso' => 'Engenharia',
         ], $over);
