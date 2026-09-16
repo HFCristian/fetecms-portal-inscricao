@@ -685,7 +685,83 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 123 | Identificação: QR Code + código de barras por participante da lista final | ✅ sim | ❌ não (manual do Pedro) | 36 |
 | 124 | Credenciamento: leitura do crachá (leitor USB ou câmera) abre a ficha | ✅ sim | ❌ não (manual do Pedro) | 36 |
 | 125 | Designações: **Ver notas** (seção por seção + soma) e Registros → **Notas** | ✅ sim | ❌ não (manual do Pedro) | 37 |
+| 126 | Ranking: **Verificar disparidade** (amplitude das notas, lista registrada, atalho para designar) | ✅ sim | ❌ não (manual do Pedro) | 38 |
+| 127 | Orientador: aba **Pareceres** (nota média, observações anônimas, etapas em pontos fortes/médios/fracos) | ✅ sim | ❌ não (manual do Pedro) | 38 |
+| 128 | Lista final: **prévia editável** antes do TXT + coorientador no arquivo | ✅ sim | ❌ não (manual do Pedro) | 39 |
+| 129 | Orientador: aba **Documentos** — termo de responsabilidade do finalista, com conferência da assinatura gov.br | ✅ sim | ❌ não (manual do Pedro) | 39 |
+| 130 | Público **"finalistas sem o termo"** na mala direta, nos avisos e no feedback | ✅ sim | ❌ não (manual do Pedro) | 40 |
+| 131 | Avaliador: aba **Presencial** — intenção de avaliar no dia da feira + orientações | ✅ sim | ❌ não (manual do Pedro) | 40 |
+| 132 | Nova aba **Avaliação presencial**: checagem de estandes e espelho da checagem | ✅ sim | ❌ não (manual do Pedro) | 41 |
+| 133 | Voluntários: contas temporárias com **vários turnos** de uma vez | ✅ sim | ❌ não (manual do Pedro) | 41 |
+| 134 | Avaliação presencial → **Credenciais** (vagas de premiação) e lista da cerimônia | ✅ sim | ❌ não (manual do Pedro) | 42 |
+| 135 | Avaliação **no estande**: rubrica própria, nota separada, teto de 3 por projeto | ✅ sim | ❌ não (manual do Pedro) | 42 |
+| 136 | Contas temporárias: **presença** no primeiro acesso, aprovada ou rejeitada pelo setor | ✅ sim | ❌ não (manual do Pedro) | 43 |
+| 137 | Comitê especial → **Designações** restritas aos avaliadores da comissão | ✅ sim | ❌ não (manual do Pedro) | 43 |
 
+> **Sprints 126–137 (branch `feat/avaliacao-presencial`, saída da `main` @ `6897b91`):**
+> o ciclo do **dia do evento pelo lado de quem avalia** — mais a devolutiva ao
+> orientador e a revisão da lista final.
+> (a) **Sprint 126** — Ranking → **Verificar disparidade**. O ranking ordena pela média, e a
+> média esconde o desacordo: 9,50 com 4,50 dá o mesmo 7,00 que 7,00 com 7,00, só que no
+> primeiro caso o número que decide a lista final não representa nenhum dos dois
+> avaliadores. O admin informa a diferença que considera demais (duas casas) e recebe os
+> projetos cuja **amplitude** (maior − menor) chegou lá. O critério é a amplitude, e não o
+> desvio da média, porque é o que se explica numa contestação sem estatística e porque já
+> pega o caso de duas avaliações. Cada lista fica **registrada com os dados congelados**
+> (`verificacoes_disparidade`) e entra em Registros; cada item leva ao diálogo de
+> **Designar** já com o projeto marcado.
+> (b) **Sprint 127** — aba **Pareceres** do orientador. Mostra a nota média de cada projeto
+> submetido e as observações escritas, sempre anônimas. As etapas da rubrica aparecem **sem
+> nota**: cada seção vira um nível — ponto forte (≥ 8), médio (≥ 4) ou fraco —, normalizado
+> em 0 a 10 (sem isso o Título, que vale 0,15, nunca seria um ponto forte). A pontuação das
+> seções **não vai no payload**: o que não é enviado não vaza. Janela igual à dos ajustes.
+> (c) **Sprint 128** — a lista final passa a ser **vista antes de ser baixada**. Toda geração
+> nasce **rascunho** (`listas_finais.rascunho`), aberta na mesma tela de composição, onde o
+> admin inclui e retira com justificativa antes de baixar o TXT ou publicar. Ninguém vira
+> finalista por causa de um rascunho. `POST /lista-final` passou a responder **201 com a
+> prévia** em vez do arquivo. O TXT ganhou o **coorientador** abaixo do orientador.
+> (d) **Sprint 129** — aba **Documentos** do orientador: o **termo de responsabilidade** dos
+> projetos finalistas, um por projeto, da publicação da lista ao fim do evento. Todo PDF
+> passa pelo `AssinaturaPdf`: existe assinatura, o resumo recalculado bate com o assinado (é
+> o que pega a página trocada depois) e o certificado diz nome, CPF e se é ICP-Brasil. Ficam
+> de fora revogação e cadeia completa — o laudo é informativo, não um portão —, e o arquivo
+> **não é recusado** por falhar: um termo assinado à caneta e digitalizado existe.
+> (e) **Sprint 130** — público **"finalistas sem o termo"**, disponível na mala direta, nos
+> avisos e no feedback. Sem lista final publicada ele fica **vazio**, e não "todo mundo".
+> (f) **Sprint 131** — aba **Presencial** do avaliador: ele diz se pretende avaliar no dia da
+> feira. A resposta tem **três estados** (`avaliador_profiles.presencial` nullable) — sim,
+> não e ainda não respondeu —, e muda-se de ideia até o evento começar. Quem aceita vê as
+> orientações da edição (`edicoes.info_avaliacao_presencial`).
+> (g) **Sprint 132** — nasce a aba **Avaliação presencial** (`AbaAdmin::AvaliacaoPresencial`)
+> com a **checagem de estandes**: a lista dos finalistas com estande e turno, a ficha que
+> marca item a item (catálogo `itens_checagem_estande`) e o **espelho**, que põe todos lado a
+> lado. O **termo** aparece na ficha já resolvido, com o PDF a um clique — conferi-lo de novo
+> em outro lugar seria pedir a mesma volta duas vezes.
+> (h) **Sprint 133** — **voluntários**: contas temporárias do setor `avaliacao_presencial`
+> com vários **turnos de trabalho** (`conta_temporaria_turnos`). Os turnos não substituem a
+> janela — ela vira o **envelope** deles —, e acrescentam a trava fina: **entre** um turno e
+> outro a conta existe, está no prazo e não abre.
+> (i) **Sprint 134** — **Credenciais**: as vagas de premiação (indicações, bolsas, prêmios),
+> anexadas a projetos finalistas, com teto por vaga e a **lista de premiação** em TXT.
+> `vagas` em branco é sem teto; reduzir abaixo do que já foi dado é recusado.
+> (j) **Sprint 135** — a **avaliação no estande**, com rubrica própria
+> (`App\Support\RubricaPresencial`: 8 perguntas, 4 seções, soma 10,00) e nota **separada**,
+> que alimenta a premiação e não o ranking online. Avalia quem aceitou, durante o evento; os
+> estandes chegam por **designação do admin** e por **escolha no local**, ambos limitados a
+> **3 avaliações por projeto** (a designação manual passa por cima).
+> (k) **Sprint 136** — **presença** das contas temporárias: a pessoa marca no primeiro acesso
+> do turno e o admin do setor **aprova ou rejeita** (rejeitar exige motivo e tira a conta do
+> ar). Enquanto não é aprovada, a conta **não abre aba nenhuma** — ter crachá não é estar de
+> plantão. As contas que já existiam entraram como aprovadas, para o deploy não trancar um
+> balcão em funcionamento.
+> (l) **Sprint 137** — **Comitê especial → Designações**: quem administra o comitê designa
+> projetos **só** para os avaliadores da comissão especial, com a trava no servidor (trocar o
+> id no payload não alcança ninguém de fora). Na aba Avaliação online nada muda.
+> De quebra, um teste antigo (`DesignacaoEmMassaTest`) falhava de vez em quando: a busca
+> olha nome **e** e-mail, e o factory sorteia endereços — um "bruno.santana@…" entrava no
+> filtro por "ana". O e-mail dos avaliadores do teste passou a sair do nome.
+> Back **1098/1098**, front **537/537**, Pint limpo, build OK.
+>
 > **Sprint 125 (mesma branch `feat/mapa-do-evento`):** a tabela de **Designações**
 > mostrava a situação de cada avaliação, mas não o que saiu dela — e é a nota que
 > decide a lista final. Cada linha ganhou **Ver notas**: um diálogo com a nota
@@ -1485,6 +1561,32 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > e **Escolas** (`/admin/parametrizacao/escolas`): admin busca, **renomeia, mescla** (reatribui
 > projetos/alunos/orientadores) e **exclui** instituições sem uso (`InstituicaoAdminService`/Controller,
 > rotas `admin/instituicoes`). Back **117/117**, front 11/11, Pint limpo, build OK.
+> **Pendências do Pedro (Sprints 126–137):** (1) `git push origin feat/avaliacao-presencial`
+> + PR para a `main` (o ambiente do Claude não tem credencial do GitHub) e, depois do merge,
+> o deploy pela §11 do [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). Esta release **tem
+> migrations** (verificações de disparidade, `listas_finais.rascunho`, assinatura nos
+> documentos, presencial no avaliador, checagem de estandes, turnos e presença das contas
+> temporárias, credenciais e avaliações presenciais), **nenhuma variável nova de `.env`** e
+> **nenhuma dependência nova** — a conferência da assinatura usa o OpenSSL que já vem no PHP.
+> (2) **A aba Avaliação presencial é do RBAC**: quem já tem escopo atribuído não a enxerga
+> até você acrescentá-la ao escopo dele (Parametrização → Escopos de admin). Admin sem escopo
+> nenhum continua vendo tudo.
+> (3) **A presença passou a valer para todas as contas temporárias.** As que já existem
+> entraram como aprovadas, mas as **novas** só abrem a aba depois que alguém aprovar a
+> presença na tela de contas do setor. Avise o pessoal do balcão antes do evento.
+> (4) **`POST /admin/avaliacao/lista-final` mudou de contrato**: devolve a prévia (201) em
+> vez do TXT. Se houver algum script seu batendo nessa rota, o arquivo agora sai de
+> `/admin/avaliacao/listas-finais/{id}/arquivo`.
+> (5) **Antes do evento**: cadastre os **itens de checagem** do estande e as **credenciais**
+> de premiação (as duas listas nascem vazias), escreva as **orientações ao avaliador
+> presencial** e confira o **período do evento** — é ele que abre a checagem, o almoxarifado,
+> o credenciamento e a avaliação no estande.
+> (6) **A conferência da assinatura do gov.br não checa revogação (CRL/OCSP) nem a cadeia
+> completa até a raiz da ICP-Brasil** — ela confere que o PDF está assinado, que não foi
+> alterado depois e quem assinou. O laudo aparece para a organização; a decisão final
+> continua sendo do balcão. Se a exigência for validação forte, vale contratar um serviço
+> de validação e trocar só o `App\Support\AssinaturaPdf`.
+>
 > **Pendências do Pedro (Sprints 117–124):** (1) `git push origin feat/mapa-do-evento`
 > + PR para a `main` (o ambiente do Claude não tem credencial do GitHub) e, depois do
 > merge, o deploy pela §11 do [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). Esta release

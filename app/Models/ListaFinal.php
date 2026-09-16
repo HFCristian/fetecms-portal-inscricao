@@ -13,6 +13,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  * A lista **vigente** da edição é a que define quem é finalista — e é dela que
  * o credenciamento tira as pessoas que vão passar pelo balcão.
  *
+ * `rascunho` (Sprint 128) é a lista **gerada mas ainda não publicada**: o
+ * recorte que o admin está revendo antes de baixar o TXT. Ela não é vigente e
+ * não define finalista nenhum; publicar é que a torna oficial.
+ *
  * `demo` separa a lista de treinamento (Sprint 88) da oficial: as duas convivem
  * com uma vigente cada, e a demo só é enxergada por quem ligou o modo de teste.
  * Todo o resto do portal continua chamando `vigente()` sem argumento e vendo
@@ -22,12 +26,13 @@ class ListaFinal extends Model
 {
     protected $table = 'listas_finais';
 
-    protected $fillable = ['edicao_id', 'nome', 'vigente', 'demo', 'versao', 'cotas', 'gerada_por'];
+    protected $fillable = ['edicao_id', 'nome', 'vigente', 'rascunho', 'demo', 'versao', 'cotas', 'gerada_por'];
 
     protected function casts(): array
     {
         return [
             'vigente' => 'boolean',
+            'rascunho' => 'boolean',
             'demo' => 'boolean',
             'versao' => 'integer',
             'cotas' => 'array',

@@ -57,6 +57,12 @@ function NavLinks({ role, abas, onNavigate, suporteBadge = 0 }) {
                     <span className="material-symbols-outlined">fact_check</span>
                     Avaliações
                 </NavLink>
+                {/* A aba fica sempre visível: é nela que ele diz se vai (ou
+                    não) avaliar no dia da feira. */}
+                <NavLink to="/avaliador/presencial" className={navClass} onClick={onNavigate}>
+                    <span className="material-symbols-outlined">stadium</span>
+                    Presencial
+                </NavLink>
                 <NavLink to="/avaliador/perfil" className={navClass} onClick={onNavigate}>
                     <span className="material-symbols-outlined">account_circle</span>
                     Perfil
@@ -75,6 +81,18 @@ function NavLinks({ role, abas, onNavigate, suporteBadge = 0 }) {
             <NavLink to="/ajustes" className={navClass} onClick={onNavigate}>
                 <span className="material-symbols-outlined">rule_settings</span>
                 Ajustes
+            </NavLink>
+            {/* Mesma janela dos ajustes: as duas abas mostram o resultado da
+                avaliação online, liberado pela organização na mesma data. */}
+            <NavLink to="/pareceres" className={navClass} onClick={onNavigate}>
+                <span className="material-symbols-outlined">reviews</span>
+                Pareceres
+            </NavLink>
+            {/* Só tem conteúdo para quem ficou entre os finalistas; para os
+                demais a aba abre explicando isso. */}
+            <NavLink to="/documentos" className={navClass} onClick={onNavigate}>
+                <span className="material-symbols-outlined">description</span>
+                Documentos
             </NavLink>
             <NavLink to="/perfil" className={navClass} onClick={onNavigate}>
                 <span className="material-symbols-outlined">account_circle</span>

@@ -7,11 +7,13 @@ vi.mock('../lib/auth.jsx', () => ({
     extractErrors: (e) => ({ message: e?.response?.data?.message ?? '', fields: e?.response?.data?.errors ?? {} }),
 }));
 
+const decidirPresenca = vi.fn();
 const getContasTemporarias = vi.fn();
 const criarContaTemporaria = vi.fn();
 const renovarContaTemporaria = vi.fn();
 const desativarContaTemporaria = vi.fn();
 vi.mock('../lib/contasTemporarias.js', () => ({
+    decidirPresenca: (...a) => decidirPresenca(...a),
     getContasTemporarias: (...a) => getContasTemporarias(...a),
     criarContaTemporaria: (...a) => criarContaTemporaria(...a),
     renovarContaTemporaria: (...a) => renovarContaTemporaria(...a),
@@ -187,5 +189,120 @@ describe('CredenciamentoContas', () => {
 
         await waitFor(() => expect(getContasTemporarias).toHaveBeenCalledWith('almoxarifado'));
         expect(screen.getByText(/abre .*a aba Almoxarifado/)).toBeInTheDocument();
+    });
+});
+
+describe('CredenciamentoContas — voluntários (turnos)', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        getContasTemporarias.mockResolvedValue({ contas: [], horas_padrao: 5 });
+        criarContaTemporaria.mockResolvedValue({
+            data: { contas: [], horas_padrao: 5 },
+            meta: { message: 'Conta temporária criada.' },
+        });
+    });
+
+    it('no setor presencial troca o prazo por turnos de trabalho', async () => {
+        render(<CredenciamentoContas setor="avaliacao_presencial" />);
+
+        fireEvent.click(await screen.findByRole('button', { name: /Novo voluntário/i }));
+
+        // A janela única dá lugar à escala.
+        expect(screen.queryByLabelText('Disponível por (horas)')).not.toBeInTheDocument();
+        expect(screen.getByLabelText('Início do turno 1')).toBeInTheDocument();
+    });
+
+    it('acrescenta turnos e manda todos de uma vez', async () => {
+        render(<CredenciamentoContas setor="avaliacao_presencial" />);
+
+        fireEvent.click(await screen.findByRole('button', { name: /Novo voluntário/i }));
+
+        fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Joana' } });
+        fireEvent.change(screen.getByLabelText('E-mail'), { target: { value: 'joana@fetecms.test' } });
+        fireEvent.change(screen.getByLabelText('CPF'), { target: { value: '529.982.247-25' } });
+        fireEvent.change(screen.getByLabelText('Nome do curso'), { target: { value: 'Engenharia' } });
+        fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'senhaforte123' } });
+        fireEvent.change(screen.getByLabelText('Confirmar senha'), { target: { value: 'senhaforte123' } });
+
+        fireEvent.change(screen.getByLabelText('Início do turno 1'), { target: { value: '2026-10-20T08:00' } });
+        fireEvent.change(screen.getByLabelText('Fim do turno 1'), { target: { value: '2026-10-20T12:00' } });
+
+        fireEvent.click(screen.getByRole('button', { name: /Acrescentar turno/i }));
+        fireEvent.change(screen.getByLabelText('Início do turno 2'), { target: { value: '2026-10-21T13:00' } });
+        fireEvent.change(screen.getByLabelText('Fim do turno 2'), { target: { value: '2026-10-21T18:00' } });
+
+        fireEvent.click(screen.getByRole('button', { name: /Cadastrar voluntário/i }));
+
+        await waitFor(() => expect(criarContaTemporaria).toHaveBeenCalled());
+        const [payload, setor] = criarContaTemporaria.mock.calls[0];
+
+        expect(setor).toBe('avaliacao_presencial');
+        expect(payload.turnos).toEqual([
+            { inicio: '2026-10-20T08:00', fim: '2026-10-20T12:00' },
+            { inicio: '2026-10-21T13:00', fim: '2026-10-21T18:00' },
+        ]);
+    });
+
+    it('o balcão do credenciamento continua sem turnos', async () => {
+        render(<CredenciamentoContas />);
+
+        fireEvent.click(await screen.findByRole('button', { name: /Nova conta temporária/i }));
+
+        expect(screen.getByLabelText('Disponível por (horas)')).toBeInTheDocument();
+        expect(screen.queryByLabelText('Início do turno 1')).not.toBeInTheDocument();
+    });
+});
+
+describe('CredenciamentoContas — presença do turno', () => {
+    const PENDENTE = {
+        id: 9, nome: 'Bruna Atendente', email: 'bruna@balcao.test', cpf: '529.982.247-25',
+        curso: 'Computação', setor: 'credenciamento', ativa: true, vencida: false, agendada: false,
+        duracao_label: '5 horas', expira_em_label: '20/10/2026 13:00', horas_restantes: 5,
+        turnos: [], em_turno: true,
+        presenca: 'pendente', presenca_label: 'Aguardando aprovação', presenca_em_label: '20/10/2026 08:02',
+    };
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        getContasTemporarias.mockResolvedValue({ contas: [PENDENTE], horas_padrao: 5 });
+        decidirPresenca.mockResolvedValue({
+            data: { contas: [{ ...PENDENTE, presenca: 'aprovada', presenca_label: 'Presença aprovada' }], horas_padrao: 5 },
+            meta: { message: 'Presença aprovada — a conta já abre a aba.' },
+        });
+    });
+
+    it('mostra quem está esperando aprovação', async () => {
+        render(<CredenciamentoContas />);
+
+        expect(await screen.findByText(/Aguardando aprovação/)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Aprovar presença/i })).toBeInTheDocument();
+    });
+
+    it('aprova a presença direto', async () => {
+        render(<CredenciamentoContas />);
+
+        fireEvent.click(await screen.findByRole('button', { name: /Aprovar presença/i }));
+
+        await waitFor(() => expect(decidirPresenca).toHaveBeenCalledWith(9, true, null, 'credenciamento'));
+    });
+
+    it('rejeitar exige o motivo antes de enviar', async () => {
+        render(<CredenciamentoContas />);
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Rejeitar' }));
+
+        const dialogo = await screen.findByRole('dialog');
+        const enviar = within(dialogo).getByRole('button', { name: 'Rejeitar' });
+
+        expect(enviar).toBeDisabled();
+
+        fireEvent.change(screen.getByLabelText('Motivo da rejeição'), {
+            target: { value: 'Não é a pessoa escalada.' },
+        });
+        fireEvent.click(within(dialogo).getByRole('button', { name: 'Rejeitar' }));
+
+        await waitFor(() => expect(decidirPresenca).toHaveBeenCalledWith(
+            9, false, 'Não é a pessoa escalada.', 'credenciamento',
+        ));
     });
 });

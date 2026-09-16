@@ -42,7 +42,7 @@ class AvaliadorProfile extends Model
 
     protected $fillable = [
         'cpf', 'titulacao', 'area_id', 'subarea_id', 'limite_avaliacoes', 'comissao_especial',
-        'estado_id', 'cidade_id',
+        'estado_id', 'cidade_id', 'presencial', 'presencial_em',
     ];
 
     protected function casts(): array
@@ -50,6 +50,9 @@ class AvaliadorProfile extends Model
         return [
             'limite_avaliacoes' => 'integer',
             'comissao_especial' => 'boolean',
+            // Nulo = ainda não respondeu, que não é a mesma coisa que "não vai".
+            'presencial' => 'boolean',
+            'presencial_em' => 'datetime',
         ];
     }
 

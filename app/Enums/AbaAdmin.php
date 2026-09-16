@@ -24,6 +24,7 @@ enum AbaAdmin: string
     case Credenciamento = 'credenciamento';
     case Almoxarifado = 'almoxarifado';
     case Comite = 'comite';
+    case AvaliacaoPresencial = 'avaliacao_presencial';
     case Mapa = 'mapa';
     case Comunicacao = 'comunicacao';
     case Suporte = 'suporte';
@@ -40,6 +41,7 @@ enum AbaAdmin: string
             self::Credenciamento => 'Credenciamento',
             self::Almoxarifado => 'Almoxarifado',
             self::Comite => 'Comitê especial',
+            self::AvaliacaoPresencial => 'Avaliação presencial',
             self::Mapa => 'Mapa do Evento',
             self::Comunicacao => 'Comunicação',
             self::Suporte => 'Suporte',
@@ -58,6 +60,7 @@ enum AbaAdmin: string
             self::Credenciamento => 'Credenciar os finalistas no dia do evento e conferir os documentos.',
             self::Almoxarifado => 'Guardar e devolver o material dos finalistas durante o evento.',
             self::Comite => 'Transporte do comitê e o mapa de quem está a caminho.',
+            self::AvaliacaoPresencial => 'Checagem dos estandes, voluntários e credenciais de premiação.',
             self::Mapa => 'Turnos de apresentação, estandes dos projetos e a planta do evento.',
             self::Comunicacao => 'Mala direta, avisos na tela e modelos de e-mail.',
             self::Suporte => 'Caixa de entrada do chat de orientadores e avaliadores.',

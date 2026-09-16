@@ -13,3 +13,11 @@
 # ignoram a detecção no commit que a introduziu, que o scan do PR ainda varre.
 3c110e364f74d2c993b459d70d4d43982c12a38a:tests/Feature/RankingAvaliadoresTest.php:generic-api-key:159
 3c110e364f74d2c993b459d70d4d43982c12a38a:tests/Feature/RankingAvaliadoresTest.php:generic-api-key:160
+
+# 'senhaforte123' era a senha-fixture do cadastro de voluntário em
+# VoluntariosPresenciaisTest (Sprint 133), não um segredo real. O valor já foi
+# trocado pelo 'senha-do-balcao' que o resto dos testes de conta temporária usa;
+# estes fingerprints ignoram a detecção no commit que a introduziu, que o scan
+# do PR ainda varre.
+ae1ba0006da4221fed6f5121a13bc80aac4542fe:tests/Feature/VoluntariosPresenciaisTest.php:generic-api-key:41
+ae1ba0006da4221fed6f5121a13bc80aac4542fe:tests/Feature/VoluntariosPresenciaisTest.php:generic-api-key:42

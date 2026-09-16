@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\Role;
+use App\Enums\StatusPresenca;
 use App\Models\ContaTemporaria;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -24,6 +25,13 @@ use Illuminate\Validation\ValidationException;
  * cadastrada dias antes e cada conta acorda sozinha na hora marcada. Antes do
  * início a conta existe, aparece como *agendada* e o login é recusado com a
  * data — ela não é desativada, porque desativar a faria parecer encerrada.
+ *
+ * O **voluntário** da avaliação presencial (Sprint 133) usa a mesma conta com
+ * uma diferença: ele trabalha em **turnos** — sábado de manhã e domingo à
+ * tarde, por exemplo. Os turnos não substituem a janela; ela vira o
+ * **envelope** deles (o primeiro início, o último fim), e o que eles
+ * acrescentam é uma trava fina no login: **entre** um turno e outro a conta
+ * existe, está no prazo e mesmo assim não abre.
  *
  * Vencido o prazo, aí sim a conta é **desativada, não apagada**: reativar é
  * informar uma janela nova, sem recadastrar nada. A varredura roda a cada
@@ -49,7 +57,7 @@ class ContaTemporariaService
     {
         $this->expirarVencidas();
 
-        $contas = ContaTemporaria::with(['user', 'autor:id,name'])
+        $contas = ContaTemporaria::with(['user', 'autor:id,name', 'turnos', 'decisor:id,name'])
             ->where('setor', $setor)
             ->get()
             ->sortBy(fn (ContaTemporaria $c) => mb_strtolower($c->user?->name ?? ''))
@@ -69,9 +77,10 @@ class ContaTemporariaService
      */
     public function criar(array $dados, ?User $autor = null, string $setor = ContaTemporaria::SETOR_CREDENCIAMENTO): ContaTemporaria
     {
-        [$validoDe, $expiraEm] = $this->janela($dados);
+        $turnos = $this->turnos($dados);
+        [$validoDe, $expiraEm] = $this->janela($dados, $turnos);
 
-        return DB::transaction(function () use ($dados, $autor, $validoDe, $expiraEm, $setor) {
+        return DB::transaction(function () use ($dados, $autor, $validoDe, $expiraEm, $setor, $turnos) {
             $user = User::create([
                 'name' => trim($dados['name']),
                 'email' => $dados['email'],
@@ -80,7 +89,7 @@ class ContaTemporariaService
                 'is_active' => true,
             ]);
 
-            return ContaTemporaria::create([
+            $conta = ContaTemporaria::create([
                 'user_id' => $user->id,
                 'cpf' => preg_replace('/\D/', '', (string) $dados['cpf']),
                 'curso' => trim($dados['curso']),
@@ -89,6 +98,10 @@ class ContaTemporariaService
                 'expira_em' => $expiraEm,
                 'criado_por' => $autor?->id,
             ]);
+
+            $this->gravarTurnos($conta, $turnos);
+
+            return $conta->fresh();
         });
     }
 
@@ -101,11 +114,19 @@ class ContaTemporariaService
      */
     public function renovar(ContaTemporaria $conta, array $dados): ContaTemporaria
     {
-        [$validoDe, $expiraEm] = $this->janela($dados);
+        $turnos = $this->turnos($dados);
+        [$validoDe, $expiraEm] = $this->janela($dados, $turnos);
 
-        DB::transaction(function () use ($conta, $validoDe, $expiraEm) {
+        DB::transaction(function () use ($conta, $validoDe, $expiraEm, $turnos, $dados) {
             $conta->update(['valido_de' => $validoDe, 'expira_em' => $expiraEm]);
             $conta->user?->update(['is_active' => true]);
+
+            // Turnos só são mexidos quando o formulário os manda: renovar sem
+            // citá-los é prorrogar a mesma escala, não apagá-la.
+            if (array_key_exists('turnos', $dados)) {
+                $conta->turnos()->delete();
+                $this->gravarTurnos($conta, $turnos);
+            }
         });
 
         return $conta->refresh();
@@ -120,6 +141,112 @@ class ContaTemporariaService
         $conta->user?->update(['is_active' => false]);
 
         return $conta->refresh();
+    }
+
+    /**
+     * A pessoa marca presença no primeiro acesso do turno.
+     *
+     * Só dentro da janela: antes dela não há plantão a assumir, e depois a
+     * conta já venceu. Marcar de novo não reabre nada — quem já foi decidido
+     * continua decidido, e uma segunda marcação só reescreveria o horário.
+     */
+    public function marcarPresenca(ContaTemporaria $conta): ContaTemporaria
+    {
+        if (! $conta->emVigor()) {
+            throw ValidationException::withMessages([
+                'presenca' => $conta->agendada()
+                    ? 'O seu acesso ainda não começou.'
+                    : 'O prazo desta conta já venceu.',
+            ]);
+        }
+
+        if ($conta->presenca_status !== null) {
+            throw ValidationException::withMessages([
+                'presenca' => 'A sua presença já foi registrada.',
+            ]);
+        }
+
+        $conta->update([
+            'presenca_status' => StatusPresenca::Pendente,
+            'presenca_em' => now(),
+        ]);
+
+        return $conta->refresh();
+    }
+
+    /**
+     * O admin do setor aprova ou rejeita a presença.
+     *
+     * Rejeitar exige **motivo escrito** e **desativa** a conta: a pessoa está
+     * ali, na frente de alguém, e "não pode entrar" sem explicação não se
+     * sustenta — nem para ela, nem para quem for perguntar depois.
+     */
+    public function decidirPresenca(
+        ContaTemporaria $conta,
+        bool $aprovar,
+        ?string $motivo,
+        User $admin,
+    ): ContaTemporaria {
+        if ($conta->presenca_status === null) {
+            throw ValidationException::withMessages([
+                'presenca' => 'Esta pessoa ainda não marcou presença.',
+            ]);
+        }
+
+        if (! $aprovar && trim((string) $motivo) === '') {
+            throw ValidationException::withMessages([
+                'motivo' => 'Explique por que a presença foi rejeitada.',
+            ]);
+        }
+
+        DB::transaction(function () use ($conta, $aprovar, $motivo, $admin) {
+            $conta->update([
+                'presenca_status' => $aprovar ? StatusPresenca::Aprovada : StatusPresenca::Rejeitada,
+                'presenca_decidida_por' => $admin->id,
+                'presenca_decidida_em' => now(),
+                'presenca_motivo' => $aprovar ? null : trim((string) $motivo),
+            ]);
+
+            // Rejeitada, a conta sai do ar na hora; aprovada, volta se estava
+            // fora (o caso de quem foi rejeitado por engano).
+            $conta->user?->update(['is_active' => $aprovar]);
+        });
+
+        return $conta->refresh();
+    }
+
+    /**
+     * O que a conta temporária precisa saber sobre a própria presença — é o que
+     * a tela de espera mostra.
+     *
+     * @return array<string, mixed>|null null quando a pessoa não é conta temporária
+     */
+    public function presencaDe(User $user): ?array
+    {
+        $conta = $user->contaTemporaria;
+
+        if ($conta === null) {
+            return null;
+        }
+
+        return [
+            'setor' => $conta->setor,
+            'setor_label' => $conta->quemDecide()?->label(),
+            'status' => $conta->presenca_status?->value,
+            'status_label' => $conta->presenca_status?->label(),
+            'motivo' => $conta->presenca_motivo,
+            'precisa_marcar' => $conta->precisaMarcarPresenca(),
+            'aprovada' => $conta->presencaAprovada(),
+            'agendada' => $conta->agendada(),
+            'vencida' => $conta->vencida(),
+            'valido_de_label' => $conta->valido_de?->format('d/m/Y H:i'),
+            'expira_em_label' => $conta->expira_em->format('d/m/Y H:i'),
+            'turnos' => $conta->turnos->map(fn ($t) => [
+                'inicio_label' => $t->inicio->format('d/m/Y H:i'),
+                'fim_label' => $t->fim->format('d/m/Y H:i'),
+                'agora' => $t->agora(),
+            ])->all(),
+        ];
     }
 
     /**
@@ -168,6 +295,15 @@ class ContaTemporariaService
                 .$conta->valido_de->format('d/m/Y \à\s H:i').'.';
         }
 
+        // Voluntário com escala: dentro do prazo, mas fora do turno.
+        if (! $conta->dentroDeTurno()) {
+            $proximo = $conta->proximoTurno();
+
+            return $proximo === null
+                ? 'Você não tem turno de trabalho em aberto agora.'
+                : 'Seu próximo turno começa em '.$proximo->inicio->format('d/m/Y \à\s H:i').'.';
+        }
+
         return null;
     }
 
@@ -179,12 +315,24 @@ class ContaTemporariaService
      * a partir do início — é isso que faz "5 horas a partir das 8h de sábado"
      * ser exatamente o que se digita, em vez de 5 horas a partir do cadastro.
      *
+     * Com **turnos** informados, a janela é o envelope deles: o primeiro
+     * início e o último fim. É o que mantém a varredura de vencidas e a lista
+     * funcionando sem saber de turno nenhum.
+     *
      * @param  array<string, mixed>  $dados
+     * @param  list<array{inicio: CarbonImmutable, fim: CarbonImmutable}>  $turnos
      * @return array{0: ?CarbonImmutable, 1: CarbonImmutable}
      */
-    private function janela(array $dados): array
+    private function janela(array $dados, array $turnos = []): array
     {
         $agora = CarbonImmutable::now(config('app.timezone'));
+
+        if ($turnos !== []) {
+            $inicio = collect($turnos)->min('inicio');
+            $fim = collect($turnos)->max('fim');
+
+            return [$inicio->isPast() ? null : $inicio, $fim];
+        }
 
         $validoDe = empty($dados['valido_de'])
             ? null
@@ -220,6 +368,64 @@ class ContaTemporariaService
         return [$validoDe, $fim];
     }
 
+    /**
+     * Normaliza e valida os turnos do formulário, em ordem.
+     *
+     * @param  array<string, mixed>  $dados
+     * @return list<array{inicio: CarbonImmutable, fim: CarbonImmutable}>
+     */
+    private function turnos(array $dados): array
+    {
+        $brutos = array_values(array_filter((array) ($dados['turnos'] ?? [])));
+
+        if ($brutos === []) {
+            return [];
+        }
+
+        $turnos = [];
+
+        foreach ($brutos as $i => $turno) {
+            $inicio = CarbonImmutable::parse($turno['inicio'], config('app.timezone'));
+            $fim = CarbonImmutable::parse($turno['fim'], config('app.timezone'));
+
+            if ($fim->lessThanOrEqualTo($inicio)) {
+                throw ValidationException::withMessages([
+                    "turnos.{$i}.fim" => 'O fim do turno precisa ser depois do início.',
+                ]);
+            }
+
+            $turnos[] = ['inicio' => $inicio, 'fim' => $fim];
+        }
+
+        usort($turnos, fn (array $a, array $b) => $a['inicio'] <=> $b['inicio']);
+
+        // Turnos sobrepostos quase sempre são erro de digitação — e, somados,
+        // não significam nada diferente de um turno só.
+        foreach ($turnos as $i => $turno) {
+            if ($i > 0 && $turno['inicio']->lessThan($turnos[$i - 1]['fim'])) {
+                throw ValidationException::withMessages([
+                    'turnos' => 'Há turnos sobrepostos — confira os horários.',
+                ]);
+            }
+        }
+
+        if (collect($turnos)->max('fim')->isPast()) {
+            throw ValidationException::withMessages([
+                'turnos' => 'O último turno precisa terminar no futuro.',
+            ]);
+        }
+
+        return $turnos;
+    }
+
+    /** @param  list<array{inicio: CarbonImmutable, fim: CarbonImmutable}>  $turnos */
+    private function gravarTurnos(ContaTemporaria $conta, array $turnos): void
+    {
+        foreach ($turnos as $turno) {
+            $conta->turnos()->create(['inicio' => $turno['inicio'], 'fim' => $turno['fim']]);
+        }
+    }
+
     /** @return array<string, mixed> */
     private function resumo(ContaTemporaria $conta): array
     {
@@ -250,6 +456,21 @@ class ContaTemporariaService
             'duracao_label' => $this->duracaoLabel($conta),
             'criada_por' => $conta->autor?->name,
             'criada_em' => $conta->created_at?->format('d/m/Y H:i'),
+            'turnos' => $conta->turnos->map(fn ($t) => [
+                'id' => $t->id,
+                'inicio' => $t->inicio->toIso8601String(),
+                'fim' => $t->fim->toIso8601String(),
+                'inicio_label' => $t->inicio->format('d/m/Y H:i'),
+                'fim_label' => $t->fim->format('d/m/Y H:i'),
+                'agora' => $t->agora(),
+            ])->all(),
+            // Com escala, estar no prazo não basta: tem de haver turno aberto.
+            'em_turno' => $conta->dentroDeTurno(),
+            'presenca' => $conta->presenca_status?->value,
+            'presenca_label' => $conta->presenca_status?->label(),
+            'presenca_em_label' => $conta->presenca_em?->format('d/m/Y H:i'),
+            'presenca_motivo' => $conta->presenca_motivo,
+            'presenca_decidida_por' => $conta->decisor?->name,
         ];
     }
 

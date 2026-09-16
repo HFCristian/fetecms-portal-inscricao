@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
+import CartaoPresenca from '../components/CartaoPresenca.jsx';
 import { useAuth } from '../lib/auth.jsx';
 import { abasPermitidas } from '../lib/abasAdmin.js';
 
@@ -32,6 +34,10 @@ export default function AdminInicio() {
     const { user } = useAuth();
     const abas = abasPermitidas(user?.abas);
     const primeiroNome = (user?.name ?? '').trim().split(/\s+/)[0];
+    // Conta temporária sem presença aprovada não abre aba nenhuma: a Home vira
+    // a tela de espera dela.
+    const [presenca, setPresenca] = useState(user?.presenca ?? null);
+    const aguardandoPresenca = Boolean(presenca) && !presenca.aprovada;
 
     return (
         <AppShell>
@@ -39,11 +45,14 @@ export default function AdminInicio() {
                 {primeiroNome ? `Olá, ${primeiroNome}` : 'Painel do Administrador'}
             </h1>
             <p className="text-on-surface-variant mb-6 max-w-3xl">
-                Por onde você quer começar? Abaixo estão as áreas do portal liberadas para o seu acesso
-                nesta edição.
+                {aguardandoPresenca
+                    ? 'O seu acesso abre assim que a organização confirmar a sua presença no turno.'
+                    : 'Por onde você quer começar? Abaixo estão as áreas do portal liberadas para o seu acesso nesta edição.'}
             </p>
 
-            {abas.length === 0 ? (
+            {aguardandoPresenca ? (
+                <CartaoPresenca presenca={presenca} onAtualizar={setPresenca} />
+            ) : abas.length === 0 ? (
                 <div className="max-w-3xl bg-surface-container-lowest rounded-xl fetec-card-shadow p-6">
                     <span className="material-symbols-outlined text-primary-container text-3xl">lock</span>
                     <h2 className="font-display text-lg font-semibold text-on-surface mt-2">

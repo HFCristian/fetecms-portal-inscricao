@@ -7,6 +7,7 @@ import { extractErrors } from '../lib/auth.jsx';
 import IdentificacaoParticipantes from '../components/IdentificacaoParticipantes.jsx';
 import {
     getListaFinal, adicionarNaListaFinal, removerDaListaFinal, baixarListaOficial,
+    publicarListaFinal,
 } from '../lib/admin.js';
 
 const MIN_JUSTIFICATIVA = 5;
@@ -58,7 +59,12 @@ function JustificativaDialog({ titulo, projeto, acao, salvando, erro, onConfirma
 }
 
 /**
- * Composição de uma lista final oficial: quem está dentro e quem pode entrar.
+ * A composição de uma lista final: quem está dentro e quem pode entrar.
+ *
+ * É a mesma tela nos dois momentos da vida da lista. Como **prévia** (rascunho
+ * recém-gerado), ela é onde o admin confere o que as cotas produziram, corrige
+ * à mão e só então baixa o TXT ou publica. Como lista **oficial**, é onde a
+ * composição continua sendo mantida depois de publicada.
  *
  * Cada inclusão ou remoção exige justificativa, **sobe a versão** da lista e
  * gera um arquivo novo — a lista vigente é o que define os finalistas da feira,
@@ -72,6 +78,8 @@ export default function AvaliacaoListaFinalDetalhe() {
     const [dialogo, setDialogo] = useState(null); // { tipo, projeto }
     const [salvando, setSalvando] = useState(false);
     const [erroDialogo, setErroDialogo] = useState('');
+    const [publicando, setPublicando] = useState(false);
+    const [sucesso, setSucesso] = useState('');
 
     const carregar = useCallback(() => {
         getListaFinal(id)
@@ -98,6 +106,20 @@ export default function AvaliacaoListaFinalDetalhe() {
         }
     }
 
+    async function publicar() {
+        setPublicando(true);
+        setErro('');
+        try {
+            const resp = await publicarListaFinal(id);
+            setDados(resp.data);
+            setSucesso(resp.meta?.message ?? 'Lista publicada.');
+        } catch (e) {
+            setErro(extractErrors(e).message || 'Não foi possível publicar a lista.');
+        } finally {
+            setPublicando(false);
+        }
+    }
+
     const lista = dados?.lista;
     const itens = dados?.itens ?? [];
     // O combobox espera { id, nome, detalhe } e faz a busca por conta própria.
@@ -111,10 +133,11 @@ export default function AvaliacaoListaFinalDetalhe() {
     return (
         <AppShell>
             <Link to="/admin/avaliacao/listas-finais" className="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary mb-3">
-                <span className="material-symbols-outlined text-[18px]">arrow_back</span> Listas finais oficiais
+                <span className="material-symbols-outlined text-[18px]">arrow_back</span> Listas finais
             </Link>
 
             {erro && <div className="mb-4"><Alert>{erro}</Alert></div>}
+            {sucesso && <div className="mb-4"><Alert type="info">{sucesso}</Alert></div>}
 
             {dados === null ? (
                 <div className="text-center py-10 text-on-surface-variant">
@@ -131,16 +154,36 @@ export default function AvaliacaoListaFinalDetalhe() {
                                         vigente
                                     </span>
                                 )}
+                                {lista.rascunho && (
+                                    <span className="ml-2 align-middle text-xs font-semibold px-2 py-0.5 rounded-full bg-surface-variant text-on-surface-variant">
+                                        rascunho
+                                    </span>
+                                )}
                             </h1>
                             <p className="text-sm text-on-surface-variant">
                                 Versão {lista.versao} · {lista.projetos} {lista.projetos === 1 ? 'projeto' : 'projetos'}.
                                 Cada alteração exige justificativa e gera um arquivo novo.
                             </p>
+                            {lista.rascunho && (
+                                <p className="text-sm text-on-surface-variant mt-1">
+                                    Esta é a <strong>prévia</strong> do recorte: ninguém é finalista por
+                                    causa dela. Revise a composição, baixe o TXT e publique quando
+                                    estiver certa.
+                                </p>
+                            )}
                         </div>
-                        <Button type="button" variant="outline" className="shrink-0" onClick={() => baixarListaOficial(id)}>
-                            <span className="material-symbols-outlined text-[20px]">download</span>
-                            Baixar TXT
-                        </Button>
+                        <div className="flex flex-wrap gap-2 shrink-0">
+                            <Button type="button" variant="outline" onClick={() => baixarListaOficial(id)}>
+                                <span className="material-symbols-outlined text-[20px]">download</span>
+                                Baixar TXT
+                            </Button>
+                            {lista.rascunho && (
+                                <Button type="button" loading={publicando} disabled={lista.projetos === 0} onClick={publicar}>
+                                    <span className="material-symbols-outlined text-[20px]">campaign</span>
+                                    Publicar como oficial
+                                </Button>
+                            )}
+                        </div>
                     </div>
 
                     {/* Incluir projeto */}

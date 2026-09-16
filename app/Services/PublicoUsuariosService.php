@@ -6,6 +6,8 @@ use App\Enums\ProjetoStatus;
 use App\Enums\PublicoMala;
 use App\Enums\Role;
 use App\Enums\StatusAvaliacao;
+use App\Enums\TipoDocumento;
+use App\Models\ListaFinal;
 use App\Models\User;
 use Closure;
 use Illuminate\Database\Eloquent\Builder;
@@ -51,6 +53,25 @@ class PublicoUsuariosService
                 ->whereHas('avaliacoes', fn ($a) => $a->where('status', StatusAvaliacao::Concluida)),
             PublicoMala::AvaliadoresComissao => fn (Builder $q) => $q->where('role', Role::Avaliador)
                 ->whereHas('avaliadorProfile', fn ($p) => $p->where('comissao_especial', true)),
+            // Finalista que ainda deve o termo de responsabilidade (Sprint 129):
+            // é o público da cobrança antes do evento. Sem lista final
+            // publicada não há finalista nenhum, e o público fica vazio em vez
+            // de alcançar a base inteira.
+            PublicoMala::FinalistasSemTermo => function (Builder $q) {
+                $lista = ListaFinal::vigente();
+
+                if ($lista === null) {
+                    return $q->whereRaw('1 = 0');
+                }
+
+                $finalistas = $lista->projetos()->pluck('projetos.id')->all();
+
+                return $q->where('role', Role::Orientador)
+                    ->whereHas('projetos', fn ($p) => $p
+                        ->whereIn('projetos.id', $finalistas)
+                        ->whereDoesntHave('documentos', fn ($d) => $d
+                            ->where('tipo', TipoDocumento::TermoResponsabilidade->value)));
+            },
         };
     }
 

@@ -12,9 +12,12 @@ import ProjetoForm from './pages/ProjetoForm.jsx';
 import Integrantes from './pages/Integrantes.jsx';
 import Resumo from './pages/Resumo.jsx';
 import Ajustes from './pages/Ajustes.jsx';
+import Pareceres from './pages/Pareceres.jsx';
+import DocumentosPresenciais from './pages/DocumentosPresenciais.jsx';
 import Perfil from './pages/Perfil.jsx';
 import AvaliadorHome from './pages/AvaliadorHome.jsx';
 import AvaliadorPerfil from './pages/AvaliadorPerfil.jsx';
+import AvaliadorPresencial from './pages/AvaliadorPresencial.jsx';
 import AdminAvisoDetalhe from './pages/AdminAvisoDetalhe.jsx';
 import AdminAvisos from './pages/AdminAvisos.jsx';
 import AdminModelosEmail from './pages/AdminModelosEmail.jsx';
@@ -42,9 +45,14 @@ import ParametrizacaoAvaliacao from './pages/ParametrizacaoAvaliacao.jsx';
 import AdminManager from './pages/AdminManager.jsx';
 import AdminSuporte from './pages/AdminSuporte.jsx';
 import CredenciamentoHome from './pages/CredenciamentoHome.jsx';
+import PresencialHome from './pages/PresencialHome.jsx';
+import PresencialChecagem from './pages/PresencialChecagem.jsx';
+import PresencialEspelho from './pages/PresencialEspelho.jsx';
+import PresencialCredenciais from './pages/PresencialCredenciais.jsx';
 import ComiteHome from './pages/ComiteHome.jsx';
 import ComiteTransporte from './pages/ComiteTransporte.jsx';
 import ComiteMapa from './pages/ComiteMapa.jsx';
+import ComiteDesignacoes from './pages/ComiteDesignacoes.jsx';
 import MapaEventoHome from './pages/MapaEventoHome.jsx';
 import MapaTurnos from './pages/MapaTurnos.jsx';
 import MapaEstandes from './pages/MapaEstandes.jsx';
@@ -64,6 +72,7 @@ import AvaliacaoDesignacoes from './pages/AvaliacaoDesignacoes.jsx';
 import AvaliacaoReclassificacoes from './pages/AvaliacaoReclassificacoes.jsx';
 import AvaliacaoRanking from './pages/AvaliacaoRanking.jsx';
 import AvaliacaoListasFinais from './pages/AvaliacaoListasFinais.jsx';
+import AvaliacaoDisparidade from './pages/AvaliacaoDisparidade.jsx';
 import AvaliacaoListaFinalDetalhe from './pages/AvaliacaoListaFinalDetalhe.jsx';
 import AvaliacaoRankingAvaliadores from './pages/AvaliacaoRankingAvaliadores.jsx';
 import Acesso from './pages/Acesso.jsx';
@@ -119,12 +128,15 @@ export default function Root() {
                             <Route path="/projetos/:id/integrantes" element={<Integrantes />} />
                             <Route path="/projetos/:id/resumo" element={<Resumo />} />
                             <Route path="/ajustes" element={<Ajustes />} />
+                            <Route path="/pareceres" element={<Pareceres />} />
+                            <Route path="/documentos" element={<DocumentosPresenciais />} />
                             <Route path="/perfil" element={<Perfil />} />
                         </Route>
 
                         {/* Área do avaliador */}
                         <Route element={<RoleRoute allow={['avaliador']} />}>
                             <Route path="/avaliador" element={<AvaliadorHome />} />
+                            <Route path="/avaliador/presencial" element={<AvaliadorPresencial />} />
                             <Route path="/avaliador/perfil" element={<AvaliadorPerfil />} />
                         </Route>
 
@@ -142,6 +154,7 @@ export default function Root() {
                             <Route path="/admin/avaliacao/designacoes" element={<AvaliacaoDesignacoes />} />
                             <Route path="/admin/avaliacao/reclassificacoes" element={<AvaliacaoReclassificacoes />} />
                             <Route path="/admin/avaliacao/ranking" element={<AvaliacaoRanking />} />
+                            <Route path="/admin/avaliacao/disparidade" element={<AvaliacaoDisparidade />} />
                             <Route path="/admin/avaliacao/listas-finais" element={<AvaliacaoListasFinais />} />
                             <Route path="/admin/avaliacao/listas-finais/:id" element={<AvaliacaoListaFinalDetalhe />} />
                             <Route path="/admin/avaliacao/ranking-avaliadores" element={<AvaliacaoRankingAvaliadores />} />
@@ -196,8 +209,14 @@ export default function Root() {
                             {/* Mesma tela do credenciamento: o que muda é o setor da conta. */}
                             <Route path="/admin/almoxarifado/contas" element={<CredenciamentoContas setor="almoxarifado" />} />
                             {/* Aba Comitê especial: transporte e mapa em tempo real. */}
+                            <Route path="/admin/presencial" element={<PresencialHome />} />
+                            <Route path="/admin/presencial/checagem" element={<PresencialChecagem />} />
+                            <Route path="/admin/presencial/espelho" element={<PresencialEspelho />} />
+                            <Route path="/admin/presencial/voluntarios" element={<CredenciamentoContas setor="avaliacao_presencial" />} />
+                            <Route path="/admin/presencial/credenciais" element={<PresencialCredenciais />} />
                             <Route path="/admin/comite" element={<ComiteHome />} />
                             <Route path="/admin/comite/transporte" element={<ComiteTransporte />} />
+                            <Route path="/admin/comite/designacoes" element={<ComiteDesignacoes />} />
                             <Route path="/admin/comite/mapa" element={<ComiteMapa />} />
                             <Route path="/admin/comunicacao" element={<AdminComunicacao />} />
                             <Route path="/admin/comunicacao/avisos" element={<AdminAvisos />} />

@@ -13,6 +13,7 @@ use App\Models\Projeto;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -58,7 +59,13 @@ class DesignacaoEmMassaTest extends TestCase
 
     private function avaliador(string $nome): User
     {
-        $user = User::factory()->avaliador()->create(['name' => $nome]);
+        // E-mail derivado do nome: o factory gera endereços aleatórios, e a
+        // busca da tela olha nome **e** e-mail — um "bruno.santana@…" sorteado
+        // entraria no filtro por "ana" e quebraria o teste de vez em quando.
+        $user = User::factory()->avaliador()->create([
+            'name' => $nome,
+            'email' => Str::slug($nome, '.').'@fetec.test',
+        ]);
         AvaliadorProfile::factory()->create(['user_id' => $user->id, 'area_id' => $this->area->id]);
 
         return $user->fresh();

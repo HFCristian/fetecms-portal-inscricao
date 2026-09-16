@@ -12,21 +12,26 @@ use App\Http\Controllers\Api\V1\AdminRegistroController;
 use App\Http\Controllers\Api\V1\AlmoxarifadoController;
 use App\Http\Controllers\Api\V1\AlunoController;
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\AvaliacaoPresencialAdminController;
 use App\Http\Controllers\Api\V1\AvaliadorAvaliacaoController;
 use App\Http\Controllers\Api\V1\AvaliadorController;
 use App\Http\Controllers\Api\V1\AvaliadorPerfilController;
+use App\Http\Controllers\Api\V1\AvaliadorPresencialAvaliacaoController;
+use App\Http\Controllers\Api\V1\AvaliadorPresencialController;
 use App\Http\Controllers\Api\V1\AvisoController;
 use App\Http\Controllers\Api\V1\CadastroPendenteController;
 use App\Http\Controllers\Api\V1\CatalogoAdminController;
 use App\Http\Controllers\Api\V1\CatalogoController;
 use App\Http\Controllers\Api\V1\ChatAdminController;
 use App\Http\Controllers\Api\V1\ChatController;
+use App\Http\Controllers\Api\V1\ComiteDesignacaoController;
 use App\Http\Controllers\Api\V1\ComiteTransporteController;
 use App\Http\Controllers\Api\V1\ContaTemporariaController;
 use App\Http\Controllers\Api\V1\CoorientadorController;
 use App\Http\Controllers\Api\V1\CredenciamentoController;
 use App\Http\Controllers\Api\V1\DadosDemoController;
 use App\Http\Controllers\Api\V1\DocumentoController;
+use App\Http\Controllers\Api\V1\DocumentoPresencialController;
 use App\Http\Controllers\Api\V1\EdicaoController;
 use App\Http\Controllers\Api\V1\EscopoAdminController;
 use App\Http\Controllers\Api\V1\FeedbackController;
@@ -39,9 +44,11 @@ use App\Http\Controllers\Api\V1\MapaPlantaController;
 use App\Http\Controllers\Api\V1\MapaTurnosController;
 use App\Http\Controllers\Api\V1\OrientadorAjusteController;
 use App\Http\Controllers\Api\V1\OrientadorController;
+use App\Http\Controllers\Api\V1\OrientadorParecerController;
 use App\Http\Controllers\Api\V1\ParametrizacaoAbasController;
 use App\Http\Controllers\Api\V1\ParametrizacaoCredenciamentoController;
 use App\Http\Controllers\Api\V1\PerfilController;
+use App\Http\Controllers\Api\V1\PresencaContaTemporariaController;
 use App\Http\Controllers\Api\V1\ProjetoController;
 use App\Http\Controllers\Api\V1\ProjetoSubmissaoController;
 use Illuminate\Support\Facades\Route;
@@ -112,6 +119,12 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
         Route::put('/auth/email', [AuthController::class, 'alterarEmail'])
             ->middleware('throttle:6,1');
 
+        // Presença da conta temporária: fora do grupo `aba:`, porque é aqui
+        // que quem ainda não foi aprovado precisa conseguir entrar.
+        Route::get('/contas-temporarias/presenca', [PresencaContaTemporariaController::class, 'show']);
+        Route::post('/contas-temporarias/presenca', [PresencaContaTemporariaController::class, 'store'])
+            ->middleware('throttle:10,1');
+
         Route::get('/perfil', [PerfilController::class, 'show']);
         Route::put('/perfil', [PerfilController::class, 'update']);
 
@@ -181,6 +194,23 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::post('/projetos/{projeto}/decidir', [OrientadorAjusteController::class, 'decidir']);
         });
 
+        // Aba "Documentos" do orientador: o termo de responsabilidade dos
+        // projetos finalistas, enviado para o evento (não é anexo de inscrição:
+        // exige lista final publicada, não rascunho).
+        Route::middleware('role:orientador')->prefix('documentos-presenciais')->group(function () {
+            Route::get('/', [DocumentoPresencialController::class, 'index']);
+            Route::post('/projetos/{projeto}/termo', [DocumentoPresencialController::class, 'store'])
+                ->middleware('throttle:20,1');
+            Route::delete('/projetos/{projeto}/termo', [DocumentoPresencialController::class, 'destroy']);
+        });
+
+        // Aba "Pareceres" do orientador: a nota média de cada projeto dele e o
+        // que os avaliadores escreveram — sem nome e sem a nota das seções.
+        Route::middleware('role:orientador')->prefix('pareceres')->group(function () {
+            Route::get('/', [OrientadorParecerController::class, 'index']);
+            Route::get('/projetos/{projeto}', [OrientadorParecerController::class, 'show']);
+        });
+
         // Avaliação online — lado do avaliador (E7): ler, iniciar e concluir com nota
         Route::middleware('role:avaliador')->prefix('avaliacao')->group(function () {
             Route::get('/', [AvaliadorAvaliacaoController::class, 'index']);
@@ -202,6 +232,15 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::get('/perfil', [AvaliadorPerfilController::class, 'show']);
             Route::put('/perfil/classificacao', [AvaliadorPerfilController::class, 'atualizarClassificacao']);
             Route::put('/perfil/localidade', [AvaliadorPerfilController::class, 'atualizarLocalidade']);
+            // Intenção de avaliar presencialmente, e as orientações de quem aceita.
+            Route::get('/presencial', [AvaliadorPresencialController::class, 'show']);
+            Route::put('/presencial', [AvaliadorPresencialController::class, 'update']);
+            // A avaliação no estande, para quem aceitou e durante o evento.
+            Route::get('/presencial/avaliacoes', [AvaliadorPresencialAvaliacaoController::class, 'index']);
+            Route::post('/presencial/avaliacoes/projetos/{projeto}', [AvaliadorPresencialAvaliacaoController::class, 'iniciar']);
+            Route::get('/presencial/avaliacoes/{avaliacao}', [AvaliadorPresencialAvaliacaoController::class, 'show']);
+            Route::post('/presencial/avaliacoes/{avaliacao}/rascunho', [AvaliadorPresencialAvaliacaoController::class, 'rascunho']);
+            Route::post('/presencial/avaliacoes/{avaliacao}/concluir', [AvaliadorPresencialAvaliacaoController::class, 'concluir']);
         });
 
         // Chat de suporte — orientador/avaliador falam com o suporte (admin)
@@ -236,6 +275,42 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::get('/projetos-rascunho', [AdminRascunhoController::class, 'index']);
             });
 
+            // --- Aba "Avaliação presencial" (o dia da feira) ---
+            Route::middleware('aba:avaliacao_presencial')->prefix('presencial')->group(function () {
+                Route::get('/config', [AvaliacaoPresencialAdminController::class, 'config']);
+                Route::patch('/informacoes', [AvaliacaoPresencialAdminController::class, 'definirInformacoes']);
+                // Checagem dos estandes no dia do evento.
+                Route::get('/checagem', [AvaliacaoPresencialAdminController::class, 'index']);
+                Route::get('/checagem/espelho', [AvaliacaoPresencialAdminController::class, 'espelho']);
+                Route::get('/checagem/{projeto}', [AvaliacaoPresencialAdminController::class, 'show']);
+                Route::post('/checagem/{projeto}', [AvaliacaoPresencialAdminController::class, 'store']);
+                // Catálogo do que se confere em cada estande.
+                Route::get('/itens', [AvaliacaoPresencialAdminController::class, 'itens']);
+                Route::post('/itens', [AvaliacaoPresencialAdminController::class, 'criarItem']);
+                Route::patch('/itens/{item}', [AvaliacaoPresencialAdminController::class, 'atualizarItem']);
+                Route::delete('/itens/{item}', [AvaliacaoPresencialAdminController::class, 'excluirItem']);
+                // Avaliações presenciais: designar estandes e acompanhar.
+                Route::get('/avaliacoes', [AvaliacaoPresencialAdminController::class, 'avaliacoes']);
+                Route::post('/avaliacoes/designar', [AvaliacaoPresencialAdminController::class, 'designarAvaliacoes']);
+                Route::delete('/avaliacoes/{avaliacao}', [AvaliacaoPresencialAdminController::class, 'retirarAvaliacao']);
+                // Credenciais: as vagas de premiação e a lista da cerimônia.
+                Route::get('/credenciais', [AvaliacaoPresencialAdminController::class, 'credenciais']);
+                Route::post('/credenciais', [AvaliacaoPresencialAdminController::class, 'criarCredencial']);
+                Route::get('/credenciais/premiacao', [AvaliacaoPresencialAdminController::class, 'premiacao']);
+                Route::get('/credenciais/premiacao/arquivo', [AvaliacaoPresencialAdminController::class, 'premiacaoTxt']);
+                Route::patch('/credenciais/{credencial}', [AvaliacaoPresencialAdminController::class, 'atualizarCredencial']);
+                Route::delete('/credenciais/{credencial}', [AvaliacaoPresencialAdminController::class, 'excluirCredencial']);
+                Route::post('/credenciais/{credencial}/projetos', [AvaliacaoPresencialAdminController::class, 'atribuirCredencial']);
+                Route::delete('/credenciais/{credencial}/projetos/{projeto}', [AvaliacaoPresencialAdminController::class, 'retirarCredencial']);
+                // Voluntários: contas temporárias próprias desta aba, com
+                // vários turnos de trabalho definidos de uma vez.
+                Route::get('/contas', [ContaTemporariaController::class, 'index'])->defaults('setor', 'avaliacao_presencial');
+                Route::post('/contas', [ContaTemporariaController::class, 'store'])->defaults('setor', 'avaliacao_presencial');
+                Route::patch('/contas/{conta}/renovar', [ContaTemporariaController::class, 'renovar'])->defaults('setor', 'avaliacao_presencial');
+                Route::patch('/contas/{conta}/desativar', [ContaTemporariaController::class, 'desativar'])->defaults('setor', 'avaliacao_presencial');
+                Route::patch('/contas/{conta}/presenca', [ContaTemporariaController::class, 'presenca'])->defaults('setor', 'avaliacao_presencial');
+            });
+
             // --- Aba "Avaliação online" ---
             Route::middleware('aba:avaliacao')->group(function () {
                 Route::get('/avaliadores', [AdminController::class, 'avaliadores']);
@@ -251,12 +326,19 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::get('/avaliacao/ranking-avaliadores', [AdminAvaliacaoController::class, 'rankingAvaliadores']);
                 Route::get('/avaliacao/lista-final/opcoes', [AdminAvaliacaoController::class, 'opcoesListaFinal']);
                 Route::post('/avaliacao/lista-final', [AdminAvaliacaoController::class, 'gerarListaFinal']);
+                // Verificação de disparidade: os projetos cujas notas se
+                // afastaram mais do que o admin considera aceitável.
+                Route::get('/avaliacao/disparidades', [AdminAvaliacaoController::class, 'disparidades']);
+                Route::post('/avaliacao/disparidades', [AdminAvaliacaoController::class, 'gerarDisparidade']);
+                Route::get('/avaliacao/disparidades/{verificacao}', [AdminAvaliacaoController::class, 'mostrarDisparidade']);
                 // Listas finais oficiais registradas (a vigente define os finalistas).
                 Route::get('/avaliacao/listas-finais', [AdminAvaliacaoController::class, 'listasFinais']);
                 Route::get('/avaliacao/listas-finais/{lista}/arquivo', [AdminAvaliacaoController::class, 'baixarListaFinal']);
                 Route::get('/avaliacao/listas-finais/{lista}', [AdminAvaliacaoController::class, 'mostrarListaFinal']);
                 // Alterar a composição: justificativa obrigatória, versão nova e
                 // registro em Registros → Lista final.
+                // Publica um rascunho revisado: ele passa a ser a vigente.
+                Route::post('/avaliacao/listas-finais/{lista}/publicar', [AdminAvaliacaoController::class, 'publicarListaFinal']);
                 Route::post('/avaliacao/listas-finais/{lista}/projetos', [AdminAvaliacaoController::class, 'adicionarNaListaFinal']);
                 Route::delete('/avaliacao/listas-finais/{lista}/projetos/{projeto}', [AdminAvaliacaoController::class, 'removerDaListaFinal']);
 
@@ -308,6 +390,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::post('/contas', [ContaTemporariaController::class, 'store'])->defaults('setor', 'credenciamento');
                 Route::patch('/contas/{conta}/renovar', [ContaTemporariaController::class, 'renovar'])->defaults('setor', 'credenciamento');
                 Route::patch('/contas/{conta}/desativar', [ContaTemporariaController::class, 'desativar'])->defaults('setor', 'credenciamento');
+                Route::patch('/contas/{conta}/presenca', [ContaTemporariaController::class, 'presenca'])->defaults('setor', 'credenciamento');
 
                 Route::get('/config', [CredenciamentoController::class, 'config']);
                 // A leitura do crachá: o atalho do balcão para a ficha certa.
@@ -328,6 +411,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::post('/contas', [ContaTemporariaController::class, 'store'])->defaults('setor', 'almoxarifado');
                 Route::patch('/contas/{conta}/renovar', [ContaTemporariaController::class, 'renovar'])->defaults('setor', 'almoxarifado');
                 Route::patch('/contas/{conta}/desativar', [ContaTemporariaController::class, 'desativar'])->defaults('setor', 'almoxarifado');
+                Route::patch('/contas/{conta}/presenca', [ContaTemporariaController::class, 'presenca'])->defaults('setor', 'almoxarifado');
 
                 Route::get('/config', [AlmoxarifadoController::class, 'config']);
                 Route::get('/registros', [AlmoxarifadoController::class, 'index']);
@@ -350,6 +434,9 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                     ->middleware('throttle:60,1');
                 Route::get('/mapa', [ComiteTransporteController::class, 'mapa']);
                 Route::get('/mapa/{localizacao}', [ComiteTransporteController::class, 'detalhe']);
+                // Designação do comitê: só para os avaliadores da comissão especial.
+                Route::get('/designacoes/opcoes', [ComiteDesignacaoController::class, 'opcoes']);
+                Route::post('/designacoes', [ComiteDesignacaoController::class, 'designar']);
             });
 
             // --- Aba "Mapa do Evento": a ocupação do ginásio ---

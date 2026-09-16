@@ -6,6 +6,7 @@ use App\Enums\AbaAdmin;
 use App\Enums\Role;
 use App\Models\Edicao;
 use App\Models\User;
+use App\Services\ContaTemporariaService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -25,11 +26,17 @@ class UserResource extends JsonResource
             // credenciamento antes do evento, os ajustes fora do período) para
             // esta pessoa treinar sem esperar o calendário.
             'is_demo' => (bool) $this->is_demo,
-            // Conta temporária do balcão: abre só a aba Credenciamento e não
+            // Conta temporária do balcão: abre só a aba do setor dela e não
             // administra outras contas temporárias.
             'conta_temporaria' => $this->when(
                 $this->role === Role::Admin,
                 fn () => $this->ehContaTemporaria(),
+            ),
+            // A presença do turno (Sprint 136): enquanto não é aprovada, a
+            // pessoa não abre aba nenhuma, e a tela precisa saber por quê.
+            'presenca' => $this->when(
+                $this->role === Role::Admin && $this->ehContaTemporaria(),
+                fn () => app(ContaTemporariaService::class)->presencaDe($this->resource),
             ),
             'chat_dica_dispensada' => (bool) $this->chat_dica_dispensada,
             // Abas do menu que este admin abre (escopo da edição em curso), na

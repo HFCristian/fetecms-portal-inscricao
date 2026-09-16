@@ -46,6 +46,13 @@ export const ABAS_ADMIN = [
         descricao: 'Guardar e devolver o material dos finalistas durante o evento.',
     },
     {
+        aba: 'avaliacao_presencial',
+        to: '/admin/presencial',
+        icon: 'stadium',
+        label: 'Avaliação presencial',
+        descricao: 'Checagem dos estandes, voluntários e credenciais de premiação.',
+    },
+    {
         aba: 'comite',
         to: '/admin/comite',
         icon: 'directions_bus',

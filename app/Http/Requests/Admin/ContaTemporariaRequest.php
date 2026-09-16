@@ -16,6 +16,10 @@ use Illuminate\Validation\Rules\Password;
  * branco = agora) e quanto dura — uma quantidade de **horas** a contar do
  * início, ou uma data explícita de fim (`expira_em`).
  *
+ * O **voluntário** da avaliação presencial (Sprint 133) informa `turnos` no
+ * lugar disso: vários pares início/fim de uma vez. Com turnos, a janela passa a
+ * ser o envelope deles e os campos de prazo são ignorados.
+ *
  * O CPF não é conferido contra os catálogos de orientador/avaliador: quem
  * atende o balcão pode perfeitamente ser um deles, e a conta é de acesso, não
  * de participação na feira.
@@ -52,6 +56,10 @@ class ContaTemporariaRequest extends FormRequest
             // Um dos dois basta; sem nenhum, o service usa o padrão de 5 horas.
             'expira_em' => ['nullable', 'date'],
             'horas' => ['nullable', 'integer', 'min:1', 'max:'.ContaTemporariaService::HORAS_MAX],
+            // Turnos de trabalho (voluntários): vários de uma vez.
+            'turnos' => ['nullable', 'array', 'max:20'],
+            'turnos.*.inicio' => ['required', 'date'],
+            'turnos.*.fim' => ['required', 'date'],
         ];
     }
 
@@ -63,6 +71,7 @@ class ContaTemporariaRequest extends FormRequest
             'valido_de' => 'início do acesso',
             'expira_em' => 'prazo',
             'horas' => 'quantidade de horas',
+            'turnos' => 'turnos de trabalho',
         ];
     }
 }

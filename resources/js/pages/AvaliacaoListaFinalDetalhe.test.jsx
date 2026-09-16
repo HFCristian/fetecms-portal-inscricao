@@ -19,7 +19,16 @@ const DADOS = {
     ],
 };
 
+const RASCUNHO = {
+    ...DADOS,
+    lista: { ...DADOS.lista, vigente: false, rascunho: true, nome: 'Prévia 2026' },
+};
+
 const getListaFinal = vi.fn(() => Promise.resolve(DADOS));
+const publicarListaFinal = vi.fn(() => Promise.resolve({
+    data: { ...DADOS, lista: { ...DADOS.lista, vigente: true, rascunho: false } },
+    meta: { message: 'Lista publicada — ela define os finalistas da feira.' },
+}));
 const adicionarNaListaFinal = vi.fn(() => Promise.resolve({ ...DADOS, lista: { ...DADOS.lista, versao: 2, projetos: 2 } }));
 const removerDaListaFinal = vi.fn(() => Promise.resolve({ ...DADOS, itens: [], lista: { ...DADOS.lista, versao: 2, projetos: 0 } }));
 vi.mock('../lib/admin.js', () => ({
@@ -27,6 +36,7 @@ vi.mock('../lib/admin.js', () => ({
     adicionarNaListaFinal: (...a) => adicionarNaListaFinal(...a),
     removerDaListaFinal: (...a) => removerDaListaFinal(...a),
     baixarListaOficial: vi.fn(),
+    publicarListaFinal: (...a) => publicarListaFinal(...a),
     // A seção de identificação (Sprint 123) mora dentro desta tela e busca os
     // participantes sozinha; aqui ela responde vazia, e tem teste próprio.
     getIdentificacao: () => Promise.resolve({
@@ -86,5 +96,41 @@ describe('AvaliacaoListaFinalDetalhe', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Incluir' }));
 
         await waitFor(() => expect(adicionarNaListaFinal).toHaveBeenCalledWith('3', 20, 'Recurso deferido.'));
+    });
+});
+
+describe('AvaliacaoListaFinalDetalhe — prévia', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        getListaFinal.mockResolvedValue(RASCUNHO);
+        publicarListaFinal.mockResolvedValue({
+            data: { ...DADOS, lista: { ...DADOS.lista, vigente: true, rascunho: false } },
+            meta: { message: 'Lista publicada — ela define os finalistas da feira.' },
+        });
+    });
+
+    it('marca o rascunho e explica que ninguém é finalista ainda', async () => {
+        render(<AvaliacaoListaFinalDetalhe />);
+
+        expect(await screen.findByText('rascunho')).toBeInTheDocument();
+        expect(screen.getByText(/ninguém é finalista por causa dela/i)).toBeInTheDocument();
+    });
+
+    it('publica o rascunho revisado e o selo some', async () => {
+        render(<AvaliacaoListaFinalDetalhe />);
+
+        fireEvent.click(await screen.findByRole('button', { name: /Publicar como oficial/i }));
+
+        await waitFor(() => expect(publicarListaFinal).toHaveBeenCalledWith('3'));
+        expect(await screen.findByText(/Lista publicada/)).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /Publicar como oficial/i })).not.toBeInTheDocument();
+    });
+
+    it('lista já publicada não oferece publicar de novo', async () => {
+        getListaFinal.mockResolvedValue(DADOS);
+        render(<AvaliacaoListaFinalDetalhe />);
+
+        expect(await screen.findByText('Bioplástico')).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /Publicar como oficial/i })).not.toBeInTheDocument();
     });
 });

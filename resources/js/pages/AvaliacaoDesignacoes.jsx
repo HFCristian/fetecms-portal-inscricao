@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { Alert, Button } from '../components/ui.jsx';
 import BuscaCombobox from '../components/BuscaCombobox.jsx';
@@ -156,12 +156,16 @@ function Escolha({ titulo, itens, marcados, onAlternar, busca, onBuscar, rotuloB
  *
  * Quem já avaliou um projeto não o recebe de novo — o par é pulado e o diálogo
  * mostra quais foram, em vez de sumir com eles em silêncio.
+ *
+ * `projetoInicial`/`buscaInicial` chegam de quem manda um projeto para cá — a
+ * verificação de disparidade, por exemplo: o diálogo abre com ele já marcado e
+ * com o título na busca, então o admin só escolhe o avaliador.
  */
-function DialogoDesignar({ onFechar, onConcluido }) {
+function DialogoDesignar({ onFechar, onConcluido, projetoInicial = null, buscaInicial = '' }) {
     const [opcoes, setOpcoes] = useState({ projetos: [], avaliadores: [] });
-    const [buscaProjeto, setBuscaProjeto] = useState('');
+    const [buscaProjeto, setBuscaProjeto] = useState(buscaInicial);
     const [buscaAvaliador, setBuscaAvaliador] = useState('');
-    const [projetos, setProjetos] = useState([]);
+    const [projetos, setProjetos] = useState(projetoInicial ? [projetoInicial] : []);
     const [avaliadores, setAvaliadores] = useState([]);
     const [salvando, setSalvando] = useState(false);
     const [erro, setErro] = useState('');
@@ -428,6 +432,10 @@ export default function AvaliacaoDesignacoes() {
     const [marcadas, setMarcadas] = useState([]);
     const [confirmando, setConfirmando] = useState(false);
     const [designando, setDesignando] = useState(false);
+    // Projeto que chegou de outra tela (?projeto=&q=), para o diálogo abrir já
+    // com ele marcado.
+    const [preSelecao, setPreSelecao] = useState(null);
+    const [params, setParams] = useSearchParams();
     const [notas, setNotas] = useState(null);        // { carregando, dados, erro }
     const [salvando, setSalvando] = useState(false);
     const [alert, setAlert] = useState('');
@@ -440,6 +448,17 @@ export default function AvaliacaoDesignacoes() {
         }, 300);
         return () => clearTimeout(t);
     }, [busca]);
+
+    // Chegou de outra tela com um projeto na mão: abre o diálogo já marcado e
+    // limpa a URL, senão um F5 reabriria a designação que já foi feita.
+    useEffect(() => {
+        const projeto = Number(params.get('projeto'));
+        if (!projeto) return;
+
+        setPreSelecao({ projeto, q: params.get('q') ?? '' });
+        setDesignando(true);
+        setParams({}, { replace: true });
+    }, [params, setParams]);
 
     const carregar = useCallback(() => {
         setAlert('');
@@ -733,7 +752,9 @@ export default function AvaliacaoDesignacoes() {
 
             {designando && (
                 <DialogoDesignar
-                    onFechar={() => { setDesignando(false); carregar(); }}
+                    projetoInicial={preSelecao?.projeto ?? null}
+                    buscaInicial={preSelecao?.q ?? ''}
+                    onFechar={() => { setDesignando(false); setPreSelecao(null); carregar(); }}
                     onConcluido={(mensagem) => { setSuccess(mensagem); setAlert(''); }}
                 />
             )}

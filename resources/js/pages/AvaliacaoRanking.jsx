@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { Alert, Button } from '../components/ui.jsx';
 import ListaFinalDialog from '../components/ListaFinalDialog.jsx';
@@ -77,6 +77,7 @@ function Linha({ p }) {
 }
 
 export default function AvaliacaoRanking() {
+    const navigate = useNavigate();
     const [lista, setLista] = useState(null);
     const [areas, setAreas] = useState([]);
     const [categorias, setCategorias] = useState([]);
@@ -121,6 +122,15 @@ export default function AvaliacaoRanking() {
                     </p>
                 </div>
                 <div className="flex flex-wrap gap-2 shrink-0">
+                    {/* A média esconde o desacordo: 9,50 com 4,50 dá o mesmo
+                        7,00 que 7,00 com 7,00. */}
+                    <Link
+                        to="/admin/avaliacao/disparidade"
+                        className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-2.5 text-sm font-semibold text-on-surface hover:bg-surface-variant transition-colors"
+                    >
+                        <span className="material-symbols-outlined text-[18px]">rule</span>
+                        Verificar disparidade
+                    </Link>
                     <Link
                         to="/admin/avaliacao/listas-finais"
                         className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-2.5 text-sm font-semibold text-on-surface hover:bg-surface-variant transition-colors"
@@ -135,7 +145,15 @@ export default function AvaliacaoRanking() {
                 </div>
             </div>
 
-            <ListaFinalDialog open={listaFinal} onClose={() => setListaFinal(false)} />
+            {/* Gerar não baixa mais o arquivo: abre a prévia, onde o recorte é
+                revisado (e corrigido à mão) antes do TXT. */}
+            <ListaFinalDialog
+                open={listaFinal}
+                onClose={(_oficial, id) => {
+                    setListaFinal(false);
+                    if (id) navigate(`/admin/avaliacao/listas-finais/${id}`);
+                }}
+            />
 
             <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-4 mb-6 max-w-3xl">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

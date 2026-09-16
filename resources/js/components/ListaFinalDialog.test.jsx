@@ -2,12 +2,12 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const getOpcoesListaFinal = vi.fn();
-const baixarListaFinal = vi.fn();
+const gerarListaFinal = vi.fn();
 
 vi.mock('../lib/auth.jsx', () => ({ extractErrors: () => ({ message: '', fields: {} }) }));
 vi.mock('../lib/admin.js', () => ({
     getOpcoesListaFinal: (...a) => getOpcoesListaFinal(...a),
-    baixarListaFinal: (...a) => baixarListaFinal(...a),
+    gerarListaFinal: (...a) => gerarListaFinal(...a),
 }));
 
 import ListaFinalDialog from './ListaFinalDialog.jsx';
@@ -31,8 +31,8 @@ describe('ListaFinalDialog — cotas em três passos', () => {
     beforeEach(() => {
         getOpcoesListaFinal.mockResolvedValue(OPCOES);
         // Sem limpar, `mock.calls[0]` seria a chamada do teste anterior.
-        baixarListaFinal.mockClear();
-        baixarListaFinal.mockResolvedValue();
+        gerarListaFinal.mockClear();
+        gerarListaFinal.mockResolvedValue({ lista: { id: 12 } });
     });
 
     it('começa perguntando a quantidade por categoria', async () => {
@@ -67,10 +67,10 @@ describe('ListaFinalDialog — cotas em três passos', () => {
             target: { value: 'percentual' },
         });
 
-        fireEvent.click(screen.getByText('Gerar TXT'));
+        fireEvent.click(screen.getByText('Gerar prévia'));
 
-        await waitFor(() => expect(baixarListaFinal).toHaveBeenCalled());
-        const payload = baixarListaFinal.mock.calls[0][0];
+        await waitFor(() => expect(gerarListaFinal).toHaveBeenCalled());
+        const payload = gerarListaFinal.mock.calls[0][0];
         expect(payload.categorias.fetecms_fundect.cota).toEqual({ tipo: 'fixo', valor: 100 });
         expect(payload.categorias.fetecms_fundect.areas[1]).toEqual({
             cota: { tipo: 'fixo', valor: 20 },
@@ -118,8 +118,8 @@ describe('ListaFinalDialog — cotas em três passos', () => {
 
         fireEvent.click(screen.getByText('Gerar e oficializar'));
 
-        await waitFor(() => expect(baixarListaFinal).toHaveBeenCalled());
-        const payload = baixarListaFinal.mock.calls[0][0];
+        await waitFor(() => expect(gerarListaFinal).toHaveBeenCalled());
+        const payload = gerarListaFinal.mock.calls[0][0];
         expect(payload.oficial).toBe(true);
         expect(payload.nome).toBe('Oficial 2026');
     });
