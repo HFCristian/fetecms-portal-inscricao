@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../components/AppShell.jsx', () => ({ default: ({ children }) => <div>{children}</div> }));
@@ -10,11 +10,17 @@ const getVerificacoesDisparidade = vi.fn();
 const gerarVerificacaoDisparidade = vi.fn();
 const getVerificacaoDisparidade = vi.fn();
 const getNotasDoProjeto = vi.fn();
+const getPadroesDeAvaliacao = vi.fn();
+const desconsiderarNota = vi.fn();
+const reconsiderarNota = vi.fn();
 vi.mock('../lib/admin.js', () => ({
     getVerificacoesDisparidade: (...a) => getVerificacoesDisparidade(...a),
     gerarVerificacaoDisparidade: (...a) => gerarVerificacaoDisparidade(...a),
     getVerificacaoDisparidade: (...a) => getVerificacaoDisparidade(...a),
     getNotasDoProjeto: (...a) => getNotasDoProjeto(...a),
+    getPadroesDeAvaliacao: (...a) => getPadroesDeAvaliacao(...a),
+    desconsiderarNota: (...a) => desconsiderarNota(...a),
+    reconsiderarNota: (...a) => reconsiderarNota(...a),
 }));
 vi.mock('../lib/auth.jsx', () => ({
     extractErrors: (e) => ({ message: e?.message ?? '', fields: e?.fields ?? {} }),
@@ -70,6 +76,55 @@ const NOTAS = {
     amplitude: 5,
 };
 
+/** O mesmo projeto depois de a nota da Ana ser desconsiderada. */
+const NOTAS_COM_DESCARTE = {
+    ...NOTAS,
+    avaliadores: [
+        { ...NOTAS.avaliadores[1] },
+        {
+            ...NOTAS.avaliadores[0],
+            desconsiderada: true,
+            desconsiderada_por: 'Admin',
+            desconsiderada_em_label: '17/09/2026 10:00',
+            desconsiderada_motivo: 'Avaliou o projeto errado.',
+        },
+    ],
+    media: 4.5,
+    amplitude: null,
+    consideradas: 1,
+    desconsideradas: 1,
+};
+
+/** O que a aba de padrões devolve: um avaliador com dois sinais. */
+const PADROES = {
+    limiares: { media_alta: 9.5, desvio_abaixo: 2, minutos_relampago: 10, min_avaliacoes: 3 },
+    padroes: [
+        { chave: 'fora_da_curva', titulo: 'Notas muito abaixo dos colegas', descricao: 'Na maioria dos projetos…' },
+        { chave: 'relampago', titulo: 'Avaliação relâmpago', descricao: 'Enviada poucos minutos depois…' },
+    ],
+    nota_maxima: 10,
+    analisados: 12,
+    total: 1,
+    avaliadores: [
+        {
+            avaliador_id: 9, avaliador: 'Duro Lima', email: 'duro@ms.br', area: 'Exatas',
+            concluidas: 4, media: 3.2, nota_minima: 2, nota_maxima_dada: 4.5,
+            notas_maximas: 0, comparaveis: 4, desvio_medio: -4.2,
+            uniformes: 0, duplicadas: 0, com_duracao: 4,
+            padroes: [
+                { chave: 'fora_da_curva', titulo: 'Notas muito abaixo dos colegas', detalhe: '2,00 ou mais abaixo dos colegas em 4 de 4 projetos.' },
+                { chave: 'relampago', titulo: 'Avaliação relâmpago', detalhe: '3 avaliações enviadas em menos de 10 minutos.' },
+            ],
+            itens: [
+                {
+                    avaliacao_id: 31, projeto_id: 42, projeto: 'Secador solar',
+                    nota: 2, media_outros: 9, desvio: -7, minutos: 3, uniforme: false,
+                },
+            ],
+        },
+    ],
+};
+
 describe('AvaliacaoDisparidade', () => {
     beforeEach(() => {
         vi.clearAllMocks();
@@ -77,6 +132,8 @@ describe('AvaliacaoDisparidade', () => {
         gerarVerificacaoDisparidade.mockResolvedValue(VERIFICACAO);
         getVerificacaoDisparidade.mockResolvedValue(VERIFICACAO);
         getNotasDoProjeto.mockResolvedValue(NOTAS);
+        getPadroesDeAvaliacao.mockResolvedValue(PADROES);
+        desconsiderarNota.mockResolvedValue(NOTAS_COM_DESCARTE);
     });
 
     it('gera a lista com a diferença digitada, em vírgula, e mostra as notas', async () => {
@@ -142,6 +199,70 @@ describe('AvaliacaoDisparidade', () => {
 
         await waitFor(() => expect(getVerificacaoDisparidade).toHaveBeenCalledWith(7));
         expect(await screen.findByText('Secador solar')).toBeInTheDocument();
+    });
+
+    // Sprint 140 — a segunda aba olha para o avaliador, e não para o projeto.
+    it('a aba de padrões lista quem avaliou fora do comum, com os números', async () => {
+        render(<AvaliacaoDisparidade />);
+
+        fireEvent.click(screen.getByRole('tab', { name: /Identificação de padrões/i }));
+
+        expect(await screen.findByText('Duro Lima')).toBeInTheDocument();
+        expect(screen.getByText(/2,00 ou mais abaixo dos colegas em 4 de 4 projetos/)).toBeInTheDocument();
+        expect(screen.getByText(/3 avaliações enviadas em menos de 10 minutos/)).toBeInTheDocument();
+        // A lista de projetos fica na outra aba.
+        expect(screen.queryByText('Secador solar')).not.toBeInTheDocument();
+    });
+
+    it('reanalisa com os limiares que o admin digitou', async () => {
+        render(<AvaliacaoDisparidade />);
+
+        fireEvent.click(screen.getByRole('tab', { name: /Identificação de padrões/i }));
+        await screen.findByText('Duro Lima');
+
+        fireEvent.change(screen.getByLabelText('Abaixo dos colegas em'), { target: { value: '3,50' } });
+        fireEvent.click(screen.getByRole('button', { name: /Analisar/i }));
+
+        await waitFor(() => expect(getPadroesDeAvaliacao).toHaveBeenLastCalledWith({
+            media_alta: 9.5, desvio_abaixo: 3.5, minutos_relampago: 10, min_avaliacoes: 3,
+        }));
+    });
+
+    it('das avaliações de um avaliador suspeito dá para abrir as notas do projeto', async () => {
+        render(<AvaliacaoDisparidade />);
+
+        fireEvent.click(screen.getByRole('tab', { name: /Identificação de padrões/i }));
+        fireEvent.click(await screen.findByRole('button', { name: /Ver avaliações/i }));
+        fireEvent.click(await screen.findByRole('button', { name: /^Ver notas$/i }));
+
+        await waitFor(() => expect(getNotasDoProjeto).toHaveBeenCalledWith(42));
+    });
+
+    // Sprint 141 — a nota descartada continua na tela, marcada, e o motivo
+    // aparece junto: apagá-la destruiria a prova de que ela existiu.
+    it('desconsidera uma nota com justificativa e a mantém visível, separada', async () => {
+        render(<AvaliacaoDisparidade />);
+
+        fireEvent.click(screen.getByRole('button', { name: /Gerar lista/i }));
+        fireEvent.click(await screen.findByRole('button', { name: /Ver notas/i }));
+        await screen.findByRole('columnheader', { name: /Ana Souza/ });
+
+        const cartao = screen.getByText('Muito bom.').closest('div');
+        fireEvent.click(within(cartao).getByRole('button', { name: /Desconsiderar esta nota/i }));
+        fireEvent.change(screen.getByPlaceholderText(/trilha de Registros/i), {
+            target: { value: 'Avaliou o projeto errado.' },
+        });
+        fireEvent.click(screen.getByRole('button', { name: /^Desconsiderar$/ }));
+
+        await waitFor(() => expect(desconsiderarNota).toHaveBeenCalledWith(1, 'Avaliou o projeto errado.'));
+
+        expect(await screen.findByText(/não conta para a classificação/)).toBeInTheDocument();
+        expect(screen.getByText(/Avaliou o projeto errado\./)).toBeInTheDocument();
+        // A nota não some: ela continua na tabela, riscada.
+        expect(screen.getByRole('columnheader', { name: /Ana Souza/ })).toBeInTheDocument();
+        expect(screen.getByText(/1 nota desconsiderada/)).toBeInTheDocument();
+        // E a ação inversa fica à mão.
+        expect(screen.getByRole('button', { name: /Voltar a considerar esta nota/i })).toBeInTheDocument();
     });
 
     it('mostra o erro do servidor sem apagar o formulário', async () => {

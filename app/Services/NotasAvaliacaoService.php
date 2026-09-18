@@ -7,6 +7,8 @@ use App\Models\Avaliacao;
 use App\Models\Projeto;
 use App\Models\User;
 use App\Support\Rubrica;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 /**
  * A nota de uma avaliação **aberta por dentro**: seção por seção da rubrica
@@ -67,36 +69,51 @@ class NotasAvaliacaoService
      * que é quem o admin vai procurar depois.
      *
      * **Cada avaliação aberta vira um registro**, como no Ver notas de uma só:
-     * abrir a comparação é ler as N notas, e o registro conta acessos.
+     * abrir a comparação é ler as N notas, e o registro conta acessos. Só a
+     * tela devolvida depois de desconsiderar/reconsiderar não registra: aquele
+     * ato já tem o registro dele.
      *
      * @return array<string, mixed>
      */
-    public function compararProjeto(Projeto $projeto, User $admin): array
+    public function compararProjeto(Projeto $projeto, User $admin, bool $registrar = true): array
     {
         $projeto->loadMissing('area:id,nome');
 
         $avaliacoes = Avaliacao::where('projeto_id', $projeto->id)
             ->where('status', StatusAvaliacao::Concluida->value)
-            ->with('avaliador:id,name')
+            ->with(['avaliador:id,name', 'desconsideradaPor:id,name'])
             ->get()
-            ->sortByDesc(fn (Avaliacao $a) => $this->nota($a))
+            // As que contam primeiro, da maior nota para a menor; as
+            // desconsideradas descem para o fim, que é onde a tela as separa.
+            ->sortBy(fn (Avaliacao $a) => [$a->foiDesconsiderada() ? 1 : 0, -$this->nota($a)])
             ->values();
 
-        $colunas = $avaliacoes->map(function (Avaliacao $a) use ($projeto, $admin) {
+        $colunas = $avaliacoes->map(function (Avaliacao $a) use ($projeto, $admin, $registrar) {
             $nota = $this->nota($a);
 
-            $this->registros->notasVisualizadas(
-                $projeto,
-                $admin,
-                $a->avaliador?->name ?? 'Avaliador #'.$a->avaliador_id,
-                $nota,
-            );
+            // A tela devolvida depois de desconsiderar não gera consulta: o
+            // registro daquele ato já foi escrito, e repetir "viu a nota" a cada
+            // clique encheria a trilha de linhas que ninguém pediu.
+            if ($registrar) {
+                $this->registros->notasVisualizadas(
+                    $projeto,
+                    $admin,
+                    $a->avaliador?->name ?? 'Avaliador #'.$a->avaliador_id,
+                    $nota,
+                );
+            }
 
             return [
                 'avaliacao_id' => $a->id,
                 'avaliador_id' => $a->avaliador_id,
                 'avaliador' => $a->avaliador?->name ?? 'Avaliador removido',
                 'nota' => $nota,
+                // A nota descartada continua aqui, com o motivo: apagá-la
+                // destruiria a prova justamente no caso em que alguém contesta.
+                'desconsiderada' => $a->foiDesconsiderada(),
+                'desconsiderada_em_label' => $a->desconsiderada_em?->format('d/m/Y H:i'),
+                'desconsiderada_por' => $a->desconsideradaPor?->name,
+                'desconsiderada_motivo' => $a->desconsiderada_motivo,
                 'concluida_em' => $a->concluida_em?->toIso8601String(),
                 'concluida_em_label' => $a->concluida_em?->format('d/m/Y H:i'),
                 // Só os pontos por seção: o detalhe pergunta a pergunta é da
@@ -109,7 +126,10 @@ class NotasAvaliacaoService
             ];
         })->all();
 
-        $notas = $avaliacoes->map(fn (Avaliacao $a) => $this->nota($a));
+        // Média e amplitude saem só do que conta: é esse número que está no
+        // ranking, e mostrar outro aqui faria a tela discordar da lista final.
+        $consideradas = $avaliacoes->reject(fn (Avaliacao $a) => $a->foiDesconsiderada());
+        $notas = $consideradas->map(fn (Avaliacao $a) => $this->nota($a));
 
         return [
             'projeto' => [
@@ -129,7 +149,99 @@ class NotasAvaliacaoService
             'nota_maxima' => Rubrica::NOTA_MAXIMA,
             'media' => $notas->isEmpty() ? null : round($notas->avg(), 2),
             'amplitude' => $notas->count() < 2 ? null : round($notas->max() - $notas->min(), 2),
+            'consideradas' => $consideradas->count(),
+            'desconsideradas' => $avaliacoes->count() - $consideradas->count(),
         ];
+    }
+
+    /**
+     * Tira a nota de um avaliador da classificação — sem apagar a avaliação.
+     *
+     * O que muda: a média do projeto, o ranking, a lista final, os pareceres do
+     * orientador e a **cobertura** (o projeto volta a precisar daquele parecer,
+     * abrindo vaga para o substituto). O que não muda: o certificado do
+     * avaliador e a posição dele no ranking de quem mais avaliou — quem
+     * descartou a nota foi a organização, e o trabalho aconteceu.
+     *
+     * A justificativa é obrigatória: descartar uma nota pode mudar quem entra na
+     * lista final, e escape do edital se explica por escrito.
+     */
+    public function desconsiderar(Avaliacao $avaliacao, User $admin, string $justificativa): array
+    {
+        $this->exigirConcluida($avaliacao);
+
+        if ($avaliacao->foiDesconsiderada()) {
+            throw ValidationException::withMessages([
+                'avaliacao' => 'Esta nota já está desconsiderada.',
+            ]);
+        }
+
+        $avaliacao->loadMissing(['projeto', 'avaliador:id,name']);
+
+        DB::transaction(function () use ($avaliacao, $admin, $justificativa) {
+            $avaliacao->update([
+                'desconsiderada_em' => now(),
+                'desconsiderada_por' => $admin->id,
+                'desconsiderada_motivo' => $justificativa,
+            ]);
+
+            $this->registros->notaDesconsiderada(
+                $avaliacao->projeto,
+                $admin,
+                $avaliacao->avaliador?->name ?? 'Avaliador #'.$avaliacao->avaliador_id,
+                $this->nota($avaliacao),
+                $justificativa,
+            );
+        });
+
+        return $this->compararProjeto($avaliacao->projeto->fresh(), $admin, registrar: false);
+    }
+
+    /**
+     * Volta atrás: a nota conta de novo.
+     *
+     * Também pede justificativa — entre desconsiderar e reconsiderar a
+     * classificação mudou duas vezes, e a trilha precisa contar as duas.
+     */
+    public function reconsiderar(Avaliacao $avaliacao, User $admin, string $justificativa): array
+    {
+        $this->exigirConcluida($avaliacao);
+
+        if (! $avaliacao->foiDesconsiderada()) {
+            throw ValidationException::withMessages([
+                'avaliacao' => 'Esta nota já está sendo considerada.',
+            ]);
+        }
+
+        $avaliacao->loadMissing(['projeto', 'avaliador:id,name']);
+
+        DB::transaction(function () use ($avaliacao, $admin, $justificativa) {
+            $avaliacao->update([
+                'desconsiderada_em' => null,
+                'desconsiderada_por' => null,
+                'desconsiderada_motivo' => null,
+            ]);
+
+            $this->registros->notaReconsiderada(
+                $avaliacao->projeto,
+                $admin,
+                $avaliacao->avaliador?->name ?? 'Avaliador #'.$avaliacao->avaliador_id,
+                $this->nota($avaliacao),
+                $justificativa,
+            );
+        });
+
+        return $this->compararProjeto($avaliacao->projeto->fresh(), $admin, registrar: false);
+    }
+
+    /** Sem conclusão não há nota, e sem nota não há o que desconsiderar. */
+    private function exigirConcluida(Avaliacao $avaliacao): void
+    {
+        if ($avaliacao->status !== StatusAvaliacao::Concluida) {
+            throw ValidationException::withMessages([
+                'avaliacao' => 'Esta avaliação ainda não foi enviada — só há nota depois que o avaliador conclui.',
+            ]);
+        }
     }
 
     /**

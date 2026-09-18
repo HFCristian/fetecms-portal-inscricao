@@ -122,6 +122,9 @@ class AvaliacaoFluxoService
         $avaliacao->update([
             'status' => StatusAvaliacao::EmAndamento,
             'atividade_em' => now(),
+            // Só a primeira abertura marca o relógio: é dela até o envio que se
+            // mede quanto tempo a avaliação levou.
+            'iniciada_em' => $avaliacao->iniciada_em ?? now(),
         ]);
     }
 
@@ -145,7 +148,10 @@ class AvaliacaoFluxoService
             return false;
         }
 
+        // A nota desconsiderada não ocupa vaga: o projeto voltou a precisar
+        // daquele parecer, e é isso que abre espaço para o substituto.
         $assumidas = Avaliacao::where('projeto_id', $projeto->id)
+            ->considerada()
             ->whereIn('status', [StatusAvaliacao::Concluida->value, StatusAvaliacao::EmAndamento->value])
             ->count();
 
@@ -210,6 +216,9 @@ class AvaliacaoFluxoService
             'devolvida_em' => null,
             'status' => StatusAvaliacao::EmAndamento,
             'atividade_em' => now(),
+            // Retomar é continuar a mesma avaliação: quem já tinha começado
+            // mantém o relógio de lá.
+            'iniciada_em' => $avaliacao->iniciada_em ?? now(),
         ]);
     }
 

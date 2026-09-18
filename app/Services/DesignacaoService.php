@@ -495,7 +495,8 @@ class DesignacaoService
             ->when(trim($projeto) !== '', fn ($q) => $q->whereRaw('LOWER(titulo) LIKE ?', [$como($projeto)]))
             ->with('area:id,nome')
             ->withCount([
-                'avaliacoes as concluidas_count' => fn ($q) => $q->where('status', StatusAvaliacao::Concluida->value),
+                'avaliacoes as concluidas_count' => fn ($q) => $q->considerada()
+                    ->where('status', StatusAvaliacao::Concluida->value),
             ])
             ->orderBy('titulo')
             ->limit($limite)

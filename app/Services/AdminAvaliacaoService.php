@@ -648,7 +648,8 @@ class AdminAvaliacaoService
                 'user:id,name,email', 'coorientador',
             ])
             ->withCount([
-                'avaliacoes as realizadas_count' => fn ($q) => $q->where('status', StatusAvaliacao::Concluida->value),
+                'avaliacoes as realizadas_count' => fn ($q) => $q->considerada()
+                    ->where('status', StatusAvaliacao::Concluida->value),
                 'avaliacoes as em_avaliacao_count' => fn ($q) => $q->where('status', StatusAvaliacao::EmAndamento->value),
             ])
             ->when($busca !== '', function ($q) use ($busca) {
@@ -675,7 +676,8 @@ class AdminAvaliacaoService
             ->where('status', ProjetoStatus::Submetido->value)
             ->with('area:id,nome')
             ->withCount([
-                'avaliacoes as realizadas' => fn ($q) => $q->where('status', StatusAvaliacao::Concluida->value),
+                'avaliacoes as realizadas' => fn ($q) => $q->considerada()
+                    ->where('status', StatusAvaliacao::Concluida->value),
                 'avaliacoes as em_avaliacao' => fn ($q) => $q->where('status', StatusAvaliacao::EmAndamento->value),
             ])
             ->orderBy('titulo')
@@ -715,6 +717,7 @@ class AdminAvaliacaoService
     public function reclassificacoesSugeridas(array $filtros = []): array
     {
         $avaliacoes = Avaliacao::query()
+            ->considerada()
             ->where('status', StatusAvaliacao::Concluida->value)
             ->where(fn ($q) => $q->where('area_correta', false)->orWhere('subarea_correta', false))
             ->with([
@@ -908,6 +911,7 @@ class AdminAvaliacaoService
     private function garantirSugerido(Projeto $projeto, string $coluna, int $valor, string $rotulo): void
     {
         $sugerido = Avaliacao::where('projeto_id', $projeto->id)
+            ->considerada()
             ->where('status', StatusAvaliacao::Concluida->value)
             ->where($coluna, $valor)
             ->exists();
@@ -936,14 +940,16 @@ class AdminAvaliacaoService
         // de um orientador demo fica de fora. As listagens operacionais desta
         // mesma aba continuam mostrando tudo — lá o admin quer ver o que existe.
         $projetos = Projeto::semDemo()
-            ->whereHas('avaliacoes', fn ($q) => $q->where('status', StatusAvaliacao::Concluida->value))
+            ->whereHas('avaliacoes', fn ($q) => $q->considerada()
+                ->where('status', StatusAvaliacao::Concluida->value))
             ->when($filtros['area_id'] ?? null, fn ($q, $areaId) => $q->where('area_id', $areaId))
             // Categorias não competem entre si: FETEC Jr, FETECMS e FETECMS FUNDECT
             // têm regras próprias de equipe e de premiação.
             ->when($filtros['categoria'] ?? null, fn ($q, $categoria) => $q->where('categoria', $categoria))
             ->with([
                 'area:id,nome',
-                'avaliacoes' => fn ($q) => $q->where('status', StatusAvaliacao::Concluida->value),
+                'avaliacoes' => fn ($q) => $q->considerada()
+                    ->where('status', StatusAvaliacao::Concluida->value),
             ])
             ->get();
 

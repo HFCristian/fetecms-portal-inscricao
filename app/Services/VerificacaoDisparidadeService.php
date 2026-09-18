@@ -49,10 +49,10 @@ class VerificacaoDisparidadeService
         // O recorte é o mesmo do ranking: a verificação existe para corrigir a
         // classificação, e projeto de orientador demo não entra nela.
         $projetos = Projeto::semDemo()
-            ->whereHas('avaliacoes', fn ($q) => $q->where('status', StatusAvaliacao::Concluida->value))
+            ->whereHas('avaliacoes', fn ($q) => $q->considerada()->where('status', StatusAvaliacao::Concluida->value))
             ->with([
                 'area:id,nome',
-                'avaliacoes' => fn ($q) => $q->where('status', StatusAvaliacao::Concluida->value),
+                'avaliacoes' => fn ($q) => $q->considerada()->where('status', StatusAvaliacao::Concluida->value),
             ])
             ->get();
 

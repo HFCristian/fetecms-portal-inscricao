@@ -9,6 +9,7 @@ use App\Enums\StatusAvaliacao;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\AplicarReclassificacaoRequest;
 use App\Http\Requests\Admin\CorrigirProjetoRequest;
+use App\Http\Requests\Admin\DesconsiderarNotaRequest;
 use App\Http\Requests\Admin\DesignarAvaliacaoRequest;
 use App\Http\Requests\Admin\EncerramentoAvaliacaoRequest;
 use App\Http\Requests\Admin\LiberacaoAvaliacaoRequest;
@@ -33,6 +34,7 @@ use App\Services\DesignacaoService;
 use App\Services\DistribuicaoService;
 use App\Services\ListaFinalService;
 use App\Services\NotasAvaliacaoService;
+use App\Services\PadroesAvaliacaoService;
 use App\Services\VerificacaoDisparidadeService;
 use App\Support\LimitesAvaliacao;
 use Illuminate\Http\JsonResponse;
@@ -510,6 +512,28 @@ class AdminAvaliacaoController extends Controller
     }
 
     /**
+     * Identificação de padrões: os avaliadores que avaliaram de um jeito que
+     * não parece avaliar — nota máxima em tudo, nota sistematicamente muito
+     * abaixo da dos colegas, a mesma resposta em todas as perguntas ou o envio
+     * poucos minutos depois de abrir.
+     *
+     * É consulta pura: os limiares são ajustados até o admin achar o corte que
+     * faz sentido, e registrar cada tentativa encheria a trilha de ruído. O que
+     * fica registrado é a ação que vem depois.
+     */
+    public function padroesDeAvaliacao(Request $request, PadroesAvaliacaoService $service): JsonResponse
+    {
+        $limiares = $request->validate([
+            'media_alta' => ['sometimes', 'numeric', 'min:0', 'max:'.Avaliacao::notaMaxima()],
+            'desvio_abaixo' => ['sometimes', 'numeric', 'min:0.1', 'max:'.Avaliacao::notaMaxima()],
+            'minutos_relampago' => ['sometimes', 'integer', 'min:1', 'max:1440'],
+            'min_avaliacoes' => ['sometimes', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        return response()->json(['data' => $service->analisar($limiares)]);
+    }
+
+    /**
      * As notas de **todos** os avaliadores de um projeto, lado a lado: a nota
      * final de cada um, quanto ele deu em cada seção da rubrica e o parecer que
      * escreveu.
@@ -528,6 +552,33 @@ class AdminAvaliacaoController extends Controller
     ): JsonResponse {
         return response()->json([
             'data' => $service->compararProjeto($projeto, $request->user()),
+        ]);
+    }
+
+    /**
+     * Tira a nota de um avaliador da classificação — sem apagar a avaliação,
+     * que continua ali com o motivo ao lado.
+     */
+    public function desconsiderarNota(
+        DesconsiderarNotaRequest $request,
+        Avaliacao $avaliacao,
+        NotasAvaliacaoService $service,
+    ): JsonResponse {
+        return response()->json([
+            'data' => $service->desconsiderar($avaliacao, $request->user(), $request->validated('justificativa')),
+            'meta' => ['message' => 'Nota desconsiderada — ela deixou de contar para a classificação.'],
+        ]);
+    }
+
+    /** Volta atrás: a nota conta de novo. */
+    public function reconsiderarNota(
+        DesconsiderarNotaRequest $request,
+        Avaliacao $avaliacao,
+        NotasAvaliacaoService $service,
+    ): JsonResponse {
+        return response()->json([
+            'data' => $service->reconsiderar($avaliacao, $request->user(), $request->validated('justificativa')),
+            'meta' => ['message' => 'Nota reconsiderada — ela volta a contar para a classificação.'],
         ]);
     }
 

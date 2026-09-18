@@ -100,6 +100,8 @@ enum TipoRegistro: string
     case EstandesGerados = 'estandes_gerados';
     case EstandeProjetoMovido = 'estande_projeto_movido';
     case NotasVisualizadas = 'notas_visualizadas';
+    case NotaDesconsiderada = 'nota_desconsiderada';
+    case NotaReconsiderada = 'nota_reconsiderada';
 
     /** Seções da tela de Registros. */
     public const SECAO_INSCRICOES = 'inscricoes';
@@ -171,6 +173,8 @@ enum TipoRegistro: string
             self::EstandesGerados => 'Estandes gerados',
             self::EstandeProjetoMovido => 'Projeto movido de estande',
             self::NotasVisualizadas => 'Notas consultadas',
+            self::NotaDesconsiderada => 'Nota desconsiderada',
+            self::NotaReconsiderada => 'Nota reconsiderada',
         };
     }
 
@@ -191,7 +195,9 @@ enum TipoRegistro: string
             self::AlmoxarifadoEdicao, self::AlmoxarifadoExclusao => self::SECAO_ALMOXARIFADO,
             self::TurnosGerados, self::TurnosProjetoMovido,
             self::EstandesGerados, self::EstandeProjetoMovido => self::SECAO_MAPA,
-            self::NotasVisualizadas => self::SECAO_NOTAS,
+            self::NotasVisualizadas,
+            self::NotaDesconsiderada,
+            self::NotaReconsiderada => self::SECAO_NOTAS,
             default => self::SECAO_AVALIACAO,
         };
     }

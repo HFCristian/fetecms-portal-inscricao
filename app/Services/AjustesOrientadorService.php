@@ -138,6 +138,7 @@ class AjustesOrientadorService
     public function decidir(Projeto $projeto, int $avaliacaoId, string $tipo, bool $aceito, User $autor): array
     {
         $avaliacao = Avaliacao::where('projeto_id', $projeto->id)
+            ->considerada()
             ->where('status', StatusAvaliacao::Concluida->value)
             ->findOrFail($avaliacaoId);
 
@@ -297,6 +298,7 @@ class AjustesOrientadorService
     private function avaliacoesConcluidas(Projeto $projeto)
     {
         return Avaliacao::where('projeto_id', $projeto->id)
+            ->considerada()
             ->where('status', StatusAvaliacao::Concluida->value)
             ->with(['areaSugerida:id,nome', 'subareaSugerida:id,nome'])
             ->orderBy('concluida_em')

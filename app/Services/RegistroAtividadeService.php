@@ -579,6 +579,50 @@ class RegistroAtividadeService
     }
 
     /**
+     * O admin **desconsiderou** a nota de um avaliador: ela continua na tabela,
+     * com tudo o que tem dentro, mas deixou de contar para a classificação.
+     *
+     * Justificativa obrigatória, e por um motivo simples: descartar uma nota
+     * muda a média do projeto e pode mudar quem entra na lista final. É escape
+     * do edital — o avaliador enviou, o envio era irreversível —, e escape do
+     * edital se explica por escrito.
+     */
+    public function notaDesconsiderada(
+        Projeto $projeto,
+        User $admin,
+        string $avaliador,
+        ?float $nota,
+        string $justificativa,
+    ): RegistroAtividade {
+        return $this->registrarNoProjeto(TipoRegistro::NotaDesconsiderada, $projeto, $admin, [
+            'avaliador' => $avaliador,
+            'nota' => $nota === null ? null : number_format($nota, 2, ',', ''),
+            'justificativa' => $justificativa,
+        ]);
+    }
+
+    /**
+     * O admin voltou atrás: a nota conta de novo.
+     *
+     * Desfazer também é ato, e também pede justificativa — entre desconsiderar
+     * e reconsiderar o ranking mudou duas vezes, e a trilha precisa contar as
+     * duas.
+     */
+    public function notaReconsiderada(
+        Projeto $projeto,
+        User $admin,
+        string $avaliador,
+        ?float $nota,
+        string $justificativa,
+    ): RegistroAtividade {
+        return $this->registrarNoProjeto(TipoRegistro::NotaReconsiderada, $projeto, $admin, [
+            'avaliador' => $avaliador,
+            'nota' => $nota === null ? null : number_format($nota, 2, ',', ''),
+            'justificativa' => $justificativa,
+        ]);
+    }
+
+    /**
      * O admin pediu a lista dos projetos com notas díspares (Ranking →
      * Verificar disparidade).
      *
@@ -752,6 +796,19 @@ class RegistroAtividadeService
                 'viu a nota de %s%s',
                 $detalhes['avaliador'] ?? 'um avaliador',
                 empty($detalhes['nota']) ? '' : ' · nota '.$detalhes['nota'],
+            );
+        }
+
+        // Desconsiderar uma nota não é "de → para": é de quem era a nota, quanto
+        // ela valia e **por quê** ela saiu da conta — a justificativa é o
+        // registro, não um detalhe dele.
+        if (in_array($registro->tipo, [TipoRegistro::NotaDesconsiderada, TipoRegistro::NotaReconsiderada], true)) {
+            return sprintf(
+                '%s a nota de %s%s · %s',
+                $registro->tipo === TipoRegistro::NotaDesconsiderada ? 'desconsiderou' : 'voltou a considerar',
+                $detalhes['avaliador'] ?? 'um avaliador',
+                empty($detalhes['nota']) ? '' : ' ('.$detalhes['nota'].')',
+                $detalhes['justificativa'] ?? 'sem justificativa',
             );
         }
 

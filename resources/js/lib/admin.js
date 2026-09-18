@@ -256,11 +256,32 @@ export const getVerificacaoDisparidade = (id) =>
     http.get(`/admin/avaliacao/disparidades/${id}`).then((r) => r.data.data);
 
 /**
+ * Identificação de padrões: os avaliadores cujas notas saíram do comum. Só
+ * consulta — os limiares são ajustados até o corte fazer sentido.
+ */
+export const getPadroesDeAvaliacao = (limiares) =>
+    http.get('/admin/avaliacao/padroes', { params: limiares }).then((r) => r.data.data);
+
+/**
  * As notas de todos os avaliadores de um projeto, lado a lado. POST porque cada
  * abertura fica registrada em Registros → Notas.
  */
 export const getNotasDoProjeto = (projetoId) =>
     http.post(`/admin/avaliacao/projetos/${projetoId}/notas`).then((r) => r.data.data);
+
+/**
+ * Tira a nota de um avaliador da classificação (ela continua na tela, marcada)
+ * ou a devolve para a conta. Justificativa obrigatória nos dois sentidos.
+ */
+export const desconsiderarNota = (avaliacaoId, justificativa) =>
+    http
+        .post(`/admin/avaliacao/avaliacoes/${avaliacaoId}/desconsiderar`, { justificativa })
+        .then((r) => r.data.data);
+
+export const reconsiderarNota = (avaliacaoId, justificativa) =>
+    http
+        .post(`/admin/avaliacao/avaliacoes/${avaliacaoId}/reconsiderar`, { justificativa })
+        .then((r) => r.data.data);
 
 /** Listas finais oficiais registradas na edição em curso. */
 export const getListasFinais = () =>

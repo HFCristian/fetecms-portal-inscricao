@@ -1,8 +1,124 @@
+import { useState } from 'react';
 import { Alert, Button } from './ui.jsx';
+import { desconsiderarNota, reconsiderarNota } from '../lib/admin.js';
+import { extractErrors } from '../lib/auth.jsx';
 
 /** Nota em pt_BR com duas casas (6,74). */
 const nota = (valor) =>
     valor === null || valor === undefined ? '—' : Number(valor).toFixed(2).replace('.', ',');
+
+/**
+ * O cartão de um avaliador: o parecer que ele escreveu e o botão que tira (ou
+ * devolve) a nota dele da classificação.
+ *
+ * A nota desconsiderada **não some**: ela fica aqui, riscada e com o motivo à
+ * vista. Apagar destruiria a prova justamente no caso em que alguém contesta —
+ * e o admin precisa poder voltar atrás.
+ */
+function CartaoAvaliador({ avaliador, onAtualizar }) {
+    const [abrindo, setAbrindo] = useState(false);
+    const [justificativa, setJustificativa] = useState('');
+    const [salvando, setSalvando] = useState(false);
+    const [erro, setErro] = useState('');
+
+    const desconsiderada = avaliador.desconsiderada;
+
+    async function confirmar() {
+        setSalvando(true);
+        setErro('');
+        try {
+            const acao = desconsiderada ? reconsiderarNota : desconsiderarNota;
+            onAtualizar(await acao(avaliador.avaliacao_id, justificativa));
+            setAbrindo(false);
+            setJustificativa('');
+        } catch (err) {
+            const { message, fields } = extractErrors(err);
+            setErro(Object.values(fields ?? {})[0] || message || 'Não foi possível salvar.');
+        } finally {
+            setSalvando(false);
+        }
+    }
+
+    return (
+        <div
+            className={`rounded-lg border p-3 text-xs space-y-2 ${
+                desconsiderada
+                    ? 'border-dashed border-error/50 bg-error/5'
+                    : 'border-outline-variant/40'
+            }`}
+        >
+            <div className="flex flex-wrap items-baseline gap-2">
+                <p className={`font-semibold ${desconsiderada ? 'text-on-surface-variant line-through' : 'text-on-surface'}`}>
+                    {avaliador.avaliador} · nota {nota(avaliador.nota)}
+                </p>
+                {desconsiderada && (
+                    <span className="rounded-full bg-error/10 text-error border border-error/30 px-2 py-0.5 text-[10px] font-semibold">
+                        não conta para a classificação
+                    </span>
+                )}
+            </div>
+
+            {desconsiderada && (
+                <p className="text-on-surface-variant">
+                    Desconsiderada por {avaliador.desconsiderada_por ?? 'um administrador'}
+                    {avaliador.desconsiderada_em_label ? ` em ${avaliador.desconsiderada_em_label}` : ''}:{' '}
+                    <em>{avaliador.desconsiderada_motivo}</em>
+                </p>
+            )}
+
+            {avaliador.recomendacao_video && (
+                <p className="text-on-surface-variant">
+                    <strong>Sobre o vídeo:</strong> {avaliador.recomendacao_video}
+                </p>
+            )}
+            {avaliador.recomendacao_projeto && (
+                <p className="text-on-surface-variant">
+                    <strong>Sobre o projeto:</strong> {avaliador.recomendacao_projeto}
+                </p>
+            )}
+            {!avaliador.recomendacao_video && !avaliador.recomendacao_projeto && (
+                <p className="text-on-surface-variant">Não escreveu recomendações.</p>
+            )}
+
+            {erro && <Alert>{erro}</Alert>}
+
+            {abrindo ? (
+                <div className="space-y-2">
+                    <label className="block">
+                        <span className="block font-semibold text-on-surface mb-1">
+                            Por que {desconsiderada ? 'voltar a considerar' : 'desconsiderar'} esta nota?
+                        </span>
+                        <textarea
+                            className="fetec-input w-full text-xs"
+                            rows={2}
+                            value={justificativa}
+                            onChange={(e) => setJustificativa(e.target.value)}
+                            placeholder="A justificativa fica na trilha de Registros."
+                        />
+                    </label>
+                    <div className="flex justify-end gap-2">
+                        <Button type="button" variant="outline" onClick={() => setAbrindo(false)}>
+                            Cancelar
+                        </Button>
+                        <Button type="button" loading={salvando} onClick={confirmar}>
+                            {desconsiderada ? 'Voltar a considerar' : 'Desconsiderar'}
+                        </Button>
+                    </div>
+                </div>
+            ) : (
+                <div className="flex justify-end">
+                    <button
+                        type="button"
+                        onClick={() => { setAbrindo(true); setErro(''); }}
+                        className="font-semibold text-primary hover:underline"
+                    >
+                        {desconsiderada ? 'Voltar a considerar esta nota' : 'Desconsiderar esta nota'}
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+}
 
 /**
  * As notas de **todos** os avaliadores de um projeto, lado a lado.
@@ -16,14 +132,15 @@ const nota = (valor) =>
  * coisa que se procura ao abrir, e caçá-la à mão numa tabela de dez linhas é
  * trabalho que a tela pode fazer.
  */
-export default function DialogoNotasProjeto({ dados, carregando, erro, onFechar }) {
+export default function DialogoNotasProjeto({ dados, carregando, erro, onFechar, onAtualizar }) {
     const avaliadores = dados?.avaliadores ?? [];
     const secoes = dados?.secoes ?? [];
 
     // Amplitude de cada seção, para marcar a que mais separou os avaliadores.
     const amplitudes = {};
+    const contam = avaliadores.filter((a) => !a.desconsiderada);
     secoes.forEach((s) => {
-        const pontos = avaliadores.map((a) => a.secoes?.[s.chave] ?? 0);
+        const pontos = contam.map((a) => a.secoes?.[s.chave] ?? 0);
         amplitudes[s.chave] = pontos.length < 2 ? 0 : Math.max(...pontos) - Math.min(...pontos);
     });
     const maiorAmplitude = Math.max(0, ...Object.values(amplitudes));
@@ -53,6 +170,13 @@ export default function DialogoNotasProjeto({ dados, carregando, erro, onFechar 
                                 {dados.media !== null ? ` · média ${nota(dados.media)}` : ''}
                                 {dados.amplitude !== null ? ` · ${nota(dados.amplitude)} de diferença` : ''}
                             </p>
+                            {dados.desconsideradas > 0 && (
+                                <p className="text-xs text-error mt-1">
+                                    {dados.desconsideradas}{' '}
+                                    {dados.desconsideradas === 1 ? 'nota desconsiderada' : 'notas desconsideradas'} —
+                                    a média acima já é só do que conta.
+                                </p>
+                            )}
                         </div>
 
                         {avaliadores.length === 0 ? (
@@ -75,10 +199,18 @@ export default function DialogoNotasProjeto({ dados, carregando, erro, onFechar 
                                                     Seção
                                                 </th>
                                                 {avaliadores.map((a) => (
-                                                    <th key={a.avaliacao_id} scope="col" className="text-right font-semibold text-on-surface py-2 pl-3 whitespace-nowrap">
-                                                        {a.avaliador}
+                                                    <th
+                                                        key={a.avaliacao_id}
+                                                        scope="col"
+                                                        className={`text-right font-semibold py-2 pl-3 whitespace-nowrap ${
+                                                            a.desconsiderada ? 'text-on-surface-variant' : 'text-on-surface'
+                                                        }`}
+                                                    >
+                                                        <span className={a.desconsiderada ? 'line-through' : ''}>
+                                                            {a.avaliador}
+                                                        </span>
                                                         <span className="block text-[11px] font-normal text-on-surface-variant">
-                                                            {a.concluida_em_label ?? '—'}
+                                                            {a.desconsiderada ? 'desconsiderada' : (a.concluida_em_label ?? '—')}
                                                         </span>
                                                     </th>
                                                 ))}
@@ -91,7 +223,14 @@ export default function DialogoNotasProjeto({ dados, carregando, erro, onFechar 
                                                     </span>
                                                 </th>
                                                 {avaliadores.map((a) => (
-                                                    <td key={a.avaliacao_id} className="text-right py-2 pl-3 text-lg font-bold text-primary-container whitespace-nowrap">
+                                                    <td
+                                                        key={a.avaliacao_id}
+                                                        className={`text-right py-2 pl-3 text-lg font-bold whitespace-nowrap ${
+                                                            a.desconsiderada
+                                                                ? 'text-on-surface-variant line-through decoration-error'
+                                                                : 'text-primary-container'
+                                                        }`}
+                                                    >
                                                         {nota(a.nota)}
                                                     </td>
                                                 ))}
@@ -114,7 +253,14 @@ export default function DialogoNotasProjeto({ dados, carregando, erro, onFechar 
                                                             </span>
                                                         </th>
                                                         {avaliadores.map((a) => (
-                                                            <td key={a.avaliacao_id} className="text-right py-1.5 pl-3 text-on-surface whitespace-nowrap">
+                                                            <td
+                                                                key={a.avaliacao_id}
+                                                                className={`text-right py-1.5 pl-3 whitespace-nowrap ${
+                                                                    a.desconsiderada
+                                                                        ? 'text-on-surface-variant/60 line-through'
+                                                                        : 'text-on-surface'
+                                                                }`}
+                                                            >
                                                                 {nota(a.secoes?.[s.chave])}
                                                             </td>
                                                         ))}
@@ -126,26 +272,15 @@ export default function DialogoNotasProjeto({ dados, carregando, erro, onFechar 
                                 </div>
 
                                 <div className="space-y-3">
-                                    <h4 className="font-semibold text-sm text-on-surface">Parecer escrito</h4>
+                                    <h4 className="font-semibold text-sm text-on-surface">
+                                        Parecer de cada avaliador
+                                    </h4>
                                     {avaliadores.map((a) => (
-                                        <div key={a.avaliacao_id} className="rounded-lg border border-outline-variant/40 p-3 text-xs space-y-1">
-                                            <p className="font-semibold text-on-surface">
-                                                {a.avaliador} · nota {nota(a.nota)}
-                                            </p>
-                                            {a.recomendacao_video && (
-                                                <p className="text-on-surface-variant">
-                                                    <strong>Sobre o vídeo:</strong> {a.recomendacao_video}
-                                                </p>
-                                            )}
-                                            {a.recomendacao_projeto && (
-                                                <p className="text-on-surface-variant">
-                                                    <strong>Sobre o projeto:</strong> {a.recomendacao_projeto}
-                                                </p>
-                                            )}
-                                            {!a.recomendacao_video && !a.recomendacao_projeto && (
-                                                <p className="text-on-surface-variant">Não escreveu recomendações.</p>
-                                            )}
-                                        </div>
+                                        <CartaoAvaliador
+                                            key={a.avaliacao_id}
+                                            avaliador={a}
+                                            onAtualizar={onAtualizar}
+                                        />
                                     ))}
                                 </div>
                             </>

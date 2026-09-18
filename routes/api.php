@@ -331,9 +331,17 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::get('/avaliacao/disparidades', [AdminAvaliacaoController::class, 'disparidades']);
                 Route::post('/avaliacao/disparidades', [AdminAvaliacaoController::class, 'gerarDisparidade']);
                 Route::get('/avaliacao/disparidades/{verificacao}', [AdminAvaliacaoController::class, 'mostrarDisparidade']);
+                // Identificação de padrões: o outro lado da disparidade — não
+                // o projeto cujas notas se afastaram, mas o avaliador que as
+                // deu de um jeito estranho.
+                Route::get('/avaliacao/padroes', [AdminAvaliacaoController::class, 'padroesDeAvaliacao']);
                 // As notas de todos os avaliadores de um projeto, lado a lado.
                 // POST porque cada abertura entra em Registros → Notas.
                 Route::post('/avaliacao/projetos/{projeto}/notas', [AdminAvaliacaoController::class, 'notasDoProjeto']);
+                // Desconsiderar a nota de um avaliador: ela fica na tabela, com
+                // a justificativa, mas sai de tudo que classifica.
+                Route::post('/avaliacao/avaliacoes/{avaliacao}/desconsiderar', [AdminAvaliacaoController::class, 'desconsiderarNota']);
+                Route::post('/avaliacao/avaliacoes/{avaliacao}/reconsiderar', [AdminAvaliacaoController::class, 'reconsiderarNota']);
                 // Listas finais oficiais registradas (a vigente define os finalistas).
                 Route::get('/avaliacao/listas-finais', [AdminAvaliacaoController::class, 'listasFinais']);
                 Route::get('/avaliacao/listas-finais/{lista}/arquivo', [AdminAvaliacaoController::class, 'baixarListaFinal']);
