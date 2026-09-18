@@ -142,6 +142,60 @@ class AvaliadorPerfilTest extends TestCase
         $this->getJson('/api/v1/avaliador/perfil')->assertJsonPath('data.estatisticas.posicao', 1);
     }
 
+    /**
+     * Sprint 143 — o card do ranking passou a dizer quantas avaliações tem quem
+     * está **imediatamente** à frente. É o vizinho, não o líder: "falta 1 para
+     * alcançar" move; "o primeiro tem 40", não.
+     */
+    public function test_diz_quantas_avaliacoes_tem_quem_esta_logo_a_frente(): void
+    {
+        $ana = $this->avaliador('Ana');
+        $bruno = $this->avaliador('Bruno');
+        $carla = $this->avaliador('Carla');
+        $this->concluiu($carla, 9);  // líder, longe
+        $this->concluiu($bruno, 3);  // o vizinho de Ana
+        $this->concluiu($ana, 2);
+
+        Sanctum::actingAs($ana);
+
+        $this->getJson('/api/v1/avaliador/perfil')
+            ->assertOk()
+            ->assertJsonPath('data.estatisticas.proximo_acima', 3)
+            ->assertJsonPath('data.estatisticas.faltam_para_alcancar', 1);
+    }
+
+    public function test_quem_lidera_nao_tem_ninguem_a_frente(): void
+    {
+        $ana = $this->avaliador('Ana');
+        $this->concluiu($ana, 5);
+        $this->concluiu($this->avaliador('Bruno'), 2);
+
+        Sanctum::actingAs($ana);
+
+        $this->getJson('/api/v1/avaliador/perfil')
+            ->assertOk()
+            ->assertJsonPath('data.estatisticas.posicao', 1)
+            ->assertJsonPath('data.estatisticas.proximo_acima', null)
+            ->assertJsonPath('data.estatisticas.faltam_para_alcancar', null);
+    }
+
+    /** Empatado, quem está à frente é quem tem mais — não o par dele. */
+    public function test_empatado_o_proximo_e_quem_tem_mais_que_os_dois(): void
+    {
+        $ana = $this->avaliador('Ana');
+        $this->concluiu($ana, 2);
+        $this->concluiu($this->avaliador('Bruno'), 2);
+        $this->concluiu($this->avaliador('Carla'), 4);
+
+        Sanctum::actingAs($ana);
+
+        $this->getJson('/api/v1/avaliador/perfil')
+            ->assertOk()
+            ->assertJsonPath('data.estatisticas.empate', true)
+            ->assertJsonPath('data.estatisticas.proximo_acima', 4)
+            ->assertJsonPath('data.estatisticas.faltam_para_alcancar', 2);
+    }
+
     public function test_avaliadores_empatados_dividem_a_posicao(): void
     {
         $ana = $this->avaliador('Ana');

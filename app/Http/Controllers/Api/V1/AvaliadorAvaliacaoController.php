@@ -285,26 +285,12 @@ class AvaliadorAvaliacaoController extends Controller
         ];
     }
 
+    /**
+     * O payload do formulário. Mora no fluxo porque o admin que preenche no
+     * lugar de uma nota desconsiderada (Sprint 142) lê o mesmo contrato.
+     */
     private function avaliacao(Avaliacao $a): array
     {
-        $a->loadMissing(['areaSugerida:id,nome', 'subareaSugerida:id,nome']);
-
-        return [
-            'id' => $a->id,
-            'status' => $a->status->value,
-            'status_label' => $a->status->label(),
-            'nota' => $a->nota,
-            'nota_maxima' => Avaliacao::notaMaxima(),
-            'respostas' => (object) ($a->respostas ?? []),
-            'comentario_video' => $a->comentario_video,
-            'comentario_projeto' => $a->comentario_projeto,
-            'area_correta' => $a->area_correta,
-            'area_sugerida_id' => $a->area_sugerida_id,
-            'area_sugerida' => $a->areaSugerida?->nome,
-            'subarea_correta' => $a->subarea_correta,
-            'subarea_sugerida_id' => $a->subarea_sugerida_id,
-            'subarea_sugerida' => $a->subareaSugerida?->nome,
-            'rascunho_em' => $a->rascunho_em?->toIso8601String(),
-        ];
+        return $this->fluxo->paraApi($a);
     }
 }

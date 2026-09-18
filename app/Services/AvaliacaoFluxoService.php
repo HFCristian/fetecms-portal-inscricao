@@ -243,6 +243,37 @@ class AvaliacaoFluxoService
     }
 
     /**
+     * A avaliação no formato que o formulário da rubrica lê — o mesmo para o
+     * avaliador e para o admin que preenche no lugar de uma nota
+     * desconsiderada. Duas telas, um contrato: o wizard é o mesmo componente.
+     *
+     * @return array<string, mixed>
+     */
+    public function paraApi(Avaliacao $avaliacao): array
+    {
+        $avaliacao->loadMissing(['areaSugerida:id,nome', 'subareaSugerida:id,nome']);
+
+        return [
+            'id' => $avaliacao->id,
+            'status' => $avaliacao->status->value,
+            'status_label' => $avaliacao->status->label(),
+            'nota' => $avaliacao->nota,
+            'nota_maxima' => Avaliacao::notaMaxima(),
+            'respostas' => (object) ($avaliacao->respostas ?? []),
+            'comentario_video' => $avaliacao->comentario_video,
+            'comentario_projeto' => $avaliacao->comentario_projeto,
+            'area_correta' => $avaliacao->area_correta,
+            'area_sugerida_id' => $avaliacao->area_sugerida_id,
+            'area_sugerida' => $avaliacao->areaSugerida?->nome,
+            'subarea_correta' => $avaliacao->subarea_correta,
+            'subarea_sugerida_id' => $avaliacao->subarea_sugerida_id,
+            'subarea_sugerida' => $avaliacao->subareaSugerida?->nome,
+            'rascunho_em' => $avaliacao->rascunho_em?->toIso8601String(),
+            'pela_organizacao' => (bool) $avaliacao->pela_organizacao,
+        ];
+    }
+
+    /**
      * Conclui a avaliação (em_andamento → concluida) com a rubrica preenchida.
      * A nota final é a soma PONDERADA das respostas (0 a 10, pelos pesos do
      * documento) — calculada aqui, nunca enviada pelo cliente.
@@ -266,7 +297,9 @@ class AvaliacaoFluxoService
             'concluida_em' => now(),
         ]);
 
-        if ($avaliador = $avaliacao->avaliador) {
+        // A avaliação que a organização preencheu no lugar de uma nota
+        // desconsiderada não repõe fila nenhuma: o admin não tem fila.
+        if (! $avaliacao->pela_organizacao && $avaliador = $avaliacao->avaliador) {
             $this->fila->repor($avaliador);
         }
     }

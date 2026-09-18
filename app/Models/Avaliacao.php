@@ -44,7 +44,7 @@ class Avaliacao extends Model
         'subarea_correta', 'subarea_sugerida_id',
         'rascunho_em', 'iniciada_em', 'concluida_em', 'atividade_em', 'devolvida_em',
         'desconsiderada_em', 'desconsiderada_por', 'desconsiderada_motivo',
-        'designacao_manual',
+        'designacao_manual', 'pela_organizacao',
     ];
 
     /** Nota máxima da avaliação: a soma dos pesos da rubrica (10,00). */
@@ -78,6 +78,7 @@ class Avaliacao extends Model
             'atividade_em' => 'datetime',
             'devolvida_em' => 'datetime',
             'designacao_manual' => 'boolean',
+            'pela_organizacao' => 'boolean',
         ];
     }
 

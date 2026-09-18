@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests\Admin;
 
+use App\Enums\Role;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 /**
  * Desconsiderar (ou voltar a considerar) a nota de um avaliador.
@@ -23,11 +25,25 @@ class DesconsiderarNotaRequest extends FormRequest
     {
         return [
             'justificativa' => ['required', 'string', 'min:5', 'max:1000'],
+            // O que entra no lugar da nota que saiu. Ausente vale como
+            // "nenhuma": desconsiderar sem repor é decisão legítima quando o
+            // projeto ainda tem pareceres de sobra.
+            'substituicao' => ['sometimes', 'nullable', 'array'],
+            'substituicao.tipo' => ['required_with:substituicao', Rule::in(['nenhuma', 'avaliador', 'admin'])],
+            'substituicao.avaliador_id' => [
+                'exclude_unless:substituicao.tipo,avaliador',
+                'required', 'integer',
+                Rule::exists('users', 'id')->where('role', Role::Avaliador->value)->where('is_active', true),
+            ],
         ];
     }
 
     public function attributes(): array
     {
-        return ['justificativa' => 'justificativa'];
+        return [
+            'justificativa' => 'justificativa',
+            'substituicao.tipo' => 'substituição',
+            'substituicao.avaliador_id' => 'avaliador',
+        ];
     }
 }

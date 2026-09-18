@@ -94,7 +94,9 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
   - **Perfil do avaliador** (`/avaliador/perfil`): cards com **projetos avaliados**, **carga
     horária do certificado** (**2h30 por avaliação concluída**, com **teto de 120 horas** —
     `AvaliadorProfile::MAX_MINUTOS_CERTIFICADO`) e **posição no ranking** de quem
-    mais avaliou (só entra quem já concluiu ao menos uma; empate divide a posição). Na mesma
+    mais avaliou (só entra quem já concluiu ao menos uma; empate divide a posição), com
+    **quantas avaliações tem quem está logo à frente** e quantas faltam para alcançá-lo — o
+    número, nunca o nome, e o vizinho, nunca o líder. Na mesma
     tela ele **troca a própria área/subárea — só enquanto o período de avaliação não começou**
     (`Edicao::avaliacaoLiberada()`), porque depois a distribuição já foi feita em cima dela.
   - Ao **iniciar** uma avaliação o sistema confere se o projeto ainda cabe mais uma: contando as
@@ -256,8 +258,31 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     para ele e o admin que designou recebe o resumo da operação
     (`DesignacaoService::designar()`, `NotificacaoDesignacaoService`).
     Sai o que está **designada** e o que está **em avaliação** (descartando o rascunho — é a única
-    forma de destravar, já que o avaliador não desiste sozinho); **concluída nunca sai**. Cada
-    retirada entra em Registros → Avaliação Online com o "de → para". `DesignacaoService`.
+    forma de destravar, já que o avaliador não desiste sozinho); **concluída nunca sai**. Na
+    confirmação o admin escolhe o que acontece depois: **redesignar** (o padrão) ou **apenas
+    remover**, quando o projeto já tem avaliadores de sobra e repor desfaria o que ele pediu. Cada
+    retirada entra em Registros → Avaliação Online com o "de → para" — `(retirada sem reposição)`
+    é diferente de `(sem avaliador)`, que é falta de candidato. `DesignacaoService`.
+  - **Avaliação Online → Ranking dos projetos → Verificar disparidade**
+    (`/admin/avaliacao/disparidade`): duas abas sobre o mesmo material. A **lista de projetos**
+    traz aqueles em que a maior e a menor nota se afastaram pelo menos a diferença pedida (a
+    **amplitude**, que se explica numa contestação sem estatística), cada um com **Ver notas** — os
+    avaliadores lado a lado, nome, nota final e pontos de cada seção da rubrica, com a seção de
+    maior discordância destacada — e o atalho para **Designar**. A **identificação de padrões**
+    olha para o avaliador e procura quatro sinais, com limiares ajustáveis: **notas infladas**,
+    **notas muito abaixo dos colegas** (precisa se repetir em metade dos projetos comparáveis:
+    nota baixa isolada é legítima), **respostas repetidas** e **avaliação relâmpago**
+    (`avaliacoes.iniciada_em` → `concluida_em`). A lista de projetos fica registrada; a análise de
+    padrões, não — é consulta, e os limiares mudam até o corte fazer sentido.
+    No diálogo de notas o admin **desconsidera** uma nota, com **justificativa obrigatória**: ela
+    continua ali, riscada e com o motivo, mas sai de tudo que classifica (média, ranking, lista
+    final, pareceres do orientador e a **cobertura** do projeto) — o certificado e o ranking do
+    avaliador continuam contando, porque quem descartou foi a organização. Desfazer também pede
+    justificativa, e os dois atos entram em **Registros → Notas**. No mesmo passo ele escolhe o que
+    entra no lugar: **nada**, **outro avaliador** (designação manual, com e-mail) ou **ele
+    mesmo** — uma avaliação `pela_organizacao`, com a **mesma rubrica**, aberta na hora, que conta
+    para o projeto e não para a pessoa (fora do ranking de avaliadores e do certificado).
+    `VerificacaoDisparidadeService`, `PadroesAvaliacaoService`, `NotasAvaliacaoService`.
   - **Avaliação Online → Listas finais oficiais** (`/admin/avaliacao/listas-finais`): as listas
     geradas com a caixa **Lista Final Oficial** marcada ficam registradas. A **vigente** da edição
     é a que define os **finalistas** da feira (projetos + alunos + orientador + coorientador);
@@ -697,7 +722,66 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 135 | Avaliação **no estande**: rubrica própria, nota separada, teto de 3 por projeto | ✅ sim | ❌ não (manual do Pedro) | 42 |
 | 136 | Contas temporárias: **presença** no primeiro acesso, aprovada ou rejeitada pelo setor | ✅ sim | ❌ não (manual do Pedro) | 43 |
 | 137 | Comitê especial → **Designações** restritas aos avaliadores da comissão | ✅ sim | ❌ não (manual do Pedro) | 43 |
+| 138 | Retirada de designação: escolher entre **redesignar** e **apenas remover** | ✅ sim | ❌ não (manual do Pedro) | 44 |
+| 139 | Disparidade → **Ver notas**: os avaliadores do projeto lado a lado, por seção | ✅ sim | ❌ não (manual do Pedro) | 44 |
+| 140 | Disparidade em abas + **Identificação de padrões** (4 sinais por avaliador) | ✅ sim | ❌ não (manual do Pedro) | 45 |
+| 141 | **Desconsiderar** a nota de um avaliador, com justificativa e reversível | ✅ sim | ❌ não (manual do Pedro) | 45 |
+| 142 | Substituir a nota desconsiderada: outro avaliador ou o **próprio admin** | ✅ sim | ❌ não (manual do Pedro) | 46 |
+| 143 | Perfil do avaliador: quantas avaliações tem quem está **logo à frente** | ✅ sim | ❌ não (manual do Pedro) | 46 |
 
+> **Sprints 138–143 (branch `feat/disparidade-e-auditoria-de-notas`, saída da `origin/main` @ `b9e0c0d`):**
+> o ciclo da **auditoria da nota** — o que fazer quando o número que decide a lista final não
+> merece confiança.
+> (a) **Sprint 138** — a retirada de designação passou a perguntar o que acontece com o projeto
+> depois. **Redesignar** continua o padrão; desmarcar a reposição na confirmação **apenas remove**
+> a designação. São duas intenções diferentes — "esta pessoa não pode ficar com este projeto" e
+> "este projeto não precisa mais deste parecer" —, e emendar as duas obrigava o admin a retirar
+> duas vezes: uma para tirar o avaliador, outra para tirar o substituto que o algoritmo acabara de
+> pôr ali. A trilha distingue os dois casos: `(retirada sem reposição)` não é `(sem avaliador)`,
+> que é falta de candidato e pede providência.
+> (b) **Sprint 139** — **Verificar disparidade → Ver notas**. A lista diz que a maior e a menor
+> nota estão a 5,00 de distância; o diálogo diz **onde** elas se afastaram e **quem** deu cada uma:
+> uma coluna por avaliador, com nome, nota final e os pontos de cada seção da rubrica, mais o
+> parecer escrito. A seção de maior discordância fica destacada. O detalhe por seção saiu do
+> `DesignacaoService` para o `App\Support\DetalheRubrica`, hoje compartilhado; **cada avaliação
+> aberta vira um registro** em Registros → Notas, como no Ver notas de uma só.
+> (c) **Sprint 140** — a tela ganhou **abas**. A primeira olha para o **projeto** (a lista de
+> sempre); a segunda, **Identificação de padrões**, olha para o **avaliador** e procura quatro
+> sinais, com limiares ajustáveis na tela: **notas infladas** (média acima do corte, ou nota máxima
+> em todas — o certificado fácil), **notas muito abaixo dos colegas**, **respostas repetidas** (a
+> mesma resposta em todas as perguntas, ou duas avaliações idênticas) e **avaliação relâmpago**
+> (enviada minutos depois de aberta). O segundo sinal exige que a distância se repita em **metade**
+> dos projetos comparáveis, e em no mínimo dois: uma nota baixa isolada é legítima — é por causa
+> dela que o projeto tem três pareceres — e sozinha puxaria a média, acusando um avaliador
+> criterioso. Para o quarto veio `avaliacoes.iniciada_em` (só a primeira abertura grava; as
+> concluídas antes disso ficam nulas e saem do sinal, em vez de virar um número inventado). A
+> análise **não grava nada**: os limiares são mexidos até o corte fazer sentido, e registrar cada
+> tentativa encheria a trilha. `PadroesAvaliacaoService`.
+> (d) **Sprint 141** — **desconsiderar a nota** de um avaliador. Ela não é apagada: fica no
+> diálogo, riscada, com quem descartou, quando e **por quê** — apagar destruiria a prova
+> justamente no caso em que alguém contesta. Justificativa obrigatória nos dois sentidos (desfazer
+> também é ato). Sai de tudo que classifica (`Avaliacao::scopeConsiderada()` em ranking, lista
+> final, disparidade, pareceres do orientador, reclassificação e **cobertura** — o projeto volta a
+> precisar daquele parecer, que é o que abre vaga para o substituto); o **certificado e o ranking
+> do avaliador continuam contando**, porque quem descartou foi a organização e o trabalho
+> aconteceu. Não virou global scope de propósito: há tantas telas que precisam vê-la quanto telas
+> que precisam ignorá-la.
+> (e) **Sprint 142** — o que entra no lugar. No mesmo diálogo o admin escolhe: **não repor**
+> (legítimo quando há pareceres de sobra), **designar outro avaliador** (designação manual, com o
+> e-mail de sempre; quem já avaliou o projeto é recusado, inclusive o dono da nota descartada) ou
+> **avaliar ele mesmo agora** — nasce uma avaliação `pela_organizacao`, já aberta, e o **mesmo
+> wizard da rubrica** abre na hora. Ela conta para o projeto (média, ranking, lista final) e **não
+> conta para a pessoa**: fora do ranking de avaliadores, sem certificado e sem repor fila. O
+> `AvaliacaoModal` ganhou uma `api` injetável para servir aos dois lados, e os endpoints do admin
+> não têm a trava de data — repor um parecer descartado costuma acontecer depois do prazo, com a
+> lista final fechando.
+> (f) **Sprint 143** — o card de ranking do perfil do avaliador passou a dizer quantas avaliações
+> tem quem está **imediatamente à frente**, e quantas faltam para alcançá-lo. O número, nunca o
+> nome: o ranking é interno da organização, e dizer a alguém quem está à frente dele criaria
+> constrangimento entre pessoas que precisam trabalhar juntas. É o vizinho, e não o líder — "falta
+> 1 para alcançar" move; "o primeiro tem 40", não. Quem lidera lê que ninguém está à frente.
+> Back **1135/1135**, front **547/547**, Pint limpo, build OK.
+>
 > **Sprints 126–137 (branch `feat/avaliacao-presencial`, saída da `main` @ `6897b91`):**
 > o ciclo do **dia do evento pelo lado de quem avalia** — mais a devolutiva ao
 > orientador e a revisão da lista final.
@@ -1561,6 +1645,26 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > e **Escolas** (`/admin/parametrizacao/escolas`): admin busca, **renomeia, mescla** (reatribui
 > projetos/alunos/orientadores) e **exclui** instituições sem uso (`InstituicaoAdminService`/Controller,
 > rotas `admin/instituicoes`). Back **117/117**, front 11/11, Pint limpo, build OK.
+> **Pendências do Pedro (Sprints 138–143):** (1) `git push origin feat/disparidade-e-auditoria-de-notas`
+> + PR para a `main` (o ambiente do Claude não tem credencial do GitHub) e, depois do merge,
+> o deploy pela §11 do [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). Esta release **tem
+> migrations** (`avaliacoes.iniciada_em`, as três colunas de `desconsiderada_*` e
+> `avaliacoes.pela_organizacao`), **nenhuma variável nova de `.env`** e **nenhuma dependência
+> nova**.
+> (2) **A duração da avaliação só passa a ser medida a partir do deploy.** O sinal de
+> "avaliação relâmpago" ignora tudo que foi concluído antes — a tela mostra "sem registro"
+> nessas linhas, em vez de fingir um número. Os outros três sinais valem para a base inteira.
+> (3) **Desconsiderar uma nota muda o ranking e a lista final na hora.** Se já houver lista
+> final publicada, ela **não** é refeita sozinha: gere uma nova em Ranking → Gerar lista final
+> e publique, que a troca fica registrada com justificativa (é o fluxo da Sprint 69).
+> (4) **A avaliação preenchida pelo admin** aparece no diálogo de notas como qualquer outra e
+> entra na média do projeto. Ela não dá certificado nem posição no ranking de avaliadores — se
+> alguém da organização também for avaliador cadastrado, são duas contas diferentes e nada se
+> mistura.
+> (5) A aba **Identificação de padrões** não acusa ninguém sozinha: ela lista os números. Vale
+> combinar com a comissão o que fazer quando um sinal aparece, antes de usá-la no calor do
+> fechamento.
+>
 > **Pendências do Pedro (Sprints 126–137):** (1) `git push origin feat/avaliacao-presencial`
 > + PR para a `main` (o ambiente do Claude não tem credencial do GitHub) e, depois do merge,
 > o deploy pela §11 do [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). Esta release **tem

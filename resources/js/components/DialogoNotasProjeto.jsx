@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import BuscaCombobox from './BuscaCombobox.jsx';
 import { Alert, Button } from './ui.jsx';
-import { desconsiderarNota, reconsiderarNota } from '../lib/admin.js';
+import { desconsiderarNota, getOpcoesDesignacao, reconsiderarNota } from '../lib/admin.js';
 import { extractErrors } from '../lib/auth.jsx';
 
 /** Nota em pt_BR com duas casas (6,74). */
@@ -15,22 +16,49 @@ const nota = (valor) =>
  * vista. Apagar destruiria a prova justamente no caso em que alguém contesta —
  * e o admin precisa poder voltar atrás.
  */
-function CartaoAvaliador({ avaliador, onAtualizar }) {
+function CartaoAvaliador({ avaliador, onAtualizar, onAvaliarAgora }) {
     const [abrindo, setAbrindo] = useState(false);
     const [justificativa, setJustificativa] = useState('');
+    const [substituicao, setSubstituicao] = useState('nenhuma');
+    const [candidatos, setCandidatos] = useState([]);
+    const [escolhido, setEscolhido] = useState(null);
     const [salvando, setSalvando] = useState(false);
     const [erro, setErro] = useState('');
 
     const desconsiderada = avaliador.desconsiderada;
 
+    // A lista de avaliadores só é buscada quando ela vai ser usada: abrir o
+    // diálogo de notas não precisa pagar por ela.
+    useEffect(() => {
+        if (substituicao !== 'avaliador' || candidatos.length > 0) return;
+        getOpcoesDesignacao({ limite: 30 })
+            .then((o) => setCandidatos(o.avaliadores ?? []))
+            .catch(() => setCandidatos([]));
+    }, [substituicao, candidatos.length]);
+
     async function confirmar() {
         setSalvando(true);
         setErro('');
         try {
-            const acao = desconsiderada ? reconsiderarNota : desconsiderarNota;
-            onAtualizar(await acao(avaliador.avaliacao_id, justificativa));
+            if (desconsiderada) {
+                onAtualizar(await reconsiderarNota(avaliador.avaliacao_id, justificativa));
+            } else {
+                const dados = await desconsiderarNota(avaliador.avaliacao_id, justificativa, {
+                    tipo: substituicao,
+                    ...(substituicao === 'avaliador' ? { avaliador_id: escolhido?.id } : {}),
+                });
+                onAtualizar(dados);
+
+                // "Eu mesmo avalio" só faz sentido se a avaliação abrir na hora:
+                // é para isso que a substituição já nasce em andamento.
+                if (dados.substituicao?.tipo === 'admin') {
+                    onAvaliarAgora?.(dados.substituicao.avaliacao_id);
+                }
+            }
             setAbrindo(false);
             setJustificativa('');
+            setSubstituicao('nenhuma');
+            setEscolhido(null);
         } catch (err) {
             const { message, fields } = extractErrors(err);
             setErro(Object.values(fields ?? {})[0] || message || 'Não foi possível salvar.');
@@ -96,11 +124,63 @@ function CartaoAvaliador({ avaliador, onAtualizar }) {
                             placeholder="A justificativa fica na trilha de Registros."
                         />
                     </label>
+
+                    {/* Tirar a nota abre um buraco na cobertura do projeto. O
+                        admin decide na hora como fechá-lo — ou não fechar, que
+                        também é resposta quando há pareceres de sobra. */}
+                    {!desconsiderada && (
+                        <fieldset className="space-y-1">
+                            <legend className="font-semibold text-on-surface mb-1">
+                                E no lugar desta nota?
+                            </legend>
+                            {[
+                                ['nenhuma', 'Apenas desconsiderar', 'O projeto fica com um parecer a menos.'],
+                                ['avaliador', 'Designar outro avaliador', 'Ele recebe o projeto e o aviso por e-mail.'],
+                                ['admin', 'Eu mesmo avalio agora', 'Abre a rubrica na hora, em nome da organização.'],
+                            ].map(([valor, rotulo, ajuda]) => (
+                                <label key={valor} className="flex items-start gap-2 cursor-pointer">
+                                    <input
+                                        type="radio"
+                                        className="mt-0.5 accent-primary-container"
+                                        name={`substituicao-${avaliador.avaliacao_id}`}
+                                        checked={substituicao === valor}
+                                        onChange={() => setSubstituicao(valor)}
+                                    />
+                                    <span className="min-w-0">
+                                        <span className="block text-on-surface">{rotulo}</span>
+                                        <span className="block text-on-surface-variant">{ajuda}</span>
+                                    </span>
+                                </label>
+                            ))}
+
+                            {substituicao === 'avaliador' && (
+                                <div className="pt-1">
+                                    <BuscaCombobox
+                                        options={candidatos.map((a) => ({
+                                            id: a.id,
+                                            nome: a.nome,
+                                            detalhe: `${a.area ?? 'Sem área'} · ${a.na_fila} na fila`,
+                                        }))}
+                                        value={escolhido}
+                                        onChange={setEscolhido}
+                                        placeholder="Procure o avaliador pelo nome"
+                                        vazio="Nenhum avaliador encontrado"
+                                    />
+                                </div>
+                            )}
+                        </fieldset>
+                    )}
+
                     <div className="flex justify-end gap-2">
                         <Button type="button" variant="outline" onClick={() => setAbrindo(false)}>
                             Cancelar
                         </Button>
-                        <Button type="button" loading={salvando} onClick={confirmar}>
+                        <Button
+                            type="button"
+                            loading={salvando}
+                            disabled={!desconsiderada && substituicao === 'avaliador' && !escolhido}
+                            onClick={confirmar}
+                        >
                             {desconsiderada ? 'Voltar a considerar' : 'Desconsiderar'}
                         </Button>
                     </div>
@@ -132,7 +212,7 @@ function CartaoAvaliador({ avaliador, onAtualizar }) {
  * coisa que se procura ao abrir, e caçá-la à mão numa tabela de dez linhas é
  * trabalho que a tela pode fazer.
  */
-export default function DialogoNotasProjeto({ dados, carregando, erro, onFechar, onAtualizar }) {
+export default function DialogoNotasProjeto({ dados, carregando, erro, onFechar, onAtualizar, onAvaliarAgora }) {
     const avaliadores = dados?.avaliadores ?? [];
     const secoes = dados?.secoes ?? [];
 
@@ -280,6 +360,7 @@ export default function DialogoNotasProjeto({ dados, carregando, erro, onFechar,
                                             key={a.avaliacao_id}
                                             avaliador={a}
                                             onAtualizar={onAtualizar}
+                                            onAvaliarAgora={onAvaliarAgora}
                                         />
                                     ))}
                                 </div>

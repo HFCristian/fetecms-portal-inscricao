@@ -278,6 +278,25 @@ export const desconsiderarNota = (avaliacaoId, justificativa) =>
         .post(`/admin/avaliacao/avaliacoes/${avaliacaoId}/desconsiderar`, { justificativa })
         .then((r) => r.data.data);
 
+/**
+ * As chamadas do formulário da rubrica quando quem preenche é a **organização**,
+ * no lugar de uma nota desconsiderada. Têm a forma que o AvaliacaoModal espera,
+ * para o wizard ser o mesmo dos dois lados — o admin não inicia (a avaliação já
+ * nasce aberta) nem edita parecer por aqui.
+ */
+export const API_AVALIACAO_ORGANIZACAO = {
+    getAvaliacao: (id) =>
+        http.get(`/admin/avaliacao/avaliacoes/${id}/formulario`).then((r) => r.data.data),
+    iniciarAvaliacao: (id) =>
+        http.get(`/admin/avaliacao/avaliacoes/${id}/formulario`).then((r) => r.data.data.avaliacao),
+    salvarRascunhoAvaliacao: (id, preenchimento) =>
+        http.post(`/admin/avaliacao/avaliacoes/${id}/formulario/rascunho`, preenchimento).then((r) => r.data.data),
+    concluirAvaliacao: (id, preenchimento) =>
+        http.post(`/admin/avaliacao/avaliacoes/${id}/formulario/concluir`, preenchimento).then((r) => r.data.data),
+    editarParecerAvaliacao: () =>
+        Promise.reject(new Error('O parecer da avaliação da organização não é editável por aqui.')),
+};
+
 export const reconsiderarNota = (avaliacaoId, justificativa) =>
     http
         .post(`/admin/avaliacao/avaliacoes/${avaliacaoId}/reconsiderar`, { justificativa })

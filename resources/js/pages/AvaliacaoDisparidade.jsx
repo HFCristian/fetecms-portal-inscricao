@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
+import AvaliacaoModal from '../components/AvaliacaoModal.jsx';
 import DialogoNotasProjeto from '../components/DialogoNotasProjeto.jsx';
 import PadroesAvaliadores from '../components/PadroesAvaliadores.jsx';
 import { Alert, Button, Field, Input } from '../components/ui.jsx';
 import {
+    API_AVALIACAO_ORGANIZACAO,
     getNotasDoProjeto,
     getVerificacaoDisparidade,
     getVerificacoesDisparidade,
@@ -126,6 +128,9 @@ export default function AvaliacaoDisparidade() {
     const [erro, setErro] = useState('');
     const [notas, setNotas] = useState(null);      // { carregando, dados, erro }
     const [aba, setAba] = useState('projetos');
+    // Substituição "eu mesmo avalio": a rubrica abre na hora, por cima do
+    // diálogo de notas.
+    const [avaliandoId, setAvaliandoId] = useState(null);
 
     const carregarHistorico = useCallback(() => {
         getVerificacoesDisparidade()
@@ -300,6 +305,19 @@ export default function AvaliacaoDisparidade() {
                     erro={notas.erro}
                     onFechar={() => setNotas(null)}
                     onAtualizar={(dados) => setNotas({ carregando: false, dados, erro: '' })}
+                    onAvaliarAgora={setAvaliandoId}
+                />
+            )}
+
+            {avaliandoId && (
+                <AvaliacaoModal
+                    avaliacaoId={avaliandoId}
+                    api={API_AVALIACAO_ORGANIZACAO}
+                    onFechar={() => setAvaliandoId(null)}
+                    onAtualizado={() => {
+                        // A nota nova entra na média: recarrega a comparação.
+                        if (notas?.dados?.projeto?.id) verNotas({ projeto_id: notas.dados.projeto.id });
+                    }}
                 />
             )}
         </AppShell>

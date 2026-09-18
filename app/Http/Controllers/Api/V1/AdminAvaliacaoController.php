@@ -21,6 +21,8 @@ use App\Http\Requests\Admin\ListarProjetosAvaliacaoRequest;
 use App\Http\Requests\Admin\MinimosAvaliacaoRequest;
 use App\Http\Requests\Admin\RegrasDistribuicaoRequest;
 use App\Http\Requests\Admin\RetirarDesignacoesRequest;
+use App\Http\Requests\Avaliador\ConcluirAvaliacaoRequest;
+use App\Http\Requests\Avaliador\RascunhoAvaliacaoRequest;
 use App\Models\Avaliacao;
 use App\Models\Distribuicao;
 use App\Models\Edicao;
@@ -30,6 +32,7 @@ use App\Models\User;
 use App\Models\VerificacaoDisparidade;
 use App\Services\AdminAvaliacaoService;
 use App\Services\AdminProjetoEdicaoService;
+use App\Services\AvaliacaoFluxoService;
 use App\Services\DesignacaoService;
 use App\Services\DistribuicaoService;
 use App\Services\ListaFinalService;
@@ -37,6 +40,7 @@ use App\Services\NotasAvaliacaoService;
 use App\Services\PadroesAvaliacaoService;
 use App\Services\VerificacaoDisparidadeService;
 use App\Support\LimitesAvaliacao;
+use App\Support\Rubrica;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -564,10 +568,20 @@ class AdminAvaliacaoController extends Controller
         Avaliacao $avaliacao,
         NotasAvaliacaoService $service,
     ): JsonResponse {
-        return response()->json([
-            'data' => $service->desconsiderar($avaliacao, $request->user(), $request->validated('justificativa')),
-            'meta' => ['message' => 'Nota desconsiderada — ela deixou de contar para a classificação.'],
-        ]);
+        $dados = $service->desconsiderar(
+            $avaliacao,
+            $request->user(),
+            $request->validated('justificativa'),
+            $request->validated('substituicao'),
+        );
+
+        $mensagem = 'Nota desconsiderada — ela deixou de contar para a classificação.';
+
+        if (! empty($dados['substituicao']['mensagem'])) {
+            $mensagem .= ' '.$dados['substituicao']['mensagem'];
+        }
+
+        return response()->json(['data' => $dados, 'meta' => ['message' => $mensagem]]);
     }
 
     /** Volta atrás: a nota conta de novo. */
@@ -580,6 +594,68 @@ class AdminAvaliacaoController extends Controller
             'data' => $service->reconsiderar($avaliacao, $request->user(), $request->validated('justificativa')),
             'meta' => ['message' => 'Nota reconsiderada — ela volta a contar para a classificação.'],
         ]);
+    }
+
+    /**
+     * O formulário da rubrica para a avaliação que a **organização** preenche
+     * no lugar de uma nota desconsiderada.
+     *
+     * É o mesmo contrato do avaliador — mesma rubrica, mesmo wizard —, com dois
+     * portões diferentes: só o admin dono da avaliação `pela_organizacao` entra,
+     * e o período de avaliação **não o bloqueia**. Repor um parecer descartado é
+     * escape do edital, como as demais correções do admin, e costuma acontecer
+     * justamente depois do fim do prazo, quando a lista final está fechando.
+     */
+    public function formularioDaOrganizacao(Request $request, Avaliacao $avaliacao, AvaliacaoFluxoService $fluxo): JsonResponse
+    {
+        $this->garantirAvaliacaoDaOrganizacao($request, $avaliacao);
+
+        return response()->json(['data' => [
+            'pode_avaliar' => true,
+            'avaliacao' => $fluxo->paraApi($avaliacao),
+            'projeto' => $fluxo->detalhesProjeto($avaliacao->projeto),
+            'rubrica' => Rubrica::paraApi(),
+        ]]);
+    }
+
+    /** Salva o preenchimento parcial da avaliação da organização. */
+    public function rascunhoDaOrganizacao(RascunhoAvaliacaoRequest $request, Avaliacao $avaliacao, AvaliacaoFluxoService $fluxo): JsonResponse
+    {
+        $this->garantirAvaliacaoDaOrganizacao($request, $avaliacao);
+        $fluxo->salvarRascunho($avaliacao, $request->validated());
+
+        return response()->json([
+            'data' => $fluxo->paraApi($avaliacao->fresh()),
+            'meta' => ['message' => 'Rascunho salvo.'],
+        ]);
+    }
+
+    /** Envia a avaliação da organização: a nota entra na média do projeto. */
+    public function concluirDaOrganizacao(ConcluirAvaliacaoRequest $request, Avaliacao $avaliacao, AvaliacaoFluxoService $fluxo): JsonResponse
+    {
+        $this->garantirAvaliacaoDaOrganizacao($request, $avaliacao);
+        $fluxo->concluir($avaliacao, $request->validated());
+
+        return response()->json([
+            'data' => $fluxo->paraApi($avaliacao->fresh()),
+            'meta' => ['message' => 'Avaliação da organização enviada — a nota entra na média do projeto.'],
+        ]);
+    }
+
+    /**
+     * Só o admin que abriu a substituição preenche aquela avaliação. A trava é
+     * dupla de propósito: a avaliação precisa ser `pela_organizacao` (uma linha
+     * de avaliador de verdade nunca é editável por aqui) e precisa ser dele
+     * (nem outro admin escreve no parecer alheio).
+     */
+    private function garantirAvaliacaoDaOrganizacao(Request $request, Avaliacao $avaliacao): void
+    {
+        abort_unless($avaliacao->pela_organizacao, 403, 'Esta avaliação não é da organização.');
+        abort_unless(
+            $avaliacao->avaliador_id === $request->user()->id,
+            403,
+            'Esta avaliação da organização foi aberta por outro administrador.',
+        );
     }
 
     /** As listas finais oficiais já registradas na edição em curso. */

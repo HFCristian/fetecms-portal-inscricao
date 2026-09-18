@@ -39,7 +39,12 @@ class AvaliadorService
 
         // Só entra no ranking quem já concluiu alguma: uma lista de zeros não
         // classifica ninguém.
-        $acima = $concluidas->filter(fn (int $total) => $total > $minhas)->count();
+        $maiores = $concluidas->filter(fn (int $total) => $total > $minhas);
+        $acima = $maiores->count();
+        // Quem está **imediatamente** à frente é quem tem o menor número acima
+        // do dele — e não o primeiro colocado. Saber que falta uma avaliação
+        // para alcançar o vizinho move; saber que o líder tem 40, não.
+        $proximo = $maiores->isEmpty() ? null : (int) $maiores->min();
 
         return [
             'avaliacoes_concluidas' => $minhas,
@@ -52,6 +57,11 @@ class AvaliadorService
             'por_avaliacao_label' => Tempo::cargaHoraria(AvaliadorProfile::MINUTOS_POR_AVALIACAO),
             'posicao' => $minhas > 0 ? $acima + 1 : null,
             'total_no_ranking' => $concluidas->count(),
+            // O número, nunca o nome: o ranking é interno da organização, e
+            // dizer a um avaliador quem está à frente dele criaria
+            // constrangimento entre pessoas que precisam trabalhar juntas.
+            'proximo_acima' => $proximo,
+            'faltam_para_alcancar' => $proximo === null ? null : $proximo - $minhas,
             // Posição dividida com outros avaliadores de mesmo número.
             'empate' => $minhas > 0 && $concluidas->filter(fn (int $t) => $t === $minhas)->count() > 1,
         ];
@@ -66,6 +76,10 @@ class AvaliadorService
     {
         return Avaliacao::query()
             ->where('status', StatusAvaliacao::Concluida->value)
+            // A avaliação que a organização preencheu conta para o projeto, não
+            // para quem a preencheu: o admin não entra no ranking nem tira
+            // certificado disso.
+            ->where('pela_organizacao', false)
             ->selectRaw('avaliador_id, COUNT(*) as total')
             ->groupBy('avaliador_id')
             ->pluck('total', 'avaliador_id')

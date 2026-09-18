@@ -6,6 +6,7 @@ use App\Enums\StatusAvaliacao;
 use App\Models\Avaliacao;
 use App\Models\Projeto;
 use App\Models\User;
+use App\Support\DetalheRubrica;
 use App\Support\Rubrica;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -29,7 +30,10 @@ use Illuminate\Validation\ValidationException;
  */
 class NotasAvaliacaoService
 {
-    public function __construct(private readonly RegistroAtividadeService $registros) {}
+    public function __construct(
+        private readonly RegistroAtividadeService $registros,
+        private readonly DesignacaoService $designacoes,
+    ) {}
 
     /**
      * As seções pontuadas de uma avaliação, com as perguntas de cada uma.
@@ -38,25 +42,7 @@ class NotasAvaliacaoService
      */
     public function secoes(Avaliacao $avaliacao): array
     {
-        $respostas = $avaliacao->respostas ?? [];
-
-        return array_map(function (array $secao) use ($respostas) {
-            $perguntas = array_values(array_filter(
-                Rubrica::perguntas(),
-                fn (array $p) => $p['secao'] === $secao['chave'],
-            ));
-
-            return [
-                'chave' => $secao['chave'],
-                'titulo' => $secao['titulo'],
-                'pontos' => round(Rubrica::pontosDaSecao($secao['chave'], $respostas), 2),
-                'maximo' => round($secao['maximo'], 2),
-                'perguntas' => array_map(
-                    fn (array $p) => $this->linhaDaPergunta($p, $respostas[$p['chave']] ?? null),
-                    $perguntas,
-                ),
-            ];
-        }, Rubrica::secoesPontuadas());
+        return DetalheRubrica::secoes($avaliacao->respostas ?? []);
     }
 
     /**
@@ -166,8 +152,12 @@ class NotasAvaliacaoService
      * A justificativa é obrigatória: descartar uma nota pode mudar quem entra na
      * lista final, e escape do edital se explica por escrito.
      */
-    public function desconsiderar(Avaliacao $avaliacao, User $admin, string $justificativa): array
-    {
+    public function desconsiderar(
+        Avaliacao $avaliacao,
+        User $admin,
+        string $justificativa,
+        ?array $substituicao = null,
+    ): array {
         $this->exigirConcluida($avaliacao);
 
         if ($avaliacao->foiDesconsiderada()) {
@@ -194,7 +184,112 @@ class NotasAvaliacaoService
             );
         });
 
-        return $this->compararProjeto($avaliacao->projeto->fresh(), $admin, registrar: false);
+        $projeto = $avaliacao->projeto->fresh();
+        $dados = $this->compararProjeto($projeto, $admin, registrar: false);
+        $dados['substituicao'] = $this->substituir($projeto, $admin, $substituicao);
+
+        return $dados;
+    }
+
+    /**
+     * O parecer que entra no lugar do que saiu.
+     *
+     * Desconsiderar abre um buraco na cobertura, e o admin decide na hora como
+     * fechá-lo — ou não fechar, que também é resposta quando o projeto ainda tem
+     * pareceres de sobra. Dois caminhos:
+     *
+     * - **outro avaliador**: vira uma designação manual como qualquer outra
+     *   (protegida das devoluções automáticas, com o e-mail avisando quem
+     *   recebeu). Quem já avaliou o projeto é recusado pelo próprio
+     *   {@see DesignacaoService}, inclusive o dono da nota descartada.
+     * - **o próprio admin**: no fim do período, com a lista final para fechar,
+     *   esperar um terceiro pode não ser opção. Nasce uma avaliação
+     *   `pela_organizacao`, **já aberta**, para ele preencher na hora — mesma
+     *   rubrica, mesma nota, e fora do ranking e do certificado de avaliador.
+     *
+     * @param  array<string, mixed>|null  $substituicao
+     * @return array<string, mixed>|null
+     */
+    private function substituir(Projeto $projeto, User $admin, ?array $substituicao): ?array
+    {
+        $tipo = $substituicao['tipo'] ?? null;
+
+        if ($tipo === null || $tipo === 'nenhuma') {
+            return null;
+        }
+
+        if ($tipo === 'admin') {
+            $minha = $this->avaliacaoDaOrganizacao($projeto, $admin);
+
+            return [
+                'tipo' => 'admin',
+                // A tela abre o formulário da rubrica com este id.
+                'avaliacao_id' => $minha->id,
+                'mensagem' => 'Avaliação da organização aberta — preencha a rubrica agora.',
+            ];
+        }
+
+        $resultado = $this->designacoes->designar(
+            [$projeto->id],
+            [(int) $substituicao['avaliador_id']],
+            $admin,
+        );
+
+        return [
+            'tipo' => 'avaliador',
+            'designadas' => $resultado['designadas'],
+            'retomadas' => $resultado['retomadas'],
+            'ignoradas' => $resultado['ignoradas'],
+            'mensagem' => $resultado['designadas'] + $resultado['retomadas'] > 0
+                ? 'Projeto designado para o avaliador escolhido.'
+                : 'Ninguém foi designado: '.($resultado['problemas'] ?? 'o avaliador escolhido não pôde receber este projeto.'),
+        ];
+    }
+
+    /**
+     * A avaliação que o admin vai preencher. Se ele já tiver uma neste projeto
+     * — porque substituiu antes e não terminou, ou porque a devolução do prazo
+     * a escondeu —, é ela que volta: a chave única (projeto, avaliador) não
+     * deixa criar outra, e o rascunho dele não se joga fora.
+     */
+    private function avaliacaoDaOrganizacao(Projeto $projeto, User $admin): Avaliacao
+    {
+        $existente = Avaliacao::comDevolvidas()
+            ->where('projeto_id', $projeto->id)
+            ->where('avaliador_id', $admin->id)
+            ->first();
+
+        if ($existente !== null) {
+            if ($existente->status === StatusAvaliacao::Concluida) {
+                throw ValidationException::withMessages([
+                    'substituicao' => 'Você já avaliou este projeto — a sua nota anterior está na lista.',
+                ]);
+            }
+
+            $existente->update([
+                'status' => StatusAvaliacao::EmAndamento,
+                'devolvida_em' => null,
+                'pela_organizacao' => true,
+                'designacao_manual' => true,
+                'iniciada_em' => $existente->iniciada_em ?? now(),
+                'atividade_em' => now(),
+            ]);
+
+            return $existente->fresh();
+        }
+
+        return Avaliacao::create([
+            'projeto_id' => $projeto->id,
+            'avaliador_id' => $admin->id,
+            // Já nasce aberta: a substituição existe para ser preenchida agora.
+            'status' => StatusAvaliacao::EmAndamento,
+            'pela_organizacao' => true,
+            // Como toda designação manual, ela não é devolvida por rotina
+            // automática nenhuma.
+            'designacao_manual' => true,
+            'iniciada_em' => now(),
+            'atividade_em' => now(),
+        ]);
     }
 
     /**
@@ -251,45 +346,5 @@ class NotasAvaliacaoService
     public function nota(Avaliacao $avaliacao): float
     {
         return round((float) ($avaliacao->nota ?? $avaliacao->notaCalculada()), 2);
-    }
-
-    /**
-     * Uma linha do detalhe: o que foi perguntado, o que o avaliador respondeu e
-     * quanto aquilo rendeu.
-     *
-     * A resposta sai com o **rótulo** da escala ("Bom"), e não só o número: é
-     * assim que ela aparece para quem avaliou, e o admin precisa ler a mesma
-     * coisa que o avaliador leu.
-     *
-     * @param  array<string, mixed>  $pergunta
-     * @return array<string, mixed>
-     */
-    private function linhaDaPergunta(array $pergunta, mixed $resposta): array
-    {
-        $peso = round((float) $pergunta['peso'], 4);
-
-        if ($pergunta['tipo'] === Rubrica::TIPO_SIM_NAO) {
-            $rotulo = $resposta === null ? null : ($resposta ? 'Sim' : 'Não');
-            $pontos = $resposta ? $peso : 0.0;
-        } else {
-            $valor = $resposta === null || $resposta === '' ? null : (int) $resposta;
-            $rotulo = $valor === null ? null : ($valor.' — '.(Rubrica::ESCALA[$valor] ?? '—'));
-            $pontos = $valor === null ? 0.0 : ($valor / max(array_keys(Rubrica::ESCALA))) * $peso;
-        }
-
-        return [
-            'chave' => $pergunta['chave'],
-            // `rotulo` é o nome curto do quesito e `texto` é a pergunta inteira:
-            // os dois vão, porque a tela usa um como título e o outro como corpo.
-            'rotulo' => $pergunta['rotulo'] ?? $pergunta['chave'],
-            'pergunta' => $pergunta['texto'] ?? $pergunta['rotulo'] ?? $pergunta['chave'],
-            'tipo' => $pergunta['tipo'],
-            // Sem resposta é diferente de resposta zero: a tela precisa dizer
-            // "não respondida" em vez de fingir um "Não possui".
-            'resposta' => $rotulo,
-            'respondida' => $rotulo !== null,
-            'peso' => $peso,
-            'pontos' => round($pontos, 2),
-        ];
     }
 }

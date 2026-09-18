@@ -2,6 +2,11 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../components/AppShell.jsx', () => ({ default: ({ children }) => <div>{children}</div> }));
+// O wizard da rubrica tem vida própria; aqui só interessa que ele abra com a
+// avaliação certa.
+vi.mock('../components/AvaliacaoModal.jsx', () => ({
+    default: ({ avaliacaoId }) => <div>Rubrica da avaliação {avaliacaoId}</div>,
+}));
 vi.mock('react-router-dom', () => ({
     Link: ({ children, to }) => <a href={to}>{children}</a>,
 }));
@@ -13,6 +18,7 @@ const getNotasDoProjeto = vi.fn();
 const getPadroesDeAvaliacao = vi.fn();
 const desconsiderarNota = vi.fn();
 const reconsiderarNota = vi.fn();
+const getOpcoesDesignacao = vi.fn();
 vi.mock('../lib/admin.js', () => ({
     getVerificacoesDisparidade: (...a) => getVerificacoesDisparidade(...a),
     gerarVerificacaoDisparidade: (...a) => gerarVerificacaoDisparidade(...a),
@@ -21,6 +27,8 @@ vi.mock('../lib/admin.js', () => ({
     getPadroesDeAvaliacao: (...a) => getPadroesDeAvaliacao(...a),
     desconsiderarNota: (...a) => desconsiderarNota(...a),
     reconsiderarNota: (...a) => reconsiderarNota(...a),
+    getOpcoesDesignacao: (...a) => getOpcoesDesignacao(...a),
+    API_AVALIACAO_ORGANIZACAO: {},
 }));
 vi.mock('../lib/auth.jsx', () => ({
     extractErrors: (e) => ({ message: e?.message ?? '', fields: e?.fields ?? {} }),
@@ -134,6 +142,9 @@ describe('AvaliacaoDisparidade', () => {
         getNotasDoProjeto.mockResolvedValue(NOTAS);
         getPadroesDeAvaliacao.mockResolvedValue(PADROES);
         desconsiderarNota.mockResolvedValue(NOTAS_COM_DESCARTE);
+        getOpcoesDesignacao.mockResolvedValue({
+            avaliadores: [{ id: 6, nome: 'Bruno Lima', area: 'Exatas', na_fila: 2 }],
+        });
     });
 
     it('gera a lista com a diferença digitada, em vírgula, e mostra as notas', async () => {
@@ -254,7 +265,13 @@ describe('AvaliacaoDisparidade', () => {
         });
         fireEvent.click(screen.getByRole('button', { name: /^Desconsiderar$/ }));
 
-        await waitFor(() => expect(desconsiderarNota).toHaveBeenCalledWith(1, 'Avaliou o projeto errado.'));
+        // Sem escolher substituto, a chamada vai com "nenhuma": desconsiderar
+        // sem repor é decisão legítima.
+        await waitFor(() => expect(desconsiderarNota).toHaveBeenCalledWith(
+            1,
+            'Avaliou o projeto errado.',
+            { tipo: 'nenhuma' },
+        ));
 
         expect(await screen.findByText(/não conta para a classificação/)).toBeInTheDocument();
         expect(screen.getByText(/Avaliou o projeto errado\./)).toBeInTheDocument();
@@ -263,6 +280,64 @@ describe('AvaliacaoDisparidade', () => {
         expect(screen.getByText(/1 nota desconsiderada/)).toBeInTheDocument();
         // E a ação inversa fica à mão.
         expect(screen.getByRole('button', { name: /Voltar a considerar esta nota/i })).toBeInTheDocument();
+    });
+
+    // Sprint 142 — tirar a nota abre um buraco na cobertura; a mesma tela
+    // pergunta o que entra no lugar.
+    it('desconsidera designando outro avaliador no lugar', async () => {
+        render(<AvaliacaoDisparidade />);
+
+        fireEvent.click(screen.getByRole('button', { name: /Gerar lista/i }));
+        fireEvent.click(await screen.findByRole('button', { name: /Ver notas/i }));
+        await screen.findByRole('columnheader', { name: /Ana Souza/ });
+
+        const cartao = screen.getByText('Muito bom.').closest('div');
+        fireEvent.click(within(cartao).getByRole('button', { name: /Desconsiderar esta nota/i }));
+        fireEvent.change(screen.getByPlaceholderText(/trilha de Registros/i), {
+            target: { value: 'Avaliou o projeto errado.' },
+        });
+        fireEvent.click(screen.getByRole('radio', { name: /Designar outro avaliador/i }));
+
+        // Sem escolher quem, não dá para confirmar.
+        expect(screen.getByRole('button', { name: /^Desconsiderar$/ })).toBeDisabled();
+
+        fireEvent.focus(await screen.findByPlaceholderText(/Procure o avaliador/i));
+        // A lista escolhe no mouseDown, para o clique não fechar antes.
+        fireEvent.mouseDown(await screen.findByRole('button', { name: /Bruno Lima/ }));
+        fireEvent.click(screen.getByRole('button', { name: /^Desconsiderar$/ }));
+
+        await waitFor(() => expect(desconsiderarNota).toHaveBeenCalledWith(
+            1,
+            'Avaliou o projeto errado.',
+            { tipo: 'avaliador', avaliador_id: 6 },
+        ));
+    });
+
+    it('desconsidera e abre a rubrica quando o admin decide avaliar na hora', async () => {
+        desconsiderarNota.mockResolvedValue({
+            ...NOTAS_COM_DESCARTE,
+            substituicao: { tipo: 'admin', avaliacao_id: 77, mensagem: 'Preencha a rubrica agora.' },
+        });
+        render(<AvaliacaoDisparidade />);
+
+        fireEvent.click(screen.getByRole('button', { name: /Gerar lista/i }));
+        fireEvent.click(await screen.findByRole('button', { name: /Ver notas/i }));
+        await screen.findByRole('columnheader', { name: /Ana Souza/ });
+
+        const cartao = screen.getByText('Muito bom.').closest('div');
+        fireEvent.click(within(cartao).getByRole('button', { name: /Desconsiderar esta nota/i }));
+        fireEvent.change(screen.getByPlaceholderText(/trilha de Registros/i), {
+            target: { value: 'Nota incompatível com o trabalho.' },
+        });
+        fireEvent.click(screen.getByRole('radio', { name: /Eu mesmo avalio agora/i }));
+        fireEvent.click(screen.getByRole('button', { name: /^Desconsiderar$/ }));
+
+        await waitFor(() => expect(desconsiderarNota).toHaveBeenCalledWith(
+            1,
+            'Nota incompatível com o trabalho.',
+            { tipo: 'admin' },
+        ));
+        expect(await screen.findByText('Rubrica da avaliação 77')).toBeInTheDocument();
     });
 
     it('mostra o erro do servidor sem apagar o formulário', async () => {

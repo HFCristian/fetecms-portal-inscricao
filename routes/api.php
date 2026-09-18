@@ -342,6 +342,11 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 // a justificativa, mas sai de tudo que classifica.
                 Route::post('/avaliacao/avaliacoes/{avaliacao}/desconsiderar', [AdminAvaliacaoController::class, 'desconsiderarNota']);
                 Route::post('/avaliacao/avaliacoes/{avaliacao}/reconsiderar', [AdminAvaliacaoController::class, 'reconsiderarNota']);
+                // A avaliação que a própria organização preenche no lugar da
+                // nota descartada: mesma rubrica, sem a trava de data.
+                Route::get('/avaliacao/avaliacoes/{avaliacao}/formulario', [AdminAvaliacaoController::class, 'formularioDaOrganizacao']);
+                Route::post('/avaliacao/avaliacoes/{avaliacao}/formulario/rascunho', [AdminAvaliacaoController::class, 'rascunhoDaOrganizacao']);
+                Route::post('/avaliacao/avaliacoes/{avaliacao}/formulario/concluir', [AdminAvaliacaoController::class, 'concluirDaOrganizacao']);
                 // Listas finais oficiais registradas (a vigente define os finalistas).
                 Route::get('/avaliacao/listas-finais', [AdminAvaliacaoController::class, 'listasFinais']);
                 Route::get('/avaliacao/listas-finais/{lista}/arquivo', [AdminAvaliacaoController::class, 'baixarListaFinal']);

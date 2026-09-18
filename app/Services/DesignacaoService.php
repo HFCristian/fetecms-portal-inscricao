@@ -10,6 +10,7 @@ use App\Models\Avaliacao;
 use App\Models\Edicao;
 use App\Models\Projeto;
 use App\Models\User;
+use App\Support\DetalheRubrica;
 use App\Support\Rubrica;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -59,7 +60,6 @@ class DesignacaoService
         private readonly DistribuicaoService $distribuicao,
         private readonly RegistroAtividadeService $registros,
         private readonly NotificacaoDesignacaoService $notificacoes,
-        private readonly NotasAvaliacaoService $notas,
     ) {}
 
     /**
@@ -432,7 +432,7 @@ class DesignacaoService
 
         $avaliacao->loadMissing(['projeto.area:id,nome', 'avaliador:id,name']);
 
-        $secoes = $this->notas->secoes($avaliacao);
+        $secoes = DetalheRubrica::secoes($avaliacao->respostas ?? []);
 
         // A nota gravada é a que vale (foi ela que entrou no ranking); a
         // calculada vai junto para a tela denunciar qualquer divergência em vez
