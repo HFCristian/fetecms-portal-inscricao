@@ -62,8 +62,19 @@ function Cabecalho({ coluna, ordenar, direcao, onOrdenar }) {
     );
 }
 
+/**
+ * A confirmação da retirada, com a escolha do que acontece com o projeto
+ * depois: **redesignar** (o padrão, e o comportamento de sempre) ou apenas
+ * **remover** a designação.
+ *
+ * São duas intenções diferentes — "esta pessoa não pode ficar com este projeto"
+ * e "este projeto não precisa mais deste parecer" —, e sem a escolha a segunda
+ * obrigava o admin a retirar duas vezes: uma para tirar o avaliador e outra
+ * para tirar quem o algoritmo punha no lugar.
+ */
 function ConfirmarRetirada({ linhas, salvando, erro, onConfirmar, onFechar }) {
     const emAndamento = linhas.filter((l) => l.situacao === 'em_andamento');
+    const [redesignar, setRedesignar] = useState(true);
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
@@ -75,10 +86,28 @@ function ConfirmarRetirada({ linhas, salvando, erro, onConfirmar, onFechar }) {
                 {erro && <Alert>{erro}</Alert>}
 
                 <p className="text-sm text-on-surface-variant">
-                    Cada projeto volta ao bolo e é designado na hora para outro avaliador, pelas
-                    prioridades do edital. Se não houver ninguém elegível, o projeto fica sem
-                    designação e a tela avisa.
+                    {redesignar
+                        ? 'Cada projeto volta ao bolo e é designado na hora para outro avaliador, pelas prioridades do edital. Se não houver ninguém elegível, o projeto fica sem designação e a tela avisa.'
+                        : 'A designação é só removida: o projeto fica com um parecer a menos e ninguém entra no lugar agora. Ele continua podendo ser alcançado pela distribuição automática.'}
                 </p>
+
+                <label className="flex items-start gap-2 rounded-lg border border-outline-variant/60 p-3 cursor-pointer hover:bg-surface-variant/20">
+                    <input
+                        type="checkbox"
+                        className="mt-1 accent-primary-container"
+                        checked={redesignar}
+                        onChange={(e) => setRedesignar(e.target.checked)}
+                    />
+                    <span className="min-w-0">
+                        <span className="block text-sm font-semibold text-on-surface">
+                            Redesignar para outro avaliador
+                        </span>
+                        <span className="block text-xs text-on-surface-variant">
+                            Desmarque para <strong>apenas remover</strong> a designação, sem repor o
+                            parecer — use quando o projeto já tem avaliadores de sobra.
+                        </span>
+                    </span>
+                </label>
 
                 {emAndamento.length > 0 && (
                     <Alert>
@@ -100,7 +129,9 @@ function ConfirmarRetirada({ linhas, salvando, erro, onConfirmar, onFechar }) {
 
                 <div className="flex justify-end gap-2">
                     <Button type="button" variant="outline" onClick={onFechar}>Cancelar</Button>
-                    <Button type="button" loading={salvando} onClick={onConfirmar}>Retirar e redesignar</Button>
+                    <Button type="button" loading={salvando} onClick={() => onConfirmar(redesignar)}>
+                        {redesignar ? 'Retirar e redesignar' : 'Apenas remover'}
+                    </Button>
                 </div>
             </div>
         </div>
@@ -524,10 +555,10 @@ export default function AvaliacaoDesignacoes() {
         }
     }
 
-    async function retirar() {
+    async function retirar(redesignar = true) {
         setSalvando(true); setAlert(''); setSuccess('');
         try {
-            const resp = await retirarDesignacoes(selecionadas.map((l) => l.id));
+            const resp = await retirarDesignacoes(selecionadas.map((l) => l.id), redesignar);
             setSuccess(resp.meta?.message || 'Designações retiradas.');
             setMarcadas([]);
             setConfirmando(false);
@@ -556,7 +587,8 @@ export default function AvaliacaoDesignacoes() {
             <p className="text-on-surface-variant mb-4 max-w-4xl">
                 Todos os projetos designados, com <strong>há quanto tempo</strong> cada um está com o
                 avaliador. Marque as designações que quer tirar de alguém: elas voltam ao bolo e são
-                redesignadas na hora para outro avaliador. Avaliação concluída fica no histórico e
+                redesignadas na hora para outro avaliador — ou saem <strong>sem reposição</strong>,
+                se você desmarcar isso na confirmação. Avaliação concluída fica no histórico e
                 não sai.
             </p>
 

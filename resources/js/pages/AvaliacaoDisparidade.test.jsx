@@ -9,10 +9,12 @@ vi.mock('react-router-dom', () => ({
 const getVerificacoesDisparidade = vi.fn();
 const gerarVerificacaoDisparidade = vi.fn();
 const getVerificacaoDisparidade = vi.fn();
+const getNotasDoProjeto = vi.fn();
 vi.mock('../lib/admin.js', () => ({
     getVerificacoesDisparidade: (...a) => getVerificacoesDisparidade(...a),
     gerarVerificacaoDisparidade: (...a) => gerarVerificacaoDisparidade(...a),
     getVerificacaoDisparidade: (...a) => getVerificacaoDisparidade(...a),
+    getNotasDoProjeto: (...a) => getNotasDoProjeto(...a),
 }));
 vi.mock('../lib/auth.jsx', () => ({
     extractErrors: (e) => ({ message: e?.message ?? '', fields: e?.fields ?? {} }),
@@ -42,12 +44,39 @@ const VERIFICACAO = {
     ],
 };
 
+/** O que o botão "Ver notas" traz: uma coluna por avaliador. */
+const NOTAS = {
+    projeto: { id: 42, titulo: 'Secador solar', area: 'Exatas', categoria: 'FETECMS' },
+    secoes: [
+        { chave: 'titulo', titulo: 'Título', maximo: 0.15 },
+        { chave: 'metodologia', titulo: 'Metodologia', maximo: 2 },
+    ],
+    avaliadores: [
+        {
+            avaliacao_id: 1, avaliador_id: 5, avaliador: 'Ana Souza', nota: 9.5,
+            concluida_em_label: '10/09/2026 09:00',
+            secoes: { titulo: 0.15, metodologia: 1.9 },
+            recomendacao_video: null, recomendacao_projeto: 'Muito bom.',
+        },
+        {
+            avaliacao_id: 2, avaliador_id: 6, avaliador: 'Bruno Lima', nota: 4.5,
+            concluida_em_label: '11/09/2026 14:00',
+            secoes: { titulo: 0.12, metodologia: 0.4 },
+            recomendacao_video: null, recomendacao_projeto: null,
+        },
+    ],
+    nota_maxima: 10,
+    media: 7,
+    amplitude: 5,
+};
+
 describe('AvaliacaoDisparidade', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         getVerificacoesDisparidade.mockResolvedValue([]);
         gerarVerificacaoDisparidade.mockResolvedValue(VERIFICACAO);
         getVerificacaoDisparidade.mockResolvedValue(VERIFICACAO);
+        getNotasDoProjeto.mockResolvedValue(NOTAS);
     });
 
     it('gera a lista com a diferença digitada, em vírgula, e mostra as notas', async () => {
@@ -73,6 +102,25 @@ describe('AvaliacaoDisparidade', () => {
         expect(link.getAttribute('href')).toBe(
             '/admin/avaliacao/designacoes?projeto=42&q=Secador%20solar',
         );
+    });
+
+    // Sprint 139 — a nota final diz que a distância existe; a comparação por
+    // seção diz onde ela nasceu, e o nome diz com quem falar sobre isso.
+    it('mostra as notas de cada avaliador do projeto, com o nome ao lado', async () => {
+        render(<AvaliacaoDisparidade />);
+
+        fireEvent.click(screen.getByRole('button', { name: /Gerar lista/i }));
+        fireEvent.click(await screen.findByRole('button', { name: /Ver notas/i }));
+
+        await waitFor(() => expect(getNotasDoProjeto).toHaveBeenCalledWith(42));
+
+        expect(await screen.findByRole('columnheader', { name: /Ana Souza/ })).toBeInTheDocument();
+        expect(screen.getByRole('columnheader', { name: /Bruno Lima/ })).toBeInTheDocument();
+        expect(screen.getByRole('rowheader', { name: /Metodologia/ })).toBeInTheDocument();
+        // A seção em que eles mais discordaram fica dita com todas as letras.
+        expect(screen.getByText(/maior discordância/)).toBeInTheDocument();
+        expect(screen.getByText('Muito bom.')).toBeInTheDocument();
+        expect(screen.getByText(/Não escreveu recomendações/)).toBeInTheDocument();
     });
 
     it('lista vazia diz que ninguém passou do corte', async () => {

@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
+import DialogoNotasProjeto from '../components/DialogoNotasProjeto.jsx';
 import { Alert, Button, Field, Input } from '../components/ui.jsx';
 import {
+    getNotasDoProjeto,
     getVerificacaoDisparidade,
     getVerificacoesDisparidade,
     gerarVerificacaoDisparidade,
@@ -20,7 +22,7 @@ const nota = (valor) =>
  * atalho para designar mais um avaliador — que é a ação que a tela existe para
  * provocar.
  */
-function Item({ item }) {
+function Item({ item, onVerNotas }) {
     return (
         <li className="p-4 flex flex-col sm:flex-row sm:items-center gap-3">
             <div className="min-w-0 flex-1">
@@ -31,7 +33,7 @@ function Item({ item }) {
                 </p>
             </div>
 
-            <div className="flex items-center gap-4 shrink-0">
+            <div className="flex flex-wrap items-center gap-3 shrink-0">
                 <div className="text-center">
                     <div className="text-xs text-on-surface-variant leading-tight">notas</div>
                     <div className="text-sm text-on-surface">
@@ -45,6 +47,17 @@ function Item({ item }) {
                         <span className="block">média {nota(item.media)}</span>
                     </div>
                 </div>
+                {/* Antes de designar mais um parecer vale ver os que já
+                    existem: é a comparação por seção que diz se a distância veio
+                    de um desacordo real ou de uma nota fora do lugar. */}
+                <button
+                    type="button"
+                    onClick={() => onVerNotas(item)}
+                    className="inline-flex items-center gap-1 rounded-lg border border-outline-variant px-3 py-2 text-sm font-semibold text-on-surface hover:bg-surface-variant transition-colors"
+                >
+                    <span className="material-symbols-outlined text-[18px]">scoreboard</span>
+                    Ver notas
+                </button>
                 {/* Leva o título junto para o diálogo de designação já achar o
                     projeto na busca do servidor. */}
                 <Link
@@ -76,6 +89,7 @@ export default function AvaliacaoDisparidade() {
     const [historico, setHistorico] = useState(null);
     const [gerando, setGerando] = useState(false);
     const [erro, setErro] = useState('');
+    const [notas, setNotas] = useState(null);      // { carregando, dados, erro }
 
     const carregarHistorico = useCallback(() => {
         getVerificacoesDisparidade()
@@ -99,6 +113,20 @@ export default function AvaliacaoDisparidade() {
             setErro(Object.values(fields ?? {})[0] || message || 'Não foi possível gerar a lista.');
         } finally {
             setGerando(false);
+        }
+    }
+
+    async function verNotas(item) {
+        setNotas({ carregando: true, dados: null, erro: '' });
+        try {
+            setNotas({ carregando: false, dados: await getNotasDoProjeto(item.projeto_id), erro: '' });
+        } catch (err) {
+            const { message, fields } = extractErrors(err);
+            setNotas({
+                carregando: false,
+                dados: null,
+                erro: Object.values(fields ?? {})[0] || message || 'Não foi possível abrir as notas.',
+            });
         }
     }
 
@@ -154,7 +182,7 @@ export default function AvaliacaoDisparidade() {
             </form>
 
             {verificacao && (
-                <div className="max-w-3xl mb-8">
+                <div className="max-w-5xl mb-8">
                     <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow overflow-hidden">
                         <div className="px-4 py-3 bg-surface-variant/40">
                             <h2 className="font-display font-semibold text-on-surface">
@@ -172,7 +200,9 @@ export default function AvaliacaoDisparidade() {
                             </p>
                         ) : (
                             <ul className="divide-y divide-outline-variant/30">
-                                {verificacao.itens.map((i) => <Item key={i.projeto_id} item={i} />)}
+                                {verificacao.itens.map((i) => (
+                                    <Item key={i.projeto_id} item={i} onVerNotas={verNotas} />
+                                ))}
                             </ul>
                         )}
                     </div>
@@ -210,6 +240,15 @@ export default function AvaliacaoDisparidade() {
                     </ul>
                 )}
             </div>
+
+            {notas && (
+                <DialogoNotasProjeto
+                    dados={notas.dados}
+                    carregando={notas.carregando}
+                    erro={notas.erro}
+                    onFechar={() => setNotas(null)}
+                />
+            )}
         </AppShell>
     );
 }

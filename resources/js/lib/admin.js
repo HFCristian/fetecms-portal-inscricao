@@ -149,8 +149,14 @@ export const buscarOrientadores = (q) =>
     http.get('/admin/avaliacao/orientadores/opcoes', { params: q ? { q } : {} }).then((r) => r.data.data);
 
 /** Retira as designações marcadas; cada projeto vai para outro avaliador na hora. */
-export const retirarDesignacoes = (avaliacaoIds) =>
-    http.post('/admin/avaliacao/designacoes/retirar', { avaliacao_ids: avaliacaoIds }).then((r) => r.data);
+/**
+ * Retira designações. `redesignar` ligado (o padrão) devolve o projeto ao bolo e
+ * põe outro avaliador na hora; desligado, só remove o parecer daquela pessoa.
+ */
+export const retirarDesignacoes = (avaliacaoIds, redesignar = true) =>
+    http
+        .post('/admin/avaliacao/designacoes/retirar', { avaliacao_ids: avaliacaoIds, redesignar })
+        .then((r) => r.data);
 
 /** Baixa o CSV da tabela de projetos no recorte atual. */
 export async function exportarProjetosAvaliacaoCsv(filtros) {
@@ -248,6 +254,13 @@ export const gerarVerificacaoDisparidade = (diferenca) =>
 
 export const getVerificacaoDisparidade = (id) =>
     http.get(`/admin/avaliacao/disparidades/${id}`).then((r) => r.data.data);
+
+/**
+ * As notas de todos os avaliadores de um projeto, lado a lado. POST porque cada
+ * abertura fica registrada em Registros → Notas.
+ */
+export const getNotasDoProjeto = (projetoId) =>
+    http.post(`/admin/avaliacao/projetos/${projetoId}/notas`).then((r) => r.data.data);
 
 /** Listas finais oficiais registradas na edição em curso. */
 export const getListasFinais = () =>

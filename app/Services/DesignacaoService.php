@@ -27,10 +27,12 @@ use Illuminate\Validation\ValidationException;
  * pode desistir sozinho). Avaliação **concluída nunca sai**: a nota já conta
  * para o ranking.
  *
- * Retirada e reposição andam juntas: o projeto volta ao bolo e o
+ * Retirada e reposição andam juntas **por padrão**: o projeto volta ao bolo e o
  * {@see DistribuicaoService::designarUm()} escolhe outro avaliador na hora,
  * pelas prioridades do edital. Sem ninguém elegível, o projeto fica
- * sub-coberto e a tela avisa — a saída é a designação manual.
+ * sub-coberto e a tela avisa — a saída é a designação manual. Quem quer o
+ * contrário — tirar o parecer e não pôr outro no lugar — desmarca a reposição
+ * no diálogo de confirmação.
  */
 class DesignacaoService
 {
@@ -43,6 +45,13 @@ class DesignacaoService
         'designado_em' => 'avaliacoes.created_at',
     ];
 
+    /**
+     * O que a trilha grava no lugar do novo avaliador quando a retirada foi
+     * sem reposição — diferente de "(sem avaliador)", que é a falta de
+     * candidato elegível.
+     */
+    public const SEM_REPOSICAO = '(retirada sem reposição)';
+
     /** Situações que o admin pode retirar do avaliador. */
     public const RETIRAVEIS = [StatusAvaliacao::Designada, StatusAvaliacao::EmAndamento];
 
@@ -50,6 +59,7 @@ class DesignacaoService
         private readonly DistribuicaoService $distribuicao,
         private readonly RegistroAtividadeService $registros,
         private readonly NotificacaoDesignacaoService $notificacoes,
+        private readonly NotasAvaliacaoService $notas,
     ) {}
 
     /**
@@ -254,12 +264,29 @@ class DesignacaoService
     }
 
     /**
-     * Retira as designações escolhidas e repõe cada projeto com outro avaliador.
+     * Retira as designações escolhidas e, se for o caso, repõe cada projeto com
+     * outro avaliador.
+     *
+     * A retirada responde a duas intenções diferentes, e é `$redesignar` que as
+     * separa:
+     *
+     * - **Redesignar** (o padrão): o problema é a pessoa. O projeto volta ao
+     *   bolo e o {@see DistribuicaoService::designarUm()} escolhe outro na hora,
+     *   pelas prioridades do edital — nunca quem acabou de sair.
+     * - **Só remover**: o problema é a designação. O projeto fica com um
+     *   parecer a menos de propósito — é o caso do avaliador designado a mais,
+     *   ou do trabalho que já tem cobertura de sobra. Repor aqui seria desfazer
+     *   o que o admin acabou de pedir, e era o que o obrigava a retirar duas
+     *   vezes: uma para tirar a pessoa e outra para tirar o substituto.
+     *
+     * Em nenhum dos dois casos o projeto some da distribuição futura: a fila
+     * automática continua podendo alcançá-lo, porque quem manda nisso é a
+     * cobertura que a edição pede.
      *
      * @param  list<int>  $ids
-     * @return array{retiradas:int, redesignadas:int, sem_avaliador: list<string>}
+     * @return array{retiradas:int, redesignadas:int, sem_avaliador: list<string>, redesignar:bool}
      */
-    public function retirar(array $ids, User $admin): array
+    public function retirar(array $ids, User $admin, bool $redesignar = true): array
     {
         $avaliacoes = Avaliacao::query()
             ->whereIn('id', $ids)
@@ -276,7 +303,7 @@ class DesignacaoService
         $redesignadas = 0;
         $semAvaliador = [];
 
-        DB::transaction(function () use ($avaliacoes, $admin, &$redesignadas, &$semAvaliador) {
+        DB::transaction(function () use ($avaliacoes, $admin, $redesignar, &$redesignadas, &$semAvaliador) {
             foreach ($avaliacoes as $avaliacao) {
                 $projeto = $avaliacao->projeto;
                 $anterior = $avaliacao->avaliador;
@@ -290,7 +317,9 @@ class DesignacaoService
 
                 // Nunca devolve para quem acabou de sair: a retirada existe
                 // justamente para o projeto trocar de mãos.
-                $novo = $this->distribuicao->designarUm($projeto, array_filter([$anterior?->id]));
+                $novo = $redesignar
+                    ? $this->distribuicao->designarUm($projeto, array_filter([$anterior?->id]))
+                    : null;
 
                 if ($novo !== null) {
                     Avaliacao::create([
@@ -299,15 +328,18 @@ class DesignacaoService
                         'status' => StatusAvaliacao::Designada,
                     ]);
                     $redesignadas++;
-                } else {
+                } elseif ($redesignar) {
                     $semAvaliador[] = $projeto->titulo;
                 }
 
+                // A trilha distingue o projeto que ficou sem ninguém por falta
+                // de candidato do que ficou sem ninguém porque o admin quis:
+                // são duas situações que pedem providências opostas.
                 $this->registros->designacaoRetirada(
                     $projeto,
                     $admin,
                     $anterior?->name ?? '(avaliador removido)',
-                    $novo?->name,
+                    $redesignar ? $novo?->name : self::SEM_REPOSICAO,
                     $situacao,
                 );
             }
@@ -317,6 +349,7 @@ class DesignacaoService
             'retiradas' => $avaliacoes->count(),
             'redesignadas' => $redesignadas,
             'sem_avaliador' => $semAvaliador,
+            'redesignar' => $redesignar,
         ];
     }
 
@@ -398,25 +431,8 @@ class DesignacaoService
         }
 
         $avaliacao->loadMissing(['projeto.area:id,nome', 'avaliador:id,name']);
-        $respostas = $avaliacao->respostas ?? [];
 
-        $secoes = array_map(function (array $secao) use ($respostas) {
-            $perguntas = array_values(array_filter(
-                Rubrica::perguntas(),
-                fn (array $p) => $p['secao'] === $secao['chave'],
-            ));
-
-            return [
-                'chave' => $secao['chave'],
-                'titulo' => $secao['titulo'],
-                'pontos' => round(Rubrica::pontosDaSecao($secao['chave'], $respostas), 2),
-                'maximo' => round($secao['maximo'], 2),
-                'perguntas' => array_map(
-                    fn (array $p) => $this->linhaDaPergunta($p, $respostas[$p['chave']] ?? null),
-                    $perguntas,
-                ),
-            ];
-        }, Rubrica::secoesPontuadas());
+        $secoes = $this->notas->secoes($avaliacao);
 
         // A nota gravada é a que vale (foi ela que entrou no ranking); a
         // calculada vai junto para a tela denunciar qualquer divergência em vez
@@ -449,46 +465,6 @@ class DesignacaoService
             // O parecer escrito acompanha a nota: é o que explica o número.
             'recomendacao_video' => $avaliacao->comentario_video,
             'recomendacao_projeto' => $avaliacao->comentario_projeto,
-        ];
-    }
-
-    /**
-     * Uma linha do detalhe: o que foi perguntado, o que o avaliador respondeu e
-     * quanto aquilo rendeu.
-     *
-     * A resposta sai com o **rótulo** da escala ("Bom"), e não só o número: é
-     * assim que ela aparece para quem avaliou, e o admin precisa ler a mesma
-     * coisa que o avaliador leu.
-     *
-     * @param  array<string, mixed>  $pergunta
-     * @return array<string, mixed>
-     */
-    private function linhaDaPergunta(array $pergunta, mixed $resposta): array
-    {
-        $peso = round((float) $pergunta['peso'], 4);
-
-        if ($pergunta['tipo'] === Rubrica::TIPO_SIM_NAO) {
-            $rotulo = $resposta === null ? null : ($resposta ? 'Sim' : 'Não');
-            $pontos = $resposta ? $peso : 0.0;
-        } else {
-            $valor = $resposta === null || $resposta === '' ? null : (int) $resposta;
-            $rotulo = $valor === null ? null : ($valor.' — '.(Rubrica::ESCALA[$valor] ?? '—'));
-            $pontos = $valor === null ? 0.0 : ($valor / max(array_keys(Rubrica::ESCALA))) * $peso;
-        }
-
-        return [
-            'chave' => $pergunta['chave'],
-            // `rotulo` é o nome curto do quesito e `texto` é a pergunta inteira:
-            // os dois vão, porque a tela usa um como título e o outro como corpo.
-            'rotulo' => $pergunta['rotulo'] ?? $pergunta['chave'],
-            'pergunta' => $pergunta['texto'] ?? $pergunta['rotulo'] ?? $pergunta['chave'],
-            'tipo' => $pergunta['tipo'],
-            // Sem resposta é diferente de resposta zero: a tela precisa dizer
-            // "não respondida" em vez de fingir um "Não possui".
-            'resposta' => $rotulo,
-            'respondida' => $rotulo !== null,
-            'peso' => $peso,
-            'pontos' => round($pontos, 2),
         ];
     }
 

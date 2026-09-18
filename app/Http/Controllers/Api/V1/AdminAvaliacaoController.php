@@ -32,6 +32,7 @@ use App\Services\AdminProjetoEdicaoService;
 use App\Services\DesignacaoService;
 use App\Services\DistribuicaoService;
 use App\Services\ListaFinalService;
+use App\Services\NotasAvaliacaoService;
 use App\Services\VerificacaoDisparidadeService;
 use App\Support\LimitesAvaliacao;
 use Illuminate\Http\JsonResponse;
@@ -75,18 +76,27 @@ class AdminAvaliacaoController extends Controller
     }
 
     /**
-     * Retira as designações marcadas e repõe cada projeto com outro avaliador.
-     * Concluída não sai; em avaliação sai descartando o rascunho.
+     * Retira as designações marcadas e, salvo pedido em contrário, repõe cada
+     * projeto com outro avaliador. Concluída não sai; em avaliação sai
+     * descartando o rascunho.
+     *
+     * `redesignar = false` remove sem pôr ninguém no lugar: é o caso do
+     * avaliador designado a mais, em que repor desfaria o que o admin pediu.
      */
     public function retirarDesignacoes(RetirarDesignacoesRequest $request): JsonResponse
     {
+        $redesignar = (bool) $request->validated('redesignar', true);
+
         $resultado = $this->designacao->retirar(
             $request->validated('avaliacao_ids'),
             $request->user(),
+            $redesignar,
         );
 
-        $mensagem = $resultado['retiradas'].' designação(ões) retirada(s), '
-            .$resultado['redesignadas'].' redesignada(s) na hora.';
+        $mensagem = $redesignar
+            ? $resultado['retiradas'].' designação(ões) retirada(s), '
+                .$resultado['redesignadas'].' redesignada(s) na hora.'
+            : $resultado['retiradas'].' designação(ões) removida(s), sem novo avaliador no lugar.';
 
         if ($resultado['sem_avaliador'] !== []) {
             $mensagem .= ' Sem avaliador elegível para: '.implode('; ', $resultado['sem_avaliador'])
@@ -497,6 +507,28 @@ class AdminAvaliacaoController extends Controller
         VerificacaoDisparidadeService $service,
     ): JsonResponse {
         return response()->json(['data' => $service->detalhar($verificacao)]);
+    }
+
+    /**
+     * As notas de **todos** os avaliadores de um projeto, lado a lado: a nota
+     * final de cada um, quanto ele deu em cada seção da rubrica e o parecer que
+     * escreveu.
+     *
+     * É o que a lista de disparidade pede. Ela diz que a maior e a menor nota
+     * estão longe; só a comparação por seção diz **onde** a discordância
+     * nasceu, e o nome ao lado diz **com quem** falar sobre isso.
+     *
+     * POST porque cada abertura fica registrada em Registros → Notas — num GET,
+     * um prefetch do navegador gravaria consultas que ninguém fez.
+     */
+    public function notasDoProjeto(
+        Request $request,
+        Projeto $projeto,
+        NotasAvaliacaoService $service,
+    ): JsonResponse {
+        return response()->json([
+            'data' => $service->compararProjeto($projeto, $request->user()),
+        ]);
     }
 
     /** As listas finais oficiais já registradas na edição em curso. */

@@ -331,6 +331,9 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::get('/avaliacao/disparidades', [AdminAvaliacaoController::class, 'disparidades']);
                 Route::post('/avaliacao/disparidades', [AdminAvaliacaoController::class, 'gerarDisparidade']);
                 Route::get('/avaliacao/disparidades/{verificacao}', [AdminAvaliacaoController::class, 'mostrarDisparidade']);
+                // As notas de todos os avaliadores de um projeto, lado a lado.
+                // POST porque cada abertura entra em Registros → Notas.
+                Route::post('/avaliacao/projetos/{projeto}/notas', [AdminAvaliacaoController::class, 'notasDoProjeto']);
                 // Listas finais oficiais registradas (a vigente define os finalistas).
                 Route::get('/avaliacao/listas-finais', [AdminAvaliacaoController::class, 'listasFinais']);
                 Route::get('/avaliacao/listas-finais/{lista}/arquivo', [AdminAvaliacaoController::class, 'baixarListaFinal']);

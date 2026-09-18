@@ -11,6 +11,7 @@ use App\Models\Projeto;
 use App\Models\RegistroAtividade;
 use App\Models\Subarea;
 use App\Models\User;
+use App\Services\DesignacaoService;
 use Database\Seeders\CatalogoSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -186,6 +187,60 @@ class DesignacoesAdminTest extends TestCase
             ->assertJsonPath('data.sem_avaliador', ['Robô seguidor']);
 
         $this->assertSame(0, Avaliacao::where('projeto_id', $projeto->id)->count());
+    }
+
+    /**
+     * Sprint 138 — a retirada passou a perguntar o que fazer com o projeto:
+     * repor outro avaliador (o padrão) ou só remover o parecer.
+     */
+    public function test_retirada_sem_reposicao_nao_poe_ninguem_no_lugar(): void
+    {
+        $area = Area::create(['nome' => 'Área A']);
+        $ana = $this->avaliador($area->id, null, ['name' => 'Ana Souza']);
+        // Bruno está livre e seria o substituto óbvio — é o que prova que não
+        // repor foi decisão, e não falta de candidato.
+        $this->avaliador($area->id, null, ['name' => 'Bruno Lima']);
+        $projeto = $this->projeto($area->id, 'Robô seguidor');
+
+        $designacao = $this->designar($projeto, $ana);
+        $admin = $this->admin();
+
+        $this->postJson('/api/v1/admin/avaliacao/designacoes/retirar', [
+            'avaliacao_ids' => [$designacao->id],
+            'redesignar' => false,
+        ])->assertOk()
+            ->assertJsonPath('data.retiradas', 1)
+            ->assertJsonPath('data.redesignadas', 0)
+            // Sem reposição não há projeto "sem avaliador elegível" para avisar:
+            // ninguém foi procurado.
+            ->assertJsonPath('data.sem_avaliador', []);
+
+        $this->assertSame(0, Avaliacao::where('projeto_id', $projeto->id)->count());
+
+        $registro = RegistroAtividade::where('tipo', TipoRegistro::AvaliacaoDesignacaoRetirada)->firstOrFail();
+        $this->assertSame($admin->id, $registro->user_id);
+        $this->assertSame('Ana Souza', $registro->detalhes['de']);
+        // A trilha distingue "não quis repor" de "não havia quem repor".
+        $this->assertSame(DesignacaoService::SEM_REPOSICAO, $registro->detalhes['para']);
+    }
+
+    public function test_sem_o_campo_a_retirada_continua_redesignando(): void
+    {
+        $area = Area::create(['nome' => 'Área A']);
+        $ana = $this->avaliador($area->id);
+        $bruno = $this->avaliador($area->id);
+        $projeto = $this->projeto($area->id);
+
+        $designacao = $this->designar($projeto, $ana);
+        $this->admin();
+
+        $this->postJson('/api/v1/admin/avaliacao/designacoes/retirar', [
+            'avaliacao_ids' => [$designacao->id],
+        ])->assertOk()->assertJsonPath('data.redesignadas', 1);
+
+        $this->assertDatabaseHas('avaliacoes', [
+            'projeto_id' => $projeto->id, 'avaliador_id' => $bruno->id,
+        ]);
     }
 
     public function test_quem_nao_e_admin_nao_ve_a_tabela(): void
