@@ -7,14 +7,48 @@ import { getPerfilAvaliador, salvarClassificacaoAvaliador, atualizarLocalidadeAv
 import { loadAreas, loadSubareas, criarSubarea, loadEstados, loadCidades } from '../lib/catalogos.js';
 
 /** Um número do perfil, em card. */
-function Estatistica({ icone, valor, rotulo, detalhe }) {
+function Estatistica({ icone, valor, rotulo, detalhe, extra }) {
     return (
         <div className="flex flex-col items-center text-center gap-1 bg-surface-container-lowest rounded-xl fetec-card-shadow p-5">
             <span className="material-symbols-outlined text-[32px] text-primary-container">{icone}</span>
             <span className="font-display text-3xl font-bold text-primary">{valor}</span>
             <span className="text-sm font-semibold text-on-surface">{rotulo}</span>
             {detalhe && <span className="text-xs text-on-surface-variant">{detalhe}</span>}
+            {extra}
         </div>
+    );
+}
+
+/**
+ * Quem está **imediatamente** à frente no ranking — o número, nunca o nome.
+ *
+ * O ranking é interno da organização, e dizer a um avaliador quem está à frente
+ * dele criaria constrangimento entre pessoas que precisam trabalhar juntas. O
+ * número basta para o que a linha serve: mostrar que a distância é pequena.
+ *
+ * É o vizinho, e não o líder: "falta 1 para alcançar" move; "o primeiro tem 40",
+ * não.
+ */
+function ProximoNoRanking({ est }) {
+    if (est.proximo_acima === null || est.proximo_acima === undefined) {
+        // Ninguém à frente: ou ele lidera, ou divide a liderança.
+        return est.posicao ? (
+            <span className="text-xs font-semibold text-secondary">
+                Ninguém à frente — você lidera o ranking.
+            </span>
+        ) : null;
+    }
+
+    return (
+        <span className="text-xs text-on-surface-variant">
+            Quem está logo à frente tem{' '}
+            <strong className="text-on-surface">
+                {plural(est.proximo_acima, 'avaliação concluída', 'avaliações concluídas')}
+            </strong>
+            {est.faltam_para_alcancar > 0
+                ? ` — ${est.faltam_para_alcancar === 1 ? 'falta 1' : `faltam ${est.faltam_para_alcancar}`} para alcançar.`
+                : '.'}
+        </span>
     );
 }
 
@@ -225,6 +259,7 @@ export default function AvaliadorPerfil() {
                             detalhe={est.posicao
                                 ? `entre ${plural(est.total_no_ranking, 'avaliador', 'avaliadores')}${est.empate ? ' · posição dividida' : ''}`
                                 : 'Conclua sua primeira avaliação para entrar no ranking'}
+                            extra={<ProximoNoRanking est={est} />}
                         />
                     </section>
 

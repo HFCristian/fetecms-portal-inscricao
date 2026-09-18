@@ -262,8 +262,24 @@ describe('AvaliacaoDesignacoes', () => {
         fireEvent.click(screen.getByRole('button', { name: /Retirar \(1\)/ }));
         fireEvent.click(await screen.findByRole('button', { name: 'Retirar e redesignar' }));
 
-        await waitFor(() => expect(retirarDesignacoes).toHaveBeenCalledWith([10]));
+        await waitFor(() => expect(retirarDesignacoes).toHaveBeenCalledWith([10], true));
         expect(await screen.findByText(/1 redesignada\(s\) na hora/)).toBeInTheDocument();
+    });
+
+    // Sprint 138 — desmarcar a reposição muda o verbo do botão e o que a tela
+    // promete: a designação sai e ninguém entra no lugar.
+    it('remove sem redesignar quando o admin desmarca a reposição', async () => {
+        render(<AvaliacaoDesignacoes />);
+
+        fireEvent.click(await screen.findByLabelText('Retirar Robô seguidor de Ana Souza'));
+        fireEvent.click(screen.getByRole('button', { name: /Retirar \(1\)/ }));
+
+        fireEvent.click(await screen.findByRole('checkbox', { name: /Redesignar para outro avaliador/ }));
+        expect(screen.getByText(/ninguém entra no lugar agora/)).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Apenas remover' }));
+
+        await waitFor(() => expect(retirarDesignacoes).toHaveBeenCalledWith([10], false));
     });
 
     it('filtra por situação', async () => {

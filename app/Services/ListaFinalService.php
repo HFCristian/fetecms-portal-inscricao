@@ -405,7 +405,8 @@ class ListaFinalService
         return Projeto::query()
             ->whereIn('id', $ids)
             ->withAvg(
-                ['avaliacoes as media_nota' => fn ($q) => $q->where('status', StatusAvaliacao::Concluida->value)],
+                ['avaliacoes as media_nota' => fn ($q) => $q->considerada()
+                    ->where('status', StatusAvaliacao::Concluida->value)],
                 'nota',
             )
             ->with([
@@ -432,12 +433,15 @@ class ListaFinalService
     {
         // Projeto de orientador demo não disputa vaga na feira.
         return Projeto::semDemo()
-            ->whereHas('avaliacoes', fn ($q) => $q->where('status', StatusAvaliacao::Concluida->value))
+            ->whereHas('avaliacoes', fn ($q) => $q->considerada()
+                ->where('status', StatusAvaliacao::Concluida->value))
             ->withAvg(
-                ['avaliacoes as media_nota' => fn ($q) => $q->where('status', StatusAvaliacao::Concluida->value)],
+                ['avaliacoes as media_nota' => fn ($q) => $q->considerada()
+                    ->where('status', StatusAvaliacao::Concluida->value)],
                 'nota',
             )
-            ->withCount(['avaliacoes as concluidas_count' => fn ($q) => $q->where('status', StatusAvaliacao::Concluida->value)])
+            ->withCount(['avaliacoes as concluidas_count' => fn ($q) => $q->considerada()
+                ->where('status', StatusAvaliacao::Concluida->value)])
             ->with([
                 'area:id,nome,sigla',
                 'user:id,name',

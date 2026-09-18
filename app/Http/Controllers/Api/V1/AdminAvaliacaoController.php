@@ -9,6 +9,7 @@ use App\Enums\StatusAvaliacao;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\AplicarReclassificacaoRequest;
 use App\Http\Requests\Admin\CorrigirProjetoRequest;
+use App\Http\Requests\Admin\DesconsiderarNotaRequest;
 use App\Http\Requests\Admin\DesignarAvaliacaoRequest;
 use App\Http\Requests\Admin\EncerramentoAvaliacaoRequest;
 use App\Http\Requests\Admin\LiberacaoAvaliacaoRequest;
@@ -20,6 +21,8 @@ use App\Http\Requests\Admin\ListarProjetosAvaliacaoRequest;
 use App\Http\Requests\Admin\MinimosAvaliacaoRequest;
 use App\Http\Requests\Admin\RegrasDistribuicaoRequest;
 use App\Http\Requests\Admin\RetirarDesignacoesRequest;
+use App\Http\Requests\Avaliador\ConcluirAvaliacaoRequest;
+use App\Http\Requests\Avaliador\RascunhoAvaliacaoRequest;
 use App\Models\Avaliacao;
 use App\Models\Distribuicao;
 use App\Models\Edicao;
@@ -29,11 +32,15 @@ use App\Models\User;
 use App\Models\VerificacaoDisparidade;
 use App\Services\AdminAvaliacaoService;
 use App\Services\AdminProjetoEdicaoService;
+use App\Services\AvaliacaoFluxoService;
 use App\Services\DesignacaoService;
 use App\Services\DistribuicaoService;
 use App\Services\ListaFinalService;
+use App\Services\NotasAvaliacaoService;
+use App\Services\PadroesAvaliacaoService;
 use App\Services\VerificacaoDisparidadeService;
 use App\Support\LimitesAvaliacao;
+use App\Support\Rubrica;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -75,18 +82,27 @@ class AdminAvaliacaoController extends Controller
     }
 
     /**
-     * Retira as designações marcadas e repõe cada projeto com outro avaliador.
-     * Concluída não sai; em avaliação sai descartando o rascunho.
+     * Retira as designações marcadas e, salvo pedido em contrário, repõe cada
+     * projeto com outro avaliador. Concluída não sai; em avaliação sai
+     * descartando o rascunho.
+     *
+     * `redesignar = false` remove sem pôr ninguém no lugar: é o caso do
+     * avaliador designado a mais, em que repor desfaria o que o admin pediu.
      */
     public function retirarDesignacoes(RetirarDesignacoesRequest $request): JsonResponse
     {
+        $redesignar = (bool) $request->validated('redesignar', true);
+
         $resultado = $this->designacao->retirar(
             $request->validated('avaliacao_ids'),
             $request->user(),
+            $redesignar,
         );
 
-        $mensagem = $resultado['retiradas'].' designação(ões) retirada(s), '
-            .$resultado['redesignadas'].' redesignada(s) na hora.';
+        $mensagem = $redesignar
+            ? $resultado['retiradas'].' designação(ões) retirada(s), '
+                .$resultado['redesignadas'].' redesignada(s) na hora.'
+            : $resultado['retiradas'].' designação(ões) removida(s), sem novo avaliador no lugar.';
 
         if ($resultado['sem_avaliador'] !== []) {
             $mensagem .= ' Sem avaliador elegível para: '.implode('; ', $resultado['sem_avaliador'])
@@ -497,6 +513,149 @@ class AdminAvaliacaoController extends Controller
         VerificacaoDisparidadeService $service,
     ): JsonResponse {
         return response()->json(['data' => $service->detalhar($verificacao)]);
+    }
+
+    /**
+     * Identificação de padrões: os avaliadores que avaliaram de um jeito que
+     * não parece avaliar — nota máxima em tudo, nota sistematicamente muito
+     * abaixo da dos colegas, a mesma resposta em todas as perguntas ou o envio
+     * poucos minutos depois de abrir.
+     *
+     * É consulta pura: os limiares são ajustados até o admin achar o corte que
+     * faz sentido, e registrar cada tentativa encheria a trilha de ruído. O que
+     * fica registrado é a ação que vem depois.
+     */
+    public function padroesDeAvaliacao(Request $request, PadroesAvaliacaoService $service): JsonResponse
+    {
+        $limiares = $request->validate([
+            'media_alta' => ['sometimes', 'numeric', 'min:0', 'max:'.Avaliacao::notaMaxima()],
+            'desvio_abaixo' => ['sometimes', 'numeric', 'min:0.1', 'max:'.Avaliacao::notaMaxima()],
+            'minutos_relampago' => ['sometimes', 'integer', 'min:1', 'max:1440'],
+            'min_avaliacoes' => ['sometimes', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        return response()->json(['data' => $service->analisar($limiares)]);
+    }
+
+    /**
+     * As notas de **todos** os avaliadores de um projeto, lado a lado: a nota
+     * final de cada um, quanto ele deu em cada seção da rubrica e o parecer que
+     * escreveu.
+     *
+     * É o que a lista de disparidade pede. Ela diz que a maior e a menor nota
+     * estão longe; só a comparação por seção diz **onde** a discordância
+     * nasceu, e o nome ao lado diz **com quem** falar sobre isso.
+     *
+     * POST porque cada abertura fica registrada em Registros → Notas — num GET,
+     * um prefetch do navegador gravaria consultas que ninguém fez.
+     */
+    public function notasDoProjeto(
+        Request $request,
+        Projeto $projeto,
+        NotasAvaliacaoService $service,
+    ): JsonResponse {
+        return response()->json([
+            'data' => $service->compararProjeto($projeto, $request->user()),
+        ]);
+    }
+
+    /**
+     * Tira a nota de um avaliador da classificação — sem apagar a avaliação,
+     * que continua ali com o motivo ao lado.
+     */
+    public function desconsiderarNota(
+        DesconsiderarNotaRequest $request,
+        Avaliacao $avaliacao,
+        NotasAvaliacaoService $service,
+    ): JsonResponse {
+        $dados = $service->desconsiderar(
+            $avaliacao,
+            $request->user(),
+            $request->validated('justificativa'),
+            $request->validated('substituicao'),
+        );
+
+        $mensagem = 'Nota desconsiderada — ela deixou de contar para a classificação.';
+
+        if (! empty($dados['substituicao']['mensagem'])) {
+            $mensagem .= ' '.$dados['substituicao']['mensagem'];
+        }
+
+        return response()->json(['data' => $dados, 'meta' => ['message' => $mensagem]]);
+    }
+
+    /** Volta atrás: a nota conta de novo. */
+    public function reconsiderarNota(
+        DesconsiderarNotaRequest $request,
+        Avaliacao $avaliacao,
+        NotasAvaliacaoService $service,
+    ): JsonResponse {
+        return response()->json([
+            'data' => $service->reconsiderar($avaliacao, $request->user(), $request->validated('justificativa')),
+            'meta' => ['message' => 'Nota reconsiderada — ela volta a contar para a classificação.'],
+        ]);
+    }
+
+    /**
+     * O formulário da rubrica para a avaliação que a **organização** preenche
+     * no lugar de uma nota desconsiderada.
+     *
+     * É o mesmo contrato do avaliador — mesma rubrica, mesmo wizard —, com dois
+     * portões diferentes: só o admin dono da avaliação `pela_organizacao` entra,
+     * e o período de avaliação **não o bloqueia**. Repor um parecer descartado é
+     * escape do edital, como as demais correções do admin, e costuma acontecer
+     * justamente depois do fim do prazo, quando a lista final está fechando.
+     */
+    public function formularioDaOrganizacao(Request $request, Avaliacao $avaliacao, AvaliacaoFluxoService $fluxo): JsonResponse
+    {
+        $this->garantirAvaliacaoDaOrganizacao($request, $avaliacao);
+
+        return response()->json(['data' => [
+            'pode_avaliar' => true,
+            'avaliacao' => $fluxo->paraApi($avaliacao),
+            'projeto' => $fluxo->detalhesProjeto($avaliacao->projeto),
+            'rubrica' => Rubrica::paraApi(),
+        ]]);
+    }
+
+    /** Salva o preenchimento parcial da avaliação da organização. */
+    public function rascunhoDaOrganizacao(RascunhoAvaliacaoRequest $request, Avaliacao $avaliacao, AvaliacaoFluxoService $fluxo): JsonResponse
+    {
+        $this->garantirAvaliacaoDaOrganizacao($request, $avaliacao);
+        $fluxo->salvarRascunho($avaliacao, $request->validated());
+
+        return response()->json([
+            'data' => $fluxo->paraApi($avaliacao->fresh()),
+            'meta' => ['message' => 'Rascunho salvo.'],
+        ]);
+    }
+
+    /** Envia a avaliação da organização: a nota entra na média do projeto. */
+    public function concluirDaOrganizacao(ConcluirAvaliacaoRequest $request, Avaliacao $avaliacao, AvaliacaoFluxoService $fluxo): JsonResponse
+    {
+        $this->garantirAvaliacaoDaOrganizacao($request, $avaliacao);
+        $fluxo->concluir($avaliacao, $request->validated());
+
+        return response()->json([
+            'data' => $fluxo->paraApi($avaliacao->fresh()),
+            'meta' => ['message' => 'Avaliação da organização enviada — a nota entra na média do projeto.'],
+        ]);
+    }
+
+    /**
+     * Só o admin que abriu a substituição preenche aquela avaliação. A trava é
+     * dupla de propósito: a avaliação precisa ser `pela_organizacao` (uma linha
+     * de avaliador de verdade nunca é editável por aqui) e precisa ser dele
+     * (nem outro admin escreve no parecer alheio).
+     */
+    private function garantirAvaliacaoDaOrganizacao(Request $request, Avaliacao $avaliacao): void
+    {
+        abort_unless($avaliacao->pela_organizacao, 403, 'Esta avaliação não é da organização.');
+        abort_unless(
+            $avaliacao->avaliador_id === $request->user()->id,
+            403,
+            'Esta avaliação da organização foi aberta por outro administrador.',
+        );
     }
 
     /** As listas finais oficiais já registradas na edição em curso. */

@@ -7,6 +7,23 @@ import AjudaBalao from './AjudaBalao.jsx';
 import { getAvaliacao, iniciarAvaliacao, concluirAvaliacao, salvarRascunhoAvaliacao, editarParecerAvaliacao } from '../lib/avaliacao.js';
 import { loadAreas, loadSubareas, criarSubarea } from '../lib/catalogos.js';
 
+/**
+ * As chamadas que o wizard faz. O padrão é o lado do avaliador; o admin que
+ * preenche no lugar de uma nota desconsiderada (Sprint 142) passa as dele —
+ * mesma rubrica, mesmos passos, outro endpoint e sem a trava de data.
+ *
+ * Cada entrada é um repasse, e não a função direta: assim o módulo não toca nos
+ * imports ao ser carregado, e uma tela que mocka só parte da lib (o painel do
+ * avaliador, por exemplo) continua subindo.
+ */
+const API_AVALIADOR = {
+    getAvaliacao: (...args) => getAvaliacao(...args),
+    iniciarAvaliacao: (...args) => iniciarAvaliacao(...args),
+    concluirAvaliacao: (...args) => concluirAvaliacao(...args),
+    salvarRascunhoAvaliacao: (...args) => salvarRascunhoAvaliacao(...args),
+    editarParecerAvaliacao: (...args) => editarParecerAvaliacao(...args),
+};
+
 const PILL = {
     designada: 'bg-surface-variant text-on-surface-variant',
     em_andamento: 'bg-primary-fixed text-primary-container',
@@ -378,6 +395,7 @@ function AvaliacaoEnviada({ avaliacao, rubrica }) {
  */
 export default function AvaliacaoModal({
     avaliacaoId, teste, somenteLeitura = false, onFechar, onAtualizado, onProjetoIndisponivel,
+    api = API_AVALIADOR,
 }) {
     const [dados, setDados] = useState(null); // { avaliacao, projeto, rubrica } | false (erro)
     const [form, setForm] = useState(formularioVazio);
@@ -396,10 +414,10 @@ export default function AvaliacaoModal({
     const [parecer, setParecer] = useState({ comentario_video: '', comentario_projeto: '', justificativa: '' });
 
     useEffect(() => {
-        getAvaliacao(avaliacaoId, teste)
+        api.getAvaliacao(avaliacaoId, teste)
             .then((d) => { setDados(d); setForm(formularioDe(d.avaliacao)); })
             .catch(() => setDados(false));
-    }, [avaliacaoId, teste]);
+    }, [avaliacaoId, teste, api]);
 
     // Catálogo de áreas: só faz falta enquanto a avaliação está sendo preenchida.
     useEffect(() => {
@@ -444,7 +462,7 @@ export default function AvaliacaoModal({
         if (!ok) return;
         setSalvando(true); setErro('');
         try {
-            const a = await iniciarAvaliacao(avaliacaoId, teste);
+            const a = await api.iniciarAvaliacao(avaliacaoId, teste);
             setDados((d) => ({ ...d, avaliacao: a }));
             onAtualizado?.();
         } catch (e) {
@@ -464,7 +482,7 @@ export default function AvaliacaoModal({
     async function salvarRascunho() {
         setSalvando(true); setErro(''); setErros({}); setAviso('');
         try {
-            const a = await salvarRascunhoAvaliacao(avaliacaoId, payload(), teste);
+            const a = await api.salvarRascunhoAvaliacao(avaliacaoId, payload(), teste);
             setDados((d) => ({ ...d, avaliacao: a }));
             setAviso('Rascunho salvo. Você pode continuar depois.');
             onAtualizado?.();
@@ -485,7 +503,7 @@ export default function AvaliacaoModal({
 
         setSalvando(true); setErro(''); setErros({}); setAviso('');
         try {
-            const a = await concluirAvaliacao(avaliacaoId, payload(), teste);
+            const a = await api.concluirAvaliacao(avaliacaoId, payload(), teste);
             setDados((d) => ({ ...d, avaliacao: a }));
             onAtualizado?.();
         } catch (e) {
@@ -544,7 +562,7 @@ export default function AvaliacaoModal({
     async function salvarParecer() {
         setSalvando(true); setErro(''); setAviso('');
         try {
-            const resp = await editarParecerAvaliacao(avaliacaoId, {
+            const resp = await api.editarParecerAvaliacao(avaliacaoId, {
                 comentario_video: parecer.comentario_video.trim() || null,
                 comentario_projeto: parecer.comentario_projeto.trim() || null,
                 justificativa: parecer.justificativa.trim(),

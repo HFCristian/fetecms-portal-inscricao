@@ -149,8 +149,14 @@ export const buscarOrientadores = (q) =>
     http.get('/admin/avaliacao/orientadores/opcoes', { params: q ? { q } : {} }).then((r) => r.data.data);
 
 /** Retira as designações marcadas; cada projeto vai para outro avaliador na hora. */
-export const retirarDesignacoes = (avaliacaoIds) =>
-    http.post('/admin/avaliacao/designacoes/retirar', { avaliacao_ids: avaliacaoIds }).then((r) => r.data);
+/**
+ * Retira designações. `redesignar` ligado (o padrão) devolve o projeto ao bolo e
+ * põe outro avaliador na hora; desligado, só remove o parecer daquela pessoa.
+ */
+export const retirarDesignacoes = (avaliacaoIds, redesignar = true) =>
+    http
+        .post('/admin/avaliacao/designacoes/retirar', { avaliacao_ids: avaliacaoIds, redesignar })
+        .then((r) => r.data);
 
 /** Baixa o CSV da tabela de projetos no recorte atual. */
 export async function exportarProjetosAvaliacaoCsv(filtros) {
@@ -248,6 +254,53 @@ export const gerarVerificacaoDisparidade = (diferenca) =>
 
 export const getVerificacaoDisparidade = (id) =>
     http.get(`/admin/avaliacao/disparidades/${id}`).then((r) => r.data.data);
+
+/**
+ * Identificação de padrões: os avaliadores cujas notas saíram do comum. Só
+ * consulta — os limiares são ajustados até o corte fazer sentido.
+ */
+export const getPadroesDeAvaliacao = (limiares) =>
+    http.get('/admin/avaliacao/padroes', { params: limiares }).then((r) => r.data.data);
+
+/**
+ * As notas de todos os avaliadores de um projeto, lado a lado. POST porque cada
+ * abertura fica registrada em Registros → Notas.
+ */
+export const getNotasDoProjeto = (projetoId) =>
+    http.post(`/admin/avaliacao/projetos/${projetoId}/notas`).then((r) => r.data.data);
+
+/**
+ * Tira a nota de um avaliador da classificação (ela continua na tela, marcada)
+ * ou a devolve para a conta. Justificativa obrigatória nos dois sentidos.
+ */
+export const desconsiderarNota = (avaliacaoId, justificativa) =>
+    http
+        .post(`/admin/avaliacao/avaliacoes/${avaliacaoId}/desconsiderar`, { justificativa })
+        .then((r) => r.data.data);
+
+/**
+ * As chamadas do formulário da rubrica quando quem preenche é a **organização**,
+ * no lugar de uma nota desconsiderada. Têm a forma que o AvaliacaoModal espera,
+ * para o wizard ser o mesmo dos dois lados — o admin não inicia (a avaliação já
+ * nasce aberta) nem edita parecer por aqui.
+ */
+export const API_AVALIACAO_ORGANIZACAO = {
+    getAvaliacao: (id) =>
+        http.get(`/admin/avaliacao/avaliacoes/${id}/formulario`).then((r) => r.data.data),
+    iniciarAvaliacao: (id) =>
+        http.get(`/admin/avaliacao/avaliacoes/${id}/formulario`).then((r) => r.data.data.avaliacao),
+    salvarRascunhoAvaliacao: (id, preenchimento) =>
+        http.post(`/admin/avaliacao/avaliacoes/${id}/formulario/rascunho`, preenchimento).then((r) => r.data.data),
+    concluirAvaliacao: (id, preenchimento) =>
+        http.post(`/admin/avaliacao/avaliacoes/${id}/formulario/concluir`, preenchimento).then((r) => r.data.data),
+    editarParecerAvaliacao: () =>
+        Promise.reject(new Error('O parecer da avaliação da organização não é editável por aqui.')),
+};
+
+export const reconsiderarNota = (avaliacaoId, justificativa) =>
+    http
+        .post(`/admin/avaliacao/avaliacoes/${avaliacaoId}/reconsiderar`, { justificativa })
+        .then((r) => r.data.data);
 
 /** Listas finais oficiais registradas na edição em curso. */
 export const getListasFinais = () =>

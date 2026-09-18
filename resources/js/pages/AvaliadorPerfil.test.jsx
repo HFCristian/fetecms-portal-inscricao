@@ -46,6 +46,7 @@ const PERFIL = {
         certificado_minutos: 450, certificado_label: '7h30', por_avaliacao_label: '2h30',
         certificado_teto_label: '120h', certificado_no_teto: false,
         posicao: 2, total_no_ranking: 12, empate: false,
+        proximo_acima: 4, faltam_para_alcancar: 1,
     },
     pode_trocar_area: true,
     liberada_em_label: '10/09/2026 08:00',
@@ -92,6 +93,29 @@ describe('AvaliadorPerfil — estatísticas', () => {
         renderPerfil();
 
         expect(await screen.findByText('entre 12 avaliadores · posição dividida')).toBeInTheDocument();
+    });
+
+    // Sprint 143 — o número de quem está logo à frente, nunca o nome: o ranking
+    // é interno da organização.
+    it('mostra quantas avaliações tem quem está logo à frente no ranking', async () => {
+        renderPerfil();
+
+        expect(await screen.findByText(/Quem está logo à frente tem/)).toBeInTheDocument();
+        expect(screen.getByText('4 avaliações concluídas')).toBeInTheDocument();
+        expect(screen.getByText(/falta 1 para alcançar/)).toBeInTheDocument();
+    });
+
+    it('quem lidera o ranking não tem ninguém à frente', async () => {
+        getPerfilAvaliador.mockResolvedValue({
+            ...PERFIL,
+            estatisticas: {
+                ...PERFIL.estatisticas,
+                posicao: 1, proximo_acima: null, faltam_para_alcancar: null,
+            },
+        });
+        renderPerfil();
+
+        expect(await screen.findByText(/você lidera o ranking/i)).toBeInTheDocument();
     });
 
     it('quem ainda não avaliou fica sem posição, com o convite para começar', async () => {

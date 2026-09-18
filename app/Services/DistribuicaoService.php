@@ -526,7 +526,7 @@ class DistribuicaoService
         return Projeto::semDemo()
             ->where('status', ProjetoStatus::Submetido->value)
             ->select(['id', 'titulo', 'area_id', 'subarea_id', 'categoria'])
-            ->withCount(['avaliacoes as concluidas_count' => fn ($q) => $q->where('status', StatusAvaliacao::Concluida->value)])
+            ->withCount(['avaliacoes as concluidas_count' => fn ($q) => $q->considerada()->where('status', StatusAvaliacao::Concluida->value)])
             ->with('area:id,nome')
             ->get()
             ->map(fn (Projeto $p) => [

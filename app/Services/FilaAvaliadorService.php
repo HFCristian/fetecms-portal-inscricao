@@ -268,7 +268,8 @@ class FilaAvaliadorService
             ->whereNotIn('id', [...$jaTem, ...$ignorar])
             ->select(['id', 'area_id', 'subarea_id', 'categoria'])
             ->withCount([
-                'avaliacoes as concluidas_count' => fn ($q) => $q->where('status', StatusAvaliacao::Concluida->value),
+                'avaliacoes as concluidas_count' => fn ($q) => $q->considerada()
+                    ->where('status', StatusAvaliacao::Concluida->value),
                 'avaliacoes as em_andamento_count' => fn ($q) => $q->where('status', StatusAvaliacao::EmAndamento->value),
                 'avaliacoes as total_count',
             ])

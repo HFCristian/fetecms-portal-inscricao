@@ -230,6 +230,7 @@ class PareceresOrientadorService
     private function concluidas(Projeto $projeto): Collection
     {
         return Avaliacao::where('projeto_id', $projeto->id)
+            ->considerada()
             ->where('status', StatusAvaliacao::Concluida->value)
             ->orderBy('concluida_em')
             ->orderBy('id')

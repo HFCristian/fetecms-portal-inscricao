@@ -122,6 +122,9 @@ class AvaliacaoFluxoService
         $avaliacao->update([
             'status' => StatusAvaliacao::EmAndamento,
             'atividade_em' => now(),
+            // Só a primeira abertura marca o relógio: é dela até o envio que se
+            // mede quanto tempo a avaliação levou.
+            'iniciada_em' => $avaliacao->iniciada_em ?? now(),
         ]);
     }
 
@@ -145,7 +148,10 @@ class AvaliacaoFluxoService
             return false;
         }
 
+        // A nota desconsiderada não ocupa vaga: o projeto voltou a precisar
+        // daquele parecer, e é isso que abre espaço para o substituto.
         $assumidas = Avaliacao::where('projeto_id', $projeto->id)
+            ->considerada()
             ->whereIn('status', [StatusAvaliacao::Concluida->value, StatusAvaliacao::EmAndamento->value])
             ->count();
 
@@ -210,6 +216,9 @@ class AvaliacaoFluxoService
             'devolvida_em' => null,
             'status' => StatusAvaliacao::EmAndamento,
             'atividade_em' => now(),
+            // Retomar é continuar a mesma avaliação: quem já tinha começado
+            // mantém o relógio de lá.
+            'iniciada_em' => $avaliacao->iniciada_em ?? now(),
         ]);
     }
 
@@ -231,6 +240,37 @@ class AvaliacaoFluxoService
             // trabalhando: adia o prazo da avaliação aberta.
             'atividade_em' => now(),
         ]);
+    }
+
+    /**
+     * A avaliação no formato que o formulário da rubrica lê — o mesmo para o
+     * avaliador e para o admin que preenche no lugar de uma nota
+     * desconsiderada. Duas telas, um contrato: o wizard é o mesmo componente.
+     *
+     * @return array<string, mixed>
+     */
+    public function paraApi(Avaliacao $avaliacao): array
+    {
+        $avaliacao->loadMissing(['areaSugerida:id,nome', 'subareaSugerida:id,nome']);
+
+        return [
+            'id' => $avaliacao->id,
+            'status' => $avaliacao->status->value,
+            'status_label' => $avaliacao->status->label(),
+            'nota' => $avaliacao->nota,
+            'nota_maxima' => Avaliacao::notaMaxima(),
+            'respostas' => (object) ($avaliacao->respostas ?? []),
+            'comentario_video' => $avaliacao->comentario_video,
+            'comentario_projeto' => $avaliacao->comentario_projeto,
+            'area_correta' => $avaliacao->area_correta,
+            'area_sugerida_id' => $avaliacao->area_sugerida_id,
+            'area_sugerida' => $avaliacao->areaSugerida?->nome,
+            'subarea_correta' => $avaliacao->subarea_correta,
+            'subarea_sugerida_id' => $avaliacao->subarea_sugerida_id,
+            'subarea_sugerida' => $avaliacao->subareaSugerida?->nome,
+            'rascunho_em' => $avaliacao->rascunho_em?->toIso8601String(),
+            'pela_organizacao' => (bool) $avaliacao->pela_organizacao,
+        ];
     }
 
     /**
@@ -257,7 +297,9 @@ class AvaliacaoFluxoService
             'concluida_em' => now(),
         ]);
 
-        if ($avaliador = $avaliacao->avaliador) {
+        // A avaliação que a organização preencheu no lugar de uma nota
+        // desconsiderada não repõe fila nenhuma: o admin não tem fila.
+        if (! $avaliacao->pela_organizacao && $avaliador = $avaliacao->avaliador) {
             $this->fila->repor($avaliador);
         }
     }

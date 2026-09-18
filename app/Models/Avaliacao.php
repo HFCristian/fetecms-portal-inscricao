@@ -42,8 +42,9 @@ class Avaliacao extends Model
         'comentario_video', 'comentario_projeto',
         'area_correta', 'area_sugerida_id',
         'subarea_correta', 'subarea_sugerida_id',
-        'rascunho_em', 'concluida_em', 'atividade_em', 'devolvida_em',
-        'designacao_manual',
+        'rascunho_em', 'iniciada_em', 'concluida_em', 'atividade_em', 'devolvida_em',
+        'desconsiderada_em', 'desconsiderada_por', 'desconsiderada_motivo',
+        'designacao_manual', 'pela_organizacao',
     ];
 
     /** Nota máxima da avaliação: a soma dos pesos da rubrica (10,00). */
@@ -71,10 +72,13 @@ class Avaliacao extends Model
             'area_correta' => 'boolean',
             'subarea_correta' => 'boolean',
             'rascunho_em' => 'datetime',
+            'iniciada_em' => 'datetime',
             'concluida_em' => 'datetime',
+            'desconsiderada_em' => 'datetime',
             'atividade_em' => 'datetime',
             'devolvida_em' => 'datetime',
             'designacao_manual' => 'boolean',
+            'pela_organizacao' => 'boolean',
         ];
     }
 
@@ -119,6 +123,34 @@ class Avaliacao extends Model
     }
 
     /**
+     * As avaliações que **contam para a classificação** do projeto: as que não
+     * foram desconsideradas pelo admin.
+     *
+     * É o filtro que toda média, todo ranking, toda lista final e toda conta de
+     * cobertura aplica — a nota desconsiderada continua na tabela, com o
+     * motivo, mas deixou de decidir qualquer coisa.
+     *
+     * Não é um global scope de propósito, ao contrário do
+     * {@see AvaliacaoAtivaScope}: há tantas telas que **precisam vê-la** quanto
+     * telas que precisam ignorá-la. O avaliador continua enxergando o que
+     * enviou, o certificado dele continua contando, a trilha continua
+     * mostrando, e o diálogo de notas a exibe marcada — esconder por padrão
+     * apagaria a prova que a desconsideração existe para preservar.
+     *
+     * @param  Builder<self>  $query
+     */
+    public function scopeConsiderada(Builder $query): void
+    {
+        $query->whereNull('desconsiderada_em');
+    }
+
+    /** Esta nota foi descartada da classificação pelo admin? */
+    public function foiDesconsiderada(): bool
+    {
+        return $this->desconsiderada_em !== null;
+    }
+
+    /**
      * Atravessa o {@see AvaliacaoAtivaScope} de propósito: a consulta passa a
      * enxergar também as avaliações devolvidas ao bolo. Só duas telas precisam
      * disso — a lista de rascunhos que o avaliador pode retomar e a retomada
@@ -135,6 +167,12 @@ class Avaliacao extends Model
     public function foiDevolvida(): bool
     {
         return $this->devolvida_em !== null;
+    }
+
+    /** Quem tirou esta nota da classificação (Sprint 141). */
+    public function desconsideradaPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'desconsiderada_por');
     }
 
     public function areaSugerida(): BelongsTo
