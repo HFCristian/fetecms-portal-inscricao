@@ -342,6 +342,9 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 // a justificativa, mas sai de tudo que classifica.
                 Route::post('/avaliacao/avaliacoes/{avaliacao}/desconsiderar', [AdminAvaliacaoController::class, 'desconsiderarNota']);
                 Route::post('/avaliacao/avaliacoes/{avaliacao}/reconsiderar', [AdminAvaliacaoController::class, 'reconsiderarNota']);
+                // "Eu mesmo avalio no lugar desta nota": abre a rubrica agora e
+                // deixa a desconsideração para o envio — a troca é um ato só.
+                Route::post('/avaliacao/avaliacoes/{avaliacao}/avaliar-no-lugar', [AdminAvaliacaoController::class, 'avaliarNoLugarDaNota']);
                 // A avaliação que a própria organização preenche no lugar da
                 // nota descartada: mesma rubrica, sem a trava de data.
                 Route::get('/avaliacao/avaliacoes/{avaliacao}/formulario', [AdminAvaliacaoController::class, 'formularioDaOrganizacao']);

@@ -272,10 +272,26 @@ export const getNotasDoProjeto = (projetoId) =>
 /**
  * Tira a nota de um avaliador da classificação (ela continua na tela, marcada)
  * ou a devolve para a conta. Justificativa obrigatória nos dois sentidos.
+ *
+ * `substituicao` diz o que entra no lugar: `{ tipo: 'nenhuma' }` ou
+ * `{ tipo: 'avaliador', avaliador_id }`. Ela **precisa** viajar junto — a
+ * escolha era montada na tela e ficava ali, então designar o substituto no
+ * mesmo ato nunca chegava ao servidor.
  */
-export const desconsiderarNota = (avaliacaoId, justificativa) =>
+export const desconsiderarNota = (avaliacaoId, justificativa, substituicao) =>
     http
-        .post(`/admin/avaliacao/avaliacoes/${avaliacaoId}/desconsiderar`, { justificativa })
+        .post(`/admin/avaliacao/avaliacoes/${avaliacaoId}/desconsiderar`, { justificativa, substituicao })
+        .then((r) => r.data.data);
+
+/**
+ * "Eu mesmo avalio no lugar desta nota": abre (ou retoma) a avaliação da
+ * organização **sem desconsiderar nada**. A nota antiga só sai da classificação
+ * quando esta avaliação for enviada, então abrir a rubrica não custa nada ao
+ * projeto e desistir no meio não deixa buraco.
+ */
+export const avaliarNoLugarDaNota = (avaliacaoId, justificativa) =>
+    http
+        .post(`/admin/avaliacao/avaliacoes/${avaliacaoId}/avaliar-no-lugar`, { justificativa })
         .then((r) => r.data.data);
 
 /**

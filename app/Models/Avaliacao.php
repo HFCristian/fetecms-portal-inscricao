@@ -45,6 +45,7 @@ class Avaliacao extends Model
         'rascunho_em', 'iniciada_em', 'concluida_em', 'atividade_em', 'devolvida_em',
         'desconsiderada_em', 'desconsiderada_por', 'desconsiderada_motivo',
         'designacao_manual', 'pela_organizacao',
+        'substitui_avaliacao_id', 'substituicao_motivo',
     ];
 
     /** Nota máxima da avaliação: a soma dos pesos da rubrica (10,00). */
@@ -193,5 +194,30 @@ class Avaliacao extends Model
     public function avaliador(): BelongsTo
     {
         return $this->belongsTo(User::class, 'avaliador_id');
+    }
+
+    /**
+     * A nota que esta avaliação da organização veio substituir.
+     *
+     * Enquanto ela está sendo preenchida, o vínculo é uma **intenção**: a nota
+     * antiga continua contando, e é o envio que a tira da classificação. Depois
+     * disso ele vira o histórico de onde aquele parecer veio.
+     */
+    public function notaSubstituida(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'substitui_avaliacao_id');
+    }
+
+    /**
+     * Uma substituição ainda **em aberto**: o admin abriu a rubrica no lugar de
+     * uma nota e não enviou. É o que a tela de notas precisa saber para oferecer
+     * a retomada — sem isso o rascunho fica inalcançável, já que o formulário da
+     * organização só se abre por ali.
+     */
+    public function substituicaoEmAberto(): bool
+    {
+        return $this->pela_organizacao
+            && $this->substitui_avaliacao_id !== null
+            && $this->status !== StatusAvaliacao::Concluida;
     }
 }
