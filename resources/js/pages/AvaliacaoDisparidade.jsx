@@ -129,8 +129,10 @@ export default function AvaliacaoDisparidade() {
     const [notas, setNotas] = useState(null);      // { carregando, dados, erro }
     const [aba, setAba] = useState('projetos');
     // Substituição "eu mesmo avalio": a rubrica abre na hora, por cima do
-    // diálogo de notas.
-    const [avaliandoId, setAvaliandoId] = useState(null);
+    // diálogo de notas. `substituindo` guarda a nota que sai quando esta
+    // avaliação for enviada — é o que o aviso no topo do formulário diz, e o
+    // que faz o admin saber o que está trocando enquanto preenche.
+    const [avaliando, setAvaliando] = useState(null); // { id, avaliador, nota }
 
     const carregarHistorico = useCallback(() => {
         getVerificacoesDisparidade()
@@ -305,17 +307,28 @@ export default function AvaliacaoDisparidade() {
                     erro={notas.erro}
                     onFechar={() => setNotas(null)}
                     onAtualizar={(dados) => setNotas({ carregando: false, dados, erro: '' })}
-                    onAvaliarAgora={setAvaliandoId}
+                    onAvaliarAgora={(id, substituida) => setAvaliando({
+                        id,
+                        avaliador: substituida?.avaliador,
+                        nota: substituida?.nota,
+                    })}
                 />
             )}
 
-            {avaliandoId && (
+            {avaliando && (
                 <AvaliacaoModal
-                    avaliacaoId={avaliandoId}
+                    avaliacaoId={avaliando.id}
                     api={API_AVALIACAO_ORGANIZACAO}
-                    onFechar={() => setAvaliandoId(null)}
+                    avisoTopo={avaliando.avaliador
+                        ? `Ao enviar esta avaliação, a nota de ${avaliando.avaliador}`
+                          + `${avaliando.nota != null ? ` (${nota(avaliando.nota)})` : ''}`
+                          + ' sai da classificação, com a justificativa que você escreveu.'
+                          + ' Até lá ela continua contando.'
+                        : null}
+                    onFechar={() => setAvaliando(null)}
                     onAtualizado={() => {
-                        // A nota nova entra na média: recarrega a comparação.
+                        // A nota nova entra na média (e a substituída sai):
+                        // recarrega a comparação.
                         if (notas?.dados?.projeto?.id) verNotas({ projeto_id: notas.dados.projeto.id });
                     }}
                 />

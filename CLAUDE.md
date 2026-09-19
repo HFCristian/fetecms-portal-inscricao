@@ -280,8 +280,13 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     avaliador continuam contando, porque quem descartou foi a organização. Desfazer também pede
     justificativa, e os dois atos entram em **Registros → Notas**. No mesmo passo ele escolhe o que
     entra no lugar: **nada**, **outro avaliador** (designação manual, com e-mail) ou **ele
-    mesmo** — uma avaliação `pela_organizacao`, com a **mesma rubrica**, aberta na hora, que conta
-    para o projeto e não para a pessoa (fora do ranking de avaliadores e do certificado).
+    mesmo** — uma avaliação `pela_organizacao`, com a **mesma rubrica**, que conta para o projeto e
+    não para a pessoa (fora do ranking de avaliadores e do certificado). Escolhendo avaliar ele
+    mesmo, a **rubrica abre antes**: a justificativa fica guardada na própria avaliação
+    (`avaliacoes.substitui_avaliacao_id` + `substituicao_motivo`) e a nota antiga só sai da
+    classificação **no envio** — a troca é um ato só. Enquanto ele preenche, a nota continua
+    contando; desistir no meio não deixa buraco, e o cartão dela oferece a **retomada** do
+    rascunho, que é o único caminho de volta ao formulário.
     `VerificacaoDisparidadeService`, `PadroesAvaliacaoService`, `NotasAvaliacaoService`.
   - **Avaliação Online → Listas finais oficiais** (`/admin/avaliacao/listas-finais`): as listas
     geradas com a caixa **Lista Final Oficial** marcada ficam registradas. A **vigente** da edição
@@ -722,13 +727,44 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 135 | Avaliação **no estande**: rubrica própria, nota separada, teto de 3 por projeto | ✅ sim | ❌ não (manual do Pedro) | 42 |
 | 136 | Contas temporárias: **presença** no primeiro acesso, aprovada ou rejeitada pelo setor | ✅ sim | ❌ não (manual do Pedro) | 43 |
 | 137 | Comitê especial → **Designações** restritas aos avaliadores da comissão | ✅ sim | ❌ não (manual do Pedro) | 43 |
-| 138 | Retirada de designação: escolher entre **redesignar** e **apenas remover** | ✅ sim | ❌ não (manual do Pedro) | 44 |
-| 139 | Disparidade → **Ver notas**: os avaliadores do projeto lado a lado, por seção | ✅ sim | ❌ não (manual do Pedro) | 44 |
-| 140 | Disparidade em abas + **Identificação de padrões** (4 sinais por avaliador) | ✅ sim | ❌ não (manual do Pedro) | 45 |
-| 141 | **Desconsiderar** a nota de um avaliador, com justificativa e reversível | ✅ sim | ❌ não (manual do Pedro) | 45 |
-| 142 | Substituir a nota desconsiderada: outro avaliador ou o **próprio admin** | ✅ sim | ❌ não (manual do Pedro) | 46 |
-| 143 | Perfil do avaliador: quantas avaliações tem quem está **logo à frente** | ✅ sim | ❌ não (manual do Pedro) | 46 |
+| 138 | Retirada de designação: escolher entre **redesignar** e **apenas remover** | ✅ sim | ✅ sim (Pedro, PR #89 → v1.26) | 0 |
+| 139 | Disparidade → **Ver notas**: os avaliadores do projeto lado a lado, por seção | ✅ sim | ✅ sim (Pedro, PR #89 → v1.26) | 0 |
+| 140 | Disparidade em abas + **Identificação de padrões** (4 sinais por avaliador) | ✅ sim | ✅ sim (Pedro, PR #89 → v1.26) | 0 |
+| 141 | **Desconsiderar** a nota de um avaliador, com justificativa e reversível | ✅ sim | ✅ sim (Pedro, PR #89 → v1.26) | 0 |
+| 142 | Substituir a nota desconsiderada: outro avaliador ou o **próprio admin** | ✅ sim | ✅ sim (Pedro, PR #89 → v1.26) | 0 |
+| 143 | Perfil do avaliador: quantas avaliações tem quem está **logo à frente** | ✅ sim | ✅ sim (Pedro, PR #89 → v1.26) | 0 |
+| 144 | Avaliar no lugar da nota: a rubrica abre **antes**, e o envio é que desconsidera | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprint 144 (branch `feat/avaliar-antes-de-desconsiderar`, saída da `origin/main` @ `404f42c`):**
+> "eu mesmo avalio no lugar desta nota" passou a **começar pela rubrica**.
+> A ordem da Sprint 142 era: justificativa → a nota sai da classificação → nasce a avaliação da
+> organização → o admin preenche. Ele descartava um parecer **antes de ter lido o projeto**, e
+> desistir no meio deixava o pior dos dois mundos — o projeto com uma nota a menos e nada no lugar,
+> justamente na semana em que a lista final fecha. Agora o clique abre o **painel de avaliação
+> daquele projeto** na hora, e a nota antiga **só sai no envio**: a substituição é um ato só.
+> Entre os dois momentos existe uma intenção guardada, e ela **não cabe na tela** — o rascunho é
+> retomável, inclusive noutra sessão, e a justificativa escrita lá atrás precisa chegar inteira ao
+> registro. Por isso ela mora na própria linha da avaliação da organização
+> (`avaliacoes.substitui_avaliacao_id` + `substituicao_motivo`), e não no estado do React.
+> O envio é `POST .../formulario/concluir` de sempre, agora numa transação que conclui a avaliação
+> **e** grava a desconsideração com aquela justificativa (`NotasAvaliacaoService::enviarSubstituicao`);
+> se a nota já tiver saído por outro caminho nesse meio-tempo, o envio passa reto, em vez de contar
+> duas vezes o que aconteceu uma. Abrir virou endpoint próprio
+> (`POST /admin/avaliacao/avaliacoes/{avaliacao}/avaliar-no-lugar`) e o `tipo: 'admin'` saiu do
+> `/desconsiderar` — aquele caminho não existe mais.
+> A retomada precisou existir junto: o wizard da organização só se abre pelo diálogo de notas,
+> então um rascunho abandonado ficaria inalcançável. O cartão da nota passa a dizer que há uma
+> substituição a caminho — com **Continuar a avaliação** para quem a abriu, e só o aviso para os
+> outros admins, que não preenchem parecer alheio e não devem abrir o mesmo buraco duas vezes. No
+> topo do formulário, um aviso diz **qual nota sai quando ele enviar**: quem preenche precisa ler
+> isso antes de responder, não depois.
+> De quebra, um defeito que tornava a Sprint 142 inoperante em produção: `desconsiderarNota` em
+> `lib/admin.js` recebia a substituição escolhida e **não a mandava** no corpo da requisição, então
+> nem "designar outro avaliador" nem "eu mesmo avalio" chegavam ao servidor — desconsiderar sempre
+> caía em "apenas desconsiderar". Os testes de tela mockavam esse helper e nunca viam o payload;
+> agora há teste de contrato sobre ele (`lib/admin.test.js`).
+> Back **1140/1140**, front **550/550**, Pint limpo, build OK.
+>
 > **Sprints 138–143 (branch `feat/disparidade-e-auditoria-de-notas`, saída da `origin/main` @ `b9e0c0d`):**
 > o ciclo da **auditoria da nota** — o que fazer quando o número que decide a lista final não
 > merece confiança.
@@ -1645,6 +1681,24 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > e **Escolas** (`/admin/parametrizacao/escolas`): admin busca, **renomeia, mescla** (reatribui
 > projetos/alunos/orientadores) e **exclui** instituições sem uso (`InstituicaoAdminService`/Controller,
 > rotas `admin/instituicoes`). Back **117/117**, front 11/11, Pint limpo, build OK.
+> **Pendências do Pedro (Sprint 144):** (1) `git push origin feat/avaliar-antes-de-desconsiderar`
+> + PR para a `main` (o ambiente do Claude não tem credencial do GitHub) e, depois do merge, o
+> deploy pela §11 do [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). Esta release **tem migration**
+> (`avaliacoes.substitui_avaliacao_id` e `avaliacoes.substituicao_motivo`), **nenhuma variável
+> nova de `.env`** e **nenhuma dependência nova**.
+> (2) **A substituição feita pela Sprint 142 nunca funcionou em produção**: a escolha de
+> substituto não era enviada ao servidor, então todo "desconsiderar" virou "apenas desconsiderar".
+> Se algum projeto foi desconsiderado esperando o substituto chegar, ele **ficou sem** — vale
+> olhar em Registros → Notas quem foi desconsiderado até aqui e conferir a cobertura desses
+> projetos.
+> (3) **O fluxo mudou de ordem**: escolher "Eu mesmo avalio agora" **não desconsidera mais na
+> hora** — o botão passa a se chamar *Avaliar agora*, a rubrica abre e a nota antiga só sai quando
+> a avaliação for **enviada**. Fechar a rubrica no meio não tira nada de ninguém; a avaliação fica
+> em rascunho e o cartão da nota mostra *Continuar a avaliação*.
+> (4) Enquanto uma substituição está aberta e não enviada, o projeto tem uma avaliação **em
+> andamento** a mais em Designações. É esperado: ela vira nota no envio, ou fica esperando o admin
+> que a abriu.
+>
 > **Pendências do Pedro (Sprints 138–143):** (1) `git push origin feat/disparidade-e-auditoria-de-notas`
 > + PR para a `main` (o ambiente do Claude não tem credencial do GitHub) e, depois do merge,
 > o deploy pela §11 do [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). Esta release **tem

@@ -28,8 +28,12 @@ class DesconsiderarNotaRequest extends FormRequest
             // O que entra no lugar da nota que saiu. Ausente vale como
             // "nenhuma": desconsiderar sem repor é decisão legítima quando o
             // projeto ainda tem pareceres de sobra.
+            //
+            // "o próprio admin avalia" não é uma opção **deste** endpoint desde
+            // a Sprint 144: ali a rubrica abre antes (avaliar-no-lugar) e a
+            // desconsideração acontece no envio dela.
             'substituicao' => ['sometimes', 'nullable', 'array'],
-            'substituicao.tipo' => ['required_with:substituicao', Rule::in(['nenhuma', 'avaliador', 'admin'])],
+            'substituicao.tipo' => ['required_with:substituicao', Rule::in(['nenhuma', 'avaliador'])],
             'substituicao.avaliador_id' => [
                 'exclude_unless:substituicao.tipo,avaliador',
                 'required', 'integer',

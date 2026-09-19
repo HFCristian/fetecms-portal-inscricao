@@ -395,7 +395,7 @@ function AvaliacaoEnviada({ avaliacao, rubrica }) {
  */
 export default function AvaliacaoModal({
     avaliacaoId, teste, somenteLeitura = false, onFechar, onAtualizado, onProjetoIndisponivel,
-    api = API_AVALIADOR,
+    api = API_AVALIADOR, avisoTopo = null,
 }) {
     const [dados, setDados] = useState(null); // { avaliacao, projeto, rubrica } | false (erro)
     const [form, setForm] = useState(formularioVazio);
@@ -607,6 +607,12 @@ export default function AvaliacaoModal({
                         <Alert>Não foi possível carregar o projeto.</Alert>
                     ) : (
                         <>
+                            {/* O que esta avaliação significa fora dela mesma —
+                                hoje, a nota que sai da classificação quando ela
+                                for enviada. Quem preenche precisa ler isso antes
+                                de responder, não depois. */}
+                            {avisoTopo && <Alert type="info">{avisoTopo}</Alert>}
+
                             <div className="flex items-center justify-between gap-3 border-b border-surface-variant pb-2">
                                 <h4 className="font-display text-primary font-semibold">Projeto</h4>
                                 <button

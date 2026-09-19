@@ -584,6 +584,33 @@ class AdminAvaliacaoController extends Controller
         return response()->json(['data' => $dados, 'meta' => ['message' => $mensagem]]);
     }
 
+    /**
+     * Abre a rubrica **antes** de desconsiderar: o admin decide avaliar ele
+     * mesmo no lugar de uma nota, e o formulário abre na hora.
+     *
+     * A nota antiga não sai da classificação aqui — ela sai no **envio** desta
+     * avaliação. Até lá o projeto não perde nada, e desistir no meio não custa:
+     * o rascunho espera e a nota continua contando. A justificativa é escrita
+     * agora, com o motivo fresco, e é ela que vai para Registros → Notas quando
+     * a troca se completar.
+     */
+    public function avaliarNoLugarDaNota(
+        DesconsiderarNotaRequest $request,
+        Avaliacao $avaliacao,
+        NotasAvaliacaoService $service,
+    ): JsonResponse {
+        $dados = $service->abrirSubstituicao(
+            $avaliacao,
+            $request->user(),
+            $request->validated('justificativa'),
+        );
+
+        return response()->json([
+            'data' => $dados,
+            'meta' => ['message' => $dados['substituicao']['mensagem']],
+        ]);
+    }
+
     /** Volta atrás: a nota conta de novo. */
     public function reconsiderarNota(
         DesconsiderarNotaRequest $request,
@@ -630,15 +657,30 @@ class AdminAvaliacaoController extends Controller
         ]);
     }
 
-    /** Envia a avaliação da organização: a nota entra na média do projeto. */
-    public function concluirDaOrganizacao(ConcluirAvaliacaoRequest $request, Avaliacao $avaliacao, AvaliacaoFluxoService $fluxo): JsonResponse
-    {
+    /**
+     * Envia a avaliação da organização: a nota entra na média do projeto e,
+     * quando ela foi aberta no lugar de outra, é este envio que desconsidera a
+     * nota substituída — as duas coisas na mesma transação.
+     */
+    public function concluirDaOrganizacao(
+        ConcluirAvaliacaoRequest $request,
+        Avaliacao $avaliacao,
+        AvaliacaoFluxoService $fluxo,
+        NotasAvaliacaoService $notas,
+    ): JsonResponse {
         $this->garantirAvaliacaoDaOrganizacao($request, $avaliacao);
-        $fluxo->concluir($avaliacao, $request->validated());
+
+        $substituida = $notas->enviarSubstituicao($avaliacao, $request->user(), $request->validated());
+
+        $mensagem = 'Avaliação da organização enviada — a nota entra na média do projeto.';
+
+        if ($substituida !== null) {
+            $mensagem .= ' A nota de '.$substituida['avaliador'].' saiu da classificação.';
+        }
 
         return response()->json([
             'data' => $fluxo->paraApi($avaliacao->fresh()),
-            'meta' => ['message' => 'Avaliação da organização enviada — a nota entra na média do projeto.'],
+            'meta' => ['message' => $mensagem, 'substituida' => $substituida],
         ]);
     }
 

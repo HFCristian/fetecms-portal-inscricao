@@ -5,7 +5,12 @@ vi.mock('../components/AppShell.jsx', () => ({ default: ({ children }) => <div>{
 // O wizard da rubrica tem vida própria; aqui só interessa que ele abra com a
 // avaliação certa.
 vi.mock('../components/AvaliacaoModal.jsx', () => ({
-    default: ({ avaliacaoId }) => <div>Rubrica da avaliação {avaliacaoId}</div>,
+    default: ({ avaliacaoId, avisoTopo }) => (
+        <div>
+            <p>Rubrica da avaliação {avaliacaoId}</p>
+            {avisoTopo && <p>{avisoTopo}</p>}
+        </div>
+    ),
 }));
 vi.mock('react-router-dom', () => ({
     Link: ({ children, to }) => <a href={to}>{children}</a>,
@@ -17,6 +22,7 @@ const getVerificacaoDisparidade = vi.fn();
 const getNotasDoProjeto = vi.fn();
 const getPadroesDeAvaliacao = vi.fn();
 const desconsiderarNota = vi.fn();
+const avaliarNoLugarDaNota = vi.fn();
 const reconsiderarNota = vi.fn();
 const getOpcoesDesignacao = vi.fn();
 vi.mock('../lib/admin.js', () => ({
@@ -26,6 +32,7 @@ vi.mock('../lib/admin.js', () => ({
     getNotasDoProjeto: (...a) => getNotasDoProjeto(...a),
     getPadroesDeAvaliacao: (...a) => getPadroesDeAvaliacao(...a),
     desconsiderarNota: (...a) => desconsiderarNota(...a),
+    avaliarNoLugarDaNota: (...a) => avaliarNoLugarDaNota(...a),
     reconsiderarNota: (...a) => reconsiderarNota(...a),
     getOpcoesDesignacao: (...a) => getOpcoesDesignacao(...a),
     API_AVALIACAO_ORGANIZACAO: {},
@@ -103,6 +110,21 @@ const NOTAS_COM_DESCARTE = {
     desconsideradas: 1,
 };
 
+/**
+ * Sprint 144 — o admin abriu a rubrica no lugar da nota da Ana e ainda não
+ * enviou: a nota dela **continua contando** e o cartão oferece a retomada.
+ */
+const NOTAS_COM_SUBSTITUICAO_ABERTA = {
+    ...NOTAS,
+    avaliadores: [
+        { ...NOTAS.avaliadores[0], substituicao_em_aberto: { avaliacao_id: 77, por: 'Admin', minha: true } },
+        { ...NOTAS.avaliadores[1] },
+    ],
+    consideradas: 2,
+    desconsideradas: 0,
+    substituicao: { tipo: 'admin', avaliacao_id: 77, substitui_avaliacao_id: 1 },
+};
+
 /** O que a aba de padrões devolve: um avaliador com dois sinais. */
 const PADROES = {
     limiares: { media_alta: 9.5, desvio_abaixo: 2, minutos_relampago: 10, min_avaliacoes: 3 },
@@ -142,6 +164,7 @@ describe('AvaliacaoDisparidade', () => {
         getNotasDoProjeto.mockResolvedValue(NOTAS);
         getPadroesDeAvaliacao.mockResolvedValue(PADROES);
         desconsiderarNota.mockResolvedValue(NOTAS_COM_DESCARTE);
+        avaliarNoLugarDaNota.mockResolvedValue(NOTAS_COM_SUBSTITUICAO_ABERTA);
         getOpcoesDesignacao.mockResolvedValue({
             avaliadores: [{ id: 6, nome: 'Bruno Lima', area: 'Exatas', na_fila: 2 }],
         });
@@ -313,11 +336,12 @@ describe('AvaliacaoDisparidade', () => {
         ));
     });
 
-    it('desconsidera e abre a rubrica quando o admin decide avaliar na hora', async () => {
-        desconsiderarNota.mockResolvedValue({
-            ...NOTAS_COM_DESCARTE,
-            substituicao: { tipo: 'admin', avaliacao_id: 77, mensagem: 'Preencha a rubrica agora.' },
-        });
+    /**
+     * Sprint 144 — a rubrica abre **antes**: quem decide avaliar no lugar de
+     * uma nota lê o projeto e preenche primeiro, e a nota antiga só sai da
+     * classificação no envio.
+     */
+    it('abre a rubrica sem desconsiderar quando o admin decide avaliar na hora', async () => {
         render(<AvaliacaoDisparidade />);
 
         fireEvent.click(screen.getByRole('button', { name: /Gerar lista/i }));
@@ -330,14 +354,34 @@ describe('AvaliacaoDisparidade', () => {
             target: { value: 'Nota incompatível com o trabalho.' },
         });
         fireEvent.click(screen.getByRole('radio', { name: /Eu mesmo avalio agora/i }));
-        fireEvent.click(screen.getByRole('button', { name: /^Desconsiderar$/ }));
+        fireEvent.click(screen.getByRole('button', { name: /^Avaliar agora$/ }));
 
-        await waitFor(() => expect(desconsiderarNota).toHaveBeenCalledWith(
+        await waitFor(() => expect(avaliarNoLugarDaNota).toHaveBeenCalledWith(
             1,
             'Nota incompatível com o trabalho.',
-            { tipo: 'admin' },
         ));
+        // Nada foi desconsiderado neste clique.
+        expect(desconsiderarNota).not.toHaveBeenCalled();
+
         expect(await screen.findByText('Rubrica da avaliação 77')).toBeInTheDocument();
+        // E o formulário diz o que acontece quando ele enviar.
+        expect(screen.getByText(/nota de Ana Souza \(9,50\) sai da classificação/)).toBeInTheDocument();
+        // A nota dela continua na tabela, sem risco: ela ainda conta.
+        expect(screen.queryByText(/não conta para a classificação/)).not.toBeInTheDocument();
+    });
+
+    it('retoma a avaliação aberta no lugar de uma nota', async () => {
+        getNotasDoProjeto.mockResolvedValue(NOTAS_COM_SUBSTITUICAO_ABERTA);
+        render(<AvaliacaoDisparidade />);
+
+        fireEvent.click(screen.getByRole('button', { name: /Gerar lista/i }));
+        fireEvent.click(await screen.findByRole('button', { name: /Ver notas/i }));
+
+        expect(await screen.findByText(/Você abriu uma avaliação no lugar desta nota/)).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: /Continuar a avaliação/i }));
+
+        expect(await screen.findByText('Rubrica da avaliação 77')).toBeInTheDocument();
+        expect(avaliarNoLugarDaNota).not.toHaveBeenCalled();
     });
 
     it('mostra o erro do servidor sem apagar o formulário', async () => {

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import BuscaCombobox from './BuscaCombobox.jsx';
 import { Alert, Button } from './ui.jsx';
-import { desconsiderarNota, getOpcoesDesignacao, reconsiderarNota } from '../lib/admin.js';
+import { avaliarNoLugarDaNota, desconsiderarNota, getOpcoesDesignacao, reconsiderarNota } from '../lib/admin.js';
 import { extractErrors } from '../lib/auth.jsx';
 
 /** Nota em pt_BR com duas casas (6,74). */
@@ -26,6 +26,10 @@ function CartaoAvaliador({ avaliador, onAtualizar, onAvaliarAgora }) {
     const [erro, setErro] = useState('');
 
     const desconsiderada = avaliador.desconsiderada;
+    // Uma avaliação da organização já aberta no lugar desta nota, ainda não
+    // enviada. É a única porta de volta ao formulário: o wizard da organização
+    // só se abre por aqui.
+    const substituindo = avaliador.substituicao_em_aberto;
 
     // A lista de avaliadores só é buscada quando ela vai ser usada: abrir o
     // diálogo de notas não precisa pagar por ela.
@@ -42,18 +46,18 @@ function CartaoAvaliador({ avaliador, onAtualizar, onAvaliarAgora }) {
         try {
             if (desconsiderada) {
                 onAtualizar(await reconsiderarNota(avaliador.avaliacao_id, justificativa));
+            } else if (substituicao === 'admin') {
+                // A rubrica abre **antes**: a nota antiga só sai da
+                // classificação quando esta avaliação for enviada. Desistir no
+                // meio não deixa o projeto com um parecer a menos.
+                const dados = await avaliarNoLugarDaNota(avaliador.avaliacao_id, justificativa);
+                onAtualizar(dados);
+                onAvaliarAgora?.(dados.substituicao.avaliacao_id, avaliador);
             } else {
-                const dados = await desconsiderarNota(avaliador.avaliacao_id, justificativa, {
+                onAtualizar(await desconsiderarNota(avaliador.avaliacao_id, justificativa, {
                     tipo: substituicao,
                     ...(substituicao === 'avaliador' ? { avaliador_id: escolhido?.id } : {}),
-                });
-                onAtualizar(dados);
-
-                // "Eu mesmo avalio" só faz sentido se a avaliação abrir na hora:
-                // é para isso que a substituição já nasce em andamento.
-                if (dados.substituicao?.tipo === 'admin') {
-                    onAvaliarAgora?.(dados.substituicao.avaliacao_id);
-                }
+                }));
             }
             setAbrindo(false);
             setJustificativa('');
@@ -92,6 +96,25 @@ function CartaoAvaliador({ avaliador, onAtualizar, onAvaliarAgora }) {
                     {avaliador.desconsiderada_em_label ? ` em ${avaliador.desconsiderada_em_label}` : ''}:{' '}
                     <em>{avaliador.desconsiderada_motivo}</em>
                 </p>
+            )}
+
+            {substituindo && !desconsiderada && (
+                <div className="rounded-lg border border-primary/30 bg-primary/5 p-2 space-y-1">
+                    <p className="text-on-surface">
+                        {substituindo.minha
+                            ? 'Você abriu uma avaliação no lugar desta nota — ela continua contando até você enviar a sua.'
+                            : `${substituindo.por} abriu uma avaliação no lugar desta nota — ela continua contando até o envio.`}
+                    </p>
+                    {substituindo.minha && (
+                        <button
+                            type="button"
+                            onClick={() => onAvaliarAgora?.(substituindo.avaliacao_id, avaliador)}
+                            className="font-semibold text-primary hover:underline"
+                        >
+                            Continuar a avaliação
+                        </button>
+                    )}
+                </div>
             )}
 
             {avaliador.recomendacao_video && (
@@ -136,7 +159,7 @@ function CartaoAvaliador({ avaliador, onAtualizar, onAvaliarAgora }) {
                             {[
                                 ['nenhuma', 'Apenas desconsiderar', 'O projeto fica com um parecer a menos.'],
                                 ['avaliador', 'Designar outro avaliador', 'Ele recebe o projeto e o aviso por e-mail.'],
-                                ['admin', 'Eu mesmo avalio agora', 'Abre a rubrica na hora, em nome da organização.'],
+                                ['admin', 'Eu mesmo avalio agora', 'Abre a rubrica na hora; esta nota sai da classificação quando você enviar a sua.'],
                             ].map(([valor, rotulo, ajuda]) => (
                                 <label key={valor} className="flex items-start gap-2 cursor-pointer">
                                     <input
@@ -181,7 +204,9 @@ function CartaoAvaliador({ avaliador, onAtualizar, onAvaliarAgora }) {
                             disabled={!desconsiderada && substituicao === 'avaliador' && !escolhido}
                             onClick={confirmar}
                         >
-                            {desconsiderada ? 'Voltar a considerar' : 'Desconsiderar'}
+                            {desconsiderada
+                                ? 'Voltar a considerar'
+                                : substituicao === 'admin' ? 'Avaliar agora' : 'Desconsiderar'}
                         </Button>
                     </div>
                 </div>
