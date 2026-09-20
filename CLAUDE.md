@@ -548,6 +548,7 @@ npm test                          # testes de componente (Vitest)
 
 # Carga (k6 — instalar separadamente): k6 run load/k6-smoke.js
 # php artisan demo:ajustes           # projeto-exemplo da aba Ajustes (3 sugestões, 3 avaliadores)
+# php artisan demo:pareceres          # projeto já avaliado: abas Pareceres (níveis) e Ajustes
 # php artisan demo:credenciamento     # lista final de demonstração, para ensaiar o balcão
 # Admin padrão (seed): admin@fetecms.test / password
 ```
@@ -734,8 +735,33 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 142 | Substituir a nota desconsiderada: outro avaliador ou o **próprio admin** | ✅ sim | ✅ sim (Pedro, PR #89 → v1.26) | 0 |
 | 143 | Perfil do avaliador: quantas avaliações tem quem está **logo à frente** | ✅ sim | ✅ sim (Pedro, PR #89 → v1.26) | 0 |
 | 144 | Avaliar no lugar da nota: a rubrica abre **antes**, e o envio é que desconsidera | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 145 | `demo:pareceres`: projeto já avaliado, com pareceres em níveis e ajustes para o orientador demo | ✅ sim | ❌ não (manual do Pedro) | 2 |
 
-> **Sprint 144 (branch `feat/avaliar-antes-de-desconsiderar`, saída da `origin/main` @ `404f42c`):**
+> **Sprint 145 (branch `feat/demo-pareceres-ajustes`, saída da `main` @ `94dd9f6`):**
+> ensaiar o **pós-avaliação** pelo lado do orientador — as abas **Pareceres** e **Ajustes** —
+> antes de a organização abrir o período. O `demo:ajustes` já montava um projeto avaliado, mas
+> responde as 17 perguntas da rubrica com **o mesmo valor** (8 / Sim): a aba Ajustes fica correta e
+> a aba Pareceres diz **"Ponto forte" nas dez seções**, que é justamente o que não se precisa ver.
+> O `php artisan demo:pareceres` monta um segundo projeto em que as notas se distribuem: quatro
+> seções fortes, quatro médias e duas fracas (Resultados e Referências), com os três avaliadores
+> discordando entre si e as **recomendações escritas cobrando as seções fracas** — parecer que
+> elogia o que a nota reprova confunde quem está conferindo a tela.
+> O comando não escreve pergunta a pergunta: uma tabela diz **quanto cada seção rendeu, de 0 a 10,
+> na cabeça de cada avaliador** (`SemearPareceresDemo::PERFIL`) e a rubrica converte isso em
+> resposta — escala de dois em dois nas perguntas "de que modo…", Sim/Não nas outras. É o que faz
+> a nota sair coerente com os pesos do edital sem ninguém calcular o 0,5375 de Objetivos à mão, e o
+> que prende o nível de cada seção ao corte do `PareceresOrientadorService` (8 forte, 4 médio) — que
+> normaliza a seção em 0 a 10, senão o Título, que vale 0,15, nunca seria um ponto forte. No fim o
+> comando **imprime os níveis que gerou**, para a conferência não depender de abrir o navegador.
+> As contas são as **mesmas quatro** do `demo:ajustes` (e-mails e CPFs), então os dois comandos
+> convivem: o orientador demo fica com dois projetos e nenhum cadastro é duplicado. `is_demo` faz o
+> trabalho de sempre nos dois sentidos — tira o projeto do painel, do ranking, da lista final e da
+> distribuição, e é o que **libera o "Modo de teste"** nas duas abas, que ignora
+> `edicoes.ajustes_de`/`ajustes_ate`. **Sem migration, sem dependência nova e sem variável de
+> `.env`.**
+> Back **1147/1147**, Pint limpo.
+>
+> > **Sprint 144 (branch `feat/avaliar-antes-de-desconsiderar`, saída da `origin/main` @ `404f42c`):**
 > "eu mesmo avalio no lugar desta nota" passou a **começar pela rubrica**.
 > A ordem da Sprint 142 era: justificativa → a nota sai da classificação → nasce a avaliação da
 > organização → o admin preenche. Ele descartava um parecer **antes de ter lido o projeto**, e
@@ -1681,7 +1707,18 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > e **Escolas** (`/admin/parametrizacao/escolas`): admin busca, **renomeia, mescla** (reatribui
 > projetos/alunos/orientadores) e **exclui** instituições sem uso (`InstituicaoAdminService`/Controller,
 > rotas `admin/instituicoes`). Back **117/117**, front 11/11, Pint limpo, build OK.
-> **Pendências do Pedro (Sprint 144):** (1) `git push origin feat/avaliar-antes-de-desconsiderar`
+> **Pendências do Pedro (Sprint 145):** (1) `git push origin feat/demo-pareceres-ajustes` + PR
+> para a `main` (o ambiente do Claude não tem credencial do GitHub). Esta release **não tem
+> migration, dependência nova nem variável de `.env`** — é um comando de ensaio.
+> (2) Para conferir as telas: `php artisan demo:pareceres`, entrar como
+> **`orientador@fetecms.test`** e ligar o **Modo de teste** em *Pareceres* e em *Ajustes*. O modo
+> de teste depende de a conta estar marcada como demo, e o comando já a marca.
+> (3) **Marcar a conta como demo tira os projetos dela dos números** (painel, ranking, lista
+> final). Se `orientador@fetecms.test` tiver algum projeto de verdade, desfaça em Parametrização →
+> **Dados de demonstração**, ou rode o comando apontando para outra conta
+> (`--orientador=ensaio@fetecms.test`).
+>
+> > **Pendências do Pedro (Sprint 144):** (1) `git push origin feat/avaliar-antes-de-desconsiderar`
 > + PR para a `main` (o ambiente do Claude não tem credencial do GitHub) e, depois do merge, o
 > deploy pela §11 do [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). Esta release **tem migration**
 > (`avaliacoes.substitui_avaliacao_id` e `avaliacoes.substituicao_motivo`), **nenhuma variável
