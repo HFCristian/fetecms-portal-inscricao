@@ -18,6 +18,34 @@ banco.
 
 ---
 
+## Ajustes, pareceres, ou os dois?
+
+São dois comandos, e a diferença está no que cada um põe nas **respostas da
+rubrica**:
+
+| Comando | O que monta | Aba Ajustes | Aba Pareceres |
+|---------|-------------|-------------|---------------|
+| `php artisan demo:ajustes` | projeto avaliado, com as 17 perguntas respondidas com o mesmo valor | 3 sugestões | abre, mas com **"Ponto forte" nas dez seções** |
+| `php artisan demo:pareceres` | um **segundo** projeto, com as notas distribuídas por seção | 3 sugestões | 4 pontos fortes, 4 médios e 2 fracos |
+
+Para ensaiar a aba **Pareceres** use o `demo:pareceres`: é ele que produz a
+mistura de níveis que o orientador vai ler depois da feira — um exemplo em que
+tudo é ponto forte não mostra como a tela fica.
+
+```bash
+php artisan demo:pareceres
+```
+
+Ele reaproveita as **mesmas quatro contas** deste documento (o orientador e os
+três avaliadores, com os mesmos e-mails e CPFs), então rodar os dois não
+multiplica cadastro: o orientador demo fica com **dois** projetos, um de cada
+comando. As opções `--orientador`, `--avaliador` e `--senha` são as mesmas.
+
+O restante deste documento — as tabelas envolvidas, o SQL equivalente e a
+remoção do exemplo — vale para os dois.
+
+---
+
 ## O que precisa existir
 
 Quatro registros, nesta ordem de dependência:
