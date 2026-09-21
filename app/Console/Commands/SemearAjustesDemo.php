@@ -133,7 +133,7 @@ class SemearAjustesDemo extends Command
         });
 
         $this->newLine();
-        $this->line('Entre como o orientador, abra <options=bold>Ajustes</> e ligue o');
+        $this->line('Entre como o orientador, abra <options=bold>Ajustes e Pareceres</> e ligue o');
         $this->line('<options=bold>Modo de teste</> — ele ignora o período definido pela organização.');
 
         return self::SUCCESS;

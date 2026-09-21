@@ -11,8 +11,7 @@ import Projetos from './pages/Projetos.jsx';
 import ProjetoForm from './pages/ProjetoForm.jsx';
 import Integrantes from './pages/Integrantes.jsx';
 import Resumo from './pages/Resumo.jsx';
-import Ajustes from './pages/Ajustes.jsx';
-import Pareceres from './pages/Pareceres.jsx';
+import AjustesPareceres from './pages/AjustesPareceres.jsx';
 import DocumentosPresenciais from './pages/DocumentosPresenciais.jsx';
 import Perfil from './pages/Perfil.jsx';
 import AvaliadorHome from './pages/AvaliadorHome.jsx';
@@ -127,8 +126,10 @@ export default function Root() {
                             <Route path="/projetos/:id/editar" element={<ProjetoForm />} />
                             <Route path="/projetos/:id/integrantes" element={<Integrantes />} />
                             <Route path="/projetos/:id/resumo" element={<Resumo />} />
-                            <Route path="/ajustes" element={<Ajustes />} />
-                            <Route path="/pareceres" element={<Pareceres />} />
+                            <Route path="/ajustes" element={<AjustesPareceres />} />
+                            {/* As duas abas viraram uma; o link antigo (e-mail
+                                já enviado, favorito) cai na tela nova. */}
+                            <Route path="/pareceres" element={<Navigate to="/ajustes" replace />} />
                             <Route path="/documentos" element={<DocumentosPresenciais />} />
                             <Route path="/perfil" element={<Perfil />} />
                         </Route>

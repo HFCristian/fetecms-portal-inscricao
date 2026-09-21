@@ -4,6 +4,38 @@ import { Button, Alert, Toggle } from '../components/ui.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import { getAjustes, getAjustesProjeto, decidirAjuste } from '../lib/ajustes.js';
 
+// Como cada nível se apresenta. A ordem aqui é a ordem dos blocos na tela:
+// o que foi bem primeiro, o que precisa de trabalho por último.
+const NIVEIS = [
+    {
+        chave: 'forte', titulo: 'Pontos fortes', icone: 'trending_up',
+        classe: 'bg-secondary-container/40 text-on-secondary-container border-secondary-container',
+        vazio: 'Nenhuma etapa ficou nesta faixa.',
+    },
+    {
+        chave: 'medio', titulo: 'Pontos médios', icone: 'trending_flat',
+        classe: 'bg-surface-variant/50 text-on-surface border-outline-variant',
+        vazio: 'Nenhuma etapa ficou nesta faixa.',
+    },
+    {
+        chave: 'fraco', titulo: 'Pontos fracos', icone: 'trending_down',
+        classe: 'bg-error-container/30 text-on-surface border-error/30',
+        vazio: 'Nenhuma etapa ficou nesta faixa.',
+    },
+];
+
+/** Uma linha do cartão: "2 avaliação(ões) · 1 sugestão(ões) · …". */
+function resumoProjeto(p) {
+    const partes = [
+        p.avaliacoes === 0 ? 'Ainda sem avaliação concluída' : `${p.avaliacoes} avaliação(ões)`,
+    ];
+
+    if (p.sugestoes > 0) partes.push(`${p.sugestoes} sugestão(ões) · ${p.pendentes} sem resposta`);
+    if (p.recomendacoes > 0) partes.push(`${p.recomendacoes} recomendação(ões)`);
+
+    return partes.join(' · ');
+}
+
 /**
  * Uma sugestão de reclassificação: o que o projeto tem hoje, o que o avaliador
  * sugeriu e o botão de aceitar/desfazer.
@@ -46,14 +78,47 @@ function Sugestao({ sugestao, salvando, onDecidir }) {
     );
 }
 
+/** Um bloco de etapas do mesmo nível. */
+function BlocoNivel({ nivel, secoes }) {
+    return (
+        <div className={`border rounded-xl p-4 ${nivel.classe}`}>
+            <h4 className="font-display text-sm font-semibold flex items-center gap-1 mb-2">
+                <span className="material-symbols-outlined text-[18px]">{nivel.icone}</span>
+                {nivel.titulo}
+            </h4>
+            {secoes.length === 0 ? (
+                <p className="text-xs opacity-80">{nivel.vazio}</p>
+            ) : (
+                <ul className="flex flex-wrap gap-2">
+                    {secoes.map((s) => (
+                        <li key={s.chave} className="text-sm bg-surface/70 rounded-lg px-3 py-1.5">
+                            {s.titulo}
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </div>
+    );
+}
+
 /**
- * Aba "Ajustes" do orientador. Depois da avaliação online, dentro do período
- * definido pelo admin, ele vê o que os avaliadores sugeriram em cada projeto
- * seu: aceita (ou não) a troca de área/subárea e lê as recomendações escritas.
+ * Aba "Ajustes e Pareceres" do orientador. Depois da avaliação online, dentro
+ * do período definido pelo admin, ele abre cada projeto e encontra num lugar só
+ * tudo o que os avaliadores disseram:
+ *
+ * - as **sugestões de classificação**, que ele aceita ou desfaz;
+ * - as **etapas da rubrica** agrupadas em pontos fortes, médios e fracos;
+ * - e as **recomendações escritas**, só para leitura.
+ *
+ * Eram duas abas (Ajustes e Pareceres) sobre o mesmo material, na mesma janela:
+ * quem lia a crítica numa tela tinha de trocar de tela para decidir.
+ *
+ * **Nota nenhuma aparece aqui** — nem a de cada etapa, nem a que o projeto
+ * recebeu. O avaliador é anônimo ("Avaliador 1", "Avaliador 2").
  *
  * Fora do período a aba continua no menu, mas não abre — a tela explica por quê.
  */
-export default function Ajustes() {
+export default function AjustesPareceres() {
     const [dados, setDados] = useState(null);
     const [aberto, setAberto] = useState(null);
     const [detalhe, setDetalhe] = useState(null);
@@ -98,13 +163,17 @@ export default function Ajustes() {
     }
 
     const janela = dados?.janela;
+    const secoes = detalhe?.secoes ?? [];
+    const secoesDe = (chave) => secoes.filter((s) => s.nivel === chave);
+    const naoAvaliadas = secoes.filter((s) => s.nivel === null);
 
     return (
         <AppShell>
-            <h1 className="font-display text-2xl font-semibold text-primary mb-1">Ajustes</h1>
+            <h1 className="font-display text-2xl font-semibold text-primary mb-1">Ajustes e Pareceres</h1>
             <p className="text-on-surface-variant mb-4 max-w-3xl">
-                O que os avaliadores sugeriram nos seus projetos. Você decide se aceita a troca de
-                área ou subárea — e pode mudar de ideia enquanto o período estiver aberto.
+                O que os avaliadores disseram sobre os seus projetos: você decide se aceita a troca
+                de área ou subárea — e pode mudar de ideia enquanto o período estiver aberto — e lê
+                em que etapas o trabalho foi melhor ou pior. Os avaliadores são anônimos.
             </p>
 
             {janela?.is_demo && (
@@ -113,7 +182,7 @@ export default function Ajustes() {
                         checked={modoTeste}
                         onChange={setModoTeste}
                         label="Modo de teste"
-                        description="Orientador demo: veja a aba de ajustes mesmo fora do período definido pela organização."
+                        description="Orientador demo: veja os ajustes e os pareceres mesmo fora do período definido pela organização."
                     />
                 </div>
             )}
@@ -126,7 +195,9 @@ export default function Ajustes() {
                 <div className="max-w-3xl bg-surface-container-lowest rounded-xl fetec-card-shadow p-6">
                     <span className="material-symbols-outlined text-primary-container text-3xl">lock_clock</span>
                     <h2 className="font-display text-lg font-semibold text-on-surface mt-2">
-                        {janela.encerrada ? 'O período de ajustes terminou' : 'O período de ajustes ainda não começou'}
+                        {janela.encerrada
+                            ? 'O período de ajustes terminou'
+                            : 'O período de ajustes ainda não começou'}
                     </h2>
                     <p className="text-sm text-on-surface-variant mt-1">
                         {janela.encerrada
@@ -157,10 +228,7 @@ export default function Ajustes() {
                                     {p.area ?? 'Sem área'}{p.subarea ? ` · ${p.subarea}` : ''}
                                 </span>
                                 <span className="block text-xs text-on-surface-variant mt-1">
-                                    {p.sugestoes === 0
-                                        ? 'Nenhuma sugestão de classificação'
-                                        : `${p.sugestoes} sugestão(ões) · ${p.pendentes} sem resposta`}
-                                    {p.recomendacoes > 0 && ` · ${p.recomendacoes} recomendação(ões)`}
+                                    {resumoProjeto(p)}
                                 </span>
                             </span>
                             <span className="material-symbols-outlined text-on-surface-variant">chevron_right</span>
@@ -192,6 +260,9 @@ export default function Ajustes() {
                                     Classificação atual: <strong>{detalhe.area ?? 'sem área'}</strong>
                                     {detalhe.subarea ? ` · ${detalhe.subarea}` : ''}
                                 </p>
+                                <p className="text-xs text-on-surface-variant mt-1">
+                                    Resultado de {detalhe.avaliacoes} avaliação(ões) concluída(s).
+                                </p>
                             </div>
 
                             <section className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-4">
@@ -220,14 +291,39 @@ export default function Ajustes() {
                                 )}
                             </section>
 
-                            {detalhe.recomendacoes.length > 0 && (
-                                <section className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-4">
-                                    <h3 className="font-display text-base font-semibold text-on-surface mb-1">
-                                        Recomendações dos avaliadores
-                                    </h3>
-                                    <p className="text-xs text-on-surface-variant mb-3">
-                                        Comentários escritos durante a avaliação. Não há nada a responder aqui.
+                            <section className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-4">
+                                <h3 className="font-display text-base font-semibold text-on-surface mb-1">
+                                    Etapas da avaliação
+                                </h3>
+                                <p className="text-xs text-on-surface-variant mb-3">
+                                    Cada etapa da rubrica, agrupada pelo desempenho do projeto. A nota não
+                                    é divulgada — o que vale para você é onde o trabalho foi bem e onde
+                                    ficou devendo.
+                                </p>
+                                <div className="space-y-3">
+                                    {NIVEIS.map((n) => (
+                                        <BlocoNivel key={n.chave} nivel={n} secoes={secoesDe(n.chave)} />
+                                    ))}
+                                </div>
+                                {naoAvaliadas.length > 0 && (
+                                    <p className="text-xs text-on-surface-variant mt-3">
+                                        Sem resposta registrada em: {naoAvaliadas.map((s) => s.titulo).join(', ')}.
                                     </p>
+                                )}
+                            </section>
+
+                            <section className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-4">
+                                <h3 className="font-display text-base font-semibold text-on-surface mb-1">
+                                    Recomendações dos avaliadores
+                                </h3>
+                                <p className="text-xs text-on-surface-variant mb-3">
+                                    Comentários escritos durante a avaliação. Não há nada a responder aqui.
+                                </p>
+                                {detalhe.recomendacoes.length === 0 ? (
+                                    <p className="text-sm text-on-surface-variant">
+                                        Nenhum avaliador deixou observação escrita neste projeto.
+                                    </p>
+                                ) : (
                                     <ul className="space-y-3">
                                         {detalhe.recomendacoes.map((r, i) => (
                                             <li key={`${r.avaliacao_id}-${r.tipo}-${i}`} className="border border-outline-variant/40 rounded-xl p-4">
@@ -238,8 +334,8 @@ export default function Ajustes() {
                                             </li>
                                         ))}
                                     </ul>
-                                </section>
-                            )}
+                                )}
+                            </section>
                         </>
                     )}
                 </div>

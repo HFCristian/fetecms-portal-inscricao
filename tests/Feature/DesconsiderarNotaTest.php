@@ -11,8 +11,8 @@ use App\Models\Projeto;
 use App\Models\RegistroAtividade;
 use App\Models\User;
 use App\Services\AdminAvaliacaoService;
+use App\Services\AjustesOrientadorService;
 use App\Services\AvaliadorService;
-use App\Services\PareceresOrientadorService;
 use App\Services\VerificacaoDisparidadeService;
 use App\Support\Rubrica;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -229,20 +229,30 @@ class DesconsiderarNotaTest extends TestCase
         $this->assertSame(0, $contar());
     }
 
-    /** O orientador lê a média do que conta — não a do que foi descartado. */
-    public function test_o_parecer_do_orientador_deixa_de_mostrar_a_nota_descartada(): void
+    /**
+     * O parecer do orientador é feito do que conta: a avaliação descartada sai
+     * da contagem e das recomendações. A nota nunca esteve ali — nem a
+     * descartada nem a que ficou.
+     */
+    public function test_o_parecer_do_orientador_deixa_de_mostrar_a_avaliacao_descartada(): void
     {
         $this->admin();
         $projeto = $this->projeto();
         $alta = $this->avaliar($projeto, 10, 'Ana Souza');
-        $baixa = $this->avaliar($projeto, 2, 'Bruno Lima');
+        $this->avaliar($projeto, 2, 'Bruno Lima');
+
+        $alta->update(['comentario_projeto' => 'Parecer que a organização descartou.']);
 
         $this->desconsiderar($alta)->assertOk();
 
-        $detalhe = app(PareceresOrientadorService::class)->detalhe($projeto->fresh());
+        $detalhe = app(AjustesOrientadorService::class)->detalhe($projeto->fresh());
 
         $this->assertSame(1, $detalhe['avaliacoes']);
-        $this->assertEquals(round((float) $baixa->nota, 2), $detalhe['media']);
+        $this->assertSame([], array_filter(
+            $detalhe['recomendacoes'],
+            fn (array $r) => $r['texto'] === 'Parecer que a organização descartou.',
+        ));
+        $this->assertArrayNotHasKey('media', $detalhe);
     }
 
     /** O certificado e o ranking do avaliador não são punição do admin. */

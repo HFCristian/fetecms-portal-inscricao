@@ -1,9 +1,13 @@
-# Projeto-exemplo da aba "Ajustes" (orientador demo)
+# Projeto-exemplo da aba "Ajustes e Pareceres" (orientador demo)
 
-A aba **Ajustes** do orientador só mostra alguma coisa quando existe, no banco,
-um projeto **submetido** que recebeu uma **avaliação concluída** em que o
-avaliador disse que a classificação está errada. Sem esse conjunto a tela abre
-vazia, mesmo com o período aberto — não há bug a procurar.
+> **Desde a Sprint 146** as abas *Ajustes* e *Pareceres* são **uma só**:
+> *Ajustes e Pareceres* (`/ajustes`). As sugestões a decidir e o parecer a ler
+> saem da mesma avaliação, e a tela **não mostra nota nenhuma**.
+
+As **sugestões** da aba só aparecem quando existe, no banco, um projeto
+**submetido** que recebeu uma **avaliação concluída** em que o avaliador disse
+que a classificação está errada. Sem esse conjunto a tela abre sem elas, mesmo
+com o período aberto — não há bug a procurar.
 
 > **Desde a Sprint 122** o comando monta **três avaliadores**, com **três
 > sugestões**: uma de área (Avaliador 1), uma de subárea (Avaliador 2) e outra de
@@ -23,14 +27,14 @@ banco.
 São dois comandos, e a diferença está no que cada um põe nas **respostas da
 rubrica**:
 
-| Comando | O que monta | Aba Ajustes | Aba Pareceres |
-|---------|-------------|-------------|---------------|
-| `php artisan demo:ajustes` | projeto avaliado, com as 17 perguntas respondidas com o mesmo valor | 3 sugestões | abre, mas com **"Ponto forte" nas dez seções** |
+| Comando | O que monta | Sugestões | Parecer |
+|---------|-------------|-----------|---------|
+| `php artisan demo:ajustes` | projeto avaliado, com as 17 perguntas respondidas com o mesmo valor | 3 sugestões | **"Ponto forte" nas dez seções** |
 | `php artisan demo:pareceres` | um **segundo** projeto, com as notas distribuídas por seção | 3 sugestões | 4 pontos fortes, 4 médios e 2 fracos |
 
-Para ensaiar a aba **Pareceres** use o `demo:pareceres`: é ele que produz a
-mistura de níveis que o orientador vai ler depois da feira — um exemplo em que
-tudo é ponto forte não mostra como a tela fica.
+Para ensaiar o **parecer** use o `demo:pareceres`: é ele que produz a mistura de
+níveis que o orientador vai ler depois da feira — um exemplo em que tudo é ponto
+forte não mostra como a tela fica.
 
 ```bash
 php artisan demo:pareceres
@@ -63,7 +67,7 @@ da distribuição automática** (`Projeto::semDemo()`). Se você criar as contas
 essa coluna, o projeto-exemplo entra na contagem de camisetas que a organização
 vai encomendar.
 
-O que a aba Ajustes lê da avaliação é este par de colunas:
+O que as sugestões leem da avaliação é este par de colunas:
 
 - **`area_correta = 0`** e **`area_sugerida_id`** apontando para **outra** área
   → vira a linha "Área do conhecimento" na tela;
@@ -185,14 +189,14 @@ INSERT INTO projetos (
     'fetecms',
     <area_atual>,
     <subarea_atual>,
-    'Projeto fictício, criado para demonstrar a aba Ajustes do orientador.',
+    'Projeto fictício, criado para demonstrar a aba Ajustes e Pareceres do orientador.',
     'submetido',
     NOW(), NOW(), NOW()
 );
 ```
 
 `status` precisa ser exatamente **`'submetido'`** e `submitted_at` não pode ser
-nulo — a aba Ajustes só olha projetos submetidos.
+nulo — a aba só olha projetos submetidos.
 
 ### 4. A avaliação concluída — é ela que gera as sugestões
 
@@ -224,10 +228,11 @@ Pontos que costumam dar errado aqui:
   não aparece na aba.
 - **`area_correta = false`** — não nulo. É o falso explícito que significa "o
   avaliador disse que está errada".
-- **`respostas`** é uma coluna JSON. `'{}'` basta para o exemplo: a aba Ajustes
-  não lê as respostas, só a classificação e os comentários. A **nota**, porém,
-  fica descolada das respostas — se quiser as duas coerentes, use o comando do
-  Caminho 1.
+- **`respostas`** é uma coluna JSON. `'{}'` basta para as **sugestões**, que só
+  leem a classificação e os comentários — mas então o **parecer** da mesma tela
+  sai com todas as etapas em "Não avaliado", porque é das respostas que saem os
+  níveis. Para ver as duas metades cheias (e a nota coerente com elas), use o
+  comando do Caminho 1.
 - **`designacao_manual = true`** deixa claro na auditoria que essa avaliação não
   veio do algoritmo.
 
