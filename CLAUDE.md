@@ -61,6 +61,10 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
 - **Orientador**: cadastro completo (wizard 3 etapas) → **confirmação do e-mail por código de 6
   dígitos** → lista de projetos → cadastro de projeto (salvável como **rascunho**) → alunos →
   coorientador opcional → resumo → **submissão irreversível** (que dispara o comprovante por e-mail).
+  Encerrado o período de avaliação (`edicoes.avaliacao_encerrada_em`), a tela inicial mostra um
+  **aviso de que a avaliação terminou**, com a data e um botão para a aba abaixo — só para quem
+  submeteu algum projeto, e só enquanto o período de ajustes não se encerra
+  (`GET /ajustes/janela`, `AvisoFimAvaliacao.jsx`).
   Depois da avaliação online ele ainda tem a aba **Ajustes e Pareceres** (`/ajustes`, abaixo de
   *Meus Projetos*): dentro do **período de ajustes** definido pelo admin, abre cada projeto seu e
   encontra num lugar só tudo o que a avaliação disse. O que ele **decide** são as sugestões de
@@ -741,8 +745,35 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 143 | Perfil do avaliador: quantas avaliações tem quem está **logo à frente** | ✅ sim | ✅ sim (Pedro, PR #89 → v1.26) | 0 |
 | 144 | Avaliar no lugar da nota: a rubrica abre **antes**, e o envio é que desconsidera | ✅ sim | ✅ sim (Pedro, PR #90) | 0 |
 | 145 | `demo:pareceres`: projeto já avaliado, com pareceres em níveis e ajustes para o orientador demo | ✅ sim | ✅ sim (Pedro, PR #91) | 0 |
-| 146 | Orientador: abas Ajustes e Pareceres viram **uma só**, e a nota do projeto sai da tela | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 146 | Orientador: abas Ajustes e Pareceres viram **uma só**, e a nota do projeto sai da tela | ✅ sim | ✅ sim (Pedro, PR #92) | 0 |
+| 147 | Tela inicial do orientador: aviso de fim da avaliação com atalho para Ajustes e Pareceres | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprint 147 (branch `feat/aviso-fim-avaliacao`, saída da `origin/main` @ `689c149`):**
+> o orientador passou a **ser avisado** de que a avaliação online acabou.
+> A aba *Ajustes e Pareceres* existe desde a Sprint 146, mas só ajuda quem abre o portal e olha
+> para o menu — e não há por que ele abrir: submeteu em setembro, a feira é em outubro e ninguém
+> lhe diz que os avaliadores terminaram. Agora, passado o fim do período
+> (`edicoes.avaliacao_encerrada_em`), a tela inicial (*Meus Projetos*) traz um cartão dizendo que a
+> avaliação terminou — com a data — e um botão que leva direto à aba.
+> O texto do cartão **acompanha o calendário**, porque o fim da avaliação e a abertura dos ajustes
+> são duas datas e a organização não as marca no mesmo dia: com o período aberto ele diz o que há
+> para fazer e **até quando**; com data marcada mais à frente, **quando** a aba abre; sem data
+> nenhuma, que a organização ainda não abriu o período. O botão fica nos três casos — é a mesma aba
+> do menu, que explica a situação a quem chega cedo.
+> Duas coisas que ele **não** faz. Não aparece para quem ficou só no rascunho: sem projeto
+> submetido não houve avaliação, e o aviso seria ruído em cima de quem já perdeu o prazo. E **some**
+> quando o período de ajustes se encerra — aí não há mais o que acompanhar, e as decisões tomadas
+> continuam valendo. Nota nenhuma aparece nele, pela razão da Sprint 146.
+> No servidor nasceu `GET /ajustes/janela`, que devolve **só as datas**: o `GET /ajustes` varre os
+> projetos do orientador e as avaliações de cada um para montar a aba, e um aviso não justifica esse
+> trabalho a cada visita à tela inicial. A `janela()` do `AjustesOrientadorService` passou a carregar
+> junto o fim da avaliação (`avaliacao_encerrada` + rótulo) — que é **factual**, e não segue o modo
+> de teste da conta demo: ele adianta a aba, não o calendário da feira, senão o orientador demo leria
+> "a avaliação terminou" no meio dela. Falhando a consulta, a tela abre sem o cartão: ele informa,
+> não bloqueia.
+> **Sem migration, sem dependência nova e sem variável de `.env`.**
+> Back **1153/1153**, front **557/557**, Pint limpo, build OK.
+>
 > **Sprint 146 (branch `feat/ajustes-e-pareceres`, saída da `main` @ `0d1e9f1`):**
 > o orientador passou a ter **uma aba só** para o pós-avaliação — **Ajustes e Pareceres**
 > (`/ajustes`) —, e ela **não mostra mais nota nenhuma**.
@@ -1746,6 +1777,18 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > e **Escolas** (`/admin/parametrizacao/escolas`): admin busca, **renomeia, mescla** (reatribui
 > projetos/alunos/orientadores) e **exclui** instituições sem uso (`InstituicaoAdminService`/Controller,
 > rotas `admin/instituicoes`). Back **117/117**, front 11/11, Pint limpo, build OK.
+> **Pendências do Pedro (Sprint 147):** (1) `git push origin feat/aviso-fim-avaliacao` + PR para a
+> `main` (o ambiente do Claude não tem credencial do GitHub). Esta release **não tem migration,
+> dependência nova nem variável de `.env`**.
+> (2) **O aviso depende de a data de fim da avaliação estar preenchida** em Parametrização →
+> *Datas e períodos*. Campo em branco significa "a avaliação segue aberta", então o cartão não
+> aparece — é a mesma regra que o resto do portal usa para essa data.
+> (3) **Ele não segue o modo de teste** da conta demo: o modo adianta a aba, não o calendário.
+> Para ver o cartão numa conta de ensaio, marque uma data de encerramento já passada na edição em
+> uso — o que vale para todo mundo dela, então prefira uma edição de teste.
+> (4) O cartão **some sozinho** quando o período de ajustes termina. Se a intenção for mantê-lo no
+> ar depois disso (avisando que o prazo passou), é uma linha e eu mudo.
+>
 > **Pendências do Pedro (Sprint 146):** (1) `git push origin feat/ajustes-e-pareceres` + PR para a
 > `main` (o ambiente do Claude não tem credencial do GitHub). Esta release **não tem migration,
 > dependência nova nem variável de `.env`** — é tela e payload.

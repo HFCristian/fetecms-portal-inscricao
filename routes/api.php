@@ -191,6 +191,8 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
         // nome e sem nota.
         Route::middleware('role:orientador')->prefix('ajustes')->group(function () {
             Route::get('/', [OrientadorAjusteController::class, 'index']);
+            // Só as datas: o aviso da tela inicial não precisa da lista.
+            Route::get('/janela', [OrientadorAjusteController::class, 'janela']);
             Route::get('/projetos/{projeto}', [OrientadorAjusteController::class, 'show']);
             Route::post('/projetos/{projeto}/decidir', [OrientadorAjusteController::class, 'decidir']);
         });

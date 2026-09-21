@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { Alert, useConfirm } from '../components/ui.jsx';
 import PrazoInscricoes from '../components/PrazoInscricoes.jsx';
+import AvisoFimAvaliacao from '../components/AvisoFimAvaliacao.jsx';
 import { listarProjetos, removerProjeto, cancelarSubmissao } from '../lib/projetos.js';
 import { getInscricoes } from '../lib/inscricoes.js';
+import { getJanelaAjustes } from '../lib/ajustes.js';
 
 // Classe dos botões de linha que escrevem — desabilitados depois do prazo.
 const desabilitado = ' disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent';
@@ -33,6 +35,7 @@ export default function Projetos() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [inscricoes, setInscricoes] = useState(null);
+    const [janelaAjustes, setJanelaAjustes] = useState(null);
 
     const carregar = useCallback(() => {
         setLoading(true);
@@ -46,6 +49,10 @@ export default function Projetos() {
 
     // Prazo de submissão: depois dele a área fica só de leitura.
     useEffect(() => { getInscricoes().then(setInscricoes).catch(() => setInscricoes(null)); }, []);
+
+    // Fim da avaliação online: é o que dispara o aviso de que o resultado
+    // chegou. Falhando, a tela segue sem o aviso — ele informa, não bloqueia.
+    useEffect(() => { getJanelaAjustes().then(setJanelaAjustes).catch(() => setJanelaAjustes(null)); }, []);
 
     /** Mensagem do 422 quando a janela para desfazer a submissão já fechou. */
     function avisarBloqueio(error) {
@@ -100,6 +107,9 @@ export default function Projetos() {
 
     const visiveis = projetos.filter((p) => filtro === 'all' || p.status === filtro);
     const total = projetos.length;
+    // Quem nunca saiu do rascunho não teve projeto avaliado: para ele, o fim da
+    // avaliação não é notícia.
+    const temProjetoSubmetido = projetos.some((p) => p.status !== 'rascunho');
     const rascunhos = projetos.filter((p) => p.status === 'rascunho').length;
     const submetidos = projetos.filter((p) => p.status === 'submetido').length;
 
@@ -122,6 +132,12 @@ export default function Projetos() {
             </div>
 
             <PrazoInscricoes inscricoes={inscricoes} className="mb-5" />
+
+            <AvisoFimAvaliacao
+                janela={janelaAjustes}
+                temProjetoSubmetido={temProjetoSubmetido}
+                className="mb-6"
+            />
 
             <div className="grid grid-cols-3 gap-3 mb-6">
                 {[
