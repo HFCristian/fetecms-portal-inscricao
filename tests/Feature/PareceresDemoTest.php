@@ -16,8 +16,9 @@ use Tests\TestCase;
 
 /**
  * O projeto-exemplo do pós-avaliação (`demo:pareceres`): um projeto submetido
- * que chega ao orientador com as duas telas cheias — Pareceres e Ajustes —,
- * conferível antes do prazo oficial pelo modo de teste.
+ * que chega ao orientador com a aba **Ajustes e Pareceres** cheia — sugestões
+ * para decidir, níveis e recomendações para ler —, conferível antes do prazo
+ * oficial pelo modo de teste.
  */
 class PareceresDemoTest extends TestCase
 {
@@ -60,14 +61,14 @@ class PareceresDemoTest extends TestCase
     }
 
     /**
-     * A razão de ser do comando: se todas as seções saíssem no mesmo nível, a
-     * aba Pareceres não ensinaria nada a quem está conferindo a tela.
+     * A razão de ser do comando: se todas as seções saíssem no mesmo nível, o
+     * parecer não ensinaria nada a quem está conferindo a tela.
      */
     public function test_pareceres_saem_com_pontos_fortes_medios_e_fracos(): void
     {
         $this->artisan('demo:pareceres')->assertSuccessful();
 
-        $detalhe = app(PareceresOrientadorService::class)->detalhe($this->projeto());
+        $detalhe = app(AjustesOrientadorService::class)->detalhe($this->projeto());
 
         $niveis = array_count_values(array_column($detalhe['secoes'], 'nivel'));
 
@@ -76,10 +77,11 @@ class PareceresDemoTest extends TestCase
         $this->assertArrayHasKey(PareceresOrientadorService::NIVEL_FRACO, $niveis);
         $this->assertArrayNotHasKey('', $niveis, 'Nenhuma seção fica "não avaliada".');
 
-        // Média entre os três avaliadores, dentro da escala do edital.
-        $this->assertNotNull($detalhe['media']);
-        $this->assertGreaterThan(0, $detalhe['media']);
-        $this->assertLessThan($detalhe['nota_maxima'], $detalhe['media']);
+        // As três avaliações contam — mas o que elas deram não chega ao
+        // orientador, nem por seção nem no total.
+        $this->assertSame(3, $detalhe['avaliacoes']);
+        $this->assertArrayNotHasKey('media', $detalhe);
+        $this->assertArrayNotHasKey('nota_maxima', $detalhe);
 
         // Vídeo e projeto de cada avaliador, sempre sem nome.
         $this->assertCount(6, $detalhe['recomendacoes']);
@@ -89,7 +91,7 @@ class PareceresDemoTest extends TestCase
         );
     }
 
-    /** O mesmo projeto abastece a aba Ajustes: três sugestões por decidir. */
+    /** O mesmo projeto abastece a outra metade da aba: três sugestões por decidir. */
     public function test_ajustes_saem_com_tres_sugestoes_pendentes(): void
     {
         $this->artisan('demo:pareceres')->assertSuccessful();
@@ -137,20 +139,17 @@ class PareceresDemoTest extends TestCase
         $this->assertSame(6, Avaliacao::count());
     }
 
-    /** O que permite conferir as telas antes do período oficial. */
-    public function test_orientador_demo_abre_as_duas_abas_fora_do_periodo(): void
+    /** O que permite conferir a tela antes do período oficial. */
+    public function test_orientador_demo_abre_a_aba_fora_do_periodo(): void
     {
         $this->artisan('demo:pareceres')->assertSuccessful();
         $orientador = $this->orientadorDemo();
+        $ajustes = app(AjustesOrientadorService::class);
 
-        foreach ([PareceresOrientadorService::class, AjustesOrientadorService::class] as $servico) {
-            $servico = app($servico);
-
-            // Sem data de início, a aba fica fechada para todo mundo…
-            $this->assertFalse($servico->janela($orientador)['aberta']);
-            // …menos para a conta demo que liga o modo de teste.
-            $this->assertTrue($servico->janela($orientador, true)['aberta']);
-        }
+        // Sem data de início, a aba fica fechada para todo mundo…
+        $this->assertFalse($ajustes->janela($orientador)['aberta']);
+        // …menos para a conta demo que liga o modo de teste.
+        $this->assertTrue($ajustes->janela($orientador, true)['aberta']);
     }
 
     /** O projeto de mentira não entra na conta que a organização vai usar. */

@@ -17,16 +17,23 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Aba "Ajustes" do orientador: terminada a avaliação online, ele entra para
- * responder ao que os avaliadores sugeriram nos projetos dele.
+ * Aba "Ajustes e Pareceres" do orientador: terminada a avaliação online, ele
+ * entra para ver o que ela disse sobre os projetos dele — e responder ao que
+ * pede resposta.
  *
- * O que ele decide é a **reclassificação** — área e subárea sugeridas na
- * rubrica. Aceitar troca a classificação do projeto na hora; desmarcar devolve
- * o valor anterior. A sugestão **nunca some da tela**: até o fim do prazo ele
- * pode mudar de ideia quantas vezes quiser.
+ * A aba tem duas metades, que abrem juntas porque são o mesmo momento:
  *
- * As recomendações escritas (vídeo e projeto) aparecem junto, só para leitura —
- * não há o que aceitar nelas.
+ * - os **ajustes**, que ele decide — a **reclassificação** de área e subárea
+ *   sugerida na rubrica. Aceitar troca a classificação do projeto na hora;
+ *   desmarcar devolve o valor anterior. A sugestão **nunca some da tela**: até
+ *   o fim do prazo ele pode mudar de ideia quantas vezes quiser.
+ * - os **pareceres**, que ele lê — as recomendações escritas (vídeo e projeto)
+ *   e as etapas da rubrica em **níveis** ({@see PareceresOrientadorService}),
+ *   sem nota nenhuma. Não há o que aceitar nelas.
+ *
+ * As duas eram duas abas; viraram uma só porque falam do mesmo material, na
+ * mesma janela e sobre o mesmo projeto — separá-las obrigava o orientador a ler
+ * a crítica numa tela e decidir na outra.
  *
  * A janela é a `edicoes.ajustes_de`/`ajustes_ate`; fora dela a aba continua
  * visível no menu, mas não abre. O orientador demo tem o mesmo "modo teste" do
@@ -34,7 +41,10 @@ use Illuminate\Validation\ValidationException;
  */
 class AjustesOrientadorService
 {
-    public function __construct(private readonly RegistroAtividadeService $registros) {}
+    public function __construct(
+        private readonly RegistroAtividadeService $registros,
+        private readonly PareceresOrientadorService $pareceres,
+    ) {}
 
     /**
      * Estado da janela para esta pessoa. `aberta` é o que a tela usa para
@@ -74,8 +84,10 @@ class AjustesOrientadorService
     }
 
     /**
-     * Os projetos submetidos do orientador, com quantas sugestões cada um
-     * recebeu e quantas ainda não foram respondidas.
+     * Os projetos submetidos do orientador, com quantas avaliações, sugestões e
+     * recomendações cada um recebeu — e quantas sugestões ainda não foram
+     * respondidas. Nenhuma nota: o cartão diz quanta avaliação houve, não
+     * quanto ela deu.
      *
      * @return list<array<string, mixed>>
      */
@@ -92,17 +104,21 @@ class AjustesOrientadorService
             ->orderBy('titulo')
             ->get()
             ->map(function (Projeto $projeto) {
-                $sugestoes = $this->sugestoes($projeto);
+                // Uma consulta só por projeto: as sugestões, as recomendações e
+                // os níveis saem todos das mesmas avaliações concluídas.
+                $avaliacoes = $this->avaliacoesConcluidas($projeto);
+                $sugestoes = $this->sugestoes($projeto, $avaliacoes);
 
                 return [
                     'id' => $projeto->id,
                     'titulo' => $projeto->titulo,
                     'area' => $projeto->area?->nome,
                     'subarea' => $projeto->subarea?->nome,
+                    'avaliacoes' => $avaliacoes->count(),
                     'sugestoes' => count($sugestoes),
                     'pendentes' => count(array_filter($sugestoes, fn (array $s) => $s['decidido_em'] === null)),
                     'aceitas' => count(array_filter($sugestoes, fn (array $s) => $s['aceito'])),
-                    'recomendacoes' => count($this->recomendacoes($projeto)),
+                    'recomendacoes' => count($this->recomendacoes($avaliacoes)),
                 ];
             })
             ->all();
@@ -110,7 +126,8 @@ class AjustesOrientadorService
 
     /**
      * Um projeto com tudo o que os avaliadores disseram: as sugestões de
-     * classificação (decidíveis) e as recomendações escritas (leitura).
+     * classificação (decidíveis), as etapas da rubrica em níveis e as
+     * recomendações escritas (leitura).
      *
      * @return array<string, mixed>
      */
@@ -118,13 +135,17 @@ class AjustesOrientadorService
     {
         $projeto->loadMissing(['area:id,nome', 'subarea:id,nome']);
 
+        $avaliacoes = $this->avaliacoesConcluidas($projeto);
+
         return [
             'id' => $projeto->id,
             'titulo' => $projeto->titulo,
             'area' => $projeto->area?->nome,
             'subarea' => $projeto->subarea?->nome,
-            'sugestoes' => $this->sugestoes($projeto),
-            'recomendacoes' => $this->recomendacoes($projeto),
+            'avaliacoes' => $avaliacoes->count(),
+            'sugestoes' => $this->sugestoes($projeto, $avaliacoes),
+            'secoes' => $this->pareceres->secoes($avaliacoes),
+            'recomendacoes' => $this->recomendacoes($avaliacoes),
         ];
     }
 
@@ -216,9 +237,10 @@ class AjustesOrientadorService
      * As sugestões de reclassificação do projeto, uma por avaliação+tipo. O
      * avaliador não é identificado: para o orientador, o parecer é anônimo.
      *
+     * @param  Collection<int, Avaliacao>  $avaliacoes
      * @return list<array<string, mixed>>
      */
-    private function sugestoes(Projeto $projeto): array
+    private function sugestoes(Projeto $projeto, Collection $avaliacoes): array
     {
         $decisoes = ProjetoAjuste::where('projeto_id', $projeto->id)
             ->get()
@@ -226,7 +248,7 @@ class AjustesOrientadorService
 
         $itens = [];
 
-        foreach ($this->avaliacoesConcluidas($projeto) as $i => $avaliacao) {
+        foreach ($avaliacoes as $i => $avaliacao) {
             foreach ([ProjetoAjuste::TIPO_AREA, ProjetoAjuste::TIPO_SUBAREA] as $tipo) {
                 $ehArea = $tipo === ProjetoAjuste::TIPO_AREA;
                 $correta = $ehArea ? $avaliacao->area_correta : $avaliacao->subarea_correta;
@@ -261,13 +283,14 @@ class AjustesOrientadorService
     /**
      * As recomendações escritas pelos avaliadores (vídeo e projeto), só leitura.
      *
+     * @param  Collection<int, Avaliacao>  $avaliacoes
      * @return list<array<string, mixed>>
      */
-    private function recomendacoes(Projeto $projeto): array
+    private function recomendacoes(Collection $avaliacoes): array
     {
         $itens = [];
 
-        foreach ($this->avaliacoesConcluidas($projeto) as $i => $avaliacao) {
+        foreach ($avaliacoes as $i => $avaliacao) {
             foreach ([
                 'video' => ['Sobre o vídeo', $avaliacao->comentario_video],
                 'projeto' => ['Sobre o projeto', $avaliacao->comentario_projeto],
@@ -295,7 +318,7 @@ class AjustesOrientadorService
      *
      * @return Collection<int, Avaliacao>
      */
-    private function avaliacoesConcluidas(Projeto $projeto)
+    private function avaliacoesConcluidas(Projeto $projeto): Collection
     {
         return Avaliacao::where('projeto_id', $projeto->id)
             ->considerada()

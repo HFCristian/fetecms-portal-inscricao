@@ -12,6 +12,7 @@ use App\Models\Edicao;
 use App\Models\Projeto;
 use App\Models\Subarea;
 use App\Models\User;
+use App\Services\AjustesOrientadorService;
 use App\Services\PareceresOrientadorService;
 use App\Support\Rubrica;
 use Illuminate\Console\Command;
@@ -19,14 +20,14 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Monta o **projeto-exemplo do pós-avaliação**: um projeto submetido que já
- * passou pela avaliação online e chega ao orientador com as duas telas cheias —
- * a aba **Pareceres** (nota média, pontos fortes/médios/fracos e as
- * recomendações escritas) e a aba **Ajustes** (as sugestões de área e subárea,
- * que ele aceita ou desfaz).
+ * passou pela avaliação online e chega ao orientador com a aba **Ajustes e
+ * Pareceres** cheia — as sugestões de área e subárea (que ele aceita ou
+ * desfaz), os pontos fortes/médios/fracos da rubrica e as recomendações
+ * escritas.
  *
  * Por que não bastava o `demo:ajustes`: aquele comando responde todas as 17
  * perguntas da rubrica com o mesmo valor (8 / Sim), o que é suficiente para as
- * sugestões aparecerem, mas faz a aba Pareceres dizer **"Ponto forte" nas dez
+ * sugestões aparecerem, mas faz o parecer dizer **"Ponto forte" nas dez
  * seções**. Quem está ensaiando a tela precisa justamente do contrário — ver a
  * mistura, porque é ela que o orientador vai ler depois da feira.
  *
@@ -41,7 +42,7 @@ use Illuminate\Support\Facades\DB;
  *
  * As contas nascem com `is_demo = true` — o que as tira do painel, do ranking,
  * da lista final e da distribuição automática ({@see Projeto::semDemo()}) e, do
- * outro lado, é o que **libera o "Modo de teste"** nas duas abas: ele ignora o
+ * outro lado, é o que **libera o "Modo de teste"** na aba: ele ignora o
  * período definido pela organização, que é como se ensaia antes do prazo
  * oficial. As três contas de avaliador são as mesmas do `demo:ajustes`
  * (e-mails e CPFs), então rodar os dois comandos não multiplica cadastro.
@@ -55,7 +56,7 @@ class SemearPareceresDemo extends Command
         {--avaliador=avaliador.demo@fetecms.test : e-mail do primeiro avaliador demo}
         {--senha=fetecms-demo : senha das contas, quando criadas}';
 
-    protected $description = 'Cria (ou atualiza) um projeto submetido já avaliado, com pareceres e ajustes para o orientador demo';
+    protected $description = 'Cria (ou atualiza) um projeto submetido já avaliado, para a aba Ajustes e Pareceres do orientador demo';
 
     /**
      * Quanto cada seção pontuada da rubrica rendeu, de 0 a 10, na avaliação de
@@ -86,7 +87,7 @@ class SemearPareceresDemo extends Command
         'video' => [10, 8, 10],         // forte
     ];
 
-    public function handle(PareceresOrientadorService $pareceres): int
+    public function handle(AjustesOrientadorService $ajustes): int
     {
         $areas = Area::orderBy('id')->take(3)->get();
 
@@ -130,13 +131,13 @@ class SemearPareceresDemo extends Command
             return $projeto;
         });
 
-        $this->resumo($pareceres->detalhe($projeto->refresh()));
+        $this->resumo($ajustes->detalhe($projeto->refresh()), $projeto);
 
         $this->newLine();
-        $this->line('Entre como o orientador e abra <options=bold>Pareceres</> e <options=bold>Ajustes</>.');
-        $this->line('Em cada uma, ligue o <options=bold>Modo de teste</>: ele ignora o período');
-        $this->line('de ajustes definido pela organização, que é o que permite conferir as');
-        $this->line('duas telas antes do prazo oficial.');
+        $this->line('Entre como o orientador e abra <options=bold>Ajustes e Pareceres</>.');
+        $this->line('Ligue o <options=bold>Modo de teste</>: ele ignora o período de ajustes');
+        $this->line('definido pela organização, que é o que permite conferir a tela antes');
+        $this->line('do prazo oficial.');
 
         return self::SUCCESS;
     }
@@ -348,14 +349,18 @@ class SemearPareceresDemo extends Command
      * Imprime o que o orientador vai encontrar na tela — a conferência de que o
      * exemplo saiu com a mistura pretendida, e não dez "Ponto forte".
      *
+     * A nota média sai aqui, e **não** na tela: ela é a prova de que a conversão
+     * de {@see self::PERFIL} em respostas respeitou os pesos do edital, e quem
+     * lê este terminal é a organização, não o orientador.
+     *
      * @param  array<string, mixed>  $detalhe
      */
-    private function resumo(array $detalhe): void
+    private function resumo(array $detalhe, Projeto $projeto): void
     {
         $this->components->info(sprintf(
-            'Nota média: %s de %s, de %d avaliações.',
-            number_format((float) $detalhe['media'], 2, ',', '.'),
-            number_format((float) $detalhe['nota_maxima'], 2, ',', '.'),
+            'Nota média (só no terminal): %s de %s, de %d avaliações.',
+            number_format((float) Avaliacao::where('projeto_id', $projeto->id)->avg('nota'), 2, ',', '.'),
+            number_format(Avaliacao::notaMaxima(), 2, ',', '.'),
             $detalhe['avaliacoes'],
         ));
 

@@ -44,7 +44,6 @@ use App\Http\Controllers\Api\V1\MapaPlantaController;
 use App\Http\Controllers\Api\V1\MapaTurnosController;
 use App\Http\Controllers\Api\V1\OrientadorAjusteController;
 use App\Http\Controllers\Api\V1\OrientadorController;
-use App\Http\Controllers\Api\V1\OrientadorParecerController;
 use App\Http\Controllers\Api\V1\ParametrizacaoAbasController;
 use App\Http\Controllers\Api\V1\ParametrizacaoCredenciamentoController;
 use App\Http\Controllers\Api\V1\PerfilController;
@@ -186,8 +185,10 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::delete('documentos/{documento}', [DocumentoController::class, 'destroy']);
         });
 
-        // Aba "Ajustes" do orientador: as sugestões dos avaliadores nos projetos
-        // dele, respondidas durante o período de ajustes.
+        // Aba "Ajustes e Pareceres" do orientador: as sugestões dos avaliadores
+        // nos projetos dele, respondidas durante o período de ajustes, mais o
+        // parecer de cada um — etapas em níveis e recomendações escritas, sem
+        // nome e sem nota.
         Route::middleware('role:orientador')->prefix('ajustes')->group(function () {
             Route::get('/', [OrientadorAjusteController::class, 'index']);
             Route::get('/projetos/{projeto}', [OrientadorAjusteController::class, 'show']);
@@ -202,13 +203,6 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::post('/projetos/{projeto}/termo', [DocumentoPresencialController::class, 'store'])
                 ->middleware('throttle:20,1');
             Route::delete('/projetos/{projeto}/termo', [DocumentoPresencialController::class, 'destroy']);
-        });
-
-        // Aba "Pareceres" do orientador: a nota média de cada projeto dele e o
-        // que os avaliadores escreveram — sem nome e sem a nota das seções.
-        Route::middleware('role:orientador')->prefix('pareceres')->group(function () {
-            Route::get('/', [OrientadorParecerController::class, 'index']);
-            Route::get('/projetos/{projeto}', [OrientadorParecerController::class, 'show']);
         });
 
         // Avaliação online — lado do avaliador (E7): ler, iniciar e concluir com nota

@@ -76,17 +76,12 @@ function NavLinks({ role, abas, onNavigate, suporteBadge = 0 }) {
                 <span className="material-symbols-outlined">folder_shared</span>
                 Meus Projetos
             </NavLink>
-            {/* A aba fica sempre visível: fora do período de ajustes ela abre
-                explicando que está fechada. */}
+            {/* Uma aba só: as sugestões a decidir e o parecer a ler saem da
+                mesma avaliação e da mesma janela. Fica sempre visível — fora do
+                período ela abre explicando que está fechada. */}
             <NavLink to="/ajustes" className={navClass} onClick={onNavigate}>
                 <span className="material-symbols-outlined">rule_settings</span>
-                Ajustes
-            </NavLink>
-            {/* Mesma janela dos ajustes: as duas abas mostram o resultado da
-                avaliação online, liberado pela organização na mesma data. */}
-            <NavLink to="/pareceres" className={navClass} onClick={onNavigate}>
-                <span className="material-symbols-outlined">reviews</span>
-                Pareceres
+                Ajustes e Pareceres
             </NavLink>
             {/* Só tem conteúdo para quem ficou entre os finalistas; para os
                 demais a aba abre explicando isso. */}

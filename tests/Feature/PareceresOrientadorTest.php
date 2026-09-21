@@ -15,8 +15,12 @@ use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 /**
- * Aba "Pareceres" do orientador: a nota média de cada projeto, as observações
- * dos avaliadores (anônimas) e as etapas da rubrica em níveis — nunca em notas.
+ * A metade "pareceres" da aba **Ajustes e Pareceres** do orientador: as
+ * observações dos avaliadores (anônimas) e as etapas da rubrica em níveis.
+ *
+ * O que ela **não** entrega é tão importante quanto: nem a nota de cada seção
+ * nem a nota que o projeto recebeu chegam ao orientador — o número é da
+ * organização, que o discute no Ranking.
  */
 class PareceresOrientadorTest extends TestCase
 {
@@ -38,7 +42,7 @@ class PareceresOrientadorTest extends TestCase
             'area_id' => $area->id,
         ]);
 
-        // A janela dos pareceres é a mesma dos ajustes.
+        // A aba inteira abre na janela dos ajustes.
         Edicao::create([
             'nome' => 'XVI FETECMS', 'ano' => 2026, 'inscricoes_abertas' => true,
             'ajustes_de' => now()->subDay(),
@@ -54,11 +58,7 @@ class PareceresOrientadorTest extends TestCase
      */
     private function avaliacao(int $ponto = 10, array $over = []): Avaliacao
     {
-        $respostas = [];
-
-        foreach (Rubrica::perguntas() as $pergunta) {
-            $respostas[$pergunta['chave']] = $pergunta['tipo'] === Rubrica::TIPO_SIM_NAO ? true : $ponto;
-        }
+        $respostas = $this->respostas($ponto);
 
         return Avaliacao::create([
             'projeto_id' => $this->projeto->id,
@@ -69,29 +69,6 @@ class PareceresOrientadorTest extends TestCase
             'concluida_em' => now(),
             ...$over,
         ]);
-    }
-
-    private function comoOrientador(): void
-    {
-        Sanctum::actingAs($this->orientador);
-    }
-
-    public function test_lista_os_projetos_submetidos_com_a_media(): void
-    {
-        $this->avaliacao(10);
-        $this->avaliacao(8);
-        $this->comoOrientador();
-
-        $resposta = $this->getJson('/api/v1/pareceres')->assertOk();
-
-        $resposta->assertJsonPath('data.janela.aberta', true)
-            ->assertJsonCount(1, 'data.projetos')
-            ->assertJsonPath('data.projetos.0.titulo', 'Bioplástico de mandioca')
-            ->assertJsonPath('data.projetos.0.avaliacoes', 2);
-
-        // A média das duas notas, com duas casas.
-        $media = round((Rubrica::nota($this->respostas(10)) + Rubrica::nota($this->respostas(8))) / 2, 2);
-        $this->assertEqualsWithDelta($media, $resposta->json('data.projetos.0.media'), 0.01);
     }
 
     /** @return array<string, mixed> */
@@ -106,13 +83,48 @@ class PareceresOrientadorTest extends TestCase
         return $respostas;
     }
 
+    private function comoOrientador(): void
+    {
+        Sanctum::actingAs($this->orientador);
+    }
+
+    public function test_lista_os_projetos_submetidos_com_quantas_avaliacoes_tiveram(): void
+    {
+        $this->avaliacao(10);
+        $this->avaliacao(8);
+        $this->comoOrientador();
+
+        $resposta = $this->getJson('/api/v1/ajustes')->assertOk();
+
+        $resposta->assertJsonPath('data.janela.aberta', true)
+            ->assertJsonCount(1, 'data.projetos')
+            ->assertJsonPath('data.projetos.0.titulo', 'Bioplástico de mandioca')
+            ->assertJsonPath('data.projetos.0.avaliacoes', 2);
+    }
+
+    /** O cartão diz quanta avaliação houve; quanto ela deu é da organização. */
+    public function test_a_nota_do_projeto_nao_vai_no_payload(): void
+    {
+        $this->avaliacao(10);
+        $this->comoOrientador();
+
+        $linha = $this->getJson('/api/v1/ajustes')->assertOk()->json('data.projetos.0');
+        $detalhe = $this->getJson("/api/v1/ajustes/projetos/{$this->projeto->id}")->assertOk()->json('data');
+
+        foreach ([$linha, $detalhe] as $payload) {
+            $this->assertArrayNotHasKey('media', $payload);
+            $this->assertArrayNotHasKey('nota', $payload);
+            $this->assertArrayNotHasKey('nota_maxima', $payload);
+        }
+    }
+
     public function test_secoes_saem_em_niveis_e_nunca_com_a_nota(): void
     {
         // Tudo no topo da escala → toda seção é ponto forte.
         $this->avaliacao(10);
         $this->comoOrientador();
 
-        $resposta = $this->getJson("/api/v1/pareceres/projetos/{$this->projeto->id}")->assertOk();
+        $resposta = $this->getJson("/api/v1/ajustes/projetos/{$this->projeto->id}")->assertOk();
 
         foreach ($resposta->json('data.secoes') as $secao) {
             $this->assertSame('forte', $secao['nivel'], "Seção {$secao['chave']} deveria ser ponto forte.");
@@ -130,7 +142,7 @@ class PareceresOrientadorTest extends TestCase
         $this->avaliacao(2);
         $this->comoOrientador();
 
-        $niveis = collect($this->getJson("/api/v1/pareceres/projetos/{$this->projeto->id}")->json('data.secoes'))
+        $niveis = collect($this->getJson("/api/v1/ajustes/projetos/{$this->projeto->id}")->json('data.secoes'))
             ->pluck('nivel')
             ->unique()
             ->all();
@@ -144,7 +156,7 @@ class PareceresOrientadorTest extends TestCase
         $this->projeto->avaliacoes()->delete();
         $this->avaliacao(6);
 
-        $niveis = collect($this->getJson("/api/v1/pareceres/projetos/{$this->projeto->id}")->json('data.secoes'))
+        $niveis = collect($this->getJson("/api/v1/ajustes/projetos/{$this->projeto->id}")->json('data.secoes'))
             ->pluck('nivel')
             ->all();
 
@@ -159,7 +171,7 @@ class PareceresOrientadorTest extends TestCase
         ]);
         $this->comoOrientador();
 
-        $resposta = $this->getJson("/api/v1/pareceres/projetos/{$this->projeto->id}")->assertOk();
+        $resposta = $this->getJson("/api/v1/ajustes/projetos/{$this->projeto->id}")->assertOk();
 
         $resposta->assertJsonCount(2, 'data.recomendacoes')
             ->assertJsonPath('data.recomendacoes.0.avaliador', 'Avaliador 1')
@@ -182,15 +194,17 @@ class PareceresOrientadorTest extends TestCase
         ]);
         $this->comoOrientador();
 
-        $resposta = $this->getJson("/api/v1/pareceres/projetos/{$this->projeto->id}")->assertOk();
+        $resposta = $this->getJson("/api/v1/ajustes/projetos/{$this->projeto->id}")->assertOk();
 
         foreach ($resposta->json('data.secoes') as $secao) {
             $this->assertNull($secao['nivel']);
             $this->assertSame('Não avaliado', $secao['nivel_label']);
         }
 
-        // A nota média continua existindo — ela não depende das respostas.
-        $resposta->assertJsonPath('data.media', 7.5);
+        // Ela continua contando como avaliação concluída — o que falta são as
+        // respostas, não a avaliação.
+        $resposta->assertJsonPath('data.avaliacoes', 1)
+            ->assertDontSee('7.5');
     }
 
     public function test_fora_da_janela_a_aba_abre_vazia_e_o_detalhe_e_barrado(): void
@@ -199,12 +213,14 @@ class PareceresOrientadorTest extends TestCase
         Edicao::query()->update(['ajustes_de' => now()->addDays(3), 'ajustes_ate' => now()->addDays(10)]);
         $this->comoOrientador();
 
-        $this->getJson('/api/v1/pareceres')
+        $this->getJson('/api/v1/ajustes')
             ->assertOk()
             ->assertJsonPath('data.janela.aberta', false)
             ->assertJsonCount(0, 'data.projetos');
 
-        $this->getJson("/api/v1/pareceres/projetos/{$this->projeto->id}")->assertForbidden();
+        $this->getJson("/api/v1/ajustes/projetos/{$this->projeto->id}")
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('periodo');
     }
 
     public function test_orientador_demo_ignora_as_datas_em_modo_teste(): void
@@ -214,12 +230,12 @@ class PareceresOrientadorTest extends TestCase
         $this->orientador->update(['is_demo' => true]);
         $this->comoOrientador();
 
-        $this->getJson('/api/v1/pareceres?teste=1')
+        $this->getJson('/api/v1/ajustes?teste=1')
             ->assertOk()
             ->assertJsonPath('data.janela.aberta', true)
             ->assertJsonCount(1, 'data.projetos');
 
-        $this->getJson("/api/v1/pareceres/projetos/{$this->projeto->id}?teste=1")->assertOk();
+        $this->getJson("/api/v1/ajustes/projetos/{$this->projeto->id}?teste=1")->assertOk();
     }
 
     public function test_orientador_nao_ve_parecer_de_projeto_alheio(): void
@@ -229,13 +245,21 @@ class PareceresOrientadorTest extends TestCase
         ]);
         $this->comoOrientador();
 
-        $this->getJson("/api/v1/pareceres/projetos/{$outro->id}")->assertForbidden();
+        $this->getJson("/api/v1/ajustes/projetos/{$outro->id}")->assertForbidden();
     }
 
     public function test_avaliador_nao_acessa_a_aba(): void
     {
         Sanctum::actingAs(User::factory()->create(['role' => Role::Avaliador->value]));
 
-        $this->getJson('/api/v1/pareceres')->assertForbidden();
+        $this->getJson('/api/v1/ajustes')->assertForbidden();
+    }
+
+    /** A rota antiga saiu do ar: a aba é uma só. */
+    public function test_a_rota_separada_de_pareceres_nao_existe_mais(): void
+    {
+        $this->comoOrientador();
+
+        $this->getJson('/api/v1/pareceres')->assertNotFound();
     }
 }

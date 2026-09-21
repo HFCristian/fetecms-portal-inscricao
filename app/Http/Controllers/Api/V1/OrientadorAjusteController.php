@@ -10,8 +10,12 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * Aba "Ajustes" do orientador: as sugestões que os avaliadores deixaram nos
- * projetos dele, para aceitar ou não durante o período de ajustes.
+ * Aba "Ajustes e Pareceres" do orientador: o que a avaliação online disse sobre
+ * cada projeto dele — as sugestões de classificação, para aceitar ou não, e o
+ * parecer (etapas da rubrica em níveis e recomendações escritas), para ler.
+ *
+ * A **nota** não vai em nada disto, nem a de cada seção nem a que o projeto
+ * recebeu: quem discute o número é a organização.
  *
  * Fora da janela a aba continua listando (a tela mostra o motivo), mas nada
  * pode ser decidido. O orientador demo tem "modo teste" (?teste=1), que ignora
@@ -21,7 +25,7 @@ class OrientadorAjusteController extends Controller
 {
     public function __construct(private readonly AjustesOrientadorService $ajustes) {}
 
-    /** Janela + lista dos projetos submetidos com a contagem de sugestões. */
+    /** Janela + os projetos submetidos, com a contagem de cada coisa. */
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -34,7 +38,7 @@ class OrientadorAjusteController extends Controller
         ]]);
     }
 
-    /** Um projeto com as sugestões e as recomendações dos avaliadores. */
+    /** Um projeto com as sugestões, as etapas em níveis e as recomendações. */
     public function show(Request $request, Projeto $projeto): JsonResponse
     {
         $this->authorize('view', $projeto);

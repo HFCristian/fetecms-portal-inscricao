@@ -61,13 +61,18 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
 - **Orientador**: cadastro completo (wizard 3 etapas) → **confirmação do e-mail por código de 6
   dígitos** → lista de projetos → cadastro de projeto (salvável como **rascunho**) → alunos →
   coorientador opcional → resumo → **submissão irreversível** (que dispara o comprovante por e-mail).
-  Depois da avaliação online ele ainda tem a aba **Ajustes** (`/ajustes`, abaixo de *Meus Projetos*):
-  dentro do **período de ajustes** definido pelo admin, vê o que os avaliadores sugeriram em cada
-  projeto seu e **aceita ou desfaz a troca de área/subárea** — aceitar aplica na hora e vira registro;
-  a sugestão continua na tela até o fim do prazo, para ele poder mudar de ideia. As **recomendações
-  escritas** (vídeo e projeto) aparecem junto, só para leitura, e o avaliador é anônimo
-  ("Avaliador 1", "Avaliador 2"). Fora do período a aba aparece no menu mas não abre; o orientador
-  **demo** tem *modo de teste*, que ignora as datas (`AjustesOrientadorService`).
+  Depois da avaliação online ele ainda tem a aba **Ajustes e Pareceres** (`/ajustes`, abaixo de
+  *Meus Projetos*): dentro do **período de ajustes** definido pelo admin, abre cada projeto seu e
+  encontra num lugar só tudo o que a avaliação disse. O que ele **decide** são as sugestões de
+  classificação: **aceita ou desfaz a troca de área/subárea** — aceitar aplica na hora e vira
+  registro; a sugestão continua na tela até o fim do prazo, para ele poder mudar de ideia. O que ele
+  **lê** são as **etapas da rubrica** agrupadas em pontos fortes, médios e fracos
+  (`PareceresOrientadorService`, normalizando cada seção em 0 a 10 e cortando em 8 e 4) e as
+  **recomendações escritas** (vídeo e projeto). O avaliador é anônimo ("Avaliador 1",
+  "Avaliador 2") e **nota nenhuma aparece** — nem a de cada etapa nem a que o projeto recebeu, que
+  não chega sequer no payload: o número é da organização, que o discute no Ranking. Fora do período
+  a aba aparece no menu mas não abre; o orientador **demo** tem *modo de teste*, que ignora as datas
+  (`AjustesOrientadorService`).
 - **Avaliador (online)**: mesmo login do orientador; botão de cadastro **abaixo** do de orientador
   na tela de login. **Exclusão mútua**: quem é orientador NÃO pode ser avaliador, e vice-versa
   (validar no cadastro, em ambos os sentidos), pois o avaliador avalia projetos **submetidos**.
@@ -188,7 +193,7 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     designados e o que respondeu, mas não inicia, não salva rascunho e não envia
     (`AvaliacaoFluxoService::podeVer()` vs `podeAvaliar()`); o demo em modo teste ignora as duas
     datas. O **período de ajustes** (`edicoes.ajustes_de`/`ajustes_ate`) é a janela da aba
-    **Ajustes** do orientador — **sem data de início ela fica fechada**, ao contrário das outras
+    **Ajustes e Pareceres** do orientador — **sem data de início ela fica fechada**, ao contrário das outras
     janelas. O "período começou" que trava o cancelamento de submissão e a troca de área do
     avaliador continua sendo só o início (`edicoes.avaliacao_liberada_em`).
   - **Avaliação Online → Algoritmo de distribuição** (`/admin/avaliacao/distribuicao`, aberta pelo
@@ -548,7 +553,7 @@ npm test                          # testes de componente (Vitest)
 
 # Carga (k6 — instalar separadamente): k6 run load/k6-smoke.js
 # php artisan demo:ajustes           # projeto-exemplo da aba Ajustes (3 sugestões, 3 avaliadores)
-# php artisan demo:pareceres          # projeto já avaliado: abas Pareceres (níveis) e Ajustes
+# php artisan demo:pareceres          # projeto já avaliado: níveis e sugestões na aba Ajustes e Pareceres
 # php artisan demo:credenciamento     # lista final de demonstração, para ensaiar o balcão
 # Admin padrão (seed): admin@fetecms.test / password
 ```
@@ -734,9 +739,43 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 141 | **Desconsiderar** a nota de um avaliador, com justificativa e reversível | ✅ sim | ✅ sim (Pedro, PR #89 → v1.26) | 0 |
 | 142 | Substituir a nota desconsiderada: outro avaliador ou o **próprio admin** | ✅ sim | ✅ sim (Pedro, PR #89 → v1.26) | 0 |
 | 143 | Perfil do avaliador: quantas avaliações tem quem está **logo à frente** | ✅ sim | ✅ sim (Pedro, PR #89 → v1.26) | 0 |
-| 144 | Avaliar no lugar da nota: a rubrica abre **antes**, e o envio é que desconsidera | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 145 | `demo:pareceres`: projeto já avaliado, com pareceres em níveis e ajustes para o orientador demo | ✅ sim | ❌ não (manual do Pedro) | 2 |
+| 144 | Avaliar no lugar da nota: a rubrica abre **antes**, e o envio é que desconsidera | ✅ sim | ✅ sim (Pedro, PR #90) | 0 |
+| 145 | `demo:pareceres`: projeto já avaliado, com pareceres em níveis e ajustes para o orientador demo | ✅ sim | ✅ sim (Pedro, PR #91) | 0 |
+| 146 | Orientador: abas Ajustes e Pareceres viram **uma só**, e a nota do projeto sai da tela | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprint 146 (branch `feat/ajustes-e-pareceres`, saída da `main` @ `0d1e9f1`):**
+> o orientador passou a ter **uma aba só** para o pós-avaliação — **Ajustes e Pareceres**
+> (`/ajustes`) —, e ela **não mostra mais nota nenhuma**.
+> (a) **A junção.** *Ajustes* e *Pareceres* nasceram separadas, mas falam do mesmo material, do
+> mesmo projeto e na mesma janela (`edicoes.ajustes_de`/`ajustes_ate`): a sugestão de área que ele
+> decide e a crítica escrita que a motivou saíam de avaliações idênticas, em duas telas. Quem lia o
+> parecer numa tinha de trocar de tela para decidir na outra. Agora o projeto aberto traz, na
+> ordem: as **sugestões de classificação** (aceitar/desfazer, como antes), as **etapas da rubrica**
+> em pontos fortes/médios/fracos e as **recomendações escritas**. O item do menu é um só; `/pareceres`
+> **redireciona** para `/ajustes`, para o link já enviado não morrer.
+> No servidor a junção é de verdade, e não duas chamadas emendadas na tela: o `GET /ajustes` e o
+> `GET /ajustes/projetos/{projeto}` respondem pela aba inteira, e **as rotas `/pareceres` saíram do
+> ar** (o `OrientadorParecerController` foi removido). O `AjustesOrientadorService` virou o serviço
+> da tela e pede os níveis ao `PareceresOrientadorService`, que ficou sendo só isso — a conversão de
+> seção em nível. As **avaliações concluídas são carregadas uma vez** e servem às três metades, o
+> que de quebra tira uma consulta por projeto da listagem: antes, `sugestoes()` e `recomendacoes()`
+> buscavam cada uma a sua.
+> (b) **A nota saiu.** A média do projeto e o "de 10,00" eram o cabeçalho da aba Pareceres; não são
+> mais exibidos **nem enviados** — `media` e `nota_maxima` deixaram de existir no payload, como a
+> pontuação por seção já não existia desde a Sprint 127. O princípio é o mesmo daquela sprint, agora
+> até o fim: o que o orientador precisa é saber **onde** melhorar, e o número é o instrumento com
+> que a organização classifica, monta a lista final e trata contestação (Ranking → Verificar
+> disparidade). Esconder na tela e mandar no JSON não seria esconder. No lugar dele o cartão do
+> projeto diz **quantas avaliações** houve — a informação que ele de fato usa para saber se o
+> parecer está completo — e o detalhe abre com "Resultado de N avaliação(ões) concluída(s)".
+> Nada muda para o admin nem para o avaliador: as notas continuam onde sempre estiveram (ranking,
+> Designações → Ver notas, disparidade), com o registro de quem as abriu.
+> (c) **O ensaio acompanhou**: `demo:pareceres` lê o payload novo e a **nota média passou a sair só
+> no terminal**, calculada ali — é a prova de que a conversão de `SemearPareceresDemo::PERFIL` em
+> respostas respeitou os pesos do edital, e quem lê o terminal é a organização.
+> **Sem migration, sem dependência nova e sem variável de `.env`.**
+> Back **1149/1149**, front **546/546**, Pint limpo, build OK.
+>
 > **Sprint 145 (branch `feat/demo-pareceres-ajustes`, saída da `main` @ `94dd9f6`):**
 > ensaiar o **pós-avaliação** pelo lado do orientador — as abas **Pareceres** e **Ajustes** —
 > antes de a organização abrir o período. O `demo:ajustes` já montava um projeto avaliado, mas
@@ -1707,6 +1746,22 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > e **Escolas** (`/admin/parametrizacao/escolas`): admin busca, **renomeia, mescla** (reatribui
 > projetos/alunos/orientadores) e **exclui** instituições sem uso (`InstituicaoAdminService`/Controller,
 > rotas `admin/instituicoes`). Back **117/117**, front 11/11, Pint limpo, build OK.
+> **Pendências do Pedro (Sprint 146):** (1) `git push origin feat/ajustes-e-pareceres` + PR para a
+> `main` (o ambiente do Claude não tem credencial do GitHub). Esta release **não tem migration,
+> dependência nova nem variável de `.env`** — é tela e payload.
+> (2) **Decisão a confirmar**: o pedido dizia "não mostre para o administrador a nota que o
+> projeto recebeu", e a tela em questão é a do **orientador** — foi dela que a nota saiu (na
+> tela e no JSON). As telas do **admin** continuam com as notas intactas: Ranking, Designações →
+> *Ver notas* e Verificar disparidade. Se o que você queria era tirar a nota de alguma dessas,
+> é outra mudança e eu faço na sequência.
+> (3) **`/pareceres` deixou de existir** como aba e como rota da API. No portal o endereço antigo
+> redireciona para `/ajustes`; se houver algum script ou atalho batendo em
+> `GET /api/v1/pareceres`, ele passa a receber 404 — o conteúdo está em `GET /api/v1/ajustes`.
+> (4) Para conferir: `php artisan demo:pareceres`, entrar como **`orientador@fetecms.test`** e
+> ligar o **Modo de teste** na aba *Ajustes e Pareceres* (agora é uma só). A **nota média** do
+> exemplo continua sendo impressa pelo comando, no terminal — é a conferência de que as respostas
+> saíram coerentes com os pesos do edital.
+>
 > **Pendências do Pedro (Sprint 145):** (1) `git push origin feat/demo-pareceres-ajustes` + PR
 > para a `main` (o ambiente do Claude não tem credencial do GitHub). Esta release **não tem
 > migration, dependência nova nem variável de `.env`** — é um comando de ensaio.

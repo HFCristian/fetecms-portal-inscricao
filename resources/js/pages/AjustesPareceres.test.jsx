@@ -13,20 +13,27 @@ vi.mock('../lib/ajustes.js', () => ({
     decidirAjuste: (...a) => decidirAjuste(...a),
 }));
 
-import Ajustes from './Ajustes.jsx';
+import AjustesPareceres from './AjustesPareceres.jsx';
 
 const PROJETO = {
     id: 7, titulo: 'Bioplástico de mandioca', area: 'Ciências Exatas e da Terra', subarea: null,
-    sugestoes: 1, pendentes: 1, aceitas: 0, recomendacoes: 1,
+    avaliacoes: 2, sugestoes: 1, pendentes: 1, aceitas: 0, recomendacoes: 1,
 };
 
 const DETALHE = {
     id: 7, titulo: 'Bioplástico de mandioca', area: 'Ciências Exatas e da Terra', subarea: null,
+    avaliacoes: 2,
     sugestoes: [{
         avaliacao_id: 3, avaliador: 'Avaliador 1', tipo: 'area', tipo_label: 'Área do conhecimento',
         atual: 'Ciências Exatas e da Terra', sugerido: 'Ciências Agrárias', sugerido_id: 2,
         aceito: false, decidido_em: null,
     }],
+    secoes: [
+        { chave: 'titulo', titulo: 'Título', nivel: 'forte', nivel_label: 'Ponto forte' },
+        { chave: 'resumo', titulo: 'Resumo', nivel: 'medio', nivel_label: 'Ponto médio' },
+        { chave: 'metodologia', titulo: 'Metodologia', nivel: 'fraco', nivel_label: 'Ponto fraco' },
+        { chave: 'video', titulo: 'Vídeo', nivel: null, nivel_label: 'Não avaliado' },
+    ],
     recomendacoes: [{
         avaliacao_id: 3, avaliador: 'Avaliador 1', tipo: 'video',
         titulo: 'Sobre o vídeo', texto: 'Melhore o áudio.',
@@ -35,7 +42,7 @@ const DETALHE = {
 
 const ABERTA = { aberta: true, iniciada: true, encerrada: false, de_label: '01/09/2026 08:00', ate_label: '10/09/2026 23:59', is_demo: false, modo_teste: false };
 
-describe('Ajustes — orientador', () => {
+describe('Ajustes e Pareceres — orientador', () => {
     beforeEach(() => {
         getAjustes.mockReset();
         getAjustesProjeto.mockReset();
@@ -44,16 +51,43 @@ describe('Ajustes — orientador', () => {
         getAjustesProjeto.mockResolvedValue(DETALHE);
     });
 
-    it('lista os projetos e abre as sugestões do escolhido', async () => {
-        render(<Ajustes />);
+    it('reúne numa tela só as sugestões, as etapas e as recomendações', async () => {
+        render(<AjustesPareceres />);
 
         fireEvent.click(await screen.findByText('Bioplástico de mandioca'));
+        await waitFor(() => expect(getAjustesProjeto).toHaveBeenCalledWith(7, false));
 
+        // Metade "ajustes": a sugestão a decidir.
         expect(await screen.findByText('Ciências Agrárias')).toBeInTheDocument();
         expect(screen.getByText('Área do conhecimento · Avaliador 1')).toBeInTheDocument();
-        // As recomendações escritas aparecem só para leitura.
-        expect(screen.getByText('Melhore o áudio.')).toBeInTheDocument();
         expect(screen.getByText('Aceitar')).toBeInTheDocument();
+
+        // Metade "pareceres": as etapas em níveis e o texto escrito.
+        expect(screen.getByText('Pontos fortes').closest('div')).toHaveTextContent('Título');
+        expect(screen.getByText('Pontos médios').closest('div')).toHaveTextContent('Resumo');
+        expect(screen.getByText('Pontos fracos').closest('div')).toHaveTextContent('Metodologia');
+        // Etapa sem resposta é dita como tal, não vira ponto fraco.
+        expect(screen.getByText(/Sem resposta registrada em: Vídeo/)).toBeInTheDocument();
+        expect(screen.getByText('Melhore o áudio.')).toBeInTheDocument();
+    });
+
+    /** A nota é da organização: nem a do projeto nem a de cada etapa aparecem. */
+    it('não mostra nota nenhuma, na lista nem no detalhe', async () => {
+        getAjustes.mockResolvedValue({
+            janela: ABERTA,
+            // Mesmo que o servidor mandasse a nota, a tela não tem onde pô-la.
+            projetos: [{ ...PROJETO, media: 7.35, nota_maxima: 10 }],
+        });
+        render(<AjustesPareceres />);
+
+        expect(await screen.findByText('Bioplástico de mandioca')).toBeInTheDocument();
+        expect(screen.queryByText('7,35')).not.toBeInTheDocument();
+        expect(screen.queryByText(/de 10,00/)).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByText('Bioplástico de mandioca'));
+
+        expect(await screen.findByText(/Resultado de 2 avaliação\(ões\) concluída\(s\)/)).toBeInTheDocument();
+        expect(screen.queryByText('7,35')).not.toBeInTheDocument();
     });
 
     it('aceita a sugestão e ela continua na tela, agora marcada', async () => {
@@ -66,7 +100,7 @@ describe('Ajustes — orientador', () => {
             meta: { message: 'Sugestão aceita — a classificação do projeto foi atualizada.' },
         });
 
-        render(<Ajustes />);
+        render(<AjustesPareceres />);
         fireEvent.click(await screen.findByText('Bioplástico de mandioca'));
         fireEvent.click(await screen.findByText('Aceitar'));
 
@@ -77,6 +111,8 @@ describe('Ajustes — orientador', () => {
         expect(await screen.findByText('Em vigor')).toBeInTheDocument();
         // Continua listada, agora com a opção de desfazer.
         expect(screen.getByText('Desfazer')).toBeInTheDocument();
+        // E o parecer segue na mesma tela, sem recarregar nada.
+        expect(screen.getByText('Melhore o áudio.')).toBeInTheDocument();
     });
 
     it('fora do período explica que a aba está fechada', async () => {
@@ -84,9 +120,10 @@ describe('Ajustes — orientador', () => {
             janela: { ...ABERTA, aberta: false, iniciada: false, encerrada: false },
             projetos: [],
         });
-        render(<Ajustes />);
+        render(<AjustesPareceres />);
 
         expect(await screen.findByText('O período de ajustes ainda não começou')).toBeInTheDocument();
+        expect(screen.getByText(/A aba abre em 01\/09\/2026 08:00/)).toBeInTheDocument();
         expect(screen.queryByText('Bioplástico de mandioca')).not.toBeInTheDocument();
     });
 
@@ -95,7 +132,7 @@ describe('Ajustes — orientador', () => {
             janela: { ...ABERTA, aberta: false, iniciada: false, is_demo: true },
             projetos: [],
         });
-        render(<Ajustes />);
+        render(<AjustesPareceres />);
 
         expect(await screen.findByText('Modo de teste')).toBeInTheDocument();
 
