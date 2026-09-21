@@ -50,6 +50,12 @@ class AjustesOrientadorService
      * Estado da janela para esta pessoa. `aberta` é o que a tela usa para
      * liberar ou bloquear.
      *
+     * Vem junto o **fim da avaliação online**, que não é desta janela mas é o
+     * que a antecede: é com ele que a tela inicial avisa o orientador de que a
+     * avaliação terminou e que o resultado dela aparece aqui. Ao contrário de
+     * `aberta`, esse par é **factual** — o modo de teste da conta demo adianta a
+     * aba, não o calendário da feira.
+     *
      * @return array<string, mixed>
      */
     public function janela(User $user, bool $teste = false): array
@@ -68,6 +74,9 @@ class AjustesOrientadorService
             'ate' => $edicao?->ajustes_ate?->toIso8601String(),
             'de_label' => $edicao?->ajustes_de?->format('d/m/Y H:i'),
             'ate_label' => $edicao?->ajustes_ate?->format('d/m/Y H:i'),
+            'avaliacao_encerrada' => (bool) $edicao?->avaliacaoEncerrada(),
+            'avaliacao_encerrada_em' => $edicao?->avaliacao_encerrada_em?->toIso8601String(),
+            'avaliacao_encerrada_em_label' => $edicao?->avaliacao_encerrada_em?->format('d/m/Y H:i'),
             'modo_teste' => $modoTeste,
             'is_demo' => (bool) $user->is_demo,
         ];

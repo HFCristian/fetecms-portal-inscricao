@@ -23,6 +23,11 @@ vi.mock('../lib/projetos.js', () => ({
 const getInscricoes = vi.fn(() => Promise.resolve({ abertas: true, encerradas: false, nao_iniciadas: false, prazo_input: null, prazo_label: null, minutos_restantes: null }));
 vi.mock('../lib/inscricoes.js', () => ({ getInscricoes: (...a) => getInscricoes(...a) }));
 
+// Janela dos ajustes: é o fim da avaliação online que dispara o aviso do topo.
+const SEM_AVALIACAO_ENCERRADA = { aberta: false, iniciada: false, encerrada: false, avaliacao_encerrada: false, is_demo: false };
+const getJanelaAjustes = vi.fn(() => Promise.resolve(SEM_AVALIACAO_ENCERRADA));
+vi.mock('../lib/ajustes.js', () => ({ getJanelaAjustes: (...a) => getJanelaAjustes(...a) }));
+
 import Projetos from './Projetos.jsx';
 
 const submetido = (over = {}) => ({
@@ -93,6 +98,8 @@ describe('Projetos — prazo de submissão', () => {
         listarProjetos.mockResolvedValue([submetido({ status: 'rascunho', status_label: 'Rascunho', pode_desfazer: false })]);
         getInscricoes.mockReset();
         getInscricoes.mockResolvedValue({ abertas: true, encerradas: false, nao_iniciadas: false, prazo_input: null, prazo_label: null, minutos_restantes: null });
+        getJanelaAjustes.mockReset();
+        getJanelaAjustes.mockResolvedValue(SEM_AVALIACAO_ENCERRADA);
     });
 
     it('lembra a data enquanto as inscrições estão abertas', async () => {
@@ -131,5 +138,48 @@ describe('Projetos — prazo de submissão', () => {
         await screen.findByText('Bioplástico de Mandioca');
         expect(screen.queryByText(/Inscrições abertas até/)).not.toBeInTheDocument();
         expect(screen.getByText('NOVA INSCRIÇÃO').closest('button')).not.toBeDisabled();
+    });
+});
+
+describe('Projetos — fim da avaliação online', () => {
+    const ENCERRADA = {
+        aberta: true, iniciada: true, encerrada: false,
+        de_label: '20/10/2026 08:00', ate_label: '30/10/2026 23:59',
+        avaliacao_encerrada: true, avaliacao_encerrada_em_label: '15/10/2026 23:59',
+        is_demo: false,
+    };
+
+    beforeEach(() => {
+        listarProjetos.mockReset();
+        getInscricoes.mockReset();
+        getInscricoes.mockResolvedValue({ abertas: false, encerradas: true, nao_iniciadas: false, prazo_label: null, prazo_input: null, minutos_restantes: null });
+        getJanelaAjustes.mockReset();
+        getJanelaAjustes.mockResolvedValue(ENCERRADA);
+    });
+
+    it('avisa quem tem projeto submetido, com o atalho para a aba', async () => {
+        listarProjetos.mockResolvedValue([submetido()]);
+        render(<Projetos />);
+
+        expect(await screen.findByText('A avaliação online terminou')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /AJUSTES E PARECERES/i })).toBeInTheDocument();
+    });
+
+    it('não avisa quem ficou só no rascunho', async () => {
+        listarProjetos.mockResolvedValue([submetido({ status: 'rascunho', status_label: 'Rascunho' })]);
+        render(<Projetos />);
+
+        await screen.findByText('Bioplástico de Mandioca');
+        expect(screen.queryByText('A avaliação online terminou')).not.toBeInTheDocument();
+    });
+
+    /** O aviso informa; falhar a consulta não pode derrubar a tela. */
+    it('a tela abre normalmente se a janela não puder ser consultada', async () => {
+        listarProjetos.mockResolvedValue([submetido()]);
+        getJanelaAjustes.mockRejectedValue(new Error('rede'));
+        render(<Projetos />);
+
+        await screen.findByText('Bioplástico de Mandioca');
+        expect(screen.queryByText('A avaliação online terminou')).not.toBeInTheDocument();
     });
 });

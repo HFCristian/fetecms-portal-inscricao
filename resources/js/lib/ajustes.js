@@ -10,6 +10,10 @@ const params = (teste) => ({ params: teste ? { teste: 1 } : {} });
 export const getAjustes = (teste = false) =>
     http.get('/ajustes', params(teste)).then((r) => r.data.data);
 
+/** Só as datas — o aviso da tela inicial não precisa da lista de projetos. */
+export const getJanelaAjustes = () =>
+    http.get('/ajustes/janela').then((r) => r.data.data);
+
 export const getAjustesProjeto = (projetoId, teste = false) =>
     http.get(`/ajustes/projetos/${projetoId}`, params(teste)).then((r) => r.data.data);
 

@@ -38,6 +38,20 @@ class OrientadorAjusteController extends Controller
         ]]);
     }
 
+    /**
+     * Só o estado da janela, sem a lista.
+     *
+     * É o que a tela inicial do orientador consulta para avisar que a avaliação
+     * online terminou: um aviso não justifica varrer os projetos dele e as
+     * avaliações de cada um, que é o que o `index` faz.
+     */
+    public function janela(Request $request): JsonResponse
+    {
+        return response()->json([
+            'data' => $this->ajustes->janela($request->user(), $request->boolean('teste')),
+        ]);
+    }
+
     /** Um projeto com as sugestões, as etapas em níveis e as recomendações. */
     public function show(Request $request, Projeto $projeto): JsonResponse
     {

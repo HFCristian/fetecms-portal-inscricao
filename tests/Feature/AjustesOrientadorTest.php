@@ -16,8 +16,9 @@ use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 /**
- * Aba "Ajustes" do orientador: as sugestões de reclassificação dos avaliadores,
- * aceitas ou recusadas durante o período de ajustes.
+ * Aba "Ajustes e Pareceres" do orientador: as sugestões de reclassificação dos
+ * avaliadores, aceitas ou recusadas durante o período de ajustes — e a janela
+ * que a tela inicial consulta para avisar que a avaliação online terminou.
  */
 class AjustesOrientadorTest extends TestCase
 {
@@ -218,5 +219,70 @@ class AjustesOrientadorTest extends TestCase
         Sanctum::actingAs(User::factory()->create(['role' => Role::Avaliador->value]));
 
         $this->getJson('/api/v1/ajustes')->assertForbidden();
+    }
+
+    /** O aviso da tela inicial: só as datas, sem varrer projeto nenhum. */
+    public function test_janela_responde_sem_a_lista_de_projetos(): void
+    {
+        $this->sugestao();
+        Edicao::atual()->update(['avaliacao_encerrada_em' => now()->subHours(2)]);
+        Sanctum::actingAs($this->orientador);
+
+        $this->getJson('/api/v1/ajustes/janela')
+            ->assertOk()
+            ->assertJsonPath('data.aberta', true)
+            ->assertJsonPath('data.avaliacao_encerrada', true)
+            ->assertJsonPath(
+                'data.avaliacao_encerrada_em_label',
+                Edicao::atual()->avaliacao_encerrada_em->format('d/m/Y H:i'),
+            )
+            ->assertJsonMissingPath('data.projetos');
+    }
+
+    /** Antes da data, o aviso não tem por que aparecer. */
+    public function test_janela_diz_que_a_avaliacao_nao_terminou(): void
+    {
+        Edicao::atual()->update(['avaliacao_encerrada_em' => now()->addDays(3)]);
+        Sanctum::actingAs($this->orientador);
+
+        $this->getJson('/api/v1/ajustes/janela')
+            ->assertOk()
+            ->assertJsonPath('data.avaliacao_encerrada', false);
+
+        // Sem data de encerramento, a avaliação segue aberta — e o aviso, fora.
+        Edicao::atual()->update(['avaliacao_encerrada_em' => null]);
+
+        $this->getJson('/api/v1/ajustes/janela')
+            ->assertOk()
+            ->assertJsonPath('data.avaliacao_encerrada', false)
+            ->assertJsonPath('data.avaliacao_encerrada_em_label', null);
+    }
+
+    /**
+     * O modo de teste adianta a aba, não o calendário: o fim da avaliação é
+     * factual, senão o orientador demo leria "a avaliação terminou" no meio
+     * dela.
+     */
+    public function test_modo_teste_nao_antecipa_o_fim_da_avaliacao(): void
+    {
+        Edicao::atual()->update([
+            'ajustes_de' => null,
+            'ajustes_ate' => null,
+            'avaliacao_encerrada_em' => now()->addDays(3),
+        ]);
+        $this->orientador->update(['is_demo' => true]);
+        Sanctum::actingAs($this->orientador);
+
+        $this->getJson('/api/v1/ajustes/janela?teste=1')
+            ->assertOk()
+            ->assertJsonPath('data.aberta', true)
+            ->assertJsonPath('data.avaliacao_encerrada', false);
+    }
+
+    public function test_avaliador_nao_consulta_a_janela(): void
+    {
+        Sanctum::actingAs(User::factory()->create(['role' => Role::Avaliador->value]));
+
+        $this->getJson('/api/v1/ajustes/janela')->assertForbidden();
     }
 }
