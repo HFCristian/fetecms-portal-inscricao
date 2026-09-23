@@ -149,22 +149,30 @@ export default function AppShell({ children }) {
         <div className="min-h-screen bg-background">
             {/* Sidebar desktop */}
             <nav className="hidden md:flex fixed left-0 top-0 h-full w-64 z-40 p-3 flex-col bg-surface-container-low border-r border-outline-variant/30">
-                <div className="mb-6 pb-4 border-b border-outline-variant/30">
+                <div className="shrink-0 mb-4 pb-3 border-b border-outline-variant/30">
                     <img src="/img/logo2026.webp" alt="XVI FETECMS" className="max-h-28 mx-auto w-auto mb-2" />
                     <h1 className="font-display text-lg text-primary font-bold">Portal do Orientador</h1>
                     <p className="text-sm text-on-surface-variant">XVI FETECMS</p>
                 </div>
-                <div className="flex-1 flex flex-col gap-1">
+                {/* A lista de abas rola sozinha: numa tela larga mas baixa
+                    (notebook deitado, projetor 16:9) o admin tem mais abas do
+                    que altura, e sem isto as últimas ficavam para fora da tela,
+                    inalcançáveis. `min-h-0` é o que permite ao flex encolher o
+                    filho abaixo do conteúdo dele — sem ele, `overflow-y-auto`
+                    não tem efeito nenhum dentro de uma coluna flex. */}
+                <div className="flex-1 min-h-0 flex flex-col gap-1 overflow-y-auto fetec-scroll">
                     <SeletorEdicao />
                     <NavLinks role={user?.role} abas={user?.abas} suporteBadge={suporteBadge} />
-                    <div className="flex flex-col gap-1 mt-auto mb-4">
-                        <NavLink to="/acesso" className={navClass}>
-                            <span className="material-symbols-outlined">lock</span>
-                            Acesso
-                        </NavLink>
-                        <LogoutButton onClick={handleLogout} />
-                        <SupportFooter className="pb-2 mt-3" />
-                    </div>
+                </div>
+                {/* Acesso, Sair e o rodapé de suporte ficam ancorados embaixo:
+                    são a saída da tela e não podem depender de rolagem. */}
+                <div className="shrink-0 flex flex-col gap-1 pt-2 mt-2 border-t border-outline-variant/30">
+                    <NavLink to="/acesso" className={navClass}>
+                        <span className="material-symbols-outlined">lock</span>
+                        Acesso
+                    </NavLink>
+                    <LogoutButton onClick={handleLogout} />
+                    <SupportFooter className="pb-2 mt-3" />
                 </div>
             </nav>
 

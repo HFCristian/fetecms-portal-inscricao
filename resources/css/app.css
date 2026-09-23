@@ -113,3 +113,28 @@
     height: 0;
     pointer-events: none;
 }
+
+/* Barra de rolagem discreta — usada na lista de abas do menu lateral, que rola
+   quando a tela é mais baixa do que o número de abas do admin. A barra padrão
+   do sistema rouba largura do texto do item e destoa da identidade do portal. */
+.fetec-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--color-primary-container, #43157a) 35%, transparent) transparent;
+}
+
+.fetec-scroll::-webkit-scrollbar {
+    width: 6px;
+}
+
+.fetec-scroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.fetec-scroll::-webkit-scrollbar-thumb {
+    background-color: color-mix(in srgb, var(--color-primary-container, #43157a) 35%, transparent);
+    border-radius: 9999px;
+}
+
+.fetec-scroll:hover::-webkit-scrollbar-thumb {
+    background-color: color-mix(in srgb, var(--color-primary-container, #43157a) 55%, transparent);
+}
