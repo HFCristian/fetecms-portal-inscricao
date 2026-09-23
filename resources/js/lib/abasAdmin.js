@@ -57,7 +57,7 @@ export const ABAS_ADMIN = [
         to: '/admin/presencial',
         icon: 'stadium',
         label: 'Avaliação presencial',
-        descricao: 'Checagem dos estandes, voluntários e credenciais de premiação.',
+        descricao: 'Checagem dos estandes, voluntários e as credenciais e prêmios da feira.',
     },
     {
         aba: 'comite',
