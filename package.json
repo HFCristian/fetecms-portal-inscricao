@@ -17,7 +17,7 @@
         "laravel-vite-plugin": "^3.2",
         "tailwindcss": "^4.3.3",
         "vite": "^8.0.0",
-        "vitest": "^4.1.11"
+        "vitest": "^5.0.1"
     },
     "dependencies": {
         "@tiptap/extension-image": "^3.31.3",
