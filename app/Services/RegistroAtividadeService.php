@@ -342,6 +342,51 @@ class RegistroAtividadeService
     }
 
     /**
+     * Cerimonial: uma pessoa entrou na sala da cerimônia.
+     *
+     * O registro é **por pessoa** porque é a pessoa que entra, é ela que rende
+     * medalha e é nominalmente que a organização precisa responder depois quem
+     * estava lá — o projeto sozinho não diria isso.
+     */
+    public function cerimonialCheckin(
+        Projeto $projeto,
+        User $admin,
+        string $pessoa,
+        string $papel,
+        bool $demo = false,
+    ): RegistroAtividade {
+        return $this->registrarNoProjeto(TipoRegistro::CerimonialCheckin, $projeto, $admin, [
+            'pessoa' => $pessoa,
+            'papel' => $papel,
+            'quando' => now()->format('d/m/Y H:i'),
+            'demo' => $demo,
+        ]);
+    }
+
+    /**
+     * Cerimonial: check-in desfeito, com a justificativa obrigatória.
+     *
+     * A linha do check-in é apagada (a contagem de medalhas tem de voltar a
+     * bater), então este registro é a única memória de que aquela pessoa esteve
+     * marcada como presente — e do motivo de não estar mais.
+     */
+    public function cerimonialCheckinDesfeito(
+        Projeto $projeto,
+        User $admin,
+        string $pessoa,
+        string $papel,
+        string $justificativa,
+        bool $demo = false,
+    ): RegistroAtividade {
+        return $this->registrarNoProjeto(TipoRegistro::CerimonialCheckinDesfeito, $projeto, $admin, [
+            'pessoa' => $pessoa,
+            'papel' => $papel,
+            'justificativa' => $justificativa,
+            'demo' => $demo,
+        ]);
+    }
+
+    /**
      * Almoxarifado: material guardado. Quem deixou e o que entrou — a lista
      * inteira, porque é ela que a retirada vai conferir depois.
      *
@@ -756,6 +801,28 @@ class RegistroAtividadeService
     {
         $detalhes = $registro->detalhes ?? [];
         $partes = [];
+
+        // O cerimonial é presença: quem entrou, em que papel — e, no desfazer,
+        // por quê deixou de constar.
+        if ($registro->tipo === TipoRegistro::CerimonialCheckin) {
+            return sprintf(
+                '%s (%s) fez check-in%s%s',
+                $detalhes['pessoa'] ?? 'alguém',
+                $detalhes['papel'] ?? 'participante',
+                empty($detalhes['quando']) ? '' : ' · '.$detalhes['quando'],
+                ($detalhes['demo'] ?? false) ? ' · modo de teste' : '',
+            );
+        }
+
+        if ($registro->tipo === TipoRegistro::CerimonialCheckinDesfeito) {
+            return sprintf(
+                'check-in de %s (%s) desfeito · %s%s',
+                $detalhes['pessoa'] ?? 'alguém',
+                $detalhes['papel'] ?? 'participante',
+                $detalhes['justificativa'] ?? 'sem justificativa',
+                ($detalhes['demo'] ?? false) ? ' · modo de teste' : '',
+            );
+        }
 
         // O almoxarifado descreve movimento de material, não "de → para".
         if ($registro->tipo === TipoRegistro::AlmoxarifadoGuarda) {

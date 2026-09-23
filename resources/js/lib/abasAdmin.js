@@ -39,6 +39,13 @@ export const ABAS_ADMIN = [
         descricao: 'O balcão do evento: conferir documentos e credenciar finalistas.',
     },
     {
+        aba: 'cerimonial',
+        to: '/admin/cerimonial',
+        icon: 'celebration',
+        label: 'Cerimonial',
+        descricao: 'Check-in da cerimônia de premiação e o painel de quem já chegou.',
+    },
+    {
         aba: 'almoxarifado',
         to: '/admin/almoxarifado',
         icon: 'inventory_2',

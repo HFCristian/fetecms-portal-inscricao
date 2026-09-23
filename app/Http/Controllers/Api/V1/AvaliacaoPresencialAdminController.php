@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Enums\Categoria;
 use App\Enums\SituacaoDocumento;
 use App\Enums\StatusAvaliacao;
+use App\Enums\TipoCredencial;
 use App\Enums\Turno;
 use App\Http\Controllers\Controller;
 use App\Models\Area;
@@ -223,18 +224,22 @@ class AvaliacaoPresencialAdminController extends Controller
 
     // --- Credenciais (vagas de premiação) ----------------------------------
 
-    /** As credenciais da edição e os projetos que podem recebê-las. */
+    /** As credenciais e prêmios da edição e os projetos que podem recebê-los. */
     public function credenciais(): JsonResponse
     {
         return response()->json([
             'data' => $this->credenciais->listar(),
-            'meta' => ['candidatos' => $this->credenciais->candidatos()],
+            'meta' => [
+                'candidatos' => $this->credenciais->candidatos(),
+                'tipos' => TipoCredencial::opcoes(),
+            ],
         ]);
     }
 
     public function criarCredencial(Request $request): JsonResponse
     {
         $dados = $request->validate([
+            'tipo' => ['nullable', Rule::in(TipoCredencial::valores())],
             'nome' => ['required', 'string', 'max:120'],
             'orgao' => ['nullable', 'string', 'max:120'],
             'descricao' => ['nullable', 'string', 'max:500'],
@@ -251,6 +256,7 @@ class AvaliacaoPresencialAdminController extends Controller
     public function atualizarCredencial(Request $request, Credencial $credencial): JsonResponse
     {
         $dados = $request->validate([
+            'tipo' => ['sometimes', Rule::in(TipoCredencial::valores())],
             'nome' => ['sometimes', 'string', 'max:120'],
             'orgao' => ['nullable', 'string', 'max:120'],
             'descricao' => ['nullable', 'string', 'max:500'],

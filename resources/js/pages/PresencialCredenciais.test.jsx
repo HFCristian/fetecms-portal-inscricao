@@ -30,20 +30,29 @@ const CANDIDATOS = [
     { id: 7, titulo: 'Bioplástico', categoria: 'FETECMS', area: 'Agrárias', escola: 'EE Alfa', credenciais: [] },
 ];
 
+// Os dois tipos vêm do servidor (`meta.tipos`): é ele que nomeia o que a tela
+// oferece, então o mock os traz como a API traz.
+const TIPOS = [
+    { value: 'credencial', label: 'Credencial', plural: 'Credenciais', descricao: 'Vaga que o projeto leva.' },
+    { value: 'premio', label: 'Prêmio', plural: 'Prêmios', descricao: 'Reconhecimento anunciado.' },
+];
+
 const COM_VAGAS = {
-    id: 1, nome: 'MOSTRATEC 2027', orgao: 'FUNDECT', descricao: null,
+    id: 1, tipo: 'credencial', tipo_label: 'Credencial',
+    nome: 'MOSTRATEC 2027', orgao: 'FUNDECT', descricao: null,
     vagas: 2, usadas: 0, disponiveis: 2, ativa: true, projetos: [],
 };
 
 const SEM_TETO = {
-    id: 2, nome: 'Menção honrosa', orgao: null, descricao: null,
+    id: 2, tipo: 'credencial', tipo_label: 'Credencial',
+    nome: 'Menção honrosa', orgao: null, descricao: null,
     vagas: null, usadas: 3, disponiveis: null, ativa: true, projetos: [],
 };
 
 describe('PresencialCredenciais', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        getCredenciais.mockResolvedValue({ data: [COM_VAGAS], meta: { candidatos: CANDIDATOS } });
+        getCredenciais.mockResolvedValue({ data: [COM_VAGAS], meta: { candidatos: CANDIDATOS, tipos: TIPOS } });
         criarCredencial.mockResolvedValue([COM_VAGAS]);
         atribuirCredencial.mockResolvedValue({ data: [COM_VAGAS] });
         retirarCredencial.mockResolvedValue({ data: [COM_VAGAS] });
@@ -59,7 +68,7 @@ describe('PresencialCredenciais', () => {
     });
 
     it('credencial sem teto não inventa número de vagas', async () => {
-        getCredenciais.mockResolvedValue({ data: [SEM_TETO], meta: { candidatos: CANDIDATOS } });
+        getCredenciais.mockResolvedValue({ data: [SEM_TETO], meta: { candidatos: CANDIDATOS, tipos: TIPOS } });
         render(<PresencialCredenciais />);
 
         expect(await screen.findByText(/3 atribuída\(s\) · sem limite de vagas/)).toBeInTheDocument();
@@ -68,7 +77,7 @@ describe('PresencialCredenciais', () => {
     it('credencial esgotada é apontada', async () => {
         getCredenciais.mockResolvedValue({
             data: [{ ...COM_VAGAS, usadas: 2, disponiveis: 0 }],
-            meta: { candidatos: CANDIDATOS },
+            meta: { candidatos: CANDIDATOS, tipos: TIPOS },
         });
         render(<PresencialCredenciais />);
 
@@ -84,7 +93,21 @@ describe('PresencialCredenciais', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Cadastrar' }));
 
         await waitFor(() => expect(criarCredencial).toHaveBeenCalledWith({
-            nome: 'Feira Nacional', orgao: null, descricao: null, vagas: 5,
+            // Sem escolher nada, credencial: era o único tipo antes dos prêmios.
+            tipo: 'credencial', nome: 'Feira Nacional', orgao: null, descricao: null, vagas: 5,
+        }));
+    });
+
+    it('cadastra um prêmio pelo seletor de tipo', async () => {
+        render(<PresencialCredenciais />);
+
+        fireEvent.click(await screen.findByRole('button', { name: /Nova credencial/i }));
+        fireEvent.change(screen.getByLabelText('Tipo'), { target: { value: 'premio' } });
+        fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Destaque da feira' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Cadastrar' }));
+
+        await waitFor(() => expect(criarCredencial).toHaveBeenCalledWith({
+            tipo: 'premio', nome: 'Destaque da feira', orgao: null, descricao: null, vagas: null,
         }));
     });
 
@@ -94,7 +117,7 @@ describe('PresencialCredenciais', () => {
                 ...COM_VAGAS, usadas: 1, disponiveis: 1,
                 projetos: [{ id: 7, titulo: 'Bioplástico', categoria: 'FETECMS', area: 'Agrárias', observacao: null }],
             }],
-            meta: { candidatos: CANDIDATOS },
+            meta: { candidatos: CANDIDATOS, tipos: TIPOS },
         });
         render(<PresencialCredenciais />);
 

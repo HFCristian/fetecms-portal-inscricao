@@ -26,4 +26,7 @@ describe('abasPermitidas', () => {
     it('ignora aba desconhecida sem quebrar o menu', () => {
         expect(abasPermitidas(['projetos', 'aba_do_futuro']).map((a) => a.aba)).toEqual(['projetos']);
     });
+    it('conhece a aba Cerimonial', () => {
+        expect(abasPermitidas(['cerimonial']).map((a) => a.to)).toEqual(['/admin/cerimonial']);
+    });
 });

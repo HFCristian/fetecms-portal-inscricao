@@ -9,7 +9,31 @@ import {
     atribuirCredencial, retirarCredencial, baixarPremiacao,
 } from '../lib/presencial.js';
 
-const VAZIA = { nome: '', orgao: '', vagas: '', descricao: '' };
+const VAZIA = { tipo: 'credencial', nome: '', orgao: '', vagas: '', descricao: '' };
+
+/**
+ * Credencial ou prêmio? A pílula não é decoração: no cerimonial, a
+ * **credencial** é objeto a separar na mesa e entra no card de credenciais a
+ * separar; o **prêmio** faz o projeto ser premiado (e render medalha) sem
+ * entrar naquela pilha.
+ */
+function PilulaTipo({ tipo, label }) {
+    const premio = tipo === 'premio';
+    return (
+        <span
+            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold shrink-0 ${
+                premio
+                    ? 'bg-tertiary-container/60 text-on-surface'
+                    : 'bg-primary-fixed text-primary-container'
+            }`}
+        >
+            <span className="material-symbols-outlined text-[14px]">
+                {premio ? 'emoji_events' : 'badge'}
+            </span>
+            {label}
+        </span>
+    );
+}
 
 /** Quantas vagas ainda cabem — "—" quando a credencial não tem teto. */
 function Vagas({ credencial }) {
@@ -48,7 +72,10 @@ function CartaoCredencial({ credencial, candidatos, ocupado, onAtribuir, onRetir
         <li className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
-                    <p className={`font-semibold ${credencial.ativa ? 'text-on-surface' : 'text-on-surface-variant line-through'}`}>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <PilulaTipo tipo={credencial.tipo} label={credencial.tipo_label} />
+                    </div>
+                    <p className={`font-semibold mt-1 ${credencial.ativa ? 'text-on-surface' : 'text-on-surface-variant line-through'}`}>
                         {credencial.nome}
                         {credencial.orgao && <span className="text-on-surface-variant font-normal"> · {credencial.orgao}</span>}
                     </p>
@@ -125,16 +152,22 @@ function CartaoCredencial({ credencial, candidatos, ocupado, onAtribuir, onRetir
 }
 
 /**
- * Avaliação presencial → **Credenciais**.
+ * Avaliação presencial → **Credenciais e Prêmios**.
  *
- * Credencial é a vaga de premiação que a feira tem para dar: a indicação a uma
- * feira nacional, a bolsa de um parceiro, o prêmio de um órgão. Aqui elas são
- * cadastradas, anexadas a projetos **finalistas** e reunidas na **lista de
- * premiação** que se lê na cerimônia.
+ * Credencial é a vaga que a feira tem para dar e o projeto leva embora: a
+ * indicação a uma feira nacional, a bolsa de um parceiro. **Prêmio** é o que
+ * se anuncia no palco e não vira crachá — o destaque, a menção honrosa. Os
+ * dois se cadastram aqui, anexam-se a projetos **finalistas** e saem juntos na
+ * **lista de premiação** que se lê na cerimônia.
+ *
+ * A distinção só pesa no cerimonial: quem recebe qualquer um dos dois é
+ * **premiado** (e rende medalha), mas só a credencial entra no card de
+ * *credenciais a separar*, porque só ela tem objeto na mesa.
  */
 export default function PresencialCredenciais() {
     const [credenciais, setCredenciais] = useState(null);
     const [candidatos, setCandidatos] = useState([]);
+    const [tipos, setTipos] = useState([{ value: 'credencial', label: 'Credencial', descricao: '' }]);
     const [form, setForm] = useState(VAZIA);
     const [criando, setCriando] = useState(false);
     const [ocupado, setOcupado] = useState(false);
@@ -143,8 +176,12 @@ export default function PresencialCredenciais() {
     const [sucesso, setSucesso] = useState('');
 
     const carregar = useCallback(() => getCredenciais()
-        .then((r) => { setCredenciais(r.data); setCandidatos(r.meta?.candidatos ?? []); })
-        .catch(() => { setCredenciais([]); setAlerta('Não foi possível carregar as credenciais.'); }), []);
+        .then((r) => {
+            setCredenciais(r.data);
+            setCandidatos(r.meta?.candidatos ?? []);
+            if (r.meta?.tipos?.length) setTipos(r.meta.tipos);
+        })
+        .catch(() => { setCredenciais([]); setAlerta('Não foi possível carregar as credenciais e prêmios.'); }), []);
 
     useEffect(() => { carregar(); }, [carregar]);
 
@@ -171,15 +208,17 @@ export default function PresencialCredenciais() {
                 <span className="material-symbols-outlined text-[18px]">arrow_back</span> Avaliação presencial
             </Link>
             <div className="flex flex-wrap items-start justify-between gap-3 mb-1 max-w-3xl">
-                <h1 className="font-display text-2xl font-semibold text-primary">Credenciais</h1>
+                <h1 className="font-display text-2xl font-semibold text-primary">Credenciais e Prêmios</h1>
                 <Button type="button" variant="outline" onClick={() => baixarPremiacao()}>
                     <span className="material-symbols-outlined text-[20px]">download</span>
                     Lista de premiação (TXT)
                 </Button>
             </div>
             <p className="text-on-surface-variant mb-6 max-w-3xl">
-                As vagas de premiação da feira — indicações a outras feiras, bolsas, prêmios de
-                parceiros. Cadastre o que há para dar, anexe cada credencial a um projeto{' '}
+                O que a feira tem para dar. <strong>Credencial</strong> é a vaga que o projeto
+                leva — indicação a outra feira, bolsa, convite de parceiro —, e é dela que sai a
+                pilha a separar no cerimonial. <strong>Prêmio</strong> é o reconhecimento
+                anunciado no palco, sem crachá a entregar. Anexe cada um a um projeto{' '}
                 <strong>finalista</strong> e baixe a lista que se lê na cerimônia.
             </p>
 
@@ -193,6 +232,7 @@ export default function PresencialCredenciais() {
                         e.preventDefault();
                         acao(async () => {
                             await criarCredencial({
+                                tipo: form.tipo,
                                 nome: form.nome.trim(),
                                 orgao: form.orgao.trim() || null,
                                 descricao: form.descricao.trim() || null,
@@ -200,11 +240,27 @@ export default function PresencialCredenciais() {
                             });
                             setForm(VAZIA);
                             setCriando(false);
-                        }, 'Credencial cadastrada.');
+                        }, form.tipo === 'premio' ? 'Prêmio cadastrado.' : 'Credencial cadastrada.');
                     }}
                 >
-                    <h2 className="font-display text-primary font-semibold mb-3">Nova credencial</h2>
+                    <h2 className="font-display text-primary font-semibold mb-3">Novo item</h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <Field
+                            label="Tipo"
+                            error={errors.tipo}
+                            hint={tipos.find((t) => t.value === form.tipo)?.descricao}
+                        >
+                            <select
+                                aria-label="Tipo"
+                                value={form.tipo}
+                                onChange={campo('tipo')}
+                                className="w-full bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 outline-none"
+                            >
+                                {tipos.map((t) => (
+                                    <option key={t.value} value={t.value}>{t.label}</option>
+                                ))}
+                            </select>
+                        </Field>
                         <Field label="Nome" error={errors.nome}>
                             <Input aria-label="Nome" value={form.nome} onChange={campo('nome')} error={errors.nome} placeholder="MOSTRATEC 2027" />
                         </Field>
@@ -231,7 +287,7 @@ export default function PresencialCredenciais() {
                 <div className="mb-6">
                     <Button type="button" onClick={() => { setCriando(true); setAlerta(''); setSucesso(''); }}>
                         <span className="material-symbols-outlined text-[20px]">add</span>
-                        Nova credencial
+                        Nova credencial ou prêmio
                     </Button>
                 </div>
             )}
@@ -242,7 +298,7 @@ export default function PresencialCredenciais() {
                 </div>
             ) : credenciais.length === 0 ? (
                 <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-6 text-center text-sm text-on-surface-variant max-w-3xl">
-                    Nenhuma credencial cadastrada nesta edição.
+                    Nenhuma credencial ou prêmio cadastrado nesta edição.
                 </div>
             ) : (
                 <ul className="space-y-3 max-w-3xl">
@@ -254,14 +310,14 @@ export default function PresencialCredenciais() {
                             ocupado={ocupado}
                             onAtribuir={(cred, projeto) => acao(
                                 () => atribuirCredencial(cred.id, projeto.id),
-                                'Credencial anexada ao projeto.',
+                                'Anexado ao projeto.',
                             )}
                             onRetirar={(cred, projeto) => acao(
                                 () => retirarCredencial(cred.id, projeto.id),
-                                'Credencial retirada.',
+                                'Retirado do projeto.',
                             )}
                             onAlternar={(cred) => acao(() => atualizarCredencial(cred.id, { ativa: !cred.ativa }))}
-                            onExcluir={(cred) => acao(() => excluirCredencial(cred.id), 'Credencial excluída.')}
+                            onExcluir={(cred) => acao(() => excluirCredencial(cred.id), 'Item excluído.')}
                         />
                     ))}
                 </ul>

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\TipoCredencial;
 use App\Models\Credencial;
 use App\Models\Edicao;
 use App\Models\ListaFinal;
@@ -13,13 +14,20 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Avaliação presencial → **Credenciais**.
+ * Avaliação presencial → **Credenciais e Prêmios**.
  *
  * Credencial é a **vaga de premiação** que a feira tem para dar: a indicação a
  * uma feira nacional ou internacional, a bolsa de um parceiro, o prêmio de um
  * órgão. São poucas, têm dono e, no fim do evento, a organização precisa dizer
  * projeto a projeto quem recebeu o quê — hoje isso vive numa planilha que
  * ninguém audita.
+ *
+ * **Prêmio** cadastra-se do mesmo jeito e entra na mesma lista: o destaque, a
+ * menção honrosa, o reconhecimento que se anuncia no palco sem entregar
+ * crachá nenhum. A diferença é o `tipo` (`App\Enums\TipoCredencial`), e ela
+ * importa num lugar só: no cerimonial, o card de **credenciais a separar**
+ * conta o que tem objeto na mesa — as credenciais —, enquanto **premiado** (e
+ * portanto a medalha) é quem recebeu qualquer uma das duas.
  *
  * Três coisas acontecem aqui: **cadastrar** o que existe para dar, **anexar**
  * cada credencial a um projeto e **gerar a lista de premiação**.
@@ -101,6 +109,8 @@ class CredenciaisService
 
         return Credencial::create([
             'edicao_id' => $edicao->id,
+            // Sem tipo, credencial: era o único que existia antes dos prêmios.
+            'tipo' => TipoCredencial::tryFrom((string) ($dados['tipo'] ?? '')) ?? TipoCredencial::Credencial,
             'nome' => trim($dados['nome']),
             'orgao' => $dados['orgao'] ?? null,
             'descricao' => $dados['descricao'] ?? null,
@@ -122,7 +132,7 @@ class CredenciaisService
         }
 
         $credencial->fill(array_intersect_key($dados, array_flip([
-            'nome', 'orgao', 'descricao', 'vagas', 'ordem', 'ativa',
+            'tipo', 'nome', 'orgao', 'descricao', 'vagas', 'ordem', 'ativa',
         ])))->save();
 
         return $credencial->refresh();
@@ -193,10 +203,14 @@ class CredenciaisService
         $blocos = [];
 
         foreach ($this->credenciaisComProjetos() as $credencial) {
-            $linhas = ['== '.mb_strtoupper($credencial->nome).($credencial->orgao ? ' — '.$credencial->orgao : '')];
+            $linhas = [
+                '== ['.mb_strtoupper($credencial->tipo->label()).'] '
+                    .mb_strtoupper($credencial->nome)
+                    .($credencial->orgao ? ' — '.$credencial->orgao : ''),
+            ];
 
             if ($credencial->projetos->isEmpty()) {
-                $linhas[] = '(nenhum projeto credenciado)';
+                $linhas[] = '(nenhum projeto contemplado)';
             }
 
             foreach ($credencial->projetos->sortBy(fn (Projeto $p) => $this->chave($p->titulo)) as $projeto) {
@@ -236,6 +250,8 @@ class CredenciaisService
         return $this->credenciaisComProjetos()
             ->map(fn (Credencial $c) => [
                 'id' => $c->id,
+                'tipo' => $c->tipo->value,
+                'tipo_label' => $c->tipo->label(),
                 'nome' => $c->nome,
                 'orgao' => $c->orgao,
                 'vagas' => $c->vagas,
@@ -288,6 +304,8 @@ class CredenciaisService
 
         return [
             'id' => $credencial->id,
+            'tipo' => $credencial->tipo->value,
+            'tipo_label' => $credencial->tipo->label(),
             'nome' => $credencial->nome,
             'orgao' => $credencial->orgao,
             'descricao' => $credencial->descricao,
@@ -314,7 +332,7 @@ class CredenciaisService
 
         if ($lista === null || ! $lista->projetos()->whereKey($projeto->id)->exists()) {
             throw ValidationException::withMessages([
-                'projeto_id' => 'Só projetos finalistas recebem credencial.',
+                'projeto_id' => 'Só projetos finalistas recebem credencial ou prêmio.',
             ]);
         }
     }
