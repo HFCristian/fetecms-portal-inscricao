@@ -229,6 +229,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::get('/perfil', [AvaliadorPerfilController::class, 'show']);
             Route::put('/perfil/classificacao', [AvaliadorPerfilController::class, 'atualizarClassificacao']);
             Route::put('/perfil/localidade', [AvaliadorPerfilController::class, 'atualizarLocalidade']);
+            Route::put('/perfil/camiseta', [AvaliadorPerfilController::class, 'atualizarCamiseta']);
             // Intenção de avaliar presencialmente, e as orientações de quem aceita.
             Route::get('/presencial', [AvaliadorPresencialController::class, 'show']);
             Route::put('/presencial', [AvaliadorPresencialController::class, 'update']);

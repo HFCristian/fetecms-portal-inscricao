@@ -3,7 +3,10 @@ import AppShell from '../components/AppShell.jsx';
 import { Field, Select, Button, Alert } from '../components/ui.jsx';
 import SubareaCombobox from '../components/SubareaCombobox.jsx';
 import { useAuth, extractErrors } from '../lib/auth.jsx';
-import { getPerfilAvaliador, salvarClassificacaoAvaliador, atualizarLocalidadeAvaliador } from '../lib/avaliador.js';
+import {
+    getPerfilAvaliador, salvarClassificacaoAvaliador,
+    atualizarLocalidadeAvaliador, atualizarCamisetaAvaliador,
+} from '../lib/avaliador.js';
 import { loadAreas, loadSubareas, criarSubarea, loadEstados, loadCidades } from '../lib/catalogos.js';
 
 /** Um número do perfil, em card. */
@@ -68,6 +71,72 @@ const plural = (n, singular, pluralForma) => `${n} ${n === 1 ? singular : plural
  * carga horária do certificado e posição no ranking de quem mais avaliou) e a
  * troca da própria área/subárea — liberada só antes do período de avaliação.
  */
+/**
+ * Tamanho de camiseta. É **opcional** de propósito: quem não vai ao evento ou
+ * não quer camiseta deixa em branco e fica fora da encomenda — um valor
+ * obrigatório inflaria o número que a organização manda para a confecção.
+ *
+ * Como a localidade, muda a qualquer momento: é logística do evento, não
+ * distribuição de projeto.
+ */
+function CamisetaCard({ dados, onAtualizado }) {
+    const [camiseta, setCamiseta] = useState(dados.camiseta ?? '');
+    const [salvando, setSalvando] = useState(false);
+    const [msg, setMsg] = useState('');
+    const [erro, setErro] = useState('');
+
+    const tamanhos = dados.camisetas ?? [];
+    const mudou = (camiseta || '') !== (dados.camiseta ?? '');
+
+    async function salvar(e) {
+        e.preventDefault();
+        setSalvando(true); setMsg(''); setErro('');
+        try {
+            const resp = await atualizarCamisetaAvaliador(camiseta || null);
+            onAtualizado(resp.data);
+            setMsg(resp.meta?.message || 'Tamanho de camiseta atualizado.');
+        } catch (e2) {
+            setErro(extractErrors(e2).message || 'Não foi possível salvar.');
+        } finally {
+            setSalvando(false);
+        }
+    }
+
+    return (
+        <section className="bg-surface-container-lowest rounded-xl fetec-card-shadow overflow-hidden">
+            <div className="px-4 py-3 bg-surface-variant/40">
+                <h2 className="font-display font-semibold text-on-surface">Camiseta do evento</h2>
+            </div>
+            <form className="p-4 space-y-3" onSubmit={salvar}>
+                <p className="text-sm text-on-surface-variant">
+                    É por aqui que a organização fecha a encomenda das camisetas. O campo é
+                    opcional — deixando em branco, você fica fora dela.
+                </p>
+
+                {msg && <Alert type="info">{msg}</Alert>}
+                {erro && <Alert>{erro}</Alert>}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <Field label="Tamanho">
+                        <Select
+                            aria-label="Tamanho da camiseta"
+                            value={camiseta}
+                            onChange={(e) => setCamiseta(e.target.value)}
+                        >
+                            <option value="">Não informado</option>
+                            {tamanhos.map((t) => <option key={t} value={t}>{t}</option>)}
+                        </Select>
+                    </Field>
+                </div>
+
+                <div className="flex justify-end">
+                    <Button type="submit" loading={salvando} disabled={!mudou}>Salvar tamanho</Button>
+                </div>
+            </form>
+        </section>
+    );
+}
+
 // De onde o avaliador é. Diferente da área, pode ser trocado a qualquer momento:
 // a localidade não entra na distribuição — ela aparece no ranking de avaliadores.
 function LocalidadeCard({ dados, onAtualizado }) {
@@ -271,8 +340,11 @@ export default function AvaliadorPerfil() {
                             <Dado label="Nome">{dados.nome}</Dado>
                             <Dado label="E-mail">{dados.email}</Dado>
                             <Dado label="Titulação">{dados.titulacao}</Dado>
+                            <Dado label="Camiseta">{dados.camiseta ?? 'Não informado'}</Dado>
                         </div>
                     </section>
+
+                    <CamisetaCard dados={dados} onAtualizado={setDados} />
 
                     <LocalidadeCard dados={dados} onAtualizado={setDados} />
 

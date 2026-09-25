@@ -16,7 +16,7 @@ use Illuminate\Validation\ValidationException;
 
 class AvaliadorService
 {
-    private const PROFILE_FIELDS = ['cpf', 'titulacao', 'area_id', 'subarea_id', 'estado_id', 'cidade_id'];
+    private const PROFILE_FIELDS = ['cpf', 'titulacao', 'camiseta', 'area_id', 'subarea_id', 'estado_id', 'cidade_id'];
 
     public function __construct(
         private readonly SubareaService $subareas,
@@ -121,6 +121,19 @@ class AvaliadorService
 
             return $perfil->fresh(['area', 'subarea']);
         });
+    }
+
+    /**
+     * Tamanho de camiseta. Como a localidade, muda a qualquer momento — é dado
+     * de logística, não de distribuição —, e **em branco é uma resposta**: quem
+     * não quer camiseta apaga o campo e sai da encomenda.
+     */
+    public function atualizarCamiseta(User $user, ?string $camiseta): AvaliadorProfile
+    {
+        $perfil = $user->avaliadorProfile;
+        $perfil->update(['camiseta' => $camiseta ?: null]);
+
+        return $perfil->fresh();
     }
 
     /**

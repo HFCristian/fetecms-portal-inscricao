@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\Categoria;
 use App\Models\Aluno;
 use App\Models\Area;
+use App\Models\AvaliadorProfile;
 use App\Models\Coorientador;
 use App\Models\Estado;
 use App\Models\Instituicao;
@@ -84,6 +85,13 @@ class AdminTest extends TestCase
         $rascunho = Projeto::factory()->create(['user_id' => $orient->id]);
         Aluno::factory()->count(4)->create(['projeto_id' => $rascunho->id, 'camiseta' => 'P']);
 
+        // O avaliador tem recorte próprio: não depende de projeto submetido,
+        // e sim de estar ativo e não ser conta de ensaio.
+        $avaliador = User::factory()->avaliador()->create();
+        AvaliadorProfile::factory()->create(['user_id' => $avaliador->id, 'camiseta' => 'XG']);
+        $inativo = User::factory()->avaliador()->create(['is_active' => false]);
+        AvaliadorProfile::factory()->create(['user_id' => $inativo->id, 'camiseta' => 'XG']);
+
         Sanctum::actingAs(User::factory()->admin()->create());
 
         $this->getJson('/api/v1/admin/dashboard')
@@ -100,7 +108,12 @@ class AdminTest extends TestCase
             ->assertJsonMissing([['tamanho' => 'N.I.', 'total' => 1]])
             ->assertJsonPath('data.coorientadores_camisetas.total', 1)
             ->assertJsonPath('data.coorientadores_camisetas.tamanhos.4.tamanho', 'GG')
-            ->assertJsonPath('data.coorientadores_camisetas.tamanhos.4.total', 1);
+            ->assertJsonPath('data.coorientadores_camisetas.tamanhos.4.total', 1)
+            // Avaliador: o ativo conta, o desativado não.
+            ->assertJsonPath('data.avaliadores', 1)
+            ->assertJsonPath('data.avaliadores_camisetas.total', 1)
+            ->assertJsonPath('data.avaliadores_camisetas.tamanhos.5.tamanho', 'XG')
+            ->assertJsonPath('data.avaliadores_camisetas.tamanhos.5.total', 1);
     }
 
     public function test_dashboard_conta_projetos_por_categoria(): void

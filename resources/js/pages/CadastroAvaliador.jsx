@@ -22,6 +22,11 @@ const TITULACOES = [
     'Doutorado (concluído)',
 ];
 
+// Tamanhos da camiseta do evento — os mesmos do orientador (espelha
+// AvaliadorProfile::CAMISETAS). O campo é opcional: quem não responde fica de
+// fora da encomenda, e dá para completar depois no perfil.
+const CAMISETAS = ['PP', 'P', 'M', 'G', 'GG', 'XG'];
+
 export default function CadastroAvaliador() {
     // `confirmar` do contexto é o código de 6 dígitos; o confirmar() daqui é o
     // aceite do termo antes de enviar o formulário.
@@ -153,6 +158,16 @@ export default function CadastroAvaliador() {
                             <Select value={form.titulacao ?? ''} onChange={set('titulacao')} error={err('titulacao')}>
                                 <option value="">Selecione</option>
                                 {TITULACOES.map((t) => <option key={t} value={t}>{t}</option>)}
+                            </Select>
+                        </Field>
+                        <Field
+                            label="Camiseta"
+                            error={err('camiseta')}
+                            hint="Opcional — para a camiseta do evento. Dá para informar depois no seu perfil."
+                        >
+                            <Select value={form.camiseta ?? ''} onChange={set('camiseta')} error={err('camiseta')}>
+                                <option value="">Não informar</option>
+                                {CAMISETAS.map((t) => <option key={t} value={t}>{t}</option>)}
                             </Select>
                         </Field>
                         <div className="md:col-span-2">

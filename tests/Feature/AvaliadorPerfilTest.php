@@ -359,4 +359,48 @@ class AvaliadorPerfilTest extends TestCase
         $this->putJson('/api/v1/avaliador/perfil/classificacao', ['area_id' => $this->exatas->id])
             ->assertForbidden();
     }
+    // ------------------------------------------------------------------ //
+    // Camiseta do evento                                                  //
+    // ------------------------------------------------------------------ //
+
+    public function test_informa_e_troca_o_tamanho_de_camiseta(): void
+    {
+        $avaliador = $this->avaliador();
+        Sanctum::actingAs($avaliador);
+
+        // Nasce em branco: é opcional, e quem já estava cadastrado não respondeu.
+        $this->getJson('/api/v1/avaliador/perfil')
+            ->assertOk()
+            ->assertJsonPath('data.camiseta', null)
+            ->assertJsonPath('data.camisetas.0', 'PP');
+
+        $this->putJson('/api/v1/avaliador/perfil/camiseta', ['camiseta' => 'G'])
+            ->assertOk()
+            ->assertJsonPath('data.camiseta', 'G');
+
+        $this->assertSame('G', $avaliador->avaliadorProfile->fresh()->camiseta);
+    }
+
+    public function test_apagar_o_tamanho_tira_o_avaliador_da_encomenda(): void
+    {
+        $avaliador = $this->avaliador();
+        $avaliador->avaliadorProfile->update(['camiseta' => 'M']);
+        Sanctum::actingAs($avaliador);
+
+        // Em branco é resposta: quem não quer camiseta sai da conta.
+        $this->putJson('/api/v1/avaliador/perfil/camiseta', ['camiseta' => null])
+            ->assertOk()
+            ->assertJsonPath('data.camiseta', null);
+
+        $this->assertNull($avaliador->avaliadorProfile->fresh()->camiseta);
+    }
+
+    public function test_tamanho_fora_da_lista_e_recusado(): void
+    {
+        Sanctum::actingAs($this->avaliador());
+
+        $this->putJson('/api/v1/avaliador/perfil/camiseta', ['camiseta' => 'XGG'])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('camiseta');
+    }
 }
