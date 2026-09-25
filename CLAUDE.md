@@ -74,8 +74,13 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
   (`PareceresOrientadorService`, normalizando cada seção em 0 a 10 e cortando em 8 e 4) e as
   **recomendações escritas** (vídeo e projeto). O avaliador é anônimo ("Avaliador 1",
   "Avaliador 2") e **nota nenhuma aparece** — nem a de cada etapa nem a que o projeto recebeu, que
-  não chega sequer no payload: o número é da organização, que o discute no Ranking. Fora do período
-  a aba aparece no menu mas não abre; o orientador **demo** tem *modo de teste*, que ignora as datas
+  não chega sequer no payload: o número é da organização, que o discute no Ranking.
+  São **dois portões**, e só um volta a fechar: `edicoes.ajustes_de` **abre a aba** (antes dele ela
+  aparece no menu e não abre) e, uma vez aberta, o **parecer fica disponível para sempre** — é a
+  devolutiva de um ano de trabalho, e sumir num prazo administrativo apagaria o que ele leva para a
+  edição seguinte. O que `ajustes_ate` encerra é a **decisão**: passada a data a classificação não
+  muda mais (a lista final está sendo montada em cima dela) e as sugestões viram leitura, marcadas
+  com o que ficou valendo. O orientador **demo** tem *modo de teste*, que ignora as datas
   (`AjustesOrientadorService`).
 - **Avaliador (online)**: mesmo login do orientador; botão de cadastro **abaixo** do de orientador
   na tela de login. **Exclusão mútua**: quem é orientador NÃO pode ser avaliador, e vice-versa
@@ -107,7 +112,11 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     **quantas avaliações tem quem está logo à frente** e quantas faltam para alcançá-lo — o
     número, nunca o nome, e o vizinho, nunca o líder. Na mesma
     tela ele **troca a própria área/subárea — só enquanto o período de avaliação não começou**
-    (`Edicao::avaliacaoLiberada()`), porque depois a distribuição já foi feita em cima dela.
+    (`Edicao::avaliacaoLiberada()`), porque depois a distribuição já foi feita em cima dela. Ali
+    também ficam a **localidade** e o **tamanho de camiseta** (`avaliador_profiles.camiseta`,
+    opcional e trocável a qualquer momento — é logística, não distribuição): em branco é resposta,
+    e tira o avaliador da encomenda. O campo também aparece no cadastro, e o painel tem um card de
+    camiseta para os avaliadores **ativos e não-demo**.
   - Ao **iniciar** uma avaliação o sistema confere se o projeto ainda cabe mais uma: contando as
     **concluídas + em andamento**, se ele já atingiu o **máximo de avaliações da categoria**, o
     avaliador é avisado de que outro chegou antes, o projeto **sai da lista dele** e outro entra no
@@ -357,7 +366,21 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     num estande mostra quem apresenta nele nos dois turnos. Ela nasce com a prancha
     da montadora (`App\Support\PlantaEvento`) e é **editável e versionada por
     edição** (`mapa_layouts`) — cada gravação é uma versão nova, e restaurar uma
-    antiga também.
+    antiga também. Abre em **tela cheia** (Fullscreen API), para ir ao projetor.
+    As **ruas** são os corredores entre as ilhas: **achadas no desenho**
+    (`PlantaEvento::ruas()`), não desenhadas à parte — o admin só as batiza, e o
+    que se guarda é o nome, então mover um estande reposiciona a rua sozinha.
+    Durante a feira a planta **muda de cor** (`App\Enums\SituacaoEstande`,
+    `MapaSituacaoService`): aguardando → credenciado → pronto para avaliação → em
+    avaliação, o último escurecendo a cada avaliação presencial recebida. Os
+    quatro estágios saem de fatos **já registrados com hora**
+    (`credenciamentos.finalizado_em`, `checagens_estande.verificado_em`,
+    `avaliacoes_presenciais.concluida_em`), e é esse carimbo que dá o **seletor de
+    dia**: escolher um dia anterior lê os mesmos fatos com um corte mais cedo e
+    devolve o mapa como ele estava no fim daquele dia, sem instantâneo gravado. O
+    **turno** é o outro eixo. O mesmo recorte sai em **lista filtrável**
+    (credenciamento, checagem, avaliações realizadas ou faltantes) e exporta em
+    TXT, CSV e PDF; o dia corrente se recarrega sozinho a cada 30s.
   - **Credenciamento** (`/admin/credenciamento`): o balcão do evento, em duas seções —
     **Credenciar** (os finalistas que ainda não passaram) e **Credenciados** (quem já passou), a
     mesma lista pesquisável com filtro por área e categoria. **Finalista é quem está na lista final
@@ -393,6 +416,24 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     qualquer escopo. Vencido o prazo, ela é **desativada, não apagada** — reativar é informar um
     prazo novo, sem recadastrar nada; a varredura roda ao listar e no login. Uma conta temporária
     **não administra outras contas temporárias**. `ContaTemporariaService`.
+  - **Cerimonial** (`/admin/cerimonial`): a porta da **cerimônia de premiação** — outro momento
+    do evento que não o credenciamento, e por isso o check-in **não depende** dele: a ficha diz se
+    o projeto passou pelo balcão e não trava quem não passou. Três seções. **Check-in** atende
+    pelos dois caminhos da fila: o **crachá** da lista final (leitor USB ou câmera, mesmas três
+    conferências do balcão) e a **busca por nome ou CPF**; os dois abrem a **ficha do projeto**,
+    onde se marca de uma vez a equipe que chegou junta — o check-in é **por pessoa**. **Visão
+    Geral** traz cinco cards, todos abrindo a lista **nominal** de quem chegou e de quem falta:
+    pessoas, projetos (com **parcial** e **completo** separados), premiados, **medalhas** e
+    **credenciais**; *Premiados* tem tela própria (`/admin/cerimonial/premiados`), um cartão por
+    projeto com um **busto por integrante**, verde para quem entrou. **Medalha segue a pessoa**
+    (uma por premiado presente) e **credencial segue o projeto** (as do projeto premiado com
+    alguém na sala), contando só `tipo = credencial` — prêmio se anuncia, não se entrega.
+    **Premiado** é quem recebeu credencial **ou** prêmio em *Credenciais e Prêmios*. **Contas
+    temporárias** (`/admin/cerimonial/contas`) seguem o padrão do credenciamento, setor
+    `cerimonial` — e abrem **só o Check-in**, pelo middleware `admin.permanente`. Desfazer um
+    check-in exige **justificativa** e entra em Registros → Cerimonial. Janela do **evento**, com
+    o mesmo modo demo do balcão; o painel se atualiza por polling no intervalo da edição
+    (`edicoes.cerimonial_atualizacao_segundos`, padrão 30s). `CerimonialService`.
   - **Almoxarifado** (`/admin/almoxarifado`): o balcão de guarda da feira. A equipe chega com
     maquete, ferramenta e mochila e precisa de onde deixar isso enquanto circula pelo evento.
     A aba é uma **aba do RBAC** como as outras (escopo *Almoxarifado*), só abre dentro do
@@ -437,7 +478,10 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     (não há WebSocket no projeto). **Privacidade**: guarda-se a última posição e o **trajeto vivo**;
     desligar o localizador — à mão ou pelo vencimento do prazo — **apaga o trajeto**.
     `ComiteTransporteService`, `localizacoes_comite` + `localizacao_comite_pontos`.
-  - **Registros** tem nove seções. A nona é **Notas** (`/admin/registros/notas`):
+  - **Registros** tem dez seções. A décima é **Cerimonial** (`/admin/registros/cerimonial`): quem
+    fez check-in na cerimônia de premiação, em que papel, quando e por quem — e cada check-in
+    desfeito, com a justificativa. É essa contagem que diz quantas medalhas e quantas credenciais
+    a mesa separa, então desfazer um é mexer no que vai ser entregue no palco. A nona é **Notas** (`/admin/registros/notas`):
     cada vez que um admin abre, em Designações, a nota que um avaliador deu a um
     projeto — com o projeto, o avaliador e o valor que estava na tela. A consulta
     não muda nada, mas a nota decide a lista final e o parecer é anônimo para o
@@ -746,8 +790,103 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 144 | Avaliar no lugar da nota: a rubrica abre **antes**, e o envio é que desconsidera | ✅ sim | ✅ sim (Pedro, PR #90) | 0 |
 | 145 | `demo:pareceres`: projeto já avaliado, com pareceres em níveis e ajustes para o orientador demo | ✅ sim | ✅ sim (Pedro, PR #91) | 0 |
 | 146 | Orientador: abas Ajustes e Pareceres viram **uma só**, e a nota do projeto sai da tela | ✅ sim | ✅ sim (Pedro, PR #92) | 0 |
-| 147 | Tela inicial do orientador: aviso de fim da avaliação com atalho para Ajustes e Pareceres | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 147 | Tela inicial do orientador: aviso de fim da avaliação com atalho para Ajustes e Pareceres | ✅ sim | ✅ sim (Pedro, PR #93 → v1.26.5) | 0 |
+| 148 | Fix: menu lateral rola quando a tela é mais baixa que o número de abas | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 149 | Nova aba **Cerimonial**: check-in da premiação, visão geral e contas temporárias | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 150 | Ajustes e Pareceres: o parecer continua visível depois do prazo (só a decisão fecha) | ✅ sim | ❌ não (manual do Pedro) | 2 |
+| 151 | Avaliador: tamanho de camiseta (perfil, cadastro e 4º card do painel) | ✅ sim | ❌ não (manual do Pedro) | 2 |
+| 152 | Mapa do Evento: ruas nomeadas, tela cheia, cor por situação e lista filtrável | ✅ sim | ❌ não (manual do Pedro) | 2 |
 
+> **Sprints 150–152 (branch `feat/cerimonial-mapa-e-ajustes`, seguindo de `329fb38`):**
+> (a) **Sprint 150** — a aba **Ajustes e Pareceres** tinha um portão só:
+> `edicoes.ajustes_de`/`ajustes_ate` abria e fechava tudo. Passado o prazo, a devolutiva de um ano
+> de trabalho **sumia** da tela do orientador — as etapas da rubrica e as recomendações escritas
+> junto —, que é justamente o que ele leva para a edição seguinte. Agora são **dois portões**, e só
+> um volta a fechar: `leitura` abre a aba quando a organização libera o período e **não fecha
+> mais**; `aberta` continua sendo o prazo da **decisão**, porque depois dele a lista final está
+> sendo montada em cima da classificação do projeto e mudá-la moveria o trabalho de categoria no
+> meio da apuração. As sugestões não somem com os botões: ficam listadas com o que ficou valendo
+> ("Em vigor" / "Aceita por você"), que é o que explica, meses depois, por que o projeto está na
+> área em que está. Antes do início nada muda — a aba continua fechada, com a data.
+> (b) **Sprint 151** — **tamanho de camiseta do avaliador**
+> (`avaliador_profiles.camiseta`). Orientador, aluno e coorientador já informavam o seu; o
+> avaliador não, e ele também recebe camiseta — a organização descobria esse número por fora do
+> portal. É **opcional** no cadastro e no perfil, e **em branco é uma resposta**: quem não quer
+> camiseta fica fora da encomenda, em vez de virar um "N.I." que alguém teria de perseguir. No
+> painel vira o **quarto card** de camiseta, com o recorte que o avaliador exige: não há projeto
+> submetido que o qualifique, então o conjunto é quem está **ativo e não é conta de ensaio**.
+> (c) **Sprint 152** — o **Mapa do Evento** deixou de ser só o desenho de onde o projeto fica.
+> **As ruas** são os corredores entre as ilhas, e corredor é o que sobra entre duas fileiras: por
+> isso são **achadas no desenho** (`PlantaEvento::ruas()`) em vez de desenhadas à parte — o admin
+> só as batiza, e o que se guarda é o nome. Assim mover um estande reposiciona a rua sozinha, em
+> vez de deixar um rótulo solto onde o corredor não está mais; pedir que ele as desenhasse criaria
+> uma segunda verdade, que deixaria de bater com a planta no primeiro estande movido. Na prancha
+> de 2026 a detecção acha o corredor central e os oito entre as ilhas. **Tela cheia** pela
+> Fullscreen API, para o mapa ir ao projetor.
+> **A cor** tem quatro estágios (`App\Enums\SituacaoEstande`) — aguardando, credenciado, pronto
+> para avaliação, em avaliação —, todos vindos de fatos que o portal **já registrava com hora**:
+> `credenciamentos.finalizado_em`, `checagens_estande.verificado_em` e
+> `avaliacoes_presenciais.concluida_em`. Nada é marcado à mão, e é por isso que o mapa nunca
+> discorda das outras abas. O último estágio **escurece a cada avaliação recebida**: de longe se vê
+> quais estandes ainda esperam avaliador.
+> É esse carimbo de hora que dá o **seletor de dia** de graça: escolher um dia anterior é ler os
+> mesmos fatos com um corte mais cedo, e o mapa volta a ser o que era no fim daquele dia. Nenhum
+> instantâneo precisa ser gravado — e uma correção retroativa aparece no histórico como deveria ter
+> aparecido desde o começo, o que um instantâneo congelado esconderia. O **turno** é o outro eixo,
+> porque o estande recebe um projeto de manhã e outro à tarde.
+> O mesmo recorte sai em **lista filtrável** — credenciamento, checagem, avaliações realizadas ou
+> faltantes — e exporta em TXT, CSV e PDF, como as outras telas do mapa. O dia corrente se
+> recarrega sozinho a cada 30s; um dia passado não muda mais, então recarregá-lo seria bater no
+> servidor à toa. `MapaSituacaoService`.
+> Back **1193/1193**, front **597/597**, Pint limpo, build OK.
+>
+> **Sprints 148–149 (branch `feat/cerimonial-mapa-e-ajustes`, saída da `origin/main` @ `9b35d9f`):**
+> (a) **Sprint 148** — o menu lateral do admin **não rolava**. Ele acumulou abas ao longo de 149
+> sprints, e numa tela **larga mas baixa** (notebook deitado, projetor 16:9) as últimas ficavam
+> para fora da janela, inalcançáveis: a coluna flex crescia além da altura do `nav`, que é `h-full`
+> e fixo. A lista de abas passou a rolar sozinha (`flex-1 min-h-0 overflow-y-auto` — sem o
+> `min-h-0` o filho não encolhe abaixo do próprio conteúdo e o `overflow` não faz nada dentro de
+> uma coluna flex), enquanto a logomarca em cima e **Acesso/Sair/suporte embaixo ficam ancorados**:
+> a saída da tela não pode depender de rolagem. A barra tem estilo próprio (`.fetec-scroll`).
+> (b) **Sprint 149** — nasce a aba **Cerimonial** (`AbaAdmin::Cerimonial`, do RBAC como as demais),
+> a porta da **cerimônia de premiação**. Ela é outro momento do evento que não o credenciamento —
+> outra sala, outra fila —, e ali a pergunta é uma só: **quem já está aqui dentro?**. Por isso o
+> check-in é **independente**: a ficha mostra se o projeto passou pelo balcão e **não trava** quem
+> não passou.
+> **Check-in** atende pelos dois caminhos que a fila tem: o **crachá** da lista final (leitor USB
+> ou câmera, a mesma leitura e as mesmas três conferências do credenciamento — formato, finalista
+> e pessoa) e a **busca por nome ou CPF**, para quem deixou a etiqueta no estande. Os dois
+> terminam na **ficha do projeto**, e não num check-in imediato: a equipe chega junta, e marcar
+> quatro de uma vez é o que faz a fila andar. O check-in continua sendo **por pessoa** — é gente
+> que entra na sala e é gente que recebe medalha.
+> **Visão Geral** traz cinco cards, e **todos** abrem a lista nominal de quem chegou e de quem
+> falta, que é a pergunta do dia: **pessoas**, **projetos** (parcial e completo são números
+> diferentes e os dois importam — o palco chama a equipe inteira, a porta conta quem entrou),
+> **premiados**, **medalhas** e **credenciais**. *Premiados* tem ainda uma tela própria
+> (`/admin/cerimonial/premiados`): um cartão por projeto com um **busto por integrante**, verde
+> para quem já entrou — a pergunta antes de chamar ao palco é visual, e uma tabela de nomes
+> obrigaria a ler linha por linha enquanto o locutor espera.
+> **Medalha segue a pessoa** e **credencial segue o projeto**: cada premiado presente rende uma
+> medalha, e cada projeto premiado com alguém na sala tira da mesa as credenciais dele. Só as
+> **credenciais** — prêmio se anuncia, não se entrega em mãos —, e é daí que *Credenciais* virou
+> **Credenciais e Prêmios**: a mesma ficha, com o campo `tipo`
+> (`App\Enums\TipoCredencial`), e o que já existia é credencial, que era o único tipo que havia.
+> **Premiado** é quem recebeu credencial **ou** prêmio, então a aba se apoia no cadastro de
+> Avaliação presencial em vez de pedir uma marcação nova.
+> A **conta temporária** do setor `cerimonial` **só abre o Check-in**: quem atende a porta não
+> precisa saber quantas medalhas há na mesa, nem gere as contas dos colegas. O corte fino dentro da
+> aba é o middleware novo **`admin.permanente`** — não o menu escondido: trocar a URL à mão
+> responde 403. É a primeira aba em que a conta temporária não faz tudo o que a aba faz.
+> **Desfazer** um check-in pede **justificativa**, porque o número decide o que vai ser entregue no
+> palco: a linha é apagada (a contagem tem de voltar a bater) e o registro fica, na seção nova
+> **Registros → Cerimonial**, com o nome de quem era e o motivo.
+> O painel se **atualiza sozinho** por polling (não há WebSocket no projeto) num intervalo **da
+> edição** (`edicoes.cerimonial_atualizacao_segundos`, padrão 30s, em branco desliga), escolhido na
+> própria tela — ela costuma ficar aberta num tablet enquanto vários balcões registram em paralelo.
+> Janela do **evento**, como o credenciamento, com o mesmo **modo de teste**: ignora as datas, usa
+> a lista final de demonstração e **isola os check-ins do ensaio** (`cerimonial_checkins.demo`).
+> Back **1175/1175**, front **586/586**, Pint limpo, build OK.
+>
 > **Sprint 147 (branch `feat/aviso-fim-avaliacao`, saída da `origin/main` @ `689c149`):**
 > o orientador passou a **ser avisado** de que a avaliação online acabou.
 > A aba *Ajustes e Pareceres* existe desde a Sprint 146, mas só ajuda quem abre o portal e olha
@@ -1777,9 +1916,52 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > e **Escolas** (`/admin/parametrizacao/escolas`): admin busca, **renomeia, mescla** (reatribui
 > projetos/alunos/orientadores) e **exclui** instituições sem uso (`InstituicaoAdminService`/Controller,
 > rotas `admin/instituicoes`). Back **117/117**, front 11/11, Pint limpo, build OK.
-> **Pendências do Pedro (Sprint 147):** (1) `git push origin feat/aviso-fim-avaliacao` + PR para a
-> `main` (o ambiente do Claude não tem credencial do GitHub). Esta release **não tem migration,
-> dependência nova nem variável de `.env`**.
+> **Pendências do Pedro (Sprints 148–152):** (1) `git push origin feat/cerimonial-mapa-e-ajustes` + PR
+> para a `main` (o ambiente do Claude não tem credencial do GitHub) e, depois do merge, o deploy
+> pela §11 do [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). Esta release **tem uma migration**
+> (`avaliador_profiles.camiseta`), **nenhuma variável nova de `.env`** e **nenhuma dependência
+> nova**.
+> (2) **O parecer do orientador não fecha mais.** Uma vez aberto o período de ajustes, a aba
+> continua acessível para sempre — inclusive das edições passadas, enquanto a pessoa estiver na
+> edição em que o período foi aberto. O que encerra no prazo é só a troca de área/subárea.
+> (3) **O tamanho de camiseta nasce em branco para todos os avaliadores já cadastrados.** Se a
+> encomenda depender desse número, vale um disparo de mala direta pedindo que preencham o perfil —
+> o público "avaliadores" já existe.
+> (4) **O card novo do painel conta avaliador ativo e não-demo**, e não "avaliador com avaliação
+> concluída": quem se cadastrou e não avaliou também vai ao evento. Se a organização quiser o
+> recorte mais estreito, é uma linha e eu mudo.
+> (5) **As ruas nascem sem nome.** Elas aparecem para batizar em *Editar planta* → *Ruas do
+> evento*; o corredor que ficar em branco simplesmente não aparece no desenho. Nomear é salvar uma
+> versão nova da planta, como qualquer outra edição dela.
+> (6) **A cor do mapa depende do que já existe nas outras abas**: sem lista final publicada não há
+> estande alocado, e sem credenciamento/checagem/avaliação registrados tudo fica em "aguardando".
+> No dia do evento isso se resolve sozinho.
+> (7) O seletor de dia usa a **janela do evento** (Parametrização → Datas e períodos). Sem ela
+> definida, o seletor mostra só "hoje" — o mapa funciona igual, mas sem o histórico por dia.
+
+> **Pendências do Pedro (Sprints 148–149):** as migrations desta parte (`credenciais.tipo`, a
+> tabela `cerimonial_checkins` e `edicoes.cerimonial_atualizacao_segundos`) vão no **mesmo push**
+> das Sprints 150–152, acima — as cinco sprints estão na mesma branch. O resto continua valendo:
+> (2) **A aba Cerimonial é do RBAC**: quem já tem escopo atribuído **não a enxerga** até você
+> acrescentar "Cerimonial" ao escopo dele (Parametrização → Escopos de admin). Admin sem escopo
+> nenhum continua vendo tudo.
+> (3) **Antes da cerimônia**: a aba parte da **lista final oficial vigente** e os premiados saem de
+> Avaliação presencial → **Credenciais e Prêmios**. Sem lista publicada não há quem receber; sem
+> credencial ou prêmio atribuído, os três cards de premiação ficam zerados.
+> (4) **A tela de Credenciais mudou de nome e ganhou um campo.** O que está cadastrado hoje
+> continua valendo e entrou como **credencial** — o único tipo que existia. Vale revisar se algum
+> deles é, na verdade, **prêmio**: a diferença muda o card de *credenciais a separar*, não a lista
+> de premiação.
+> (5) **A conta temporária do cerimonial só abre o Check-in** — de propósito. Se a organização
+> quiser que alguém da porta também veja o painel, a saída é uma conta de admin com o escopo
+> Cerimonial, não uma conta temporária.
+> (6) **O intervalo de atualização do painel nasce em 30s** e vale por edição. Num evento grande
+> vale baixar para 10s; com a tela aberta a tarde inteira num único tablet, subir ou desligar.
+> (7) O menu lateral agora **rola**: se a organização usa telas baixas, vale conferir que as abas
+> do fim (Registros, Administradores) estão alcançáveis — era esse o relato.
+
+> **Pendências do Pedro (Sprint 147):** ~~push + PR~~ — **entrou na `main` pelo PR #93**
+> (`9b35d9f`, v1.26.5). As observações de uso continuam valendo:
 > (2) **O aviso depende de a data de fim da avaliação estar preenchida** em Parametrização →
 > *Datas e períodos*. Campo em branco significa "a avaliação segue aberta", então o cartão não
 > aparece — é a mesma regra que o resto do portal usa para essa data.

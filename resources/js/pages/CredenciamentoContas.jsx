@@ -274,15 +274,17 @@ function LinhaConta({ conta, onRenovar, onDesativar, onDecidirPresenca, ocupado,
 /**
  * Contas temporárias de um balcão do evento.
  *
- * A mesma tela serve o **credenciamento** e o **almoxarifado**: o cadastro, o
- * prazo e o agendamento são idênticos, e o que muda é a **aba** que a conta
- * abre. As listas são independentes — cada setor só enxerga as suas contas —,
- * então o `setor` viaja em toda chamada.
+ * A mesma tela serve **credenciamento**, **almoxarifado**, **avaliação
+ * presencial** e **cerimonial**: o cadastro, o prazo e o agendamento são
+ * idênticos, e o que muda é a **aba** que a conta abre. As listas são
+ * independentes — cada setor só enxerga as suas contas —, então o `setor`
+ * viaja em toda chamada.
  */
 export default function CredenciamentoContas({ setor = 'credenciamento' }) {
     const balcao = {
         almoxarifado: { aba: 'Almoxarifado', voltarPara: '/admin/almoxarifado', turnos: false },
         avaliacao_presencial: { aba: 'Avaliação presencial', voltarPara: '/admin/presencial', turnos: true },
+        cerimonial: { aba: 'Cerimonial', voltarPara: '/admin/cerimonial', turnos: false },
     }[setor] ?? { aba: 'Credenciamento', voltarPara: '/admin/credenciamento', turnos: false };
 
     const [dados, setDados] = useState(null);

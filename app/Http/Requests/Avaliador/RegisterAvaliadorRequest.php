@@ -51,6 +51,8 @@ class RegisterAvaliadorRequest extends FormRequest
             ],
             // Pós-graduação em andamento também habilita: a lista traz os dois casos.
             'titulacao' => ['required', 'string', Rule::in(AvaliadorProfile::TITULACOES)],
+            // Camiseta é opcional: quem não responde fica fora da encomenda.
+            'camiseta' => ['nullable', 'string', Rule::in(AvaliadorProfile::CAMISETAS)],
             'area_id' => ['required', 'integer', 'exists:areas,id'],
             // subarea_nome cria uma subárea global nova (resolvida no service).
             'subarea_id' => ['nullable', 'integer', 'exists:subareas,id', new SubareaDaArea($this->input('area_id'))],

@@ -22,6 +22,7 @@ enum AbaAdmin: string
     case Dashboards = 'dashboards';
     case Avaliacao = 'avaliacao';
     case Credenciamento = 'credenciamento';
+    case Cerimonial = 'cerimonial';
     case Almoxarifado = 'almoxarifado';
     case Comite = 'comite';
     case AvaliacaoPresencial = 'avaliacao_presencial';
@@ -39,6 +40,7 @@ enum AbaAdmin: string
             self::Dashboards => 'Dashboards',
             self::Avaliacao => 'Avaliação online',
             self::Credenciamento => 'Credenciamento',
+            self::Cerimonial => 'Cerimonial',
             self::Almoxarifado => 'Almoxarifado',
             self::Comite => 'Comitê especial',
             self::AvaliacaoPresencial => 'Avaliação presencial',
@@ -58,9 +60,10 @@ enum AbaAdmin: string
             self::Dashboards => 'Os números da feira: projetos, pessoas, camisetas e localidades.',
             self::Avaliacao => 'Distribuição, avaliadores, ranking e lista final.',
             self::Credenciamento => 'Credenciar os finalistas no dia do evento e conferir os documentos.',
+            self::Cerimonial => 'Check-in da cerimônia de premiação e o painel de quem já chegou.',
             self::Almoxarifado => 'Guardar e devolver o material dos finalistas durante o evento.',
             self::Comite => 'Transporte do comitê e o mapa de quem está a caminho.',
-            self::AvaliacaoPresencial => 'Checagem dos estandes, voluntários e credenciais de premiação.',
+            self::AvaliacaoPresencial => 'Checagem dos estandes, voluntários e as credenciais e prêmios da feira.',
             self::Mapa => 'Turnos de apresentação, estandes dos projetos e a planta do evento.',
             self::Comunicacao => 'Mala direta, avisos na tela e modelos de e-mail.',
             self::Suporte => 'Caixa de entrada do chat de orientadores e avaliadores.',

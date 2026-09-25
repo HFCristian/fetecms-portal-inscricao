@@ -36,10 +36,13 @@ class ContaTemporaria extends Model
     /** Voluntário da avaliação presencial (Sprint 133). */
     public const SETOR_PRESENCIAL = 'avaliacao_presencial';
 
+    /** Balcão do cerimonial: só o check-in, nunca a visão geral. */
+    public const SETOR_CERIMONIAL = 'cerimonial';
+
     /** @return list<string> */
     public static function setores(): array
     {
-        return [self::SETOR_CREDENCIAMENTO, self::SETOR_ALMOXARIFADO, self::SETOR_PRESENCIAL];
+        return [self::SETOR_CREDENCIAMENTO, self::SETOR_ALMOXARIFADO, self::SETOR_PRESENCIAL, self::SETOR_CERIMONIAL];
     }
 
     protected function casts(): array

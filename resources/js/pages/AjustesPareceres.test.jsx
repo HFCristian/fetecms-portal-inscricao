@@ -40,7 +40,7 @@ const DETALHE = {
     }],
 };
 
-const ABERTA = { aberta: true, iniciada: true, encerrada: false, de_label: '01/09/2026 08:00', ate_label: '10/09/2026 23:59', is_demo: false, modo_teste: false };
+const ABERTA = { aberta: true, leitura: true, iniciada: true, encerrada: false, de_label: '01/09/2026 08:00', ate_label: '10/09/2026 23:59', is_demo: false, modo_teste: false };
 
 describe('Ajustes e Pareceres — orientador', () => {
     beforeEach(() => {
@@ -117,7 +117,7 @@ describe('Ajustes e Pareceres — orientador', () => {
 
     it('fora do período explica que a aba está fechada', async () => {
         getAjustes.mockResolvedValue({
-            janela: { ...ABERTA, aberta: false, iniciada: false, encerrada: false },
+            janela: { ...ABERTA, aberta: false, leitura: false, iniciada: false, encerrada: false },
             projetos: [],
         });
         render(<AjustesPareceres />);
@@ -129,7 +129,7 @@ describe('Ajustes e Pareceres — orientador', () => {
 
     it('orientador demo tem o modo de teste para ver a aba fora do período', async () => {
         getAjustes.mockResolvedValue({
-            janela: { ...ABERTA, aberta: false, iniciada: false, is_demo: true },
+            janela: { ...ABERTA, aberta: false, leitura: false, iniciada: false, is_demo: true },
             projetos: [],
         });
         render(<AjustesPareceres />);
@@ -141,5 +141,35 @@ describe('Ajustes e Pareceres — orientador', () => {
 
         await waitFor(() => expect(getAjustes).toHaveBeenLastCalledWith(true));
         expect(await screen.findByText('Bioplástico de mandioca')).toBeInTheDocument();
+    });
+    /**
+     * O prazo fecha os botões, não a aba: o parecer é a devolutiva do trabalho
+     * de um ano, e sumir num prazo administrativo apagaria justamente o que o
+     * orientador leva para a edição seguinte.
+     */
+    it('depois do prazo o parecer continua à vista, sem os botões', async () => {
+        getAjustes.mockResolvedValue({
+            janela: { ...ABERTA, aberta: false, leitura: true, encerrada: true },
+            projetos: [PROJETO],
+        });
+        getAjustesProjeto.mockResolvedValue({
+            ...DETALHE,
+            sugestoes: [{ ...DETALHE.sugestoes[0], aceito: true, decidido_em: '2026-09-05T10:00:00-04:00' }],
+        });
+        render(<AjustesPareceres />);
+
+        expect(await screen.findByText(/O período de ajustes terminou em 10\/09\/2026 23:59/)).toBeInTheDocument();
+        fireEvent.click(await screen.findByText('Bioplástico de mandioca'));
+
+        // O parecer inteiro continua lá.
+        expect(await screen.findByText('Melhore o áudio.')).toBeInTheDocument();
+        expect(screen.getByText('Título')).toBeInTheDocument();
+
+        // A sugestão fica, com o que ficou valendo — e sem o botão.
+        expect(screen.getByText('Ciências Agrárias')).toBeInTheDocument();
+        expect(screen.getByText('Em vigor')).toBeInTheDocument();
+        expect(screen.getByText('Aceita por você')).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Desfazer' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Aceitar' })).not.toBeInTheDocument();
     });
 });

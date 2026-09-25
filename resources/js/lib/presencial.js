@@ -46,7 +46,7 @@ export const excluirItemChecagem = (id) =>
 /** O PDF do termo de responsabilidade, servido pela rota autenticada. */
 export const urlTermo = (documentoId) => `/api/v1/documentos/${documentoId}/preview`;
 
-// --- Credenciais (vagas de premiação) ---------------------------------------
+// --- Credenciais e prêmios (o que a feira tem para dar) ---------------------
 
 export const getCredenciais = () =>
     http.get('/admin/presencial/credenciais').then((r) => r.data);

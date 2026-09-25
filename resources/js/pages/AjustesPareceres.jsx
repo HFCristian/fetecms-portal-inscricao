@@ -41,9 +41,11 @@ function resumoProjeto(p) {
  * sugeriu e o botão de aceitar/desfazer.
  *
  * A sugestão NÃO some depois de decidida — até o fim do prazo o orientador pode
- * mudar de ideia.
+ * mudar de ideia. Passado o prazo ela **continua na tela**, com o que ficou
+ * valendo e sem o botão: o histórico da própria decisão é o que explica, meses
+ * depois, por que o projeto está na área em que está.
  */
-function Sugestao({ sugestao, salvando, onDecidir }) {
+function Sugestao({ sugestao, salvando, podeDecidir, onDecidir }) {
     return (
         <li className="border border-outline-variant/40 rounded-xl p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -64,14 +66,20 @@ function Sugestao({ sugestao, salvando, onDecidir }) {
                             Em vigor
                         </span>
                     )}
-                    <Button
-                        type="button"
-                        variant={sugestao.aceito ? 'outline' : 'primary'}
-                        disabled={salvando}
-                        onClick={() => onDecidir(sugestao, !sugestao.aceito)}
-                    >
-                        {sugestao.aceito ? 'Desfazer' : 'Aceitar'}
-                    </Button>
+                    {podeDecidir ? (
+                        <Button
+                            type="button"
+                            variant={sugestao.aceito ? 'outline' : 'primary'}
+                            disabled={salvando}
+                            onClick={() => onDecidir(sugestao, !sugestao.aceito)}
+                        >
+                            {sugestao.aceito ? 'Desfazer' : 'Aceitar'}
+                        </Button>
+                    ) : (
+                        <span className="text-xs text-on-surface-variant">
+                            {sugestao.aceito ? 'Aceita por você' : 'Não aceita'}
+                        </span>
+                    )}
                 </div>
             </div>
         </li>
@@ -129,7 +137,7 @@ export default function AjustesPareceres() {
 
     const carregar = useCallback((teste) => getAjustes(teste)
         .then(setDados)
-        .catch(() => setDados({ janela: { aberta: false, is_demo: false }, projetos: [] })), []);
+        .catch(() => setDados({ janela: { aberta: false, leitura: false, is_demo: false }, projetos: [] })), []);
 
     useEffect(() => { carregar(modoTeste); }, [carregar, modoTeste]);
 
@@ -163,6 +171,11 @@ export default function AjustesPareceres() {
     }
 
     const janela = dados?.janela;
+    // Dois portões: `leitura` abre a aba (e não fecha mais), `aberta` libera os
+    // botões. Payload antigo em cache não tem `leitura` — nesse caso vale o de
+    // sempre, e é o servidor que barra.
+    const podeLer = janela?.leitura ?? janela?.aberta;
+    const podeDecidir = !!janela?.aberta;
     const secoes = detalhe?.secoes ?? [];
     const secoesDe = (chave) => secoes.filter((s) => s.nivel === chave);
     const naoAvaliadas = secoes.filter((s) => s.nivel === null);
@@ -173,7 +186,9 @@ export default function AjustesPareceres() {
             <p className="text-on-surface-variant mb-4 max-w-3xl">
                 O que os avaliadores disseram sobre os seus projetos: você decide se aceita a troca
                 de área ou subárea — e pode mudar de ideia enquanto o período estiver aberto — e lê
-                em que etapas o trabalho foi melhor ou pior. Os avaliadores são anônimos.
+                em que etapas o trabalho foi melhor ou pior. O <strong>parecer continua disponível
+                depois do prazo</strong>; só a troca de classificação se encerra. Os avaliadores são
+                anônimos.
             </p>
 
             {janela?.is_demo && (
@@ -191,24 +206,27 @@ export default function AjustesPareceres() {
                 <div className="text-center py-10 text-on-surface-variant">
                     <span className="inline-block w-8 h-8 rounded-full border-4 border-on-surface-variant/25 border-t-primary animate-spin align-[-0.2em]" role="status" aria-label="Carregando" />
                 </div>
-            ) : !janela.aberta ? (
+            ) : !podeLer ? (
                 <div className="max-w-3xl bg-surface-container-lowest rounded-xl fetec-card-shadow p-6">
                     <span className="material-symbols-outlined text-primary-container text-3xl">lock_clock</span>
                     <h2 className="font-display text-lg font-semibold text-on-surface mt-2">
-                        {janela.encerrada
-                            ? 'O período de ajustes terminou'
-                            : 'O período de ajustes ainda não começou'}
+                        O período de ajustes ainda não começou
                     </h2>
                     <p className="text-sm text-on-surface-variant mt-1">
-                        {janela.encerrada
-                            ? `Esta aba ficou aberta até ${janela.ate_label}. As decisões que você tomou continuam valendo.`
-                            : janela.de_label
-                                ? `A aba abre em ${janela.de_label}, depois do fim da avaliação online.`
-                                : 'A organização ainda não definiu a data. Quando definir, esta aba abre por aqui mesmo.'}
+                        {janela.de_label
+                            ? `A aba abre em ${janela.de_label}, depois do fim da avaliação online.`
+                            : 'A organização ainda não definiu a data. Quando definir, esta aba abre por aqui mesmo.'}
                     </p>
                 </div>
             ) : aberto === null ? (
                 <div className="max-w-3xl space-y-3">
+                    {!podeDecidir && (
+                        <Alert type="info">
+                            O período de ajustes terminou{janela.ate_label ? ` em ${janela.ate_label}` : ''}. O
+                            parecer dos avaliadores continua aqui para consulta, e as decisões que você tomou
+                            seguem valendo — o que não dá mais é trocar a área ou a subárea.
+                        </Alert>
+                    )}
                     <Alert>{alert}</Alert>
                     {dados.projetos.length === 0 ? (
                         <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-6 text-sm text-on-surface-variant">
@@ -270,8 +288,9 @@ export default function AjustesPareceres() {
                                     Sugestões de classificação
                                 </h3>
                                 <p className="text-xs text-on-surface-variant mb-3">
-                                    Aceitar troca a classificação do projeto na hora. Todas as sugestões
-                                    continuam aqui até o fim do prazo, então dá para desfazer.
+                                    {podeDecidir
+                                        ? 'Aceitar troca a classificação do projeto na hora. Todas as sugestões continuam aqui até o fim do prazo, então dá para desfazer.'
+                                        : 'O prazo para decidir terminou. Abaixo está o que cada avaliador sugeriu e o que ficou valendo.'}
                                 </p>
                                 {detalhe.sugestoes.length === 0 ? (
                                     <p className="text-sm text-on-surface-variant">
@@ -284,6 +303,7 @@ export default function AjustesPareceres() {
                                                 key={`${s.avaliacao_id}-${s.tipo}`}
                                                 sugestao={s}
                                                 salvando={salvando}
+                                                podeDecidir={podeDecidir}
                                                 onDecidir={decidir}
                                             />
                                         ))}

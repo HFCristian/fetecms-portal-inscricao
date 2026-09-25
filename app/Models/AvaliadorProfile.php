@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\Camisetas;
 use Database\Factories\AvaliadorProfileFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -28,6 +29,15 @@ class AvaliadorProfile extends Model
     ];
 
     /**
+     * Tamanhos de camiseta oferecidos ao avaliador — os mesmos do orientador,
+     * que é o outro papel adulto do portal. O campo é **opcional**: quem não
+     * responde fica fora da quebra por tamanho, e não vira um "N.I." na tela.
+     *
+     * @var list<string>
+     */
+    public const CAMISETAS = Camisetas::TAMANHOS;
+
+    /**
      * Carga horária que cada avaliação concluída rende no certificado do
      * avaliador (2h30, definida pela organização).
      */
@@ -41,7 +51,7 @@ class AvaliadorProfile extends Model
     public const MAX_MINUTOS_CERTIFICADO = 120 * 60;
 
     protected $fillable = [
-        'cpf', 'titulacao', 'area_id', 'subarea_id', 'limite_avaliacoes', 'comissao_especial',
+        'cpf', 'titulacao', 'camiseta', 'area_id', 'subarea_id', 'limite_avaliacoes', 'comissao_especial',
         'estado_id', 'cidade_id', 'presencial', 'presencial_em',
     ];
 

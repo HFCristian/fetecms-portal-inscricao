@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\V1\AvisoController;
 use App\Http\Controllers\Api\V1\CadastroPendenteController;
 use App\Http\Controllers\Api\V1\CatalogoAdminController;
 use App\Http\Controllers\Api\V1\CatalogoController;
+use App\Http\Controllers\Api\V1\CerimonialController;
 use App\Http\Controllers\Api\V1\ChatAdminController;
 use App\Http\Controllers\Api\V1\ChatController;
 use App\Http\Controllers\Api\V1\ComiteDesignacaoController;
@@ -228,6 +229,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::get('/perfil', [AvaliadorPerfilController::class, 'show']);
             Route::put('/perfil/classificacao', [AvaliadorPerfilController::class, 'atualizarClassificacao']);
             Route::put('/perfil/localidade', [AvaliadorPerfilController::class, 'atualizarLocalidade']);
+            Route::put('/perfil/camiseta', [AvaliadorPerfilController::class, 'atualizarCamiseta']);
             // Intenção de avaliar presencialmente, e as orientações de quem aceita.
             Route::get('/presencial', [AvaliadorPresencialController::class, 'show']);
             Route::put('/presencial', [AvaliadorPresencialController::class, 'update']);
@@ -419,6 +421,33 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::post('/projetos/{projeto}/cancelar', [CredenciamentoController::class, 'cancelar']);
             });
 
+            // --- Aba "Cerimonial": a porta da cerimônia de premiação ---
+            Route::middleware('aba:cerimonial')->prefix('cerimonial')->group(function () {
+                // O balcão: é o que a conta temporária do setor faz, e só isso.
+                Route::get('/config', [CerimonialController::class, 'config']);
+                Route::post('/codigo', [CerimonialController::class, 'lerCodigo']);
+                Route::get('/busca', [CerimonialController::class, 'buscar']);
+                Route::get('/projetos/{projeto}', [CerimonialController::class, 'show']);
+                Route::post('/projetos/{projeto}/checkin', [CerimonialController::class, 'checkin']);
+                Route::post('/projetos/{projeto}/desfazer', [CerimonialController::class, 'desfazer']);
+
+                // O painel e as contas são da organização: quem atende a porta
+                // não precisa saber quantas medalhas estão na mesa. O menu
+                // esconde, e aqui o servidor recusa.
+                Route::middleware('admin.permanente')->group(function () {
+                    Route::get('/visao-geral', [CerimonialController::class, 'visaoGeral']);
+                    Route::get('/visao-geral/detalhe', [CerimonialController::class, 'detalhe']);
+                    Route::get('/premiados', [CerimonialController::class, 'premiados']);
+                    Route::patch('/atualizacao', [CerimonialController::class, 'definirAtualizacao']);
+
+                    Route::get('/contas', [ContaTemporariaController::class, 'index'])->defaults('setor', 'cerimonial');
+                    Route::post('/contas', [ContaTemporariaController::class, 'store'])->defaults('setor', 'cerimonial');
+                    Route::patch('/contas/{conta}/renovar', [ContaTemporariaController::class, 'renovar'])->defaults('setor', 'cerimonial');
+                    Route::patch('/contas/{conta}/desativar', [ContaTemporariaController::class, 'desativar'])->defaults('setor', 'cerimonial');
+                    Route::patch('/contas/{conta}/presenca', [ContaTemporariaController::class, 'presenca'])->defaults('setor', 'cerimonial');
+                });
+            });
+
             // --- Aba "Almoxarifado": a guarda de volumes durante a feira ---
             Route::middleware('aba:almoxarifado')->prefix('almoxarifado')->group(function () {
                 // Contas temporárias do almoxarifado: lista própria, mesmo cadastro.
@@ -476,6 +505,12 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
 
                 // A planta do ginásio: o desenho (versionado) e a ocupação.
                 Route::get('/planta', [MapaPlantaController::class, 'index']);
+                // A cor de cada estande no dia/turno escolhido — é o que a tela
+                // recarrega sozinha durante o evento.
+                Route::get('/planta/situacao', [MapaPlantaController::class, 'situacao']);
+                Route::get('/planta/lista', [MapaPlantaController::class, 'lista']);
+                Route::get('/planta/lista/{formato}', [MapaPlantaController::class, 'exportar'])
+                    ->where('formato', 'txt|csv|pdf');
                 Route::post('/planta', [MapaPlantaController::class, 'salvar']);
                 Route::post('/planta/{layout}/restaurar', [MapaPlantaController::class, 'restaurar']);
             });

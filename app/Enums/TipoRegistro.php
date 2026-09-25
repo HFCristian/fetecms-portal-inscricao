@@ -45,6 +45,12 @@ namespace App\Enums;
  * logística, não escape do edital), mas fica registrada: no dia do evento é
  * preciso saber por que um projeto está em outro horário do que a lista dizia.
  *
+ * Seção "Cerimonial" (a porta da cerimônia de premiação): cada pessoa que fez
+ * check-in — com o projeto, o papel e quem atendeu — e cada check-in desfeito,
+ * este com justificativa obrigatória. O check-in decide quantas medalhas e
+ * quantas credenciais a organização separa da mesa, então desfazer um é mexer
+ * no que vai ser entregue no palco.
+ *
  * Seção "Almoxarifado" (a guarda de volumes durante a feira): o material que
  * entrou, o que saiu e para quem, e as correções e exclusões de registro — as
  * duas últimas com justificativa obrigatória. É material de outra pessoa na mão
@@ -102,6 +108,8 @@ enum TipoRegistro: string
     case NotasVisualizadas = 'notas_visualizadas';
     case NotaDesconsiderada = 'nota_desconsiderada';
     case NotaReconsiderada = 'nota_reconsiderada';
+    case CerimonialCheckin = 'cerimonial_checkin';
+    case CerimonialCheckinDesfeito = 'cerimonial_checkin_desfeito';
 
     /** Seções da tela de Registros. */
     public const SECAO_INSCRICOES = 'inscricoes';
@@ -121,6 +129,8 @@ enum TipoRegistro: string
     public const SECAO_MAPA = 'mapa';
 
     public const SECAO_NOTAS = 'notas';
+
+    public const SECAO_CERIMONIAL = 'cerimonial';
 
     public function label(): string
     {
@@ -175,6 +185,8 @@ enum TipoRegistro: string
             self::NotasVisualizadas => 'Notas consultadas',
             self::NotaDesconsiderada => 'Nota desconsiderada',
             self::NotaReconsiderada => 'Nota reconsiderada',
+            self::CerimonialCheckin => 'Check-in do cerimonial',
+            self::CerimonialCheckinDesfeito => 'Check-in desfeito',
         };
     }
 
@@ -198,6 +210,7 @@ enum TipoRegistro: string
             self::NotasVisualizadas,
             self::NotaDesconsiderada,
             self::NotaReconsiderada => self::SECAO_NOTAS,
+            self::CerimonialCheckin, self::CerimonialCheckinDesfeito => self::SECAO_CERIMONIAL,
             default => self::SECAO_AVALIACAO,
         };
     }
@@ -208,7 +221,7 @@ enum TipoRegistro: string
         return [
             self::SECAO_INSCRICOES, self::SECAO_AVALIACAO, self::SECAO_PROJETOS,
             self::SECAO_RASCUNHOS, self::SECAO_LISTA_FINAL, self::SECAO_CREDENCIAMENTO,
-            self::SECAO_ALMOXARIFADO, self::SECAO_MAPA, self::SECAO_NOTAS,
+            self::SECAO_ALMOXARIFADO, self::SECAO_CERIMONIAL, self::SECAO_MAPA, self::SECAO_NOTAS,
         ];
     }
 

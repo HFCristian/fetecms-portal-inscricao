@@ -46,4 +46,31 @@ describe('AppShell — menu do admin por escopo', () => {
         expect(itens('Parametrização').length).toBeGreaterThan(0);
         expect(itens('Administradores').length).toBeGreaterThan(0);
     });
+    /**
+     * Numa tela larga mas baixa (notebook deitado, projetor 16:9) o admin tem
+     * mais abas do que altura: sem rolagem, as últimas ficavam para fora da
+     * janela e eram inalcançáveis. `min-h-0` é o que permite ao flex encolher o
+     * filho abaixo do conteúdo dele — sem ele o `overflow-y-auto` não faz nada.
+     */
+    it('a lista de abas rola, e a saída da tela fica ancorada embaixo', () => {
+        user.abas = undefined;
+        const { container } = render(<AppShell><p>conteúdo</p></AppShell>);
+
+        const lista = container.querySelector('nav > div.overflow-y-auto');
+        expect(lista).not.toBeNull();
+        expect(lista.className).toContain('min-h-0');
+        expect(lista.className).toContain('flex-1');
+
+        // Acesso e Sair moram fora da área que rola.
+        expect(lista.textContent).not.toContain('Acesso');
+        expect(container.querySelector('nav > div.shrink-0:last-child').textContent).toContain('Acesso');
+    });
+
+    it('a aba Cerimonial entra no menu como as demais', () => {
+        user.abas = ['cerimonial'];
+        render(<AppShell><p>conteúdo</p></AppShell>);
+
+        expect(itens('Cerimonial').length).toBeGreaterThan(0);
+        expect(itens('Credenciamento')).toHaveLength(0);
+    });
 });

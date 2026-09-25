@@ -28,8 +28,8 @@ const SECOES = [
     {
         to: '/admin/presencial/credenciais',
         icon: 'workspace_premium',
-        titulo: 'Credenciais',
-        descricao: 'As vagas de premiação da feira, o projeto de cada uma e a lista da cerimônia.',
+        titulo: 'Credenciais e Prêmios',
+        descricao: 'As vagas e os reconhecimentos da feira, o projeto de cada um e a lista da cerimônia.',
     },
     {
         to: '/admin/presencial/espelho',

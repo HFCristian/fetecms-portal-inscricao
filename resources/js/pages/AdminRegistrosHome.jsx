@@ -61,6 +61,12 @@ export default function AdminRegistrosHome() {
                     descricao="Quem credenciou cada finalista, o horário, quem faltou e cada retirada de kit."
                 />
                 <CardSecao
+                    to="/admin/registros/cerimonial"
+                    icon="celebration"
+                    titulo="Cerimonial"
+                    descricao="Quem fez check-in na cerimônia de premiação, quando e por quem — e cada check-in desfeito, com a justificativa."
+                />
+                <CardSecao
                     to="/admin/registros/almoxarifado"
                     icon="inventory_2"
                     titulo="Almoxarifado"

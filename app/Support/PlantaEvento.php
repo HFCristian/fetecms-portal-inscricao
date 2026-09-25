@@ -103,7 +103,112 @@ final class PlantaEvento
             'nome' => trim((string) ($bruto['nome'] ?? '')) ?: 'Planta do evento',
             'estandes' => $estandes,
             'marcacoes' => $marcacoes,
+            // As ruas não são desenhadas: elas são **achadas** no desenho (ver
+            // `ruas()`). O que se guarda é só o nome que o admin deu a cada
+            // uma, indexado pela chave do corredor — assim mover um estande
+            // reposiciona a rua sozinha, em vez de deixar um rótulo solto no
+            // lugar onde o corredor não está mais.
+            'ruas' => self::nomesDeRuas($bruto['ruas'] ?? []),
         ];
+    }
+
+    /**
+     * Os nomes de rua vindos da tela: `{"h:8.5": "Rua das Agrárias"}`.
+     *
+     * Chave fora do formato ou nome vazio some — um rótulo sem corredor não
+     * teria onde ser desenhado.
+     *
+     * @return array<string, string>
+     */
+    private static function nomesDeRuas(mixed $bruto): array
+    {
+        $nomes = [];
+
+        foreach ((array) $bruto as $chave => $nome) {
+            $chave = (string) $chave;
+            $nome = trim((string) $nome);
+
+            if ($nome !== '' && preg_match('/^[hv]:-?\d+(\.\d+)?$/', $chave)) {
+                $nomes[$chave] = mb_substr($nome, 0, 60);
+            }
+        }
+
+        ksort($nomes);
+
+        return $nomes;
+    }
+
+    /**
+     * Os **corredores** da planta: as faixas vazias entre as ilhas de estandes,
+     * que no dia do evento são as ruas por onde o público anda.
+     *
+     * Elas são deduzidas do desenho em vez de desenhadas à parte porque é isso
+     * que elas são — o espaço que sobra entre duas fileiras. Pedir ao admin que
+     * as desenhasse de novo criaria uma segunda verdade, que deixaria de bater
+     * com a planta no primeiro estande movido.
+     *
+     * O método varre as duas direções: uma faixa horizontal é uma linha `y` sem
+     * nenhum estande, com estande acima e abaixo; a vertical é o mesmo em `x`.
+     * Faixas vizinhas viram **um corredor só** (um vão de duas unidades é uma
+     * rua larga, não duas ruas), e a chave de cada uma é o centro dela —
+     * estável enquanto o desenho não mudar, que é o que permite guardar o nome.
+     *
+     * @param  array<string, mixed>  $layout
+     * @return list<array{chave:string, orientacao:string, posicao:float, de:float, ate:float, nome:?string}>
+     */
+    public static function ruas(array $layout): array
+    {
+        $estandes = (array) ($layout['estandes'] ?? []);
+
+        if (count($estandes) < 2) {
+            return [];
+        }
+
+        $nomes = (array) ($layout['ruas'] ?? []);
+        $ruas = [];
+
+        foreach (['h' => ['y', 'x'], 'v' => ['x', 'y']] as $orientacao => [$eixo, $transversal]) {
+            $ocupadas = [];
+            $extremos = [];
+
+            foreach ($estandes as $e) {
+                $linha = (float) ($e[$eixo] ?? 0);
+                $ocupadas[(string) $linha] = $linha;
+                $extremos[] = (float) ($e[$transversal] ?? 0);
+            }
+
+            $linhas = array_values($ocupadas);
+            sort($linhas);
+
+            $vaos = [];
+
+            // Um vão é a distância entre duas fileiras consecutivas maior que a
+            // própria fileira: encostadas (1 unidade) não há corredor.
+            for ($i = 0; $i < count($linhas) - 1; $i++) {
+                $inicio = $linhas[$i] + 1;
+                $fim = $linhas[$i + 1];
+
+                if ($fim - $inicio >= 0.5) {
+                    $vaos[] = ['de' => $inicio, 'ate' => $fim];
+                }
+            }
+
+            foreach ($vaos as $vao) {
+                $centro = round(($vao['de'] + $vao['ate']) / 2, 2);
+                $chave = $orientacao.':'.$centro;
+
+                $ruas[] = [
+                    'chave' => $chave,
+                    'orientacao' => $orientacao,
+                    'posicao' => $centro,
+                    'de' => round(min($extremos), 2),
+                    'ate' => round(max($extremos) + 1, 2),
+                    'nome' => $nomes[$chave] ?? null,
+                ];
+            }
+        }
+
+        return $ruas;
     }
 
     /**

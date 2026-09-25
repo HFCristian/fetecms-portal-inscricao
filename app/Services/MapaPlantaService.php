@@ -26,6 +26,13 @@ use Illuminate\Validation\ValidationException;
  * distribuição (Sprint 119); aqui só se desenha o lugar físico. Por isso mexer
  * na planta nunca mexe na alocação, e um estande sem projeto aparece vazio em
  * vez de sumir.
+ *
+ * As **ruas** — os corredores entre as ilhas — não são desenhadas: são achadas
+ * no próprio desenho ({@see PlantaEvento::ruas()}), e o que se guarda é apenas
+ * o nome que o admin deu a cada uma. Assim mover um estande reposiciona a rua
+ * sozinha, em vez de deixar um rótulo solto onde o corredor não está mais.
+ *
+ * Como a planta **muda de cor** durante o evento, ver {@see MapaSituacaoService}.
  */
 class MapaPlantaService
 {
@@ -42,9 +49,14 @@ class MapaPlantaService
         $layout = $this->vigenteOuPadrao($edicao);
         $ocupacao = $this->estandes->porEstande();
 
+        $dados = $layout === null ? PlantaEvento::padrao() : $layout->dados;
+
         return [
             'edicao' => $edicao ? ['id' => $edicao->id, 'nome' => $edicao->nome] : null,
-            'layout' => $layout === null ? PlantaEvento::padrao() : $layout->dados,
+            'layout' => $dados,
+            // As ruas são deduzidas do próprio desenho: o que o admin guarda é
+            // só o nome de cada corredor (ver PlantaEvento::ruas()).
+            'ruas' => PlantaEvento::ruas($dados),
             'versao' => $layout?->versao,
             'versao_id' => $layout?->id,
             'salva' => $layout !== null,

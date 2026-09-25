@@ -67,7 +67,7 @@ export async function exportarEstandes(formato) {
 
 // --- A planta do ginásio ---------------------------------------------------
 
-export const getPlanta = () => http.get('/admin/mapa/planta').then((r) => r.data.data);
+export const getPlanta = () => http.get('/admin/mapa/planta').then((r) => r.data);
 
 /** Grava o desenho como uma versão nova, que passa a ser a vigente. */
 export const salvarPlanta = (layout) => http.post('/admin/mapa/planta', layout).then((r) => r.data);
@@ -75,3 +75,29 @@ export const salvarPlanta = (layout) => http.post('/admin/mapa/planta', layout).
 /** Volta a uma versão anterior — que também nasce como versão nova. */
 export const restaurarPlanta = (layoutId) =>
     http.post(`/admin/mapa/planta/${layoutId}/restaurar`).then((r) => r.data);
+
+/**
+ * A cor de cada estande num turno, como estava no fim do dia escolhido. É o
+ * que a tela recarrega sozinha durante o evento — leve de propósito: a planta
+ * e as versões não vêm junto.
+ */
+export const getSituacaoPlanta = (params = {}) =>
+    http.get('/admin/mapa/planta/situacao', { params }).then((r) => r.data.data);
+
+/** A lista filtrada por credenciamento, checagem ou número de avaliações. */
+export const getListaSituacao = (params = {}) =>
+    http.get('/admin/mapa/planta/lista', { params }).then((r) => r.data.data);
+
+/** A mesma lista em arquivo (txt, csv ou pdf). */
+export async function baixarListaSituacao(formato, params = {}) {
+    const resp = await http.get(`/admin/mapa/planta/lista/${formato}`, { params, responseType: 'blob' });
+    const url = URL.createObjectURL(resp.data);
+    const link = document.createElement('a');
+
+    link.href = url;
+    link.download = `mapa-situacao.${formato}`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+}

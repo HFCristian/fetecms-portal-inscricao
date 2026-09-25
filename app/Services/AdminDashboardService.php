@@ -6,6 +6,7 @@ use App\Enums\Categoria;
 use App\Enums\ProjetoStatus;
 use App\Enums\Role;
 use App\Models\Aluno;
+use App\Models\AvaliadorProfile;
 use App\Models\Coorientador;
 use App\Models\OrientadorProfile;
 use App\Models\Projeto;
@@ -38,7 +39,14 @@ class AdminDashboardService
             ->where('is_demo', false)
             ->whereHas('projetos', fn (Builder $q) => $q->where('status', ProjetoStatus::Submetido->value));
 
+        // Avaliador não tem projeto submetido que o qualifique: o recorte é
+        // quem está ativo e não é conta de ensaio.
+        $avaliadoresAtivos = User::where('role', Role::Avaliador->value)
+            ->where('is_demo', false)
+            ->where('is_active', true);
+
         $orientadores = (clone $orientadoresSubmetidos)->count();
+        $avaliadores = (clone $avaliadoresAtivos)->count();
         $alunos = Aluno::whereHas('projeto', $submetido)->count();
         $coorientadores = Coorientador::whereHas('projeto', $submetido)->count();
 
@@ -50,6 +58,7 @@ class AdminDashboardService
             'orientadores' => $orientadores,
             'alunos' => $alunos,
             'coorientadores' => $coorientadores,
+            'avaliadores' => $avaliadores,
             // Recorte por gênero: F (mulheres), M (homens) e "outros" (NB/O/P/nulo),
             // calculado como total − F − M para a soma sempre fechar com o total.
             // Cada query cobre exatamente o mesmo conjunto contado acima.
@@ -71,6 +80,13 @@ class AdminDashboardService
             // Mesmo recorte dos demais cards: só projetos submetidos.
             'alunos_classes' => ClassesEscolares::contar(Aluno::whereHas('projeto', $submetido)),
             'coorientadores_camisetas' => Camisetas::contar(Coorientador::whereHas('projeto', $submetido), $coorientadores),
+            // O avaliador também recebe camiseta, mas o recorte dele é outro: não
+            // há projeto submetido que o qualifique, então o conjunto é quem está
+            // **ativo e não é demo** — a mesma base dos demais números dele.
+            'avaliadores_camisetas' => Camisetas::contar(
+                AvaliadorProfile::whereIn('user_id', (clone $avaliadoresAtivos)->select('id')),
+                $avaliadores
+            ),
             'escolas_com_projeto' => $submetidos()->whereNotNull('instituicao_id')->distinct()->count('instituicao_id'),
             'cidades_com_projeto' => $submetidos()->whereNotNull('cidade_id')->distinct()->count('cidade_id'),
             'estados_com_projeto' => $submetidos()->whereNotNull('estado_id')->distinct()->count('estado_id'),

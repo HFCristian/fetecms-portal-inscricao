@@ -11,3 +11,7 @@ export const salvarClassificacaoAvaliador = (classificacao) =>
 // distribuição. Devolve { data, meta }.
 export const atualizarLocalidadeAvaliador = (payload) =>
     http.put('/avaliador/perfil/localidade', payload).then((r) => r.data);
+
+/** Tamanho de camiseta — opcional; `null` apaga a resposta. */
+export const atualizarCamisetaAvaliador = (camiseta) =>
+    http.put('/avaliador/perfil/camiseta', { camiseta }).then((r) => r.data);

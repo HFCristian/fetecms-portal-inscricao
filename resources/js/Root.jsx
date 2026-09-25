@@ -44,6 +44,11 @@ import ParametrizacaoAvaliacao from './pages/ParametrizacaoAvaliacao.jsx';
 import AdminManager from './pages/AdminManager.jsx';
 import AdminSuporte from './pages/AdminSuporte.jsx';
 import CredenciamentoHome from './pages/CredenciamentoHome.jsx';
+import CerimonialHome from './pages/CerimonialHome.jsx';
+import CerimonialCheckin from './pages/CerimonialCheckin.jsx';
+import CerimonialFicha from './pages/CerimonialFicha.jsx';
+import CerimonialVisaoGeral from './pages/CerimonialVisaoGeral.jsx';
+import CerimonialPremiados from './pages/CerimonialPremiados.jsx';
 import PresencialHome from './pages/PresencialHome.jsx';
 import PresencialChecagem from './pages/PresencialChecagem.jsx';
 import PresencialEspelho from './pages/PresencialEspelho.jsx';
@@ -195,6 +200,7 @@ export default function Root() {
                             <Route path="/admin/registros/lista-final" element={<AdminRegistros secao="lista_final" />} />
                             <Route path="/admin/registros/credenciamento" element={<AdminRegistros secao="credenciamento" />} />
                             <Route path="/admin/registros/almoxarifado" element={<AdminRegistros secao="almoxarifado" />} />
+                            <Route path="/admin/registros/cerimonial" element={<AdminRegistros secao="cerimonial" />} />
                             <Route path="/admin/registros/mapa" element={<AdminRegistros secao="mapa" />} />
                             <Route path="/admin/registros/notas" element={<AdminRegistros secao="notas" />} />
                             {/* Aba Credenciamento: o balcão do evento. */}
@@ -204,6 +210,17 @@ export default function Root() {
                             <Route path="/admin/credenciamento/projetos/:id" element={<CredenciamentoFicha />} />
                             <Route path="/admin/credenciamento/contas" element={<CredenciamentoContas />} />
                             {/* Aba Almoxarifado: a guarda de volumes durante a feira. */}
+                            {/* Aba Cerimonial: a porta da cerimônia de premiação. A
+                                conta temporária do setor só abre o check-in — as
+                                outras duas telas o servidor recusa. */}
+                            <Route path="/admin/cerimonial" element={<CerimonialHome />} />
+                            <Route path="/admin/cerimonial/checkin" element={<CerimonialCheckin />} />
+                            <Route path="/admin/cerimonial/projetos/:id" element={<CerimonialFicha />} />
+                            <Route path="/admin/cerimonial/visao-geral" element={<CerimonialVisaoGeral />} />
+                            <Route path="/admin/cerimonial/premiados" element={<CerimonialPremiados />} />
+                            {/* Mesma tela do credenciamento: o que muda é o setor. */}
+                            <Route path="/admin/cerimonial/contas" element={<CredenciamentoContas setor="cerimonial" />} />
+
                             <Route path="/admin/almoxarifado" element={<AlmoxarifadoHome />} />
                             <Route path="/admin/almoxarifado/novo" element={<AlmoxarifadoNovo />} />
                             <Route path="/admin/almoxarifado/registros" element={<AlmoxarifadoRegistros />} />

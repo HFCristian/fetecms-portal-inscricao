@@ -168,7 +168,7 @@ class AjustesOrientadorTest extends TestCase
         $this->assertSame($biologicas->id, reset($aceitas)['sugerido_id']);
     }
 
-    public function test_fora_do_periodo_a_aba_abre_vazia_e_nada_pode_ser_decidido(): void
+    public function test_antes_do_periodo_a_aba_abre_vazia_e_nada_pode_ser_decidido(): void
     {
         $avaliacao = $this->sugestao();
         Edicao::atual()->update(['ajustes_de' => now()->addDays(3), 'ajustes_ate' => now()->addDays(9)]);
@@ -177,6 +177,7 @@ class AjustesOrientadorTest extends TestCase
         $this->getJson('/api/v1/ajustes')
             ->assertOk()
             ->assertJsonPath('data.janela.aberta', false)
+            ->assertJsonPath('data.janela.leitura', false)
             ->assertJsonPath('data.janela.iniciada', false)
             ->assertJsonCount(0, 'data.projetos');
 
@@ -284,5 +285,51 @@ class AjustesOrientadorTest extends TestCase
         Sanctum::actingAs(User::factory()->create(['role' => Role::Avaliador->value]));
 
         $this->getJson('/api/v1/ajustes/janela')->assertForbidden();
+    }
+    // ------------------------------------------------------------------ //
+    // Depois do prazo: o parecer fica, a decisão sai                      //
+    // ------------------------------------------------------------------ //
+
+    /**
+     * O fim do período fecha **os botões**, não a aba: o parecer é a devolutiva
+     * do trabalho de um ano, e sumir num prazo administrativo apagaria o que o
+     * orientador leva para a edição seguinte.
+     */
+    public function test_encerrado_o_prazo_o_parecer_continua_visivel(): void
+    {
+        $this->sugestao(over: ['comentario_video' => 'Melhore o áudio da narração.']);
+        Edicao::atual()->update(['ajustes_de' => now()->subDays(9), 'ajustes_ate' => now()->subDay()]);
+        Sanctum::actingAs($this->orientador);
+
+        $lista = $this->getJson('/api/v1/ajustes')
+            ->assertOk()
+            ->assertJsonPath('data.janela.aberta', false)
+            ->assertJsonPath('data.janela.leitura', true)
+            ->assertJsonPath('data.janela.encerrada', true)
+            ->assertJsonCount(1, 'data.projetos');
+
+        $this->assertSame(1, $lista->json('data.projetos.0.recomendacoes'));
+
+        $detalhe = $this->getJson("/api/v1/ajustes/projetos/{$this->projeto->id}")
+            ->assertOk()
+            ->json('data');
+
+        // A sugestão continua na tela — é o histórico da própria decisão.
+        $this->assertCount(1, $detalhe['sugestoes']);
+        $this->assertNotEmpty($detalhe['secoes']);
+        $this->assertNotEmpty($detalhe['recomendacoes']);
+    }
+
+    public function test_encerrado_o_prazo_a_classificacao_nao_muda_mais(): void
+    {
+        $avaliacao = $this->sugestao();
+        Edicao::atual()->update(['ajustes_de' => now()->subDays(9), 'ajustes_ate' => now()->subDay()]);
+        Sanctum::actingAs($this->orientador);
+
+        $this->postJson("/api/v1/ajustes/projetos/{$this->projeto->id}/decidir", [
+            'avaliacao_id' => $avaliacao->id, 'tipo' => 'area', 'aceito' => true,
+        ])->assertStatus(422)->assertJsonValidationErrors('periodo');
+
+        $this->assertSame($this->exatas->id, $this->projeto->fresh()->area_id);
     }
 }

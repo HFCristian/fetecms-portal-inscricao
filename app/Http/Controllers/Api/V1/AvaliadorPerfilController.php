@@ -10,6 +10,7 @@ use App\Rules\CidadeDoEstado;
 use App\Services\AvaliadorService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 /**
  * Perfil do avaliador: os números que ele acumulou na feira (avaliações
@@ -38,6 +39,28 @@ class AvaliadorPerfilController extends Controller
         return response()->json([
             'data' => $this->perfil($user->fresh(['avaliadorProfile.area', 'avaliadorProfile.subarea'])),
             'meta' => ['message' => 'Área de atuação atualizada.'],
+        ]);
+    }
+
+    /**
+     * Tamanho de camiseta — opcional, e trocável a qualquer momento: é dado de
+     * logística do evento, não de distribuição. String vazia apaga a resposta.
+     */
+    public function atualizarCamiseta(Request $request): JsonResponse
+    {
+        $dados = $request->validate([
+            'camiseta' => ['nullable', 'string', Rule::in(AvaliadorProfile::CAMISETAS)],
+        ]);
+
+        $user = $request->user();
+        $this->avaliadores->atualizarCamiseta($user, $dados['camiseta'] ?? null);
+
+        return response()->json([
+            'data' => $this->perfil($user->fresh([
+                'avaliadorProfile.area', 'avaliadorProfile.subarea',
+                'avaliadorProfile.estado', 'avaliadorProfile.cidade',
+            ])),
+            'meta' => ['message' => 'Tamanho de camiseta atualizado.'],
         ]);
     }
 
@@ -76,6 +99,8 @@ class AvaliadorPerfilController extends Controller
             'nome' => $user->name,
             'email' => $user->email,
             'titulacao' => $perfil?->titulacao,
+            'camiseta' => $perfil?->camiseta,
+            'camisetas' => AvaliadorProfile::CAMISETAS,
             'area_id' => $perfil?->area_id,
             'area' => $perfil?->area?->nome,
             'subarea_id' => $perfil?->subarea_id,

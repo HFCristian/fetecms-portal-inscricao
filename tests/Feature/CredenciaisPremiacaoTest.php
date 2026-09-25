@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\Role;
+use App\Enums\TipoCredencial;
 use App\Models\Aluno;
 use App\Models\Area;
 use App\Models\Cidade;
@@ -246,7 +247,7 @@ class CredenciaisPremiacaoTest extends TestCase
         $this->comoAdmin();
 
         $this->assertStringContainsString(
-            '(nenhum projeto credenciado)',
+            '(nenhum projeto contemplado)',
             $this->get('/api/v1/admin/presencial/credenciais/premiacao/arquivo')->getContent(),
         );
     }
@@ -264,5 +265,43 @@ class CredenciaisPremiacaoTest extends TestCase
             ->assertOk()
             ->assertJsonPath('meta.candidatos.0.titulo', 'Bioplástico de mandioca')
             ->assertJsonPath('meta.candidatos.0.credenciais.0', 'MOSTRATEC 2027');
+    }
+    // ------------------------------------------------------------------ //
+    // Credenciais e Prêmios: o tipo                                       //
+    // ------------------------------------------------------------------ //
+
+    public function test_credencial_nasce_com_tipo_credencial_e_premio_e_cadastrado_pelo_tipo(): void
+    {
+        $this->comoAdmin();
+
+        // Sem tipo, credencial: era o único que existia antes dos prêmios.
+        $this->postJson('/api/v1/admin/presencial/credenciais', ['nome' => 'MOSTRATEC 2027'])
+            ->assertCreated();
+        $this->assertSame(
+            TipoCredencial::Credencial,
+            Credencial::where('nome', 'MOSTRATEC 2027')->firstOrFail()->tipo,
+        );
+
+        $resposta = $this->postJson('/api/v1/admin/presencial/credenciais', [
+            'tipo' => TipoCredencial::Premio->value,
+            'nome' => 'Destaque da feira',
+        ])->assertCreated();
+
+        $premio = collect($resposta->json('data'))->firstWhere('nome', 'Destaque da feira');
+        $this->assertSame('premio', $premio['tipo']);
+        $this->assertSame('Prêmio', $premio['tipo_label']);
+    }
+
+    public function test_txt_da_premiacao_diz_o_tipo_de_cada_bloco(): void
+    {
+        $this->publicar([$this->projeto]);
+        $this->comoAdmin();
+
+        $premio = $this->credencial(['nome' => 'Destaque da feira', 'tipo' => TipoCredencial::Premio]);
+        $premio->projetos()->attach($this->projeto->id, ['atribuida_em' => now()]);
+
+        $txt = $this->get('/api/v1/admin/presencial/credenciais/premiacao/arquivo')->assertOk()->getContent();
+
+        $this->assertStringContainsString('[PRÊMIO] DESTAQUE DA FEIRA', $txt);
     }
 }

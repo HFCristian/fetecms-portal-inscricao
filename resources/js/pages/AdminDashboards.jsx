@@ -39,6 +39,9 @@ const SECOES = [
             { type: 'camiseta', camisetaKey: 'orientadores_camisetas', label: 'Camisetas · Orientadores', icon: 'apparel' },
             { type: 'camiseta', camisetaKey: 'alunos_camisetas', label: 'Camisetas · Alunos', icon: 'apparel' },
             { type: 'camiseta', camisetaKey: 'coorientadores_camisetas', label: 'Camisetas · Coorientadores', icon: 'apparel' },
+            // O avaliador não tem projeto submetido que o qualifique: o recorte
+            // dele é quem está ativo e não é conta de ensaio.
+            { type: 'camiseta', camisetaKey: 'avaliadores_camisetas', label: 'Camisetas · Avaliadores', icon: 'apparel' },
         ],
     },
     {

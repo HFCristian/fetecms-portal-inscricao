@@ -28,6 +28,8 @@ const TAG = {
     credenciamento_kit_retirado: 'bg-primary-fixed text-primary-container',
     almoxarifado_guarda: 'bg-primary-fixed text-primary-container',
     almoxarifado_retirada: 'bg-secondary-container text-on-secondary-container',
+    cerimonial_checkin: 'bg-secondary-container text-on-secondary-container',
+    cerimonial_checkin_desfeito: 'bg-error-container text-on-error-container',
 };
 
 const ICONE = {
@@ -55,6 +57,8 @@ const ICONE = {
     almoxarifado_retirada: 'outbox',
     almoxarifado_edicao: 'edit_note',
     almoxarifado_exclusao: 'delete',
+    cerimonial_checkin: 'celebration',
+    cerimonial_checkin_desfeito: 'undo',
 };
 
 /** Título, texto e placeholder de busca de cada seção da trilha. */
@@ -108,6 +112,14 @@ const SECOES = {
             + 'mais as correções e exclusões de registro — estas com justificativa.',
         placeholder: 'Buscar por título do projeto ou quem registrou…',
         vazio: 'Nenhuma movimentação de almoxarifado por enquanto.',
+    },
+    cerimonial: {
+        titulo: 'Registros · Cerimonial',
+        descricao: 'A porta da cerimônia de premiação: quem fez check-in, em que papel, quando e '
+            + 'por quem — e cada check-in desfeito, com a justificativa. É esta contagem que diz '
+            + 'quantas medalhas e quantas credenciais a mesa separa.',
+        placeholder: 'Buscar por título do projeto, participante ou quem registrou…',
+        vazio: 'Nenhum check-in de cerimonial registrado por enquanto.',
     },
     mapa: {
         titulo: 'Registros · Mapa do evento',
