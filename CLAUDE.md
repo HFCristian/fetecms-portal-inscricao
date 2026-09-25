@@ -790,14 +790,14 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 144 | Avaliar no lugar da nota: a rubrica abre **antes**, e o envio é que desconsidera | ✅ sim | ✅ sim (Pedro, PR #90) | 0 |
 | 145 | `demo:pareceres`: projeto já avaliado, com pareceres em níveis e ajustes para o orientador demo | ✅ sim | ✅ sim (Pedro, PR #91) | 0 |
 | 146 | Orientador: abas Ajustes e Pareceres viram **uma só**, e a nota do projeto sai da tela | ✅ sim | ✅ sim (Pedro, PR #92) | 0 |
-| 147 | Tela inicial do orientador: aviso de fim da avaliação com atalho para Ajustes e Pareceres | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 148 | Fix: menu lateral rola quando a tela é mais baixa que o número de abas | ✅ sim | ❌ não (manual do Pedro) | 2 |
-| 149 | Nova aba **Cerimonial**: check-in da premiação, visão geral e contas temporárias | ✅ sim | ❌ não (manual do Pedro) | 2 |
-| 150 | Ajustes e Pareceres: o parecer continua visível depois do prazo (só a decisão fecha) | ✅ sim | ❌ não (manual do Pedro) | 3 |
-| 151 | Avaliador: tamanho de camiseta (perfil, cadastro e 4º card do painel) | ✅ sim | ❌ não (manual do Pedro) | 3 |
-| 152 | Mapa do Evento: ruas nomeadas, tela cheia, cor por situação e lista filtrável | ✅ sim | ❌ não (manual do Pedro) | 3 |
+| 147 | Tela inicial do orientador: aviso de fim da avaliação com atalho para Ajustes e Pareceres | ✅ sim | ✅ sim (Pedro, PR #93 → v1.26.5) | 0 |
+| 148 | Fix: menu lateral rola quando a tela é mais baixa que o número de abas | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 149 | Nova aba **Cerimonial**: check-in da premiação, visão geral e contas temporárias | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 150 | Ajustes e Pareceres: o parecer continua visível depois do prazo (só a decisão fecha) | ✅ sim | ❌ não (manual do Pedro) | 2 |
+| 151 | Avaliador: tamanho de camiseta (perfil, cadastro e 4º card do painel) | ✅ sim | ❌ não (manual do Pedro) | 2 |
+| 152 | Mapa do Evento: ruas nomeadas, tela cheia, cor por situação e lista filtrável | ✅ sim | ❌ não (manual do Pedro) | 2 |
 
-> **Sprints 150–152 (branch `feat/aviso-fim-avaliacao`, seguindo de `329fb38`):**
+> **Sprints 150–152 (branch `feat/cerimonial-mapa-e-ajustes`, seguindo de `329fb38`):**
 > (a) **Sprint 150** — a aba **Ajustes e Pareceres** tinha um portão só:
 > `edicoes.ajustes_de`/`ajustes_ate` abria e fechava tudo. Passado o prazo, a devolutiva de um ano
 > de trabalho **sumia** da tela do orientador — as etapas da rubrica e as recomendações escritas
@@ -840,7 +840,7 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > servidor à toa. `MapaSituacaoService`.
 > Back **1193/1193**, front **597/597**, Pint limpo, build OK.
 >
-> **Sprints 148–149 (branch `feat/aviso-fim-avaliacao`, seguindo de `79a0b2f`):**
+> **Sprints 148–149 (branch `feat/cerimonial-mapa-e-ajustes`, saída da `origin/main` @ `9b35d9f`):**
 > (a) **Sprint 148** — o menu lateral do admin **não rolava**. Ele acumulou abas ao longo de 149
 > sprints, e numa tela **larga mas baixa** (notebook deitado, projetor 16:9) as últimas ficavam
 > para fora da janela, inalcançáveis: a coluna flex crescia além da altura do `nav`, que é `h-full`
@@ -1916,7 +1916,7 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > e **Escolas** (`/admin/parametrizacao/escolas`): admin busca, **renomeia, mescla** (reatribui
 > projetos/alunos/orientadores) e **exclui** instituições sem uso (`InstituicaoAdminService`/Controller,
 > rotas `admin/instituicoes`). Back **117/117**, front 11/11, Pint limpo, build OK.
-> **Pendências do Pedro (Sprints 150–152):** (1) `git push origin feat/aviso-fim-avaliacao` + PR
+> **Pendências do Pedro (Sprints 148–152):** (1) `git push origin feat/cerimonial-mapa-e-ajustes` + PR
 > para a `main` (o ambiente do Claude não tem credencial do GitHub) e, depois do merge, o deploy
 > pela §11 do [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). Esta release **tem uma migration**
 > (`avaliador_profiles.camiseta`), **nenhuma variável nova de `.env`** e **nenhuma dependência
@@ -1939,12 +1939,9 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > (7) O seletor de dia usa a **janela do evento** (Parametrização → Datas e períodos). Sem ela
 > definida, o seletor mostra só "hoje" — o mapa funciona igual, mas sem o histórico por dia.
 
-> **Pendências do Pedro (Sprints 148–149):** (1) `git push origin feat/aviso-fim-avaliacao` + PR
-> para a `main` (o ambiente do Claude não tem credencial do GitHub) e, depois do merge, o deploy
-> pela §11 do [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). Esta release **tem migrations**
-> (`credenciais.tipo`, a tabela `cerimonial_checkins` e
-> `edicoes.cerimonial_atualizacao_segundos`), **nenhuma variável nova de `.env`** e **nenhuma
-> dependência nova**.
+> **Pendências do Pedro (Sprints 148–149):** as migrations desta parte (`credenciais.tipo`, a
+> tabela `cerimonial_checkins` e `edicoes.cerimonial_atualizacao_segundos`) vão no **mesmo push**
+> das Sprints 150–152, acima — as cinco sprints estão na mesma branch. O resto continua valendo:
 > (2) **A aba Cerimonial é do RBAC**: quem já tem escopo atribuído **não a enxerga** até você
 > acrescentar "Cerimonial" ao escopo dele (Parametrização → Escopos de admin). Admin sem escopo
 > nenhum continua vendo tudo.
@@ -1963,9 +1960,8 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > (7) O menu lateral agora **rola**: se a organização usa telas baixas, vale conferir que as abas
 > do fim (Registros, Administradores) estão alcançáveis — era esse o relato.
 
-> **Pendências do Pedro (Sprint 147):** (1) `git push origin feat/aviso-fim-avaliacao` + PR para a
-> `main` (o ambiente do Claude não tem credencial do GitHub). Esta release **não tem migration,
-> dependência nova nem variável de `.env`**.
+> **Pendências do Pedro (Sprint 147):** ~~push + PR~~ — **entrou na `main` pelo PR #93**
+> (`9b35d9f`, v1.26.5). As observações de uso continuam valendo:
 > (2) **O aviso depende de a data de fim da avaliação estar preenchida** em Parametrização →
 > *Datas e períodos*. Campo em branco significa "a avaliação segue aberta", então o cartão não
 > aparece — é a mesma regra que o resto do portal usa para essa data.
