@@ -505,6 +505,12 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
 
                 // A planta do ginásio: o desenho (versionado) e a ocupação.
                 Route::get('/planta', [MapaPlantaController::class, 'index']);
+                // A cor de cada estande no dia/turno escolhido — é o que a tela
+                // recarrega sozinha durante o evento.
+                Route::get('/planta/situacao', [MapaPlantaController::class, 'situacao']);
+                Route::get('/planta/lista', [MapaPlantaController::class, 'lista']);
+                Route::get('/planta/lista/{formato}', [MapaPlantaController::class, 'exportar'])
+                    ->where('formato', 'txt|csv|pdf');
                 Route::post('/planta', [MapaPlantaController::class, 'salvar']);
                 Route::post('/planta/{layout}/restaurar', [MapaPlantaController::class, 'restaurar']);
             });

@@ -1,9 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
-import { Alert, Button, Field, Input, useConfirm } from '../components/ui.jsx';
+import { Alert, Button, Field, Input, Select, useConfirm } from '../components/ui.jsx';
 import { extractErrors } from '../lib/auth.jsx';
-import { getPlanta, salvarPlanta, restaurarPlanta } from '../lib/mapaEvento.js';
+import {
+    getPlanta, salvarPlanta, restaurarPlanta,
+    getSituacaoPlanta, getListaSituacao, baixarListaSituacao,
+} from '../lib/mapaEvento.js';
 
 /**
  * Mapa do Evento → **a planta do ginásio**.
@@ -17,14 +20,25 @@ import { getPlanta, salvarPlanta, restaurarPlanta } from '../lib/mapaEvento.js';
  * evento isso é usado no celular, e arrastar num SVG de 230 peças numa tela
  * pequena erra mais do que acerta. Cada gravação cria uma **versão nova**, então
  * nenhuma edição destrói o desenho que valeu antes.
+ *
+ * Durante a feira ela **muda de cor**: o projeto passa pelo balcão, o estande é
+ * conferido, as avaliações chegam — e o ginásio inteiro conta isso de longe. O
+ * seletor de **dia e turno** volta o mapa para como ele estava, e o mesmo
+ * recorte sai em lista filtrável e exportável.
  */
 
 /** Tamanho de uma célula da grade, em unidades do viewBox. */
 const CELULA = 10;
 const MARGEM = 6;
 
-/** Cor do estande conforme o que há nele — a identidade roxa do portal. */
-function corDoEstande({ selecionado, ocupacao }) {
+/** De quanto em quanto tempo o mapa ao vivo se recarrega sozinho. */
+const POLLING_MS = 30000;
+
+/**
+ * Cor do estande por **ocupação** — quem apresenta nele, sem olhar o evento.
+ * É a leitura que serve antes do dia da feira, quando nada aconteceu ainda.
+ */
+function corPorOcupacao({ selecionado, ocupacao }) {
     if (selecionado) return { fill: '#43157A', stroke: '#2a0058', texto: '#ffffff' };
     if (ocupacao?.A && ocupacao?.B) return { fill: '#d8c9ef', stroke: '#43157A', texto: '#2a0058' };
     if (ocupacao?.A || ocupacao?.B) return { fill: '#efe7fa', stroke: '#7a5aa8', texto: '#2a0058' };
@@ -32,9 +46,65 @@ function corDoEstande({ selecionado, ocupacao }) {
     return { fill: '#ffffff', stroke: '#cfc6db', texto: '#6b6577' };
 }
 
+/**
+ * Cor do estande por **situação** — por onde o projeto daquele turno já passou.
+ *
+ * O último estágio escurece a cada avaliação recebida: de longe dá para ver
+ * quais estandes ainda esperam avaliador sem abrir nada. As cores vêm do
+ * servidor (`SituacaoEstande::cor()`), para a legenda da tela, o desenho e o
+ * PDF nunca discordarem.
+ */
+function corPorSituacao({ selecionado, linha }) {
+    if (selecionado) return { fill: '#43157A', stroke: '#2a0058', texto: '#ffffff' };
+    if (!linha) return { fill: '#ffffff', stroke: '#cfc6db', texto: '#6b6577' };
+
+    const claro = linha.situacao === 'avaliado' || linha.situacao === 'checado';
+
+    // Só o estágio de avaliação tem grau: 1 de 3 é mais claro que 3 de 3.
+    const opacidade = linha.situacao === 'avaliado' && linha.avaliacoes_maximo
+        ? 0.45 + 0.55 * Math.min(1, linha.avaliacoes / linha.avaliacoes_maximo)
+        : 1;
+
+    return {
+        fill: linha.cor,
+        stroke: '#2a0058',
+        texto: claro && opacidade > 0.7 ? '#ffffff' : '#2a0058',
+        opacidade,
+    };
+}
+
+/** Uma rua: o nome escrito ao longo do corredor, deitado ou em pé. */
+function Rua({ rua }) {
+    if (!rua.nome) return null;
+
+    const horizontal = rua.orientacao === 'h';
+    const x = MARGEM + (horizontal ? ((rua.de + rua.ate) / 2) : rua.posicao) * CELULA;
+    const y = MARGEM + (horizontal ? rua.posicao : ((rua.de + rua.ate) / 2)) * CELULA;
+
+    return (
+        <text
+            x={x}
+            y={y}
+            textAnchor="middle"
+            dominantBaseline="middle"
+            fontSize="3.4"
+            fontWeight="600"
+            letterSpacing="0.6"
+            fill="#7a5aa8"
+            // A rua vertical é lida de baixo para cima, como numa planta baixa.
+            transform={horizontal ? undefined : `rotate(-90 ${x} ${y})`}
+            style={{ pointerEvents: 'none', textTransform: 'uppercase' }}
+        >
+            {rua.nome}
+        </text>
+    );
+}
+
 export default function MapaPlanta() {
     const [dados, setDados] = useState(null);
+    const [filtros, setFiltros] = useState(null);      // opções vindas do servidor
     const [layout, setLayout] = useState(null);
+    const [ruas, setRuas] = useState([]);
     const [selecionado, setSelecionado] = useState(null);   // número do estande
     const [editando, setEditando] = useState(false);
     const [sujo, setSujo] = useState(false);
@@ -44,14 +114,74 @@ export default function MapaPlanta() {
     const [novoNumero, setNovoNumero] = useState('');
     const [confirm, confirmDialog] = useConfirm();
 
+    // --- Situação ao vivo ---------------------------------------------
+    const [modo, setModo] = useState('situacao');       // 'situacao' | 'ocupacao'
+    const [dia, setDia] = useState('');
+    const [turno, setTurno] = useState('A');
+    const [situacao, setSituacao] = useState(null);
+    const [pronto, setPronto] = useState(false);
+    const [telaCheia, setTelaCheia] = useState(false);
+    const palco = useRef(null);
+
+    // --- Lista filtrada -----------------------------------------------
+    const [criterio, setCriterio] = useState('credenciamento');
+    const [valor, setValor] = useState('sim');
+    const [lista, setLista] = useState(null);
+    const [carregandoLista, setCarregandoLista] = useState(false);
+
     useEffect(() => {
         getPlanta()
-            .then((d) => { setDados(d); setLayout(d.layout); })
+            .then((r) => {
+                setDados(r.data);
+                setLayout(r.data.layout);
+                setRuas(r.data.ruas ?? []);
+                setFiltros(r.meta?.filtros ?? null);
+                setDia(r.meta?.filtros?.dias?.find((d) => d.hoje)?.value ?? '');
+                setPronto(true);
+            })
             .catch(() => setAlerta('Não foi possível carregar a planta.'));
     }, []);
 
+    const carregarSituacao = useCallback(() => {
+        // Espera a planta chegar: o dia padrão sai dela, e disparar antes faria
+        // uma consulta a mais em toda abertura da tela.
+        if (modo !== 'situacao' || !pronto) return;
+        getSituacaoPlanta({ dia: dia || undefined, turno })
+            .then(setSituacao)
+            .catch(() => setSituacao(null));
+    }, [modo, dia, turno, pronto]);
+
+    useEffect(() => { carregarSituacao(); }, [carregarSituacao]);
+
+    // O mapa do dia corrente anda sozinho; um dia passado não muda mais, então
+    // recarregá-lo seria bater no servidor à toa.
+    const ehHoje = !dia || filtros?.dias?.find((d) => d.value === dia)?.hoje;
+
+    useEffect(() => {
+        if (modo !== 'situacao' || !ehHoje || editando || !pronto) return undefined;
+        const id = setInterval(carregarSituacao, POLLING_MS);
+        return () => clearInterval(id);
+    }, [modo, ehHoje, editando, pronto, carregarSituacao]);
+
+    useEffect(() => {
+        const aoTrocar = () => setTelaCheia(Boolean(document.fullscreenElement));
+        document.addEventListener('fullscreenchange', aoTrocar);
+        return () => document.removeEventListener('fullscreenchange', aoTrocar);
+    }, []);
+
+    async function alternarTelaCheia() {
+        try {
+            if (document.fullscreenElement) await document.exitFullscreen();
+            else await palco.current?.requestFullscreen?.();
+        } catch {
+            // Navegador que recusa (ou não tem a API): a tela segue como está.
+            setAlerta('Este navegador não permitiu abrir o mapa em tela cheia.');
+        }
+    }
+
     const estandes = layout?.estandes ?? [];
     const ocupacao = dados?.ocupacao ?? {};
+    const porNumero = situacao?.estandes ?? {};
 
     /** A moldura do desenho acompanha o que existe nele. */
     const caixa = useMemo(() => {
@@ -122,6 +252,12 @@ export default function MapaPlanta() {
         setSujo(true);
     }
 
+    /** Batiza (ou apaga o nome de) um corredor. */
+    function nomearRua(chave, nome) {
+        setRuas((atuais) => atuais.map((r) => (r.chave === chave ? { ...r, nome } : r)));
+        setSujo(true);
+    }
+
     async function remover() {
         if (selecionado === null) return;
 
@@ -141,9 +277,15 @@ export default function MapaPlanta() {
     async function salvar() {
         setOcupado(true);
         try {
-            const r = await salvarPlanta(layout);
+            // Só o nome de cada rua vai: a posição é recalculada do desenho.
+            const nomes = Object.fromEntries(
+                ruas.filter((r) => (r.nome ?? '').trim() !== '').map((r) => [r.chave, r.nome.trim()]),
+            );
+
+            const r = await salvarPlanta({ ...layout, ruas: nomes });
             setDados(r.data);
             setLayout(r.data.layout);
+            setRuas(r.data.ruas ?? []);
             setSujo(false);
             setEditando(false);
             setSucesso(r.meta?.message ?? 'Planta salva.');
@@ -164,13 +306,32 @@ export default function MapaPlanta() {
             const r = await restaurarPlanta(versao.id);
             setDados(r.data);
             setLayout(r.data.layout);
+            setRuas(r.data.ruas ?? []);
             setSujo(false);
             setSucesso(r.meta?.message ?? 'Planta restaurada.');
             setAlerta('');
         } catch (e) { falhar(e); } finally { setOcupado(false); }
     }
 
+    const params = () => ({ criterio, valor, dia: dia || undefined, turno });
+
+    async function consultarLista() {
+        setCarregandoLista(true);
+        try {
+            setLista(await getListaSituacao(params()));
+            setAlerta('');
+        } catch (e) { falhar(e); } finally { setCarregandoLista(false); }
+    }
+
+    async function exportarLista(formato) {
+        try {
+            await baixarListaSituacao(formato, params());
+        } catch (e) { falhar(e); }
+    }
+
     const detalhe = selecionado === null ? null : ocupacao[selecionado] ?? { numero: selecionado, A: null, B: null };
+    const situacaoDoSelecionado = selecionado === null ? null : porNumero[selecionado] ?? null;
+    const tipoDoCriterio = filtros?.criterios?.find((c) => c.value === criterio)?.tipo ?? 'booleano';
 
     return (
         <AppShell>
@@ -182,10 +343,10 @@ export default function MapaPlanta() {
 
             <h1 className="font-display text-2xl font-semibold text-primary mb-1">Mapa do Evento</h1>
             <p className="text-on-surface-variant mb-4 max-w-3xl">
-                A planta do ginásio. Clique num estande para ver quem apresenta nele no{' '}
-                <strong>turno A (matutino)</strong> e no <strong>turno B (vespertino)</strong>. O
-                desenho começa na prancha da montadora e pode ser ajustado — cada gravação vira uma
-                versão nova.
+                A planta do ginásio. Clique num estande para ver quem apresenta nele e por onde o
+                projeto já passou. Durante a feira o mapa <strong>muda de cor</strong> sozinho — o
+                credenciamento pinta o estande, a checagem o marca como pronto para avaliação e cada
+                avaliação recebida o escurece.
             </p>
 
             {alerta && <div className="mb-4"><Alert>{alerta}</Alert></div>}
@@ -214,7 +375,12 @@ export default function MapaPlanta() {
                         </Button>
                         <Button
                             variant="outline"
-                            onClick={() => { setLayout(dados.layout); setEditando(false); setSujo(false); }}
+                            onClick={() => {
+                                setLayout(dados.layout);
+                                setRuas(dados.ruas ?? []);
+                                setEditando(false);
+                                setSujo(false);
+                            }}
                         >
                             Cancelar
                         </Button>
@@ -231,13 +397,67 @@ export default function MapaPlanta() {
                 </div>
             )}
 
+            {/* Dia, turno e modo de cor: é por aqui que o mapa volta no tempo. */}
+            <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-4 mb-4 flex flex-wrap items-end gap-3">
+                <Field label="Cor do mapa">
+                    <Select aria-label="Cor do mapa" value={modo} onChange={(e) => setModo(e.target.value)}>
+                        <option value="situacao">Situação no evento</option>
+                        <option value="ocupacao">Ocupação (os dois turnos)</option>
+                    </Select>
+                </Field>
+
+                {modo === 'situacao' && (
+                    <>
+                        <Field label="Turno">
+                            <Select aria-label="Turno" value={turno} onChange={(e) => setTurno(e.target.value)}>
+                                {(filtros?.turnos ?? []).map((t) => (
+                                    <option key={t.value} value={t.value}>{t.label}</option>
+                                ))}
+                            </Select>
+                        </Field>
+                        <Field label="Dia do evento" hint="Um dia anterior mostra o mapa como ele estava no fim daquele dia.">
+                            <Select aria-label="Dia do evento" value={dia} onChange={(e) => setDia(e.target.value)}>
+                                {(filtros?.dias ?? []).map((d) => (
+                                    <option key={d.value} value={d.value}>{d.label}</option>
+                                ))}
+                            </Select>
+                        </Field>
+                        <Button variant="outline" onClick={carregarSituacao}>
+                            <span className="material-symbols-outlined text-[20px]">refresh</span>
+                            Atualizar
+                        </Button>
+                    </>
+                )}
+
+                <Button variant="outline" onClick={alternarTelaCheia}>
+                    <span className="material-symbols-outlined text-[20px]">
+                        {telaCheia ? 'fullscreen_exit' : 'fullscreen'}
+                    </span>
+                    {telaCheia ? 'Sair da tela cheia' : 'Tela cheia'}
+                </Button>
+            </div>
+
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                <div className="lg:col-span-2 bg-surface-container-lowest rounded-xl fetec-card-shadow p-4 overflow-x-auto">
+                <div
+                    ref={palco}
+                    className="lg:col-span-2 bg-surface-container-lowest rounded-xl fetec-card-shadow p-4 overflow-x-auto"
+                >
+                    {/* Em tela cheia o fundo do palco precisa existir: o elemento
+                        sai do fluxo da página e levaria o `body` junto. */}
+                    {telaCheia && (
+                        <div className="flex items-center justify-between mb-3">
+                            <h2 className="font-display text-lg font-semibold text-primary">
+                                {situacao ? `${situacao.turno_label} · ${situacao.corte_label}` : 'Mapa do Evento'}
+                            </h2>
+                            <Button variant="outline" onClick={alternarTelaCheia}>Sair da tela cheia</Button>
+                        </div>
+                    )}
+
                     <svg
                         role="img"
                         aria-label="Planta do evento com os estandes"
                         viewBox={`0 0 ${caixa.largura * CELULA + MARGEM * 2} ${caixa.altura * CELULA + MARGEM * 2}`}
-                        className="w-full h-auto min-w-[36rem]"
+                        className={`w-full h-auto min-w-[36rem] ${telaCheia ? 'max-h-[85vh]' : ''}`}
                     >
                         {/* As células livres só aparecem no modo de edição: são
                             o destino de quem está selecionado. */}
@@ -256,6 +476,8 @@ export default function MapaPlanta() {
                                 onClick={() => moverPara(c.x, c.y)}
                             />
                         ))}
+
+                        {ruas.map((r) => <Rua key={r.chave} rua={r} />)}
 
                         {(layout?.marcacoes ?? []).map((m, i) => (
                             <g key={`marca-${i}`}>
@@ -281,10 +503,9 @@ export default function MapaPlanta() {
                         ))}
 
                         {estandes.map((e) => {
-                            const cores = corDoEstande({
-                                selecionado: e.numero === selecionado,
-                                ocupacao: ocupacao[e.numero],
-                            });
+                            const cores = modo === 'situacao'
+                                ? corPorSituacao({ selecionado: e.numero === selecionado, linha: porNumero[e.numero] })
+                                : corPorOcupacao({ selecionado: e.numero === selecionado, ocupacao: ocupacao[e.numero] });
 
                             return (
                                 <g
@@ -303,6 +524,7 @@ export default function MapaPlanta() {
                                         height={CELULA - 1}
                                         rx="1.5"
                                         fill={cores.fill}
+                                        fillOpacity={cores.opacidade ?? 1}
                                         stroke={cores.stroke}
                                         strokeWidth="0.6"
                                     />
@@ -322,18 +544,30 @@ export default function MapaPlanta() {
                     </svg>
 
                     <div className="flex flex-wrap gap-4 mt-3 text-xs text-on-surface-variant">
-                        <span className="inline-flex items-center gap-1">
-                            <span className="w-3 h-3 rounded-sm border" style={{ background: '#d8c9ef', borderColor: '#43157A' }} />
-                            Ocupado nos dois turnos
-                        </span>
-                        <span className="inline-flex items-center gap-1">
-                            <span className="w-3 h-3 rounded-sm border" style={{ background: '#efe7fa', borderColor: '#7a5aa8' }} />
-                            Ocupado em um turno
-                        </span>
-                        <span className="inline-flex items-center gap-1">
-                            <span className="w-3 h-3 rounded-sm border" style={{ background: '#ffffff', borderColor: '#cfc6db' }} />
-                            Vazio
-                        </span>
+                        {modo === 'situacao' ? (
+                            (filtros?.legenda ?? []).map((l) => (
+                                <span key={l.value} className="inline-flex items-center gap-1">
+                                    <span className="w-3 h-3 rounded-sm border" style={{ background: l.cor, borderColor: '#2a0058' }} />
+                                    {l.label}
+                                    {situacao?.resumo?.[l.value] !== undefined && ` (${situacao.resumo[l.value]})`}
+                                </span>
+                            ))
+                        ) : (
+                            <>
+                                <span className="inline-flex items-center gap-1">
+                                    <span className="w-3 h-3 rounded-sm border" style={{ background: '#d8c9ef', borderColor: '#43157A' }} />
+                                    Ocupado nos dois turnos
+                                </span>
+                                <span className="inline-flex items-center gap-1">
+                                    <span className="w-3 h-3 rounded-sm border" style={{ background: '#efe7fa', borderColor: '#7a5aa8' }} />
+                                    Ocupado em um turno
+                                </span>
+                                <span className="inline-flex items-center gap-1">
+                                    <span className="w-3 h-3 rounded-sm border" style={{ background: '#ffffff', borderColor: '#cfc6db' }} />
+                                    Vazio
+                                </span>
+                            </>
+                        )}
                     </div>
                 </div>
 
@@ -370,12 +604,37 @@ export default function MapaPlanta() {
                                     </div>
                                 )}
 
-                                {['A', 'B'].map((turno) => {
-                                    const projeto = detalhe[turno];
-                                    const rotulo = turno === 'A' ? 'Turno A (matutino)' : 'Turno B (vespertino)';
+                                {situacaoDoSelecionado && (
+                                    <div className="mb-3 rounded-lg border border-outline-variant/40 p-3">
+                                        <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide">
+                                            {situacao?.turno_label} · situação
+                                        </p>
+                                        <p className="text-sm font-semibold text-on-surface mt-1">
+                                            {situacaoDoSelecionado.situacao_label}
+                                        </p>
+                                        <p className="text-xs text-on-surface-variant">
+                                            {situacaoDoSelecionado.credenciado
+                                                ? `Credenciado em ${situacaoDoSelecionado.credenciado_em}`
+                                                : 'Ainda não passou pelo credenciamento'}
+                                        </p>
+                                        <p className="text-xs text-on-surface-variant">
+                                            {situacaoDoSelecionado.checado
+                                                ? `Estande checado em ${situacaoDoSelecionado.checado_em}`
+                                                : 'Estande ainda não checado'}
+                                        </p>
+                                        <p className="text-xs text-on-surface-variant">
+                                            {situacaoDoSelecionado.avaliacoes} de {situacaoDoSelecionado.avaliacoes_maximo}{' '}
+                                            avaliação(ões) · faltam {situacaoDoSelecionado.avaliacoes_faltantes}
+                                        </p>
+                                    </div>
+                                )}
+
+                                {['A', 'B'].map((t) => {
+                                    const projeto = detalhe[t];
+                                    const rotulo = t === 'A' ? 'Turno A (matutino)' : 'Turno B (vespertino)';
 
                                     return (
-                                        <div key={turno} className="mb-3 last:mb-0">
+                                        <div key={t} className="mb-3 last:mb-0">
                                             <h3 className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-1">
                                                 {rotulo}
                                             </h3>
@@ -399,6 +658,103 @@ export default function MapaPlanta() {
                                     );
                                 })}
                             </>
+                        )}
+                    </section>
+
+                    {/* As ruas são achadas no desenho; aqui só se dá nome a elas. */}
+                    {editando && ruas.length > 0 && (
+                        <section className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-5">
+                            <h2 className="font-display font-semibold text-on-surface mb-1">Ruas do evento</h2>
+                            <p className="text-xs text-on-surface-variant mb-3">
+                                Os corredores entre as ilhas de estandes, encontrados no próprio
+                                desenho. Dê nome aos que a organização usa — quem fica em branco não
+                                aparece no mapa.
+                            </p>
+                            <ul className="space-y-2">
+                                {ruas.map((r) => (
+                                    <li key={r.chave} className="flex items-center gap-2">
+                                        <span className="material-symbols-outlined text-[18px] text-on-surface-variant">
+                                            {r.orientacao === 'h' ? 'swap_horiz' : 'swap_vert'}
+                                        </span>
+                                        <Input
+                                            aria-label={`Nome do corredor ${r.chave}`}
+                                            value={r.nome ?? ''}
+                                            placeholder={r.orientacao === 'h' ? 'Corredor horizontal' : 'Corredor vertical'}
+                                            onChange={(ev) => nomearRua(r.chave, ev.target.value)}
+                                        />
+                                    </li>
+                                ))}
+                            </ul>
+                        </section>
+                    )}
+
+                    {/* O mesmo recorte do mapa, em lista — para conferir e levar. */}
+                    <section className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-5">
+                        <h2 className="font-display font-semibold text-on-surface mb-3">Lista por situação</h2>
+
+                        <div className="space-y-3">
+                            <Field label="Filtrar por">
+                                <Select
+                                    aria-label="Filtrar por"
+                                    value={criterio}
+                                    onChange={(e) => {
+                                        setCriterio(e.target.value);
+                                        setValor(e.target.value.startsWith('avaliacoes_') ? '0' : 'sim');
+                                        setLista(null);
+                                    }}
+                                >
+                                    {(filtros?.criterios ?? []).map((c) => (
+                                        <option key={c.value} value={c.value}>{c.label}</option>
+                                    ))}
+                                </Select>
+                            </Field>
+
+                            <Field label={tipoDoCriterio === 'numero' ? 'Quantidade' : 'Situação'}>
+                                <Select aria-label="Valor do filtro" value={valor} onChange={(e) => setValor(e.target.value)}>
+                                    {tipoDoCriterio === 'numero'
+                                        ? Array.from({ length: (filtros?.max_avaliacoes ?? 3) + 1 }, (_, n) => (
+                                            <option key={n} value={String(n)}>{n}</option>
+                                        ))
+                                        : (
+                                            <>
+                                                <option value="sim">Já passou</option>
+                                                <option value="nao">Ainda não passou</option>
+                                            </>
+                                        )}
+                                </Select>
+                            </Field>
+
+                            <div className="flex flex-wrap gap-2">
+                                <Button onClick={consultarLista} loading={carregandoLista}>Ver lista</Button>
+                                <Button variant="outline" onClick={() => exportarLista('csv')}>CSV</Button>
+                                <Button variant="outline" onClick={() => exportarLista('txt')}>TXT</Button>
+                                <Button variant="outline" onClick={() => exportarLista('pdf')}>PDF</Button>
+                            </div>
+                        </div>
+
+                        {lista && (
+                            <div className="mt-4">
+                                <p className="text-sm text-on-surface-variant mb-2">
+                                    <strong>{lista.total}</strong> projeto(s) · {lista.criterio_label}:{' '}
+                                    {lista.valor_label} · {lista.turno_label}
+                                </p>
+                                {lista.linhas.length === 0 ? (
+                                    <p className="text-sm text-on-surface-variant">Nenhum projeto neste recorte.</p>
+                                ) : (
+                                    <ul className="divide-y divide-outline-variant/30 max-h-80 overflow-y-auto fetec-scroll">
+                                        {lista.linhas.map((l) => (
+                                            <li key={l.projeto_id} className="py-2">
+                                                <p className="text-sm text-on-surface">
+                                                    <span className="font-semibold">{l.estande}</span> · {l.titulo}
+                                                </p>
+                                                <p className="text-xs text-on-surface-variant">
+                                                    {l.situacao_label} · {l.avaliacoes} de {l.avaliacoes_maximo} avaliação(ões)
+                                                </p>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
+                            </div>
                         )}
                     </section>
 
