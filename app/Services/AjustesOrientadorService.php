@@ -35,9 +35,23 @@ use Illuminate\Validation\ValidationException;
  * mesma janela e sobre o mesmo projeto — separá-las obrigava o orientador a ler
  * a crítica numa tela e decidir na outra.
  *
- * A janela é a `edicoes.ajustes_de`/`ajustes_ate`; fora dela a aba continua
- * visível no menu, mas não abre. O orientador demo tem o mesmo "modo teste" do
- * avaliador demo: ele ignora as datas para poder mostrar o fluxo.
+ * A janela `edicoes.ajustes_de`/`ajustes_ate` governa **a decisão, não a
+ * leitura**, e as duas datas fazem coisas diferentes:
+ *
+ * - `ajustes_de` **abre a aba** — antes dele não há nada a mostrar, porque a
+ *   organização ainda não liberou o resultado;
+ * - `ajustes_ate` **fecha só os botões**. Passado o prazo, o parecer continua
+ *   à vista para sempre: ele é a devolutiva do trabalho de um ano, e sumir da
+ *   tela num prazo administrativo apagaria justamente o que o orientador leva
+ *   para a edição seguinte. As sugestões também continuam listadas, com o que
+ *   ele decidiu — sem os botões, e dizendo que o prazo passou.
+ *
+ * O que fecha de verdade é a **troca de classificação**: depois do prazo a
+ * lista final está sendo montada em cima da área do projeto, e mudá-la ali
+ * moveria o trabalho de categoria no meio da apuração.
+ *
+ * O orientador demo tem o mesmo "modo teste" do avaliador demo: ele ignora as
+ * datas para poder mostrar o fluxo.
  */
 class AjustesOrientadorService
 {
@@ -47,8 +61,11 @@ class AjustesOrientadorService
     ) {}
 
     /**
-     * Estado da janela para esta pessoa. `aberta` é o que a tela usa para
-     * liberar ou bloquear.
+     * Estado da janela para esta pessoa.
+     *
+     * São **dois** portões, e não um: `leitura` diz se a aba abre e `aberta`
+     * diz se ela deixa decidir. Eles coincidiram enquanto o período estava em
+     * curso e se separam quando ele termina — o parecer fica, os botões saem.
      *
      * Vem junto o **fim da avaliação online**, que não é desta janela mas é o
      * que a antecede: é com ele que a tela inicial avisa o orientador de que a
@@ -68,6 +85,8 @@ class AjustesOrientadorService
 
         return [
             'aberta' => $modoTeste || ($iniciados && ! $encerrados),
+            // Uma vez aberto o período, o parecer nunca mais fecha.
+            'leitura' => $modoTeste || $iniciados,
             'iniciada' => $iniciados,
             'encerrada' => $encerrados,
             'de' => $edicao?->ajustes_de?->toIso8601String(),
@@ -87,7 +106,23 @@ class AjustesOrientadorService
     {
         if (! $this->janela($user, $teste)['aberta']) {
             throw ValidationException::withMessages([
-                'periodo' => 'O período de ajustes não está aberto.',
+                'periodo' => 'O período de ajustes encerrou: a classificação do projeto não pode mais ser alterada. O parecer continua disponível para leitura.',
+            ]);
+        }
+    }
+
+    /**
+     * Barra quem tenta abrir a aba antes de a organização liberar o resultado.
+     *
+     * Diferente de {@see garantirJanelaAberta}, este portão **não volta a
+     * fechar**: o que ele guarda é o momento em que o parecer passa a existir
+     * para o orientador, não o prazo de responder a ele.
+     */
+    public function garantirLeitura(User $user, bool $teste = false): void
+    {
+        if (! $this->janela($user, $teste)['leitura']) {
+            throw ValidationException::withMessages([
+                'periodo' => 'O período de ajustes e pareceres ainda não foi aberto pela organização.',
             ]);
         }
     }

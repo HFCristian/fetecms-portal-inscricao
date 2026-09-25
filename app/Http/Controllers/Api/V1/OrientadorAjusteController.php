@@ -17,9 +17,14 @@ use Illuminate\Http\Request;
  * A **nota** não vai em nada disto, nem a de cada seção nem a que o projeto
  * recebeu: quem discute o número é a organização.
  *
- * Fora da janela a aba continua listando (a tela mostra o motivo), mas nada
- * pode ser decidido. O orientador demo tem "modo teste" (?teste=1), que ignora
- * as datas — igual ao do avaliador demo.
+ * Há **dois portões**, e só um deles volta a fechar: a aba abre quando a
+ * organização libera o período (`ajustes_de`) e **não fecha mais** — o parecer
+ * é a devolutiva do trabalho e fica disponível para sempre. O que o fim do
+ * prazo (`ajustes_ate`) encerra é a **decisão**: depois dele a classificação do
+ * projeto não muda, e as sugestões viram leitura com o que já foi decidido.
+ *
+ * O orientador demo tem "modo teste" (?teste=1), que ignora as datas — igual ao
+ * do avaliador demo.
  */
 class OrientadorAjusteController extends Controller
 {
@@ -33,8 +38,9 @@ class OrientadorAjusteController extends Controller
 
         return response()->json(['data' => [
             'janela' => $janela,
-            // Fora da janela a lista vem vazia: a aba existe no menu, mas não abre.
-            'projetos' => $janela['aberta'] ? $this->ajustes->projetos($user) : [],
+            // A lista segue a **leitura**, não a decisão: encerrado o prazo, o
+            // parecer continua aqui — só os botões é que somem.
+            'projetos' => $janela['leitura'] ? $this->ajustes->projetos($user) : [],
         ]]);
     }
 
@@ -56,7 +62,8 @@ class OrientadorAjusteController extends Controller
     public function show(Request $request, Projeto $projeto): JsonResponse
     {
         $this->authorize('view', $projeto);
-        $this->ajustes->garantirJanelaAberta($request->user(), $request->boolean('teste'));
+        // Ler é o que basta aqui — decidir tem o portão próprio, no `decidir`.
+        $this->ajustes->garantirLeitura($request->user(), $request->boolean('teste'));
 
         return response()->json(['data' => $this->ajustes->detalhe($projeto)]);
     }
