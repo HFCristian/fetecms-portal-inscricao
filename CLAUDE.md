@@ -74,8 +74,13 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
   (`PareceresOrientadorService`, normalizando cada seção em 0 a 10 e cortando em 8 e 4) e as
   **recomendações escritas** (vídeo e projeto). O avaliador é anônimo ("Avaliador 1",
   "Avaliador 2") e **nota nenhuma aparece** — nem a de cada etapa nem a que o projeto recebeu, que
-  não chega sequer no payload: o número é da organização, que o discute no Ranking. Fora do período
-  a aba aparece no menu mas não abre; o orientador **demo** tem *modo de teste*, que ignora as datas
+  não chega sequer no payload: o número é da organização, que o discute no Ranking.
+  São **dois portões**, e só um volta a fechar: `edicoes.ajustes_de` **abre a aba** (antes dele ela
+  aparece no menu e não abre) e, uma vez aberta, o **parecer fica disponível para sempre** — é a
+  devolutiva de um ano de trabalho, e sumir num prazo administrativo apagaria o que ele leva para a
+  edição seguinte. O que `ajustes_ate` encerra é a **decisão**: passada a data a classificação não
+  muda mais (a lista final está sendo montada em cima dela) e as sugestões viram leitura, marcadas
+  com o que ficou valendo. O orientador **demo** tem *modo de teste*, que ignora as datas
   (`AjustesOrientadorService`).
 - **Avaliador (online)**: mesmo login do orientador; botão de cadastro **abaixo** do de orientador
   na tela de login. **Exclusão mútua**: quem é orientador NÃO pode ser avaliador, e vice-versa
@@ -107,7 +112,11 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     **quantas avaliações tem quem está logo à frente** e quantas faltam para alcançá-lo — o
     número, nunca o nome, e o vizinho, nunca o líder. Na mesma
     tela ele **troca a própria área/subárea — só enquanto o período de avaliação não começou**
-    (`Edicao::avaliacaoLiberada()`), porque depois a distribuição já foi feita em cima dela.
+    (`Edicao::avaliacaoLiberada()`), porque depois a distribuição já foi feita em cima dela. Ali
+    também ficam a **localidade** e o **tamanho de camiseta** (`avaliador_profiles.camiseta`,
+    opcional e trocável a qualquer momento — é logística, não distribuição): em branco é resposta,
+    e tira o avaliador da encomenda. O campo também aparece no cadastro, e o painel tem um card de
+    camiseta para os avaliadores **ativos e não-demo**.
   - Ao **iniciar** uma avaliação o sistema confere se o projeto ainda cabe mais uma: contando as
     **concluídas + em andamento**, se ele já atingiu o **máximo de avaliações da categoria**, o
     avaliador é avisado de que outro chegou antes, o projeto **sai da lista dele** e outro entra no
@@ -357,7 +366,21 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     num estande mostra quem apresenta nele nos dois turnos. Ela nasce com a prancha
     da montadora (`App\Support\PlantaEvento`) e é **editável e versionada por
     edição** (`mapa_layouts`) — cada gravação é uma versão nova, e restaurar uma
-    antiga também.
+    antiga também. Abre em **tela cheia** (Fullscreen API), para ir ao projetor.
+    As **ruas** são os corredores entre as ilhas: **achadas no desenho**
+    (`PlantaEvento::ruas()`), não desenhadas à parte — o admin só as batiza, e o
+    que se guarda é o nome, então mover um estande reposiciona a rua sozinha.
+    Durante a feira a planta **muda de cor** (`App\Enums\SituacaoEstande`,
+    `MapaSituacaoService`): aguardando → credenciado → pronto para avaliação → em
+    avaliação, o último escurecendo a cada avaliação presencial recebida. Os
+    quatro estágios saem de fatos **já registrados com hora**
+    (`credenciamentos.finalizado_em`, `checagens_estande.verificado_em`,
+    `avaliacoes_presenciais.concluida_em`), e é esse carimbo que dá o **seletor de
+    dia**: escolher um dia anterior lê os mesmos fatos com um corte mais cedo e
+    devolve o mapa como ele estava no fim daquele dia, sem instantâneo gravado. O
+    **turno** é o outro eixo. O mesmo recorte sai em **lista filtrável**
+    (credenciamento, checagem, avaliações realizadas ou faltantes) e exporta em
+    TXT, CSV e PDF; o dia corrente se recarrega sozinho a cada 30s.
   - **Credenciamento** (`/admin/credenciamento`): o balcão do evento, em duas seções —
     **Credenciar** (os finalistas que ainda não passaram) e **Credenciados** (quem já passou), a
     mesma lista pesquisável com filtro por área e categoria. **Finalista é quem está na lista final
@@ -770,7 +793,53 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 147 | Tela inicial do orientador: aviso de fim da avaliação com atalho para Ajustes e Pareceres | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 148 | Fix: menu lateral rola quando a tela é mais baixa que o número de abas | ✅ sim | ❌ não (manual do Pedro) | 2 |
 | 149 | Nova aba **Cerimonial**: check-in da premiação, visão geral e contas temporárias | ✅ sim | ❌ não (manual do Pedro) | 2 |
+| 150 | Ajustes e Pareceres: o parecer continua visível depois do prazo (só a decisão fecha) | ✅ sim | ❌ não (manual do Pedro) | 3 |
+| 151 | Avaliador: tamanho de camiseta (perfil, cadastro e 4º card do painel) | ✅ sim | ❌ não (manual do Pedro) | 3 |
+| 152 | Mapa do Evento: ruas nomeadas, tela cheia, cor por situação e lista filtrável | ✅ sim | ❌ não (manual do Pedro) | 3 |
 
+> **Sprints 150–152 (branch `feat/aviso-fim-avaliacao`, seguindo de `329fb38`):**
+> (a) **Sprint 150** — a aba **Ajustes e Pareceres** tinha um portão só:
+> `edicoes.ajustes_de`/`ajustes_ate` abria e fechava tudo. Passado o prazo, a devolutiva de um ano
+> de trabalho **sumia** da tela do orientador — as etapas da rubrica e as recomendações escritas
+> junto —, que é justamente o que ele leva para a edição seguinte. Agora são **dois portões**, e só
+> um volta a fechar: `leitura` abre a aba quando a organização libera o período e **não fecha
+> mais**; `aberta` continua sendo o prazo da **decisão**, porque depois dele a lista final está
+> sendo montada em cima da classificação do projeto e mudá-la moveria o trabalho de categoria no
+> meio da apuração. As sugestões não somem com os botões: ficam listadas com o que ficou valendo
+> ("Em vigor" / "Aceita por você"), que é o que explica, meses depois, por que o projeto está na
+> área em que está. Antes do início nada muda — a aba continua fechada, com a data.
+> (b) **Sprint 151** — **tamanho de camiseta do avaliador**
+> (`avaliador_profiles.camiseta`). Orientador, aluno e coorientador já informavam o seu; o
+> avaliador não, e ele também recebe camiseta — a organização descobria esse número por fora do
+> portal. É **opcional** no cadastro e no perfil, e **em branco é uma resposta**: quem não quer
+> camiseta fica fora da encomenda, em vez de virar um "N.I." que alguém teria de perseguir. No
+> painel vira o **quarto card** de camiseta, com o recorte que o avaliador exige: não há projeto
+> submetido que o qualifique, então o conjunto é quem está **ativo e não é conta de ensaio**.
+> (c) **Sprint 152** — o **Mapa do Evento** deixou de ser só o desenho de onde o projeto fica.
+> **As ruas** são os corredores entre as ilhas, e corredor é o que sobra entre duas fileiras: por
+> isso são **achadas no desenho** (`PlantaEvento::ruas()`) em vez de desenhadas à parte — o admin
+> só as batiza, e o que se guarda é o nome. Assim mover um estande reposiciona a rua sozinha, em
+> vez de deixar um rótulo solto onde o corredor não está mais; pedir que ele as desenhasse criaria
+> uma segunda verdade, que deixaria de bater com a planta no primeiro estande movido. Na prancha
+> de 2026 a detecção acha o corredor central e os oito entre as ilhas. **Tela cheia** pela
+> Fullscreen API, para o mapa ir ao projetor.
+> **A cor** tem quatro estágios (`App\Enums\SituacaoEstande`) — aguardando, credenciado, pronto
+> para avaliação, em avaliação —, todos vindos de fatos que o portal **já registrava com hora**:
+> `credenciamentos.finalizado_em`, `checagens_estande.verificado_em` e
+> `avaliacoes_presenciais.concluida_em`. Nada é marcado à mão, e é por isso que o mapa nunca
+> discorda das outras abas. O último estágio **escurece a cada avaliação recebida**: de longe se vê
+> quais estandes ainda esperam avaliador.
+> É esse carimbo de hora que dá o **seletor de dia** de graça: escolher um dia anterior é ler os
+> mesmos fatos com um corte mais cedo, e o mapa volta a ser o que era no fim daquele dia. Nenhum
+> instantâneo precisa ser gravado — e uma correção retroativa aparece no histórico como deveria ter
+> aparecido desde o começo, o que um instantâneo congelado esconderia. O **turno** é o outro eixo,
+> porque o estande recebe um projeto de manhã e outro à tarde.
+> O mesmo recorte sai em **lista filtrável** — credenciamento, checagem, avaliações realizadas ou
+> faltantes — e exporta em TXT, CSV e PDF, como as outras telas do mapa. O dia corrente se
+> recarrega sozinho a cada 30s; um dia passado não muda mais, então recarregá-lo seria bater no
+> servidor à toa. `MapaSituacaoService`.
+> Back **1193/1193**, front **597/597**, Pint limpo, build OK.
+>
 > **Sprints 148–149 (branch `feat/aviso-fim-avaliacao`, seguindo de `79a0b2f`):**
 > (a) **Sprint 148** — o menu lateral do admin **não rolava**. Ele acumulou abas ao longo de 149
 > sprints, e numa tela **larga mas baixa** (notebook deitado, projetor 16:9) as últimas ficavam
@@ -1847,6 +1916,29 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > e **Escolas** (`/admin/parametrizacao/escolas`): admin busca, **renomeia, mescla** (reatribui
 > projetos/alunos/orientadores) e **exclui** instituições sem uso (`InstituicaoAdminService`/Controller,
 > rotas `admin/instituicoes`). Back **117/117**, front 11/11, Pint limpo, build OK.
+> **Pendências do Pedro (Sprints 150–152):** (1) `git push origin feat/aviso-fim-avaliacao` + PR
+> para a `main` (o ambiente do Claude não tem credencial do GitHub) e, depois do merge, o deploy
+> pela §11 do [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). Esta release **tem uma migration**
+> (`avaliador_profiles.camiseta`), **nenhuma variável nova de `.env`** e **nenhuma dependência
+> nova**.
+> (2) **O parecer do orientador não fecha mais.** Uma vez aberto o período de ajustes, a aba
+> continua acessível para sempre — inclusive das edições passadas, enquanto a pessoa estiver na
+> edição em que o período foi aberto. O que encerra no prazo é só a troca de área/subárea.
+> (3) **O tamanho de camiseta nasce em branco para todos os avaliadores já cadastrados.** Se a
+> encomenda depender desse número, vale um disparo de mala direta pedindo que preencham o perfil —
+> o público "avaliadores" já existe.
+> (4) **O card novo do painel conta avaliador ativo e não-demo**, e não "avaliador com avaliação
+> concluída": quem se cadastrou e não avaliou também vai ao evento. Se a organização quiser o
+> recorte mais estreito, é uma linha e eu mudo.
+> (5) **As ruas nascem sem nome.** Elas aparecem para batizar em *Editar planta* → *Ruas do
+> evento*; o corredor que ficar em branco simplesmente não aparece no desenho. Nomear é salvar uma
+> versão nova da planta, como qualquer outra edição dela.
+> (6) **A cor do mapa depende do que já existe nas outras abas**: sem lista final publicada não há
+> estande alocado, e sem credenciamento/checagem/avaliação registrados tudo fica em "aguardando".
+> No dia do evento isso se resolve sozinho.
+> (7) O seletor de dia usa a **janela do evento** (Parametrização → Datas e períodos). Sem ela
+> definida, o seletor mostra só "hoje" — o mapa funciona igual, mas sem o histórico por dia.
+
 > **Pendências do Pedro (Sprints 148–149):** (1) `git push origin feat/aviso-fim-avaliacao` + PR
 > para a `main` (o ambiente do Claude não tem credencial do GitHub) e, depois do merge, o deploy
 > pela §11 do [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). Esta release **tem migrations**
