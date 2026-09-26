@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Admin;
 
+use App\Support\Idiomas;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -25,6 +26,9 @@ class ListarAvaliadoresRequest extends FormRequest
             'q' => ['nullable', 'string', 'max:120'],
             'area_id' => ['nullable', 'integer', 'exists:areas,id'],
             'situacao' => ['nullable', Rule::in(['comissao', 'demo', 'bloqueados'])],
+            // Um idioma por vez: o filtro responde "quem pode avaliar em X",
+            // e cruzar dois idiomas nunca foi a pergunta do balcão.
+            'idioma' => ['nullable', Rule::in(Idiomas::codigos())],
             'ordenar' => ['nullable', Rule::in(self::ORDENACOES)],
             'direcao' => ['nullable', Rule::in(['asc', 'desc'])],
             'por_pagina' => ['nullable', 'integer', 'min:5', 'max:200'],
@@ -38,6 +42,7 @@ class ListarAvaliadoresRequest extends FormRequest
             'q' => $this->validated('q'),
             'area_id' => $this->validated('area_id'),
             'situacao' => $this->validated('situacao'),
+            'idioma' => $this->validated('idioma'),
             'ordenar' => $this->validated('ordenar') ?? 'nome',
             'direcao' => $this->validated('direcao') ?? 'asc',
         ];

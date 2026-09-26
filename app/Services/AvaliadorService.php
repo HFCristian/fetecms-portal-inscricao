@@ -8,6 +8,7 @@ use App\Models\Avaliacao;
 use App\Models\AvaliadorProfile;
 use App\Models\Edicao;
 use App\Models\User;
+use App\Support\Idiomas;
 use App\Support\Tempo;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
@@ -16,7 +17,7 @@ use Illuminate\Validation\ValidationException;
 
 class AvaliadorService
 {
-    private const PROFILE_FIELDS = ['cpf', 'titulacao', 'camiseta', 'area_id', 'subarea_id', 'estado_id', 'cidade_id'];
+    private const PROFILE_FIELDS = ['cpf', 'titulacao', 'camiseta', 'idiomas', 'area_id', 'subarea_id', 'estado_id', 'cidade_id'];
 
     public function __construct(
         private readonly SubareaService $subareas,
@@ -132,6 +133,31 @@ class AvaliadorService
     {
         $perfil = $user->avaliadorProfile;
         $perfil->update(['camiseta' => $camiseta ?: null]);
+
+        return $perfil->fresh();
+    }
+
+    /**
+     * Idiomas em que ele pode avaliar. Como a camiseta e a localidade, muda a
+     * qualquer momento — não entra na distribuição, que continua sendo por
+     * área —, mas aqui **a lista não pode ficar vazia**: um avaliador sem
+     * idioma declarado é um avaliador que a organização não sabe para onde
+     * mandar, e o cadastro já exige ao menos um.
+     *
+     * @param  iterable<mixed>  $idiomas  códigos vindos da tela
+     */
+    public function atualizarIdiomas(User $user, mixed $idiomas): AvaliadorProfile
+    {
+        $marcados = Idiomas::normalizar($idiomas);
+
+        if ($marcados === []) {
+            throw ValidationException::withMessages([
+                'idiomas' => 'Selecione ao menos um idioma em que você pode avaliar.',
+            ]);
+        }
+
+        $perfil = $user->avaliadorProfile;
+        $perfil->update(['idiomas' => $marcados]);
 
         return $perfil->fresh();
     }

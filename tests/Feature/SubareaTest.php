@@ -80,6 +80,7 @@ class SubareaTest extends TestCase
             'password_confirmation' => 'Senha@123',
             'cpf' => '529.982.247-25',
             'titulacao' => 'Mestrado (em andamento)',
+            'idiomas' => ['pt'],
             'area_id' => $area->id,
             'subarea_nome' => 'Mecatrônica',
         ])->assertCreated()

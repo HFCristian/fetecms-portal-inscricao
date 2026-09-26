@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, it, expect, vi } from 'vitest';
 
@@ -50,5 +50,37 @@ describe('CadastroAvaliador — titulação', () => {
             'Doutorado (em andamento)',
             'Doutorado (concluído)',
         ]);
+    });
+});
+
+// --- Idiomas (Sprint 154) ---
+describe('CadastroAvaliador — idiomas', () => {
+    const abrir = () => render(<MemoryRouter><CadastroAvaliador /></MemoryRouter>);
+
+    it('oferece os três idiomas, nenhum marcado de saída', () => {
+        abrir();
+
+        for (const idioma of ['Português', 'Espanhol', 'Inglês']) {
+            expect(screen.getByLabelText(idioma)).not.toBeChecked();
+        }
+    });
+
+    it('não deixa seguir sem marcar ao menos um', () => {
+        const { container } = abrir();
+
+        fireEvent.submit(container.querySelector('form'));
+
+        expect(screen.getByText('Selecione ao menos um idioma em que você pode avaliar.'))
+            .toBeInTheDocument();
+    });
+
+    it('marca e desmarca cada idioma', () => {
+        abrir();
+
+        fireEvent.click(screen.getByLabelText('Inglês'));
+        expect(screen.getByLabelText('Inglês')).toBeChecked();
+
+        fireEvent.click(screen.getByLabelText('Inglês'));
+        expect(screen.getByLabelText('Inglês')).not.toBeChecked();
     });
 });

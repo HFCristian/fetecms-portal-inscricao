@@ -86,6 +86,29 @@ function CamisetaBreakdown({ dados, label }) {
     );
 }
 
+// Idiomas declarados pelos avaliadores. Parece o card de camiseta e tem uma
+// diferença que muda a leitura: **a soma passa do número grande**, porque quem
+// marcou três idiomas conta nos três. Por isso o rodapé diz isso em vez de
+// deixar o admin achar que a conta não fecha.
+function IdiomaBreakdown({ dados, label }) {
+    const d = dados ?? { total: 0, idiomas: [] };
+    return (
+        <>
+            <div className="text-3xl font-bold text-primary-container pt-2">{d.total ?? 0}</div>
+            <div className="grid grid-cols-3 gap-x-2 gap-y-1 w-full py-2">
+                {(d.idiomas ?? []).map((i) => (
+                    <div key={i.codigo} className="min-w-0">
+                        <div className="text-lg font-semibold text-on-surface">{i.total ?? 0}</div>
+                        <div className="text-[11px] text-on-surface-variant leading-tight truncate">{i.label}</div>
+                    </div>
+                ))}
+            </div>
+            <div className="text-sm text-on-surface-variant">{label}</div>
+            <div className="text-[11px] text-on-surface-variant/80">Quem marcou mais de um idioma conta em cada.</div>
+        </>
+    );
+}
+
 // Alunos de uma classe escolar (Fundamental I/II ou Médio), com a quebra por
 // série. Aluno sem série não aparece na quebra, então a soma das séries pode
 // ficar abaixo do número grande — que é o total de alunos da classe.
@@ -109,7 +132,7 @@ function ClasseBreakdown({ dados }) {
 
 /** Chave estável de um card, para o `key` da lista. */
 export function chaveCard(c) {
-    return c.key ?? c.generoKey ?? c.camisetaKey ?? `${c.type}-${c.classeIndex ?? ''}`;
+    return c.key ?? c.generoKey ?? c.camisetaKey ?? c.idiomaKey ?? `${c.type}-${c.classeIndex ?? ''}`;
 }
 
 /**
@@ -144,6 +167,8 @@ export function CardPainel({ card: c, dados: m }) {
                 <GeneroBreakdown dados={m[c.generoKey]} label={c.label} />
             ) : c.type === 'camiseta' ? (
                 <CamisetaBreakdown dados={m[c.camisetaKey]} label={c.label} />
+            ) : c.type === 'idioma' ? (
+                <IdiomaBreakdown dados={m[c.idiomaKey]} label={c.label} />
             ) : c.type === 'classe' ? (
                 <ClasseBreakdown dados={(m.alunos_classes ?? [])[c.classeIndex]} />
             ) : (

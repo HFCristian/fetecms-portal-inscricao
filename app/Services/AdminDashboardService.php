@@ -13,6 +13,7 @@ use App\Models\Projeto;
 use App\Models\User;
 use App\Support\Camisetas;
 use App\Support\ClassesEscolares;
+use App\Support\Idiomas;
 use Illuminate\Database\Eloquent\Builder;
 
 class AdminDashboardService
@@ -84,6 +85,13 @@ class AdminDashboardService
             // há projeto submetido que o qualifique, então o conjunto é quem está
             // **ativo e não é demo** — a mesma base dos demais números dele.
             'avaliadores_camisetas' => Camisetas::contar(
+                AvaliadorProfile::whereIn('user_id', (clone $avaliadoresAtivos)->select('id')),
+                $avaliadores
+            ),
+            // Idiomas em que a banca consegue avaliar — mesmo recorte da
+            // camiseta do avaliador. Aqui a soma das barras **passa** do número
+            // grande: quem marcou três idiomas conta nos três.
+            'avaliadores_idiomas' => Idiomas::contar(
                 AvaliadorProfile::whereIn('user_id', (clone $avaliadoresAtivos)->select('id')),
                 $avaliadores
             ),

@@ -7,6 +7,9 @@ import SubareaCombobox from '../components/SubareaCombobox.jsx';
 import ConfirmacaoEmail from '../components/ConfirmacaoEmail.jsx';
 import { useCatalogos, loadSubareas, loadCidades } from '../lib/catalogos.js';
 import { validarObrigatorios } from '../lib/validacao.js';
+// Ao contrário da camiseta, marcar ao menos um idioma é obrigatório: a
+// organização precisa saber a quem mandar um projeto estrangeiro.
+import { IDIOMAS } from '../lib/idiomas.js';
 
 // Obrigatórios do avaliador (todos menos a subárea).
 const AVALIADOR_OBRIGATORIOS = ['name', 'email', 'cpf', 'titulacao', 'area_id', 'password', 'password_confirmation'];
@@ -27,13 +30,16 @@ const TITULACOES = [
 // fora da encomenda, e dá para completar depois no perfil.
 const CAMISETAS = ['PP', 'P', 'M', 'G', 'GG', 'XG'];
 
+
 export default function CadastroAvaliador() {
     // `confirmar` do contexto é o código de 6 dígitos; o confirmar() daqui é o
     // aceite do termo antes de enviar o formulário.
     const { registerAvaliador, confirmar: confirmarCodigo } = useAuth();
     const navigate = useNavigate();
     const catalogos = useCatalogos();
-    const [form, setForm] = useState({});
+    // Nada vem pré-marcado: o campo é obrigatório, e uma caixa já marcada
+    // faria a resposta passar sem ninguém olhar para ela.
+    const [form, setForm] = useState({ idiomas: [] });
     const [subareas, setSubareas] = useState([]);
     const [cidades, setCidades] = useState([]);
     const [errors, setErrors] = useState({});
@@ -46,6 +52,16 @@ export default function CadastroAvaliador() {
 
     const set = (name) => (e) => setForm((f) => ({ ...f, [name]: e.target.value }));
     const err = (name) => errors[name]?.[0];
+
+    function alternarIdioma(codigo) {
+        setForm((f) => {
+            const atual = f.idiomas ?? [];
+            return {
+                ...f,
+                idiomas: atual.includes(codigo) ? atual.filter((c) => c !== codigo) : [...atual, codigo],
+            };
+        });
+    }
 
     // Cascata estado → cidade, como no cadastro do orientador. Os dois são
     // opcionais aqui: servem ao ranking e aos relatórios da organização.
@@ -76,6 +92,10 @@ export default function CadastroAvaliador() {
     function onSubmit(e) {
         e.preventDefault();
         const faltando = validarObrigatorios(form, AVALIADOR_OBRIGATORIOS);
+        // Lista vazia não é campo em branco: o validarObrigatorios não a pega.
+        if ((form.idiomas ?? []).length === 0) {
+            faltando.idiomas = ['Selecione ao menos um idioma em que você pode avaliar.'];
+        }
         if (Object.keys(faltando).length) {
             setErrors(faltando);
             setAlert('Preencha todos os campos obrigatórios.');
@@ -170,6 +190,28 @@ export default function CadastroAvaliador() {
                                 {CAMISETAS.map((t) => <option key={t} value={t}>{t}</option>)}
                             </Select>
                         </Field>
+                        <div className="md:col-span-2">
+                            <Field
+                                label="Idiomas em que você pode avaliar"
+                                required
+                                error={err('idiomas')}
+                                hint="Marque todos que se aplicam. A feira recebe projetos de fora do Brasil."
+                            >
+                                <div className="flex flex-wrap gap-4 pt-1">
+                                    {IDIOMAS.map((i) => (
+                                        <label key={i.value} className="flex items-center gap-2 text-sm text-on-surface cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                className="w-4 h-4 accent-primary-container"
+                                                checked={(form.idiomas ?? []).includes(i.value)}
+                                                onChange={() => alternarIdioma(i.value)}
+                                            />
+                                            {i.label}
+                                        </label>
+                                    ))}
+                                </div>
+                            </Field>
+                        </div>
                         <div className="md:col-span-2">
                             <Field label="Área de Atuação" required error={err('area_id')}>
                                 <Select value={form.area_id ?? ''} onChange={(e) => onAreaChange(e.target.value)} error={err('area_id')}>

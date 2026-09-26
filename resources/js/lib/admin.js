@@ -73,11 +73,12 @@ export const definirLimitesProjeto = (min, max, categorias) =>
     }).then((r) => r.data);
 // Tabela de avaliadores: { q, area_id, ordenar, direcao, page }. A resposta traz
 // { data, meta } (paginação, áreas para o filtro e a ordenação em vigor).
-const avaliadorParams = ({ q, areaId, situacao, ordenar, direcao, page } = {}) => ({
+const avaliadorParams = ({ q, areaId, situacao, idioma, ordenar, direcao, page } = {}) => ({
     params: {
         ...(q ? { q } : {}),
         ...(areaId ? { area_id: areaId } : {}),
         ...(situacao ? { situacao } : {}),
+        ...(idioma ? { idioma } : {}),
         ...(ordenar ? { ordenar } : {}),
         ...(direcao ? { direcao } : {}),
         page: page ?? 1,
@@ -356,6 +357,19 @@ export const aplicarReclassificacoes = (itens) =>
 // `filtros`: { area_id, categoria }. Devolve { data, meta } — meta traz as categorias.
 export const getRankingAvaliacao = (filtros = {}) =>
     http.get('/admin/avaliacao/ranking', { params: limpar(filtros) }).then((r) => r.data);
+
+/**
+ * Baixa o ranking no recorte atual. Os quatro formatos saem da mesma rota, e
+ * os filtros vão junto — o arquivo é o que está na tela, não o ranking inteiro.
+ */
+export async function exportarRanking(formato, filtros = {}) {
+    const r = await http.get(`/admin/avaliacao/ranking/exportar/${formato}`, {
+        params: limpar(filtros),
+        responseType: 'blob',
+    });
+    const nome = /filename="([^"]+)"/.exec(r.headers['content-disposition'] ?? '')?.[1] ?? `ranking-projetos.${formato}`;
+    baixarBlob(r.data, nome);
+}
 
 // Ranking dos avaliadores que mais concluíram avaliações.
 export const getRankingAvaliadores = () =>

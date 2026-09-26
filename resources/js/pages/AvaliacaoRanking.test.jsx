@@ -23,10 +23,12 @@ const getOpcoesListaFinal = vi.fn(() => Promise.resolve({
     ],
 }));
 const gerarListaFinal = vi.fn(() => Promise.resolve({ lista: { id: 12 } }));
+const exportarRanking = vi.fn(() => Promise.resolve());
 vi.mock('../lib/admin.js', () => ({
     getRankingAvaliacao: (...a) => getRankingAvaliacao(...a),
     getOpcoesListaFinal: (...a) => getOpcoesListaFinal(...a),
     gerarListaFinal: (...a) => gerarListaFinal(...a),
+    exportarRanking: (...a) => exportarRanking(...a),
 }));
 vi.mock('../lib/catalogos.js', () => ({
     loadAreas: vi.fn(() => Promise.resolve([
@@ -75,6 +77,7 @@ describe('AvaliacaoRanking', () => {
     beforeEach(() => {
         getRankingAvaliacao.mockReset();
         getRankingAvaliacao.mockResolvedValue(resposta(RANKING));
+        exportarRanking.mockClear();
     });
 
     it('lista os projetos na ordem recebida, com média sobre o total e nº de avaliações', async () => {
@@ -200,5 +203,38 @@ describe('AvaliacaoRanking', () => {
         render(<AvaliacaoRanking />);
 
         expect(await screen.findByText('Nenhum projeto avaliado ainda.')).toBeInTheDocument();
+    });
+
+    // --- Baixar o ranking (Sprint 153) ---
+
+    it('oferece os quatro formatos de download', async () => {
+        render(<AvaliacaoRanking />);
+        await screen.findByText('Secador solar');
+
+        for (const rotulo of ['CSV', 'Excel', 'PDF', 'TXT']) {
+            expect(screen.getByRole('button', { name: `Baixar ${rotulo}` })).toBeInTheDocument();
+        }
+    });
+
+    it('baixa no recorte dos filtros da tela, e não o ranking inteiro', async () => {
+        render(<AvaliacaoRanking />);
+        await screen.findByText('Secador solar');
+
+        fireEvent.change(screen.getByLabelText('Área do conhecimento'), { target: { value: '2' } });
+        await waitFor(() => expect(getRankingAvaliacao).toHaveBeenCalledTimes(2));
+
+        fireEvent.click(screen.getByRole('button', { name: 'Baixar Excel' }));
+
+        await waitFor(() => expect(exportarRanking).toHaveBeenCalledWith('xlsx', { area_id: '2', categoria: '' }));
+    });
+
+    it('avisa quando o arquivo não sai', async () => {
+        exportarRanking.mockRejectedValueOnce(new Error('falhou'));
+        render(<AvaliacaoRanking />);
+        await screen.findByText('Secador solar');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Baixar PDF' }));
+
+        expect(await screen.findByText('Não foi possível gerar o arquivo.')).toBeInTheDocument();
     });
 });

@@ -15,3 +15,10 @@ export const atualizarLocalidadeAvaliador = (payload) =>
 /** Tamanho de camiseta — opcional; `null` apaga a resposta. */
 export const atualizarCamisetaAvaliador = (camiseta) =>
     http.put('/avaliador/perfil/camiseta', { camiseta }).then((r) => r.data);
+
+/**
+ * Idiomas em que ele pode avaliar (códigos 'pt', 'es', 'en'). Ao menos um — o
+ * servidor recusa a lista vazia.
+ */
+export const atualizarIdiomasAvaliador = (idiomas) =>
+    http.put('/avaliador/perfil/idiomas', { idiomas }).then((r) => r.data);

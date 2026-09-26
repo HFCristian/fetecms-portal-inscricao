@@ -45,6 +45,13 @@ const SECOES = [
         ],
     },
     {
+        titulo: 'Idiomas da banca',
+        descricao: 'Em que idiomas os avaliadores ativos se declararam aptos a avaliar.',
+        cards: [
+            { type: 'idioma', idiomaKey: 'avaliadores_idiomas', label: 'Idiomas · Avaliadores', icon: 'translate' },
+        ],
+    },
+    {
         titulo: 'Alunos por classe escolar',
         descricao: 'A quebra por série de cada classe. O técnico integrado é contado no Ensino Médio.',
         // A ordem e os rótulos vêm do backend (`App\Support\ClassesEscolares`).

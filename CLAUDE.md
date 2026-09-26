@@ -116,7 +116,15 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     também ficam a **localidade** e o **tamanho de camiseta** (`avaliador_profiles.camiseta`,
     opcional e trocável a qualquer momento — é logística, não distribuição): em branco é resposta,
     e tira o avaliador da encomenda. O campo também aparece no cadastro, e o painel tem um card de
-    camiseta para os avaliadores **ativos e não-demo**.
+    camiseta para os avaliadores **ativos e não-demo**. Ali fica ainda em que **idiomas** ele pode
+    avaliar — Português, Espanhol, Inglês (`avaliador_profiles.idiomas`, JSON; `App\Support\Idiomas`) —,
+    uma lista em que **ao menos um é obrigatório**, no cadastro e no perfil: a feira recebe projeto
+    de fora, e "nenhum idioma" não é resposta possível para um avaliador. Ele **não entra na
+    distribuição**, que segue por área — quem designa o projeto estrangeiro é a organização, à mão.
+    O admin o vê em Avaliadores Online (coluna, filtro e CSV), tem um card em Dashboards (onde a
+    soma passa do total, porque quem marcou três conta nos três) e três públicos combináveis na
+    mala direta, nos avisos e no feedback. Quem se cadastrou antes do campo fica com a lista vazia:
+    a tela cobra o preenchimento e os públicos por idioma não o alcançam.
   - Ao **iniciar** uma avaliação o sistema confere se o projeto ainda cabe mais uma: contando as
     **concluídas + em andamento**, se ele já atingiu o **máximo de avaliações da categoria**, o
     avaliador é avisado de que outro chegou antes, o projeto **sai da lista dele** e outro entra no
@@ -313,6 +321,15 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     com **justificativa obrigatória** — cada alteração **sobe a versão**, gera um TXT novo (o
     arquivo sai sempre da composição atual, com a numeração refeita) e entra em **Registros → Lista
     final**. `listas_finais` + `lista_final_projetos`, `ListaFinalService`.
+  - **Avaliação Online → Ranking dos projetos → baixar**: o ranking sai em **CSV, Excel (.xlsx),
+    PDF e TXT**, sempre no **recorte dos filtros da tela** (área e categoria) — quatro formatos
+    porque são quatro usos: planilha para conferir, papel para a reunião, texto para colar num
+    e-mail. Cada linha leva posição, projeto, área, categoria, média, número de avaliações e a
+    marca **Parcial**; a média por seção da rubrica fica de fora (é a régua de leitura da tela, e
+    o detalhe por seção vive no *Ver notas*, em Designações). O `.xlsx` existe ao lado do CSV
+    porque grava a média como **número**, somável e ordenável, e sai de um escritor próprio
+    (`App\Support\PlanilhaXlsx`, `ZipArchive`) — **sem dependência nova**.
+    `GET /admin/avaliacao/ranking/exportar/{csv|xlsx|pdf|txt}`.
   - **Avaliação Online → Ranking dos projetos → Gerar lista final**: exporta em **TXT** o recorte
     que vai para a programação da feira. O admin passa por **três passos** — quantos projetos por
     **categoria**, quantos por **área dentro de cada categoria** e quantas dessas vagas ficam
@@ -542,7 +559,8 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     `FeedbackResultadoService`.
   - **Comunicação → Mala direta** (`/admin/mala-direta`): comunicado por e-mail para um recorte da base.
     O admin combina quantos **públicos** quiser (todos, orientadores, avaliadores, orientadores
-    com rascunho, com submetido, avaliadores com avaliação **em andamento** ou **concluída**) e/ou
+    com rascunho, com submetido, avaliadores com avaliação **em andamento** ou **concluída**,
+    avaliadores por **idioma** declarado) e/ou
     cola uma **lista personalizada** (digitada ou importada de `.csv` com as colunas `email`/`nome`).
     A união é **deduplicada por e-mail**; contas de admin, inativas e demo ficam fora dos públicos.
     Antes de disparar ele vê **quantos recebem**, pode **listar** e **exportar CSV** (nome, e-mail,
@@ -796,7 +814,50 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 150 | Ajustes e Pareceres: o parecer continua visível depois do prazo (só a decisão fecha) | ✅ sim | ❌ não (manual do Pedro) | 2 |
 | 151 | Avaliador: tamanho de camiseta (perfil, cadastro e 4º card do painel) | ✅ sim | ❌ não (manual do Pedro) | 2 |
 | 152 | Mapa do Evento: ruas nomeadas, tela cheia, cor por situação e lista filtrável | ✅ sim | ❌ não (manual do Pedro) | 2 |
+| 153 | Ranking dos projetos: baixar em CSV, Excel, PDF e TXT, no recorte dos filtros | ✅ sim | ❌ não (manual do Pedro) | 3 |
+| 154 | Avaliador: idiomas em que pode avaliar (cadastro, perfil, tabela, públicos e painel) | ✅ sim | ❌ não (manual do Pedro) | 3 |
 
+> **Sprints 153–154 (branch `feat/ranking-download-e-idiomas`, saída da `main` @ `86d28c7`):**
+> (a) **Sprint 153** — o **Ranking dos projetos** passou a ser **baixável**. Ele é a tela em que a
+> organização discute quem vai para a lista final, e a discussão acontece em reunião: até aqui o
+> recorte só existia dentro do navegador de quem o abriu, e o jeito de levá-lo para a mesa era a
+> captura de tela. Agora saem quatro formatos, porque são quatro usos diferentes: **CSV** e
+> **Excel** para quem confere em planilha, **PDF** para o papel da reunião e **TXT** para colar num
+> e-mail. Todos saem do **mesmo recorte de filtros da tela** — baixar o ranking inteiro quando a
+> tela mostra uma área só seria entregar outra coisa do que se está vendo —, e o PDF escreve o
+> recorte no cabeçalho, porque uma folha de ranking que não diz de que área é não serve na mesa.
+> A **média por seção** da rubrica ficou **fora** do arquivo: ela é a régua de leitura da tela, e
+> uma coluna por seção transformaria a planilha em algo que não se lê de lado — o detalhe por seção
+> continua no *Ver notas*, em Designações. O que vai em toda linha é posição, projeto, área,
+> categoria, média, número de avaliações e a marca **Parcial**, que é o que impede alguém de tratar
+> o arquivo como classificação final.
+> O **Excel** é o formato novo de verdade: o CSV já abria no Excel, mas chega como **texto** — a
+> média com vírgula não soma e a coluna ordena alfabeticamente. Para gravar número como número
+> nasceu o `App\Support\PlanilhaXlsx`, um escritor mínimo de `.xlsx` (um zip com meia dúzia de
+> XMLs, montado com o `ZipArchive` que já vem no PHP). **Nenhuma dependência nova**: o que a tela
+> precisa é uma tabela plana, e PhpSpreadsheet traria ~10 MB de vendor para resolver fórmula,
+> gráfico e leitura, nada disso usado aqui. O suporte é deliberadamente pequeno — sem fórmula, sem
+> segunda aba, sem mesclagem —, e está escrito no arquivo que, precisando de qualquer uma delas, a
+> conta vira a favor da biblioteca.
+> (b) **Sprint 154** — o avaliador passou a declarar **em que idiomas pode avaliar** (Português,
+> Espanhol, Inglês; `avaliador_profiles.idiomas`, JSON). A feira recebe projeto e visitante de
+> fora, e até aqui a organização descobria quem conduzia uma avaliação em espanhol perguntando no
+> corredor. É **lista**, não escolha única — quem fala três marca os três —, e ao contrário da
+> camiseta é **obrigatório ao menos um**: "nenhum idioma" não é resposta possível para um
+> avaliador. Nada vem pré-marcado no cadastro, de propósito: caixa já marcada faria a resposta
+> passar sem ninguém olhar para ela.
+> O idioma **não entra no algoritmo de distribuição**, que continua sendo por área. Ele informa a
+> organização, que designa à mão o projeto estrangeiro a quem pode avaliá-lo — misturá-lo à
+> distribuição criaria um segundo eixo de match para atender meia dúzia de projetos por edição.
+> Aparece em quatro lugares: **cadastro** e **perfil** do avaliador, **coluna e filtro** em
+> Avaliadores Online (com a coluna no CSV), **público combinável** em mala direta, avisos e
+> feedback, e um **card** em Dashboards. No card a soma das barras **passa** do número grande —
+> quem marcou três idiomas conta nos três —, e o rodapé diz isso, senão parece conta errada.
+> Quem já estava cadastrado chega com a **lista vazia**, e é assim que se enxerga quem falta: o
+> perfil cobra o preenchimento, a tabela do admin marca "Sem idioma informado" e os públicos por
+> idioma **não** alcançam essas contas — alcançá-las diria que responderam quando não responderam.
+> Back **1214/1214**, front **611/611**, Pint limpo, build OK.
+>
 > **Sprints 150–152 (branch `feat/cerimonial-mapa-e-ajustes`, seguindo de `329fb38`):**
 > (a) **Sprint 150** — a aba **Ajustes e Pareceres** tinha um portão só:
 > `edicoes.ajustes_de`/`ajustes_ate` abria e fechava tudo. Passado o prazo, a devolutiva de um ano
@@ -1916,6 +1977,26 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > e **Escolas** (`/admin/parametrizacao/escolas`): admin busca, **renomeia, mescla** (reatribui
 > projetos/alunos/orientadores) e **exclui** instituições sem uso (`InstituicaoAdminService`/Controller,
 > rotas `admin/instituicoes`). Back **117/117**, front 11/11, Pint limpo, build OK.
+> **Pendências do Pedro (Sprints 153–154):** (1) `git push origin feat/ranking-download-e-idiomas`
+> + PR para a `main` (o ambiente do Claude não tem credencial do GitHub) e, depois do merge, o
+> deploy pela §11 do [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). Esta release **tem uma migration**
+> (`avaliador_profiles.idiomas`), **nenhuma variável nova de `.env`** e **nenhuma dependência
+> nova** — o `.xlsx` sai de código nosso, com a extensão `zip` do PHP (confira que ela está
+> habilitada no servidor: `php -m | grep zip`).
+> (2) **Os idiomas nascem em branco para todos os avaliadores já cadastrados.** O campo é
+> obrigatório no cadastro novo e ao salvar o perfil, mas ninguém é bloqueado retroativamente: quem
+> já tem conta continua avaliando normalmente e aparece como *Sem idioma informado* na tabela. Para
+> fechar o número antes do evento, vale um disparo de mala direta pedindo que atualizem o perfil —
+> o público "avaliadores" já existe, e os três públicos por idioma servem para conferir quem já
+> respondeu.
+> (3) **O idioma não muda a distribuição** — de propósito. Se a organização quiser que ele entre no
+> match automático, é outra mudança (e outra conversa: hoje o eixo é área/subárea).
+> (4) **O Excel do ranking é um escritor próprio**, pensado para tabela plana. Se algum dia a
+> organização pedir planilha com fórmula, gráfico ou mais de uma aba, o caminho é trocar o
+> `App\Support\PlanilhaXlsx` por uma biblioteca, não crescê-lo — está escrito no arquivo.
+> (5) **Vale abrir um dos quatro arquivos** antes do evento, principalmente o `.xlsx` no Excel de
+> verdade: aqui ele foi validado por leitor automatizado e pelos testes, não pelo Excel.
+
 > **Pendências do Pedro (Sprints 148–152):** (1) `git push origin feat/cerimonial-mapa-e-ajustes` + PR
 > para a `main` (o ambiente do Claude não tem credencial do GitHub) e, depois do merge, o deploy
 > pela §11 do [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). Esta release **tem uma migration**

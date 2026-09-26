@@ -53,6 +53,13 @@ class PublicoUsuariosService
                 ->whereHas('avaliacoes', fn ($a) => $a->where('status', StatusAvaliacao::Concluida)),
             PublicoMala::AvaliadoresComissao => fn (Builder $q) => $q->where('role', Role::Avaliador)
                 ->whereHas('avaliadorProfile', fn ($p) => $p->where('comissao_especial', true)),
+            // Idiomas declarados no perfil (Sprint 154): é o recorte de quem
+            // consegue atender um projeto ou um visitante estrangeiro. Quem se
+            // cadastrou antes do campo tem a lista vazia e não é alcançado —
+            // e é justamente para ele que se dispara a cobrança.
+            PublicoMala::AvaliadoresPortugues => $this->porIdioma('pt'),
+            PublicoMala::AvaliadoresEspanhol => $this->porIdioma('es'),
+            PublicoMala::AvaliadoresIngles => $this->porIdioma('en'),
             // Finalista que ainda deve o termo de responsabilidade (Sprint 129):
             // é o público da cobrança antes do evento. Sem lista final
             // publicada não há finalista nenhum, e o público fica vazio em vez
@@ -73,6 +80,13 @@ class PublicoUsuariosService
                             ->where('tipo', TipoDocumento::TermoResponsabilidade->value)));
             },
         };
+    }
+
+    /** Avaliadores que declararam este idioma no perfil. */
+    private function porIdioma(string $codigo): Closure
+    {
+        return fn (Builder $q) => $q->where('role', Role::Avaliador)
+            ->whereHas('avaliadorProfile', fn ($p) => $p->whereJsonContains('idiomas', $codigo));
     }
 
     /**

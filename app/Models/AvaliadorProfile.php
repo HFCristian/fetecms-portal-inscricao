@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Support\Camisetas;
+use App\Support\Idiomas;
 use Database\Factories\AvaliadorProfileFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -51,7 +52,7 @@ class AvaliadorProfile extends Model
     public const MAX_MINUTOS_CERTIFICADO = 120 * 60;
 
     protected $fillable = [
-        'cpf', 'titulacao', 'camiseta', 'area_id', 'subarea_id', 'limite_avaliacoes', 'comissao_especial',
+        'cpf', 'titulacao', 'camiseta', 'idiomas', 'area_id', 'subarea_id', 'limite_avaliacoes', 'comissao_especial',
         'estado_id', 'cidade_id', 'presencial', 'presencial_em',
     ];
 
@@ -59,11 +60,27 @@ class AvaliadorProfile extends Model
     {
         return [
             'limite_avaliacoes' => 'integer',
+            // Lista de códigos ISO 639-1 ('pt', 'es', 'en').
+            'idiomas' => 'array',
             'comissao_especial' => 'boolean',
             // Nulo = ainda não respondeu, que não é a mesma coisa que "não vai".
             'presencial' => 'boolean',
             'presencial_em' => 'datetime',
         ];
+    }
+
+    /**
+     * Idiomas em que o avaliador pode conduzir uma avaliação. Diferente da
+     * camiseta, é **obrigatório** ao menos um: a organização precisa saber em
+     * que língua cada um consegue atender antes de designar um projeto
+     * estrangeiro. A lista canônica e os rótulos moram no {@see Idiomas};
+     * aqui fica só a coluna, que guarda os códigos.
+     *
+     * @return list<string>
+     */
+    public function idiomasDeclarados(): array
+    {
+        return Idiomas::normalizar($this->idiomas);
     }
 
     /**

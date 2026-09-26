@@ -27,6 +27,11 @@ vi.mock('../lib/admin.js', () => ({
             { tamanho: 'PP', total: 0 }, { tamanho: 'P', total: 0 }, { tamanho: 'M', total: 2 },
             { tamanho: 'G', total: 1 }, { tamanho: 'GG', total: 0 }, { tamanho: 'XG', total: 0 },
         ] },
+        avaliadores_idiomas: { total: 7, idiomas: [
+            { codigo: 'pt', label: 'Português', total: 7 },
+            { codigo: 'es', label: 'Espanhol', total: 2 },
+            { codigo: 'en', label: 'Inglês', total: 3 },
+        ] },
         alunos_classes: [
             { chave: 'fundamental_i', label: 'Ensino Fundamental I', total: 3, series: [
                 { serie: '3º ano', total: 2 }, { serie: '4º ano', total: 0 },
@@ -94,5 +99,15 @@ describe('AdminDashboards — seções', () => {
 
         expect(screen.getAllByText('PP')).toHaveLength(3);
         expect(screen.queryByText('N.I.')).not.toBeInTheDocument();
+    });
+
+    it('mostra os idiomas da banca e explica que a soma passa do total', async () => {
+        render(<AdminDashboards />);
+
+        expect(await screen.findByText('Idiomas · Avaliadores')).toBeInTheDocument();
+        expect(screen.getByText('Espanhol')).toBeInTheDocument();
+        expect(screen.getByText('Inglês')).toBeInTheDocument();
+        // 7 + 2 + 3 não fecha com os 7 avaliadores: quem marcou dois conta nos dois.
+        expect(screen.getByText('Quem marcou mais de um idioma conta em cada.')).toBeInTheDocument();
     });
 });

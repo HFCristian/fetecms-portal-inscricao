@@ -8,6 +8,7 @@ use App\Models\AvaliadorProfile;
 use App\Models\Edicao;
 use App\Rules\CidadeDoEstado;
 use App\Services\AvaliadorService;
+use App\Support\Idiomas;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -65,6 +66,32 @@ class AvaliadorPerfilController extends Controller
     }
 
     /**
+     * Idiomas em que ele pode avaliar — ao menos um. Como a camiseta, muda a
+     * qualquer momento; ao contrário dela, a lista vazia não é resposta.
+     */
+    public function atualizarIdiomas(Request $request): JsonResponse
+    {
+        $dados = $request->validate([
+            'idiomas' => ['required', 'array', 'min:1'],
+            'idiomas.*' => ['string', Rule::in(Idiomas::codigos())],
+        ], [
+            'idiomas.required' => 'Selecione ao menos um idioma em que você pode avaliar.',
+            'idiomas.min' => 'Selecione ao menos um idioma em que você pode avaliar.',
+        ]);
+
+        $user = $request->user();
+        $this->avaliadores->atualizarIdiomas($user, $dados['idiomas']);
+
+        return response()->json([
+            'data' => $this->perfil($user->fresh([
+                'avaliadorProfile.area', 'avaliadorProfile.subarea',
+                'avaliadorProfile.estado', 'avaliadorProfile.cidade',
+            ])),
+            'meta' => ['message' => 'Idiomas atualizados.'],
+        ]);
+    }
+
+    /**
      * Atualiza de onde o avaliador é. Diferente da área, pode ser trocado a
      * qualquer momento — a localidade não entra na distribuição.
      */
@@ -101,6 +128,10 @@ class AvaliadorPerfilController extends Controller
             'titulacao' => $perfil?->titulacao,
             'camiseta' => $perfil?->camiseta,
             'camisetas' => AvaliadorProfile::CAMISETAS,
+            // Quem se cadastrou antes desta versão vem com a lista vazia: a
+            // tela pede que ele preencha em vez de fingir que respondeu.
+            'idiomas' => $perfil?->idiomasDeclarados() ?? [],
+            'idiomas_opcoes' => Idiomas::opcoes(),
             'area_id' => $perfil?->area_id,
             'area' => $perfil?->area?->nome,
             'subarea_id' => $perfil?->subarea_id,

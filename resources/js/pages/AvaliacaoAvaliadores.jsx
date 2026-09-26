@@ -5,6 +5,7 @@ import { Button, Alert, Select, useConfirm } from '../components/ui.jsx';
 import PanoramaAvaliadores from '../components/PanoramaAvaliadores.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import { loadAreas, loadSubareas } from '../lib/catalogos.js';
+import { IDIOMAS } from '../lib/idiomas.js';
 import {
     getAvaliacaoAvaliadores, exportarAvaliadoresCsv,
     definirLimiteAvaliador, definirDemoAvaliador, limparDadosDeTeste,
@@ -14,7 +15,7 @@ import {
 // Colunas da tabela. `ordenar` é a chave que o backend entende.
 const COLUNAS = [
     { key: 'nome', label: 'Avaliador', alinhamento: 'text-left' },
-    { key: 'area', label: 'Área do conhecimento', alinhamento: 'text-left' },
+    { key: 'area', label: 'Área e idiomas', alinhamento: 'text-left' },
     { key: 'em_avaliacao', label: 'Em avaliação', alinhamento: 'text-center' },
     { key: 'avaliou', label: 'Avaliadas', alinhamento: 'text-center' },
     { key: 'faltam', label: 'Faltantes', alinhamento: 'text-center' },
@@ -197,7 +198,7 @@ function AreasExtrasModal({ avaliador, onFechar, onMudou }) {
  */
 export default function AvaliacaoAvaliadores() {
     const [busca, setBusca] = useState('');
-    const [filtros, setFiltros] = useState({ q: '', areaId: '', situacao: '', ordenar: 'nome', direcao: 'asc' });
+    const [filtros, setFiltros] = useState({ q: '', areaId: '', situacao: '', idioma: '', ordenar: 'nome', direcao: 'asc' });
     const [page, setPage] = useState(1);
     const [lista, setLista] = useState(null);
     const [meta, setMeta] = useState(null);
@@ -307,7 +308,7 @@ export default function AvaliacaoAvaliadores() {
     }
 
     const areas = meta?.areas ?? [];
-    const temFiltro = filtros.q !== '' || filtros.areaId !== '' || filtros.situacao !== '';
+    const temFiltro = filtros.q !== '' || filtros.areaId !== '' || filtros.situacao !== '' || filtros.idioma !== '';
 
     return (
         <AppShell>
@@ -372,6 +373,16 @@ export default function AvaliacaoAvaliadores() {
                             <option value="bloqueados">Com limite definido</option>
                         </Select>
                     </div>
+                    <div className="w-full md:w-48">
+                        <Select
+                            aria-label="Filtrar por idioma"
+                            value={filtros.idioma}
+                            onChange={(e) => { setFiltros((f) => ({ ...f, idioma: e.target.value })); setPage(1); }}
+                        >
+                            <option value="">Todos os idiomas</option>
+                            {IDIOMAS.map((i) => <option key={i.value} value={i.value}>{i.label}</option>)}
+                        </Select>
+                    </div>
                     <div className="w-full md:w-72">
                         <Select
                             aria-label="Filtrar por área do conhecimento"
@@ -391,7 +402,7 @@ export default function AvaliacaoAvaliadores() {
                     {temFiltro && (
                         <button
                             type="button"
-                            onClick={() => { setBusca(''); setFiltros((f) => ({ ...f, q: '', areaId: '', situacao: '' })); setPage(1); }}
+                            onClick={() => { setBusca(''); setFiltros((f) => ({ ...f, q: '', areaId: '', situacao: '', idioma: '' })); setPage(1); }}
                             className="text-xs font-semibold text-primary hover:underline"
                         >
                             Limpar filtros
@@ -460,6 +471,9 @@ export default function AvaliacaoAvaliadores() {
                                                 <td className="px-3 py-2 text-on-surface-variant">
                                                     <p className="truncate">{a.area ?? 'Sem área'}</p>
                                                     {a.subarea && <p className="text-xs truncate">{a.subarea}</p>}
+                                                    {a.idiomas_label
+                                                        ? <p className="text-xs truncate" title={`Avalia em ${a.idiomas_label}`}>{a.idiomas_label}</p>
+                                                        : <p className="text-xs text-error truncate">Sem idioma informado</p>}
                                                     {(a.areas_extras ?? []).length > 0 && (
                                                         <p className="text-xs text-primary-container truncate" title={(a.areas_extras ?? []).map((e) => e.area + (e.subarea ? ` · ${e.subarea}` : '')).join(', ')}>
                                                             + {a.areas_extras.length} área{a.areas_extras.length === 1 ? '' : 's'} liberada{a.areas_extras.length === 1 ? '' : 's'}
