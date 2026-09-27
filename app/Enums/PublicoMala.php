@@ -20,6 +20,9 @@ enum PublicoMala: string
     case AvaliadoresPendentes = 'avaliadores_pendentes';
     case AvaliadoresConcluidas = 'avaliadores_concluidas';
     case AvaliadoresComissao = 'avaliadores_comissao';
+    case AvaliadoresPortugues = 'avaliadores_portugues';
+    case AvaliadoresEspanhol = 'avaliadores_espanhol';
+    case AvaliadoresIngles = 'avaliadores_ingles';
     case FinalistasSemTermo = 'finalistas_sem_termo';
 
     public function label(): string
@@ -33,6 +36,9 @@ enum PublicoMala: string
             self::AvaliadoresPendentes => 'Avaliadores com avaliações pendentes',
             self::AvaliadoresConcluidas => 'Avaliadores com avaliações concluídas',
             self::AvaliadoresComissao => 'Avaliadores da comissão especial',
+            self::AvaliadoresPortugues => 'Avaliadores que avaliam em Português',
+            self::AvaliadoresEspanhol => 'Avaliadores que avaliam em Espanhol',
+            self::AvaliadoresIngles => 'Avaliadores que avaliam em Inglês',
             self::FinalistasSemTermo => 'Finalistas sem o termo de responsabilidade',
         };
     }
@@ -48,6 +54,9 @@ enum PublicoMala: string
             self::AvaliadoresPendentes => 'Abriu uma avaliação e ainda não concluiu.',
             self::AvaliadoresConcluidas => 'Já concluiu ao menos uma avaliação.',
             self::AvaliadoresComissao => 'Marcado pelo admin como comissão especial.',
+            self::AvaliadoresPortugues => 'Declarou no perfil que avalia em Português.',
+            self::AvaliadoresEspanhol => 'Declarou no perfil que avalia em Espanhol.',
+            self::AvaliadoresIngles => 'Declarou no perfil que avalia em Inglês.',
             self::FinalistasSemTermo => 'Tem projeto na lista final vigente e ainda não anexou o termo.',
         };
     }
@@ -59,7 +68,8 @@ enum PublicoMala: string
             self::Orientadores, self::OrientadoresRascunho, self::OrientadoresSubmetidos,
             self::FinalistasSemTermo => Role::Orientador,
             self::Avaliadores, self::AvaliadoresPendentes, self::AvaliadoresConcluidas,
-            self::AvaliadoresComissao => Role::Avaliador,
+            self::AvaliadoresComissao, self::AvaliadoresPortugues, self::AvaliadoresEspanhol,
+            self::AvaliadoresIngles => Role::Avaliador,
             self::Todos => Role::Orientador,
         };
     }

@@ -9,6 +9,7 @@ use App\Enums\Role;
 use App\Enums\StatusAvaliacao;
 use App\Enums\TipoRegistro;
 use App\Models\Aluno;
+use App\Models\Area;
 use App\Models\Avaliacao;
 use App\Models\AvaliadorAreaExtra;
 use App\Models\AvaliadorProfile;
@@ -18,7 +19,9 @@ use App\Models\Scopes\AvaliacaoAtivaScope;
 use App\Models\Subarea;
 use App\Models\User;
 use App\Support\ClassesEscolares;
+use App\Support\Idiomas;
 use App\Support\LimitesAvaliacao;
+use App\Support\PlanilhaXlsx;
 use App\Support\RegrasDistribuicao;
 use App\Support\Rubrica;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -84,6 +87,11 @@ class AdminAvaliacaoService
             'avaliou' => $avaliou,
             'faltam' => max(0, $min - $avaliou),
             'limite' => $perfil?->limite_avaliacoes,
+            // Em que idiomas ele se declarou apto. Quem se cadastrou antes de
+            // o campo existir vem com a lista vazia, e é assim que a tela
+            // enxerga quem ainda precisa responder.
+            'idiomas' => $perfil?->idiomasDeclarados() ?? [],
+            'idiomas_label' => Idiomas::rotulos($perfil?->idiomas),
             'is_demo' => (bool) $u->is_demo,
             'comissao_especial' => (bool) $perfil?->comissao_especial,
             'areas_extras' => $perfil?->areasExtras->map(fn ($extra) => [
@@ -148,7 +156,7 @@ class AdminAvaliacaoService
         $saida = fopen('php://temp', 'r+');
         fwrite($saida, "\u{FEFF}");
         fputcsv($saida, [
-            'Nome', 'E-mail', 'Área', 'Subárea', 'Áreas extras', 'Em avaliação', 'Avaliadas',
+            'Nome', 'E-mail', 'Área', 'Subárea', 'Áreas extras', 'Idiomas', 'Em avaliação', 'Avaliadas',
             'Faltantes', 'Limite', 'Demo', 'Comissão especial', 'Cadastro',
         ], ';');
 
@@ -164,6 +172,7 @@ class AdminAvaliacaoService
                         fn ($extra) => $extra['area'].($extra['subarea'] ? ' / '.$extra['subarea'] : ''),
                         $linha['areas_extras'],
                     )),
+                    $linha['idiomas_label'],
                     $linha['em_avaliacao'],
                     $linha['avaliou'],
                     $linha['faltam'],
@@ -227,6 +236,7 @@ class AdminAvaliacaoService
                         ->whereColumn('avaliador_areas_extras.avaliador_profile_id', 'avaliador_profiles.id')
                         ->where('avaliador_areas_extras.area_id', $areaId));
             }))
+            ->when($filtros['idioma'] ?? null, fn ($q, $idioma) => $q->whereJsonContains('avaliador_profiles.idiomas', $idioma))
             ->when(($filtros['situacao'] ?? null) === 'comissao', fn ($q) => $q->where('avaliador_profiles.comissao_especial', true))
             ->when(($filtros['situacao'] ?? null) === 'demo', fn ($q) => $q->where('users.is_demo', true))
             ->when(($filtros['situacao'] ?? null) === 'bloqueados', fn ($q) => $q->whereNotNull('avaliador_profiles.limite_avaliacoes'))
@@ -987,6 +997,168 @@ class AdminAvaliacaoService
         }
 
         return $lista;
+    }
+
+    /** Formatos em que o ranking pode ser baixado. */
+    public const FORMATOS_RANKING = ['csv', 'xlsx', 'pdf', 'txt'];
+
+    /**
+     * O ranking em arquivo, no **mesmo recorte de filtros da tela**.
+     *
+     * Quatro formatos porque são quatro usos: o CSV e o XLSX vão para a
+     * planilha de quem confere (o XLSX com a média como **número**, que o CSV
+     * não consegue garantir), o PDF vai impresso para a reunião da comissão e o
+     * TXT é o que se cola num e-mail.
+     *
+     * A média por seção da rubrica fica **fora** do arquivo: ela é a régua de
+     * leitura da tela, e uma coluna por seção transformaria a planilha em algo
+     * que não se lê de lado. Quem precisa do detalhe por seção tem o diálogo
+     * *Ver notas*, em Designações.
+     *
+     * @param  array{area_id?:int|null, categoria?:string|null}  $filtros
+     * @return array{conteudo:string, tipo:string, nome:string}
+     */
+    public function exportarRanking(string $formato, array $filtros = []): array
+    {
+        $lista = $this->rankingProjetos($filtros);
+        $carimbo = now()->format('Y-m-d-His');
+        $nome = 'ranking-projetos-'.$carimbo;
+
+        return match ($formato) {
+            'csv' => [
+                'conteudo' => $this->rankingCsv($lista),
+                'tipo' => 'text/csv; charset=UTF-8',
+                'nome' => $nome.'.csv',
+            ],
+            'xlsx' => [
+                'conteudo' => $this->rankingXlsx($lista),
+                'tipo' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'nome' => $nome.'.xlsx',
+            ],
+            'txt' => [
+                'conteudo' => $this->rankingTxt($lista),
+                'tipo' => 'text/plain; charset=UTF-8',
+                'nome' => $nome.'.txt',
+            ],
+            default => [
+                'conteudo' => $this->rankingPdf($lista, $filtros),
+                'tipo' => 'application/pdf',
+                'nome' => $nome.'.pdf',
+            ],
+        };
+    }
+
+    /** Cabeçalho comum aos quatro formatos — uma coluna por dado da tela. */
+    private const COLUNAS_RANKING = [
+        'Posição', 'Projeto', 'Área', 'Categoria', 'Média', 'Avaliações', 'Situação',
+    ];
+
+    /**
+     * Uma linha do ranking, já com os rótulos que vão para o arquivo.
+     *
+     * `$numerico` decide o tipo da média: o XLSX quer o número cru (para somar
+     * e ordenar), CSV, TXT e PDF querem o texto em pt-BR com vírgula.
+     *
+     * @param  array<string, mixed>  $p
+     * @return list<string|int|float|null>
+     */
+    private function linhaRanking(array $p, bool $numerico = false): array
+    {
+        $media = $p['media'];
+
+        return [
+            $p['posicao'],
+            $p['titulo'],
+            $p['area'] ?? 'Sem área',
+            $p['categoria'] ?? '',
+            $numerico ? $media : number_format((float) $media, 2, ',', ''),
+            $p['avaliacoes'],
+            // "Parcial" é o que impede alguém de tratar o arquivo como
+            // classificação final: o projeto ainda não recebeu o mínimo de
+            // avaliações e a posição dele pode mudar.
+            $p['completo'] ? 'Completo' : 'Parcial',
+        ];
+    }
+
+    /** @param  list<array<string, mixed>>  $lista */
+    private function rankingCsv(array $lista): string
+    {
+        $saida = fopen('php://temp', 'r+');
+        // BOM + ponto e vírgula: é o que o Excel em pt-BR abre sem perguntar.
+        fwrite($saida, "\u{FEFF}");
+        fputcsv($saida, self::COLUNAS_RANKING, ';');
+
+        foreach ($lista as $p) {
+            fputcsv($saida, $this->linhaRanking($p), ';');
+        }
+
+        rewind($saida);
+        $csv = stream_get_contents($saida);
+        fclose($saida);
+
+        return $csv;
+    }
+
+    /** @param  list<array<string, mixed>>  $lista */
+    private function rankingXlsx(array $lista): string
+    {
+        return PlanilhaXlsx::gerar(
+            'Ranking',
+            self::COLUNAS_RANKING,
+            array_map(fn (array $p) => $this->linhaRanking($p, numerico: true), $lista),
+        );
+    }
+
+    /** @param  list<array<string, mixed>>  $lista */
+    private function rankingTxt(array $lista): string
+    {
+        $linhas = [
+            'RANKING DOS PROJETOS — '.count($lista).' projeto(s)',
+            'Gerado em '.now()->format('d/m/Y H:i'),
+            str_repeat('-', 70),
+        ];
+
+        foreach ($lista as $p) {
+            $linhas[] = sprintf(
+                '%3dº  %s  (%d avaliação(ões)%s)',
+                $p['posicao'],
+                number_format((float) $p['media'], 2, ',', ''),
+                $p['avaliacoes'],
+                $p['completo'] ? '' : ', parcial',
+            );
+            $linhas[] = '      '.$p['titulo'];
+            $linhas[] = '      '.($p['area'] ?? 'Sem área').($p['categoria'] ? ' / '.$p['categoria'] : '');
+            $linhas[] = '';
+        }
+
+        return implode("\n", $linhas);
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $lista
+     * @param  array{area_id?:int|null, categoria?:string|null}  $filtros
+     */
+    private function rankingPdf(array $lista, array $filtros): string
+    {
+        // O recorte vai impresso no cabeçalho: uma folha de ranking sem dizer
+        // de que área ela é não serve de nada na mesa da comissão.
+        $area = ($filtros['area_id'] ?? null)
+            ? Area::find($filtros['area_id'])?->nome
+            : null;
+        $categoria = ($filtros['categoria'] ?? null)
+            ? Categoria::tryFrom($filtros['categoria'])?->label()
+            : null;
+
+        return app(PdfService::class)->render('pdf.ranking', [
+            'lista' => $lista,
+            'edicao' => Edicao::atual()?->nome ?? 'FETECMS',
+            'gerado_em' => now()->format('d/m/Y H:i'),
+            'recorte' => implode(' · ', array_filter([
+                $area ?? 'Todas as áreas',
+                $categoria ?? 'Todas as categorias',
+            ])),
+            'nota_maxima' => Avaliacao::notaMaxima(),
+        ]);
     }
 
     /**

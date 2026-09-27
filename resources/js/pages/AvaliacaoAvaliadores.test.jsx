@@ -16,12 +16,15 @@ const LINHAS = [
         id: 1, nome: 'Ana', email: 'ana@teste.com', area_id: 1, area: 'Ciências Agrárias',
         subarea: 'Agronomia', em_avaliacao: 1, avaliou: 2, faltam: 1, limite: 2, is_demo: true,
         comissao_especial: false, areas_extras: [],
+        idiomas: ['pt', 'en'], idiomas_label: 'Português, Inglês',
         criado_em: '2026-03-01T10:00:00-04:00', criado_em_label: '01/03/2026',
     },
     {
         id: 2, nome: 'Bruno', email: 'bruno@teste.com', area_id: 2, area: 'Ciências Exatas',
         subarea: null, em_avaliacao: 0, avaliou: 0, faltam: 3, limite: null, is_demo: false,
         comissao_especial: true,
+        // Cadastrado antes do campo existir: a tela precisa dizer isso.
+        idiomas: [], idiomas_label: '',
         areas_extras: [{ id: 7, area_id: 1, area: 'Ciências Agrárias', subarea_id: null, subarea: null }],
         criado_em: '2026-04-15T10:00:00-04:00', criado_em_label: '15/04/2026',
     },
@@ -245,5 +248,44 @@ describe('AvaliacaoAvaliadores — tabela única', () => {
 
         await waitFor(() => expect(removerAreaExtra).toHaveBeenCalledWith(2, 7));
         expect(await screen.findByText('Nenhuma área extra liberada.')).toBeInTheDocument();
+    });
+});
+
+// --- Idiomas (Sprint 154) ---
+describe('AvaliacaoAvaliadores — idiomas', () => {
+    beforeEach(() => {
+        getAvaliacaoAvaliadores.mockClear();
+    });
+
+    it('mostra os idiomas de cada avaliador e aponta quem não informou', async () => {
+        render(<AvaliacaoAvaliadores />);
+        await screen.findByText('Ana');
+
+        const tabela = within(screen.getByRole('table'));
+        expect(tabela.getByText('Português, Inglês')).toBeInTheDocument();
+        expect(tabela.getByText('Sem idioma informado')).toBeInTheDocument();
+    });
+
+    it('filtra por idioma no servidor', async () => {
+        render(<AvaliacaoAvaliadores />);
+        await screen.findByText('Ana');
+
+        fireEvent.change(screen.getByLabelText('Filtrar por idioma'), { target: { value: 'en' } });
+
+        await waitFor(() => expect(getAvaliacaoAvaliadores)
+            .toHaveBeenLastCalledWith(expect.objectContaining({ idioma: 'en' })));
+    });
+
+    it('o filtro de idioma entra no "limpar filtros"', async () => {
+        render(<AvaliacaoAvaliadores />);
+        await screen.findByText('Ana');
+
+        fireEvent.change(screen.getByLabelText('Filtrar por idioma'), { target: { value: 'es' } });
+
+        const limpar = await screen.findByText('Limpar filtros');
+        fireEvent.click(limpar);
+
+        await waitFor(() => expect(getAvaliacaoAvaliadores)
+            .toHaveBeenLastCalledWith(expect.objectContaining({ idioma: '' })));
     });
 });

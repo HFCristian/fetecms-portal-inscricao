@@ -82,6 +82,7 @@ class JanelaInscricoesTest extends TestCase
             'data_nascimento' => '1985-03-15',
             'genero' => 'F',
             'titulacao' => 'Mestrado (concluído)',
+            'idiomas' => ['pt'],
             'instituicao_vinculo' => 'UFMS',
             'area_id' => Area::first()->id,
         ])->assertCreated();

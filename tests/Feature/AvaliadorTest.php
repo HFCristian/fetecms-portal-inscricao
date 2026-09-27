@@ -31,6 +31,7 @@ class AvaliadorTest extends TestCase
             'password_confirmation' => 'Senha@123',
             'cpf' => '529.982.247-25',
             'titulacao' => 'Doutorado (concluído)',
+            'idiomas' => ['pt'],
             'area_id' => Area::first()->id,
         ], $over);
     }

@@ -19,10 +19,14 @@ vi.mock('../lib/avaliador.js', () => ({
     getPerfilAvaliador: (...a) => getPerfilAvaliador(...a),
     salvarClassificacaoAvaliador: (...a) => salvarClassificacaoAvaliador(...a),
     atualizarLocalidadeAvaliador: (...a) => atualizarLocalidadeAvaliador(...a),
+    atualizarCamisetaAvaliador: (...a) => atualizarCamisetaAvaliador(...a),
+    atualizarIdiomasAvaliador: (...a) => atualizarIdiomasAvaliador(...a),
 }));
 
 const criarSubarea = vi.fn();
 const atualizarLocalidadeAvaliador = vi.fn();
+const atualizarCamisetaAvaliador = vi.fn();
+const atualizarIdiomasAvaliador = vi.fn();
 vi.mock('../lib/catalogos.js', () => ({
     loadAreas: vi.fn(() => Promise.resolve([
         { id: 1, nome: 'Ciências Exatas e da Terra' },
@@ -48,6 +52,12 @@ const PERFIL = {
         posicao: 2, total_no_ranking: 12, empate: false,
         proximo_acima: 4, faltam_para_alcancar: 1,
     },
+    idiomas: ['pt'],
+    idiomas_opcoes: [
+        { value: 'pt', label: 'Português' },
+        { value: 'es', label: 'Espanhol' },
+        { value: 'en', label: 'Inglês' },
+    ],
     pode_trocar_area: true,
     liberada_em_label: '10/09/2026 08:00',
     projetos_designados: 3,
@@ -268,5 +278,53 @@ describe('AvaliadorPerfil — teto do certificado', () => {
         renderPerfil();
 
         expect(await screen.findByText('Limite máximo de 120h atingido')).toBeInTheDocument();
+    });
+});
+
+// --- Idiomas (Sprint 154) ---
+describe('AvaliadorPerfil — idiomas', () => {
+    beforeEach(() => {
+        getPerfilAvaliador.mockReset();
+        atualizarIdiomasAvaliador.mockReset();
+        getPerfilAvaliador.mockResolvedValue(PERFIL);
+        atualizarIdiomasAvaliador.mockResolvedValue({
+            data: { ...PERFIL, idiomas: ['pt', 'en'] },
+            meta: { message: 'Idiomas atualizados.' },
+        });
+    });
+
+    it('marca o que o avaliador já declarou', async () => {
+        renderPerfil();
+
+        expect(await screen.findByLabelText('Português')).toBeChecked();
+        expect(screen.getByLabelText('Espanhol')).not.toBeChecked();
+        expect(screen.getByLabelText('Inglês')).not.toBeChecked();
+    });
+
+    it('salva a lista marcada', async () => {
+        renderPerfil();
+
+        fireEvent.click(await screen.findByLabelText('Inglês'));
+        fireEvent.click(screen.getByRole('button', { name: 'Salvar idiomas' }));
+
+        await waitFor(() => expect(atualizarIdiomasAvaliador).toHaveBeenCalledWith(['pt', 'en']));
+        expect(await screen.findByText('Idiomas atualizados.')).toBeInTheDocument();
+    });
+
+    it('não deixa salvar sem nenhum idioma', async () => {
+        renderPerfil();
+
+        fireEvent.click(await screen.findByLabelText('Português'));
+
+        expect(screen.getByRole('button', { name: 'Salvar idiomas' })).toBeDisabled();
+        expect(atualizarIdiomasAvaliador).not.toHaveBeenCalled();
+    });
+
+    it('cobra o preenchimento de quem se cadastrou antes do campo existir', async () => {
+        getPerfilAvaliador.mockResolvedValue({ ...PERFIL, idiomas: [] });
+        renderPerfil();
+
+        expect(await screen.findByText('Você ainda não informou nenhum idioma. Marque ao menos um.'))
+            .toBeInTheDocument();
     });
 });

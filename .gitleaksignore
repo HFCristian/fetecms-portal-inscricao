@@ -21,3 +21,11 @@
 # do PR ainda varre.
 ae1ba0006da4221fed6f5121a13bc80aac4542fe:tests/Feature/VoluntariosPresenciaisTest.php:generic-api-key:41
 ae1ba0006da4221fed6f5121a13bc80aac4542fe:tests/Feature/VoluntariosPresenciaisTest.php:generic-api-key:42
+
+# 'senha-forte-123' era a senha-fixture do cadastro de avaliador em
+# AvaliadorIdiomasTest (Sprint 154), não um segredo real — o mesmo valor que
+# RankingAvaliadoresTest já havia usado. Foi trocado pelo 'Senha@123' do resto
+# da suíte; estes fingerprints ignoram a detecção no commit que a introduziu,
+# que o scan do PR ainda varre.
+9db48cf7a5b7dc9e4273f90a4c7fdaae67a90d24:tests/Feature/AvaliadorIdiomasTest.php:generic-api-key:42
+9db48cf7a5b7dc9e4273f90a4c7fdaae67a90d24:tests/Feature/AvaliadorIdiomasTest.php:generic-api-key:43

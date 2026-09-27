@@ -435,6 +435,26 @@ class AdminAvaliacaoController extends Controller
         ]);
     }
 
+    /**
+     * O ranking em arquivo (CSV, XLSX, PDF ou TXT), no mesmo recorte de
+     * filtros da tela — os quatro formatos saem do mesmo recorte para nunca
+     * discordarem entre si.
+     */
+    public function exportarRanking(Request $request, string $formato): Response
+    {
+        $filtros = $request->validate([
+            'area_id' => ['nullable', 'integer', 'exists:areas,id'],
+            'categoria' => ['nullable', Rule::enum(Categoria::class)],
+        ]);
+
+        $arquivo = $this->service->exportarRanking($formato, $filtros);
+
+        return response($arquivo['conteudo'], 200, [
+            'Content-Type' => $arquivo['tipo'],
+            'Content-Disposition' => 'attachment; filename="'.$arquivo['nome'].'"',
+        ]);
+    }
+
     /** O que a lista final tem para oferecer: categorias, áreas e quantos projetos há em cada. */
     public function opcoesListaFinal(): JsonResponse
     {

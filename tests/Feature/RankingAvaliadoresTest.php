@@ -160,6 +160,7 @@ class RankingAvaliadoresTest extends TestCase
             'password_confirmation' => 'Senha@123',
             'cpf' => '52998224725',
             'titulacao' => 'Mestrado (em andamento)',
+            'idiomas' => ['pt'],
             'area_id' => $this->area->id,
             'estado_id' => $ms->id,
             'cidade_id' => $cidade->id,

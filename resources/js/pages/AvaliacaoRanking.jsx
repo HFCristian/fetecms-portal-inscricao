@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { Alert, Button } from '../components/ui.jsx';
 import ListaFinalDialog from '../components/ListaFinalDialog.jsx';
-import { getRankingAvaliacao } from '../lib/admin.js';
+import { getRankingAvaliacao, exportarRanking } from '../lib/admin.js';
 import { loadAreas } from '../lib/catalogos.js';
 
 const campoClass =
@@ -12,6 +12,15 @@ const campoClass =
 
 // Medalha para o pódio; do 4º em diante, só o número.
 const MEDALHA = { 1: '🥇', 2: '🥈', 3: '🥉' };
+
+// Os quatro formatos de download, na ordem de uso: planilha para conferir,
+// papel para a reunião da comissão, texto para colar num e-mail.
+const FORMATOS = [
+    { formato: 'csv', rotulo: 'CSV' },
+    { formato: 'xlsx', rotulo: 'Excel' },
+    { formato: 'pdf', rotulo: 'PDF' },
+    { formato: 'txt', rotulo: 'TXT' },
+];
 
 function Posicao({ n }) {
     return (
@@ -85,6 +94,7 @@ export default function AvaliacaoRanking() {
     const [categoria, setCategoria] = useState('');
     const [erro, setErro] = useState('');
     const [listaFinal, setListaFinal] = useState(false);
+    const [baixando, setBaixando] = useState('');
 
     const buscar = useCallback((filtros) => {
         setErro('');
@@ -107,6 +117,20 @@ export default function AvaliacaoRanking() {
     }
 
     const parciais = (lista ?? []).filter((p) => !p.completo).length;
+
+    // O arquivo sai no recorte da tela: baixar o ranking inteiro quando a tela
+    // mostra uma área só seria entregar outra coisa do que se está vendo.
+    async function baixar(formato) {
+        setErro('');
+        setBaixando(formato);
+        try {
+            await exportarRanking(formato, { area_id: areaId, categoria });
+        } catch {
+            setErro('Não foi possível gerar o arquivo.');
+        } finally {
+            setBaixando('');
+        }
+    }
 
     return (
         <AppShell>
@@ -203,11 +227,29 @@ export default function AvaliacaoRanking() {
                         </div>
                     )}
                     <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow overflow-hidden">
-                        <div className="px-4 py-3 bg-surface-variant/40 flex items-center justify-between gap-2">
+                        <div className="px-4 py-3 bg-surface-variant/40 flex items-center justify-between gap-2 flex-wrap">
                             <h2 className="font-display font-semibold text-on-surface">Classificação</h2>
-                            <span className="text-xs text-on-surface-variant shrink-0">
-                                {lista.length} {lista.length === 1 ? 'projeto' : 'projetos'}
-                            </span>
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-xs text-on-surface-variant shrink-0">
+                                    {lista.length} {lista.length === 1 ? 'projeto' : 'projetos'}
+                                </span>
+                                <span className="text-xs text-on-surface-variant">· Baixar:</span>
+                                {FORMATOS.map((f) => (
+                                    <button
+                                        key={f.formato}
+                                        type="button"
+                                        aria-label={`Baixar ${f.rotulo}`}
+                                        disabled={baixando !== ''}
+                                        onClick={() => baixar(f.formato)}
+                                        className="inline-flex items-center gap-1 rounded-lg border border-outline-variant px-2.5 py-1 text-xs font-semibold text-on-surface hover:bg-surface-variant transition-colors disabled:opacity-40"
+                                    >
+                                        <span className="material-symbols-outlined text-[16px]">
+                                            {baixando === f.formato ? 'hourglass_top' : 'download'}
+                                        </span>
+                                        {f.rotulo}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                         <ul className="divide-y divide-outline-variant/30">
                             {lista.map((p) => <Linha key={p.projeto_id} p={p} />)}

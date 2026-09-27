@@ -5,7 +5,7 @@ import SubareaCombobox from '../components/SubareaCombobox.jsx';
 import { useAuth, extractErrors } from '../lib/auth.jsx';
 import {
     getPerfilAvaliador, salvarClassificacaoAvaliador,
-    atualizarLocalidadeAvaliador, atualizarCamisetaAvaliador,
+    atualizarLocalidadeAvaliador, atualizarCamisetaAvaliador, atualizarIdiomasAvaliador,
 } from '../lib/avaliador.js';
 import { loadAreas, loadSubareas, criarSubarea, loadEstados, loadCidades } from '../lib/catalogos.js';
 
@@ -131,6 +131,93 @@ function CamisetaCard({ dados, onAtualizado }) {
 
                 <div className="flex justify-end">
                     <Button type="submit" loading={salvando} disabled={!mudou}>Salvar tamanho</Button>
+                </div>
+            </form>
+        </section>
+    );
+}
+
+/**
+ * Idiomas em que ele pode conduzir uma avaliação.
+ *
+ * Diferente da camiseta, **ao menos um é obrigatório**: a feira recebe projeto
+ * e visitante de fora, e a organização precisa saber a quem mandar esse
+ * trabalho antes do dia. Não entra na distribuição automática, que continua
+ * sendo por área — quem designa o projeto estrangeiro é a organização, à mão.
+ *
+ * Quem se cadastrou antes deste campo chega aqui com nada marcado, e o card
+ * diz isso em vez de deixar a tela em silêncio.
+ */
+function IdiomasCard({ dados, onAtualizado }) {
+    const opcoes = dados.idiomas_opcoes ?? [];
+    const [marcados, setMarcados] = useState(dados.idiomas ?? []);
+    const [salvando, setSalvando] = useState(false);
+    const [msg, setMsg] = useState('');
+    const [erro, setErro] = useState('');
+
+    const originais = dados.idiomas ?? [];
+    const mudou = marcados.length !== originais.length
+        || marcados.some((c) => !originais.includes(c));
+
+    function alternar(codigo) {
+        setMsg('');
+        setMarcados((atual) => (atual.includes(codigo)
+            ? atual.filter((c) => c !== codigo)
+            : [...atual, codigo]));
+    }
+
+    async function salvar(e) {
+        e.preventDefault();
+        setSalvando(true); setMsg(''); setErro('');
+        try {
+            const resp = await atualizarIdiomasAvaliador(marcados);
+            onAtualizado(resp.data);
+            setMsg(resp.meta?.message || 'Idiomas atualizados.');
+        } catch (e2) {
+            setErro(extractErrors(e2).message || 'Não foi possível salvar.');
+        } finally {
+            setSalvando(false);
+        }
+    }
+
+    return (
+        <section className="bg-surface-container-lowest rounded-xl fetec-card-shadow overflow-hidden">
+            <div className="px-4 py-3 bg-surface-variant/40">
+                <h2 className="font-display font-semibold text-on-surface">Idiomas em que você pode avaliar</h2>
+            </div>
+            <form className="p-4 space-y-3" onSubmit={salvar}>
+                <p className="text-sm text-on-surface-variant">
+                    Marque todos em que você consegue conduzir uma avaliação. A organização usa
+                    isso para designar projetos de fora do Brasil — a distribuição comum continua
+                    sendo pela sua área.
+                </p>
+
+                {originais.length === 0 && (
+                    <Alert type="info">
+                        Você ainda não informou nenhum idioma. Marque ao menos um.
+                    </Alert>
+                )}
+                {msg && <Alert type="info">{msg}</Alert>}
+                {erro && <Alert>{erro}</Alert>}
+
+                <div className="flex flex-wrap gap-4">
+                    {opcoes.map((o) => (
+                        <label key={o.value} className="flex items-center gap-2 text-sm text-on-surface cursor-pointer">
+                            <input
+                                type="checkbox"
+                                className="w-4 h-4 accent-primary-container"
+                                checked={marcados.includes(o.value)}
+                                onChange={() => alternar(o.value)}
+                            />
+                            {o.label}
+                        </label>
+                    ))}
+                </div>
+
+                <div className="flex justify-end">
+                    <Button type="submit" loading={salvando} disabled={!mudou || marcados.length === 0}>
+                        Salvar idiomas
+                    </Button>
                 </div>
             </form>
         </section>
@@ -341,8 +428,18 @@ export default function AvaliadorPerfil() {
                             <Dado label="E-mail">{dados.email}</Dado>
                             <Dado label="Titulação">{dados.titulacao}</Dado>
                             <Dado label="Camiseta">{dados.camiseta ?? 'Não informado'}</Dado>
+                            <Dado label="Idiomas">
+                                {(dados.idiomas ?? []).length === 0
+                                    ? 'Não informado'
+                                    : (dados.idiomas_opcoes ?? [])
+                                        .filter((o) => (dados.idiomas ?? []).includes(o.value))
+                                        .map((o) => o.label)
+                                        .join(', ')}
+                            </Dado>
                         </div>
                     </section>
+
+                    <IdiomasCard dados={dados} onAtualizado={setDados} />
 
                     <CamisetaCard dados={dados} onAtualizado={setDados} />
 
