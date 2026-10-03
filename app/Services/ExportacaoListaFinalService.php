@@ -188,8 +188,12 @@ class ExportacaoListaFinalService
     public function linhasPorPessoa(ListaFinal $lista): Collection
     {
         $linhas = collect();
+        $projetos = $this->projetos($lista);
+        $acompanhantes = app(SuporteProjetoService::class)
+            ->acompanhantesAprovados(array_map(fn ($par) => $par[0]->id, $projetos))
+            ->groupBy('projeto_id');
 
-        foreach ($this->projetos($lista) as [$projeto, $comum]) {
+        foreach ($projetos as [$projeto, $comum]) {
             $orientador = $projeto->user;
 
             if ($orientador !== null) {
@@ -227,6 +231,16 @@ class ExportacaoListaFinalService
                     'serie' => ClassesEscolares::serieLabel($aluno->modalidade, $aluno->ano_escolar),
                     'camiseta' => $aluno->camiseta,
                     'codigo_cracha' => $this->cracha($comum, $aluno->cpf, CodigoParticipante::PAPEL_ALUNO, $aluno->id),
+                ]);
+            }
+
+            // Acompanhante aprovado (Sprint 162): entra no evento, tem crachá.
+            foreach ($acompanhantes->get($projeto->id, collect()) as $s) {
+                $linhas->push($comum + [
+                    'nome' => $s->acompanhante_nome,
+                    'funcao' => 'Acompanhante'.($s->aluno?->nome ? ' de '.$s->aluno->nome : ''),
+                    'cpf' => $this->cpf($s->acompanhante_documento),
+                    'codigo_cracha' => $this->cracha($comum, $s->acompanhante_documento, CodigoParticipante::PAPEL_ACOMPANHANTE, $s->id),
                 ]);
             }
         }

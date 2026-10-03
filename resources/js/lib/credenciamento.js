@@ -89,3 +89,27 @@ export const atualizarDocumentoCredenciamento = (id, payload) =>
 
 export const excluirDocumentoCredenciamento = (id) =>
     http.delete(`/admin/credenciamento/documentos/${id}`).then((r) => r.data.data);
+
+// --- Fora do prazo (Sprint 161) e suporte (Sprint 162) -------------------------
+
+/** Marca (ou corrige) o credenciamento fora do prazo aprovado. Devolve a ficha. */
+export const marcarForaPrazo = (projetoId, payload, teste = false) =>
+    http.put(`/admin/credenciamento/projetos/${projetoId}/fora-prazo`, payload, { params: comTeste({}, teste) })
+        .then((r) => r.data);
+
+export const removerForaPrazo = (projetoId, teste = false) =>
+    http.delete(`/admin/credenciamento/projetos/${projetoId}/fora-prazo`, { params: comTeste({}, teste) })
+        .then((r) => r.data);
+
+/** Pedidos de suporte da edição. `filtros`: { status, tipo, q }. */
+export const getSuportesAdmin = (filtros = {}) =>
+    http.get('/admin/credenciamento/suporte', { params: filtros }).then((r) => r.data.data);
+
+export const criarSuporteAdmin = (projetoId, payload) =>
+    http.post(`/admin/credenciamento/suporte/projetos/${projetoId}`, payload).then((r) => r.data);
+
+export const decidirSuporte = (suporteId, aprovar, motivo = null) =>
+    http.patch(`/admin/credenciamento/suporte/${suporteId}/decidir`, { aprovar, motivo }).then((r) => r.data);
+
+export const excluirSuporteAdmin = (suporteId) =>
+    http.delete(`/admin/credenciamento/suporte/${suporteId}`).then((r) => r.data);

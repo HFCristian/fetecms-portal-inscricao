@@ -253,6 +253,8 @@ class AvaliacaoPresencialFluxoService
                 'orientador' => $projeto->user?->name,
                 'alunos' => $projeto->alunos->pluck('nome')->all(),
                 'local' => $this->local($projeto->id),
+                // Por que o estande pode estar vazio, e o suporte combinado.
+                'sinalizacoes' => app(SinalizacaoProjetoService::class)->de($projeto->id),
             ],
         ];
     }
@@ -298,6 +300,7 @@ class AvaliacaoPresencialFluxoService
                 'escola' => $p->instituicao?->nome,
                 'local' => $this->local($p->id),
                 'avaliacoes' => (int) ($ocupadas[$p->id] ?? 0),
+                'sinalizacoes' => app(SinalizacaoProjetoService::class)->de($p->id),
             ])
             ->values()
             ->all();
@@ -324,6 +327,7 @@ class AvaliacaoPresencialFluxoService
             'area' => $projeto?->area?->nome,
             'escola' => $projeto?->instituicao?->nome,
             'local' => $projeto === null ? null : $this->local($projeto->id),
+            'sinalizacoes' => $projeto === null ? null : app(SinalizacaoProjetoService::class)->de($projeto->id),
             'status' => $avaliacao->status?->value,
             'status_label' => $avaliacao->status?->label(),
             'designacao_manual' => $avaliacao->designacao_manual,

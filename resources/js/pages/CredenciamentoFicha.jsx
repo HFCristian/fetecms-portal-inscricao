@@ -10,7 +10,10 @@ import {
     registrarRetiradaKit,
     salvarRascunhoCredenciamento,
     assumirCredenciamento,
+    marcarForaPrazo,
+    removerForaPrazo,
 } from '../lib/credenciamento.js';
+import SinalizacoesProjeto from '../components/SinalizacoesProjeto.jsx';
 import { useModoTeste } from '../lib/modoTeste.js';
 
 const dataHora = (iso) => (iso ? new Date(iso).toLocaleString('pt-BR') : '—');
@@ -297,6 +300,35 @@ export default function CredenciamentoFicha() {
             </p>
 
             {erro && <div className="mb-4"><Alert>{erro}</Alert></div>}
+
+            {/* Fora do prazo e suporte aprovado (Sprints 161–162). */}
+            <div className="mb-4 max-w-3xl space-y-3">
+                <SinalizacoesProjeto sinalizacoes={dados.sinalizacoes} />
+                {dados.acompanhantes?.length > 0 && (
+                    <div className="rounded-lg border border-outline-variant/50 p-3 text-sm">
+                        <p className="font-semibold text-on-surface mb-1">Acompanhantes (conferir o documento)</p>
+                        <ul className="space-y-1">
+                            {dados.acompanhantes.map((a) => (
+                                <li key={a.id}>
+                                    <strong>{a.nome}</strong> · {a.documento} · {a.vinculo}{a.aluno ? ` de ${a.aluno}` : ''}
+                                    <span className="font-mono text-xs text-on-surface-variant ml-2">{a.codigo}</span>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+                {dados.pode_aprovar_excecao && (
+                    <ForaPrazoEditor
+                        foraPrazo={dados.sinalizacoes?.fora_prazo ?? null}
+                        onSalvar={async (payload) => {
+                            const resp = payload === null
+                                ? await removerForaPrazo(id, teste)
+                                : await marcarForaPrazo(id, payload, teste);
+                            setDados(resp.data);
+                        }}
+                    />
+                )}
+            </div>
 
             {/* A ficha é onde o credenciamento é de fato gravado — é a tela em que
                 confundir ensaio com realidade custaria mais caro. */}
@@ -698,5 +730,87 @@ export default function CredenciamentoFicha() {
                 </div>
             )}
         </AppShell>
+    );
+}
+
+/**
+ * Credenciamento **fora do prazo** aprovado (Sprint 161): a organização marca o
+ * projeto que vai chegar depois, com a data prevista. Só admin permanente — a
+ * conta temporária do balcão atende, não aprova exceção.
+ */
+function ForaPrazoEditor({ foraPrazo, onSalvar }) {
+    const [aberto, setAberto] = useState(false);
+    const [previsto, setPrevisto] = useState('');
+    const [observacao, setObservacao] = useState('');
+    const [salvando, setSalvando] = useState(false);
+    const [erro, setErro] = useState('');
+
+    function abrir() {
+        setPrevisto(foraPrazo?.previsto_em ? foraPrazo.previsto_em.slice(0, 16) : '');
+        setObservacao(foraPrazo?.observacao ?? '');
+        setErro('');
+        setAberto(true);
+    }
+
+    async function salvar(payload) {
+        setSalvando(true); setErro('');
+        try {
+            await onSalvar(payload);
+            setAberto(false);
+        } catch (e) {
+            setErro(extractErrors(e).message || 'Não foi possível salvar.');
+        } finally {
+            setSalvando(false);
+        }
+    }
+
+    if (!aberto) {
+        return (
+            <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="outline" onClick={abrir}>
+                    <span className="material-symbols-outlined text-[20px]">schedule</span>
+                    {foraPrazo ? 'Editar fora do prazo' : 'Marcar credenciamento fora do prazo'}
+                </Button>
+                {foraPrazo && (
+                    <Button type="button" variant="outline" className="text-error border-error/40" loading={salvando} onClick={() => salvar(null)}>
+                        Retirar marcação
+                    </Button>
+                )}
+            </div>
+        );
+    }
+
+    return (
+        <div className="rounded-lg border border-outline-variant/50 p-3 space-y-2">
+            <p className="text-sm font-semibold text-on-surface">Credenciamento fora do prazo aprovado</p>
+            {erro && <Alert>{erro}</Alert>}
+            <label className="block text-sm">
+                Chegada prevista (opcional)
+                <input
+                    type="datetime-local"
+                    aria-label="Chegada prevista"
+                    value={previsto}
+                    onChange={(e) => setPrevisto(e.target.value)}
+                    className="mt-1 block rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm"
+                />
+            </label>
+            <label className="block text-sm">
+                Observação (opcional)
+                <textarea
+                    rows={2}
+                    maxLength={500}
+                    aria-label="Observação do fora do prazo"
+                    value={observacao}
+                    onChange={(e) => setObservacao(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm"
+                />
+            </label>
+            <div className="flex gap-2 justify-end">
+                <Button type="button" variant="outline" onClick={() => setAberto(false)} disabled={salvando}>Cancelar</Button>
+                <Button type="button" loading={salvando} onClick={() => salvar({ previsto_em: previsto || null, observacao: observacao || null })}>
+                    Salvar
+                </Button>
+            </div>
+        </div>
     );
 }

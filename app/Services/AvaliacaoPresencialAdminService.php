@@ -30,12 +30,15 @@ class AvaliacaoPresencialAdminService
      */
     public function listar(array $filtros = []): array
     {
-        return AvaliacaoPresencial::query()
+        $avaliacoes = AvaliacaoPresencial::query()
             ->with(['projeto:id,titulo,area_id', 'projeto.area:id,nome', 'avaliador:id,name'])
             ->when(! empty($filtros['status']), fn ($q) => $q->where('status', $filtros['status']))
             ->when(! empty($filtros['avaliador_id']), fn ($q) => $q->where('avaliador_id', $filtros['avaliador_id']))
             ->orderByDesc('id')
-            ->get()
+            ->get();
+        $sinais = app(SinalizacaoProjetoService::class)->para($avaliacoes->pluck('projeto_id'));
+
+        return $avaliacoes
             ->map(fn (AvaliacaoPresencial $a) => [
                 'id' => $a->id,
                 'projeto_id' => $a->projeto_id,
@@ -47,6 +50,7 @@ class AvaliacaoPresencialAdminService
                 'nota' => $a->nota,
                 'designacao_manual' => $a->designacao_manual,
                 'concluida_em' => $a->concluida_em?->toIso8601String(),
+                'sinalizacoes' => $sinais[$a->projeto_id] ?? null,
             ])
             ->all();
     }
@@ -172,15 +176,19 @@ class AvaliacaoPresencialAdminService
             ->groupBy('projeto_id')
             ->pluck('total', 'projeto_id');
 
-        return Projeto::whereIn('id', $lista->projetos()->select('projetos.id'))
+        $projetos = Projeto::whereIn('id', $lista->projetos()->select('projetos.id'))
             ->with('area:id,nome')
             ->orderBy('titulo')
-            ->get()
+            ->get();
+        $sinais = app(SinalizacaoProjetoService::class)->para($projetos->pluck('id'));
+
+        return $projetos
             ->map(fn (Projeto $p) => [
                 'id' => $p->id,
                 'titulo' => $p->titulo,
                 'area' => $p->area?->nome,
                 'avaliacoes' => (int) ($ocupadas[$p->id] ?? 0),
+                'sinalizacoes' => $sinais[$p->id] ?? null,
             ])
             ->all();
     }

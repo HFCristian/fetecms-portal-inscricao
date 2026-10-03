@@ -100,6 +100,18 @@ class Projeto extends Model
         return $this->belongsTo(User::class);
     }
 
+    /** Credenciamento fora do prazo aprovado (Sprint 161). */
+    public function credenciamentoForaPrazo(): HasOne
+    {
+        return $this->hasOne(CredenciamentoForaPrazo::class);
+    }
+
+    /** Pedidos de suporte para o evento: acompanhante, intérpretes (Sprint 162). */
+    public function suportes(): HasMany
+    {
+        return $this->hasMany(SuporteProjeto::class);
+    }
+
     /** O credenciamento deste projeto no evento (um por projeto). */
     public function credenciamento(): HasOne
     {

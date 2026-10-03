@@ -7,6 +7,7 @@ import {
     getPresencial, responderPresencial, getPainelPresencial,
     iniciarAvaliacaoPresencial, salvarRascunhoPresencial, concluirAvaliacaoPresencial,
 } from '../lib/avaliacaoPresencial.js';
+import SinalizacoesProjeto from '../components/SinalizacoesProjeto.jsx';
 
 const nota = (valor) =>
     valor === null || valor === undefined ? '—' : Number(valor).toFixed(2).replace('.', ',');
@@ -210,6 +211,7 @@ export default function AvaliadorPresencial() {
                                                         {local(a.local)}{a.area ? ` · ${a.area}` : ''}
                                                         {a.designacao_manual ? ' · designado pela organização' : ''}
                                                     </p>
+                                                    <SinalizacoesProjeto sinalizacoes={a.sinalizacoes} compacto />
                                                 </div>
                                                 <span className="text-xs font-semibold px-2 py-1 rounded-full bg-surface-variant text-on-surface-variant">
                                                     {a.status_label}
@@ -255,6 +257,7 @@ export default function AvaliadorPresencial() {
                                                             {local(p.local)}{p.area ? ` · ${p.area}` : ''}
                                                             {` · ${p.avaliacoes} de ${painel.max_por_projeto} avaliações`}
                                                         </p>
+                                                        <SinalizacoesProjeto sinalizacoes={p.sinalizacoes} compacto />
                                                     </div>
                                                     <Button type="button" variant="outline" onClick={() => abrir(p.id)}>
                                                         Avaliar

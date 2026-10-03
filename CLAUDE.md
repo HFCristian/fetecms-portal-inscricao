@@ -825,7 +825,40 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 158 | Mala direta: caixa **Somente finalistas** (equipe inteira) + variável `{{projetos}}` | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 159 | Lista final: código do projeto **fixado** e enviado por e-mail à equipe de cada finalista | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 160 | Lista final: **exportar** (lista nominal, crachás, certificados, contatos, projetos e recorte livre) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 161 | Credenciamento **fora do prazo** aprovado (data prevista), visível no credenciamento e na avaliação | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 162 | **Suporte no evento**: acompanhante e intérpretes (aba do orientador, aprovação, crachá do acompanhante) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprints 161–162 (mesma branch):**
+> (a) **Sprint 161** — **credenciamento fora do prazo**. Algumas equipes pediram para credenciar
+> depois e não estarão no primeiro dia; a organização aprovou, mas a explicação morava numa lista à
+> parte, e o balcão e os avaliadores só enxergavam um estande vazio e um projeto "não credenciado".
+> Agora a ficha do credenciamento tem **Marcar credenciamento fora do prazo**, com a **data prevista
+> de chegada** (opcional) e uma observação (`credenciamentos_fora_prazo`, `ForaPrazoService`). Só
+> **admin permanente** marca (rota sob `admin.permanente`): a conta temporária do balcão vê o selo
+> mas não aprova exceção. Marcar e retirar entram em Registros → Credenciamento.
+> O selo sai de um lugar só — `SinalizacaoProjetoService::para($ids)`, chamado uma vez por página —
+> e aparece em todas as telas em que alguém pode estranhar a ausência: lista e ficha do
+> credenciamento, checagem e espelho de estandes, avaliações presenciais do admin, a tela do
+> **avaliador presencial** (os dele e os disponíveis, e o diálogo da rubrica), a lista filtrável do
+> Mapa do Evento (com coluna no CSV). Componente `SinalizacoesProjeto.jsx`.
+> (b) **Sprint 162** — **suporte no evento**: acompanhante (estudante neurodivergente ou com
+> deficiência), intérprete de Libras e intérprete de outra língua (`suportes_projeto`,
+> `TipoSuporte`, `StatusSuporte`). O **orientador** pede na aba nova **Suporte no evento**
+> (`/suporte-evento`), para cada projeto seu que está na lista final — mesma janela dos documentos
+> do finalista (da lista publicada ao fim do evento), com o modo de teste da conta demo. No
+> acompanhante ele cadastra a **pessoa**: nome completo, documento e vínculo com o estudante —
+> porque ela entra no evento. A **organização** decide em Credenciamento → **Suporte e
+> acessibilidade** (`/admin/credenciamento/suporte`): aprova ou recusa (recusar exige motivo, que o
+> orientador lê) e registra, já aprovado, o pedido que chegou por e-mail ou telefone. Mexer num
+> pedido já aprovado o devolve para "aguardando" — a organização aprovou o que leu. **Só o
+> aprovado** aparece para as equipes (o mesmo selo da Sprint 161), e o **acompanhante aprovado vira
+> participante**: código próprio com o papel novo **`S`** (`CodigoParticipante::PAPEL_ACOMPANHANTE`,
+> id do pedido e três dígitos do documento), etiqueta no PDF de identificação, linha "Acompanhante
+> de Fulano" na lista nominal, leitura do crachá no balcão e bloco *Acompanhantes (conferir o
+> documento)* na ficha. De quebra, a conferência dos três dígitos do CPF passou a usar o mesmo
+> preenchimento do código (`CodigoParticipante::cpf3()`), senão o crachá de quem não tem CPF — o
+> estudante do cadastro manual, o acompanhante com RG — nunca passaria no leitor.
+>
 > **Sprints 159–160 (mesma branch):**
 > (a) **Sprint 159** — **código do projeto aos finalistas**. Com a lista certa no sistema, cada
 > equipe recebe por e-mail o código do seu projeto (FET.AGR-001), para o credenciamento e a

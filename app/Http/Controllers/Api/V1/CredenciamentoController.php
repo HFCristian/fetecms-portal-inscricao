@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Area;
 use App\Models\Projeto;
 use App\Services\CredenciamentoService;
+use App\Services\ForaPrazoService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -100,6 +101,40 @@ class CredenciamentoController extends Controller
             'data' => $this->credenciamento->ficha($projeto, $request->user()) + [
                 'config' => $this->credenciamento->config($request->user(), $request->boolean('teste')),
             ],
+        ]);
+    }
+
+    /**
+     * Marca (ou corrige) o **credenciamento fora do prazo** aprovado, com a
+     * data prevista de chegada (Sprint 161). Só a organização aprova exceção:
+     * a rota fica sob `admin.permanente`.
+     */
+    public function foraPrazo(Request $request, Projeto $projeto, ForaPrazoService $foraPrazo): JsonResponse
+    {
+        $dados = $request->validate([
+            'previsto_em' => ['nullable', 'date'],
+            'observacao' => ['nullable', 'string', 'max:500'],
+        ], [], ['previsto_em' => 'data prevista de chegada']);
+
+        $foraPrazo->marcar($projeto, $dados['previsto_em'] ?? null, $dados['observacao'] ?? null, $request->user(), $request->boolean('teste'));
+
+        return response()->json([
+            'data' => $this->credenciamento->ficha($projeto->fresh(), $request->user()) + [
+                'config' => $this->credenciamento->config($request->user(), $request->boolean('teste')),
+            ],
+            'meta' => ['message' => 'Credenciamento fora do prazo registrado.'],
+        ]);
+    }
+
+    public function removerForaPrazo(Request $request, Projeto $projeto, ForaPrazoService $foraPrazo): JsonResponse
+    {
+        $foraPrazo->remover($projeto, $request->user());
+
+        return response()->json([
+            'data' => $this->credenciamento->ficha($projeto->fresh(), $request->user()) + [
+                'config' => $this->credenciamento->config($request->user(), $request->boolean('teste')),
+            ],
+            'meta' => ['message' => 'Marcação de fora do prazo retirada.'],
         ]);
     }
 

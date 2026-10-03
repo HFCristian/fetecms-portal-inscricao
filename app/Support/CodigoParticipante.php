@@ -36,6 +36,12 @@ final class CodigoParticipante
 
     public const PAPEL_COORIENTADOR = 'C';
 
+    /**
+     * Acompanhante aprovado de um estudante (Sprint 162). O id é o do pedido de
+     * suporte, e os "três dígitos do CPF" saem do documento que ele informou.
+     */
+    public const PAPEL_ACOMPANHANTE = 'S';
+
     /** Monta o código de um participante. */
     public static function montar(int $ano, int $projetoId, ?string $cpf, string $papel, int $participanteId): string
     {
@@ -57,7 +63,7 @@ final class CodigoParticipante
     {
         $codigo = strtoupper(trim($codigo));
 
-        if (! preg_match('/^(\d{4})-(\d+)-(\d{3})-([AOC])(\d+)$/', $codigo, $m)) {
+        if (! preg_match('/^(\d{4})-(\d+)-(\d{3})-([AOCS])(\d+)$/', $codigo, $m)) {
             return null;
         }
 
@@ -77,6 +83,7 @@ final class CodigoParticipante
             self::PAPEL_ALUNO => 'Aluno(a)',
             self::PAPEL_ORIENTADOR => 'Orientador(a)',
             self::PAPEL_COORIENTADOR => 'Coorientador(a)',
+            self::PAPEL_ACOMPANHANTE => 'Acompanhante',
             default => 'Participante',
         };
     }
@@ -84,11 +91,12 @@ final class CodigoParticipante
     /**
      * Os três primeiros dígitos do CPF.
      *
-     * Cadastro sem CPF (não deveria existir — a coluna é obrigatória nos três
-     * papéis) recebe `000`, para o código continuar montável e o balcão
-     * conseguir identificar a pessoa mesmo assim.
+     * Cadastro sem CPF (o cadastro manual aceita estudante só com o nome; o
+     * acompanhante pode ter informado RG) recebe o que houver de dígitos, e
+     * `000` sem nenhum — o código continua montável e o balcão identifica a
+     * pessoa mesmo assim.
      */
-    private static function cpf3(?string $cpf): string
+    public static function cpf3(?string $cpf): string
     {
         $digitos = preg_replace('/\D/', '', (string) $cpf);
 

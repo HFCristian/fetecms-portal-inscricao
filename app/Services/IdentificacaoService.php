@@ -141,6 +141,12 @@ class IdentificacaoService
             ->orderBy('titulo')
             ->get();
 
+        // Acompanhantes aprovados (Sprint 162) também entram no evento: crachá
+        // próprio, papel S.
+        $acompanhantes = app(SuporteProjetoService::class)
+            ->acompanhantesAprovados($projetos->pluck('id')->all())
+            ->groupBy('projeto_id');
+
         $linhas = collect();
 
         foreach ($projetos as $projeto) {
@@ -170,6 +176,13 @@ class IdentificacaoService
                 $linhas->push($comum + $this->linha(
                     $ano, $projeto->id, $projeto->coorientador->nome, $projeto->coorientador->cpf,
                     CodigoParticipante::PAPEL_COORIENTADOR, $projeto->coorientador->id,
+                ));
+            }
+
+            foreach ($acompanhantes->get($projeto->id, collect()) as $suporte) {
+                $linhas->push($comum + $this->linha(
+                    $ano, $projeto->id, (string) $suporte->acompanhante_nome, $suporte->acompanhante_documento,
+                    CodigoParticipante::PAPEL_ACOMPANHANTE, $suporte->id,
                 ));
             }
         }

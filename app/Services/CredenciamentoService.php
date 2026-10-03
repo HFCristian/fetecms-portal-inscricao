@@ -3,7 +3,9 @@
 namespace App\Services;
 
 use App\Enums\SituacaoDocumento;
+use App\Enums\StatusSuporte;
 use App\Enums\TipoPessoaCredenciamento;
+use App\Enums\TipoSuporte;
 use App\Models\Credenciamento;
 use App\Models\CredenciamentoDocumento;
 use App\Models\CredenciamentoPessoa;
@@ -159,7 +161,13 @@ class CredenciamentoService
     ): LengthAwarePaginator {
         $pagina = $this->query($filtros, $user, $teste)->paginate($porPagina)->withQueryString();
 
-        $pagina->getCollection()->transform(fn (Projeto $p) => $this->linha($p));
+        // Fora do prazo e suporte aprovado (Sprints 161–162): uma consulta só
+        // para a página inteira.
+        $sinais = app(SinalizacaoProjetoService::class)->para($pagina->getCollection()->pluck('id'));
+
+        $pagina->getCollection()->transform(
+            fn (Projeto $p) => $this->linha($p) + ['sinalizacoes' => $sinais[$p->id] ?? null],
+        );
 
         return $pagina;
     }
@@ -233,6 +241,13 @@ class CredenciamentoService
                 'escola' => $projeto->instituicao?->nome,
             ],
             'pessoas' => $pessoas,
+            'sinalizacoes' => app(SinalizacaoProjetoService::class)->de($projeto->id),
+            // Fora do prazo é exceção aprovada pela organização: a conta
+            // temporária do balcão vê o selo, mas não marca.
+            'pode_aprovar_excecao' => $admin !== null && ! $admin->ehContaTemporaria(),
+            // O acompanhante aprovado não tem documento a conferir no catálogo,
+            // mas entra no evento: a ficha mostra quem ele é e o documento.
+            'acompanhantes' => $this->acompanhantes($projeto),
             'credenciamento' => $credenciamento === null ? null : [
                 'iniciado_em' => $credenciamento->iniciado_em?->toIso8601String(),
                 'finalizado_em' => $credenciamento->finalizado_em?->toIso8601String(),
@@ -255,6 +270,32 @@ class CredenciamentoService
             ],
             'situacoes' => SituacaoDocumento::opcoes(),
         ];
+    }
+
+    /**
+     * Os acompanhantes aprovados do projeto (Sprint 162), com o código do
+     * crachá — o balcão confere o documento contra o crachá impresso.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function acompanhantes(Projeto $projeto): array
+    {
+        $ano = (int) ($projeto->edicao?->ano ?? now()->year);
+
+        return $projeto->suportes()
+            ->where('tipo', TipoSuporte::Acompanhante->value)
+            ->where('status', StatusSuporte::Aprovado->value)
+            ->with('aluno:id,nome')
+            ->get()
+            ->map(fn ($s) => [
+                'id' => $s->id,
+                'nome' => $s->acompanhante_nome,
+                'documento' => $s->acompanhante_documento,
+                'vinculo' => $s->acompanhante_vinculo,
+                'aluno' => $s->aluno?->nome,
+                'codigo' => CodigoParticipante::montar($ano, $projeto->id, $s->acompanhante_documento, CodigoParticipante::PAPEL_ACOMPANHANTE, $s->id),
+            ])
+            ->all();
     }
 
     /**
@@ -709,7 +750,7 @@ class CredenciamentoService
             ]);
         }
 
-        if (substr((string) preg_replace('/\D/', '', (string) $pessoa['cpf']), 0, 3) !== $lido['cpf3']) {
+        if (CodigoParticipante::cpf3($pessoa['cpf']) !== $lido['cpf3']) {
             throw ValidationException::withMessages([
                 'codigo' => 'A etiqueta não confere com o cadastro desta pessoa. Confira se o crachá é dela mesma.',
             ]);
@@ -749,6 +790,16 @@ class CredenciamentoService
             return $projeto->user?->id === $id
                 ? ['nome' => $projeto->user->name, 'cpf' => $projeto->user->orientadorProfile?->cpf]
                 : null;
+        }
+
+        // Acompanhante aprovado (Sprint 162): o "CPF" do código saiu do documento.
+        if ($papel === CodigoParticipante::PAPEL_ACOMPANHANTE) {
+            $suporte = $projeto->suportes()
+                ->whereKey($id)
+                ->where('status', StatusSuporte::Aprovado->value)
+                ->first();
+
+            return $suporte === null ? null : ['nome' => $suporte->acompanhante_nome, 'cpf' => $suporte->acompanhante_documento];
         }
 
         return $projeto->coorientador?->id === $id

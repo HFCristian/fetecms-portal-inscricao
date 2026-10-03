@@ -490,6 +490,24 @@ class RegistroAtividadeService
     }
 
     /**
+     * Um ato sobre um projeto que se descreve numa frase (`resumo`) — marcar o
+     * credenciamento fora do prazo, pedir ou decidir um suporte. O autor pode
+     * ser o admin ou o próprio orientador.
+     */
+    public function atoNoProjeto(
+        TipoRegistro $tipo,
+        Projeto $projeto,
+        User $autor,
+        string $resumo,
+        ?string $justificativa = null,
+    ): RegistroAtividade {
+        return $this->registrarNoProjeto($tipo, $projeto, $autor, array_filter([
+            'resumo' => $resumo,
+            'justificativa' => $justificativa,
+        ], fn ($v) => $v !== null && $v !== ''));
+    }
+
+    /**
      * Um ato sobre a lista final inteira que não é "de → para" — fixar os
      * códigos, mandá-los por e-mail. `resumo` diz o que aconteceu.
      */

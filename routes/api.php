@@ -54,6 +54,8 @@ use App\Http\Controllers\Api\V1\PresencaContaTemporariaController;
 use App\Http\Controllers\Api\V1\ProjetoController;
 use App\Http\Controllers\Api\V1\ProjetoManualController;
 use App\Http\Controllers\Api\V1\ProjetoSubmissaoController;
+use App\Http\Controllers\Api\V1\SuporteAdminController;
+use App\Http\Controllers\Api\V1\SuporteOrientadorController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -229,6 +231,15 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::post('/projetos/{projeto}/termo', [DocumentoPresencialController::class, 'store'])
                 ->middleware('throttle:20,1');
             Route::delete('/projetos/{projeto}/termo', [DocumentoPresencialController::class, 'destroy']);
+        });
+
+        // Aba "Suporte" do orientador (Sprint 162): acompanhante e intérpretes
+        // para os projetos finalistas; a organização aprova.
+        Route::middleware('role:orientador')->prefix('suporte')->group(function () {
+            Route::get('/', [SuporteOrientadorController::class, 'index']);
+            Route::post('/projetos/{projeto}', [SuporteOrientadorController::class, 'store'])->middleware('throttle:30,1');
+            Route::put('/{suporte}', [SuporteOrientadorController::class, 'update']);
+            Route::delete('/{suporte}', [SuporteOrientadorController::class, 'destroy']);
         });
 
         // Avaliação online — lado do avaliador (E7): ler, iniciar e concluir com nota
@@ -452,6 +463,17 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::post('/projetos/{projeto}/assumir', [CredenciamentoController::class, 'assumir']);
                 Route::post('/projetos/{projeto}/kits', [CredenciamentoController::class, 'kits']);
                 Route::post('/projetos/{projeto}/cancelar', [CredenciamentoController::class, 'cancelar']);
+                // Fora do prazo aprovado (Sprint 161) e suporte (Sprint 162):
+                // exceção e aprovação são da organização.
+                Route::middleware('admin.permanente')->group(function () {
+                    Route::get('/suporte', [SuporteAdminController::class, 'index']);
+                    Route::post('/suporte/projetos/{projeto}', [SuporteAdminController::class, 'store']);
+                    Route::put('/suporte/{suporte}', [SuporteAdminController::class, 'update']);
+                    Route::patch('/suporte/{suporte}/decidir', [SuporteAdminController::class, 'decidir']);
+                    Route::delete('/suporte/{suporte}', [SuporteAdminController::class, 'destroy']);
+                    Route::put('/projetos/{projeto}/fora-prazo', [CredenciamentoController::class, 'foraPrazo']);
+                    Route::delete('/projetos/{projeto}/fora-prazo', [CredenciamentoController::class, 'removerForaPrazo']);
+                });
             });
 
             // --- Aba "Cerimonial": a porta da cerimônia de premiação ---
