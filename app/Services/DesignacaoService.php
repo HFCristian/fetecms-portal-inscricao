@@ -490,7 +490,7 @@ class DesignacaoService
     ): array {
         $como = fn (string $termo) => '%'.str_replace(['%', '_'], ['\%', '\_'], mb_strtolower(trim($termo))).'%';
 
-        $projetos = Projeto::semDemo()
+        $projetos = Projeto::avaliacaoOnline()
             ->where('status', ProjetoStatus::Submetido->value)
             ->when(trim($projeto) !== '', fn ($q) => $q->whereRaw('LOWER(titulo) LIKE ?', [$como($projeto)]))
             ->with('area:id,nome')

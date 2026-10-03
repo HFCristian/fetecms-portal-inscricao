@@ -595,3 +595,21 @@ export async function baixarIdentificacao(listaId, formato) {
  */
 export const verNotasDaDesignacao = (avaliacaoId) =>
     http.post(`/admin/avaliacao/designacoes/${avaliacaoId}/notas`).then((r) => r.data.data);
+
+// --- Cadastro manual de projetos (Sprint 157) ---------------------------------
+
+/** Projetos cadastrados à mão nesta edição + a lista final vigente. */
+export const getProjetosManuais = () =>
+    http.get('/admin/avaliacao/projetos-manuais').then((r) => r.data);
+
+export const getProjetoManual = (id) =>
+    http.get(`/admin/avaliacao/projetos-manuais/${id}`).then((r) => r.data.data);
+
+export const criarProjetoManual = (payload) =>
+    http.post('/admin/avaliacao/projetos-manuais', payload).then((r) => r.data);
+
+export const atualizarProjetoManual = (id, payload) =>
+    http.put(`/admin/avaliacao/projetos-manuais/${id}`, payload).then((r) => r.data);
+
+export const excluirProjetoManual = (id, justificativa) =>
+    http.delete(`/admin/avaliacao/projetos-manuais/${id}`, { data: { justificativa } }).then((r) => r.data);

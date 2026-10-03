@@ -594,6 +594,45 @@ class CredenciamentoService
         });
     }
 
+    /**
+     * Credenciamento lançado junto do **cadastro manual** do projeto (Sprint
+     * 157): a equipe já passou pela organização por fora do portal, e o
+     * projeto nasce em *Credenciados*. Não há conferência documento a
+     * documento para registrar — ela não aconteceu no balcão —, então a ficha
+     * fica com todo mundo presente, sem marcações, e a observação diz de onde
+     * veio. A janela do evento não se aplica: é um registro do que já
+     * aconteceu, feito pela organização.
+     */
+    public function registrarNoCadastroManual(Projeto $projeto, User $admin, string $observacao): Credenciamento
+    {
+        if ($this->credenciamentoDe($projeto)?->finalizado_em !== null) {
+            return $this->credenciamentoDe($projeto);
+        }
+
+        $lista = $this->listaFinal($admin, false);
+
+        return DB::transaction(function () use ($projeto, $admin, $observacao, $lista) {
+            $credenciamento = $this->credenciamentoDe($projeto) ?? Credenciamento::create([
+                'projeto_id' => $projeto->id,
+                'lista_final_id' => $lista?->id,
+                'iniciado_em' => now(),
+                'iniciado_por' => $admin->id,
+            ]);
+
+            $this->salvarPessoas($credenciamento, $projeto, []);
+
+            $credenciamento->update([
+                'credenciado_por' => $admin->id,
+                'finalizado_em' => now(),
+                'observacao' => $observacao,
+            ]);
+
+            $this->registros->credenciamento($credenciamento->fresh(['documentos.documento', 'pessoas']), $projeto, $admin);
+
+            return $credenciamento->fresh(['autor', 'pessoas']);
+        });
+    }
+
     /** Por que o balcão está fechado agora. */
     public function motivoFechado(): string
     {

@@ -471,6 +471,24 @@ class RegistroAtividadeService
     }
 
     /** O admin submetendo o rascunho de outra pessoa, com a justificativa do escape. */
+    /**
+     * O admin cadastrando, alterando ou excluindo um projeto que não passou
+     * pela inscrição (Sprint 157). `resumo` diz o que foi feito — a origem, os
+     * campos alterados —, e a justificativa é o porquê.
+     */
+    public function projetoManual(
+        TipoRegistro $tipo,
+        Projeto $projeto,
+        User $admin,
+        string $justificativa,
+        ?string $resumo = null,
+    ): RegistroAtividade {
+        return $this->registrarNoProjeto($tipo, $projeto, $admin, array_filter([
+            'resumo' => $resumo,
+            'justificativa' => $justificativa,
+        ], fn ($v) => $v !== null && $v !== ''));
+    }
+
     public function submissaoRascunho(Projeto $projeto, User $admin, string $justificativa): RegistroAtividade
     {
         return $this->registrarNoProjeto(TipoRegistro::RascunhoSubmissao, $projeto, $admin, [
@@ -912,6 +930,9 @@ class RegistroAtividadeService
             // No rascunho, um registro por campo: o nome dele abre a frase.
             $prefixo = ! empty($detalhes['campo']) ? $detalhes['campo'].': ' : '';
             $partes[] = $prefixo.$valor($detalhes['de'] ?? null).' → '.$valor($detalhes['para']);
+        }
+        if (! empty($detalhes['resumo'])) {
+            $partes[] = $detalhes['resumo'];
         }
         if (! empty($detalhes['pendencias'])) {
             $partes[] = 'ausentes: '.implode('; ', (array) $detalhes['pendencias']);

@@ -2,7 +2,6 @@
 
 namespace App\Http\Resources;
 
-use App\Enums\Role;
 use App\Models\MalaDiretaDestinatario;
 use App\Services\MalaDiretaService;
 use Illuminate\Http\Request;
@@ -18,7 +17,7 @@ class MalaDiretaDestinatarioResource extends JsonResource
             'email' => $this->email,
             'nome' => $this->nome,
             'papel' => $this->papel,
-            'papel_label' => $this->papel ? (Role::tryFrom($this->papel)?->label() ?? $this->papel) : null,
+            'papel_label' => app(MalaDiretaService::class)->rotuloPapel($this->papel) ?: null,
             'origens' => $this->origens ?? [],
             'origens_labels' => array_map(
                 fn (string $o) => app(MalaDiretaService::class)->rotuloOrigem($o),

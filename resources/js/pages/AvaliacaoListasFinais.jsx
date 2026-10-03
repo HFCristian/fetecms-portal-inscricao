@@ -53,6 +53,20 @@ export default function AvaliacaoListasFinais() {
                 alteração gera um TXT novo.
             </p>
 
+            <div className="mb-6">
+                <Link
+                    to="/admin/avaliacao/projetos-manuais"
+                    className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-2.5 text-sm font-semibold text-on-surface hover:bg-surface-variant transition-colors"
+                >
+                    <span className="material-symbols-outlined text-[20px]">post_add</span>
+                    Cadastro manual de projetos
+                </Link>
+                <p className="text-xs text-on-surface-variant mt-1 max-w-3xl">
+                    Para quem vai ao evento sem ter passado pela inscrição (feira afiliada, equipe que chegou só
+                    com os nomes): o projeto entra direto na lista vigente.
+                </p>
+            </div>
+
             {erro && <div className="mb-4"><Alert>{erro}</Alert></div>}
 
             {listas === null ? (

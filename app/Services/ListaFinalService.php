@@ -299,6 +299,16 @@ class ListaFinalService
     }
 
     /**
+     * O código de cada projeto da lista (FET.AGR-001), por id do projeto.
+     *
+     * @return array<int, string>
+     */
+    public function codigosDaLista(ListaFinal $lista): array
+    {
+        return array_column($this->itensDaLista($lista), 'codigo', 'projeto_id');
+    }
+
+    /**
      * Acrescenta um projeto à lista oficial. Sobe a versão (o arquivo baixado
      * depois é outro) e entra na trilha com a justificativa — é uma decisão
      * fora do recorte por nota, então precisa ficar explicada.

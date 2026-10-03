@@ -54,6 +54,7 @@ class CriarMalaDiretaRequest extends PreviaMalaDiretaRequest
             'imagens' => array_map('intval', $this->validated('imagens') ?? []),
             'anexos' => array_map('intval', $this->validated('anexos') ?? []),
             'publicos' => $this->publicos(),
+            'finalistas' => $this->finalistas(),
             'destinatarios' => $this->destinatarios(),
         ];
     }

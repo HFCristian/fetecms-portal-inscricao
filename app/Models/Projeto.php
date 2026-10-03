@@ -41,7 +41,7 @@ class Projeto extends Model
         'cidade_id', 'estado_nome', 'cidade_nome', 'continuacao', 'tempo_pesquisa_meses', 'feira_afiliada',
         'feira_afiliada_nome', 'necessita_termo_etica', 'numero_credencial', 'agenda_2030',
         'categoria_agenda_2030', 'email_comunicacao', 'declaracao_email',
-        'status', 'submitted_at',
+        'status', 'submitted_at', 'cadastro_manual',
     ];
 
     protected function casts(): array
@@ -58,6 +58,7 @@ class Projeto extends Model
             'agenda_2030' => 'boolean',
             'tempo_pesquisa_meses' => 'integer',
             'submitted_at' => 'datetime',
+            'cadastro_manual' => 'boolean',
         ];
     }
 
@@ -79,6 +80,19 @@ class Projeto extends Model
     protected function semDemo(Builder $query): void
     {
         $query->whereHas('user', fn (Builder $q) => $q->where('is_demo', false));
+    }
+
+    /**
+     * Os projetos que a **avaliação online** enxerga: os de verdade
+     * ({@see self::semDemo()}) que passaram pela inscrição. O projeto
+     * **cadastrado à mão** pelo admin (Sprint 157) vai direto para a fase
+     * presencial — distribuí-lo a um avaliador online, ou contá-lo como "0
+     * avaliações" na cobertura, seria cobrar dele uma etapa que não existe.
+     */
+    #[Scope]
+    protected function avaliacaoOnline(Builder $query): void
+    {
+        $query->semDemo()->where('projetos.cadastro_manual', false);
     }
 
     public function user(): BelongsTo

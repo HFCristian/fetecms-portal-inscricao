@@ -50,6 +50,7 @@ use App\Http\Controllers\Api\V1\ParametrizacaoCredenciamentoController;
 use App\Http\Controllers\Api\V1\PerfilController;
 use App\Http\Controllers\Api\V1\PresencaContaTemporariaController;
 use App\Http\Controllers\Api\V1\ProjetoController;
+use App\Http\Controllers\Api\V1\ProjetoManualController;
 use App\Http\Controllers\Api\V1\ProjetoSubmissaoController;
 use Illuminate\Support\Facades\Route;
 
@@ -383,6 +384,13 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::get('/avaliacao/listas-finais/{lista}/identificacao', [IdentificacaoController::class, 'index']);
                 Route::get('/avaliacao/listas-finais/{lista}/identificacao/pdf', [IdentificacaoController::class, 'pdf']);
                 Route::get('/avaliacao/listas-finais/{lista}/identificacao/zip', [IdentificacaoController::class, 'zip']);
+                // Cadastro manual de projeto (Sprint 157): quem vai ao evento sem
+                // ter passado pela inscrição entra direto na lista final.
+                Route::get('/avaliacao/projetos-manuais', [ProjetoManualController::class, 'index']);
+                Route::post('/avaliacao/projetos-manuais', [ProjetoManualController::class, 'store']);
+                Route::get('/avaliacao/projetos-manuais/{projeto}', [ProjetoManualController::class, 'show']);
+                Route::put('/avaliacao/projetos-manuais/{projeto}', [ProjetoManualController::class, 'update']);
+                Route::delete('/avaliacao/projetos-manuais/{projeto}', [ProjetoManualController::class, 'destroy']);
                 Route::get('/avaliacao/identificacao/{tipo}/{codigo}.svg', [IdentificacaoController::class, 'svg'])
                     ->where(['tipo' => 'qr|barras', 'codigo' => '[0-9A-Za-z\\-]+']);
                 // Designações: a tabela com tudo que está na mão de cada avaliador.

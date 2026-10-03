@@ -64,6 +64,7 @@ import MapaPlanta from './pages/MapaPlanta.jsx';
 import CredenciamentoLista from './pages/CredenciamentoLista.jsx';
 import CredenciamentoFicha from './pages/CredenciamentoFicha.jsx';
 import CredenciamentoContas from './pages/CredenciamentoContas.jsx';
+import AvaliacaoProjetosManuais from './pages/AvaliacaoProjetosManuais.jsx';
 import AlmoxarifadoHome from './pages/AlmoxarifadoHome.jsx';
 import AlmoxarifadoNovo from './pages/AlmoxarifadoNovo.jsx';
 import AlmoxarifadoRegistros from './pages/AlmoxarifadoRegistros.jsx';
@@ -163,6 +164,7 @@ export default function Root() {
                             <Route path="/admin/avaliacao/disparidade" element={<AvaliacaoDisparidade />} />
                             <Route path="/admin/avaliacao/listas-finais" element={<AvaliacaoListasFinais />} />
                             <Route path="/admin/avaliacao/listas-finais/:id" element={<AvaliacaoListaFinalDetalhe />} />
+                            <Route path="/admin/avaliacao/projetos-manuais" element={<AvaliacaoProjetosManuais />} />
                             <Route path="/admin/avaliacao/ranking-avaliadores" element={<AvaliacaoRankingAvaliadores />} />
                             <Route path="/admin/projetos-por-area" element={<AdminProjetosPorArea />} />
                             {/* Projetos em rascunho: o admin termina a inscrição de

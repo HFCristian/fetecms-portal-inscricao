@@ -523,7 +523,7 @@ class DistribuicaoService
     {
         // `semDemo`: o projeto-exemplo de um orientador demo não é sorteado
         // para avaliador de verdade — quem o avalia é designado à mão.
-        return Projeto::semDemo()
+        return Projeto::avaliacaoOnline()
             ->where('status', ProjetoStatus::Submetido->value)
             ->select(['id', 'titulo', 'area_id', 'subarea_id', 'categoria'])
             ->withCount(['avaliacoes as concluidas_count' => fn ($q) => $q->considerada()->where('status', StatusAvaliacao::Concluida->value)])

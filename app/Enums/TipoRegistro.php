@@ -88,6 +88,9 @@ enum TipoRegistro: string
     case ProjetoVideo = 'projeto_video';
     case ProjetoOrientador = 'projeto_orientador';
     case ProjetoCoorientador = 'projeto_coorientador';
+    case ProjetoCadastroManual = 'projeto_cadastro_manual';
+    case ProjetoManualAlterado = 'projeto_manual_alterado';
+    case ProjetoManualExcluido = 'projeto_manual_excluido';
     case RascunhoAlteracao = 'rascunho_alteracao';
     case RascunhoSubmissao = 'rascunho_submissao';
     case ListaFinalOficializada = 'lista_final_oficializada';
@@ -165,6 +168,9 @@ enum TipoRegistro: string
             self::ProjetoVideo => 'Vídeo do projeto',
             self::ProjetoOrientador => 'Orientador do projeto',
             self::ProjetoCoorientador => 'Coorientador do projeto',
+            self::ProjetoCadastroManual => 'Projeto cadastrado manualmente',
+            self::ProjetoManualAlterado => 'Projeto manual alterado',
+            self::ProjetoManualExcluido => 'Projeto manual excluído',
             self::RascunhoAlteracao => 'Alteração no rascunho',
             self::RascunhoSubmissao => 'Submissão do rascunho',
             self::ListaFinalOficializada => 'Lista final oficializada',
@@ -196,7 +202,9 @@ enum TipoRegistro: string
         return match ($this) {
             self::Submissao, self::Cancelamento, self::Exclusao, self::TrocaEmail => self::SECAO_INSCRICOES,
             self::ProjetoCategoria, self::ProjetoArea, self::ProjetoSubarea, self::ProjetoVideo,
-            self::ProjetoOrientador, self::ProjetoCoorientador => self::SECAO_PROJETOS,
+            self::ProjetoOrientador, self::ProjetoCoorientador,
+            self::ProjetoCadastroManual, self::ProjetoManualAlterado,
+            self::ProjetoManualExcluido => self::SECAO_PROJETOS,
             self::RascunhoAlteracao, self::RascunhoSubmissao => self::SECAO_RASCUNHOS,
             self::ListaFinalOficializada, self::ListaFinalProjetoAdicionado,
             self::ListaFinalProjetoRemovido => self::SECAO_LISTA_FINAL,

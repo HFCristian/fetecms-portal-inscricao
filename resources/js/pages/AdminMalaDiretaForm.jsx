@@ -109,6 +109,9 @@ export default function AdminMalaDiretaForm() {
 
     const [opcoes, setOpcoes] = useState(null);
     const [publicos, setPublicos] = useState([]);
+    // "Somente finalistas": a equipe inteira da lista final vigente, no lugar
+    // dos públicos (que são contas, e estudante finalista não tem conta).
+    const [finalistas, setFinalistas] = useState(false);
     const [personalizados, setPersonalizados] = useState([]);
     const [texto, setTexto] = useState('');
     const [form, setForm] = useState(FORM_VAZIO);
@@ -132,10 +135,10 @@ export default function AdminMalaDiretaForm() {
     const destinatariosTeste = useMemo(() => parseEmailsColados(emailsTeste), [emailsTeste]);
 
     const criterio = useMemo(
-        () => ({ publicos, destinatarios: personalizados }),
-        [publicos, personalizados],
+        () => ({ publicos: finalistas ? [] : publicos, destinatarios: personalizados, finalistas }),
+        [publicos, personalizados, finalistas],
     );
-    const temCriterio = publicos.length > 0 || personalizados.length > 0;
+    const temCriterio = finalistas || publicos.length > 0 || personalizados.length > 0;
 
     useEffect(() => {
         getOpcoesMala().then(setOpcoes).catch((e) => setAlert(extractErrors(e).message));
@@ -386,12 +389,36 @@ export default function AdminMalaDiretaForm() {
                         Pode marcar mais de um: quem aparece em dois grupos recebe uma vez só.
                         Contas inativas, de teste e de administrador ficam de fora.
                     </p>
-                    <div className="grid sm:grid-cols-2 gap-2">
+                    <label className="flex items-start gap-3 rounded-xl border border-secondary/40 bg-secondary-container/30 p-3 mb-3 cursor-pointer">
+                        <input
+                            type="checkbox"
+                            className="mt-1"
+                            aria-label="Somente finalistas"
+                            checked={finalistas}
+                            onChange={(e) => { setFinalistas(e.target.checked); setPaginaLista(1); }}
+                        />
+                        <span>
+                            <span className="block text-sm font-semibold text-on-surface">Somente finalistas</span>
+                            <span className="block text-xs text-on-surface-variant">
+                                Estudantes, orientadores e coorientadores dos projetos da lista final vigente
+                                {opcoes?.finalistas?.lista ? ` (${opcoes.finalistas.lista})` : ''} — para avisos de
+                                credenciamento, documentos e programação.
+                                {opcoes?.finalistas && !opcoes.finalistas.lista && ' Ainda não há lista final publicada.'}
+                            </span>
+                            {finalistas && meta?.finalistas && (
+                                <span className="block text-xs font-semibold text-primary mt-1">
+                                    {meta.finalistas.pessoas} {meta.finalistas.pessoas === 1 ? 'pessoa' : 'pessoas'}
+                                    {meta.finalistas.sem_email > 0 && ` · ${meta.finalistas.sem_email} sem e-mail cadastrado (ficam de fora)`}
+                                </span>
+                            )}
+                        </span>
+                    </label>
+                    <div className={`grid sm:grid-cols-2 gap-2 ${finalistas ? 'opacity-40 pointer-events-none' : ''}`} aria-disabled={finalistas}>
                         {(opcoes?.publicos ?? []).map((publico) => (
                             <PublicoCard
                                 key={publico.value}
                                 publico={publico}
-                                marcado={publicos.includes(publico.value)}
+                                marcado={!finalistas && publicos.includes(publico.value)}
                                 total={meta?.por_publico?.[publico.value]}
                                 onToggle={alternarPublico}
                             />

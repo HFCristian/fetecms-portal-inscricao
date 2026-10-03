@@ -580,7 +580,7 @@ class AdminAvaliacaoService
     /** Áreas que têm ao menos um projeto submetido — as opções do filtro. */
     public function areasComProjeto(): array
     {
-        return Projeto::semDemo()
+        return Projeto::avaliacaoOnline()
             ->where('projetos.status', ProjetoStatus::Submetido->value)
             ->join('areas', 'areas.id', '=', 'projetos.area_id')
             ->select('areas.id', 'areas.nome')
@@ -644,7 +644,7 @@ class AdminAvaliacaoService
         // aparecer na tabela de onde se designa avaliador — ele já estava fora
         // do painel, do ranking e da distribuição, e aqui era a última fresta
         // por onde chegava a um avaliador de verdade.
-        return Projeto::semDemo()
+        return Projeto::avaliacaoOnline()
             ->where('projetos.status', ProjetoStatus::Submetido->value)
             ->leftJoin('areas', 'areas.id', '=', 'projetos.area_id')
             ->select('projetos.*')
@@ -682,7 +682,7 @@ class AdminAvaliacaoService
     {
         $limites = Edicao::limites();
 
-        $projetos = Projeto::semDemo()
+        $projetos = Projeto::avaliacaoOnline()
             ->where('status', ProjetoStatus::Submetido->value)
             ->with('area:id,nome')
             ->withCount([

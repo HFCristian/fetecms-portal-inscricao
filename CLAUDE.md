@@ -821,7 +821,44 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 154 | Avaliador: idiomas em que pode avaliar (cadastro, perfil, tabela, públicos e painel) | ✅ sim | ✅ sim (Pedro, PR #99 → v1.27.2) | 0 |
 | 155 | Contas temporárias: cadastro **em lote** (modelo Excel → prévia → senhas geradas) + **remoção** | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 156 | Fix: PDF de etiquetas (QR/barras) sem código e estourando a memória | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 157 | Cadastro manual de projeto (finalista ou credencial de feira afiliada; já credenciado opcional) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 158 | Mala direta: caixa **Somente finalistas** (equipe inteira) + variável `{{projetos}}` | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprints 157–158 (mesma branch):**
+> (a) **Sprint 157** — **cadastro manual de projeto** (Avaliação online → Listas finais → *Cadastro
+> manual de projetos*, `/admin/avaliacao/projetos-manuais`). Há equipes que vão ao evento sem ter
+> passado pela inscrição — a vaga veio de uma **feira afiliada**, ou a organização recebeu só os
+> nomes —, e pedir a inscrição agora não cabe no calendário. A tela cadastra o projeto inteiro
+> (título, instituição, área/subárea, categoria, orientador, coorientador, estudantes) e o põe
+> **direto na lista final vigente**, pelo mesmo `adicionarProjeto()` de sempre — é a lista que o
+> faz existir para credenciamento, mapa, crachás e avaliação presencial. Duas escolhas
+> independentes, como a organização pediu: a **origem** (*finalista* ou *credencial de feira
+> afiliada*, que grava `feira_afiliada` + nome da feira + nº da credencial, os campos que a
+> inscrição já tinha) e a caixa **já credenciado no balcão**, que cria o credenciamento concluído
+> com a equipe presente e sem conferência de documento (`registrarNoCadastroManual`). O
+> **orientador é uma conta**: escolhe-se uma existente, ou o e-mail informado é reaproveitado, ou
+> nasce uma conta nova, ativa e com senha aleatória — a pessoa entra por *Esqueci a senha*. E-mail
+> de avaliador ou admin é recusado (exclusão mútua). Como a organização costuma ter só o nome,
+> **CPF e e-mail de estudante e coorientador viraram opcionais no banco** (e CPF/telefone/nascimento
+> do orientador) — os formulários da inscrição continuam exigindo tudo, porque quem decide é o
+> FormRequest de cada caminho. `projetos.cadastro_manual` tira o projeto da **avaliação online**:
+> o escopo novo `Projeto::avaliacaoOnline()` (= `semDemo` + não manual) substituiu o `semDemo` na
+> distribuição, na fila do avaliador, em Projetos submetidos (tabela, cards, filtro de área) e nas
+> opções de designação. Criar, editar (alunos sincronizados por id; quem sai é apagado **antes**,
+> para o substituto poder herdar o e-mail) e excluir pedem **justificativa** e entram em Registros →
+> Projetos (`projeto_cadastro_manual`, `_alterado`, `_excluido`); a inclusão/retirada da lista
+> entra também em Registros → Lista final. Sem lista oficial publicada, a tela não cadastra.
+> (b) **Sprint 158** — a mala direta ganhou a caixa **Somente finalistas**: estudantes, orientador e
+> coorientador dos projetos da **lista final vigente**, deduplicados por e-mail (o orientador de
+> dois finalistas recebe uma vez, com os dois títulos). Não é um `PublicoMala`, de propósito: os
+> públicos são consultas de **usuário**, compartilhadas com avisos e feedback, e metade da equipe
+> finalista não tem conta. A origem fica gravada como `finalistas` (rótulo "Finalistas (equipe
+> inteira)") nos públicos da mala e em cada destinatário; o papel de quem não tem conta é
+> `estudante`/`coorientador`. A caixa mostra de qual lista são e **quantos ficam de fora por não ter
+> e-mail** (o estudante do cadastro manual). Junto nasceu a variável **`{{projetos}}`** — os
+> projetos de quem recebe, já com o código da lista final (FET.AGR-001) para os finalistas — e a
+> personalização passou a **escapar os valores no HTML**: um título com "<" não vira marcação.
+>
 > **Sprints 155–156 (branch `feat/finalistas-suporte-e-certificados`, saída da `main` @ `9390a3c`):**
 > (a) **Sprint 155** — as **contas temporárias** das quatro abas com balcão (credenciamento,
 > almoxarifado, voluntários da avaliação presencial e cerimonial) passaram a nascer **em lote**. A
