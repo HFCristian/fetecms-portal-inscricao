@@ -66,6 +66,7 @@ import CredenciamentoFicha from './pages/CredenciamentoFicha.jsx';
 import CredenciamentoContas from './pages/CredenciamentoContas.jsx';
 import AvaliacaoProjetosManuais from './pages/AvaliacaoProjetosManuais.jsx';
 import CredenciamentoSuporte from './pages/CredenciamentoSuporte.jsx';
+import AdminCertificados from './pages/AdminCertificados.jsx';
 import SuporteEvento from './pages/SuporteEvento.jsx';
 import AlmoxarifadoHome from './pages/AlmoxarifadoHome.jsx';
 import AlmoxarifadoNovo from './pages/AlmoxarifadoNovo.jsx';
@@ -215,6 +216,7 @@ export default function Root() {
                             <Route path="/admin/credenciamento/projetos/:id" element={<CredenciamentoFicha />} />
                             <Route path="/admin/credenciamento/contas" element={<CredenciamentoContas />} />
                             <Route path="/admin/credenciamento/suporte" element={<CredenciamentoSuporte />} />
+                            <Route path="/admin/certificados" element={<AdminCertificados />} />
                             {/* Aba Almoxarifado: a guarda de volumes durante a feira. */}
                             {/* Aba Cerimonial: a porta da cerimônia de premiação. A
                                 conta temporária do setor só abre o check-in — as

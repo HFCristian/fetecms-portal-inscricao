@@ -397,8 +397,9 @@ export default function AvaliadorPerfil() {
                         <Estatistica
                             icone="fact_check"
                             valor={est.avaliacoes_concluidas}
-                            rotulo="Projetos avaliados"
-                            detalhe={`${plural(dados.projetos_designados, 'projeto designado', 'projetos designados')} a você`}
+                            rotulo="Projetos avaliados (online)"
+                            detalhe={`${plural(dados.projetos_designados, 'projeto designado', 'projetos designados')} a você`
+                                + (est.avaliacoes_presenciais > 0 ? ` · ${plural(est.avaliacoes_presenciais, 'avaliação presencial', 'avaliações presenciais')}` : '')}
                         />
                         <Estatistica
                             icone="workspace_premium"

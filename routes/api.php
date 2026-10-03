@@ -23,6 +23,7 @@ use App\Http\Controllers\Api\V1\CadastroPendenteController;
 use App\Http\Controllers\Api\V1\CatalogoAdminController;
 use App\Http\Controllers\Api\V1\CatalogoController;
 use App\Http\Controllers\Api\V1\CerimonialController;
+use App\Http\Controllers\Api\V1\CertificadosController;
 use App\Http\Controllers\Api\V1\ChatAdminController;
 use App\Http\Controllers\Api\V1\ChatController;
 use App\Http\Controllers\Api\V1\CodigosFinalistasController;
@@ -689,6 +690,17 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::get('/mala-direta/{mala}/exportar', [AdminMalaDiretaController::class, 'exportar']);
                 Route::post('/mala-direta/{mala}/reenviar-falhas', [AdminMalaDiretaController::class, 'reenviarFalhas'])
                     ->middleware('throttle:10,1');
+            });
+
+            // --- Aba "Certificados" (Sprint 163): dados para emissão ---
+            Route::middleware('aba:certificados')->prefix('certificados')->group(function () {
+                Route::get('/opcoes', [CertificadosController::class, 'opcoes']);
+                Route::get('/avaliadores', [CertificadosController::class, 'avaliadores']);
+                Route::get('/avaliadores/exportar', [CertificadosController::class, 'exportarAvaliadores']);
+                Route::get('/avaliadores/{avaliador}/projetos', [CertificadosController::class, 'projetosDoAvaliador']);
+                Route::get('/avaliadores/{avaliador}/declaracao', [CertificadosController::class, 'declaracao']);
+                Route::get('/avaliacoes/exportar', [CertificadosController::class, 'exportarNominais']);
+                Route::get('/participantes/exportar', [CertificadosController::class, 'exportarParticipantes']);
             });
 
             // --- Aba "Registros": a trilha de auditoria ---

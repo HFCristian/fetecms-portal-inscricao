@@ -19,6 +19,8 @@ class UserResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             'email' => $this->email,
+            // Só o admin guarda CPF na própria conta (certificado da organização).
+            'cpf' => $this->when($this->role?->value === 'admin', $this->cpf),
             'role' => $this->role->value,
             'role_label' => $this->role->label(),
             'is_active' => $this->is_active,

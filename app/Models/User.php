@@ -19,7 +19,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
-#[Fillable(['name', 'email', 'password', 'role', 'is_active', 'chat_dica_dispensada', 'is_demo'])]
+#[Fillable(['name', 'email', 'cpf', 'password', 'role', 'is_active', 'chat_dica_dispensada', 'is_demo'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -181,6 +181,12 @@ class User extends Authenticatable
     }
 
     /** Avaliações em que este usuário é o avaliador (E7). */
+    /** Avaliações no estande (fase presencial) feitas por este avaliador. */
+    public function avaliacoesPresenciais(): HasMany
+    {
+        return $this->hasMany(AvaliacaoPresencial::class, 'avaliador_id');
+    }
+
     public function avaliacoes(): HasMany
     {
         return $this->hasMany(Avaliacao::class, 'avaliador_id');

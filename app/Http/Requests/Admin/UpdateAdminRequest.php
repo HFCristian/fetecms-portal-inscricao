@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Admin;
 
 use App\Http\Requests\Concerns\NormalizaEmail;
+use App\Rules\Cpf;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -18,6 +19,11 @@ class UpdateAdminRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         $this->limparEmails();
+
+        if ($this->has('cpf')) {
+            $cpf = preg_replace('/\D/', '', (string) $this->input('cpf'));
+            $this->merge(['cpf' => $cpf === '' ? null : $cpf]);
+        }
     }
 
     public function rules(): array
@@ -28,6 +34,7 @@ class UpdateAdminRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($adminId)],
+            'cpf' => ['nullable', 'string', 'size:11', new Cpf],
         ];
     }
 

@@ -49,6 +49,11 @@ class AvaliadorService
 
         return [
             'avaliacoes_concluidas' => $minhas,
+            // A fase presencial conta à parte (Sprint 163): o certificado de cada
+            // fase sai num momento diferente, e misturar os números confundiria.
+            'avaliacoes_presenciais' => $user->avaliacoesPresenciais()
+                ->where('status', StatusAvaliacao::Concluida->value)
+                ->count(),
             'certificado_minutos' => $minutos,
             'certificado_label' => Tempo::cargaHoraria($minutos),
             'certificado_teto_minutos' => AvaliadorProfile::MAX_MINUTOS_CERTIFICADO,

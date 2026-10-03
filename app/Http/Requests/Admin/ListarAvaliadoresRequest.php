@@ -13,7 +13,7 @@ use Illuminate\Validation\Rule;
 class ListarAvaliadoresRequest extends FormRequest
 {
     /** Colunas pelas quais a tabela pode ser ordenada. */
-    public const ORDENACOES = ['nome', 'area', 'em_avaliacao', 'avaliou', 'faltam', 'criado_em'];
+    public const ORDENACOES = ['nome', 'area', 'em_avaliacao', 'avaliou', 'presenciais', 'faltam', 'criado_em'];
 
     public function authorize(): bool
     {

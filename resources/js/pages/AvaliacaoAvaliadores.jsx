@@ -17,7 +17,8 @@ const COLUNAS = [
     { key: 'nome', label: 'Avaliador', alinhamento: 'text-left' },
     { key: 'area', label: 'Área e idiomas', alinhamento: 'text-left' },
     { key: 'em_avaliacao', label: 'Em avaliação', alinhamento: 'text-center' },
-    { key: 'avaliou', label: 'Avaliadas', alinhamento: 'text-center' },
+    { key: 'avaliou', label: 'Avaliadas (online)', alinhamento: 'text-center' },
+    { key: 'presenciais', label: 'Presenciais', alinhamento: 'text-center' },
     { key: 'faltam', label: 'Faltantes', alinhamento: 'text-center' },
     { key: 'criado_em', label: 'Cadastro', alinhamento: 'text-center' },
 ];
@@ -482,6 +483,7 @@ export default function AvaliacaoAvaliadores() {
                                                 </td>
                                                 <td className="px-3 py-2 text-center font-bold text-primary-container">{a.em_avaliacao}</td>
                                                 <td className="px-3 py-2 text-center font-bold text-secondary">{a.avaliou}</td>
+                                                <td className="px-3 py-2 text-center font-bold text-on-surface">{a.presenciais ?? 0}</td>
                                                 <td className="px-3 py-2 text-center font-bold text-on-surface">{a.faltam}</td>
                                                 <td className="px-3 py-2 text-center text-xs text-on-surface-variant">{a.criado_em_label ?? '—'}</td>
                                                 <td className="px-3 py-2">

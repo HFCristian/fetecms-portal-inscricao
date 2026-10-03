@@ -827,7 +827,32 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 160 | Lista final: **exportar** (lista nominal, crachás, certificados, contatos, projetos e recorte livre) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 161 | Credenciamento **fora do prazo** aprovado (data prevista), visível no credenciamento e na avaliação | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 162 | **Suporte no evento**: acompanhante e intérpretes (aba do orientador, aprovação, crachá do acompanhante) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 163 | Nova aba **Certificados**: avaliadores por fase, participantes (CPF, função, atividade) e declaração nominal | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprint 163 (mesma branch):** nasce a aba **Certificados** (`AbaAdmin::Certificados`, do RBAC
+> como as demais; `/admin/certificados`, `CertificadosService`). O portal **não emite** o
+> certificado: entrega a planilha (Excel ou CSV) com que a organização o emite.
+> (a) **Avaliadores por fase.** O certificado da **fase online sai antes da presencial** — há
+> avaliador pedindo para processo seletivo com prazo —, então as duas fases são **contadas
+> separadas**: nome completo, CPF, e-mail, área de avaliação, projetos avaliados online e
+> presencialmente. A carga horária a organização calcula pela quantidade. Conta a avaliação
+> **concluída** desta edição (o `whereHas('projeto')` traz o recorte do `EdicaoScope` para a
+> contagem), inclusive a que foi desconsiderada depois — a regra do card de certificado do perfil:
+> quem descartou foi a organização, o trabalho aconteceu. A separação também aparece **no mesmo
+> cadastro do avaliador**: Avaliadores Online ganhou a coluna *Presenciais* (ordenável, e no CSV),
+> e o perfil do avaliador diz quantas avaliações presenciais ele tem.
+> (b) **Participantes.** Nome completo, CPF, e-mail, **função** e **projeto ou atividade** de oito
+> grupos combináveis: estudantes, orientadores e coorientadores (dos **finalistas** ou de **todos os
+> submetidos**, com a coluna *Finalista* sim/não), comissão especial de avaliação (inclusive quem
+> ainda não avaliou), avaliadores de cada fase (com "Avaliação de N projeto(s)"), **voluntários**
+> (contas temporárias não removidas, com o setor e o curso) e a **organização** — os admins, que
+> passaram a ter **CPF opcional** no cadastro (`users.cpf`, campo novo na aba Administradores),
+> porque até aqui o portal não sabia o CPF de quem organiza a feira. Conta demo fica de fora.
+> (c) **Declaração nominal.** Cada avaliador tem *Projetos avaliados*: os títulos por fase e um
+> **PDF** (`pdf.declaracao-avaliador`) sem nota nenhuma — o que se declara é o trabalho feito, a
+> nota é da organização. E uma planilha com **uma linha por avaliação**, para responder de uma vez
+> a vários pedidos.
+>
 > **Sprints 161–162 (mesma branch):**
 > (a) **Sprint 161** — **credenciamento fora do prazo**. Algumas equipes pediram para credenciar
 > depois e não estarão no primeiro dia; a organização aprovou, mas a explicação morava numa lista à
@@ -2115,7 +2140,35 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > e **Escolas** (`/admin/parametrizacao/escolas`): admin busca, **renomeia, mescla** (reatribui
 > projetos/alunos/orientadores) e **exclui** instituições sem uso (`InstituicaoAdminService`/Controller,
 > rotas `admin/instituicoes`). Back **117/117**, front 11/11, Pint limpo, build OK.
-> **Pendências do Pedro (Sprints 153–154):** (1) `git push origin feat/ranking-download-e-idiomas`
+> **Pendências do Pedro (Sprints 155–163):** (1) `git push origin feat/finalistas-suporte-e-certificados`
+> + PR para a `main` (o ambiente do Claude não tem credencial do GitHub) e, depois do merge, o
+> deploy pela §11 do [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). Esta release **tem migrations**
+> (`contas_temporarias.removida_em`; `projetos.cadastro_manual` e CPF/e-mail **anuláveis** em
+> alunos, coorientadores e perfil do orientador; `lista_final_projetos.codigo` + datas do envio em
+> `listas_finais`; as tabelas `credenciamentos_fora_prazo` e `suportes_projeto`; `users.cpf`),
+> **nenhuma variável nova de `.env`** e **nenhuma dependência nova**. As planilhas usam a extensão
+> `zip` do PHP (já exigida pela Sprint 153).
+> (2) **Duas abas novas do RBAC**: *Certificados* (admin) — quem tem escopo atribuído não a
+> enxerga até você acrescentá-la ao escopo; e *Suporte no evento* (orientador), que aparece para
+> todos os orientadores e só tem conteúdo para quem tem projeto na lista final.
+> (3) **PDF de etiquetas**: o layout mudou (10 por folha A4, códigos desenhados direto). Vale
+> imprimir uma folha e testar no leitor USB e na câmera antes de imprimir as 1.800. Depois de
+> **aprovar acompanhantes**, baixe o PDF de novo: eles entram com crachá próprio (papel `S`).
+> (4) **Código do projeto**: o envio **fixa** os códigos da lista vigente. Depois disso, ajuste a
+> composição por *incluir/retirar* na mesma lista (quem entra ganha o próximo número livre) — **não
+> publique uma lista nova**, que nasceria com outra numeração. Vale revisar o texto do modelo
+> **"Código do projeto"** em Comunicação → Modelos de e-mail antes de enviar.
+> (5) **Cadastro manual**: o orientador criado ali entra por **"Esqueci a senha"** (avise por
+> e-mail). Estudante sem CPF fica com "000" nos três dígitos do crachá — o leitor aceita —, mas o
+> **CPF faz falta no certificado**: complete quando chegar.
+> (6) **Contas temporárias em lote**: as senhas só existem na **planilha de acesso** baixada na
+> hora. Quem perder a sua usa "Esqueci a senha". Remover uma conta que já atendeu alguém a
+> **arquiva** (o nome fica nos registros, o login morre e o e-mail fica livre).
+> (7) **Certificados da organização**: o CPF dos admins nasce em branco — preencha em
+> Administradores → editar, antes de exportar o grupo *Organização*.
+
+> **Pendências do Pedro (Sprints 153–154):** ~~push + PR~~ — **entrou na `main` pelo PR #99**
+> (v1.27.2). As observações de uso continuam valendo: (1) `git push origin feat/ranking-download-e-idiomas`
 > + PR para a `main` (o ambiente do Claude não tem credencial do GitHub) e, depois do merge, o
 > deploy pela §11 do [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). Esta release **tem uma migration**
 > (`avaliador_profiles.idiomas`), **nenhuma variável nova de `.env`** e **nenhuma dependência
