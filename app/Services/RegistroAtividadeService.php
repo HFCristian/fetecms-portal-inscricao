@@ -489,6 +489,22 @@ class RegistroAtividadeService
         ], fn ($v) => $v !== null && $v !== ''));
     }
 
+    /**
+     * Um ato sobre a lista final inteira que não é "de → para" — fixar os
+     * códigos, mandá-los por e-mail. `resumo` diz o que aconteceu.
+     */
+    public function atoNaLista(TipoRegistro $tipo, User $admin, string $lista, string $resumo): RegistroAtividade
+    {
+        return RegistroAtividade::create([
+            'tipo' => $tipo,
+            'user_id' => $admin->id,
+            'autor_email' => $admin->email,
+            'autor_nome' => $admin->name,
+            'autor_role' => $admin->role?->value,
+            'detalhes' => ['lista' => $lista, 'resumo' => $resumo],
+        ]);
+    }
+
     public function submissaoRascunho(Projeto $projeto, User $admin, string $justificativa): RegistroAtividade
     {
         return $this->registrarNoProjeto(TipoRegistro::RascunhoSubmissao, $projeto, $admin, [

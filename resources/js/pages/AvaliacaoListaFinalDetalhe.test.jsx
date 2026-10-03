@@ -31,7 +31,37 @@ const publicarListaFinal = vi.fn(() => Promise.resolve({
 }));
 const adicionarNaListaFinal = vi.fn(() => Promise.resolve({ ...DADOS, lista: { ...DADOS.lista, versao: 2, projetos: 2 } }));
 const removerDaListaFinal = vi.fn(() => Promise.resolve({ ...DADOS, itens: [], lista: { ...DADOS.lista, versao: 2, projetos: 0 } }));
+const PAINEL_CODIGOS = {
+    lista: { id: 3, nome: 'Oficial 2026', versao: 1, codigos_congelados_em: null, codigos_enviados_em: null, codigos_mala_id: null },
+    pode_enviar: true,
+    motivo: null,
+    destinatarios: { lista: 'Oficial 2026 (v1)', pessoas: 4, sem_email: 1 },
+    assunto: 'Código do seu projeto — XVI FETECMS',
+    corpo: 'Olá, {{nome}}!\n\n{{projetos}}',
+    formato: 'texto',
+    projetos: [{ projeto_id: 10, codigo: 'FET.AGR-001', titulo: 'Bioplástico' }],
+};
+const getCodigosLista = vi.fn(() => Promise.resolve(PAINEL_CODIGOS));
+const enviarCodigosLista = vi.fn(() => Promise.resolve({
+    data: { ...PAINEL_CODIGOS, lista: { ...PAINEL_CODIGOS.lista, codigos_congelados_em: '2026-10-03T10:00:00-04:00', codigos_enviados_em: '2026-10-03T10:00:00-04:00', codigos_mala_id: 77 } },
+    meta: { message: 'Envio iniciado: os e-mails saem pela fila.', mala_id: 77 },
+}));
+const OPCOES_EXPORTACAO = {
+    niveis: [{ valor: 'pessoa', rotulo: 'Uma linha por pessoa' }, { valor: 'projeto', rotulo: 'Uma linha por projeto' }],
+    colunas: {
+        pessoa: [{ chave: 'nome', rotulo: 'Nome completo' }, { chave: 'funcao', rotulo: 'Função' }, { chave: 'cpf', rotulo: 'CPF' }],
+        projeto: [{ chave: 'codigo_projeto', rotulo: 'Código do projeto' }, { chave: 'projeto', rotulo: 'Título' }],
+    },
+    modelos: [{ chave: 'nominal', rotulo: 'Lista nominal', descricao: 'Para crachás.', nivel: 'pessoa', colunas: ['nome', 'funcao'] }],
+    formatos: ['csv', 'xlsx'],
+};
+const exportarListaFinal = vi.fn(() => Promise.resolve());
 vi.mock('../lib/admin.js', () => ({
+    getOpcoesExportacaoLista: () => Promise.resolve(OPCOES_EXPORTACAO),
+    exportarListaFinal: (...a) => exportarListaFinal(...a),
+    getCodigosLista: (...a) => getCodigosLista(...a),
+    congelarCodigosLista: vi.fn(),
+    enviarCodigosLista: (...a) => enviarCodigosLista(...a),
     getListaFinal: (...a) => getListaFinal(...a),
     adicionarNaListaFinal: (...a) => adicionarNaListaFinal(...a),
     removerDaListaFinal: (...a) => removerDaListaFinal(...a),
@@ -132,5 +162,42 @@ describe('AvaliacaoListaFinalDetalhe — prévia', () => {
 
         expect(await screen.findByText('Bioplástico')).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: /Publicar como oficial/i })).not.toBeInTheDocument();
+    });
+});
+
+describe('AvaliacaoListaFinalDetalhe — código do projeto', () => {
+    beforeEach(() => {
+        getListaFinal.mockResolvedValue(DADOS);
+        enviarCodigosLista.mockClear();
+    });
+
+    it('envia o código aos finalistas depois de confirmar o texto', async () => {
+        render(<AvaliacaoListaFinalDetalhe />);
+
+        expect(await screen.findByText(/4 pessoas recebem · 1 sem e-mail/)).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: /Enviar código aos finalistas/ }));
+
+        expect(screen.getByText('Código do seu projeto — XVI FETECMS')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Enviar agora' }));
+
+        await waitFor(() => expect(enviarCodigosLista).toHaveBeenCalledWith(3));
+        expect(await screen.findByText(/Envio iniciado/)).toBeInTheDocument();
+        expect(screen.getByText('acompanhar o relatório')).toHaveAttribute('href', '/admin/mala-direta/77');
+    });
+
+    it('baixa a lista nominal e monta um recorte por projeto', async () => {
+        render(<AvaliacaoListaFinalDetalhe />);
+
+        expect(await screen.findByText('Lista nominal')).toBeInTheDocument();
+        fireEvent.click(screen.getAllByRole('button', { name: /Excel/ })[0]);
+        await waitFor(() => expect(exportarListaFinal).toHaveBeenCalledWith(3, {
+            nivel: 'pessoa', colunas: ['nome', 'funcao'], formato: 'xlsx', modelo: 'nominal',
+        }));
+
+        fireEvent.click(screen.getByLabelText('Uma linha por projeto'));
+        fireEvent.click(screen.getByRole('button', { name: /Baixar recorte/ }));
+        await waitFor(() => expect(exportarListaFinal).toHaveBeenLastCalledWith(3, {
+            nivel: 'projeto', colunas: ['codigo_projeto', 'projeto'], formato: 'xlsx',
+        }));
     });
 });

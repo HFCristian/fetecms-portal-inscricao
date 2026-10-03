@@ -96,6 +96,8 @@ enum TipoRegistro: string
     case ListaFinalOficializada = 'lista_final_oficializada';
     case ListaFinalProjetoAdicionado = 'lista_final_projeto_adicionado';
     case ListaFinalProjetoRemovido = 'lista_final_projeto_removido';
+    case ListaFinalCodigosFixados = 'lista_final_codigos_fixados';
+    case ListaFinalCodigosEnviados = 'lista_final_codigos_enviados';
     case CredenciamentoRealizado = 'credenciamento_realizado';
     case CredenciamentoCancelado = 'credenciamento_cancelado';
     case CredenciamentoKitRetirado = 'credenciamento_kit_retirado';
@@ -176,6 +178,8 @@ enum TipoRegistro: string
             self::ListaFinalOficializada => 'Lista final oficializada',
             self::ListaFinalProjetoAdicionado => 'Projeto incluído na lista',
             self::ListaFinalProjetoRemovido => 'Projeto retirado da lista',
+            self::ListaFinalCodigosFixados => 'Códigos dos projetos fixados',
+            self::ListaFinalCodigosEnviados => 'Códigos enviados aos finalistas',
             self::CredenciamentoRealizado => 'Credenciamento realizado',
             self::CredenciamentoCancelado => 'Credenciamento cancelado',
             self::CredenciamentoKitRetirado => 'Kit retirado',
@@ -207,7 +211,8 @@ enum TipoRegistro: string
             self::ProjetoManualExcluido => self::SECAO_PROJETOS,
             self::RascunhoAlteracao, self::RascunhoSubmissao => self::SECAO_RASCUNHOS,
             self::ListaFinalOficializada, self::ListaFinalProjetoAdicionado,
-            self::ListaFinalProjetoRemovido => self::SECAO_LISTA_FINAL,
+            self::ListaFinalProjetoRemovido, self::ListaFinalCodigosFixados,
+            self::ListaFinalCodigosEnviados => self::SECAO_LISTA_FINAL,
             self::CredenciamentoRealizado, self::CredenciamentoCancelado,
             self::CredenciamentoKitRetirado,
             self::CredenciamentoRascunhoAssumido => self::SECAO_CREDENCIAMENTO,

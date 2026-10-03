@@ -5,6 +5,8 @@ import { Button, Alert } from '../components/ui.jsx';
 import BuscaCombobox from '../components/BuscaCombobox.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import IdentificacaoParticipantes from '../components/IdentificacaoParticipantes.jsx';
+import EnvioCodigosFinalistas from '../components/EnvioCodigosFinalistas.jsx';
+import ExportarListaFinal from '../components/ExportarListaFinal.jsx';
 import {
     getListaFinal, adicionarNaListaFinal, removerDaListaFinal, baixarListaOficial,
     publicarListaFinal,
@@ -255,6 +257,8 @@ export default function AvaliacaoListaFinalDetalhe() {
                 </>
             )}
 
+            {lista && <ExportarListaFinal listaId={lista.id} />}
+            {lista?.vigente && !lista.rascunho && <EnvioCodigosFinalistas listaId={lista.id} />}
             {lista && <IdentificacaoParticipantes listaId={lista.id} />}
 
             {dialogo && (

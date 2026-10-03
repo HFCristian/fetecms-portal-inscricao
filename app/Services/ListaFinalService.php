@@ -295,7 +295,109 @@ class ListaFinalService
             $projetos = $projetos->concat($this->porIds($faltantes));
         }
 
-        return $this->numerar($this->ordenar($projetos->values()->all()));
+        $itens = $this->numerar($this->ordenar($projetos->values()->all()));
+
+        return $this->aplicarCodigosFixos($lista, $itens);
+    }
+
+    /**
+     * Troca o código calculado pelo **fixado** (Sprint 159), onde houver, e
+     * reordena cada grupo categoria+área pelo código — um projeto que entrou
+     * depois do envio ganha o último número do grupo e aparece no fim dele, e
+     * não no meio da ordem alfabética com um número fora de sequência.
+     *
+     * @param  list<array<string, mixed>>  $itens
+     * @return list<array<string, mixed>>
+     */
+    private function aplicarCodigosFixos(ListaFinal $lista, array $itens): array
+    {
+        $fixos = $this->codigosFixos($lista);
+
+        if ($fixos === []) {
+            return $itens;
+        }
+
+        $grupos = [];
+        foreach ($itens as $i => $item) {
+            if (isset($fixos[$item['projeto_id']])) {
+                $itens[$i]['codigo'] = $fixos[$item['projeto_id']];
+            }
+            $grupos[$item['categoria'].'|'.$item['area']] ??= count($grupos);
+        }
+
+        usort($itens, fn (array $a, array $b) => [$grupos[$a['categoria'].'|'.$a['area']], $a['codigo']]
+            <=> [$grupos[$b['categoria'].'|'.$b['area']], $b['codigo']]);
+
+        return $itens;
+    }
+
+    /** @return array<int, string> projeto_id => código fixado */
+    private function codigosFixos(ListaFinal $lista): array
+    {
+        return DB::table('lista_final_projetos')
+            ->where('lista_final_id', $lista->id)
+            ->whereNotNull('codigo')
+            ->pluck('codigo', 'projeto_id')
+            ->map(fn ($c) => (string) $c)
+            ->all();
+    }
+
+    /**
+     * **Fixa** o código de cada projeto da lista (Sprint 159): até aqui ele era
+     * recalculado a cada leitura, e incluir um projeto empurrava o número dos
+     * que vinham depois. É o passo que antecede mandar o código por e-mail —
+     * depois disso, o número de uma equipe não muda mais.
+     *
+     * Idempotente: o que já está fixado fica; um projeto sem código (não
+     * deveria haver) ganha o próximo número livre do grupo.
+     *
+     * @return int quantos códigos foram gravados agora
+     */
+    public function fixarCodigos(ListaFinal $lista): int
+    {
+        return DB::transaction(function () use ($lista) {
+            $fixos = $this->codigosFixos($lista);
+            $gravados = 0;
+
+            foreach ($this->itensDaLista($lista) as $item) {
+                if (isset($fixos[$item['projeto_id']])) {
+                    continue;
+                }
+
+                $codigo = $fixos === []
+                    ? $item['codigo']
+                    : $this->proximoCodigo($lista, Projeto::find($item['projeto_id']));
+
+                DB::table('lista_final_projetos')
+                    ->where('lista_final_id', $lista->id)
+                    ->where('projeto_id', $item['projeto_id'])
+                    ->update(['codigo' => $codigo]);
+                $gravados++;
+            }
+
+            if ($lista->codigos_congelados_em === null) {
+                $lista->update(['codigos_congelados_em' => now()]);
+            }
+
+            return $gravados;
+        });
+    }
+
+    /**
+     * O próximo número livre do grupo categoria+área do projeto, numa lista
+     * com códigos já fixados: o maior que existe + 1.
+     */
+    private function proximoCodigo(ListaFinal $lista, ?Projeto $projeto): string
+    {
+        $par = ($projeto?->categoria?->sigla() ?? self::SIGLA_AUSENTE)
+            .'.'.($projeto?->area?->siglaDaLista() ?? self::SIGLA_AUSENTE);
+
+        $maior = collect($this->codigosFixos($lista))
+            ->filter(fn (string $c) => str_starts_with($c, $par.'-'))
+            ->map(fn (string $c) => (int) substr($c, strlen($par) + 1))
+            ->max() ?? 0;
+
+        return $par.'-'.str_pad((string) ($maior + 1), 3, '0', STR_PAD_LEFT);
     }
 
     /**
@@ -322,7 +424,11 @@ class ListaFinalService
         }
 
         return DB::transaction(function () use ($lista, $projeto, $admin, $justificativa) {
-            $lista->projetos()->attach($projeto->id, ['manual' => true]);
+            // Lista com códigos já enviados: quem entra ganha o próximo número
+            // livre do grupo, sem mexer no de ninguém.
+            $codigo = $lista->codigos_congelados_em !== null ? $this->proximoCodigo($lista, $projeto) : null;
+
+            $lista->projetos()->attach($projeto->id, ['manual' => true, 'codigo' => $codigo]);
             $lista->increment('versao');
 
             $this->registros->listaFinal(

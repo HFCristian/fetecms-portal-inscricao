@@ -26,7 +26,10 @@ class ListaFinal extends Model
 {
     protected $table = 'listas_finais';
 
-    protected $fillable = ['edicao_id', 'nome', 'vigente', 'rascunho', 'demo', 'versao', 'cotas', 'gerada_por'];
+    protected $fillable = [
+        'edicao_id', 'nome', 'vigente', 'rascunho', 'demo', 'versao', 'cotas', 'gerada_por',
+        'codigos_congelados_em', 'codigos_enviados_em', 'codigos_mala_id',
+    ];
 
     protected function casts(): array
     {
@@ -36,6 +39,8 @@ class ListaFinal extends Model
             'demo' => 'boolean',
             'versao' => 'integer',
             'cotas' => 'array',
+            'codigos_congelados_em' => 'datetime',
+            'codigos_enviados_em' => 'datetime',
         ];
     }
 
@@ -52,7 +57,7 @@ class ListaFinal extends Model
     public function projetos(): BelongsToMany
     {
         return $this->belongsToMany(Projeto::class, 'lista_final_projetos', 'lista_final_id', 'projeto_id')
-            ->withPivot('manual')
+            ->withPivot('manual', 'codigo')
             ->withTimestamps();
     }
 

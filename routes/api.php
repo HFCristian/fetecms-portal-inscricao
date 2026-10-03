@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\V1\CatalogoController;
 use App\Http\Controllers\Api\V1\CerimonialController;
 use App\Http\Controllers\Api\V1\ChatAdminController;
 use App\Http\Controllers\Api\V1\ChatController;
+use App\Http\Controllers\Api\V1\CodigosFinalistasController;
 use App\Http\Controllers\Api\V1\ComiteDesignacaoController;
 use App\Http\Controllers\Api\V1\ComiteTransporteController;
 use App\Http\Controllers\Api\V1\ContaTemporariaController;
@@ -35,6 +36,7 @@ use App\Http\Controllers\Api\V1\DocumentoController;
 use App\Http\Controllers\Api\V1\DocumentoPresencialController;
 use App\Http\Controllers\Api\V1\EdicaoController;
 use App\Http\Controllers\Api\V1\EscopoAdminController;
+use App\Http\Controllers\Api\V1\ExportacaoListaFinalController;
 use App\Http\Controllers\Api\V1\FeedbackController;
 use App\Http\Controllers\Api\V1\IdentificacaoController;
 use App\Http\Controllers\Api\V1\InscricoesController;
@@ -384,6 +386,14 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::get('/avaliacao/listas-finais/{lista}/identificacao', [IdentificacaoController::class, 'index']);
                 Route::get('/avaliacao/listas-finais/{lista}/identificacao/pdf', [IdentificacaoController::class, 'pdf']);
                 Route::get('/avaliacao/listas-finais/{lista}/identificacao/zip', [IdentificacaoController::class, 'zip']);
+                // Exportação da lista (Sprint 160): lista nominal e recortes.
+                Route::get('/avaliacao/listas-finais/exportar/opcoes', [ExportacaoListaFinalController::class, 'opcoes']);
+                Route::get('/avaliacao/listas-finais/{lista}/exportar', [ExportacaoListaFinalController::class, 'exportar']);
+                // Código do projeto (Sprint 159): fixar e mandar aos finalistas.
+                Route::get('/avaliacao/listas-finais/{lista}/codigos', [CodigosFinalistasController::class, 'show']);
+                Route::post('/avaliacao/listas-finais/{lista}/codigos/fixar', [CodigosFinalistasController::class, 'fixar']);
+                Route::post('/avaliacao/listas-finais/{lista}/codigos/enviar', [CodigosFinalistasController::class, 'enviar'])
+                    ->middleware('throttle:6,1');
                 // Cadastro manual de projeto (Sprint 157): quem vai ao evento sem
                 // ter passado pela inscrição entra direto na lista final.
                 Route::get('/avaliacao/projetos-manuais', [ProjetoManualController::class, 'index']);

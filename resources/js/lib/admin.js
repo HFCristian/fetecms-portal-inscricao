@@ -613,3 +613,30 @@ export const atualizarProjetoManual = (id, payload) =>
 
 export const excluirProjetoManual = (id, justificativa) =>
     http.delete(`/admin/avaliacao/projetos-manuais/${id}`, { data: { justificativa } }).then((r) => r.data);
+
+// --- Código do projeto aos finalistas (Sprint 159) ----------------------------
+
+export const getCodigosLista = (listaId) =>
+    http.get(`/admin/avaliacao/listas-finais/${listaId}/codigos`).then((r) => r.data.data);
+
+export const congelarCodigosLista = (listaId) =>
+    http.post(`/admin/avaliacao/listas-finais/${listaId}/codigos/fixar`).then((r) => r.data);
+
+export const enviarCodigosLista = (listaId) =>
+    http.post(`/admin/avaliacao/listas-finais/${listaId}/codigos/enviar`).then((r) => r.data);
+
+// --- Exportação da lista final (Sprint 160) ------------------------------------
+
+export const getOpcoesExportacaoLista = () =>
+    http.get('/admin/avaliacao/listas-finais/exportar/opcoes').then((r) => r.data.data);
+
+/** Baixa o recorte: { nivel, colunas, formato, modelo? }. O nome vem do servidor. */
+export async function exportarListaFinal(listaId, { nivel, colunas, formato, modelo }) {
+    const resp = await http.get(`/admin/avaliacao/listas-finais/${listaId}/exportar`, {
+        params: { nivel, colunas, formato, ...(modelo ? { modelo } : {}) },
+        responseType: 'blob',
+    });
+    const disposicao = resp.headers?.['content-disposition'] ?? '';
+    const nome = /filename="([^"]+)"/.exec(disposicao)?.[1] ?? `lista-final.${formato}`;
+    baixarBlob(resp.data, nome);
+}

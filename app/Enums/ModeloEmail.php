@@ -17,6 +17,18 @@ enum ModeloEmail: string
     case FeedbackSolicitado = 'feedback_solicitado';
     case ProjetosDesignados = 'projetos_designados';
     case DesignacaoConcluida = 'designacao_concluida';
+    case CodigoProjeto = 'codigo_projeto';
+
+    /** Texto de fábrica do código do projeto enviado aos finalistas. */
+    private const CORPO_CODIGO_PROJETO = <<<'TXT'
+        Olá, {{nome}}!
+
+        Este é o código do seu projeto na XVI FETECMS:
+
+        {{projetos}}
+
+        Guarde este código: ele é pedido no credenciamento e na checagem do estande, e é por ele que a equipe da feira encontra o seu projeto. Se o título ou a equipe estiverem errados, responda à organização pelo suporte do portal.
+        TXT;
 
     /** Texto de fábrica do comprovante de submissão. */
     private const CORPO_PROJETO_SUBMETIDO = <<<'TXT'
@@ -70,6 +82,7 @@ enum ModeloEmail: string
             self::FeedbackSolicitado => 'Pedido de feedback',
             self::ProjetosDesignados => 'Projetos designados ao avaliador',
             self::DesignacaoConcluida => 'Designação concluída (para o admin)',
+            self::CodigoProjeto => 'Código do projeto (finalistas)',
         };
     }
 
@@ -81,6 +94,7 @@ enum ModeloEmail: string
             self::FeedbackSolicitado => 'O convite que sai para cada pessoa alcançada por um pedido de feedback publicado em Comunicação → Feedback.',
             self::ProjetosDesignados => 'O aviso que o avaliador recebe quando o admin designa projetos a ele em Avaliação online → Designações, com a lista do que chegou.',
             self::DesignacaoConcluida => 'O resumo que volta para o administrador que fez a designação: quantas foram criadas e o que não pôde ser designado.',
+            self::CodigoProjeto => 'O código do projeto (FET.AGR-001) que cada finalista recebe — estudantes, orientador e coorientador —, enviado da tela da lista final.',
         };
     }
 
@@ -92,6 +106,7 @@ enum ModeloEmail: string
             self::FeedbackSolicitado => '{{titulo}} — XVI FETECMS',
             self::ProjetosDesignados => 'Novos projetos para avaliar — XVI FETECMS',
             self::DesignacaoConcluida => 'Designação concluída — XVI FETECMS',
+            self::CodigoProjeto => 'Código do seu projeto — XVI FETECMS',
         };
     }
 
@@ -103,6 +118,7 @@ enum ModeloEmail: string
             self::FeedbackSolicitado => self::CORPO_FEEDBACK,
             self::ProjetosDesignados => self::CORPO_PROJETOS_DESIGNADOS,
             self::DesignacaoConcluida => self::CORPO_DESIGNACAO_CONCLUIDA,
+            self::CodigoProjeto => self::CORPO_CODIGO_PROJETO,
         };
     }
 
@@ -146,6 +162,13 @@ enum ModeloEmail: string
                 ['chave' => 'email', 'descricao' => 'E-mail do administrador'],
                 ['chave' => 'resumo', 'descricao' => 'Quantas designações foram criadas e para quantos avaliadores'],
                 ['chave' => 'problemas', 'descricao' => 'O que não pôde ser designado — ou a confirmação de que deu tudo certo'],
+            ],
+            // As mesmas variáveis da mala direta: é por ela que este e-mail sai.
+            self::CodigoProjeto => [
+                ['chave' => 'nome', 'descricao' => 'Primeiro nome de quem recebe'],
+                ['chave' => 'nome_completo', 'descricao' => 'Nome completo'],
+                ['chave' => 'email', 'descricao' => 'E-mail de quem recebe'],
+                ['chave' => 'projetos', 'descricao' => 'O código e o título do projeto (um por linha, se forem vários)'],
             ],
             self::ConfirmacaoCadastro => [
                 ['chave' => 'nome', 'descricao' => 'Primeiro nome de quem se cadastrou'],

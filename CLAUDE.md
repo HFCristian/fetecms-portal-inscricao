@@ -823,7 +823,37 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 156 | Fix: PDF de etiquetas (QR/barras) sem código e estourando a memória | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 157 | Cadastro manual de projeto (finalista ou credencial de feira afiliada; já credenciado opcional) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 158 | Mala direta: caixa **Somente finalistas** (equipe inteira) + variável `{{projetos}}` | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 159 | Lista final: código do projeto **fixado** e enviado por e-mail à equipe de cada finalista | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 160 | Lista final: **exportar** (lista nominal, crachás, certificados, contatos, projetos e recorte livre) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprints 159–160 (mesma branch):**
+> (a) **Sprint 159** — **código do projeto aos finalistas**. Com a lista certa no sistema, cada
+> equipe recebe por e-mail o código do seu projeto (FET.AGR-001), para o credenciamento e a
+> checagem dos estandes não dependerem de alguém achar o título numa lista. Só que o código era
+> **recalculado a cada leitura** — a numeração segue a ordem alfabética dentro de categoria+área, e
+> incluir um projeto empurrava o número dos que vinham depois. Mandar isso por e-mail seria mandar a
+> equipe ao balcão com um número que podia deixar de ser o dela. Agora o código é **fixado**
+> (`lista_final_projetos.codigo`, `listas_finais.codigos_congelados_em`) antes do envio: daí em
+> diante não muda, e quem entra na lista ganha o **próximo número livre do grupo** (e aparece no fim
+> dele, não no meio da ordem alfabética com um número fora de sequência). TXT, identificação,
+> exportação e e-mail leem o mesmo código. O envio **é uma mala direta** para a equipe dos
+> finalistas (Sprint 158) com o modelo novo **"Código do projeto"** (`ModeloEmail::CodigoProjeto`,
+> editável em Modelos de e-mail) e a variável `{{projetos}}` — por isso ganha de graça a fila, o
+> relatório por endereço e o reenvio das falhas. Só a lista **vigente e publicada** manda código
+> (a prévia ainda pode mudar; a demo não manda e-mail). Há também *Só fixar os códigos*, para
+> imprimir crachá antes do e-mail. Registros → Lista final ganhou `lista_final_codigos_fixados` e
+> `lista_final_codigos_enviados`. `CodigosFinalistasService`.
+> (b) **Sprint 160** — **exportar a lista oficial**. A mesma lista serve à lista nominal do
+> credenciamento, aos crachás, aos certificados, ao painel de nomes e aos contatos, e cada uso pede
+> outras colunas e outro **nível** (uma linha por pessoa ou por projeto). Em vez de um relatório
+> fixo por pedido, a seção *Exportar* do detalhe da lista tem **modelos prontos** — a **lista
+> nominal** (nome completo, função, projeto, código, instituição, categoria, área) é o primeiro — e
+> um **construtor**: nível, colunas e formato (Excel ou CSV). As colunas saem na ordem pedida, e o
+> registro delas mora num lugar só (`ExportacaoListaFinalService::COLUNAS`): acrescentar uma é
+> escrever o rótulo e de onde ela sai. Por pessoa há nome, função, CPF, e-mail, telefone, série,
+> camiseta, **código do crachá** (o do QR), código do projeto, instituição, cidade, categoria, área,
+> estande, turno, origem e credenciamento; por projeto, a equipe numa linha e as contagens.
+>
 > **Sprints 157–158 (mesma branch):**
 > (a) **Sprint 157** — **cadastro manual de projeto** (Avaliação online → Listas finais → *Cadastro
 > manual de projetos*, `/admin/avaliacao/projetos-manuais`). Há equipes que vão ao evento sem ter
