@@ -471,6 +471,58 @@ class RegistroAtividadeService
     }
 
     /** O admin submetendo o rascunho de outra pessoa, com a justificativa do escape. */
+    /**
+     * O admin cadastrando, alterando ou excluindo um projeto que não passou
+     * pela inscrição (Sprint 157). `resumo` diz o que foi feito — a origem, os
+     * campos alterados —, e a justificativa é o porquê.
+     */
+    public function projetoManual(
+        TipoRegistro $tipo,
+        Projeto $projeto,
+        User $admin,
+        string $justificativa,
+        ?string $resumo = null,
+    ): RegistroAtividade {
+        return $this->registrarNoProjeto($tipo, $projeto, $admin, array_filter([
+            'resumo' => $resumo,
+            'justificativa' => $justificativa,
+        ], fn ($v) => $v !== null && $v !== ''));
+    }
+
+    /**
+     * Um ato sobre um projeto que se descreve numa frase (`resumo`) — marcar o
+     * credenciamento fora do prazo, pedir ou decidir um suporte. O autor pode
+     * ser o admin ou o próprio orientador.
+     */
+    public function atoNoProjeto(
+        TipoRegistro $tipo,
+        Projeto $projeto,
+        User $autor,
+        string $resumo,
+        ?string $justificativa = null,
+    ): RegistroAtividade {
+        return $this->registrarNoProjeto($tipo, $projeto, $autor, array_filter([
+            'resumo' => $resumo,
+            'justificativa' => $justificativa,
+        ], fn ($v) => $v !== null && $v !== ''));
+    }
+
+    /**
+     * Um ato sobre a lista final inteira que não é "de → para" — fixar os
+     * códigos, mandá-los por e-mail. `resumo` diz o que aconteceu.
+     */
+    public function atoNaLista(TipoRegistro $tipo, User $admin, string $lista, string $resumo): RegistroAtividade
+    {
+        return RegistroAtividade::create([
+            'tipo' => $tipo,
+            'user_id' => $admin->id,
+            'autor_email' => $admin->email,
+            'autor_nome' => $admin->name,
+            'autor_role' => $admin->role?->value,
+            'detalhes' => ['lista' => $lista, 'resumo' => $resumo],
+        ]);
+    }
+
     public function submissaoRascunho(Projeto $projeto, User $admin, string $justificativa): RegistroAtividade
     {
         return $this->registrarNoProjeto(TipoRegistro::RascunhoSubmissao, $projeto, $admin, [
@@ -912,6 +964,9 @@ class RegistroAtividadeService
             // No rascunho, um registro por campo: o nome dele abre a frase.
             $prefixo = ! empty($detalhes['campo']) ? $detalhes['campo'].': ' : '';
             $partes[] = $prefixo.$valor($detalhes['de'] ?? null).' → '.$valor($detalhes['para']);
+        }
+        if (! empty($detalhes['resumo'])) {
+            $partes[] = $detalhes['resumo'];
         }
         if (! empty($detalhes['pendencias'])) {
             $partes[] = 'ausentes: '.implode('; ', (array) $detalhes['pendencias']);

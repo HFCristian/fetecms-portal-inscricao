@@ -5,6 +5,7 @@ import { Alert, Button, Input, Select } from '../components/ui.jsx';
 import { getFinalistas } from '../lib/credenciamento.js';
 import LeitorCodigo from '../components/LeitorCodigo.jsx';
 import { useModoTeste } from '../lib/modoTeste.js';
+import SinalizacoesProjeto from '../components/SinalizacoesProjeto.jsx';
 
 const dataHora = (iso) => (iso ? new Date(iso).toLocaleString('pt-BR') : '—');
 
@@ -136,6 +137,9 @@ export default function CredenciamentoLista({ situacao = 'pendentes' }) {
                                             </span>
                                         )}
                                     </p>
+                                    {/* Fora do prazo e suporte aprovado: o porquê de um
+                                        projeto ainda ausente, sem lista à parte. */}
+                                    <SinalizacoesProjeto sinalizacoes={p.sinalizacoes} compacto />
                                     {/* Atendimento em aberto: quem está com ele. */}
                                     {p.em_rascunho && (
                                         <p className="text-xs font-semibold text-primary-container mt-0.5">

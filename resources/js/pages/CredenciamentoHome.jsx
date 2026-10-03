@@ -132,6 +132,14 @@ export default function CredenciamentoHome() {
                     o backend recusa, então o card nem aparece. */}
                 {!user?.conta_temporaria && (
                     <CardSecao
+                        to="/admin/credenciamento/suporte"
+                        icon="accessibility_new"
+                        titulo="Suporte e acessibilidade"
+                        descricao="Pedidos de acompanhante e de intérprete: aprovar, recusar e registrar."
+                    />
+                )}
+                {!user?.conta_temporaria && (
+                    <CardSecao
                         to="/admin/credenciamento/contas"
                         icon="badge"
                         titulo="Contas temporárias"

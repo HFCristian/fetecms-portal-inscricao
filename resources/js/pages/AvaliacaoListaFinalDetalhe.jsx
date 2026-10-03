@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
-import { Button, Alert } from '../components/ui.jsx';
+import { Button, Alert, useConfirm } from '../components/ui.jsx';
 import BuscaCombobox from '../components/BuscaCombobox.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import IdentificacaoParticipantes from '../components/IdentificacaoParticipantes.jsx';
+import EnvioCodigosFinalistas from '../components/EnvioCodigosFinalistas.jsx';
+import ExportarListaFinal from '../components/ExportarListaFinal.jsx';
 import {
     getListaFinal, adicionarNaListaFinal, removerDaListaFinal, baixarListaOficial,
-    publicarListaFinal,
+    publicarListaFinal, reativarListaFinal,
 } from '../lib/admin.js';
 
 const MIN_JUSTIFICATIVA = 5;
@@ -17,7 +19,7 @@ const MIN_JUSTIFICATIVA = 5;
  * um projeto é uma decisão fora do recorte por nota, então cada uma precisa
  * ficar explicada em Registros → Lista final.
  */
-function JustificativaDialog({ titulo, projeto, acao, salvando, erro, onConfirmar, onFechar }) {
+function JustificativaDialog({ titulo, projeto, acao, salvando, erro, onConfirmar, onFechar, ajuda }) {
     const [texto, setTexto] = useState('');
     const pode = texto.trim().length >= MIN_JUSTIFICATIVA;
 
@@ -43,7 +45,7 @@ function JustificativaDialog({ titulo, projeto, acao, salvando, erro, onConfirma
                         className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm text-on-surface focus:border-primary-container focus:outline-none focus:ring-2 focus:ring-primary-container/20"
                     />
                     <span className="text-xs text-on-surface-variant">
-                        Fica em Registros → Lista final, junto do seu nome. Uma versão nova do arquivo é gerada.
+                        {ajuda ?? 'Fica em Registros → Lista final, junto do seu nome. Uma versão nova do arquivo é gerada.'}
                     </span>
                 </label>
 
@@ -80,6 +82,7 @@ export default function AvaliacaoListaFinalDetalhe() {
     const [erroDialogo, setErroDialogo] = useState('');
     const [publicando, setPublicando] = useState(false);
     const [sucesso, setSucesso] = useState('');
+    const [confirm, dialogoConfirmacao] = useConfirm();
 
     const carregar = useCallback(() => {
         getListaFinal(id)
@@ -93,12 +96,18 @@ export default function AvaliacaoListaFinalDetalhe() {
         setSalvando(true);
         setErroDialogo('');
         try {
-            const novo = dialogo.tipo === 'incluir'
-                ? await adicionarNaListaFinal(id, dialogo.projeto.id, justificativa)
-                : await removerDaListaFinal(id, dialogo.projeto.id, justificativa);
-            setDados(novo);
+            if (dialogo.tipo === 'reativar') {
+                const resp = await reativarListaFinal(id, justificativa);
+                setDados(resp.data);
+                setSucesso(resp.meta?.message ?? 'Lista reativada.');
+            } else {
+                const novo = dialogo.tipo === 'incluir'
+                    ? await adicionarNaListaFinal(id, dialogo.projeto.id, justificativa)
+                    : await removerDaListaFinal(id, dialogo.projeto.id, justificativa);
+                setDados(novo);
+                setCandidato(null);
+            }
             setDialogo(null);
-            setCandidato(null);
         } catch (e) {
             setErroDialogo(extractErrors(e).message || 'Não foi possível concluir.');
         } finally {
@@ -106,15 +115,48 @@ export default function AvaliacaoListaFinalDetalhe() {
         }
     }
 
+    /**
+     * No rascunho (Sprint 164) a edição é livre: inclui e retira na hora, sem
+     * justificativa. Depois de gerada, abre o diálogo.
+     */
+    async function alterar(tipo, projeto) {
+        if (!dados.lista.rascunho) {
+            setErroDialogo('');
+            setDialogo({ tipo, projeto });
+            return;
+        }
+
+        setErro('');
+        try {
+            const novo = tipo === 'incluir'
+                ? await adicionarNaListaFinal(id, projeto.id)
+                : await removerDaListaFinal(id, projeto.id);
+            setDados(novo);
+            setCandidato(null);
+        } catch (e) {
+            setErro(extractErrors(e).message || 'Não foi possível alterar a lista.');
+        }
+    }
+
     async function publicar() {
+        // A final gerada passa a valer para a etapa presencial inteira.
+        if (dados.lista.tipo === 'final') {
+            const ok = await confirm({
+                title: 'Gerar a lista final?',
+                message: 'Ela vira a lista final ativa: os projetos dela passam a ser os finalistas do credenciamento, do mapa, dos crachás e da avaliação presencial. A final ativa de agora fica inativa (dá para reativá-la depois).',
+                confirmLabel: 'Gerar e ativar',
+            });
+            if (!ok) return;
+        }
+
         setPublicando(true);
         setErro('');
         try {
             const resp = await publicarListaFinal(id);
             setDados(resp.data);
-            setSucesso(resp.meta?.message ?? 'Lista publicada.');
+            setSucesso(resp.meta?.message ?? 'Lista gerada.');
         } catch (e) {
-            setErro(extractErrors(e).message || 'Não foi possível publicar a lista.');
+            setErro(extractErrors(e).message || 'Não foi possível gerar a lista.');
         } finally {
             setPublicando(false);
         }
@@ -126,7 +168,7 @@ export default function AvaliacaoListaFinalDetalhe() {
     const candidatos = (dados?.candidatos ?? []).map((c) => ({
         id: c.id,
         nome: c.titulo,
-        detalhe: [c.categoria, c.area, c.media !== null ? `média ${c.media}` : null]
+        detalhe: [c.categoria, c.area, c.media !== null ? `média ${c.media}` : 'sem avaliação']
             .filter(Boolean).join(' · '),
     }));
 
@@ -149,9 +191,17 @@ export default function AvaliacaoListaFinalDetalhe() {
                         <div className="min-w-0">
                             <h1 className="font-display text-2xl font-semibold text-primary mb-1">
                                 {lista.nome}
+                                <span className="ml-2 align-middle text-xs font-semibold px-2 py-0.5 rounded-full bg-primary-fixed text-primary-container">
+                                    {lista.tipo === 'preliminar' ? 'preliminar' : 'final'}
+                                </span>
                                 {lista.vigente && (
                                     <span className="ml-2 align-middle text-xs font-semibold px-2 py-0.5 rounded-full bg-secondary-container text-on-secondary-container">
-                                        vigente
+                                        ativa
+                                    </span>
+                                )}
+                                {lista.tipo === 'final' && !lista.rascunho && !lista.vigente && (
+                                    <span className="ml-2 align-middle text-xs font-semibold px-2 py-0.5 rounded-full bg-surface-variant text-on-surface-variant">
+                                        inativa
                                     </span>
                                 )}
                                 {lista.rascunho && (
@@ -162,13 +212,20 @@ export default function AvaliacaoListaFinalDetalhe() {
                             </h1>
                             <p className="text-sm text-on-surface-variant">
                                 Versão {lista.versao} · {lista.projetos} {lista.projetos === 1 ? 'projeto' : 'projetos'}.
-                                Cada alteração exige justificativa e gera um arquivo novo.
+                                {lista.rascunho
+                                    ? ' Rascunho: inclua e retire à vontade, sem justificativa.'
+                                    : ' Cada alteração exige justificativa e gera um arquivo novo.'}
                             </p>
+                            {lista.origens?.length > 0 && (
+                                <p className="text-xs text-on-surface-variant mt-1">
+                                    Montada das preliminares: {lista.origens.map((o) => o.nome).join(', ')}.
+                                </p>
+                            )}
                             {lista.rascunho && (
                                 <p className="text-sm text-on-surface-variant mt-1">
-                                    Esta é a <strong>prévia</strong> do recorte: ninguém é finalista por
-                                    causa dela. Revise a composição, baixe o TXT e publique quando
-                                    estiver certa.
+                                    {lista.tipo === 'preliminar'
+                                        ? 'Ao gerar, ela fica registrada como preliminar — várias convivem, e nenhuma define finalista.'
+                                        : 'Ao gerar, ela vira a lista final ativa: os projetos dela passam a ser os finalistas da etapa presencial, no lugar da final ativa de agora.'}
                                 </p>
                             )}
                         </div>
@@ -180,7 +237,17 @@ export default function AvaliacaoListaFinalDetalhe() {
                             {lista.rascunho && (
                                 <Button type="button" loading={publicando} disabled={lista.projetos === 0} onClick={publicar}>
                                     <span className="material-symbols-outlined text-[20px]">campaign</span>
-                                    Publicar como oficial
+                                    {lista.tipo === 'preliminar' ? 'Gerar lista preliminar' : 'Gerar lista final'}
+                                </Button>
+                            )}
+                            {lista.tipo === 'final' && !lista.rascunho && !lista.vigente && (
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => { setErroDialogo(''); setDialogo({ tipo: 'reativar', projeto: { titulo: lista.nome } }); }}
+                                >
+                                    <span className="material-symbols-outlined text-[20px]">restart_alt</span>
+                                    Tornar ativa
                                 </Button>
                             )}
                         </div>
@@ -195,17 +262,14 @@ export default function AvaliacaoListaFinalDetalhe() {
                                     options={candidatos}
                                     value={candidato}
                                     onChange={setCandidato}
-                                    placeholder="Buscar entre os projetos avaliados fora da lista…"
-                                    vazio="Nenhum projeto avaliado fora da lista"
+                                    placeholder="Buscar entre os projetos submetidos fora da lista…"
+                                    vazio="Nenhum projeto submetido fora da lista"
                                 />
                             </div>
                             <Button
                                 type="button"
                                 disabled={!candidato}
-                                onClick={() => {
-                                    setErroDialogo('');
-                                    setDialogo({ tipo: 'incluir', projeto: { id: candidato.id, titulo: candidato.nome } });
-                                }}
+                                onClick={() => alterar('incluir', { id: candidato.id, titulo: candidato.nome })}
                             >
                                 <span className="material-symbols-outlined text-[20px]">playlist_add</span>
                                 Incluir
@@ -240,10 +304,7 @@ export default function AvaliacaoListaFinalDetalhe() {
                                         type="button"
                                         variant="outline"
                                         className="text-error border-error/40 hover:bg-error-container/40"
-                                        onClick={() => {
-                                            setErroDialogo('');
-                                            setDialogo({ tipo: 'remover', projeto: { id: i.projeto_id, titulo: i.titulo } });
-                                        }}
+                                        onClick={() => alterar('remover', { id: i.projeto_id, titulo: i.titulo })}
                                     >
                                         <span className="material-symbols-outlined text-[20px]">playlist_remove</span>
                                         Retirar
@@ -255,19 +316,27 @@ export default function AvaliacaoListaFinalDetalhe() {
                 </>
             )}
 
-            {lista && <IdentificacaoParticipantes listaId={lista.id} />}
+            {lista && <ExportarListaFinal listaId={lista.id} />}
+            {lista?.vigente && !lista.rascunho && <EnvioCodigosFinalistas listaId={lista.id} />}
+            {lista?.tipo === 'final' && <IdentificacaoParticipantes listaId={lista.id} />}
 
             {dialogo && (
                 <JustificativaDialog
-                    titulo={dialogo.tipo === 'incluir' ? 'Incluir na lista final' : 'Retirar da lista final'}
+                    titulo={{
+                        incluir: 'Incluir na lista', remover: 'Retirar da lista', reativar: 'Tornar esta a lista final ativa',
+                    }[dialogo.tipo]}
                     projeto={dialogo.projeto.titulo}
-                    acao={dialogo.tipo === 'incluir' ? 'Incluir' : 'Retirar'}
+                    acao={{ incluir: 'Incluir', remover: 'Retirar', reativar: 'Tornar ativa' }[dialogo.tipo]}
+                    ajuda={dialogo.tipo === 'reativar'
+                        ? 'Os projetos desta lista passam a ser os finalistas da etapa presencial, no lugar da final ativa de agora. Fica em Registros → Lista final.'
+                        : undefined}
                     salvando={salvando}
                     erro={erroDialogo}
                     onConfirmar={confirmar}
                     onFechar={() => setDialogo(null)}
                 />
             )}
+            {dialogoConfirmacao}
         </AppShell>
     );
 }

@@ -28,6 +28,7 @@ enum AbaAdmin: string
     case AvaliacaoPresencial = 'avaliacao_presencial';
     case Mapa = 'mapa';
     case Comunicacao = 'comunicacao';
+    case Certificados = 'certificados';
     case Suporte = 'suporte';
     case Parametrizacao = 'parametrizacao';
     case Administradores = 'administradores';
@@ -46,6 +47,7 @@ enum AbaAdmin: string
             self::AvaliacaoPresencial => 'Avaliação presencial',
             self::Mapa => 'Mapa do Evento',
             self::Comunicacao => 'Comunicação',
+            self::Certificados => 'Certificados',
             self::Suporte => 'Suporte',
             self::Parametrizacao => 'Parametrização',
             self::Administradores => 'Administradores',
@@ -66,6 +68,7 @@ enum AbaAdmin: string
             self::AvaliacaoPresencial => 'Checagem dos estandes, voluntários e as credenciais e prêmios da feira.',
             self::Mapa => 'Turnos de apresentação, estandes dos projetos e a planta do evento.',
             self::Comunicacao => 'Mala direta, avisos na tela e modelos de e-mail.',
+            self::Certificados => 'Dados para certificados: avaliadores por fase, participantes e declarações nominais.',
             self::Suporte => 'Caixa de entrada do chat de orientadores e avaliadores.',
             self::Parametrizacao => 'Edições, datas, áreas, escolas e escopos.',
             self::Administradores => 'Criar e desativar contas de administrador.',

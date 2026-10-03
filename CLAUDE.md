@@ -314,10 +314,15 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     contando; desistir no meio não deixa buraco, e o cartão dela oferece a **retomada** do
     rascunho, que é o único caminho de volta ao formulário.
     `VerificacaoDisparidadeService`, `PadroesAvaliacaoService`, `NotasAvaliacaoService`.
-  - **Avaliação Online → Listas finais oficiais** (`/admin/avaliacao/listas-finais`): as listas
-    geradas com a caixa **Lista Final Oficial** marcada ficam registradas. A **vigente** da edição
-    é a que define os **finalistas** da feira (projetos + alunos + orientador + coorientador);
-    publicar uma nova encerra a anterior. Dentro de cada lista o admin **inclui e retira projetos**
+  - **Avaliação Online → Listas preliminares e finais** (`/admin/avaliacao/listas-finais`):
+    `listas_finais.tipo` separa as **preliminares** (várias convivem; nenhuma define finalista) das
+    **finais** (uma só **ativa** por edição — `vigente` —, que vale para toda a etapa presencial).
+    Toda lista nasce **rascunho** — da classificação (Ranking → *Gerar lista*) ou, a final, da
+    **união de preliminares** já geradas (`origens`) — e no rascunho o admin inclui e retira **sem
+    justificativa**, qualquer projeto submetido (avaliado ou não). **Gerar** fecha: a preliminar fica
+    registrada; a final vira a **ativa** e a anterior passa a inativa, **reativável** com
+    justificativa. A ativa é a que define os **finalistas** da feira (projetos + alunos + orientador
+    + coorientador). Dentro de cada lista o admin **inclui e retira projetos**
     com **justificativa obrigatória** — cada alteração **sobe a versão**, gera um TXT novo (o
     arquivo sai sempre da composição atual, com a numeração refeita) e entra em **Registros → Lista
     final**. `listas_finais` + `lista_final_projetos`, `ListaFinalService`.
@@ -432,7 +437,10 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     `User::ehContaTemporaria()` faz `abasPermitidas()` devolver **só "credenciamento"**, por cima de
     qualquer escopo. Vencido o prazo, ela é **desativada, não apagada** — reativar é informar um
     prazo novo, sem recadastrar nada; a varredura roda ao listar e no login. Uma conta temporária
-    **não administra outras contas temporárias**. `ContaTemporariaService`.
+    **não administra outras contas temporárias**. Em todas as abas com balcão as contas também
+    entram **em lote** (modelo Excel → prévia → senhas geradas numa planilha de acesso) e podem ser
+    **removidas** — apagadas se nunca atenderam ninguém, arquivadas se já deixaram rastro
+    (Sprint 155). `ContaTemporariaService`.
   - **Cerimonial** (`/admin/cerimonial`): a porta da **cerimônia de premiação** — outro momento
     do evento que não o credenciamento, e por isso o check-in **não depende** dele: a ficha diz se
     o projeto passou pelo balcão e não trava quem não passou. Três seções. **Check-in** atende
@@ -814,9 +822,207 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 150 | Ajustes e Pareceres: o parecer continua visível depois do prazo (só a decisão fecha) | ✅ sim | ❌ não (manual do Pedro) | 2 |
 | 151 | Avaliador: tamanho de camiseta (perfil, cadastro e 4º card do painel) | ✅ sim | ❌ não (manual do Pedro) | 2 |
 | 152 | Mapa do Evento: ruas nomeadas, tela cheia, cor por situação e lista filtrável | ✅ sim | ❌ não (manual do Pedro) | 2 |
-| 153 | Ranking dos projetos: baixar em CSV, Excel, PDF e TXT, no recorte dos filtros | ✅ sim | ❌ não (manual do Pedro) | 3 |
-| 154 | Avaliador: idiomas em que pode avaliar (cadastro, perfil, tabela, públicos e painel) | ✅ sim | ❌ não (manual do Pedro) | 3 |
+| 153 | Ranking dos projetos: baixar em CSV, Excel, PDF e TXT, no recorte dos filtros | ✅ sim | ✅ sim (Pedro, PR #99 → v1.27.2) | 0 |
+| 154 | Avaliador: idiomas em que pode avaliar (cadastro, perfil, tabela, públicos e painel) | ✅ sim | ✅ sim (Pedro, PR #99 → v1.27.2) | 0 |
+| 155 | Contas temporárias: cadastro **em lote** (modelo Excel → prévia → senhas geradas) + **remoção** | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 156 | Fix: PDF de etiquetas (QR/barras) sem código e estourando a memória | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 157 | Cadastro manual de projeto (finalista ou credencial de feira afiliada; já credenciado opcional) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 158 | Mala direta: caixa **Somente finalistas** (equipe inteira) + variável `{{projetos}}` | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 159 | Lista final: código do projeto **fixado** e enviado por e-mail à equipe de cada finalista | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 160 | Lista final: **exportar** (lista nominal, crachás, certificados, contatos, projetos e recorte livre) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 161 | Credenciamento **fora do prazo** aprovado (data prevista), visível no credenciamento e na avaliação | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 162 | **Suporte no evento**: acompanhante e intérpretes (aba do orientador, aprovação, crachá do acompanhante) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 163 | Nova aba **Certificados**: avaliadores por fase, participantes (CPF, função, atividade) e declaração nominal | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 164 | Listas **preliminares** (várias) e **finais** (uma ativa): tipo, rascunho editável livre, gerar e reativar | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 165 | Lista final montada pela **união de preliminares** + telas de geração, listas e detalhe | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 166 | Fix (segurança): `league/commonmark` 2.10.1 → 2.10.3 (2 advisories do `composer audit`) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprint 166 (mesma branch):** o job **security** do CI quebrou no `composer audit`: duas
+> advisories em `league/commonmark` ≤ 2.10.1 — *DisallowedRawHtml* contornável quando a tag
+> proibida termina o literal de HTML (média, GHSA-97jj-33gv-5xf9) e **negação de serviço** de tempo
+> quadrático na extensão de tabelas GFM (alta, GHSA-3q6v-r5mr-hxv8). Ela é **dependência
+> transitiva** do `laravel/framework` (`^2.8.1`, que é o Markdown dos e-mails do Laravel), então a
+> correção é só o lock: `composer update league/commonmark --with-dependencies` subiu para
+> **2.10.3**, levando junto `symfony/polyfill-php80` 1.43. `composer.json` não mudou. `composer audit`
+> e `npm audit` (com e sem dev) limpos; back **1272/1272**.
+>
+> **Sprints 164–165 (mesma branch):** **listas preliminares e finais**. Até aqui toda lista era
+> "lista final": nascia rascunho e, publicada, virava a vigente. A organização trabalha com vários
+> recortes antes de fechar a feira, e eles não são finalistas de ninguém.
+> (a) **Sprint 164** — o modelo. `listas_finais.tipo` (`preliminar`/`final`) + `origens` (JSON das
+> preliminares que formaram a final) + `gerada_em`. **Preliminares** convivem sem limite e nenhuma
+> define finalista; **finais** têm **uma ativa** por edição (`vigente`, que `ListaFinal::vigente()`
+> agora só procura entre as finais). Toda lista nasce **rascunho**, e o rascunho é **edição livre**:
+> incluir e retirar sem justificativa, sem subir versão e sem registro — e o candidato é **qualquer
+> projeto submetido**, avaliado ou não (o de cadastro manual entra por aqui). **Gerar**
+> (`POST .../gerar`, `ListaFinalService::gerarLista()`) fecha: a preliminar fica registrada
+> (`lista_preliminar_gerada`); a final vira a ativa e a que estava ativa passa a **inativa** — fica
+> no histórico e **volta** por *Tornar ativa* (`POST .../reativar`), com justificativa e registro
+> (`lista_final_reativada`). Depois de gerada, mudar a lista continua pedindo justificativa e
+> subindo a versão, como antes. Preliminar não manda código nem ganha etiquetas: isso é da final
+> ativa. A migration converte o que existe: o publicado vira **final** (a vigente segue ativa, com
+> códigos, mapa e crachás intactos) e o rascunho vira **preliminar**. O atalho antigo `oficial` da
+> API continua gerando a final na hora; `/publicar` é sinônimo de `/gerar`.
+> (b) **Sprint 165** — a final pela **união de preliminares**
+> (`POST /admin/avaliacao/listas/final-de-preliminares`): o admin marca as preliminares **já
+> geradas** e o portal junta os projetos delas sem repetir, num rascunho de final que ainda se
+> edita antes de gerar. Nas telas: o assistente do Ranking (*Gerar lista*) termina escolhendo
+> **preliminar** (padrão) ou **final** e sempre abre o rascunho; a página de listas separa **Finais**
+> (ativa/inativa, *Tornar ativa*, de que preliminares veio) de **Preliminares**, com o botão *Lista
+> final a partir de preliminares*; o detalhe edita na hora no rascunho, gera com confirmação quando é
+> final ("vira a ativa") e só mostra identificação e envio de código para a final.
+>
+> **Sprint 163 (mesma branch):** nasce a aba **Certificados** (`AbaAdmin::Certificados`, do RBAC
+> como as demais; `/admin/certificados`, `CertificadosService`). O portal **não emite** o
+> certificado: entrega a planilha (Excel ou CSV) com que a organização o emite.
+> (a) **Avaliadores por fase.** O certificado da **fase online sai antes da presencial** — há
+> avaliador pedindo para processo seletivo com prazo —, então as duas fases são **contadas
+> separadas**: nome completo, CPF, e-mail, área de avaliação, projetos avaliados online e
+> presencialmente. A carga horária a organização calcula pela quantidade. Conta a avaliação
+> **concluída** desta edição (o `whereHas('projeto')` traz o recorte do `EdicaoScope` para a
+> contagem), inclusive a que foi desconsiderada depois — a regra do card de certificado do perfil:
+> quem descartou foi a organização, o trabalho aconteceu. A separação também aparece **no mesmo
+> cadastro do avaliador**: Avaliadores Online ganhou a coluna *Presenciais* (ordenável, e no CSV),
+> e o perfil do avaliador diz quantas avaliações presenciais ele tem.
+> (b) **Participantes.** Nome completo, CPF, e-mail, **função** e **projeto ou atividade** de oito
+> grupos combináveis: estudantes, orientadores e coorientadores (dos **finalistas** ou de **todos os
+> submetidos**, com a coluna *Finalista* sim/não), comissão especial de avaliação (inclusive quem
+> ainda não avaliou), avaliadores de cada fase (com "Avaliação de N projeto(s)"), **voluntários**
+> (contas temporárias não removidas, com o setor e o curso) e a **organização** — os admins, que
+> passaram a ter **CPF opcional** no cadastro (`users.cpf`, campo novo na aba Administradores),
+> porque até aqui o portal não sabia o CPF de quem organiza a feira. Conta demo fica de fora.
+> (c) **Declaração nominal.** Cada avaliador tem *Projetos avaliados*: os títulos por fase e um
+> **PDF** (`pdf.declaracao-avaliador`) sem nota nenhuma — o que se declara é o trabalho feito, a
+> nota é da organização. E uma planilha com **uma linha por avaliação**, para responder de uma vez
+> a vários pedidos.
+>
+> **Sprints 161–162 (mesma branch):**
+> (a) **Sprint 161** — **credenciamento fora do prazo**. Algumas equipes pediram para credenciar
+> depois e não estarão no primeiro dia; a organização aprovou, mas a explicação morava numa lista à
+> parte, e o balcão e os avaliadores só enxergavam um estande vazio e um projeto "não credenciado".
+> Agora a ficha do credenciamento tem **Marcar credenciamento fora do prazo**, com a **data prevista
+> de chegada** (opcional) e uma observação (`credenciamentos_fora_prazo`, `ForaPrazoService`). Só
+> **admin permanente** marca (rota sob `admin.permanente`): a conta temporária do balcão vê o selo
+> mas não aprova exceção. Marcar e retirar entram em Registros → Credenciamento.
+> O selo sai de um lugar só — `SinalizacaoProjetoService::para($ids)`, chamado uma vez por página —
+> e aparece em todas as telas em que alguém pode estranhar a ausência: lista e ficha do
+> credenciamento, checagem e espelho de estandes, avaliações presenciais do admin, a tela do
+> **avaliador presencial** (os dele e os disponíveis, e o diálogo da rubrica), a lista filtrável do
+> Mapa do Evento (com coluna no CSV). Componente `SinalizacoesProjeto.jsx`.
+> (b) **Sprint 162** — **suporte no evento**: acompanhante (estudante neurodivergente ou com
+> deficiência), intérprete de Libras e intérprete de outra língua (`suportes_projeto`,
+> `TipoSuporte`, `StatusSuporte`). O **orientador** pede na aba nova **Suporte no evento**
+> (`/suporte-evento`), para cada projeto seu que está na lista final — mesma janela dos documentos
+> do finalista (da lista publicada ao fim do evento), com o modo de teste da conta demo. No
+> acompanhante ele cadastra a **pessoa**: nome completo, documento e vínculo com o estudante —
+> porque ela entra no evento. A **organização** decide em Credenciamento → **Suporte e
+> acessibilidade** (`/admin/credenciamento/suporte`): aprova ou recusa (recusar exige motivo, que o
+> orientador lê) e registra, já aprovado, o pedido que chegou por e-mail ou telefone. Mexer num
+> pedido já aprovado o devolve para "aguardando" — a organização aprovou o que leu. **Só o
+> aprovado** aparece para as equipes (o mesmo selo da Sprint 161), e o **acompanhante aprovado vira
+> participante**: código próprio com o papel novo **`S`** (`CodigoParticipante::PAPEL_ACOMPANHANTE`,
+> id do pedido e três dígitos do documento), etiqueta no PDF de identificação, linha "Acompanhante
+> de Fulano" na lista nominal, leitura do crachá no balcão e bloco *Acompanhantes (conferir o
+> documento)* na ficha. De quebra, a conferência dos três dígitos do CPF passou a usar o mesmo
+> preenchimento do código (`CodigoParticipante::cpf3()`), senão o crachá de quem não tem CPF — o
+> estudante do cadastro manual, o acompanhante com RG — nunca passaria no leitor.
+>
+> **Sprints 159–160 (mesma branch):**
+> (a) **Sprint 159** — **código do projeto aos finalistas**. Com a lista certa no sistema, cada
+> equipe recebe por e-mail o código do seu projeto (FET.AGR-001), para o credenciamento e a
+> checagem dos estandes não dependerem de alguém achar o título numa lista. Só que o código era
+> **recalculado a cada leitura** — a numeração segue a ordem alfabética dentro de categoria+área, e
+> incluir um projeto empurrava o número dos que vinham depois. Mandar isso por e-mail seria mandar a
+> equipe ao balcão com um número que podia deixar de ser o dela. Agora o código é **fixado**
+> (`lista_final_projetos.codigo`, `listas_finais.codigos_congelados_em`) antes do envio: daí em
+> diante não muda, e quem entra na lista ganha o **próximo número livre do grupo** (e aparece no fim
+> dele, não no meio da ordem alfabética com um número fora de sequência). TXT, identificação,
+> exportação e e-mail leem o mesmo código. O envio **é uma mala direta** para a equipe dos
+> finalistas (Sprint 158) com o modelo novo **"Código do projeto"** (`ModeloEmail::CodigoProjeto`,
+> editável em Modelos de e-mail) e a variável `{{projetos}}` — por isso ganha de graça a fila, o
+> relatório por endereço e o reenvio das falhas. Só a lista **vigente e publicada** manda código
+> (a prévia ainda pode mudar; a demo não manda e-mail). Há também *Só fixar os códigos*, para
+> imprimir crachá antes do e-mail. Registros → Lista final ganhou `lista_final_codigos_fixados` e
+> `lista_final_codigos_enviados`. `CodigosFinalistasService`.
+> (b) **Sprint 160** — **exportar a lista oficial**. A mesma lista serve à lista nominal do
+> credenciamento, aos crachás, aos certificados, ao painel de nomes e aos contatos, e cada uso pede
+> outras colunas e outro **nível** (uma linha por pessoa ou por projeto). Em vez de um relatório
+> fixo por pedido, a seção *Exportar* do detalhe da lista tem **modelos prontos** — a **lista
+> nominal** (nome completo, função, projeto, código, instituição, categoria, área) é o primeiro — e
+> um **construtor**: nível, colunas e formato (Excel ou CSV). As colunas saem na ordem pedida, e o
+> registro delas mora num lugar só (`ExportacaoListaFinalService::COLUNAS`): acrescentar uma é
+> escrever o rótulo e de onde ela sai. Por pessoa há nome, função, CPF, e-mail, telefone, série,
+> camiseta, **código do crachá** (o do QR), código do projeto, instituição, cidade, categoria, área,
+> estande, turno, origem e credenciamento; por projeto, a equipe numa linha e as contagens.
+>
+> **Sprints 157–158 (mesma branch):**
+> (a) **Sprint 157** — **cadastro manual de projeto** (Avaliação online → Listas finais → *Cadastro
+> manual de projetos*, `/admin/avaliacao/projetos-manuais`). Há equipes que vão ao evento sem ter
+> passado pela inscrição — a vaga veio de uma **feira afiliada**, ou a organização recebeu só os
+> nomes —, e pedir a inscrição agora não cabe no calendário. A tela cadastra o projeto inteiro
+> (título, instituição, área/subárea, categoria, orientador, coorientador, estudantes) e o põe
+> **direto na lista final vigente**, pelo mesmo `adicionarProjeto()` de sempre — é a lista que o
+> faz existir para credenciamento, mapa, crachás e avaliação presencial. Duas escolhas
+> independentes, como a organização pediu: a **origem** (*finalista* ou *credencial de feira
+> afiliada*, que grava `feira_afiliada` + nome da feira + nº da credencial, os campos que a
+> inscrição já tinha) e a caixa **já credenciado no balcão**, que cria o credenciamento concluído
+> com a equipe presente e sem conferência de documento (`registrarNoCadastroManual`). O
+> **orientador é uma conta**: escolhe-se uma existente, ou o e-mail informado é reaproveitado, ou
+> nasce uma conta nova, ativa e com senha aleatória — a pessoa entra por *Esqueci a senha*. E-mail
+> de avaliador ou admin é recusado (exclusão mútua). Como a organização costuma ter só o nome,
+> **CPF e e-mail de estudante e coorientador viraram opcionais no banco** (e CPF/telefone/nascimento
+> do orientador) — os formulários da inscrição continuam exigindo tudo, porque quem decide é o
+> FormRequest de cada caminho. `projetos.cadastro_manual` tira o projeto da **avaliação online**:
+> o escopo novo `Projeto::avaliacaoOnline()` (= `semDemo` + não manual) substituiu o `semDemo` na
+> distribuição, na fila do avaliador, em Projetos submetidos (tabela, cards, filtro de área) e nas
+> opções de designação. Criar, editar (alunos sincronizados por id; quem sai é apagado **antes**,
+> para o substituto poder herdar o e-mail) e excluir pedem **justificativa** e entram em Registros →
+> Projetos (`projeto_cadastro_manual`, `_alterado`, `_excluido`); a inclusão/retirada da lista
+> entra também em Registros → Lista final. Sem lista oficial publicada, a tela não cadastra.
+> (b) **Sprint 158** — a mala direta ganhou a caixa **Somente finalistas**: estudantes, orientador e
+> coorientador dos projetos da **lista final vigente**, deduplicados por e-mail (o orientador de
+> dois finalistas recebe uma vez, com os dois títulos). Não é um `PublicoMala`, de propósito: os
+> públicos são consultas de **usuário**, compartilhadas com avisos e feedback, e metade da equipe
+> finalista não tem conta. A origem fica gravada como `finalistas` (rótulo "Finalistas (equipe
+> inteira)") nos públicos da mala e em cada destinatário; o papel de quem não tem conta é
+> `estudante`/`coorientador`. A caixa mostra de qual lista são e **quantos ficam de fora por não ter
+> e-mail** (o estudante do cadastro manual). Junto nasceu a variável **`{{projetos}}`** — os
+> projetos de quem recebe, já com o código da lista final (FET.AGR-001) para os finalistas — e a
+> personalização passou a **escapar os valores no HTML**: um título com "<" não vira marcação.
+>
+> **Sprints 155–156 (branch `feat/finalistas-suporte-e-certificados`, saída da `main` @ `9390a3c`):**
+> (a) **Sprint 155** — as **contas temporárias** das quatro abas com balcão (credenciamento,
+> almoxarifado, voluntários da avaliação presencial e cerimonial) passaram a nascer **em lote**. A
+> equipe do balcão chega numa lista de dezenas de nomes, e cadastrar um por um, cada um com uma
+> senha inventada na hora, era o gargalo da véspera. O caminho é o do responsável pela equipe:
+> **baixa o modelo** em Excel (cabeçalho só, sem linha de exemplo — exemplo esquecido vira conta;
+> CPF e datas em coluna **texto**, senão o Excel come o zero da frente), preenche, devolve em
+> `.xlsx` ou `.csv` e vê a **prévia linha a linha** — o que vira conta e o que não passa, com o
+> motivo (CPF inválido, e-mail que já tem conta, repetido na própria planilha, janela no passado,
+> turno mal escrito). Confirmado, cada conta ganha uma **senha gerada** (10 caracteres sem 0/O/1/l)
+> e a **planilha de acesso** (nome, e-mail, senha) é baixada na hora: o portal guarda só o hash,
+> então ela existe uma vez. Os campos de início/horas — ou de turnos, nos voluntários — são o
+> **padrão** da linha que deixar a coluna em branco. A leitura é nossa
+> (`App\Support\LeitorPlanilha`: xlsx com strings compartilhadas, células puladas e data serial do
+> Excel; csv com BOM, `;`/`,`/tab e Windows-1252), **sem dependência nova** — o mesmo argumento do
+> `PlanilhaXlsx`, que ganhou largura e formato texto por coluna.
+> E a conta pode ser **removida**, não só desativada. Desativar continua sendo o reversível; remover
+> é para quem não devia estar ali. Conta que **nunca atendeu ninguém** é apagada. A que **já
+> deixou rastro** (credenciou, guardou material, fez check-in, conferiu estande) é **arquivada**
+> (`contas_temporarias.removida_em`): as fichas apontam para ela e não guardam o nome à parte, então
+> o `users` fica — com o login morto (inativa, e-mail trocado por um endereço `.invalid` que libera
+> o original, senha embaralhada, sessões encerradas) — e o nome continua respondendo por quem
+> atendeu. As rotas das quatro abas viraram uma macro (`Route::contasTemporarias($setor)`).
+> (b) **Sprint 156** — relato de produção: o **PDF de etiquetas** da identificação dava erro. Eram
+> dois defeitos. O Dompdf **não pinta SVG escrito dentro do HTML**: as etiquetas que saíam vinham
+> sem QR e sem barras. E o motor de layout dele custa ~0,2 MB e 20 ms por etiqueta — com 200
+> pessoas a memória de 128 MB estourava, e a lista real tem perto de 1.800. As etiquetas passaram a
+> ser **desenhadas direto na página** (`App\Support\EtiquetasPdf`, sobre o `Cpdf` que o próprio
+> Dompdf já traz): texto nas fontes padrão do PDF e os códigos como retângulos — o QR módulo a
+> módulo, o Code 128 barra a barra. Vetor puro, sem GD: **2.000 etiquetas em ~9 s e 43 MB**, 10 por
+> folha A4. O QR do PDF usa correção **M** (15%), porque o crachá amassa e risca; o SVG da tela e
+> do ZIP não mudou.
+>
 > **Sprints 153–154 (branch `feat/ranking-download-e-idiomas`, saída da `main` @ `86d28c7`):**
 > (a) **Sprint 153** — o **Ranking dos projetos** passou a ser **baixável**. Ele é a tela em que a
 > organização discute quem vai para a lista final, e a discussão acontece em reunião: até aqui o
@@ -1977,7 +2183,42 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > e **Escolas** (`/admin/parametrizacao/escolas`): admin busca, **renomeia, mescla** (reatribui
 > projetos/alunos/orientadores) e **exclui** instituições sem uso (`InstituicaoAdminService`/Controller,
 > rotas `admin/instituicoes`). Back **117/117**, front 11/11, Pint limpo, build OK.
-> **Pendências do Pedro (Sprints 153–154):** (1) `git push origin feat/ranking-download-e-idiomas`
+> **Pendências do Pedro (Sprints 155–163):** (1) `git push origin feat/finalistas-suporte-e-certificados`
+> + PR para a `main` (o ambiente do Claude não tem credencial do GitHub) e, depois do merge, o
+> deploy pela §11 do [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). Esta release **tem migrations**
+> (`contas_temporarias.removida_em`; `projetos.cadastro_manual` e CPF/e-mail **anuláveis** em
+> alunos, coorientadores e perfil do orientador; `lista_final_projetos.codigo` + datas do envio em
+> `listas_finais`; as tabelas `credenciamentos_fora_prazo` e `suportes_projeto`; `users.cpf`),
+> **nenhuma variável nova de `.env`** e **nenhuma dependência nova**. As planilhas usam a extensão
+> `zip` do PHP (já exigida pela Sprint 153).
+> (2) **Duas abas novas do RBAC**: *Certificados* (admin) — quem tem escopo atribuído não a
+> enxerga até você acrescentá-la ao escopo; e *Suporte no evento* (orientador), que aparece para
+> todos os orientadores e só tem conteúdo para quem tem projeto na lista final.
+> (3) **PDF de etiquetas**: o layout mudou (10 por folha A4, códigos desenhados direto). Vale
+> imprimir uma folha e testar no leitor USB e na câmera antes de imprimir as 1.800. Depois de
+> **aprovar acompanhantes**, baixe o PDF de novo: eles entram com crachá próprio (papel `S`).
+> (4) **Código do projeto**: o envio **fixa** os códigos da lista vigente. Depois disso, ajuste a
+> composição por *incluir/retirar* na mesma lista (quem entra ganha o próximo número livre) — **não
+> publique uma lista nova**, que nasceria com outra numeração. Vale revisar o texto do modelo
+> **"Código do projeto"** em Comunicação → Modelos de e-mail antes de enviar.
+> (5) **Cadastro manual**: o orientador criado ali entra por **"Esqueci a senha"** (avise por
+> e-mail). Estudante sem CPF fica com "000" nos três dígitos do crachá — o leitor aceita —, mas o
+> **CPF faz falta no certificado**: complete quando chegar.
+> (6) **Contas temporárias em lote**: as senhas só existem na **planilha de acesso** baixada na
+> hora. Quem perder a sua usa "Esqueci a senha". Remover uma conta que já atendeu alguém a
+> **arquiva** (o nome fica nos registros, o login morre e o e-mail fica livre).
+> (7) **Certificados da organização**: o CPF dos admins nasce em branco — preencha em
+> Administradores → editar, antes de exportar o grupo *Organização*.
+> (8) **Listas (Sprints 164–165)**: mais uma migration (`listas_finais.tipo`, `origens`,
+> `gerada_em`). Depois do deploy, a lista oficial de hoje aparece como **final ativa** e os
+> rascunhos antigos como **preliminares** — confira em Avaliação online → Listas preliminares e
+> finais. O assistente do Ranking agora começa em **preliminar**: para uma final direto da
+> classificação, troque a opção no último passo. **Gerar uma final nova muda os finalistas na
+> hora** (credenciamento, mapa, crachás); se os códigos já foram enviados, prefira incluir/retirar
+> na final ativa a gerar outra.
+
+> **Pendências do Pedro (Sprints 153–154):** ~~push + PR~~ — **entrou na `main` pelo PR #99**
+> (v1.27.2). As observações de uso continuam valendo: (1) `git push origin feat/ranking-download-e-idiomas`
 > + PR para a `main` (o ambiente do Claude não tem credencial do GitHub) e, depois do merge, o
 > deploy pela §11 do [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). Esta release **tem uma migration**
 > (`avaliador_profiles.idiomas`), **nenhuma variável nova de `.env`** e **nenhuma dependência

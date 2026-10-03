@@ -7,6 +7,7 @@ import {
     getPlanta, salvarPlanta, restaurarPlanta,
     getSituacaoPlanta, getListaSituacao, baixarListaSituacao,
 } from '../lib/mapaEvento.js';
+import SinalizacoesProjeto from '../components/SinalizacoesProjeto.jsx';
 
 /**
  * Mapa do Evento → **a planta do ginásio**.
@@ -750,6 +751,7 @@ export default function MapaPlanta() {
                                                 <p className="text-xs text-on-surface-variant">
                                                     {l.situacao_label} · {l.avaliacoes} de {l.avaliacoes_maximo} avaliação(ões)
                                                 </p>
+                                                <SinalizacoesProjeto sinalizacoes={l.sinalizacoes} compacto />
                                             </li>
                                         ))}
                                     </ul>

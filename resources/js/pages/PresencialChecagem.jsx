@@ -6,6 +6,7 @@ import { extractErrors } from '../lib/auth.jsx';
 import {
     getConfigPresencial, getChecagens, getFichaEstande, registrarChecagem, urlTermo,
 } from '../lib/presencial.js';
+import SinalizacoesProjeto from '../components/SinalizacoesProjeto.jsx';
 
 const campoClass =
     'w-full bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface ' +
@@ -45,6 +46,7 @@ function Ficha({ ficha, situacoes, aberto, salvando, erro, onSalvar, onVoltar })
                 <p className="text-xs text-on-surface-variant mt-1">
                     {ficha.projeto.orientador} · {ficha.projeto.alunos.join(', ')}
                 </p>
+                {ficha.sinalizacoes && <div className="mt-2"><SinalizacoesProjeto sinalizacoes={ficha.sinalizacoes} /></div>}
                 {ficha.checagem?.verificado_em && (
                     <p className="text-xs text-on-surface-variant mt-2">
                         Conferido em {dataHora(ficha.checagem.verificado_em)}
@@ -308,6 +310,7 @@ export default function PresencialChecagem() {
                                             {[p.area, p.escola, p.orientador].filter(Boolean).join(' · ')}
                                         </p>
                                         <p className="text-xs text-primary-container font-semibold">{local(p.local)}</p>
+                                        <SinalizacoesProjeto sinalizacoes={p.sinalizacoes} compacto />
                                     </div>
                                     <div className="flex items-center gap-2 shrink-0">
                                         {p.conferido ? (

@@ -175,7 +175,7 @@ class FilaAvaliadorService
             return 0;
         }
 
-        $bolo = Projeto::semDemo()
+        $bolo = Projeto::avaliacaoOnline()
             ->where('status', ProjetoStatus::Submetido->value)
             ->whereIn('area_id', $areas)
             ->get(['id', 'categoria'])
@@ -263,7 +263,7 @@ class FilaAvaliadorService
 
         // `semDemo` pelo mesmo motivo da distribuição em massa: projeto de
         // orientador demo só chega a um avaliador por designação manual.
-        $candidatos = Projeto::semDemo()
+        $candidatos = Projeto::avaliacaoOnline()
             ->where('status', ProjetoStatus::Submetido->value)
             ->whereNotIn('id', [...$jaTem, ...$ignorar])
             ->select(['id', 'area_id', 'subarea_id', 'categoria'])

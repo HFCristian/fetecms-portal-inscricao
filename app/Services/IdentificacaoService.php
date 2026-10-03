@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\ListaFinal;
 use App\Models\Projeto;
 use App\Support\CodigoParticipante;
+use App\Support\EtiquetasPdf;
 use BaconQrCode\Renderer\Image\SvgImageBackEnd;
 use BaconQrCode\Renderer\ImageRenderer;
 use BaconQrCode\Renderer\RendererStyle\RendererStyle;
@@ -75,22 +76,23 @@ class IdentificacaoService
         return $tipo === 'barras' ? $this->barras($codigo) : $this->qr($codigo);
     }
 
-    /** As etiquetas de todos os participantes, prontas para imprimir e recortar. */
+    /**
+     * As etiquetas de todos os participantes, prontas para imprimir e recortar.
+     *
+     * Desenhadas direto na página ({@see EtiquetasPdf}), e não pelo HTML do
+     * Dompdf: ele não pinta SVG embutido no HTML (as etiquetas saíam sem QR e
+     * sem barras) e estourava a memória com algumas centenas de pessoas.
+     */
     public function pdf(ListaFinal $lista): string
     {
-        $participantes = $this->participantes($lista)
-            ->map(fn (array $p) => $p + [
-                'qr' => $this->svgInterno($this->qr($p['codigo'])),
-                'barras' => $this->svgInterno($this->barras($p['codigo'])),
-            ])
-            ->values()
-            ->all();
+        $participantes = $this->participantes($lista)->values()->all();
 
-        return app(PdfService::class)->render('pdf.identificacao', [
-            'lista' => $lista,
-            'participantes' => $participantes,
-            'gerado_em' => now()->format('d/m/Y H:i'),
-        ]);
+        return EtiquetasPdf::gerar(
+            'Identificação dos participantes',
+            sprintf('%s (v%d) · gerado em %s · %d participante(s)',
+                $lista->nome, (int) $lista->versao, now()->format('d/m/Y H:i'), count($participantes)),
+            $participantes,
+        );
     }
 
     /**
@@ -139,6 +141,12 @@ class IdentificacaoService
             ->orderBy('titulo')
             ->get();
 
+        // Acompanhantes aprovados (Sprint 162) também entram no evento: crachá
+        // próprio, papel S.
+        $acompanhantes = app(SuporteProjetoService::class)
+            ->acompanhantesAprovados($projetos->pluck('id')->all())
+            ->groupBy('projeto_id');
+
         $linhas = collect();
 
         foreach ($projetos as $projeto) {
@@ -168,6 +176,13 @@ class IdentificacaoService
                 $linhas->push($comum + $this->linha(
                     $ano, $projeto->id, $projeto->coorientador->nome, $projeto->coorientador->cpf,
                     CodigoParticipante::PAPEL_COORIENTADOR, $projeto->coorientador->id,
+                ));
+            }
+
+            foreach ($acompanhantes->get($projeto->id, collect()) as $suporte) {
+                $linhas->push($comum + $this->linha(
+                    $ano, $projeto->id, (string) $suporte->acompanhante_nome, $suporte->acompanhante_documento,
+                    CodigoParticipante::PAPEL_ACOMPANHANTE, $suporte->id,
                 ));
             }
         }
@@ -204,15 +219,6 @@ class IdentificacaoService
         // Altura generosa e barra fina: é o que o leitor USB lê de primeira num
         // crachá pendurado no pescoço, meio torto.
         return $renderer->render((new TypeCode128)->getBarcode($codigo), 360, 70);
-    }
-
-    /**
-     * Tira o cabeçalho XML do SVG para ele poder ser embutido no HTML do PDF —
-     * o Dompdf não aceita `<?xml …?>` no meio da página.
-     */
-    private function svgInterno(string $svg): string
-    {
-        return trim(preg_replace('/<\?xml.*?\?>/s', '', $svg) ?? $svg);
     }
 
     /** Nome de arquivo seguro: sem acento, sem barra, sem espaço. */

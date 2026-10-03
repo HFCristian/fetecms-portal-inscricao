@@ -126,9 +126,12 @@ class ChecagemEstandeService
 
         $estandes = $this->estandesDe($pagina->getCollection()->pluck('id')->all());
         $checagens = $this->checagensDe($pagina->getCollection()->pluck('id')->all(), $emTeste);
+        // Fora do prazo e suporte aprovado (Sprints 161–162).
+        $sinais = app(SinalizacaoProjetoService::class)->para($pagina->getCollection()->pluck('id'));
 
         $pagina->getCollection()->transform(
-            fn (Projeto $p) => $this->linha($p, $estandes[$p->id] ?? null, $checagens[$p->id] ?? null),
+            fn (Projeto $p) => $this->linha($p, $estandes[$p->id] ?? null, $checagens[$p->id] ?? null)
+                + ['sinalizacoes' => $sinais[$p->id] ?? null],
         );
 
         return $pagina;
@@ -187,6 +190,7 @@ class ChecagemEstandeService
                 'alunos' => $projeto->alunos->pluck('nome')->all(),
             ],
             'local' => $this->local($projeto->id),
+            'sinalizacoes' => app(SinalizacaoProjetoService::class)->de($projeto->id),
             'itens' => array_map(fn (ItemChecagemEstande $i) => [
                 'id' => $i->id,
                 'nome' => $i->nome,
@@ -280,8 +284,9 @@ class ChecagemEstandeService
         $estandes = $this->estandesDe($ids);
         $checagens = $this->checagensDe($ids, $emTeste);
         $ativos = $this->catalogoAtivo();
+        $sinais = app(SinalizacaoProjetoService::class)->para($ids);
 
-        return $projetos->map(function (Projeto $p) use ($estandes, $checagens, $ativos) {
+        return $projetos->map(function (Projeto $p) use ($estandes, $checagens, $ativos, $sinais) {
             $checagem = $checagens[$p->id] ?? null;
             $marcado = $checagem?->itens->keyBy('item_id') ?? collect();
 
@@ -302,6 +307,7 @@ class ChecagemEstandeService
                     'situacao' => $marcado->get($i->id)?->situacao?->value,
                 ], $ativos),
                 'termo' => $this->termo($p),
+                'sinalizacoes' => $sinais[$p->id] ?? null,
             ];
         })->all();
     }

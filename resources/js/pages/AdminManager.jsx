@@ -44,6 +44,9 @@ function CriarAdminForm({ onCriado }) {
             <Field label="E-mail" required error={err('email')}>
                 <Input type="email" value={form.email ?? ''} onChange={set('email')} error={err('email')} />
             </Field>
+            <Field label="CPF" error={err('cpf')} hint="Opcional — sai no certificado da organização.">
+                <Input aria-label="CPF do administrador" value={form.cpf ?? ''} onChange={set('cpf')} error={err('cpf')} placeholder="000.000.000-00" />
+            </Field>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Senha" required error={err('password')} hint="Mínimo de 8 caracteres.">
                     <Input type="password" value={form.password ?? ''} onChange={set('password')} error={err('password')} />
@@ -122,6 +125,9 @@ function LinhaAdmin({ admin, souEu, editando, form, setForm, err, salvando, esco
                     </Field>
                     <Field label="E-mail" error={err('email')}>
                         <Input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} error={err('email')} />
+                    </Field>
+                    <Field label="CPF" error={err('cpf')} hint="Opcional — certificado da organização.">
+                        <Input aria-label={`CPF de ${admin.name}`} value={form.cpf ?? ''} onChange={(e) => setForm((f) => ({ ...f, cpf: e.target.value }))} error={err('cpf')} />
                     </Field>
                 </div>
                 <div className="flex gap-2 justify-end">
@@ -246,7 +252,7 @@ function AdminList() {
     }
 
     function abrirEdicao(a) {
-        setEditId(a.id); setForm({ name: a.name, email: a.email }); setErrors({}); setAlert('');
+        setEditId(a.id); setForm({ name: a.name, email: a.email, cpf: a.cpf ?? '' }); setErrors({}); setAlert('');
     }
 
     async function salvar(id) {

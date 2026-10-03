@@ -43,7 +43,10 @@ const cancelarCredenciamento = vi.fn(() => Promise.resolve({}));
 const registrarRetiradaKit = vi.fn(() => Promise.resolve({}));
 const salvarRascunhoCredenciamento = vi.fn(() => Promise.resolve({}));
 const assumirCredenciamento = vi.fn(() => Promise.resolve({}));
+const marcarForaPrazo = vi.fn();
 vi.mock('../lib/credenciamento.js', () => ({
+    marcarForaPrazo: (...a) => marcarForaPrazo(...a),
+    removerForaPrazo: vi.fn(),
     getFichaCredenciamento: (...a) => getFichaCredenciamento(...a),
     credenciarProjeto: (...a) => credenciarProjeto(...a),
     cancelarCredenciamento: (...a) => cancelarCredenciamento(...a),
@@ -348,5 +351,51 @@ describe('CredenciamentoFicha', () => {
         expect(await screen.findByText(/ele passa para você/i)).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /Concluir credenciamento/ })).toBeEnabled();
         expect(screen.queryByRole('button', { name: /Assumir atendimento/ })).not.toBeInTheDocument();
+    });
+});
+
+describe('CredenciamentoFicha — fora do prazo e suporte (Sprints 161–162)', () => {
+    const COM_SINAIS = {
+        ...FICHA,
+        pode_aprovar_excecao: true,
+        sinalizacoes: {
+            fora_prazo: null,
+            suportes: [{ id: 1, tipo: 'acompanhante', tipo_label: 'Acompanhante', resumo: 'Acompanhante: Maria (mãe) — de Ana Aluna', documento: 'RG 123' }],
+        },
+        acompanhantes: [{ id: 1, nome: 'Maria', documento: 'RG 123', vinculo: 'Mãe', aluno: 'Ana Aluna', codigo: '2026-7-000-S1' }],
+    };
+
+    beforeEach(() => {
+        getFichaCredenciamento.mockResolvedValue(COM_SINAIS);
+        marcarForaPrazo.mockReset().mockResolvedValue({
+            data: { ...COM_SINAIS, sinalizacoes: { ...COM_SINAIS.sinalizacoes, fora_prazo: { previsto_label: '05/10/2026 14:00', observacao: 'Chega segunda.' } } },
+        });
+    });
+
+    it('mostra o suporte aprovado e o acompanhante a conferir', async () => {
+        render(<CredenciamentoFicha />);
+
+        expect(await screen.findByText('Acompanhante: Maria (mãe) — de Ana Aluna')).toBeInTheDocument();
+        expect(screen.getByText('2026-7-000-S1')).toBeInTheDocument();
+    });
+
+    it('admin permanente marca o credenciamento fora do prazo com a data prevista', async () => {
+        render(<CredenciamentoFicha />);
+
+        fireEvent.click(await screen.findByRole('button', { name: /Marcar credenciamento fora do prazo/ }));
+        fireEvent.change(screen.getByLabelText('Chegada prevista'), { target: { value: '2026-10-05T14:00' } });
+        fireEvent.change(screen.getByLabelText('Observação do fora do prazo'), { target: { value: 'Chega segunda.' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+
+        await waitFor(() => expect(marcarForaPrazo).toHaveBeenCalledWith('7', { previsto_em: '2026-10-05T14:00', observacao: 'Chega segunda.' }, false));
+        expect(await screen.findByText('05/10/2026 14:00')).toBeInTheDocument();
+    });
+
+    it('conta temporária vê o selo mas não marca', async () => {
+        getFichaCredenciamento.mockResolvedValue({ ...COM_SINAIS, pode_aprovar_excecao: false });
+        render(<CredenciamentoFicha />);
+
+        await screen.findByText('Acompanhante: Maria (mãe) — de Ana Aluna');
+        expect(screen.queryByRole('button', { name: /fora do prazo/ })).not.toBeInTheDocument();
     });
 });

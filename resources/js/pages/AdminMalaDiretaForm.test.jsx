@@ -55,6 +55,7 @@ const OPCOES = {
         { chave: 'email', rotulo: 'E-mail', descricao: 'O endereço de quem recebe.' },
     ],
     max_personalizados: 5000,
+    finalistas: { lista: 'Lista oficial (v2)', pessoas: 40, sem_email: 3 },
 };
 
 const previaPadrao = {
@@ -306,5 +307,28 @@ describe('AdminMalaDiretaForm — anexos', () => {
         expect(dispararMala).not.toHaveBeenCalled();
         expect(navigate).not.toHaveBeenCalled();
         await waitFor(() => expect(screen.getByText(/Teste na fila para 2 endereço/)).toBeInTheDocument());
+    });
+
+    it('"Somente finalistas" troca os públicos pela equipe da lista final', async () => {
+        getPreviaMala.mockResolvedValue({
+            ...previaPadrao,
+            meta: { ...previaPadrao.meta, finalistas: { lista: 'Lista oficial (v2)', pessoas: 40, sem_email: 3 } },
+        });
+        render(<AdminMalaDiretaForm />);
+        await waitFor(() => expect(screen.getByText('Todos os usuários')).toBeInTheDocument());
+        expect(screen.getByText(/Lista oficial \(v2\)/)).toBeInTheDocument();
+
+        fireEvent.click(screen.getByText('Todos os usuários'));
+        fireEvent.click(screen.getByLabelText('Somente finalistas'));
+
+        await waitFor(() => expect(getPreviaMala).toHaveBeenLastCalledWith(
+            expect.objectContaining({ finalistas: true, publicos: [] }),
+        ));
+        expect(await screen.findByText(/40 pessoas · 3 sem e-mail cadastrado/)).toBeInTheDocument();
+
+        preencherMensagem();
+        fireEvent.click(screen.getByRole('button', { name: /Enviar/ }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Enviar agora' }));
+        await waitFor(() => expect(dispararMala).toHaveBeenCalledWith(expect.objectContaining({ finalistas: true, publicos: [] })));
     });
 });

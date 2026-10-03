@@ -83,7 +83,7 @@ describe('AvaliadorPerfil — estatísticas', () => {
     it('mostra avaliações concluídas, carga horária do certificado e posição no ranking', async () => {
         renderPerfil();
 
-        expect(await screen.findByText('Projetos avaliados')).toBeInTheDocument();
+        expect(await screen.findByText('Projetos avaliados (online)')).toBeInTheDocument();
         expect(screen.getByText('3')).toBeInTheDocument();
 
         expect(screen.getByText('Certificado')).toBeInTheDocument();

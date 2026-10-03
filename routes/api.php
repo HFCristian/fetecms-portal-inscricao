@@ -23,8 +23,10 @@ use App\Http\Controllers\Api\V1\CadastroPendenteController;
 use App\Http\Controllers\Api\V1\CatalogoAdminController;
 use App\Http\Controllers\Api\V1\CatalogoController;
 use App\Http\Controllers\Api\V1\CerimonialController;
+use App\Http\Controllers\Api\V1\CertificadosController;
 use App\Http\Controllers\Api\V1\ChatAdminController;
 use App\Http\Controllers\Api\V1\ChatController;
+use App\Http\Controllers\Api\V1\CodigosFinalistasController;
 use App\Http\Controllers\Api\V1\ComiteDesignacaoController;
 use App\Http\Controllers\Api\V1\ComiteTransporteController;
 use App\Http\Controllers\Api\V1\ContaTemporariaController;
@@ -35,6 +37,7 @@ use App\Http\Controllers\Api\V1\DocumentoController;
 use App\Http\Controllers\Api\V1\DocumentoPresencialController;
 use App\Http\Controllers\Api\V1\EdicaoController;
 use App\Http\Controllers\Api\V1\EscopoAdminController;
+use App\Http\Controllers\Api\V1\ExportacaoListaFinalController;
 use App\Http\Controllers\Api\V1\FeedbackController;
 use App\Http\Controllers\Api\V1\IdentificacaoController;
 use App\Http\Controllers\Api\V1\InscricoesController;
@@ -50,7 +53,10 @@ use App\Http\Controllers\Api\V1\ParametrizacaoCredenciamentoController;
 use App\Http\Controllers\Api\V1\PerfilController;
 use App\Http\Controllers\Api\V1\PresencaContaTemporariaController;
 use App\Http\Controllers\Api\V1\ProjetoController;
+use App\Http\Controllers\Api\V1\ProjetoManualController;
 use App\Http\Controllers\Api\V1\ProjetoSubmissaoController;
+use App\Http\Controllers\Api\V1\SuporteAdminController;
+use App\Http\Controllers\Api\V1\SuporteOrientadorController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -60,6 +66,26 @@ use Illuminate\Support\Facades\Route;
 | Auth do web por cookie/CSRF (Sanctum SPA, mesma origem); mobile usará
 | token Bearer na mesma API. Regra de negócio nos Services.
 */
+
+/**
+ * As rotas de contas temporárias de um setor. As quatro abas que têm balcão
+ * (credenciamento, almoxarifado, avaliação presencial e cerimonial) usam o
+ * mesmo controller; o `setor` vem do grupo e é o que separa as listas.
+ */
+Route::macro('contasTemporarias', function (string $setor): void {
+    Route::get('/contas', [ContaTemporariaController::class, 'index'])->defaults('setor', $setor);
+    Route::post('/contas', [ContaTemporariaController::class, 'store'])->defaults('setor', $setor);
+    // Cadastro em lote (Sprint 155): modelo → prévia → confirmação.
+    Route::get('/contas/modelo', [ContaTemporariaController::class, 'modelo'])->defaults('setor', $setor);
+    Route::post('/contas/lote/previa', [ContaTemporariaController::class, 'previaLote'])
+        ->defaults('setor', $setor)->middleware('throttle:20,1');
+    Route::post('/contas/lote', [ContaTemporariaController::class, 'lote'])
+        ->defaults('setor', $setor)->middleware('throttle:10,1');
+    Route::patch('/contas/{conta}/renovar', [ContaTemporariaController::class, 'renovar'])->defaults('setor', $setor);
+    Route::patch('/contas/{conta}/desativar', [ContaTemporariaController::class, 'desativar'])->defaults('setor', $setor);
+    Route::patch('/contas/{conta}/presenca', [ContaTemporariaController::class, 'presenca'])->defaults('setor', $setor);
+    Route::delete('/contas/{conta}', [ContaTemporariaController::class, 'destroy'])->defaults('setor', $setor);
+});
 
 Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
     Route::get('/health', fn () => response()->json([
@@ -208,6 +234,15 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::delete('/projetos/{projeto}/termo', [DocumentoPresencialController::class, 'destroy']);
         });
 
+        // Aba "Suporte" do orientador (Sprint 162): acompanhante e intérpretes
+        // para os projetos finalistas; a organização aprova.
+        Route::middleware('role:orientador')->prefix('suporte')->group(function () {
+            Route::get('/', [SuporteOrientadorController::class, 'index']);
+            Route::post('/projetos/{projeto}', [SuporteOrientadorController::class, 'store'])->middleware('throttle:30,1');
+            Route::put('/{suporte}', [SuporteOrientadorController::class, 'update']);
+            Route::delete('/{suporte}', [SuporteOrientadorController::class, 'destroy']);
+        });
+
         // Avaliação online — lado do avaliador (E7): ler, iniciar e concluir com nota
         Route::middleware('role:avaliador')->prefix('avaliacao')->group(function () {
             Route::get('/', [AvaliadorAvaliacaoController::class, 'index']);
@@ -303,11 +338,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::delete('/credenciais/{credencial}/projetos/{projeto}', [AvaliacaoPresencialAdminController::class, 'retirarCredencial']);
                 // Voluntários: contas temporárias próprias desta aba, com
                 // vários turnos de trabalho definidos de uma vez.
-                Route::get('/contas', [ContaTemporariaController::class, 'index'])->defaults('setor', 'avaliacao_presencial');
-                Route::post('/contas', [ContaTemporariaController::class, 'store'])->defaults('setor', 'avaliacao_presencial');
-                Route::patch('/contas/{conta}/renovar', [ContaTemporariaController::class, 'renovar'])->defaults('setor', 'avaliacao_presencial');
-                Route::patch('/contas/{conta}/desativar', [ContaTemporariaController::class, 'desativar'])->defaults('setor', 'avaliacao_presencial');
-                Route::patch('/contas/{conta}/presenca', [ContaTemporariaController::class, 'presenca'])->defaults('setor', 'avaliacao_presencial');
+                Route::contasTemporarias('avaliacao_presencial');
             });
 
             // --- Aba "Avaliação online" ---
@@ -359,6 +390,11 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 // registro em Registros → Lista final.
                 // Publica um rascunho revisado: ele passa a ser a vigente.
                 Route::post('/avaliacao/listas-finais/{lista}/publicar', [AdminAvaliacaoController::class, 'publicarListaFinal']);
+                // Listas preliminares e finais (Sprint 164): gerar o rascunho
+                // revisado, montar a final das preliminares e reativar uma final.
+                Route::post('/avaliacao/listas-finais/{lista}/gerar', [AdminAvaliacaoController::class, 'publicarListaFinal']);
+                Route::post('/avaliacao/listas-finais/{lista}/reativar', [AdminAvaliacaoController::class, 'reativarListaFinal']);
+                Route::post('/avaliacao/listas/final-de-preliminares', [AdminAvaliacaoController::class, 'listaFinalDePreliminares']);
                 Route::post('/avaliacao/listas-finais/{lista}/projetos', [AdminAvaliacaoController::class, 'adicionarNaListaFinal']);
                 Route::delete('/avaliacao/listas-finais/{lista}/projetos/{projeto}', [AdminAvaliacaoController::class, 'removerDaListaFinal']);
 
@@ -367,6 +403,21 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::get('/avaliacao/listas-finais/{lista}/identificacao', [IdentificacaoController::class, 'index']);
                 Route::get('/avaliacao/listas-finais/{lista}/identificacao/pdf', [IdentificacaoController::class, 'pdf']);
                 Route::get('/avaliacao/listas-finais/{lista}/identificacao/zip', [IdentificacaoController::class, 'zip']);
+                // Exportação da lista (Sprint 160): lista nominal e recortes.
+                Route::get('/avaliacao/listas-finais/exportar/opcoes', [ExportacaoListaFinalController::class, 'opcoes']);
+                Route::get('/avaliacao/listas-finais/{lista}/exportar', [ExportacaoListaFinalController::class, 'exportar']);
+                // Código do projeto (Sprint 159): fixar e mandar aos finalistas.
+                Route::get('/avaliacao/listas-finais/{lista}/codigos', [CodigosFinalistasController::class, 'show']);
+                Route::post('/avaliacao/listas-finais/{lista}/codigos/fixar', [CodigosFinalistasController::class, 'fixar']);
+                Route::post('/avaliacao/listas-finais/{lista}/codigos/enviar', [CodigosFinalistasController::class, 'enviar'])
+                    ->middleware('throttle:6,1');
+                // Cadastro manual de projeto (Sprint 157): quem vai ao evento sem
+                // ter passado pela inscrição entra direto na lista final.
+                Route::get('/avaliacao/projetos-manuais', [ProjetoManualController::class, 'index']);
+                Route::post('/avaliacao/projetos-manuais', [ProjetoManualController::class, 'store']);
+                Route::get('/avaliacao/projetos-manuais/{projeto}', [ProjetoManualController::class, 'show']);
+                Route::put('/avaliacao/projetos-manuais/{projeto}', [ProjetoManualController::class, 'update']);
+                Route::delete('/avaliacao/projetos-manuais/{projeto}', [ProjetoManualController::class, 'destroy']);
                 Route::get('/avaliacao/identificacao/{tipo}/{codigo}.svg', [IdentificacaoController::class, 'svg'])
                     ->where(['tipo' => 'qr|barras', 'codigo' => '[0-9A-Za-z\\-]+']);
                 // Designações: a tabela com tudo que está na mão de cada avaliador.
@@ -406,11 +457,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::middleware('aba:credenciamento')->prefix('credenciamento')->group(function () {
                 // Contas temporárias: quem atende o balcão sem ser da organização.
                 // O `setor` é o que separa a lista desta aba da do almoxarifado.
-                Route::get('/contas', [ContaTemporariaController::class, 'index'])->defaults('setor', 'credenciamento');
-                Route::post('/contas', [ContaTemporariaController::class, 'store'])->defaults('setor', 'credenciamento');
-                Route::patch('/contas/{conta}/renovar', [ContaTemporariaController::class, 'renovar'])->defaults('setor', 'credenciamento');
-                Route::patch('/contas/{conta}/desativar', [ContaTemporariaController::class, 'desativar'])->defaults('setor', 'credenciamento');
-                Route::patch('/contas/{conta}/presenca', [ContaTemporariaController::class, 'presenca'])->defaults('setor', 'credenciamento');
+                Route::contasTemporarias('credenciamento');
 
                 Route::get('/config', [CredenciamentoController::class, 'config']);
                 // A leitura do crachá: o atalho do balcão para a ficha certa.
@@ -422,6 +469,17 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::post('/projetos/{projeto}/assumir', [CredenciamentoController::class, 'assumir']);
                 Route::post('/projetos/{projeto}/kits', [CredenciamentoController::class, 'kits']);
                 Route::post('/projetos/{projeto}/cancelar', [CredenciamentoController::class, 'cancelar']);
+                // Fora do prazo aprovado (Sprint 161) e suporte (Sprint 162):
+                // exceção e aprovação são da organização.
+                Route::middleware('admin.permanente')->group(function () {
+                    Route::get('/suporte', [SuporteAdminController::class, 'index']);
+                    Route::post('/suporte/projetos/{projeto}', [SuporteAdminController::class, 'store']);
+                    Route::put('/suporte/{suporte}', [SuporteAdminController::class, 'update']);
+                    Route::patch('/suporte/{suporte}/decidir', [SuporteAdminController::class, 'decidir']);
+                    Route::delete('/suporte/{suporte}', [SuporteAdminController::class, 'destroy']);
+                    Route::put('/projetos/{projeto}/fora-prazo', [CredenciamentoController::class, 'foraPrazo']);
+                    Route::delete('/projetos/{projeto}/fora-prazo', [CredenciamentoController::class, 'removerForaPrazo']);
+                });
             });
 
             // --- Aba "Cerimonial": a porta da cerimônia de premiação ---
@@ -443,22 +501,14 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                     Route::get('/premiados', [CerimonialController::class, 'premiados']);
                     Route::patch('/atualizacao', [CerimonialController::class, 'definirAtualizacao']);
 
-                    Route::get('/contas', [ContaTemporariaController::class, 'index'])->defaults('setor', 'cerimonial');
-                    Route::post('/contas', [ContaTemporariaController::class, 'store'])->defaults('setor', 'cerimonial');
-                    Route::patch('/contas/{conta}/renovar', [ContaTemporariaController::class, 'renovar'])->defaults('setor', 'cerimonial');
-                    Route::patch('/contas/{conta}/desativar', [ContaTemporariaController::class, 'desativar'])->defaults('setor', 'cerimonial');
-                    Route::patch('/contas/{conta}/presenca', [ContaTemporariaController::class, 'presenca'])->defaults('setor', 'cerimonial');
+                    Route::contasTemporarias('cerimonial');
                 });
             });
 
             // --- Aba "Almoxarifado": a guarda de volumes durante a feira ---
             Route::middleware('aba:almoxarifado')->prefix('almoxarifado')->group(function () {
                 // Contas temporárias do almoxarifado: lista própria, mesmo cadastro.
-                Route::get('/contas', [ContaTemporariaController::class, 'index'])->defaults('setor', 'almoxarifado');
-                Route::post('/contas', [ContaTemporariaController::class, 'store'])->defaults('setor', 'almoxarifado');
-                Route::patch('/contas/{conta}/renovar', [ContaTemporariaController::class, 'renovar'])->defaults('setor', 'almoxarifado');
-                Route::patch('/contas/{conta}/desativar', [ContaTemporariaController::class, 'desativar'])->defaults('setor', 'almoxarifado');
-                Route::patch('/contas/{conta}/presenca', [ContaTemporariaController::class, 'presenca'])->defaults('setor', 'almoxarifado');
+                Route::contasTemporarias('almoxarifado');
 
                 Route::get('/config', [AlmoxarifadoController::class, 'config']);
                 Route::get('/registros', [AlmoxarifadoController::class, 'index']);
@@ -645,6 +695,17 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::get('/mala-direta/{mala}/exportar', [AdminMalaDiretaController::class, 'exportar']);
                 Route::post('/mala-direta/{mala}/reenviar-falhas', [AdminMalaDiretaController::class, 'reenviarFalhas'])
                     ->middleware('throttle:10,1');
+            });
+
+            // --- Aba "Certificados" (Sprint 163): dados para emissão ---
+            Route::middleware('aba:certificados')->prefix('certificados')->group(function () {
+                Route::get('/opcoes', [CertificadosController::class, 'opcoes']);
+                Route::get('/avaliadores', [CertificadosController::class, 'avaliadores']);
+                Route::get('/avaliadores/exportar', [CertificadosController::class, 'exportarAvaliadores']);
+                Route::get('/avaliadores/{avaliador}/projetos', [CertificadosController::class, 'projetosDoAvaliador']);
+                Route::get('/avaliadores/{avaliador}/declaracao', [CertificadosController::class, 'declaracao']);
+                Route::get('/avaliacoes/exportar', [CertificadosController::class, 'exportarNominais']);
+                Route::get('/participantes/exportar', [CertificadosController::class, 'exportarParticipantes']);
             });
 
             // --- Aba "Registros": a trilha de auditoria ---

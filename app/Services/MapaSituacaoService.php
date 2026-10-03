@@ -187,6 +187,14 @@ class MapaSituacaoService
         return implode("\n", $linhas);
     }
 
+    /** "previsto 05/10/2026 14:00", "sim" ou vazio. */
+    private function foraPrazo(array $linha): string
+    {
+        $fp = $linha['sinalizacoes']['fora_prazo'] ?? null;
+
+        return $fp === null ? '' : ($fp['previsto_label'] ? 'previsto '.$fp['previsto_label'] : 'sim');
+    }
+
     /** @param  array<string, mixed>  $filtros */
     public function exportarCsv(array $filtros): string
     {
@@ -196,6 +204,7 @@ class MapaSituacaoService
         $saida = "\u{FEFF}".implode(';', [
             'Estande', 'Turno', 'Projeto', 'Categoria', 'Área', 'Escola', 'Orientador',
             'Situação', 'Credenciado em', 'Checado em', 'Avaliações realizadas', 'Avaliações faltantes',
+            'Credenciamento fora do prazo',
         ])."\n";
 
         foreach ($lista['linhas'] as $l) {
@@ -206,6 +215,7 @@ class MapaSituacaoService
                     $l['area'] ?? '', $l['escola'], $l['orientador'] ?? '',
                     $l['situacao_label'], $l['credenciado_em'] ?? '', $l['checado_em'] ?? '',
                     $l['avaliacoes'], $l['avaliacoes_faltantes'],
+                    $this->foraPrazo($l),
                 ],
             ))."\n";
         }
@@ -277,8 +287,9 @@ class MapaSituacaoService
         $checados = $this->carimbos('checagens_estande', 'verificado_em', $ids, $corte);
         $avaliacoes = $this->avaliacoes($ids, $corte);
         $maximo = AvaliacaoPresencial::MAX_POR_PROJETO;
+        $sinais = app(SinalizacaoProjetoService::class)->para($ids);
 
-        return $alocacoes->map(function (EstandeProjeto $e) use ($credenciados, $checados, $avaliacoes, $maximo) {
+        return $alocacoes->map(function (EstandeProjeto $e) use ($credenciados, $checados, $avaliacoes, $maximo, $sinais) {
             $projeto = $e->projeto;
             $feitas = (int) ($avaliacoes[$projeto->id] ?? 0);
             $credenciado = $credenciados[$projeto->id] ?? null;
@@ -312,6 +323,8 @@ class MapaSituacaoService
                 'avaliacoes' => $feitas,
                 'avaliacoes_faltantes' => max(0, $maximo - $feitas),
                 'avaliacoes_maximo' => $maximo,
+                // Estande vazio com explicação: fora do prazo aprovado (Sprint 161).
+                'sinalizacoes' => $sinais[$projeto->id] ?? null,
             ];
         })->values()->all();
     }

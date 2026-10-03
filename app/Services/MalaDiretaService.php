@@ -8,9 +8,11 @@ use App\Enums\StatusDestinatario;
 use App\Enums\StatusMala;
 use App\Http\Requests\Concerns\NormalizaEmail;
 use App\Jobs\EnviarMalaDireta;
+use App\Models\ListaFinal;
 use App\Models\MalaDireta;
 use App\Models\MalaDiretaArquivo;
 use App\Models\MalaDiretaDestinatario;
+use App\Models\Projeto;
 use App\Models\User;
 use App\Support\HtmlEmail;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -33,6 +35,20 @@ class MalaDiretaService
     /** Origem de quem foi digitado/importado à mão, e não veio de um público. */
     public const ORIGEM_PERSONALIZADO = 'personalizado';
 
+    /**
+     * Origem da equipe dos **finalistas** (Sprint 158): orientador, coorientador
+     * e estudantes dos projetos da lista final vigente. Não é um `PublicoMala`
+     * porque metade dessa gente não tem conta — estudante e coorientador são
+     * linhas do projeto, não usuários —, e os públicos são consultas de usuário
+     * que os avisos na tela e o feedback também usam.
+     */
+    public const ORIGEM_FINALISTAS = 'finalistas';
+
+    /** Papéis da equipe dos finalistas que não têm conta no portal. */
+    public const PAPEL_ESTUDANTE = 'estudante';
+
+    public const PAPEL_COORIENTADOR = 'coorientador';
+
     /** Teto de e-mails colados/importados de uma vez (evita CSV monstro). */
     public const MAX_PERSONALIZADOS = 5000;
 
@@ -53,6 +69,7 @@ class MalaDiretaService
         ['chave' => 'nome', 'rotulo' => 'Primeiro nome', 'descricao' => 'De "Ana Souza", vira "Ana".'],
         ['chave' => 'nome_completo', 'rotulo' => 'Nome completo', 'descricao' => 'O nome como está no cadastro.'],
         ['chave' => 'email', 'rotulo' => 'E-mail', 'descricao' => 'O endereço de quem recebe.'],
+        ['chave' => 'projetos', 'rotulo' => 'Projetos', 'descricao' => 'Os projetos de quem recebe — para os finalistas, com o código da lista final.'],
     ];
 
     /** Colunas do CSV de destinatários, na ordem em que aparecem. */
@@ -70,14 +87,29 @@ class MalaDiretaService
      *
      * @param  array<int, string>  $publicos  valores de PublicoMala
      * @param  array<int, array{email?: string|null, nome?: string|null}|string>  $personalizados
+     * @param  bool  $finalistas  inclui a equipe inteira dos projetos da lista final vigente
      * @return Collection<int, array<string, mixed>>
      */
-    public function resolver(array $publicos, array $personalizados = []): Collection
+    public function resolver(array $publicos, array $personalizados = [], bool $finalistas = false): Collection
     {
         $porEmail = [];
 
         foreach ($this->usuariosPorPublico($publicos) as $email => $dados) {
             $porEmail[$email] = $dados;
+        }
+
+        if ($finalistas) {
+            foreach ($this->finalistasPorEmail() as $email => $dados) {
+                if (isset($porEmail[$email])) {
+                    $porEmail[$email]['origens'][] = self::ORIGEM_FINALISTAS;
+                    // O que interessa a quem é finalista é o projeto finalista.
+                    $porEmail[$email]['projetos_titulos'] = $dados['projetos_titulos'];
+                    $porEmail[$email]['projetos_total'] = $dados['projetos_total'];
+
+                    continue;
+                }
+                $porEmail[$email] = $dados;
+            }
         }
 
         foreach ($this->normalizarPersonalizados($personalizados) as $email => $dados) {
@@ -126,7 +158,14 @@ class MalaDiretaService
     {
         $publicos = array_values(array_unique($dados['publicos'] ?? []));
         $personalizados = $dados['destinatarios'] ?? [];
-        $lista = $this->resolver($publicos, $personalizados);
+        $finalistas = (bool) ($dados['finalistas'] ?? false);
+        $lista = $this->resolver($publicos, $personalizados, $finalistas);
+
+        // A equipe dos finalistas fica registrada entre os públicos da mala, para
+        // o histórico dizer para quem ela foi.
+        if ($finalistas) {
+            $publicos[] = self::ORIGEM_FINALISTAS;
+        }
 
         // O editor manda HTML; o que chega é limpo antes de virar e-mail.
         $formato = ($dados['formato'] ?? 'texto') === 'html' ? 'html' : 'texto';
@@ -289,20 +328,134 @@ class MalaDiretaService
      * Troca as variáveis do corpo pelos dados do destinatário. Aceita
      * `{{nome}}` e `{{ nome }}`; sem nome conhecido, cumprimenta genericamente.
      */
-    public function personalizar(string $corpo, MalaDiretaDestinatario $destinatario): string
+    public function personalizar(string $corpo, MalaDiretaDestinatario $destinatario, bool $html = false): string
     {
+        // No HTML o valor entra escapado: um nome com "<" não pode virar marcação.
+        $escapar = fn (string $v) => $html ? htmlspecialchars($v, ENT_QUOTES, 'UTF-8') : $v;
+        $projetos = array_map($escapar, (array) ($destinatario->projetos_titulos ?? []));
+
         $valores = [
-            'nome' => $destinatario->primeiroNome() ?? self::TRATAMENTO_PADRAO,
-            'nome_completo' => $destinatario->nome ?: self::TRATAMENTO_PADRAO,
-            'email' => $destinatario->email,
+            'nome' => $escapar($destinatario->primeiroNome() ?? self::TRATAMENTO_PADRAO),
+            'nome_completo' => $escapar($destinatario->nome ?: self::TRATAMENTO_PADRAO),
+            'email' => $escapar($destinatario->email),
+            'projetos' => implode($html ? '<br>' : "\n", $projetos),
         ];
 
         foreach (self::VARIAVEIS as $variavel) {
             $chave = $variavel['chave'];
-            $corpo = preg_replace('/\{\{\s*'.$chave.'\s*\}\}/u', $valores[$chave], $corpo);
+            // Callback, e não string de reposição: "$1" num título não é referência.
+            $corpo = preg_replace_callback('/\{\{\s*'.$chave.'\s*\}\}/u', fn () => $valores[$chave], $corpo);
         }
 
         return $corpo;
+    }
+
+    /**
+     * Quantas pessoas a equipe dos finalistas alcança — e quantas ficam de fora
+     * por não ter e-mail (o cadastro manual aceita estudante só com o nome).
+     *
+     * @return array{lista: ?string, pessoas: int, sem_email: int}
+     */
+    public function resumoFinalistas(): array
+    {
+        $lista = ListaFinal::vigente();
+
+        if ($lista === null) {
+            return ['lista' => null, 'pessoas' => 0, 'sem_email' => 0];
+        }
+
+        $semEmail = 0;
+        foreach ($this->projetosFinalistas($lista) as $projeto) {
+            $semEmail += $projeto->alunos->filter(fn ($a) => trim((string) $a->email) === '')->count();
+            if ($projeto->coorientador !== null && trim((string) $projeto->coorientador->email) === '') {
+                $semEmail++;
+            }
+        }
+
+        return [
+            'lista' => $lista->nome.' (v'.$lista->versao.')',
+            'pessoas' => count($this->finalistasPorEmail()),
+            'sem_email' => $semEmail,
+        ];
+    }
+
+    /**
+     * A equipe inteira dos projetos da lista final vigente, por e-mail:
+     * orientador, coorientador e estudantes. Quem está em dois projetos (o
+     * orientador de dois finalistas) recebe uma vez, com os dois títulos.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private function finalistasPorEmail(): array
+    {
+        $lista = ListaFinal::vigente();
+
+        if ($lista === null) {
+            return [];
+        }
+
+        $codigos = app(ListaFinalService::class)->codigosDaLista($lista);
+        $porEmail = [];
+
+        $acrescentar = function (?string $email, ?string $nome, string $papel, ?int $userId, string $projeto) use (&$porEmail) {
+            $email = mb_strtolower(NormalizaEmail::semEspacos((string) $email));
+
+            if ($email === '') {
+                return;
+            }
+
+            if (isset($porEmail[$email])) {
+                if (! in_array($projeto, $porEmail[$email]['projetos_titulos'], true)) {
+                    $porEmail[$email]['projetos_titulos'][] = $projeto;
+                    $porEmail[$email]['projetos_total']++;
+                }
+
+                return;
+            }
+
+            $invalido = Validator::make(['email' => $email], ['email' => 'email:filter'])->fails();
+            $porEmail[$email] = [
+                'user_id' => $userId,
+                'email' => $email,
+                'nome' => $nome,
+                'papel' => $papel,
+                'origens' => [self::ORIGEM_FINALISTAS],
+                'projetos_total' => 1,
+                'projetos_titulos' => [$projeto],
+                'status' => $invalido ? StatusDestinatario::Invalido->value : StatusDestinatario::Pendente->value,
+                'erro' => $invalido ? 'Endereço de e-mail inválido.' : null,
+            ];
+        };
+
+        foreach ($this->projetosFinalistas($lista) as $projeto) {
+            $rotulo = isset($codigos[$projeto->id])
+                ? $codigos[$projeto->id].' - '.$projeto->titulo
+                : $projeto->titulo;
+
+            if ($projeto->user !== null) {
+                $acrescentar($projeto->user->email, $projeto->user->name, Role::Orientador->value, $projeto->user->id, $rotulo);
+            }
+
+            if ($projeto->coorientador !== null) {
+                $acrescentar($projeto->coorientador->email, $projeto->coorientador->nome, self::PAPEL_COORIENTADOR, null, $rotulo);
+            }
+
+            foreach ($projeto->alunos as $aluno) {
+                $acrescentar($aluno->email, $aluno->nome, self::PAPEL_ESTUDANTE, null, $rotulo);
+            }
+        }
+
+        return $porEmail;
+    }
+
+    /** @return \Illuminate\Database\Eloquent\Collection<int, Projeto> */
+    private function projetosFinalistas(ListaFinal $lista): \Illuminate\Database\Eloquent\Collection
+    {
+        return Projeto::query()
+            ->whereIn('id', $lista->projetos()->pluck('projetos.id'))
+            ->with(['user:id,name,email', 'coorientador:id,projeto_id,nome,email', 'alunos:id,projeto_id,nome,email'])
+            ->orderBy('titulo')
+            ->get();
     }
 
     /** Malas disparadas, da mais recente para a mais antiga. */
@@ -381,7 +534,7 @@ class MalaDiretaService
         return [
             (string) ($dados['nome'] ?? ''),
             (string) $dados['email'],
-            $dados['papel'] ? (Role::tryFrom($dados['papel'])?->label() ?? $dados['papel']) : '',
+            $this->rotuloPapel($dados['papel'] ?? null),
             implode(' · ', array_map(
                 fn (string $o) => $this->rotuloOrigem($o),
                 $dados['origens'] ?? [],
@@ -395,9 +548,22 @@ class MalaDiretaService
 
     public function rotuloOrigem(string $origem): string
     {
-        return $origem === self::ORIGEM_PERSONALIZADO
-            ? 'Lista personalizada'
-            : (PublicoMala::tryFrom($origem)?->label() ?? $origem);
+        return match ($origem) {
+            self::ORIGEM_PERSONALIZADO => 'Lista personalizada',
+            self::ORIGEM_FINALISTAS => 'Finalistas (equipe inteira)',
+            default => PublicoMala::tryFrom($origem)?->label() ?? $origem,
+        };
+    }
+
+    /** Papel de quem recebe: os da equipe sem conta não estão no enum Role. */
+    public function rotuloPapel(?string $papel): string
+    {
+        return match ($papel) {
+            null, '' => '',
+            self::PAPEL_ESTUDANTE => 'Estudante',
+            self::PAPEL_COORIENTADOR => 'Coorientador(a)',
+            default => Role::tryFrom($papel)?->label() ?? $papel,
+        };
     }
 
     /**

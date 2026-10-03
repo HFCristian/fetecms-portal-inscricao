@@ -21,7 +21,10 @@ use ZipArchive;
  * no deploy.
  *
  * O que este escritor **não** faz, de propósito: fórmula, mais de uma aba,
- * mesclagem, largura de coluna calculada e formatação condicional. Precisando
+ * mesclagem, largura de coluna calculada e formatação condicional. Largura
+ * **informada** e coluna em formato **texto** existem por causa dos modelos de
+ * importação (contas temporárias em lote): um CPF digitado numa coluna
+ * "Geral" perde o zero da frente. Precisando
  * de qualquer uma delas, a conta vira a favor da biblioteca — troque este
  * suporte por ela em vez de crescer o arquivo.
  *
@@ -43,10 +46,11 @@ class PlanilhaXlsx
      * @param  string  $aba  nome da aba (o Excel corta em 31 caracteres)
      * @param  list<string>  $cabecalho  títulos da primeira linha, em negrito
      * @param  iterable<int, list<string|int|float|null>>  $linhas  uma lista por linha, na ordem do cabeçalho
+     * @param  list<array{largura?: float|int, texto?: bool}>  $colunas  opcional, por coluna: largura em caracteres e formato texto para o que for digitado nela
      */
-    public static function gerar(string $aba, array $cabecalho, iterable $linhas): string
+    public static function gerar(string $aba, array $cabecalho, iterable $linhas, array $colunas = []): string
     {
-        $xml = self::planilha($cabecalho, $linhas);
+        $xml = self::planilha($cabecalho, $linhas, $colunas);
 
         $caminho = tempnam(sys_get_temp_dir(), 'xlsx');
         if ($caminho === false) {
@@ -122,9 +126,11 @@ class PlanilhaXlsx
                 .'</fills>'
                 .'<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>'
                 .'<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
-                .'<cellXfs count="2">'
+                .'<cellXfs count="3">'
                 .'<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
                 .'<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>'
+                // 49 é o formato "@" (texto) embutido no Excel.
+                .'<xf numFmtId="49" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>'
                 .'</cellXfs>'
                 // O estilo "Normal" precisa estar nomeado: sem ele alguns
                 // leitores avisam que a pasta não tem estilo padrão.
@@ -140,11 +146,14 @@ class PlanilhaXlsx
      *
      * @param  list<string>  $cabecalho
      * @param  iterable<int, list<string|int|float|null>>  $linhas
+     * @param  list<array{largura?: float|int, texto?: bool}>  $colunas
      */
-    private static function planilha(array $cabecalho, iterable $linhas): string
+    private static function planilha(array $cabecalho, iterable $linhas, array $colunas = []): string
     {
         $xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-            .'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>';
+            .'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            .self::colunas($colunas)
+            .'<sheetData>';
 
         $numero = 1;
         $xml .= self::linha($cabecalho, $numero, cabecalho: true);
@@ -189,6 +198,27 @@ class PlanilhaXlsx
         }
 
         return '<row r="'.$numero.'">'.$celulas.'</row>';
+    }
+
+    /**
+     * O bloco `<cols>`: largura e estilo-padrão de cada coluna. O estilo vale
+     * para a célula que o usuário ainda vai digitar — é o que mantém o zero da
+     * frente de um CPF.
+     *
+     * @param  list<array{largura?: float|int, texto?: bool}>  $colunas
+     */
+    private static function colunas(array $colunas): string
+    {
+        $xml = '';
+
+        foreach ($colunas as $i => $c) {
+            $largura = (float) ($c['largura'] ?? 14);
+            $estilo = ! empty($c['texto']) ? ' style="2"' : '';
+            $n = $i + 1;
+            $xml .= '<col min="'.$n.'" max="'.$n.'" width="'.$largura.'" customWidth="1"'.$estilo.'/>';
+        }
+
+        return $xml === '' ? '' : '<cols>'.$xml.'</cols>';
     }
 
     /** Índice 0 vira "A", 26 vira "AA" — a numeração de colunas do Excel. */

@@ -88,15 +88,27 @@ enum TipoRegistro: string
     case ProjetoVideo = 'projeto_video';
     case ProjetoOrientador = 'projeto_orientador';
     case ProjetoCoorientador = 'projeto_coorientador';
+    case ProjetoCadastroManual = 'projeto_cadastro_manual';
+    case ProjetoManualAlterado = 'projeto_manual_alterado';
+    case ProjetoManualExcluido = 'projeto_manual_excluido';
     case RascunhoAlteracao = 'rascunho_alteracao';
     case RascunhoSubmissao = 'rascunho_submissao';
     case ListaFinalOficializada = 'lista_final_oficializada';
     case ListaFinalProjetoAdicionado = 'lista_final_projeto_adicionado';
     case ListaFinalProjetoRemovido = 'lista_final_projeto_removido';
+    case ListaPreliminarGerada = 'lista_preliminar_gerada';
+    case ListaFinalReativada = 'lista_final_reativada';
+    case ListaFinalCodigosFixados = 'lista_final_codigos_fixados';
+    case ListaFinalCodigosEnviados = 'lista_final_codigos_enviados';
     case CredenciamentoRealizado = 'credenciamento_realizado';
     case CredenciamentoCancelado = 'credenciamento_cancelado';
     case CredenciamentoKitRetirado = 'credenciamento_kit_retirado';
     case CredenciamentoRascunhoAssumido = 'credenciamento_rascunho_assumido';
+    case CredenciamentoForaPrazo = 'credenciamento_fora_prazo';
+    case CredenciamentoForaPrazoRemovido = 'credenciamento_fora_prazo_removido';
+    case SuportePedido = 'suporte_pedido';
+    case SuporteDecidido = 'suporte_decidido';
+    case SuporteRemovido = 'suporte_removido';
     case AlmoxarifadoGuarda = 'almoxarifado_guarda';
     case AlmoxarifadoRetirada = 'almoxarifado_retirada';
     case AlmoxarifadoEdicao = 'almoxarifado_edicao';
@@ -165,15 +177,27 @@ enum TipoRegistro: string
             self::ProjetoVideo => 'Vídeo do projeto',
             self::ProjetoOrientador => 'Orientador do projeto',
             self::ProjetoCoorientador => 'Coorientador do projeto',
+            self::ProjetoCadastroManual => 'Projeto cadastrado manualmente',
+            self::ProjetoManualAlterado => 'Projeto manual alterado',
+            self::ProjetoManualExcluido => 'Projeto manual excluído',
             self::RascunhoAlteracao => 'Alteração no rascunho',
             self::RascunhoSubmissao => 'Submissão do rascunho',
-            self::ListaFinalOficializada => 'Lista final oficializada',
+            self::ListaFinalOficializada => 'Lista final gerada (ativa)',
             self::ListaFinalProjetoAdicionado => 'Projeto incluído na lista',
             self::ListaFinalProjetoRemovido => 'Projeto retirado da lista',
+            self::ListaPreliminarGerada => 'Lista preliminar gerada',
+            self::ListaFinalReativada => 'Lista final reativada',
+            self::ListaFinalCodigosFixados => 'Códigos dos projetos fixados',
+            self::ListaFinalCodigosEnviados => 'Códigos enviados aos finalistas',
             self::CredenciamentoRealizado => 'Credenciamento realizado',
             self::CredenciamentoCancelado => 'Credenciamento cancelado',
             self::CredenciamentoKitRetirado => 'Kit retirado',
             self::CredenciamentoRascunhoAssumido => 'Rascunho assumido',
+            self::CredenciamentoForaPrazo => 'Credenciamento fora do prazo aprovado',
+            self::CredenciamentoForaPrazoRemovido => 'Credenciamento fora do prazo retirado',
+            self::SuportePedido => 'Pedido de suporte',
+            self::SuporteDecidido => 'Pedido de suporte decidido',
+            self::SuporteRemovido => 'Pedido de suporte excluído',
             self::AlmoxarifadoGuarda => 'Material guardado',
             self::AlmoxarifadoRetirada => 'Material retirado',
             self::AlmoxarifadoEdicao => 'Registro corrigido',
@@ -196,13 +220,19 @@ enum TipoRegistro: string
         return match ($this) {
             self::Submissao, self::Cancelamento, self::Exclusao, self::TrocaEmail => self::SECAO_INSCRICOES,
             self::ProjetoCategoria, self::ProjetoArea, self::ProjetoSubarea, self::ProjetoVideo,
-            self::ProjetoOrientador, self::ProjetoCoorientador => self::SECAO_PROJETOS,
+            self::ProjetoOrientador, self::ProjetoCoorientador,
+            self::ProjetoCadastroManual, self::ProjetoManualAlterado,
+            self::ProjetoManualExcluido => self::SECAO_PROJETOS,
             self::RascunhoAlteracao, self::RascunhoSubmissao => self::SECAO_RASCUNHOS,
             self::ListaFinalOficializada, self::ListaFinalProjetoAdicionado,
-            self::ListaFinalProjetoRemovido => self::SECAO_LISTA_FINAL,
+            self::ListaFinalProjetoRemovido, self::ListaFinalCodigosFixados,
+            self::ListaPreliminarGerada, self::ListaFinalReativada,
+            self::ListaFinalCodigosEnviados => self::SECAO_LISTA_FINAL,
             self::CredenciamentoRealizado, self::CredenciamentoCancelado,
             self::CredenciamentoKitRetirado,
-            self::CredenciamentoRascunhoAssumido => self::SECAO_CREDENCIAMENTO,
+            self::CredenciamentoRascunhoAssumido,
+            self::CredenciamentoForaPrazo, self::CredenciamentoForaPrazoRemovido,
+            self::SuportePedido, self::SuporteDecidido, self::SuporteRemovido => self::SECAO_CREDENCIAMENTO,
             self::AlmoxarifadoGuarda, self::AlmoxarifadoRetirada,
             self::AlmoxarifadoEdicao, self::AlmoxarifadoExclusao => self::SECAO_ALMOXARIFADO,
             self::TurnosGerados, self::TurnosProjetoMovido,

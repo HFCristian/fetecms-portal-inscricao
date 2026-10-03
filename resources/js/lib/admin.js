@@ -241,9 +241,20 @@ export const getOpcoesListaFinal = () => http.get('/admin/avaliacao/lista-final/
 export const gerarListaFinal = (cotas) =>
     http.post('/admin/avaliacao/lista-final', cotas).then((r) => r.data.data);
 
-/** Publica um rascunho revisado: ele vira a lista oficial vigente. */
+/**
+ * **Gera** o rascunho revisado (Sprint 164): a preliminar fecha; a final vira a
+ * ativa da edição, no lugar da anterior.
+ */
 export const publicarListaFinal = (id) =>
-    http.post(`/admin/avaliacao/listas-finais/${id}/publicar`).then((r) => r.data);
+    http.post(`/admin/avaliacao/listas-finais/${id}/gerar`).then((r) => r.data);
+
+/** Rascunho de lista final pela união de preliminares já geradas. */
+export const criarFinalDePreliminares = (preliminares, nome = null) =>
+    http.post('/admin/avaliacao/listas/final-de-preliminares', { preliminares, nome }).then((r) => r.data.data);
+
+/** Volta a ativar uma lista final do histórico (justificativa obrigatória). */
+export const reativarListaFinal = (id, justificativa) =>
+    http.post(`/admin/avaliacao/listas-finais/${id}/reativar`, { justificativa }).then((r) => r.data);
 
 // Verificação de disparidade: projetos cujas notas se afastaram demais.
 export const getVerificacoesDisparidade = () =>
@@ -334,14 +345,17 @@ export async function baixarListaOficial(id) {
 export const getListaFinal = (id) =>
     http.get(`/admin/avaliacao/listas-finais/${id}`).then((r) => r.data.data);
 
-/** Inclui um projeto na lista oficial (justificativa obrigatória). */
-export const adicionarNaListaFinal = (id, projetoId, justificativa) =>
-    http.post(`/admin/avaliacao/listas-finais/${id}/projetos`, { projeto_id: projetoId, justificativa })
+/**
+ * Inclui um projeto na lista. No rascunho a edição é livre (sem
+ * justificativa); depois de gerada, a justificativa é obrigatória.
+ */
+export const adicionarNaListaFinal = (id, projetoId, justificativa = null) =>
+    http.post(`/admin/avaliacao/listas-finais/${id}/projetos`, { projeto_id: projetoId, ...(justificativa ? { justificativa } : {}) })
         .then((r) => r.data.data);
 
-/** Retira um projeto da lista oficial (justificativa obrigatória). */
-export const removerDaListaFinal = (id, projetoId, justificativa) =>
-    http.delete(`/admin/avaliacao/listas-finais/${id}/projetos/${projetoId}`, { data: { justificativa } })
+/** Retira um projeto da lista (justificativa só depois de gerada). */
+export const removerDaListaFinal = (id, projetoId, justificativa = null) =>
+    http.delete(`/admin/avaliacao/listas-finais/${id}/projetos/${projetoId}`, { data: justificativa ? { justificativa } : {} })
         .then((r) => r.data.data);
 
 // Projetos com sugestão de reclassificação. `filtros`: { area_id, q, de, ate }.
@@ -595,3 +609,48 @@ export async function baixarIdentificacao(listaId, formato) {
  */
 export const verNotasDaDesignacao = (avaliacaoId) =>
     http.post(`/admin/avaliacao/designacoes/${avaliacaoId}/notas`).then((r) => r.data.data);
+
+// --- Cadastro manual de projetos (Sprint 157) ---------------------------------
+
+/** Projetos cadastrados à mão nesta edição + a lista final vigente. */
+export const getProjetosManuais = () =>
+    http.get('/admin/avaliacao/projetos-manuais').then((r) => r.data);
+
+export const getProjetoManual = (id) =>
+    http.get(`/admin/avaliacao/projetos-manuais/${id}`).then((r) => r.data.data);
+
+export const criarProjetoManual = (payload) =>
+    http.post('/admin/avaliacao/projetos-manuais', payload).then((r) => r.data);
+
+export const atualizarProjetoManual = (id, payload) =>
+    http.put(`/admin/avaliacao/projetos-manuais/${id}`, payload).then((r) => r.data);
+
+export const excluirProjetoManual = (id, justificativa) =>
+    http.delete(`/admin/avaliacao/projetos-manuais/${id}`, { data: { justificativa } }).then((r) => r.data);
+
+// --- Código do projeto aos finalistas (Sprint 159) ----------------------------
+
+export const getCodigosLista = (listaId) =>
+    http.get(`/admin/avaliacao/listas-finais/${listaId}/codigos`).then((r) => r.data.data);
+
+export const congelarCodigosLista = (listaId) =>
+    http.post(`/admin/avaliacao/listas-finais/${listaId}/codigos/fixar`).then((r) => r.data);
+
+export const enviarCodigosLista = (listaId) =>
+    http.post(`/admin/avaliacao/listas-finais/${listaId}/codigos/enviar`).then((r) => r.data);
+
+// --- Exportação da lista final (Sprint 160) ------------------------------------
+
+export const getOpcoesExportacaoLista = () =>
+    http.get('/admin/avaliacao/listas-finais/exportar/opcoes').then((r) => r.data.data);
+
+/** Baixa o recorte: { nivel, colunas, formato, modelo? }. O nome vem do servidor. */
+export async function exportarListaFinal(listaId, { nivel, colunas, formato, modelo }) {
+    const resp = await http.get(`/admin/avaliacao/listas-finais/${listaId}/exportar`, {
+        params: { nivel, colunas, formato, ...(modelo ? { modelo } : {}) },
+        responseType: 'blob',
+    });
+    const disposicao = resp.headers?.['content-disposition'] ?? '';
+    const nome = /filename="([^"]+)"/.exec(disposicao)?.[1] ?? `lista-final.${formato}`;
+    baixarBlob(resp.data, nome);
+}

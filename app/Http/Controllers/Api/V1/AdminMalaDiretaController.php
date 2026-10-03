@@ -55,6 +55,8 @@ class AdminMalaDiretaController extends Controller
                 'situacoes' => StatusDestinatario::opcoes(),
                 'variaveis' => MalaDiretaService::VARIAVEIS,
                 'max_personalizados' => MalaDiretaService::MAX_PERSONALIZADOS,
+                // A caixa "Somente finalistas" diz de qual lista e quantos.
+                'finalistas' => $this->malas->resumoFinalistas(),
             ],
         ]);
     }
@@ -65,7 +67,7 @@ class AdminMalaDiretaController extends Controller
      */
     public function previa(PreviaMalaDiretaRequest $request): JsonResponse
     {
-        $lista = $this->malas->resolver($request->publicos(), $request->destinatarios());
+        $lista = $this->malas->resolver($request->publicos(), $request->destinatarios(), $request->finalistas());
         $invalidos = $lista->where('status', StatusDestinatario::Invalido->value)->count();
 
         $porPagina = (int) ($request->validated('por_pagina') ?? 25);
@@ -78,6 +80,7 @@ class AdminMalaDiretaController extends Controller
                 'validos' => $lista->count() - $invalidos,
                 'invalidos' => $invalidos,
                 'por_publico' => $this->malas->totaisPorPublico($request->publicos()),
+                'finalistas' => $request->finalistas() ? $this->malas->resumoFinalistas() : null,
                 'pagina_atual' => $pagina,
                 'por_pagina' => $porPagina,
                 'ultima_pagina' => max(1, (int) ceil($lista->count() / $porPagina)),
@@ -88,7 +91,7 @@ class AdminMalaDiretaController extends Controller
     /** CSV da prévia (mesmo recorte da tela), antes de qualquer envio. */
     public function exportarPrevia(PreviaMalaDiretaRequest $request): Response
     {
-        $csv = $this->malas->exportarCsv($this->malas->resolver($request->publicos(), $request->destinatarios()));
+        $csv = $this->malas->exportarCsv($this->malas->resolver($request->publicos(), $request->destinatarios(), $request->finalistas()));
 
         return $this->csv($csv, 'destinatarios-'.now()->format('Y-m-d-His').'.csv');
     }
@@ -97,7 +100,7 @@ class AdminMalaDiretaController extends Controller
     public function store(CriarMalaDiretaRequest $request): JsonResponse
     {
         $dados = $request->dados();
-        $lista = $this->malas->resolver($dados['publicos'], $dados['destinatarios']);
+        $lista = $this->malas->resolver($dados['publicos'], $dados['destinatarios'], $dados['finalistas']);
 
         if ($lista->where('status', StatusDestinatario::Pendente->value)->isEmpty()) {
             throw ValidationException::withMessages([

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Alert, Button } from './ui.jsx';
 import AjudaBalao from './AjudaBalao.jsx';
+import SinalizacoesProjeto from './SinalizacoesProjeto.jsx';
 
 const nota = (valor) =>
     valor === null || valor === undefined ? '—' : Number(valor).toFixed(2).replace('.', ',');
@@ -41,6 +42,7 @@ export default function AvaliacaoPresencialModal({
                                 {[avaliacao.projeto.categoria, avaliacao.projeto.area, avaliacao.projeto.escola]
                                     .filter(Boolean).join(' · ')}
                             </p>
+                            <SinalizacoesProjeto sinalizacoes={avaliacao.projeto.sinalizacoes} compacto />
                             {avaliacao.projeto.local?.estande && (
                                 <p className="text-sm font-semibold text-primary-container">
                                     Estande {avaliacao.projeto.local.estande}

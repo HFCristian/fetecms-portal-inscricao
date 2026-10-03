@@ -4,6 +4,7 @@ import AppShell from '../components/AppShell.jsx';
 import { Alert, Toggle } from '../components/ui.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import { getConfigPresencial, getEspelhoChecagem, urlTermo } from '../lib/presencial.js';
+import SinalizacoesProjeto from '../components/SinalizacoesProjeto.jsx';
 
 const campoClass =
     'w-full bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface ' +
@@ -143,6 +144,7 @@ export default function PresencialEspelho() {
                                         <p className="text-xs text-on-surface-variant">
                                             {[l.area, l.escola, l.orientador].filter(Boolean).join(' · ')}
                                         </p>
+                                        <SinalizacoesProjeto sinalizacoes={l.sinalizacoes} compacto />
                                         {l.observacao && (
                                             <p className="text-xs text-on-surface-variant italic mt-1">{l.observacao}</p>
                                         )}

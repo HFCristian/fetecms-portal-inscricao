@@ -15,6 +15,8 @@ class AdminService
         return User::create([
             'name' => $data['name'],
             'email' => $data['email'],
+            // Opcional: é o que o certificado da organização pede (Sprint 163).
+            'cpf' => $data['cpf'] ?? null,
             'password' => $data['password'],
             'role' => Role::Admin,
             'is_active' => true,
@@ -35,7 +37,7 @@ class AdminService
         $admin->update([
             'name' => $data['name'],
             'email' => $data['email'],
-        ]);
+        ] + (array_key_exists('cpf', $data) ? ['cpf' => $data['cpf']] : []));
 
         return $admin->refresh();
     }

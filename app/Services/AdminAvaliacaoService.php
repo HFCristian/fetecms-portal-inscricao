@@ -46,6 +46,7 @@ class AdminAvaliacaoService
         'area' => 'areas.nome',
         'em_avaliacao' => 'em_avaliacao_count',
         'avaliou' => 'avaliou_count',
+        'presenciais' => 'presenciais_count',
         'faltam' => 'avaliou_count', // menos avaliadas = mais faltantes: direção invertida
         'criado_em' => 'users.created_at',
     ];
@@ -85,6 +86,9 @@ class AdminAvaliacaoService
             'subarea' => $perfil?->subarea?->nome,
             'em_avaliacao' => (int) $u->em_avaliacao_count,
             'avaliou' => $avaliou,
+            // Fase presencial à parte (Sprint 163): o certificado de cada fase
+            // sai em momento diferente, então os números não se misturam.
+            'presenciais' => (int) ($u->presenciais_count ?? 0),
             'faltam' => max(0, $min - $avaliou),
             'limite' => $perfil?->limite_avaliacoes,
             // Em que idiomas ele se declarou apto. Quem se cadastrou antes de
@@ -156,8 +160,8 @@ class AdminAvaliacaoService
         $saida = fopen('php://temp', 'r+');
         fwrite($saida, "\u{FEFF}");
         fputcsv($saida, [
-            'Nome', 'E-mail', 'Área', 'Subárea', 'Áreas extras', 'Idiomas', 'Em avaliação', 'Avaliadas',
-            'Faltantes', 'Limite', 'Demo', 'Comissão especial', 'Cadastro',
+            'Nome', 'E-mail', 'Área', 'Subárea', 'Áreas extras', 'Idiomas', 'Em avaliação', 'Avaliadas (online)',
+            'Avaliadas (presencial)', 'Faltantes', 'Limite', 'Demo', 'Comissão especial', 'Cadastro',
         ], ';');
 
         $this->queryAvaliadores($filtros)->chunk(300, function ($avaliadores) use ($saida, $min) {
@@ -175,6 +179,7 @@ class AdminAvaliacaoService
                     $linha['idiomas_label'],
                     $linha['em_avaliacao'],
                     $linha['avaliou'],
+                    $linha['presenciais'],
                     $linha['faltam'],
                     $linha['limite'] ?? '',
                     $linha['is_demo'] ? 'sim' : 'não',
@@ -221,6 +226,7 @@ class AdminAvaliacaoService
             ->withCount([
                 'avaliacoes as em_avaliacao_count' => fn ($q) => $q->where('status', StatusAvaliacao::EmAndamento->value),
                 'avaliacoes as avaliou_count' => fn ($q) => $q->where('status', StatusAvaliacao::Concluida->value),
+                'avaliacoesPresenciais as presenciais_count' => fn ($q) => $q->where('status', StatusAvaliacao::Concluida->value),
             ])
             ->when($busca !== '', function ($q) use ($busca) {
                 $termo = '%'.str_replace(['%', '_'], ['\%', '\_'], mb_strtolower($busca)).'%';
@@ -580,7 +586,7 @@ class AdminAvaliacaoService
     /** Áreas que têm ao menos um projeto submetido — as opções do filtro. */
     public function areasComProjeto(): array
     {
-        return Projeto::semDemo()
+        return Projeto::avaliacaoOnline()
             ->where('projetos.status', ProjetoStatus::Submetido->value)
             ->join('areas', 'areas.id', '=', 'projetos.area_id')
             ->select('areas.id', 'areas.nome')
@@ -644,7 +650,7 @@ class AdminAvaliacaoService
         // aparecer na tabela de onde se designa avaliador — ele já estava fora
         // do painel, do ranking e da distribuição, e aqui era a última fresta
         // por onde chegava a um avaliador de verdade.
-        return Projeto::semDemo()
+        return Projeto::avaliacaoOnline()
             ->where('projetos.status', ProjetoStatus::Submetido->value)
             ->leftJoin('areas', 'areas.id', '=', 'projetos.area_id')
             ->select('projetos.*')
@@ -682,7 +688,7 @@ class AdminAvaliacaoService
     {
         $limites = Edicao::limites();
 
-        $projetos = Projeto::semDemo()
+        $projetos = Projeto::avaliacaoOnline()
             ->where('status', ProjetoStatus::Submetido->value)
             ->with('area:id,nome')
             ->withCount([

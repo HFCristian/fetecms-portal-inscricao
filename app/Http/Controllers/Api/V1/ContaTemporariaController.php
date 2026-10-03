@@ -8,6 +8,7 @@ use App\Models\ContaTemporaria;
 use App\Services\ContaTemporariaService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 
 /**
  * Contas temporárias: as contas de prazo curto que atendem os balcões do
@@ -147,5 +148,122 @@ class ContaTemporariaController extends Controller
             'data' => $this->contas->listar($this->setor($request)),
             'meta' => ['message' => 'Acesso encerrado.'],
         ]);
+    }
+
+    /** O modelo em Excel para o cadastro em lote deste setor. */
+    public function modelo(Request $request): Response
+    {
+        $this->garantirGestor($request);
+
+        $setor = $this->setor($request);
+
+        return response($this->contas->modeloLote($setor), 200, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition' => 'attachment; filename="modelo-contas-'.str_replace('_', '-', $setor).'.xlsx"',
+        ]);
+    }
+
+    /**
+     * Lê a planilha e devolve linha a linha o que vai ser criado e o que não
+     * passa, com o motivo. Não grava nada.
+     */
+    public function previaLote(Request $request): JsonResponse
+    {
+        $this->garantirGestor($request);
+
+        $dados = $request->validate([
+            'arquivo' => ['required', 'file', 'max:5120', 'extensions:xlsx,csv,txt', 'mimes:xlsx,csv,txt,zip'],
+            ...$this->regrasPadroes(),
+        ], [], ['arquivo' => 'planilha']);
+
+        return response()->json([
+            'data' => $this->contas->previaLote($request->file('arquivo'), $this->setor($request), $this->padroes($dados)),
+        ]);
+    }
+
+    /**
+     * Cria as contas da prévia confirmada. As senhas geradas voltam **uma
+     * vez**, dentro da planilha de acesso (base64), e não ficam em lugar nenhum.
+     */
+    public function lote(Request $request): JsonResponse
+    {
+        $this->garantirGestor($request);
+
+        $dados = $request->validate([
+            'linhas' => ['required', 'array', 'min:1', 'max:'.ContaTemporariaService::MAX_LOTE],
+            'linhas.*.linha' => ['nullable', 'integer'],
+            'linhas.*.name' => ['nullable', 'string', 'max:255'],
+            'linhas.*.email' => ['nullable', 'string', 'max:255'],
+            'linhas.*.cpf' => ['nullable', 'string', 'max:20'],
+            'linhas.*.curso' => ['nullable', 'string', 'max:255'],
+            'linhas.*.valido_de' => ['nullable', 'string', 'max:30'],
+            'linhas.*.horas' => ['nullable', 'integer', 'min:1', 'max:'.ContaTemporariaService::HORAS_MAX],
+            'linhas.*.turnos' => ['nullable', 'array', 'max:20'],
+            'linhas.*.turnos.*.inicio' => ['required', 'string', 'max:30'],
+            'linhas.*.turnos.*.fim' => ['required', 'string', 'max:30'],
+            ...$this->regrasPadroes(),
+        ]);
+
+        $setor = $this->setor($request);
+        $resultado = $this->contas->criarLote($dados['linhas'], $this->padroes($dados), $request->user(), $setor);
+        $criadas = count($resultado['criadas']);
+
+        return response()->json([
+            'data' => $this->contas->listar($setor),
+            'meta' => [
+                'message' => $criadas === 0
+                    ? 'Nenhuma conta criada — confira os motivos abaixo.'
+                    : ($criadas === 1 ? '1 conta criada.' : "{$criadas} contas criadas.")
+                        .' Baixe a planilha de acesso agora: as senhas não ficam guardadas.',
+                'criadas' => $resultado['criadas'],
+                'ignoradas' => $resultado['ignoradas'],
+                'arquivo' => $criadas === 0 ? null : [
+                    'nome' => 'acessos-contas-'.str_replace('_', '-', $setor).'-'.now()->format('Ymd-His').'.xlsx',
+                    'base64' => base64_encode($this->contas->planilhaAcessos($resultado['criadas'])),
+                ],
+            ],
+        ], $criadas === 0 ? 200 : 201);
+    }
+
+    /**
+     * Remove a conta: apagada se nunca atendeu ninguém, arquivada se já atendeu
+     * — o nome continua nas fichas que ela assinou.
+     */
+    public function destroy(Request $request, ContaTemporaria $conta): JsonResponse
+    {
+        $this->garantirGestor($request);
+        $this->garantirMesmoSetor($request, $conta);
+        abort_if($conta->removida_em !== null, 404, 'Conta não encontrada.');
+
+        $como = $this->contas->remover($conta);
+
+        return response()->json([
+            'data' => $this->contas->listar($this->setor($request)),
+            'meta' => ['message' => $como === 'arquivada'
+                ? 'Conta removida. Ela já tinha atendimentos registrados, então o nome continua nos registros — mas o acesso acabou.'
+                : 'Conta removida.'],
+        ]);
+    }
+
+    /** @return array<string, list<string>> */
+    private function regrasPadroes(): array
+    {
+        return [
+            'padroes' => ['nullable', 'array'],
+            'padroes.valido_de' => ['nullable', 'date'],
+            'padroes.horas' => ['nullable', 'integer', 'min:1', 'max:'.ContaTemporariaService::HORAS_MAX],
+            'padroes.turnos' => ['nullable', 'array', 'max:20'],
+            'padroes.turnos.*.inicio' => ['required', 'date'],
+            'padroes.turnos.*.fim' => ['required', 'date'],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $dados
+     * @return array<string, mixed>
+     */
+    private function padroes(array $dados): array
+    {
+        return (array) ($dados['padroes'] ?? []);
     }
 }

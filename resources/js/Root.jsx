@@ -64,6 +64,10 @@ import MapaPlanta from './pages/MapaPlanta.jsx';
 import CredenciamentoLista from './pages/CredenciamentoLista.jsx';
 import CredenciamentoFicha from './pages/CredenciamentoFicha.jsx';
 import CredenciamentoContas from './pages/CredenciamentoContas.jsx';
+import AvaliacaoProjetosManuais from './pages/AvaliacaoProjetosManuais.jsx';
+import CredenciamentoSuporte from './pages/CredenciamentoSuporte.jsx';
+import AdminCertificados from './pages/AdminCertificados.jsx';
+import SuporteEvento from './pages/SuporteEvento.jsx';
 import AlmoxarifadoHome from './pages/AlmoxarifadoHome.jsx';
 import AlmoxarifadoNovo from './pages/AlmoxarifadoNovo.jsx';
 import AlmoxarifadoRegistros from './pages/AlmoxarifadoRegistros.jsx';
@@ -136,6 +140,7 @@ export default function Root() {
                                 já enviado, favorito) cai na tela nova. */}
                             <Route path="/pareceres" element={<Navigate to="/ajustes" replace />} />
                             <Route path="/documentos" element={<DocumentosPresenciais />} />
+                            <Route path="/suporte-evento" element={<SuporteEvento />} />
                             <Route path="/perfil" element={<Perfil />} />
                         </Route>
 
@@ -163,6 +168,7 @@ export default function Root() {
                             <Route path="/admin/avaliacao/disparidade" element={<AvaliacaoDisparidade />} />
                             <Route path="/admin/avaliacao/listas-finais" element={<AvaliacaoListasFinais />} />
                             <Route path="/admin/avaliacao/listas-finais/:id" element={<AvaliacaoListaFinalDetalhe />} />
+                            <Route path="/admin/avaliacao/projetos-manuais" element={<AvaliacaoProjetosManuais />} />
                             <Route path="/admin/avaliacao/ranking-avaliadores" element={<AvaliacaoRankingAvaliadores />} />
                             <Route path="/admin/projetos-por-area" element={<AdminProjetosPorArea />} />
                             {/* Projetos em rascunho: o admin termina a inscrição de
@@ -209,6 +215,8 @@ export default function Root() {
                             <Route path="/admin/credenciamento/credenciados" element={<CredenciamentoLista situacao="credenciados" />} />
                             <Route path="/admin/credenciamento/projetos/:id" element={<CredenciamentoFicha />} />
                             <Route path="/admin/credenciamento/contas" element={<CredenciamentoContas />} />
+                            <Route path="/admin/credenciamento/suporte" element={<CredenciamentoSuporte />} />
+                            <Route path="/admin/certificados" element={<AdminCertificados />} />
                             {/* Aba Almoxarifado: a guarda de volumes durante a feira. */}
                             {/* Aba Cerimonial: a porta da cerimônia de premiação. A
                                 conta temporária do setor só abre o check-in — as

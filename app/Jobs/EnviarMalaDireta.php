@@ -47,7 +47,7 @@ class EnviarMalaDireta implements ShouldQueue
 
         Mail::to($destinatario->email)->send(new MalaDiretaMensagem(
             $mala,
-            $malas->personalizar($mala->corpo, $destinatario),
+            $malas->personalizar($mala->corpo, $destinatario, $mala->formato === 'html'),
         ));
 
         $destinatario->update([

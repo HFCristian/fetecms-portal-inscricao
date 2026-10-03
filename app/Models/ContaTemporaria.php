@@ -24,7 +24,7 @@ class ContaTemporaria extends Model
     protected $table = 'contas_temporarias';
 
     protected $fillable = [
-        'user_id', 'cpf', 'curso', 'setor', 'valido_de', 'expira_em', 'criado_por',
+        'user_id', 'cpf', 'curso', 'setor', 'valido_de', 'expira_em', 'removida_em', 'criado_por',
         'presenca_status', 'presenca_em', 'presenca_decidida_por', 'presenca_decidida_em', 'presenca_motivo',
     ];
 
@@ -50,6 +50,8 @@ class ContaTemporaria extends Model
         return [
             'valido_de' => 'datetime',
             'expira_em' => 'datetime',
+            // Preenchido = conta arquivada (Sprint 155): fora da lista, sem login.
+            'removida_em' => 'datetime',
             // Nulo = a pessoa ainda não marcou presença.
             'presenca_status' => StatusPresenca::class,
             'presenca_em' => 'datetime',

@@ -67,7 +67,7 @@ describe('ListaFinalDialog — cotas em três passos', () => {
             target: { value: 'percentual' },
         });
 
-        fireEvent.click(screen.getByText('Gerar prévia'));
+        fireEvent.click(screen.getByText('Montar rascunho'));
 
         await waitFor(() => expect(gerarListaFinal).toHaveBeenCalled());
         const payload = gerarListaFinal.mock.calls[0][0];
@@ -104,23 +104,25 @@ describe('ListaFinalDialog — cotas em três passos', () => {
         expect(screen.getAllByLabelText('Quantidade para Ciências Agrárias')).toHaveLength(1);
     });
 
-    it('marca a lista como oficial e manda o nome escolhido', async () => {
-        render(<ListaFinalDialog open onClose={vi.fn()} />);
+    it('escolhe entre lista preliminar e final, com o nome', async () => {
+        const onClose = vi.fn();
+        render(<ListaFinalDialog open onClose={onClose} />);
         await screen.findByText('Quantos projetos em cada categoria?');
 
         fireEvent.click(screen.getByText('3. Interior'));
 
-        const oficial = await screen.findByRole('checkbox', { name: /Lista Final Oficial/ });
-        expect(screen.queryByLabelText('Nome da lista')).not.toBeInTheDocument();
+        // Preliminar é o padrão: várias convivem e nenhuma define finalista.
+        expect(await screen.findByRole('radio', { name: /Lista preliminar/ })).toBeChecked();
+        fireEvent.click(screen.getByRole('radio', { name: /Lista final/ }));
+        fireEvent.change(screen.getByLabelText('Nome da lista'), { target: { value: 'Final 2026' } });
 
-        fireEvent.click(oficial);
-        fireEvent.change(screen.getByLabelText('Nome da lista'), { target: { value: 'Oficial 2026' } });
-
-        fireEvent.click(screen.getByText('Gerar e oficializar'));
+        fireEvent.click(screen.getByText('Montar rascunho'));
 
         await waitFor(() => expect(gerarListaFinal).toHaveBeenCalled());
-        const payload = gerarListaFinal.mock.calls[0][0];
-        expect(payload.oficial).toBe(true);
-        expect(payload.nome).toBe('Oficial 2026');
+        const payload = gerarListaFinal.mock.calls.at(-1)[0];
+        expect(payload.tipo).toBe('final');
+        expect(payload.nome).toBe('Final 2026');
+        expect(payload.oficial).toBeUndefined();
+        await waitFor(() => expect(onClose).toHaveBeenCalledWith('final', expect.anything()));
     });
 });

@@ -89,6 +89,11 @@ function NavLinks({ role, abas, onNavigate, suporteBadge = 0 }) {
                 <span className="material-symbols-outlined">description</span>
                 Documentos
             </NavLink>
+            {/* Acompanhante e intérpretes para os projetos finalistas (Sprint 162). */}
+            <NavLink to="/suporte-evento" className={navClass} onClick={onNavigate}>
+                <span className="material-symbols-outlined">accessibility_new</span>
+                Suporte no evento
+            </NavLink>
             <NavLink to="/perfil" className={navClass} onClick={onNavigate}>
                 <span className="material-symbols-outlined">account_circle</span>
                 Perfil

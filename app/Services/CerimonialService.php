@@ -174,7 +174,7 @@ class CerimonialService
             ]);
         }
 
-        if (substr((string) preg_replace('/\D/', '', (string) $pessoa['cpf']), 0, 3) !== $lido['cpf3']) {
+        if (CodigoParticipante::cpf3($pessoa['cpf']) !== $lido['cpf3']) {
             throw ValidationException::withMessages([
                 'codigo' => 'A etiqueta não confere com o cadastro desta pessoa. Confira se o crachá é dela mesma.',
             ]);

@@ -43,6 +43,8 @@ class PreviaMalaDiretaRequest extends FormRequest
     {
         return [
             'publicos' => ['sometimes', 'array'],
+            // Equipe inteira da lista final vigente (Sprint 158).
+            'finalistas' => ['sometimes', 'boolean'],
             'publicos.*' => [Rule::enum(PublicoMala::class)],
             'destinatarios' => ['sometimes', 'array', 'max:'.MalaDiretaService::MAX_PERSONALIZADOS],
             'destinatarios.*.email' => ['required', 'string', 'max:255'],
@@ -63,7 +65,7 @@ class PreviaMalaDiretaRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator) {
-            if ($this->publicos() === [] && $this->destinatarios() === []) {
+            if ($this->publicos() === [] && $this->destinatarios() === [] && ! $this->finalistas()) {
                 $validator->errors()->add(
                     'publicos',
                     'Escolha ao menos um público ou informe e-mails na lista personalizada.',
@@ -76,6 +78,12 @@ class PreviaMalaDiretaRequest extends FormRequest
     public function publicos(): array
     {
         return array_values(array_unique($this->validated('publicos') ?? []));
+    }
+
+    /** Só a equipe dos finalistas? (caixa "Somente finalistas"). */
+    public function finalistas(): bool
+    {
+        return $this->boolean('finalistas');
     }
 
     /** @return array<int, array{email: string, nome?: string|null}> */

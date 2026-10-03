@@ -81,6 +81,13 @@ export const ABAS_ADMIN = [
         descricao: 'Mala direta, avisos na tela e modelos de e-mail.',
     },
     {
+        aba: 'certificados',
+        to: '/admin/certificados',
+        icon: 'workspace_premium',
+        label: 'Certificados',
+        descricao: 'Avaliadores por fase, participantes e declarações nominais, em planilha.',
+    },
+    {
         aba: 'suporte',
         to: '/admin/suporte',
         icon: 'forum',
