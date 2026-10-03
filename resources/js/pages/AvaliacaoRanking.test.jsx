@@ -169,7 +169,7 @@ describe('AvaliacaoRanking', () => {
         render(<AvaliacaoRanking />);
         await screen.findByText('Secador solar');
 
-        fireEvent.click(screen.getByRole('button', { name: /Gerar lista final/ }));
+        fireEvent.click(screen.getByRole('button', { name: /Gerar lista$/ }));
 
         // Passo 1: total geral e a cota da categoria.
         expect(await screen.findByLabelText(/Quantidade para FETECMS FUNDECT/)).toBeInTheDocument();
@@ -182,7 +182,7 @@ describe('AvaliacaoRanking', () => {
         fireEvent.change(camposArea[1], { target: { value: '5' } });
 
         fireEvent.click(screen.getByText('Continuar'));
-        fireEvent.click(screen.getByRole('button', { name: /Gerar prévia/ }));
+        fireEvent.click(screen.getByRole('button', { name: /Montar rascunho/ }));
 
         await waitFor(() => expect(gerarListaFinal).toHaveBeenCalledWith({
             total: { tipo: 'fixo', valor: 10 },
@@ -192,8 +192,8 @@ describe('AvaliacaoRanking', () => {
                     areas: { 1: { cota: { tipo: 'fixo', valor: 5 }, interior: null } },
                 },
             },
-            // Sem marcar "Lista Final Oficial", a lista nasce como rascunho.
-            oficial: false,
+            // Preliminar é o padrão; toda lista nasce rascunho (Sprint 164).
+            tipo: 'preliminar',
             nome: null,
         }));
     });

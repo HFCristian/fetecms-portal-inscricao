@@ -142,8 +142,9 @@ class CodigosFinalistasService
     {
         return match (true) {
             $lista->demo => 'A lista de demonstração não manda e-mail para ninguém.',
+            $lista->ehPreliminar() => 'Lista preliminar não define finalista: os códigos saem da lista final ativa.',
             (bool) $lista->rascunho => 'Publique a lista antes de enviar os códigos: uma prévia ainda pode mudar.',
-            ! $lista->vigente => 'Só a lista vigente manda código — esta já foi substituída.',
+            ! $lista->vigente => 'Só a lista final ativa manda código — esta não é a ativa.',
             default => null,
         };
     }

@@ -472,16 +472,21 @@ class AdminAvaliacaoController extends Controller
      */
     public function gerarListaFinal(ListaFinalRequest $request): JsonResponse
     {
+        $tipo = $request->boolean('oficial')
+            ? ListaFinal::TIPO_FINAL
+            : ($request->input('tipo') ?? ListaFinal::TIPO_FINAL);
+
         $lista = $this->listaFinal->rascunhar(
             $request->cotas(),
             $request->user(),
             $request->input('nome'),
+            $tipo,
         );
 
-        // Marcar "Lista Final Oficial" na hora de gerar publica direto — o
-        // caminho é o mesmo, só não passa pela revisão.
+        // O atalho antigo ("Lista Final Oficial" marcada) gera direto, sem
+        // revisão. A tela atual sempre abre o rascunho para edição.
         if ($request->boolean('oficial')) {
-            $lista = $this->listaFinal->publicar($lista, $request->user());
+            $lista = $this->listaFinal->gerarLista($lista, $request->user());
         }
 
         return response()->json(
@@ -490,14 +495,50 @@ class AdminAvaliacaoController extends Controller
         );
     }
 
-    /** Publica um rascunho: ele vira a lista oficial vigente da edição. */
+    /**
+     * **Gera** o rascunho revisado (Sprint 164): a preliminar fecha; a final
+     * vira a ativa da edição, no lugar da anterior.
+     */
     public function publicarListaFinal(Request $request, ListaFinal $lista): JsonResponse
     {
-        $this->listaFinal->publicar($lista, $request->user());
+        $this->listaFinal->gerarLista($lista, $request->user());
 
         return response()->json([
             'data' => $this->listaFinal->detalhar($lista->fresh()),
-            'meta' => ['message' => 'Lista publicada — ela define os finalistas da feira.'],
+            'meta' => ['message' => $lista->ehPreliminar()
+                ? 'Lista preliminar gerada.'
+                : 'Lista final gerada — ela é a ativa e define os finalistas da etapa presencial.'],
+        ]);
+    }
+
+    /** Rascunho de lista final a partir da união de preliminares escolhidas. */
+    public function listaFinalDePreliminares(Request $request): JsonResponse
+    {
+        $dados = $request->validate([
+            'preliminares' => ['required', 'array', 'min:1'],
+            'preliminares.*' => ['integer'],
+            'nome' => ['nullable', 'string', 'max:120'],
+        ], [], ['preliminares' => 'listas preliminares']);
+
+        $lista = $this->listaFinal->rascunharDePreliminares(
+            array_map('intval', $dados['preliminares']),
+            $request->user(),
+            $dados['nome'] ?? null,
+        );
+
+        return response()->json(['data' => $this->listaFinal->detalhar($lista)], Response::HTTP_CREATED);
+    }
+
+    /** Volta a ativar uma lista final do histórico (justificativa obrigatória). */
+    public function reativarListaFinal(Request $request, ListaFinal $lista): JsonResponse
+    {
+        $dados = $request->validate(['justificativa' => ['required', 'string', 'min:5', 'max:500']]);
+
+        $this->listaFinal->reativar($lista, $request->user(), $dados['justificativa']);
+
+        return response()->json([
+            'data' => $this->listaFinal->detalhar($lista->fresh()),
+            'meta' => ['message' => 'Esta lista final voltou a ser a ativa.'],
         ]);
     }
 
@@ -738,29 +779,30 @@ class AdminAvaliacaoController extends Controller
      */
     public function adicionarNaListaFinal(Request $request, ListaFinal $lista): JsonResponse
     {
+        // No rascunho a edição é livre; gerada, o service cobra a justificativa.
         $dados = $request->validate([
             'projeto_id' => ['required', 'integer', 'exists:projetos,id'],
-            'justificativa' => ['required', 'string', 'min:5', 'max:500'],
+            'justificativa' => [$lista->rascunho ? 'nullable' : 'required', 'string', 'min:5', 'max:500'],
         ]);
 
         $this->listaFinal->adicionarProjeto(
             $lista,
             Projeto::findOrFail($dados['projeto_id']),
             $request->user(),
-            $dados['justificativa'],
+            $dados['justificativa'] ?? null,
         );
 
         return response()->json(['data' => $this->listaFinal->detalhar($lista->fresh())]);
     }
 
-    /** Retira um projeto da lista oficial (justificativa obrigatória). */
+    /** Retira um projeto da lista (justificativa obrigatória depois de gerada). */
     public function removerDaListaFinal(Request $request, ListaFinal $lista, Projeto $projeto): JsonResponse
     {
         $dados = $request->validate([
-            'justificativa' => ['required', 'string', 'min:5', 'max:500'],
+            'justificativa' => [$lista->rascunho ? 'nullable' : 'required', 'string', 'min:5', 'max:500'],
         ]);
 
-        $this->listaFinal->removerProjeto($lista, $projeto, $request->user(), $dados['justificativa']);
+        $this->listaFinal->removerProjeto($lista, $projeto, $request->user(), $dados['justificativa'] ?? null);
 
         return response()->json(['data' => $this->listaFinal->detalhar($lista->fresh())]);
     }

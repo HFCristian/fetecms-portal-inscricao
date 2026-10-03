@@ -82,15 +82,16 @@ export default function ListaFinalDialog({ open, onClose }) {
     const [cotas, setCotas] = useState({});
     const [gerando, setGerando] = useState(false);
     const [erro, setErro] = useState('');
-    // Marcar oficial registra a lista (vira a vigente e define os finalistas).
-    const [oficial, setOficial] = useState(false);
+    // Preliminar ou final (Sprint 164). As duas nascem rascunho: o admin edita
+    // à vontade e gera na tela da lista.
+    const [tipo, setTipo] = useState('preliminar');
     const [nome, setNome] = useState('');
 
     useEffect(() => {
         if (!open) return;
         setErro('');
         setPasso(0);
-        setOficial(false);
+        setTipo('preliminar');
         setNome('');
         getOpcoesListaFinal().then(setOpcoes).catch(() => setErro('Não foi possível carregar as opções.'));
     }, [open]);
@@ -153,8 +154,8 @@ export default function ListaFinalDialog({ open, onClose }) {
         return {
             total: paraApi(total),
             categorias,
-            oficial,
-            nome: oficial && nome.trim() !== '' ? nome.trim() : null,
+            tipo,
+            nome: nome.trim() !== '' ? nome.trim() : null,
         };
     }
 
@@ -164,7 +165,7 @@ export default function ListaFinalDialog({ open, onClose }) {
             // A geração não baixa mais o arquivo: ela abre a PRÉVIA, onde o
             // recorte é revisado (e corrigido à mão) antes do TXT.
             const previa = await gerarListaFinal(montarPayload());
-            onClose(oficial, previa.lista.id);
+            onClose(tipo, previa.lista.id);
         } catch (e) {
             setErro(extractErrors(e).message || 'Não foi possível gerar a lista. Tente novamente.');
         } finally {
@@ -303,38 +304,42 @@ export default function ListaFinalDialog({ open, onClose }) {
                     </div>
                 )}
 
-                {/* Oficializar: só no último passo, junto do botão que gera. */}
+                {/* Tipo e nome: só no último passo, junto do botão que gera. */}
                 {passo === PASSOS.length - 1 && (
-                    <div className="mt-4 rounded-lg border border-outline-variant p-3">
-                        <label className="flex items-start gap-3 cursor-pointer">
-                            <input
-                                type="checkbox"
-                                checked={oficial}
-                                onChange={(e) => setOficial(e.target.checked)}
-                                className="mt-0.5 w-5 h-5 rounded text-primary-container"
-                            />
-                            <span className="min-w-0">
-                                <span className="block text-sm font-semibold text-on-surface">Lista Final Oficial</span>
-                                <span className="block text-xs text-on-surface-variant">
-                                    Registra esta lista como a vigente da edição: os projetos e seus
-                                    participantes passam a ser os <strong>finalistas</strong> da feira. A
-                                    composição pode ser alterada depois, sempre gerando um arquivo novo.
-                                    Sem marcar, a lista fica como <strong>rascunho</strong>: dá para
-                                    revisar, baixar o TXT e publicar mais tarde.
+                    <fieldset className="mt-4 rounded-lg border border-outline-variant p-3 space-y-2">
+                        <legend className="px-1 text-sm font-semibold text-on-surface">Que lista é esta?</legend>
+                        {[
+                            ['preliminar', 'Lista preliminar', 'Várias podem existir ao mesmo tempo, e nenhuma define finalista. Depois, uma lista final pode ser montada juntando preliminares.'],
+                            ['final', 'Lista final', 'Ao ser gerada, vira a única ativa: os projetos dela são os finalistas de toda a etapa presencial.'],
+                        ].map(([valor, rotulo, descricao]) => (
+                            <label key={valor} className="flex items-start gap-3 cursor-pointer">
+                                <input
+                                    type="radio"
+                                    name="tipo-lista"
+                                    value={valor}
+                                    checked={tipo === valor}
+                                    onChange={() => setTipo(valor)}
+                                    className="mt-1"
+                                />
+                                <span className="min-w-0">
+                                    <span className="block text-sm font-semibold text-on-surface">{rotulo}</span>
+                                    <span className="block text-xs text-on-surface-variant">{descricao}</span>
                                 </span>
-                            </span>
-                        </label>
-                        {oficial && (
-                            <input
-                                value={nome}
-                                onChange={(e) => setNome(e.target.value)}
-                                placeholder="Nome da lista (opcional)"
-                                aria-label="Nome da lista"
-                                maxLength={120}
-                                className="mt-3 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm text-on-surface focus:border-primary-container focus:outline-none focus:ring-2 focus:ring-primary-container/20"
-                            />
-                        )}
-                    </div>
+                            </label>
+                        ))}
+                        <input
+                            value={nome}
+                            onChange={(e) => setNome(e.target.value)}
+                            placeholder="Nome da lista (opcional)"
+                            aria-label="Nome da lista"
+                            maxLength={120}
+                            className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm text-on-surface focus:border-primary-container focus:outline-none focus:ring-2 focus:ring-primary-container/20"
+                        />
+                        <p className="text-xs text-on-surface-variant">
+                            A lista abre como <strong>rascunho</strong>: você inclui e retira projetos à vontade e
+                            só então a gera.
+                        </p>
+                    </fieldset>
                 )}
 
                 <div className="flex justify-between gap-2 pt-4">
@@ -353,7 +358,7 @@ export default function ListaFinalDialog({ open, onClose }) {
                         ) : (
                             <Button type="button" loading={gerando} disabled={opcoes === null} onClick={gerar}>
                                 <span className="material-symbols-outlined text-[18px]">preview</span>
-                                {oficial ? 'Gerar e oficializar' : 'Gerar prévia'}
+                                Montar rascunho
                             </Button>
                         )}
                     </div>

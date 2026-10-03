@@ -21,15 +21,24 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  * com uma vigente cada, e a demo só é enxergada por quem ligou o modo de teste.
  * Todo o resto do portal continua chamando `vigente()` sem argumento e vendo
  * apenas a oficial.
+ *
+ * `tipo` (Sprint 164) separa a lista **preliminar** — várias convivem, nenhuma
+ * define finalista — da **final**, que tem uma só **ativa** (`vigente`) por
+ * edição e vale para toda a etapa presencial. A final pode nascer da
+ * classificação ou da união de preliminares (`origens`). `rascunho` continua
+ * sendo o "ainda não gerada": o admin edita à vontade, e gerar é o que fecha.
  */
 class ListaFinal extends Model
 {
     protected $table = 'listas_finais';
 
     protected $fillable = [
-        'edicao_id', 'nome', 'vigente', 'rascunho', 'demo', 'versao', 'cotas', 'gerada_por',
+        'edicao_id', 'nome', 'tipo', 'vigente', 'rascunho', 'demo', 'versao', 'cotas', 'origens', 'gerada_em', 'gerada_por',
         'codigos_congelados_em', 'codigos_enviados_em', 'codigos_mala_id',
     ];
+
+    /** O padrão do banco também na memória: uma lista recém-criada já sabe o tipo. */
+    protected $attributes = ['tipo' => self::TIPO_FINAL];
 
     protected function casts(): array
     {
@@ -39,9 +48,25 @@ class ListaFinal extends Model
             'demo' => 'boolean',
             'versao' => 'integer',
             'cotas' => 'array',
+            'origens' => 'array',
+            'gerada_em' => 'datetime',
             'codigos_congelados_em' => 'datetime',
             'codigos_enviados_em' => 'datetime',
         ];
+    }
+
+    public const TIPO_PRELIMINAR = 'preliminar';
+
+    public const TIPO_FINAL = 'final';
+
+    public function ehFinal(): bool
+    {
+        return $this->tipo === self::TIPO_FINAL;
+    }
+
+    public function ehPreliminar(): bool
+    {
+        return $this->tipo === self::TIPO_PRELIMINAR;
     }
 
     public function edicao(): BelongsTo
@@ -74,6 +99,7 @@ class ListaFinal extends Model
         return $edicao === null
             ? null
             : static::where('edicao_id', $edicao->id)
+                ->where('tipo', self::TIPO_FINAL)
                 ->where('vigente', true)
                 ->where('demo', $demo)
                 ->latest('id')

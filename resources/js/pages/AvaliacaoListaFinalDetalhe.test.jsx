@@ -9,7 +9,7 @@ vi.mock('react-router-dom', () => ({
 vi.mock('../lib/auth.jsx', () => ({ extractErrors: () => ({ message: 'erro', fields: {} }) }));
 
 const DADOS = {
-    lista: { id: 3, nome: 'Oficial 2026', vigente: true, versao: 1, projetos: 1 },
+    lista: { id: 3, nome: 'Oficial 2026', tipo: 'final', vigente: true, rascunho: false, versao: 1, projetos: 1, origens: [] },
     itens: [{
         projeto_id: 10, codigo: 'FET.AGR-001', titulo: 'Bioplástico',
         categoria: 'FETECMS', area: 'Ciências Agrárias', escola: 'EE Alfa', manual: false,
@@ -56,7 +56,9 @@ const OPCOES_EXPORTACAO = {
     formatos: ['csv', 'xlsx'],
 };
 const exportarListaFinal = vi.fn(() => Promise.resolve());
+const reativarListaFinal = vi.fn();
 vi.mock('../lib/admin.js', () => ({
+    reativarListaFinal: (...a) => reativarListaFinal(...a),
     getOpcoesExportacaoLista: () => Promise.resolve(OPCOES_EXPORTACAO),
     exportarListaFinal: (...a) => exportarListaFinal(...a),
     getCodigosLista: (...a) => getCodigosLista(...a),
@@ -91,7 +93,7 @@ describe('AvaliacaoListaFinalDetalhe', () => {
         expect(await screen.findByText('Bioplástico')).toBeInTheDocument();
         expect(screen.getByText('FET.AGR-001')).toBeInTheDocument();
         expect(screen.getByText(/Versão 1 · 1 projeto/)).toBeInTheDocument();
-        expect(screen.getByText('vigente')).toBeInTheDocument();
+        expect(screen.getByText('ativa')).toBeInTheDocument();
     });
 
     it('exige justificativa para retirar um projeto', async () => {
@@ -117,7 +119,7 @@ describe('AvaliacaoListaFinalDetalhe', () => {
         // O botão só habilita depois de escolher o projeto no combobox.
         expect(screen.getByRole('button', { name: /Incluir/ })).toBeDisabled();
 
-        fireEvent.change(screen.getByPlaceholderText(/Buscar entre os projetos avaliados/), { target: { value: 'Rob' } });
+        fireEvent.change(screen.getByPlaceholderText(/Buscar entre os projetos submetidos/), { target: { value: 'Rob' } });
         // O combobox seleciona no mouseDown (antes de perder o foco).
         fireEvent.mouseDown(await screen.findByText('Robótica'));
         fireEvent.click(screen.getByRole('button', { name: /Incluir/ }));
@@ -139,21 +141,68 @@ describe('AvaliacaoListaFinalDetalhe — prévia', () => {
         });
     });
 
-    it('marca o rascunho e explica que ninguém é finalista ainda', async () => {
+    it('marca o rascunho e explica o que acontece ao gerar', async () => {
         render(<AvaliacaoListaFinalDetalhe />);
 
         expect(await screen.findByText('rascunho')).toBeInTheDocument();
-        expect(screen.getByText(/ninguém é finalista por causa dela/i)).toBeInTheDocument();
+        expect(screen.getByText(/inclua e retire à vontade, sem justificativa/i)).toBeInTheDocument();
+        expect(screen.getByText(/vira a lista final ativa/i)).toBeInTheDocument();
     });
 
-    it('publica o rascunho revisado e o selo some', async () => {
+    it('no rascunho retira e inclui na hora, sem justificativa', async () => {
+        removerDaListaFinal.mockResolvedValue({ ...RASCUNHO, itens: [] });
+        adicionarNaListaFinal.mockResolvedValue(RASCUNHO);
+        render(<AvaliacaoListaFinalDetalhe />);
+        await screen.findByText('Bioplástico');
+
+        fireEvent.click(screen.getByRole('button', { name: /Retirar/ }));
+        await waitFor(() => expect(removerDaListaFinal).toHaveBeenCalledWith('3', 10));
+        expect(screen.queryByLabelText(/Justificativa/)).not.toBeInTheDocument();
+
+        fireEvent.change(screen.getByPlaceholderText(/Buscar entre os projetos submetidos/), { target: { value: 'Rob' } });
+        fireEvent.mouseDown(await screen.findByText('Robótica'));
+        fireEvent.click(screen.getByRole('button', { name: /Incluir/ }));
+        await waitFor(() => expect(adicionarNaListaFinal).toHaveBeenCalledWith('3', 20));
+    });
+
+    it('gera a lista final depois de confirmar que ela vira a ativa', async () => {
         render(<AvaliacaoListaFinalDetalhe />);
 
-        fireEvent.click(await screen.findByRole('button', { name: /Publicar como oficial/i }));
+        fireEvent.click(await screen.findByRole('button', { name: /Gerar lista final/i }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Gerar e ativar' }));
 
         await waitFor(() => expect(publicarListaFinal).toHaveBeenCalledWith('3'));
         expect(await screen.findByText(/Lista publicada/)).toBeInTheDocument();
-        expect(screen.queryByRole('button', { name: /Publicar como oficial/i })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /Gerar lista final/i })).not.toBeInTheDocument();
+    });
+
+    it('preliminar gera direto e não vira ativa', async () => {
+        getListaFinal.mockResolvedValue({ ...RASCUNHO, lista: { ...RASCUNHO.lista, tipo: 'preliminar' } });
+        publicarListaFinal.mockResolvedValue({
+            data: { ...RASCUNHO, lista: { ...RASCUNHO.lista, tipo: 'preliminar', rascunho: false } },
+            meta: { message: 'Lista preliminar gerada.' },
+        });
+        render(<AvaliacaoListaFinalDetalhe />);
+
+        expect(await screen.findByText('preliminar')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: /Gerar lista preliminar/i }));
+
+        await waitFor(() => expect(publicarListaFinal).toHaveBeenCalledWith('3'));
+        expect(await screen.findByText('Lista preliminar gerada.')).toBeInTheDocument();
+    });
+
+    it('final inativa volta a ser a ativa com justificativa', async () => {
+        getListaFinal.mockResolvedValue({ ...DADOS, lista: { ...DADOS.lista, vigente: false } });
+        reativarListaFinal.mockResolvedValue({ data: DADOS, meta: { message: 'Esta lista final voltou a ser a ativa.' } });
+        render(<AvaliacaoListaFinalDetalhe />);
+
+        expect(await screen.findByText('inativa')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: /Tornar ativa/ }));
+        fireEvent.change(screen.getByLabelText(/Justificativa/), { target: { value: 'Recurso deferido.' } });
+        fireEvent.click(screen.getAllByRole('button', { name: 'Tornar ativa' }).at(-1));
+
+        await waitFor(() => expect(reativarListaFinal).toHaveBeenCalledWith('3', 'Recurso deferido.'));
+        expect(await screen.findByText(/voltou a ser a ativa/)).toBeInTheDocument();
     });
 
     it('lista já publicada não oferece publicar de novo', async () => {
@@ -161,7 +210,7 @@ describe('AvaliacaoListaFinalDetalhe — prévia', () => {
         render(<AvaliacaoListaFinalDetalhe />);
 
         expect(await screen.findByText('Bioplástico')).toBeInTheDocument();
-        expect(screen.queryByRole('button', { name: /Publicar como oficial/i })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /Gerar lista/i })).not.toBeInTheDocument();
     });
 });
 

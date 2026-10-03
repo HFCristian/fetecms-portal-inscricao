@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Admin;
 
 use App\Enums\Categoria;
+use App\Models\ListaFinal;
 use App\Support\Cota;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -34,7 +35,9 @@ class ListaFinalRequest extends FormRequest
         return array_merge(
             $cota('total'),
             [
-                // Marcar como oficial registra a lista e define os finalistas.
+                // Preliminar ou final (Sprint 164). `oficial` é o atalho antigo:
+                // gera a final na hora, sem passar pela revisão.
+                'tipo' => ['nullable', Rule::in([ListaFinal::TIPO_PRELIMINAR, ListaFinal::TIPO_FINAL])],
                 'oficial' => ['sometimes', 'boolean'],
                 'nome' => ['nullable', 'string', 'max:120'],
                 'categorias' => ['nullable', 'array'],

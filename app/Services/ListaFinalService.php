@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\Categoria;
+use App\Enums\ProjetoStatus;
 use App\Enums\StatusAvaliacao;
 use App\Enums\TipoRegistro;
 use App\Models\Area;
@@ -149,32 +150,26 @@ class ListaFinalService
     }
 
     /**
-     * Gera o recorte e o registra como **rascunho** — a prévia que o admin vê
-     * antes de baixar o TXT.
+     * Gera o recorte da **classificação** (as cotas do Ranking) e o registra como
+     * **rascunho** de uma lista preliminar ou final (Sprint 164).
      *
-     * O rascunho é uma lista como outra qualquer: tem composição, versão e a
-     * mesma trilha de inclusão/retirada da oficial. O que ele **não** é: a
-     * vigente da edição. Ninguém vira finalista por causa dele, então revisar
-     * um recorte não mexe no credenciamento nem no mapa do evento.
+     * O rascunho é a lista antes de gerada: o admin inclui e retira projetos à
+     * vontade, sem justificativa — ninguém é finalista por causa dele, então
+     * revisar um recorte não mexe no credenciamento nem no mapa do evento.
+     * Gerar ({@see self::gerarLista()}) é o que fecha.
      *
      * @param  array<string, mixed>  $cotas
      */
-    public function rascunhar(array $cotas, User $admin, ?string $nome = null): ListaFinal
+    public function rascunhar(array $cotas, User $admin, ?string $nome = null, string $tipo = ListaFinal::TIPO_FINAL): ListaFinal
     {
-        $edicao = Edicao::atual();
-
-        if ($edicao === null) {
-            throw ValidationException::withMessages([
-                'total' => 'Nenhuma edição em curso para gerar a lista final.',
-            ]);
-        }
-
+        $edicao = $this->edicaoOuFalha();
         $itens = $this->gerar($cotas);
 
-        return DB::transaction(function () use ($cotas, $admin, $nome, $edicao, $itens) {
+        return DB::transaction(function () use ($cotas, $admin, $nome, $edicao, $itens, $tipo) {
             $lista = ListaFinal::create([
                 'edicao_id' => $edicao->id,
-                'nome' => trim((string) $nome) !== '' ? trim((string) $nome) : $this->nomePadrao($edicao),
+                'nome' => trim((string) $nome) !== '' ? trim((string) $nome) : $this->nomePadrao($edicao, $tipo),
+                'tipo' => $tipo,
                 'vigente' => false,
                 'rascunho' => true,
                 'versao' => 1,
@@ -191,43 +186,167 @@ class ListaFinalService
     }
 
     /**
-     * Publica um rascunho: ele vira a lista **oficial vigente** da edição,
-     * encerrando a anterior.
+     * Rascunho de lista **final** montado pela **união de preliminares**
+     * escolhidas (Sprint 164): todos os projetos delas, sem repetir. Só entram
+     * preliminares já **geradas** — a que ainda é rascunho está sendo revista e
+     * pode mudar. `origens` guarda de onde a final veio.
      *
-     * A composição publicada é a que está na tela — incluindo o que o admin
-     * acrescentou ou retirou à mão durante a revisão. A versão **não** é
-     * zerada: o histórico de alterações do rascunho continua valendo depois de
-     * publicado, que é justamente o que explica por que a lista oficial não é
-     * igual ao que as cotas produziram.
+     * @param  list<int>  $preliminarIds
      */
-    public function publicar(ListaFinal $lista, User $admin): ListaFinal
+    public function rascunharDePreliminares(array $preliminarIds, User $admin, ?string $nome = null): ListaFinal
+    {
+        $edicao = $this->edicaoOuFalha();
+
+        $preliminares = ListaFinal::query()
+            ->whereIn('id', $preliminarIds)
+            ->where('edicao_id', $edicao->id)
+            ->where('tipo', ListaFinal::TIPO_PRELIMINAR)
+            ->where('rascunho', false)
+            ->where('demo', false)
+            ->get();
+
+        if ($preliminares->isEmpty() || $preliminares->count() !== count(array_unique($preliminarIds))) {
+            throw ValidationException::withMessages([
+                'preliminares' => 'Escolha listas preliminares já geradas nesta edição.',
+            ]);
+        }
+
+        $projetos = DB::table('lista_final_projetos')
+            ->whereIn('lista_final_id', $preliminares->pluck('id'))
+            ->distinct()
+            ->pluck('projeto_id')
+            ->all();
+
+        return DB::transaction(function () use ($edicao, $admin, $nome, $preliminares, $projetos) {
+            $lista = ListaFinal::create([
+                'edicao_id' => $edicao->id,
+                'nome' => trim((string) $nome) !== '' ? trim((string) $nome) : $this->nomePadrao($edicao, ListaFinal::TIPO_FINAL),
+                'tipo' => ListaFinal::TIPO_FINAL,
+                'vigente' => false,
+                'rascunho' => true,
+                'versao' => 1,
+                'origens' => $preliminares->map(fn (ListaFinal $l) => ['id' => $l->id, 'nome' => $l->nome])->values()->all(),
+                'gerada_por' => $admin->id,
+            ]);
+
+            $lista->projetos()->attach(
+                collect($projetos)->mapWithKeys(fn ($id) => [$id => ['manual' => false]])->all(),
+            );
+
+            return $lista->fresh();
+        });
+    }
+
+    private function edicaoOuFalha(): Edicao
+    {
+        $edicao = Edicao::atual();
+
+        if ($edicao === null) {
+            throw ValidationException::withMessages([
+                'total' => 'Nenhuma edição em curso para gerar a lista.',
+            ]);
+        }
+
+        return $edicao;
+    }
+
+    /**
+     * **Gera** a lista: o rascunho revisado fecha (Sprint 164).
+     *
+     * - **Preliminar**: só deixa de ser rascunho. Várias convivem, e nenhuma
+     *   define finalista.
+     * - **Final**: vira a **ativa** da edição — a que vale para credenciamento,
+     *   mapa, crachás, avaliação presencial e cerimônia —, e a final que estava
+     *   ativa passa a inativa (fica no histórico e pode ser reativada).
+     *
+     * A composição gerada é a da tela, com o que o admin acrescentou ou retirou
+     * na revisão. Daqui em diante cada mudança pede justificativa e sobe a
+     * versão.
+     */
+    public function gerarLista(ListaFinal $lista, User $admin): ListaFinal
     {
         if (! $lista->rascunho) {
             throw ValidationException::withMessages([
-                'lista' => 'Esta lista já foi publicada.',
+                'lista' => 'Esta lista já foi gerada.',
             ]);
         }
 
         if ($lista->projetos()->count() === 0) {
             throw ValidationException::withMessages([
-                'lista' => 'Uma lista final sem nenhum projeto não pode ser publicada.',
+                'lista' => 'Uma lista sem nenhum projeto não pode ser gerada.',
             ]);
         }
 
         return DB::transaction(function () use ($lista, $admin) {
-            ListaFinal::where('edicao_id', $lista->edicao_id)
-                ->where('demo', $lista->demo)
-                ->update(['vigente' => false]);
+            $projetos = $lista->projetos()->count().' projeto(s)';
 
-            $lista->forceFill(['vigente' => true, 'rascunho' => false])->save();
+            if ($lista->ehPreliminar()) {
+                $lista->forceFill(['rascunho' => false, 'gerada_em' => now()])->save();
+
+                $this->registros->listaFinal(
+                    TipoRegistro::ListaPreliminarGerada, $admin, $lista->nome, null, null, $projetos,
+                );
+
+                return $lista->fresh();
+            }
+
+            $this->desativarFinais($lista);
+            $lista->forceFill(['vigente' => true, 'rascunho' => false, 'gerada_em' => now()])->save();
 
             $this->registros->listaFinal(
-                TipoRegistro::ListaFinalOficializada, $admin, $lista->nome, null, null,
-                $lista->projetos()->count().' projeto(s)',
+                TipoRegistro::ListaFinalOficializada, $admin, $lista->nome, null, null, $projetos,
             );
 
             return $lista->fresh();
         });
+    }
+
+    /** O nome antigo do mesmo ato, para quem ainda chama `publicar`. */
+    public function publicar(ListaFinal $lista, User $admin): ListaFinal
+    {
+        return $this->gerarLista($lista, $admin);
+    }
+
+    /**
+     * Volta a ativar uma lista final que já foi a ativa (Sprint 164). Trocar a
+     * ativa muda quem é finalista no meio da etapa presencial, então pede
+     * **justificativa** e entra em Registros → Lista final.
+     */
+    public function reativar(ListaFinal $lista, User $admin, string $justificativa): ListaFinal
+    {
+        if (! $lista->ehFinal() || $lista->rascunho) {
+            throw ValidationException::withMessages([
+                'lista' => 'Só uma lista final já gerada pode ser a ativa.',
+            ]);
+        }
+
+        if ($lista->vigente) {
+            throw ValidationException::withMessages([
+                'lista' => 'Esta lista já é a final ativa.',
+            ]);
+        }
+
+        return DB::transaction(function () use ($lista, $admin, $justificativa) {
+            $anterior = ListaFinal::vigente($lista->edicao, $lista->demo);
+            $this->desativarFinais($lista);
+            $lista->forceFill(['vigente' => true])->save();
+
+            $this->registros->listaFinal(
+                TipoRegistro::ListaFinalReativada, $admin, $lista->nome, null, trim($justificativa),
+                ($anterior ? "no lugar de {$anterior->nome}" : 'nenhuma estava ativa'),
+            );
+
+            return $lista->fresh();
+        });
+    }
+
+    /** Desliga a final ativa da edição (na mesma trilha: oficial ou demo). */
+    private function desativarFinais(ListaFinal $lista): void
+    {
+        ListaFinal::where('edicao_id', $lista->edicao_id)
+            ->where('demo', $lista->demo)
+            ->where('tipo', ListaFinal::TIPO_FINAL)
+            ->update(['vigente' => false]);
     }
 
     /**
@@ -258,10 +377,13 @@ class ListaFinalService
             ->map(fn (ListaFinal $l) => [
                 'id' => $l->id,
                 'nome' => $l->nome,
+                'tipo' => $l->tipo,
                 'vigente' => $l->vigente,
                 'rascunho' => $l->rascunho,
                 'versao' => $l->versao,
                 'projetos' => $l->projetos_count,
+                'origens' => $l->origens ?? [],
+                'gerada_em' => $l->gerada_em?->toIso8601String(),
                 'gerada_por' => $l->autor?->name,
                 'criada_em' => $l->created_at?->toIso8601String(),
                 'atualizada_em' => $l->updated_at?->toIso8601String(),
@@ -415,13 +537,22 @@ class ListaFinalService
      * depois é outro) e entra na trilha com a justificativa — é uma decisão
      * fora do recorte por nota, então precisa ficar explicada.
      */
-    public function adicionarProjeto(ListaFinal $lista, Projeto $projeto, User $admin, string $justificativa): ListaFinal
+    public function adicionarProjeto(ListaFinal $lista, Projeto $projeto, User $admin, ?string $justificativa = null): ListaFinal
     {
         if ($lista->projetos()->whereKey($projeto->id)->exists()) {
             throw ValidationException::withMessages([
                 'projeto_id' => 'Este projeto já está na lista.',
             ]);
         }
+
+        // Rascunho (Sprint 164): edição livre, antes de a lista existir de fato.
+        if ($lista->rascunho) {
+            $lista->projetos()->attach($projeto->id, ['manual' => true]);
+
+            return $lista->fresh();
+        }
+
+        $this->exigirJustificativa($justificativa);
 
         return DB::transaction(function () use ($lista, $projeto, $admin, $justificativa) {
             // Lista com códigos já enviados: quem entra ganha o próximo número
@@ -440,13 +571,21 @@ class ListaFinalService
     }
 
     /** Retira um projeto da lista oficial, com justificativa, e sobe a versão. */
-    public function removerProjeto(ListaFinal $lista, Projeto $projeto, User $admin, string $justificativa): ListaFinal
+    public function removerProjeto(ListaFinal $lista, Projeto $projeto, User $admin, ?string $justificativa = null): ListaFinal
     {
         if (! $lista->projetos()->whereKey($projeto->id)->exists()) {
             throw ValidationException::withMessages([
                 'projeto_id' => 'Este projeto não está na lista.',
             ]);
         }
+
+        if ($lista->rascunho) {
+            $lista->projetos()->detach($projeto->id);
+
+            return $lista->fresh();
+        }
+
+        $this->exigirJustificativa($justificativa);
 
         return DB::transaction(function () use ($lista, $projeto, $admin, $justificativa) {
             $lista->projetos()->detach($projeto->id);
@@ -460,9 +599,20 @@ class ListaFinalService
         });
     }
 
+    /** Depois de gerada, mudar a lista é decisão que precisa ficar explicada. */
+    private function exigirJustificativa(?string $justificativa): void
+    {
+        if (mb_strlen(trim((string) $justificativa)) < 5) {
+            throw ValidationException::withMessages([
+                'justificativa' => 'Explique a alteração (mínimo de 5 caracteres): a lista já foi gerada.',
+            ]);
+        }
+    }
+
     /**
-     * A lista aberta para edição: a composição atual e os projetos avaliados
-     * que ainda podem entrar.
+     * A lista aberta para edição: a composição atual e os projetos que ainda
+     * podem entrar — **qualquer projeto submetido** (Sprint 164), avaliado ou
+     não (o de cadastro manual, por exemplo).
      *
      * @return array<string, mixed>
      */
@@ -476,15 +626,19 @@ class ListaFinalService
             'lista' => [
                 'id' => $lista->id,
                 'nome' => $lista->nome,
+                'tipo' => $lista->tipo,
                 'vigente' => $lista->vigente,
                 'rascunho' => $lista->rascunho,
+                'demo' => (bool) $lista->demo,
                 'versao' => $lista->versao,
                 'projetos' => count($itens),
+                'origens' => $lista->origens ?? [],
+                'gerada_em' => $lista->gerada_em?->toIso8601String(),
             ],
             'itens' => array_map(fn (array $i) => $i + ['manual' => (bool) ($manuais[$i['projeto_id']] ?? false)], $itens),
-            // Candidatos: quem foi avaliado e ainda está de fora.
-            'candidatos' => $this->avaliados()
-                ->reject(fn (Projeto $p) => in_array($p->id, $dentro, true))
+            // Candidatos: qualquer submetido que está de fora — os avaliados
+            // primeiro (com a média), depois os sem avaliação.
+            'candidatos' => $this->candidatos($dentro)
                 ->map(fn (Projeto $p) => [
                     'id' => $p->id,
                     'titulo' => $p->titulo,
@@ -504,9 +658,30 @@ class ListaFinalService
     }
 
     /** Nome sugerido quando o admin não informa um. */
-    private function nomePadrao(Edicao $edicao): string
+    private function nomePadrao(Edicao $edicao, string $tipo = ListaFinal::TIPO_FINAL): string
     {
-        return 'Lista final · '.$edicao->nome;
+        return ($tipo === ListaFinal::TIPO_PRELIMINAR ? 'Lista preliminar' : 'Lista final').' · '.$edicao->nome;
+    }
+
+    /**
+     * Os projetos submetidos que ainda não estão na lista: os avaliados (com a
+     * média) e os sem avaliação concluída, como os de cadastro manual.
+     *
+     * @param  list<int>  $dentro
+     * @return Collection<int, Projeto>
+     */
+    private function candidatos(array $dentro): Collection
+    {
+        $avaliados = $this->avaliados()->reject(fn (Projeto $p) => in_array($p->id, $dentro, true));
+
+        $semAvaliacao = Projeto::semDemo()
+            ->where('status', ProjetoStatus::Submetido->value)
+            ->whereNotIn('id', [...$dentro, ...$avaliados->pluck('id')->all()])
+            ->with('area:id,nome')
+            ->orderBy('titulo')
+            ->get();
+
+        return $avaliados->values()->concat($semAvaliacao);
     }
 
     /**

@@ -160,11 +160,11 @@ export default function AvaliacaoRanking() {
                         className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-2.5 text-sm font-semibold text-on-surface hover:bg-surface-variant transition-colors"
                     >
                         <span className="material-symbols-outlined text-[18px]">fact_check</span>
-                        Listas oficiais
+                        Listas preliminares e finais
                     </Link>
                     <Button type="button" onClick={() => setListaFinal(true)}>
                         <span className="material-symbols-outlined text-[18px]">list_alt</span>
-                        Gerar lista final
+                        Gerar lista
                     </Button>
                 </div>
             </div>
@@ -173,7 +173,7 @@ export default function AvaliacaoRanking() {
                 revisado (e corrigido à mão) antes do TXT. */}
             <ListaFinalDialog
                 open={listaFinal}
-                onClose={(_oficial, id) => {
+                onClose={(_tipo, id) => {
                     setListaFinal(false);
                     if (id) navigate(`/admin/avaliacao/listas-finais/${id}`);
                 }}

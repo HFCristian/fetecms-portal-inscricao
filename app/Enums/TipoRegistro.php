@@ -96,6 +96,8 @@ enum TipoRegistro: string
     case ListaFinalOficializada = 'lista_final_oficializada';
     case ListaFinalProjetoAdicionado = 'lista_final_projeto_adicionado';
     case ListaFinalProjetoRemovido = 'lista_final_projeto_removido';
+    case ListaPreliminarGerada = 'lista_preliminar_gerada';
+    case ListaFinalReativada = 'lista_final_reativada';
     case ListaFinalCodigosFixados = 'lista_final_codigos_fixados';
     case ListaFinalCodigosEnviados = 'lista_final_codigos_enviados';
     case CredenciamentoRealizado = 'credenciamento_realizado';
@@ -180,9 +182,11 @@ enum TipoRegistro: string
             self::ProjetoManualExcluido => 'Projeto manual excluído',
             self::RascunhoAlteracao => 'Alteração no rascunho',
             self::RascunhoSubmissao => 'Submissão do rascunho',
-            self::ListaFinalOficializada => 'Lista final oficializada',
+            self::ListaFinalOficializada => 'Lista final gerada (ativa)',
             self::ListaFinalProjetoAdicionado => 'Projeto incluído na lista',
             self::ListaFinalProjetoRemovido => 'Projeto retirado da lista',
+            self::ListaPreliminarGerada => 'Lista preliminar gerada',
+            self::ListaFinalReativada => 'Lista final reativada',
             self::ListaFinalCodigosFixados => 'Códigos dos projetos fixados',
             self::ListaFinalCodigosEnviados => 'Códigos enviados aos finalistas',
             self::CredenciamentoRealizado => 'Credenciamento realizado',
@@ -222,6 +226,7 @@ enum TipoRegistro: string
             self::RascunhoAlteracao, self::RascunhoSubmissao => self::SECAO_RASCUNHOS,
             self::ListaFinalOficializada, self::ListaFinalProjetoAdicionado,
             self::ListaFinalProjetoRemovido, self::ListaFinalCodigosFixados,
+            self::ListaPreliminarGerada, self::ListaFinalReativada,
             self::ListaFinalCodigosEnviados => self::SECAO_LISTA_FINAL,
             self::CredenciamentoRealizado, self::CredenciamentoCancelado,
             self::CredenciamentoKitRetirado,

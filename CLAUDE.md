@@ -314,10 +314,15 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     contando; desistir no meio não deixa buraco, e o cartão dela oferece a **retomada** do
     rascunho, que é o único caminho de volta ao formulário.
     `VerificacaoDisparidadeService`, `PadroesAvaliacaoService`, `NotasAvaliacaoService`.
-  - **Avaliação Online → Listas finais oficiais** (`/admin/avaliacao/listas-finais`): as listas
-    geradas com a caixa **Lista Final Oficial** marcada ficam registradas. A **vigente** da edição
-    é a que define os **finalistas** da feira (projetos + alunos + orientador + coorientador);
-    publicar uma nova encerra a anterior. Dentro de cada lista o admin **inclui e retira projetos**
+  - **Avaliação Online → Listas preliminares e finais** (`/admin/avaliacao/listas-finais`):
+    `listas_finais.tipo` separa as **preliminares** (várias convivem; nenhuma define finalista) das
+    **finais** (uma só **ativa** por edição — `vigente` —, que vale para toda a etapa presencial).
+    Toda lista nasce **rascunho** — da classificação (Ranking → *Gerar lista*) ou, a final, da
+    **união de preliminares** já geradas (`origens`) — e no rascunho o admin inclui e retira **sem
+    justificativa**, qualquer projeto submetido (avaliado ou não). **Gerar** fecha: a preliminar fica
+    registrada; a final vira a **ativa** e a anterior passa a inativa, **reativável** com
+    justificativa. A ativa é a que define os **finalistas** da feira (projetos + alunos + orientador
+    + coorientador). Dentro de cada lista o admin **inclui e retira projetos**
     com **justificativa obrigatória** — cada alteração **sobe a versão**, gera um TXT novo (o
     arquivo sai sempre da composição atual, com a numeração refeita) e entra em **Registros → Lista
     final**. `listas_finais` + `lista_final_projetos`, `ListaFinalService`.
@@ -828,7 +833,35 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 161 | Credenciamento **fora do prazo** aprovado (data prevista), visível no credenciamento e na avaliação | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 162 | **Suporte no evento**: acompanhante e intérpretes (aba do orientador, aprovação, crachá do acompanhante) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 163 | Nova aba **Certificados**: avaliadores por fase, participantes (CPF, função, atividade) e declaração nominal | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 164 | Listas **preliminares** (várias) e **finais** (uma ativa): tipo, rascunho editável livre, gerar e reativar | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 165 | Lista final montada pela **união de preliminares** + telas de geração, listas e detalhe | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprints 164–165 (mesma branch):** **listas preliminares e finais**. Até aqui toda lista era
+> "lista final": nascia rascunho e, publicada, virava a vigente. A organização trabalha com vários
+> recortes antes de fechar a feira, e eles não são finalistas de ninguém.
+> (a) **Sprint 164** — o modelo. `listas_finais.tipo` (`preliminar`/`final`) + `origens` (JSON das
+> preliminares que formaram a final) + `gerada_em`. **Preliminares** convivem sem limite e nenhuma
+> define finalista; **finais** têm **uma ativa** por edição (`vigente`, que `ListaFinal::vigente()`
+> agora só procura entre as finais). Toda lista nasce **rascunho**, e o rascunho é **edição livre**:
+> incluir e retirar sem justificativa, sem subir versão e sem registro — e o candidato é **qualquer
+> projeto submetido**, avaliado ou não (o de cadastro manual entra por aqui). **Gerar**
+> (`POST .../gerar`, `ListaFinalService::gerarLista()`) fecha: a preliminar fica registrada
+> (`lista_preliminar_gerada`); a final vira a ativa e a que estava ativa passa a **inativa** — fica
+> no histórico e **volta** por *Tornar ativa* (`POST .../reativar`), com justificativa e registro
+> (`lista_final_reativada`). Depois de gerada, mudar a lista continua pedindo justificativa e
+> subindo a versão, como antes. Preliminar não manda código nem ganha etiquetas: isso é da final
+> ativa. A migration converte o que existe: o publicado vira **final** (a vigente segue ativa, com
+> códigos, mapa e crachás intactos) e o rascunho vira **preliminar**. O atalho antigo `oficial` da
+> API continua gerando a final na hora; `/publicar` é sinônimo de `/gerar`.
+> (b) **Sprint 165** — a final pela **união de preliminares**
+> (`POST /admin/avaliacao/listas/final-de-preliminares`): o admin marca as preliminares **já
+> geradas** e o portal junta os projetos delas sem repetir, num rascunho de final que ainda se
+> edita antes de gerar. Nas telas: o assistente do Ranking (*Gerar lista*) termina escolhendo
+> **preliminar** (padrão) ou **final** e sempre abre o rascunho; a página de listas separa **Finais**
+> (ativa/inativa, *Tornar ativa*, de que preliminares veio) de **Preliminares**, com o botão *Lista
+> final a partir de preliminares*; o detalhe edita na hora no rascunho, gera com confirmação quando é
+> final ("vira a ativa") e só mostra identificação e envio de código para a final.
+>
 > **Sprint 163 (mesma branch):** nasce a aba **Certificados** (`AbaAdmin::Certificados`, do RBAC
 > como as demais; `/admin/certificados`, `CertificadosService`). O portal **não emite** o
 > certificado: entrega a planilha (Excel ou CSV) com que a organização o emite.
@@ -2166,6 +2199,13 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > **arquiva** (o nome fica nos registros, o login morre e o e-mail fica livre).
 > (7) **Certificados da organização**: o CPF dos admins nasce em branco — preencha em
 > Administradores → editar, antes de exportar o grupo *Organização*.
+> (8) **Listas (Sprints 164–165)**: mais uma migration (`listas_finais.tipo`, `origens`,
+> `gerada_em`). Depois do deploy, a lista oficial de hoje aparece como **final ativa** e os
+> rascunhos antigos como **preliminares** — confira em Avaliação online → Listas preliminares e
+> finais. O assistente do Ranking agora começa em **preliminar**: para uma final direto da
+> classificação, troque a opção no último passo. **Gerar uma final nova muda os finalistas na
+> hora** (credenciamento, mapa, crachás); se os códigos já foram enviados, prefira incluir/retirar
+> na final ativa a gerar outra.
 
 > **Pendências do Pedro (Sprints 153–154):** ~~push + PR~~ — **entrou na `main` pelo PR #99**
 > (v1.27.2). As observações de uso continuam valendo: (1) `git push origin feat/ranking-download-e-idiomas`

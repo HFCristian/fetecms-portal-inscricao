@@ -390,6 +390,11 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 // registro em Registros → Lista final.
                 // Publica um rascunho revisado: ele passa a ser a vigente.
                 Route::post('/avaliacao/listas-finais/{lista}/publicar', [AdminAvaliacaoController::class, 'publicarListaFinal']);
+                // Listas preliminares e finais (Sprint 164): gerar o rascunho
+                // revisado, montar a final das preliminares e reativar uma final.
+                Route::post('/avaliacao/listas-finais/{lista}/gerar', [AdminAvaliacaoController::class, 'publicarListaFinal']);
+                Route::post('/avaliacao/listas-finais/{lista}/reativar', [AdminAvaliacaoController::class, 'reativarListaFinal']);
+                Route::post('/avaliacao/listas/final-de-preliminares', [AdminAvaliacaoController::class, 'listaFinalDePreliminares']);
                 Route::post('/avaliacao/listas-finais/{lista}/projetos', [AdminAvaliacaoController::class, 'adicionarNaListaFinal']);
                 Route::delete('/avaliacao/listas-finais/{lista}/projetos/{projeto}', [AdminAvaliacaoController::class, 'removerDaListaFinal']);
 
