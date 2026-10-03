@@ -12,7 +12,17 @@ const getContasTemporarias = vi.fn();
 const criarContaTemporaria = vi.fn();
 const renovarContaTemporaria = vi.fn();
 const desativarContaTemporaria = vi.fn();
+const removerContaTemporaria = vi.fn();
+const baixarModeloContas = vi.fn();
+const previaLoteContas = vi.fn();
+const criarLoteContas = vi.fn();
+const baixarBase64 = vi.fn();
 vi.mock('../lib/contasTemporarias.js', () => ({
+    removerContaTemporaria: (...a) => removerContaTemporaria(...a),
+    baixarModeloContas: (...a) => baixarModeloContas(...a),
+    previaLoteContas: (...a) => previaLoteContas(...a),
+    criarLoteContas: (...a) => criarLoteContas(...a),
+    baixarBase64: (...a) => baixarBase64(...a),
     decidirPresenca: (...a) => decidirPresenca(...a),
     getContasTemporarias: (...a) => getContasTemporarias(...a),
     criarContaTemporaria: (...a) => criarContaTemporaria(...a),
@@ -304,5 +314,86 @@ describe('CredenciamentoContas — presença do turno', () => {
         await waitFor(() => expect(decidirPresenca).toHaveBeenCalledWith(
             9, false, 'Não é a pessoa escalada.', 'credenciamento',
         ));
+    });
+});
+
+// --- Sprint 155: lote e remoção ----------------------------------------------
+
+describe('CredenciamentoContas — lote e remoção', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        getContasTemporarias.mockResolvedValue(lista([ativa, vencida]));
+    });
+
+    it('remove a conta depois de confirmar', async () => {
+        removerContaTemporaria.mockReset().mockResolvedValue({ data: lista([vencida]), meta: { message: 'Conta removida.' } });
+        render(<CredenciamentoContas />);
+
+        fireEvent.click(await screen.findByTitle('Remover a conta de Bruna Atendente'));
+        fireEvent.click(await screen.findByRole('button', { name: 'Remover' }));
+
+        await waitFor(() => expect(removerContaTemporaria).toHaveBeenCalledWith(1, 'credenciamento'));
+        expect(await screen.findByText('Conta removida.')).toBeInTheDocument();
+        expect(screen.queryByText('Bruna Atendente')).not.toBeInTheDocument();
+    });
+
+    it('cadastra em lote: prévia, criação só das prontas e planilha de acesso', async () => {
+        previaLoteContas.mockReset().mockResolvedValue({
+            validas: 1,
+            invalidas: 1,
+            linhas: [
+                { linha: 2, name: 'Ana Lima', email: 'ana@balcao.test', cpf: '52998224725', cpf_formatado: '529.982.247-25', curso: 'Biologia', acesso_label: 'agora até 03/10/2026 18:00', erros: [] },
+                { linha: 3, name: 'Bruno Dias', email: 'bruno@balcao.test', cpf: '11111111111', cpf_formatado: '111.111.111-11', curso: 'Química', acesso_label: '', erros: ['O CPF informado não é válido.'] },
+            ],
+        });
+        criarLoteContas.mockReset().mockResolvedValue({
+            data: lista([ativa]),
+            meta: {
+                message: '1 conta criada. Baixe a planilha de acesso agora: as senhas não ficam guardadas.',
+                criadas: [{ linha: 2, nome: 'Ana Lima', email: 'ana@balcao.test', senha: 'Xk7mPq2abc' }],
+                ignoradas: [],
+                arquivo: { nome: 'acessos.xlsx', base64: 'AAAA' },
+            },
+        });
+        render(<CredenciamentoContas setor="almoxarifado" />);
+
+        fireEvent.click(await screen.findByRole('button', { name: /Cadastrar em lote/i }));
+        fireEvent.change(screen.getByLabelText('Horas padrão do lote'), { target: { value: '6' } });
+
+        const arquivo = new File(['x'], 'equipe.xlsx');
+        fireEvent.change(screen.getByLabelText('Planilha preenchida'), { target: { files: [arquivo] } });
+        fireEvent.click(screen.getByRole('button', { name: 'Conferir planilha' }));
+
+        await waitFor(() => expect(previaLoteContas).toHaveBeenCalledWith(arquivo, { valido_de: undefined, horas: 6 }, 'almoxarifado'));
+        expect(await screen.findByText('O CPF informado não é válido.')).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Criar 1 conta' }));
+
+        await waitFor(() => expect(criarLoteContas).toHaveBeenCalled());
+        // Só a linha pronta viaja.
+        expect(criarLoteContas.mock.calls[0][0]).toHaveLength(1);
+        expect(criarLoteContas.mock.calls[0][0][0].email).toBe('ana@balcao.test');
+        // A planilha de acesso é baixada na hora.
+        expect(baixarBase64).toHaveBeenCalledWith('AAAA', 'acessos.xlsx');
+        expect(await screen.findByText(/1 conta criada/)).toBeInTheDocument();
+
+        // A senha aparece só quando pedida.
+        expect(screen.queryByText('Xk7mPq2abc')).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Mostrar senhas' }));
+        expect(screen.getByText('Xk7mPq2abc')).toBeInTheDocument();
+    });
+
+    it('voluntários informam turnos padrão no lote', async () => {
+        previaLoteContas.mockReset().mockResolvedValue({ validas: 0, invalidas: 0, linhas: [] });
+        render(<CredenciamentoContas setor="avaliacao_presencial" />);
+
+        fireEvent.click(await screen.findByRole('button', { name: /Cadastrar em lote/i }));
+        fireEvent.change(screen.getByLabelText('Início do turno 1'), { target: { value: '2026-10-20T08:00' } });
+        fireEvent.change(screen.getByLabelText('Fim do turno 1'), { target: { value: '2026-10-20T12:00' } });
+        fireEvent.change(screen.getByLabelText('Planilha preenchida'), { target: { files: [new File(['x'], 'v.csv')] } });
+        fireEvent.click(screen.getByRole('button', { name: 'Conferir planilha' }));
+
+        await waitFor(() => expect(previaLoteContas).toHaveBeenCalled());
+        expect(previaLoteContas.mock.calls[0][1]).toEqual({ turnos: [{ inicio: '2026-10-20T08:00', fim: '2026-10-20T12:00' }] });
     });
 });

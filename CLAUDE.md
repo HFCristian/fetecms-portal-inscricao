@@ -432,7 +432,10 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     `User::ehContaTemporaria()` faz `abasPermitidas()` devolver **só "credenciamento"**, por cima de
     qualquer escopo. Vencido o prazo, ela é **desativada, não apagada** — reativar é informar um
     prazo novo, sem recadastrar nada; a varredura roda ao listar e no login. Uma conta temporária
-    **não administra outras contas temporárias**. `ContaTemporariaService`.
+    **não administra outras contas temporárias**. Em todas as abas com balcão as contas também
+    entram **em lote** (modelo Excel → prévia → senhas geradas numa planilha de acesso) e podem ser
+    **removidas** — apagadas se nunca atenderam ninguém, arquivadas se já deixaram rastro
+    (Sprint 155). `ContaTemporariaService`.
   - **Cerimonial** (`/admin/cerimonial`): a porta da **cerimônia de premiação** — outro momento
     do evento que não o credenciamento, e por isso o check-in **não depende** dele: a ficha diz se
     o projeto passou pelo balcão e não trava quem não passou. Três seções. **Check-in** atende
@@ -814,9 +817,44 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 150 | Ajustes e Pareceres: o parecer continua visível depois do prazo (só a decisão fecha) | ✅ sim | ❌ não (manual do Pedro) | 2 |
 | 151 | Avaliador: tamanho de camiseta (perfil, cadastro e 4º card do painel) | ✅ sim | ❌ não (manual do Pedro) | 2 |
 | 152 | Mapa do Evento: ruas nomeadas, tela cheia, cor por situação e lista filtrável | ✅ sim | ❌ não (manual do Pedro) | 2 |
-| 153 | Ranking dos projetos: baixar em CSV, Excel, PDF e TXT, no recorte dos filtros | ✅ sim | ❌ não (manual do Pedro) | 3 |
-| 154 | Avaliador: idiomas em que pode avaliar (cadastro, perfil, tabela, públicos e painel) | ✅ sim | ❌ não (manual do Pedro) | 3 |
+| 153 | Ranking dos projetos: baixar em CSV, Excel, PDF e TXT, no recorte dos filtros | ✅ sim | ✅ sim (Pedro, PR #99 → v1.27.2) | 0 |
+| 154 | Avaliador: idiomas em que pode avaliar (cadastro, perfil, tabela, públicos e painel) | ✅ sim | ✅ sim (Pedro, PR #99 → v1.27.2) | 0 |
+| 155 | Contas temporárias: cadastro **em lote** (modelo Excel → prévia → senhas geradas) + **remoção** | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 156 | Fix: PDF de etiquetas (QR/barras) sem código e estourando a memória | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprints 155–156 (branch `feat/finalistas-suporte-e-certificados`, saída da `main` @ `9390a3c`):**
+> (a) **Sprint 155** — as **contas temporárias** das quatro abas com balcão (credenciamento,
+> almoxarifado, voluntários da avaliação presencial e cerimonial) passaram a nascer **em lote**. A
+> equipe do balcão chega numa lista de dezenas de nomes, e cadastrar um por um, cada um com uma
+> senha inventada na hora, era o gargalo da véspera. O caminho é o do responsável pela equipe:
+> **baixa o modelo** em Excel (cabeçalho só, sem linha de exemplo — exemplo esquecido vira conta;
+> CPF e datas em coluna **texto**, senão o Excel come o zero da frente), preenche, devolve em
+> `.xlsx` ou `.csv` e vê a **prévia linha a linha** — o que vira conta e o que não passa, com o
+> motivo (CPF inválido, e-mail que já tem conta, repetido na própria planilha, janela no passado,
+> turno mal escrito). Confirmado, cada conta ganha uma **senha gerada** (10 caracteres sem 0/O/1/l)
+> e a **planilha de acesso** (nome, e-mail, senha) é baixada na hora: o portal guarda só o hash,
+> então ela existe uma vez. Os campos de início/horas — ou de turnos, nos voluntários — são o
+> **padrão** da linha que deixar a coluna em branco. A leitura é nossa
+> (`App\Support\LeitorPlanilha`: xlsx com strings compartilhadas, células puladas e data serial do
+> Excel; csv com BOM, `;`/`,`/tab e Windows-1252), **sem dependência nova** — o mesmo argumento do
+> `PlanilhaXlsx`, que ganhou largura e formato texto por coluna.
+> E a conta pode ser **removida**, não só desativada. Desativar continua sendo o reversível; remover
+> é para quem não devia estar ali. Conta que **nunca atendeu ninguém** é apagada. A que **já
+> deixou rastro** (credenciou, guardou material, fez check-in, conferiu estande) é **arquivada**
+> (`contas_temporarias.removida_em`): as fichas apontam para ela e não guardam o nome à parte, então
+> o `users` fica — com o login morto (inativa, e-mail trocado por um endereço `.invalid` que libera
+> o original, senha embaralhada, sessões encerradas) — e o nome continua respondendo por quem
+> atendeu. As rotas das quatro abas viraram uma macro (`Route::contasTemporarias($setor)`).
+> (b) **Sprint 156** — relato de produção: o **PDF de etiquetas** da identificação dava erro. Eram
+> dois defeitos. O Dompdf **não pinta SVG escrito dentro do HTML**: as etiquetas que saíam vinham
+> sem QR e sem barras. E o motor de layout dele custa ~0,2 MB e 20 ms por etiqueta — com 200
+> pessoas a memória de 128 MB estourava, e a lista real tem perto de 1.800. As etiquetas passaram a
+> ser **desenhadas direto na página** (`App\Support\EtiquetasPdf`, sobre o `Cpdf` que o próprio
+> Dompdf já traz): texto nas fontes padrão do PDF e os códigos como retângulos — o QR módulo a
+> módulo, o Code 128 barra a barra. Vetor puro, sem GD: **2.000 etiquetas em ~9 s e 43 MB**, 10 por
+> folha A4. O QR do PDF usa correção **M** (15%), porque o crachá amassa e risca; o SVG da tela e
+> do ZIP não mudou.
+>
 > **Sprints 153–154 (branch `feat/ranking-download-e-idiomas`, saída da `main` @ `86d28c7`):**
 > (a) **Sprint 153** — o **Ranking dos projetos** passou a ser **baixável**. Ele é a tela em que a
 > organização discute quem vai para a lista final, e a discussão acontece em reunião: até aqui o

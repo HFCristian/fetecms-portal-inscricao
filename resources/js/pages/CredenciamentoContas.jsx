@@ -5,8 +5,9 @@ import { Alert, Button, Field, Input, useConfirm } from '../components/ui.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import {
     getContasTemporarias, criarContaTemporaria,
-    renovarContaTemporaria, desativarContaTemporaria, decidirPresenca,
+    renovarContaTemporaria, desativarContaTemporaria, decidirPresenca, removerContaTemporaria,
 } from '../lib/contasTemporarias.js';
+import LoteContasTemporarias, { TurnosEditor } from '../components/LoteContasTemporarias.jsx';
 
 /**
  * Credenciamento → **Contas temporárias**.
@@ -28,6 +29,10 @@ import {
  * em vez de uma janela, ele recebe vários **turnos de trabalho** de uma vez. A
  * janela passa a ser o envelope deles, e entre um turno e outro a conta não
  * abre — que é o que "turno" quer dizer.
+ *
+ * Sprint 155: a equipe inteira entra de uma vez pelo **cadastro em lote**
+ * (modelo em Excel → prévia → senhas geradas), e uma conta pode ser
+ * **removida**, além de desativada.
  */
 const VAZIO = {
     name: '', email: '', password: '', password_confirmation: '',
@@ -151,7 +156,7 @@ function RejeitarPresencaDialog({ conta, salvando, onConfirmar, onFechar }) {
     );
 }
 
-function LinhaConta({ conta, onRenovar, onDesativar, onDecidirPresenca, ocupado, horasPadrao }) {
+function LinhaConta({ conta, onRenovar, onDesativar, onRemover, onDecidirPresenca, ocupado, horasPadrao }) {
     const [horas, setHoras] = useState('');
     // Reagendar é o mesmo caminho de renovar: janela nova, começo novo.
     const [validoDe, setValidoDe] = useState('');
@@ -221,6 +226,15 @@ function LinhaConta({ conta, onRenovar, onDesativar, onDecidirPresenca, ocupado,
                             <span className="material-symbols-outlined text-[20px]">block</span>
                         </button>
                     )}
+                    <button
+                        type="button"
+                        onClick={() => onRemover(conta)}
+                        disabled={ocupado}
+                        title={`Remover a conta de ${conta.nome}`}
+                        className="p-1.5 rounded-lg text-error hover:bg-error-container disabled:opacity-30 transition-colors"
+                    >
+                        <span className="material-symbols-outlined text-[20px]">delete</span>
+                    </button>
                 </div>
             </div>
 
@@ -290,6 +304,7 @@ export default function CredenciamentoContas({ setor = 'credenciamento' }) {
     const [dados, setDados] = useState(null);
     const [form, setForm] = useState(VAZIO);
     const [criando, setCriando] = useState(false);
+    const [emLote, setEmLote] = useState(false);
     // Escala do voluntário: vários pares início/fim numa submissão só.
     const [turnos, setTurnos] = useState([{ ...TURNO_VAZIO }]);
     const [errors, setErrors] = useState({});
@@ -409,6 +424,28 @@ export default function CredenciamentoContas({ setor = 'credenciamento' }) {
         }
     }
 
+    /**
+     * Remover é para quem não devia estar ali. Conta que já atendeu alguém é
+     * arquivada pelo servidor — o nome continua nos registros —; as outras somem.
+     */
+    async function remover(conta) {
+        const ok = await confirm({
+            title: 'Remover a conta?',
+            message: `${conta.nome} perde o acesso de vez e sai desta lista. Se já registrou algum atendimento, o nome continua nos registros. Para um afastamento temporário, prefira encerrar o acesso.`,
+            confirmLabel: 'Remover',
+        });
+        if (!ok) return;
+
+        setOcupado(true);
+        try {
+            aplicar(await removerContaTemporaria(conta.id, setor));
+        } catch (e) {
+            falhar(e, 'Não foi possível remover a conta.');
+        } finally {
+            setOcupado(false);
+        }
+    }
+
     const campo = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
     const horasPadrao = dados?.horas_padrao ?? 5;
 
@@ -510,52 +547,7 @@ export default function CredenciamentoContas({ setor = 'credenciamento' }) {
                                 A conta abre <strong>durante</strong> os turnos e fica fechada entre
                                 eles. O prazo geral é calculado sozinho, do primeiro início ao último fim.
                             </p>
-                            {errors.turnos && <div className="mb-3"><Alert>{errors.turnos}</Alert></div>}
-                            <div className="space-y-2">
-                                {turnos.map((t, i) => (
-                                    <div key={i} className="flex flex-wrap items-end gap-2">
-                                        <Field label={`Início do turno ${i + 1}`} error={errors[`turnos.${i}.inicio`]}>
-                                            <Input
-                                                type="datetime-local"
-                                                aria-label={`Início do turno ${i + 1}`}
-                                                value={t.inicio}
-                                                onChange={(e) => setTurnos((ts) => ts.map(
-                                                    (x, j) => (j === i ? { ...x, inicio: e.target.value } : x),
-                                                ))}
-                                            />
-                                        </Field>
-                                        <Field label={`Fim do turno ${i + 1}`} error={errors[`turnos.${i}.fim`]}>
-                                            <Input
-                                                type="datetime-local"
-                                                aria-label={`Fim do turno ${i + 1}`}
-                                                value={t.fim}
-                                                onChange={(e) => setTurnos((ts) => ts.map(
-                                                    (x, j) => (j === i ? { ...x, fim: e.target.value } : x),
-                                                ))}
-                                            />
-                                        </Field>
-                                        {turnos.length > 1 && (
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                className="text-error border-error/40 hover:bg-error-container/40"
-                                                onClick={() => setTurnos((ts) => ts.filter((_, j) => j !== i))}
-                                            >
-                                                Remover
-                                            </Button>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                className="mt-2"
-                                onClick={() => setTurnos((ts) => [...ts, { ...TURNO_VAZIO }])}
-                            >
-                                <span className="material-symbols-outlined text-[20px]">add</span>
-                                Acrescentar turno
-                            </Button>
+                            <TurnosEditor turnos={turnos} onChange={setTurnos} errors={errors} />
                         </fieldset>
                     )}
                     <div className="flex gap-2 justify-end mt-4">
@@ -567,11 +559,23 @@ export default function CredenciamentoContas({ setor = 'credenciamento' }) {
                         </Button>
                     </div>
                 </form>
+            ) : emLote ? (
+                <LoteContasTemporarias
+                    setor={setor}
+                    turnos={balcao.turnos}
+                    horasPadrao={horasPadrao}
+                    onCriadas={(resp) => setDados(resp.data)}
+                    onFechar={() => setEmLote(false)}
+                />
             ) : (
-                <div className="mb-6">
+                <div className="mb-6 flex flex-wrap gap-2">
                     <Button type="button" onClick={() => { setCriando(true); setAlerta(''); setSucesso(''); }}>
                         <span className="material-symbols-outlined text-[20px]">person_add</span>
                         {balcao.turnos ? 'Novo voluntário' : 'Nova conta temporária'}
+                    </Button>
+                    <Button type="button" variant="outline" onClick={() => { setEmLote(true); setAlerta(''); setSucesso(''); }}>
+                        <span className="material-symbols-outlined text-[20px]">group_add</span>
+                        Cadastrar em lote
                     </Button>
                 </div>
             )}
@@ -596,6 +600,7 @@ export default function CredenciamentoContas({ setor = 'credenciamento' }) {
                             horasPadrao={horasPadrao}
                             onRenovar={renovar}
                             onDesativar={desativar}
+                            onRemover={remover}
                             onDecidirPresenca={decidir}
                         />
                     ))

@@ -4,11 +4,21 @@ namespace App\Services;
 
 use App\Enums\Role;
 use App\Enums\StatusPresenca;
+use App\Http\Requests\Concerns\NormalizaEmail;
 use App\Models\ContaTemporaria;
 use App\Models\User;
+use App\Rules\Cpf;
+use App\Support\LeitorPlanilha;
+use App\Support\PlanilhaXlsx;
 use Carbon\CarbonImmutable;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 /**
  * Contas temporárias de credenciamento (Credenciamento → Contas temporárias).
@@ -46,6 +56,44 @@ class ContaTemporariaService
     /** Teto do campo de duração: um ano em horas, para o formulário e a API. */
     public const HORAS_MAX = 8760;
 
+    /** Quantas contas um lote cria de uma vez: uma equipe, não a base inteira. */
+    public const MAX_LOTE = 300;
+
+    /**
+     * Onde uma conta temporária deixa rastro. Conta que aparece em qualquer
+     * destas colunas já atendeu alguém e, ao ser removida, é **arquivada** em
+     * vez de apagada: são essas fichas que dizem quem atendeu, e elas não
+     * guardam o nome à parte.
+     *
+     * @var array<string, list<string>>
+     */
+    private const RASTROS = [
+        'credenciamentos' => ['credenciado_por', 'iniciado_por'],
+        'credenciamento_pessoas' => ['kit_registrado_por'],
+        'almoxarifado_guardas' => ['registrado_por'],
+        'almoxarifado_itens' => ['retirada_registrada_por'],
+        'cerimonial_checkins' => ['registrado_por'],
+        'checagens_estande' => ['verificado_por'],
+        'credencial_projeto' => ['atribuida_por'],
+        'registros_atividade' => ['user_id'],
+    ];
+
+    /**
+     * As colunas do modelo de importação. A primeira palavra de cada título é
+     * a que a leitura procura, então a ordem pode mudar na planilha.
+     *
+     * @var array<string, array{titulo: string, largura: int, texto?: bool}>
+     */
+    private const COLUNAS_LOTE = [
+        'name' => ['titulo' => 'Nome completo', 'largura' => 34],
+        'email' => ['titulo' => 'E-mail', 'largura' => 32],
+        'cpf' => ['titulo' => 'CPF (só números ou com pontos)', 'largura' => 22, 'texto' => true],
+        'curso' => ['titulo' => 'Curso', 'largura' => 28],
+        'valido_de' => ['titulo' => 'Início do acesso (dd/mm/aaaa hh:mm — em branco usa o padrão da tela)', 'largura' => 30, 'texto' => true],
+        'horas' => ['titulo' => 'Horas de acesso (em branco usa o padrão da tela)', 'largura' => 20],
+        'turnos' => ['titulo' => 'Turnos (dd/mm/aaaa hh:mm-hh:mm; separe vários com ponto e vírgula)', 'largura' => 60, 'texto' => true],
+    ];
+
     /**
      * As contas cadastradas, com a situação de cada uma. Vencidas são
      * desativadas antes de listar, para a tela nunca mostrar "ativa" para quem
@@ -59,6 +107,8 @@ class ContaTemporariaService
 
         $contas = ContaTemporaria::with(['user', 'autor:id,name', 'turnos', 'decisor:id,name'])
             ->where('setor', $setor)
+            // Arquivadas não voltam à lista: para o setor, elas não existem mais.
+            ->whereNull('removida_em')
             ->get()
             ->sortBy(fn (ContaTemporaria $c) => mb_strtolower($c->user?->name ?? ''))
             ->values();
@@ -130,6 +180,513 @@ class ContaTemporariaService
         });
 
         return $conta->refresh();
+    }
+
+    /**
+     * **Remove** a conta (Sprint 155). Desativar continua existindo e é
+     * reversível; remover é para quem não devia estar ali — cadastro errado,
+     * pessoa que não veio, linha duplicada de um lote.
+     *
+     * Sem rastro nenhum, a conta é **apagada**: o `users` some e leva junto a
+     * linha temporária e os turnos (cascade). Com rastro ({@see self::RASTROS}),
+     * ela é **arquivada**: o login morre de vez — conta inativa, e-mail trocado
+     * por um endereço que não existe (o original fica livre para um cadastro
+     * novo), senha embaralhada e sessões encerradas —, mas o nome continua
+     * respondendo por quem credenciou, guardou ou fez check-in.
+     *
+     * @return 'excluida'|'arquivada'
+     */
+    public function remover(ContaTemporaria $conta): string
+    {
+        $user = $conta->user;
+
+        if ($user === null) {
+            $conta->delete();
+
+            return 'excluida';
+        }
+
+        return DB::transaction(function () use ($conta, $user) {
+            $this->encerrarSessoes($user);
+
+            if (! $this->temRastro($user->id)) {
+                $user->delete();
+
+                return 'excluida';
+            }
+
+            $user->forceFill([
+                'email' => sprintf('removida.%d.%s@conta-temporaria.invalid', $user->id, Str::lower(Str::random(6))),
+                'password' => Hash::make(Str::random(40)),
+                'is_active' => false,
+                'remember_token' => null,
+            ])->save();
+
+            $conta->update(['removida_em' => now()]);
+
+            return 'arquivada';
+        });
+    }
+
+    /** Já atendeu alguém? Basta aparecer numa das colunas de rastro. */
+    private function temRastro(int $userId): bool
+    {
+        foreach (self::RASTROS as $tabela => $colunas) {
+            if (! Schema::hasTable($tabela)) {
+                continue;
+            }
+
+            foreach ($colunas as $coluna) {
+                if (DB::table($tabela)->where($coluna, $userId)->exists()) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /** Desconecta a pessoa agora, sem esperar a sessão expirar. */
+    private function encerrarSessoes(User $user): void
+    {
+        $user->tokens()->delete();
+
+        if (Schema::hasTable('sessions')) {
+            DB::table('sessions')->where('user_id', $user->id)->delete();
+        }
+    }
+
+    // --- Cadastro em lote (Sprint 155) ---------------------------------------
+
+    /**
+     * As colunas do modelo deste setor: o voluntário da avaliação presencial
+     * informa **turnos**; os balcões informam início e horas.
+     *
+     * @return array<string, array{titulo: string, largura: int, texto?: bool}>
+     */
+    private function colunasLote(string $setor): array
+    {
+        $chaves = $setor === ContaTemporaria::SETOR_PRESENCIAL
+            ? ['name', 'email', 'cpf', 'curso', 'turnos']
+            : ['name', 'email', 'cpf', 'curso', 'valido_de', 'horas'];
+
+        return array_intersect_key(self::COLUNAS_LOTE, array_flip($chaves));
+    }
+
+    /**
+     * O modelo em Excel: só o cabeçalho, com o CPF e as datas em formato
+     * **texto** — numa coluna "Geral" o Excel come o zero da frente do CPF e
+     * transforma "04/10/2026 08:00" num número.
+     *
+     * Não leva linha de exemplo de propósito: um exemplo esquecido na planilha
+     * viraria uma conta.
+     */
+    public function modeloLote(string $setor): string
+    {
+        $colunas = $this->colunasLote($setor);
+
+        return PlanilhaXlsx::gerar(
+            'Contas temporárias',
+            array_column($colunas, 'titulo'),
+            [],
+            array_values(array_map(fn ($c) => ['largura' => $c['largura'], 'texto' => $c['texto'] ?? false], $colunas)),
+        );
+    }
+
+    /**
+     * Lê a planilha enviada e confere cada linha **sem criar nada**: é a prévia
+     * que a tela mostra antes da confirmação, com o motivo de cada recusa.
+     *
+     * @param  array<string, mixed>  $padroes  o que vale para a linha em branco: valido_de, horas, turnos
+     * @return array<string, mixed>
+     */
+    public function previaLote(UploadedFile $arquivo, string $setor, array $padroes = []): array
+    {
+        $linhas = $this->lerPlanilha($arquivo, $setor);
+
+        return $this->conferirLote($linhas, $setor, $padroes);
+    }
+
+    /**
+     * Cria as contas do lote. As linhas chegam da prévia, mas são **conferidas
+     * de novo** aqui — entre uma e outra alguém pode ter cadastrado o mesmo
+     * e-mail, e o que vem do navegador não é confiável. A linha que não passa
+     * é pulada e devolvida com o motivo; as outras são criadas.
+     *
+     * Cada conta ganha uma **senha gerada**, devolvida uma única vez (o portal
+     * guarda só o hash) — é dela que sai a planilha de acesso que o responsável
+     * baixa e distribui.
+     *
+     * @param  list<array<string, mixed>>  $linhas
+     * @param  array<string, mixed>  $padroes
+     * @return array{criadas: list<array<string, mixed>>, ignoradas: list<array<string, mixed>>}
+     */
+    public function criarLote(array $linhas, array $padroes, User $autor, string $setor): array
+    {
+        if (count($linhas) > self::MAX_LOTE) {
+            throw ValidationException::withMessages([
+                'linhas' => 'Um lote cria no máximo '.self::MAX_LOTE.' contas de uma vez.',
+            ]);
+        }
+
+        $conferido = $this->conferirLote($linhas, $setor, $padroes);
+        $criadas = [];
+        $ignoradas = [];
+
+        foreach ($conferido['linhas'] as $linha) {
+            if ($linha['erros'] !== []) {
+                $ignoradas[] = $linha;
+
+                continue;
+            }
+
+            $senha = $this->senhaGerada();
+
+            try {
+                $conta = $this->criar([
+                    'name' => $linha['name'],
+                    'email' => $linha['email'],
+                    'password' => $senha,
+                    'cpf' => $linha['cpf'],
+                    'curso' => $linha['curso'],
+                    'valido_de' => $linha['valido_de'],
+                    'horas' => $linha['horas'],
+                    'turnos' => $linha['turnos'],
+                ], $autor, $setor);
+            } catch (Throwable $e) {
+                $ignoradas[] = array_merge($linha, ['erros' => [$e instanceof ValidationException
+                    ? collect($e->errors())->flatten()->first()
+                    : 'Não foi possível criar esta conta.']]);
+
+                continue;
+            }
+
+            $criadas[] = [
+                'linha' => $linha['linha'],
+                'nome' => $conta->user->name,
+                'email' => $conta->user->email,
+                'senha' => $senha,
+                'cpf' => $conta->cpfFormatado(),
+                'curso' => $conta->curso,
+                'acesso' => $linha['acesso_label'],
+            ];
+        }
+
+        return ['criadas' => $criadas, 'ignoradas' => $ignoradas];
+    }
+
+    /**
+     * A planilha de acesso do lote criado: nome, e-mail e a senha de cada um.
+     *
+     * @param  list<array<string, mixed>>  $criadas
+     */
+    public function planilhaAcessos(array $criadas): string
+    {
+        return PlanilhaXlsx::gerar(
+            'Acessos',
+            ['Nome', 'E-mail', 'Senha', 'CPF', 'Curso', 'Acesso'],
+            array_map(fn (array $c) => [$c['nome'], $c['email'], $c['senha'], $c['cpf'], $c['curso'], $c['acesso']], $criadas),
+            [['largura' => 34], ['largura' => 32], ['largura' => 14, 'texto' => true], ['largura' => 16], ['largura' => 26], ['largura' => 50]],
+        );
+    }
+
+    /**
+     * Linhas da planilha → dados de conta, pelo título de cada coluna.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function lerPlanilha(UploadedFile $arquivo, string $setor): array
+    {
+        $extensao = strtolower($arquivo->getClientOriginalExtension());
+        $linhas = LeitorPlanilha::ler($arquivo->getRealPath(), $extensao === 'xlsx' ? 'xlsx' : 'csv');
+
+        if ($linhas === []) {
+            throw ValidationException::withMessages(['arquivo' => 'A planilha está vazia.']);
+        }
+
+        $mapa = $this->mapearCabecalho($linhas[0]);
+
+        if (! isset($mapa['name'], $mapa['email'])) {
+            throw ValidationException::withMessages([
+                'arquivo' => 'Não encontrei as colunas "Nome completo" e "E-mail" na primeira linha. Use o modelo da tela.',
+            ]);
+        }
+
+        $dados = [];
+
+        foreach (array_slice($linhas, 1, null, true) as $i => $valores) {
+            $linha = ['linha' => $i + 1];
+
+            foreach ($mapa as $campo => $coluna) {
+                $linha[$campo] = trim((string) ($valores[$coluna] ?? ''));
+            }
+
+            $dados[] = $linha;
+        }
+
+        if (count($dados) > self::MAX_LOTE) {
+            throw ValidationException::withMessages([
+                'arquivo' => 'Um lote cria no máximo '.self::MAX_LOTE.' contas de uma vez — divida a planilha.',
+            ]);
+        }
+
+        if ($dados === []) {
+            throw ValidationException::withMessages(['arquivo' => 'A planilha só tem o cabeçalho.']);
+        }
+
+        return $dados;
+    }
+
+    /**
+     * Que coluna é qual: pelo começo do título, sem acento e sem caixa. É o que
+     * deixa a planilha sobreviver a uma coluna movida ou renomeada de leve.
+     *
+     * @param  list<string>  $cabecalho
+     * @return array<string, int>
+     */
+    private function mapearCabecalho(array $cabecalho): array
+    {
+        $chaves = [
+            'email' => ['e-mail', 'email', 'mail'],
+            'cpf' => ['cpf'],
+            'curso' => ['curso'],
+            'turnos' => ['turno'],
+            'valido_de' => ['inicio', 'comeca'],
+            'horas' => ['horas', 'duracao'],
+            'name' => ['nome'],
+        ];
+
+        $mapa = [];
+
+        foreach ($cabecalho as $i => $titulo) {
+            $t = Str::lower(Str::ascii(trim((string) $titulo)));
+
+            foreach ($chaves as $campo => $prefixos) {
+                if (isset($mapa[$campo])) {
+                    continue;
+                }
+
+                foreach ($prefixos as $prefixo) {
+                    if (str_starts_with($t, $prefixo)) {
+                        $mapa[$campo] = $i;
+
+                        continue 3;
+                    }
+                }
+            }
+        }
+
+        return $mapa;
+    }
+
+    /**
+     * Confere cada linha: os campos do formulário de uma conta, a janela de
+     * acesso e as repetições **dentro do próprio lote** (o mesmo e-mail ou CPF
+     * duas vezes vira duas contas brigando pelo mesmo login).
+     *
+     * @param  list<array<string, mixed>>  $linhas
+     * @param  array<string, mixed>  $padroes
+     * @return array{linhas: list<array<string, mixed>>, validas: int, invalidas: int}
+     */
+    private function conferirLote(array $linhas, string $setor, array $padroes): array
+    {
+        $turnosNoModelo = $setor === ContaTemporaria::SETOR_PRESENCIAL;
+        $emails = [];
+        $cpfs = [];
+        $resultado = [];
+
+        foreach (array_values($linhas) as $i => $bruta) {
+            $erros = [];
+
+            $linha = [
+                'linha' => (int) ($bruta['linha'] ?? $i + 2),
+                'name' => trim((string) ($bruta['name'] ?? '')),
+                'email' => NormalizaEmail::semEspacos((string) ($bruta['email'] ?? '')),
+                'cpf' => $this->cpfDaPlanilha((string) ($bruta['cpf'] ?? '')),
+                'curso' => trim((string) ($bruta['curso'] ?? '')),
+                'valido_de' => null,
+                'horas' => null,
+                'turnos' => [],
+            ];
+
+            // Início e horas: o da linha, senão o padrão da tela.
+            $inicio = trim((string) ($bruta['valido_de'] ?? ''));
+            try {
+                $linha['valido_de'] = $inicio !== ''
+                    ? $this->dataDaPlanilha($inicio)
+                    : (($padroes['valido_de'] ?? null) ?: null);
+            } catch (ValidationException) {
+                $erros[] = 'Início do acesso fora do formato dd/mm/aaaa hh:mm.';
+            }
+
+            $horas = trim((string) ($bruta['horas'] ?? ''));
+            if ($horas !== '' && (! ctype_digit($horas) || (int) $horas < 1 || (int) $horas > self::HORAS_MAX)) {
+                $erros[] = 'Horas de acesso precisa ser um número inteiro entre 1 e '.self::HORAS_MAX.'.';
+            } else {
+                $linha['horas'] = $horas !== '' ? (int) $horas : (isset($padroes['horas']) && $padroes['horas'] !== '' ? (int) $padroes['horas'] : null);
+            }
+
+            if ($turnosNoModelo) {
+                $brutos = $bruta['turnos'] ?? '';
+
+                if (is_array($brutos)) {
+                    $linha['turnos'] = array_values($brutos);
+                } else {
+                    try {
+                        $linha['turnos'] = trim((string) $brutos) !== ''
+                            ? $this->turnosDaPlanilha((string) $brutos)
+                            : array_values((array) ($padroes['turnos'] ?? []));
+                    } catch (ValidationException $e) {
+                        $erros[] = collect($e->errors())->flatten()->first();
+                    }
+                }
+
+                if ($linha['turnos'] === [] && $erros === []) {
+                    $erros[] = 'Informe ao menos um turno (na planilha ou no padrão da tela).';
+                }
+            }
+
+            $validacao = Validator::make($linha, [
+                'name' => ['required', 'string', 'max:255'],
+                'email' => ['required', 'email', 'max:255', 'unique:users,email'],
+                'cpf' => ['required', 'string', 'size:11', new Cpf],
+                'curso' => ['required', 'string', 'max:255'],
+            ], [
+                'email.unique' => 'Este e-mail já tem conta no portal.',
+            ], [
+                'name' => 'nome', 'email' => 'e-mail', 'cpf' => 'CPF', 'curso' => 'curso',
+            ]);
+
+            $erros = array_merge($erros, $validacao->errors()->all());
+
+            if ($linha['email'] !== '' && isset($emails[$linha['email']])) {
+                $erros[] = "E-mail repetido na planilha (linha {$emails[$linha['email']]}).";
+            }
+            if ($linha['cpf'] !== '' && isset($cpfs[$linha['cpf']])) {
+                $erros[] = "CPF repetido na planilha (linha {$cpfs[$linha['cpf']]}).";
+            }
+            $emails[$linha['email']] ??= $linha['linha'];
+            $cpfs[$linha['cpf']] ??= $linha['linha'];
+
+            // A janela é a mesma regra do cadastro avulso: começa no futuro ou
+            // agora, termina depois de começar, turnos sem sobreposição.
+            $linha['acesso_label'] = '';
+            if ($erros === []) {
+                try {
+                    $turnos = $this->turnos($linha);
+                    [$de, $ate] = $this->janela($linha, $turnos);
+                    $linha['acesso_label'] = $turnos !== []
+                        ? collect($turnos)->map(fn ($t) => $t['inicio']->format('d/m H:i').'–'.$t['fim']->format('H:i'))->implode('; ')
+                        : ($de ? $de->format('d/m/Y H:i') : 'agora').' até '.$ate->format('d/m/Y H:i');
+                } catch (ValidationException $e) {
+                    $erros[] = collect($e->errors())->flatten()->first();
+                }
+            }
+
+            $linha['cpf_formatado'] = strlen($linha['cpf']) === 11
+                ? preg_replace('/^(\d{3})(\d{3})(\d{3})(\d{2})$/', '$1.$2.$3-$4', $linha['cpf'])
+                : $linha['cpf'];
+            $linha['erros'] = array_values(array_unique($erros));
+            $resultado[] = $linha;
+        }
+
+        $invalidas = count(array_filter($resultado, fn ($l) => $l['erros'] !== []));
+
+        return [
+            'linhas' => $resultado,
+            'validas' => count($resultado) - $invalidas,
+            'invalidas' => $invalidas,
+        ];
+    }
+
+    /** O CPF como a planilha deixar: com máscara, sem, ou número que perdeu o zero da frente. */
+    private function cpfDaPlanilha(string $valor): string
+    {
+        $digitos = preg_replace('/\D/', '', $valor) ?? '';
+
+        return $digitos !== '' && strlen($digitos) < 11 ? str_pad($digitos, 11, '0', STR_PAD_LEFT) : $digitos;
+    }
+
+    /**
+     * "04/10/2026 08:00", "2026-10-04 08:00" ou o número serial que o Excel
+     * grava quando a célula virou data. Devolve "Y-m-d H:i".
+     */
+    private function dataDaPlanilha(string $valor): string
+    {
+        if (($serial = LeitorPlanilha::dataExcel($valor)) !== null) {
+            return $serial;
+        }
+
+        foreach (['d/m/Y H:i', 'd/m/Y H:i:s', 'd/m/Y', 'Y-m-d H:i', 'Y-m-d\TH:i', 'Y-m-d H:i:s', 'Y-m-d'] as $formato) {
+            $data = CarbonImmutable::createFromFormat('!'.$formato, $valor, config('app.timezone'));
+
+            if ($data !== false && $data->format($formato) === $valor) {
+                return $data->format('Y-m-d H:i');
+            }
+        }
+
+        throw ValidationException::withMessages(['valido_de' => 'Data inválida.']);
+    }
+
+    /**
+     * "04/10/2026 08:00-12:00; 05/10/2026 13:00-17:00". O fim pode trazer a
+     * data quando o turno vira a noite ("04/10/2026 22:00-05/10/2026 02:00").
+     *
+     * @return list<array{inicio: string, fim: string}>
+     */
+    private function turnosDaPlanilha(string $valor): array
+    {
+        $turnos = [];
+
+        foreach (preg_split('/[;\n]+/', $valor) ?: [] as $pedaco) {
+            $pedaco = trim($pedaco);
+
+            if ($pedaco === '') {
+                continue;
+            }
+
+            if (! preg_match('#^(\d{1,2}/\d{1,2}/\d{4})\s+(\d{1,2}:\d{2})\s*(?:-|–|a|até)\s*(?:(\d{1,2}/\d{1,2}/\d{4})\s+)?(\d{1,2}:\d{2})$#u', $pedaco, $m)) {
+                throw ValidationException::withMessages([
+                    'turnos' => "Turno \"{$pedaco}\" fora do formato dd/mm/aaaa hh:mm-hh:mm.",
+                ]);
+            }
+
+            $inicio = CarbonImmutable::createFromFormat('!d/m/Y H:i', "{$m[1]} {$m[2]}", config('app.timezone'));
+            $fim = CarbonImmutable::createFromFormat('!d/m/Y H:i', (($m[3] ?? '') !== '' ? $m[3] : $m[1])." {$m[4]}", config('app.timezone'));
+
+            if ($inicio === false || $fim === false) {
+                throw ValidationException::withMessages(['turnos' => "Turno \"{$pedaco}\" com data inválida."]);
+            }
+
+            $turnos[] = ['inicio' => $inicio->format('Y-m-d H:i'), 'fim' => $fim->format('Y-m-d H:i')];
+        }
+
+        return $turnos;
+    }
+
+    /**
+     * Senha de 10 caracteres sem os que se confundem lidos num papel (0/O,
+     * 1/l/I), com letra e número garantidos.
+     */
+    private function senhaGerada(): string
+    {
+        $letras = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ';
+        $numeros = '23456789';
+        $todos = $letras.$numeros;
+
+        $senha = [$letras[random_int(0, strlen($letras) - 1)], $numeros[random_int(0, strlen($numeros) - 1)]];
+
+        while (count($senha) < 10) {
+            $senha[] = $todos[random_int(0, strlen($todos) - 1)];
+        }
+
+        // Fisher–Yates com random_int: o shuffle() do PHP não é criptográfico.
+        for ($i = count($senha) - 1; $i > 0; $i--) {
+            $j = random_int(0, $i);
+            [$senha[$i], $senha[$j]] = [$senha[$j], $senha[$i]];
+        }
+
+        return implode('', $senha);
     }
 
     /**

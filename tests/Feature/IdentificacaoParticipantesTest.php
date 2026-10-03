@@ -11,6 +11,7 @@ use App\Models\OrientadorProfile;
 use App\Models\Projeto;
 use App\Models\User;
 use App\Support\CodigoParticipante;
+use App\Support\EtiquetasPdf;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -211,6 +212,48 @@ class IdentificacaoParticipantesTest extends TestCase
 
         $this->assertStringStartsWith('%PDF', $pdf->getContent());
         $this->assertSame('application/pdf', $pdf->headers->get('content-type'));
+
+        // O texto de cada etiqueta está na página (as fontes padrão do PDF
+        // gravam em Windows-1252, por isso a conversão para procurar).
+        $texto = $this->textoDoPdf($pdf->getContent());
+        foreach (['Zuleica Nunes', 'Ana Paula', 'Marta Orientadora', 'Caio Silva'] as $nome) {
+            $this->assertStringContainsString(mb_convert_encoding($nome, 'Windows-1252', 'UTF-8'), $texto);
+        }
+    }
+
+    /**
+     * Relato de produção: o PDF de etiquetas dava erro. O HTML do Dompdf não
+     * pintava o SVG embutido e estourava a memória a partir de ~200 pessoas; a
+     * lista real tem perto de 1.800. Desenhada direto na página, a lista inteira
+     * cabe com folga: 10 etiquetas por folha e memória quase constante.
+     */
+    public function test_pdf_de_etiquetas_aguenta_a_lista_inteira(): void
+    {
+        $etiquetas = [];
+        for ($i = 1; $i <= 1200; $i++) {
+            $etiquetas[] = [
+                'papel_label' => 'Aluno(a)',
+                'nome' => "Participante número {$i} com nome comprido de verdade",
+                'projeto' => 'Análise da produção de biogás a partir de resíduos agroindustriais em São Gabriel do Oeste',
+                'escola' => 'Escola Estadual Professora Ana Maria de Souza',
+                'codigo' => "2026-{$i}-123-A{$i}",
+            ];
+        }
+
+        $antes = memory_get_usage();
+        $pdf = EtiquetasPdf::gerar('Identificação', 'teste', $etiquetas);
+
+        $this->assertStringStartsWith('%PDF', $pdf);
+        $this->assertSame(120, preg_match_all('#/Type /Page\b#', $pdf));
+        $this->assertLessThan(64 * 1024 * 1024, memory_get_peak_usage() - $antes);
+    }
+
+    /** Junta o conteúdo descomprimido de todas as streams do PDF. */
+    private function textoDoPdf(string $pdf): string
+    {
+        preg_match_all('/stream\r?\n(.*?)\r?\nendstream/s', $pdf, $m);
+
+        return implode("\n", array_map(fn ($s) => @gzuncompress($s) ?: $s, $m[1]));
     }
 
     public function test_zip_traz_dois_svgs_por_participante(): void

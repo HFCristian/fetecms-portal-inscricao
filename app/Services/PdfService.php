@@ -2,15 +2,19 @@
 
 namespace App\Services;
 
+use App\Support\EtiquetasPdf;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 
 /**
  * Geração de PDF a partir de uma view Blade (Dompdf).
  *
- * Um lugar só para a configuração do motor: as listas do Mapa do Evento e as
- * etiquetas de identificação saem todas por aqui, e ajustar margem ou fonte em
- * cada chamada seria o caminho para três PDFs com três caras diferentes.
+ * Um lugar só para a configuração do motor: as listas do Mapa do Evento e os
+ * demais relatórios saem todos por aqui, e ajustar margem ou fonte em cada
+ * chamada seria o caminho para PDFs com caras diferentes. As etiquetas de
+ * identificação são a exceção: centenas de itens repetidos numa grade fixa
+ * custam caro demais no motor de layout, e são desenhadas direto na página
+ * ({@see EtiquetasPdf}).
  *
  * Duas opções que importam:
  *

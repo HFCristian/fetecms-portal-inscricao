@@ -61,6 +61,26 @@ use Illuminate\Support\Facades\Route;
 | token Bearer na mesma API. Regra de negócio nos Services.
 */
 
+/**
+ * As rotas de contas temporárias de um setor. As quatro abas que têm balcão
+ * (credenciamento, almoxarifado, avaliação presencial e cerimonial) usam o
+ * mesmo controller; o `setor` vem do grupo e é o que separa as listas.
+ */
+Route::macro('contasTemporarias', function (string $setor): void {
+    Route::get('/contas', [ContaTemporariaController::class, 'index'])->defaults('setor', $setor);
+    Route::post('/contas', [ContaTemporariaController::class, 'store'])->defaults('setor', $setor);
+    // Cadastro em lote (Sprint 155): modelo → prévia → confirmação.
+    Route::get('/contas/modelo', [ContaTemporariaController::class, 'modelo'])->defaults('setor', $setor);
+    Route::post('/contas/lote/previa', [ContaTemporariaController::class, 'previaLote'])
+        ->defaults('setor', $setor)->middleware('throttle:20,1');
+    Route::post('/contas/lote', [ContaTemporariaController::class, 'lote'])
+        ->defaults('setor', $setor)->middleware('throttle:10,1');
+    Route::patch('/contas/{conta}/renovar', [ContaTemporariaController::class, 'renovar'])->defaults('setor', $setor);
+    Route::patch('/contas/{conta}/desativar', [ContaTemporariaController::class, 'desativar'])->defaults('setor', $setor);
+    Route::patch('/contas/{conta}/presenca', [ContaTemporariaController::class, 'presenca'])->defaults('setor', $setor);
+    Route::delete('/contas/{conta}', [ContaTemporariaController::class, 'destroy'])->defaults('setor', $setor);
+});
+
 Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
     Route::get('/health', fn () => response()->json([
         'data' => ['status' => 'ok', 'service' => 'fetecms-api'],
@@ -303,11 +323,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::delete('/credenciais/{credencial}/projetos/{projeto}', [AvaliacaoPresencialAdminController::class, 'retirarCredencial']);
                 // Voluntários: contas temporárias próprias desta aba, com
                 // vários turnos de trabalho definidos de uma vez.
-                Route::get('/contas', [ContaTemporariaController::class, 'index'])->defaults('setor', 'avaliacao_presencial');
-                Route::post('/contas', [ContaTemporariaController::class, 'store'])->defaults('setor', 'avaliacao_presencial');
-                Route::patch('/contas/{conta}/renovar', [ContaTemporariaController::class, 'renovar'])->defaults('setor', 'avaliacao_presencial');
-                Route::patch('/contas/{conta}/desativar', [ContaTemporariaController::class, 'desativar'])->defaults('setor', 'avaliacao_presencial');
-                Route::patch('/contas/{conta}/presenca', [ContaTemporariaController::class, 'presenca'])->defaults('setor', 'avaliacao_presencial');
+                Route::contasTemporarias('avaliacao_presencial');
             });
 
             // --- Aba "Avaliação online" ---
@@ -406,11 +422,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::middleware('aba:credenciamento')->prefix('credenciamento')->group(function () {
                 // Contas temporárias: quem atende o balcão sem ser da organização.
                 // O `setor` é o que separa a lista desta aba da do almoxarifado.
-                Route::get('/contas', [ContaTemporariaController::class, 'index'])->defaults('setor', 'credenciamento');
-                Route::post('/contas', [ContaTemporariaController::class, 'store'])->defaults('setor', 'credenciamento');
-                Route::patch('/contas/{conta}/renovar', [ContaTemporariaController::class, 'renovar'])->defaults('setor', 'credenciamento');
-                Route::patch('/contas/{conta}/desativar', [ContaTemporariaController::class, 'desativar'])->defaults('setor', 'credenciamento');
-                Route::patch('/contas/{conta}/presenca', [ContaTemporariaController::class, 'presenca'])->defaults('setor', 'credenciamento');
+                Route::contasTemporarias('credenciamento');
 
                 Route::get('/config', [CredenciamentoController::class, 'config']);
                 // A leitura do crachá: o atalho do balcão para a ficha certa.
@@ -443,22 +455,14 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                     Route::get('/premiados', [CerimonialController::class, 'premiados']);
                     Route::patch('/atualizacao', [CerimonialController::class, 'definirAtualizacao']);
 
-                    Route::get('/contas', [ContaTemporariaController::class, 'index'])->defaults('setor', 'cerimonial');
-                    Route::post('/contas', [ContaTemporariaController::class, 'store'])->defaults('setor', 'cerimonial');
-                    Route::patch('/contas/{conta}/renovar', [ContaTemporariaController::class, 'renovar'])->defaults('setor', 'cerimonial');
-                    Route::patch('/contas/{conta}/desativar', [ContaTemporariaController::class, 'desativar'])->defaults('setor', 'cerimonial');
-                    Route::patch('/contas/{conta}/presenca', [ContaTemporariaController::class, 'presenca'])->defaults('setor', 'cerimonial');
+                    Route::contasTemporarias('cerimonial');
                 });
             });
 
             // --- Aba "Almoxarifado": a guarda de volumes durante a feira ---
             Route::middleware('aba:almoxarifado')->prefix('almoxarifado')->group(function () {
                 // Contas temporárias do almoxarifado: lista própria, mesmo cadastro.
-                Route::get('/contas', [ContaTemporariaController::class, 'index'])->defaults('setor', 'almoxarifado');
-                Route::post('/contas', [ContaTemporariaController::class, 'store'])->defaults('setor', 'almoxarifado');
-                Route::patch('/contas/{conta}/renovar', [ContaTemporariaController::class, 'renovar'])->defaults('setor', 'almoxarifado');
-                Route::patch('/contas/{conta}/desativar', [ContaTemporariaController::class, 'desativar'])->defaults('setor', 'almoxarifado');
-                Route::patch('/contas/{conta}/presenca', [ContaTemporariaController::class, 'presenca'])->defaults('setor', 'almoxarifado');
+                Route::contasTemporarias('almoxarifado');
 
                 Route::get('/config', [AlmoxarifadoController::class, 'config']);
                 Route::get('/registros', [AlmoxarifadoController::class, 'index']);
