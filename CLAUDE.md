@@ -835,7 +835,17 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 163 | Nova aba **Certificados**: avaliadores por fase, participantes (CPF, função, atividade) e declaração nominal | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 164 | Listas **preliminares** (várias) e **finais** (uma ativa): tipo, rascunho editável livre, gerar e reativar | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 165 | Lista final montada pela **união de preliminares** + telas de geração, listas e detalhe | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 166 | Fix (segurança): `league/commonmark` 2.10.1 → 2.10.3 (2 advisories do `composer audit`) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprint 166 (mesma branch):** o job **security** do CI quebrou no `composer audit`: duas
+> advisories em `league/commonmark` ≤ 2.10.1 — *DisallowedRawHtml* contornável quando a tag
+> proibida termina o literal de HTML (média, GHSA-97jj-33gv-5xf9) e **negação de serviço** de tempo
+> quadrático na extensão de tabelas GFM (alta, GHSA-3q6v-r5mr-hxv8). Ela é **dependência
+> transitiva** do `laravel/framework` (`^2.8.1`, que é o Markdown dos e-mails do Laravel), então a
+> correção é só o lock: `composer update league/commonmark --with-dependencies` subiu para
+> **2.10.3**, levando junto `symfony/polyfill-php80` 1.43. `composer.json` não mudou. `composer audit`
+> e `npm audit` (com e sem dev) limpos; back **1272/1272**.
+>
 > **Sprints 164–165 (mesma branch):** **listas preliminares e finais**. Até aqui toda lista era
 > "lista final": nascia rascunho e, publicada, virava a vigente. A organização trabalha com vários
 > recortes antes de fechar a feira, e eles não são finalistas de ninguém.
