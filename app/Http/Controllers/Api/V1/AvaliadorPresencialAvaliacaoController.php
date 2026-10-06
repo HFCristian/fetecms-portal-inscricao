@@ -39,7 +39,7 @@ class AvaliadorPresencialAvaliacaoController extends Controller
     {
         abort_unless($avaliacao->avaliador_id === $request->user()->id, 403);
 
-        return response()->json(['data' => $this->fluxo->detalhe($avaliacao)]);
+        return response()->json(['data' => $this->fluxo->detalhe($avaliacao, $request->user(), $request->boolean('teste'))]);
     }
 
     public function rascunho(Request $request, AvaliacaoPresencial $avaliacao): JsonResponse
@@ -67,6 +67,8 @@ class AvaliadorPresencialAvaliacaoController extends Controller
     {
         return $request->validate([
             'respostas' => ['nullable', 'array'],
+            // Checklist dos itens da checagem: { item_id: presente | ausente }.
+            'itens' => ['nullable', 'array'],
             'comentario' => ['nullable', 'string', 'max:2000'],
         ]);
     }

@@ -29,7 +29,7 @@ class AvaliacaoPresencial extends Model
 
     protected $fillable = [
         'edicao_id', 'projeto_id', 'avaliador_id', 'dia', 'turno', 'status', 'respostas', 'nota',
-        'comentario', 'designacao_manual', 'iniciada_em', 'concluida_em',
+        'comentario', 'itens_conferidos', 'designacao_manual', 'iniciada_em', 'concluida_em',
     ];
 
     protected function casts(): array
@@ -39,6 +39,7 @@ class AvaliacaoPresencial extends Model
             'dia' => 'date:Y-m-d',
             'turno' => Turno::class,
             'respostas' => 'array',
+            'itens_conferidos' => 'array',
             'nota' => 'float',
             'designacao_manual' => 'boolean',
             'iniciada_em' => 'datetime',
