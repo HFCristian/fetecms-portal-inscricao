@@ -838,7 +838,36 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 166 | Fix (segurança): `league/commonmark` 2.10.1 → 2.10.3 (2 advisories do `composer audit`) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 167 | Orientador: baixar cada documento enviado e **todos num ZIP**, no resumo do projeto | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 168 | Listas preliminares e finais: **reordenar** o grupo (código renumerado) e **digitar o código** | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 169 | Avaliação presencial: **horário dos turnos** (vale todo dia do evento) e **ativação do avaliador** por turno na cabine | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 170 | **Distribuição presencial** por turno: só credenciado + checado, rodadas iguais, prazo = fim do turno + 30 min | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprints 169–170 (mesma branch):** a avaliação presencial ganhou **turnos** e **distribuição**.
+> (a) **Sprint 169** — a agenda e a cabine. O horário de cada turno (`edicoes.horarios_turnos`,
+> hh:mm) vale **em todos os dias** da janela do evento; cada dia × turno é uma **ocorrência**
+> (`App\Support\JanelaTurnos`), e o prazo de quem avalia nela é o **fim do turno + 30 minutos**
+> (`MARGEM_MINUTOS`). Quem disse "sim" ao presencial só avalia depois de passar na **cabine da
+> avaliação**: a organização o **ativa** no turno em curso ou **pré-ativa** os seguintes que ele
+> escolher (`avaliador_turnos_presenciais`, `TurnosPresenciaisService`,
+> `PUT /admin/presencial/avaliadores/{avaliador}/turnos` — substitui a lista inteira). Só se ativa
+> quem confirmou o presencial, e só em ocorrência da agenda. A mesma tela guarda os dois números da
+> distribuição: projetos por avaliador por turno (`presencial_fila_avaliador`, padrão 5) e
+> avaliações por projeto (`presencial_por_projeto`, padrão 3 — o antigo `MAX_POR_PROJETO`, que o
+> Mapa do Evento também passou a ler da edição). Os três campos são herdados por edição nova.
+> (b) **Sprint 170** — **Avaliação presencial → Distribuição presencial**
+> (`/admin/presencial/distribuicao`, `DistribuicaoPresencialService`), uma ocorrência por vez, nos
+> moldes da online: **rodadas iguais**, prioridade **subárea → área → área correlata → o resto** e
+> teto por projeto. O que o dia acrescenta: só entra projeto **do turno** (Mapa do Evento → Turnos,
+> com o estande como reserva), **credenciado** no balcão e com o estande **checado**; só recebe
+> quem está **ativado** na ocorrência. Cada avaliação guarda a ocorrência
+> (`avaliacoes_presenciais.dia`/`turno`); vencido o prazo sem envio ela **deixa de ocupar vaga**
+> (`AvaliacaoPresencial::ocupaVaga()`), e uma distribuição seguinte **reaproveita a linha** com o
+> rascunho. **Redistribuir** devolve o que foi apenas designado e sorteia de novo (em avaliação,
+> enviado e designado à mão ficam). A **designação manual** passa por cima do teto, mas não do
+> credenciamento, da checagem, do turno do projeto e da ativação — a tela diz quem ficou de fora e
+> por quê. Turno encerrado não distribui. O modo de teste (conta demo) usa a lista final demo, as
+> checagens demo e só os avaliadores demo. Os endpoints antigos de designação sem turno saíram
+> (`AvaliacaoPresencialAdminService` foi removido).
+>
 > **Sprints 167–168 (branch `feat/avaliacao-presencial-distribuicao`, saída da `origin/main` @ `6c92219`):**
 > (a) **Sprint 167** — o **resumo do projeto** do orientador listava os documentos enviados só pelo
 > nome. Agora cada um tem **Baixar** (a rota autenticada de sempre, `GET /documentos/{id}/download`)

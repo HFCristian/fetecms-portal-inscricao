@@ -53,6 +53,7 @@ import PresencialHome from './pages/PresencialHome.jsx';
 import PresencialChecagem from './pages/PresencialChecagem.jsx';
 import PresencialEspelho from './pages/PresencialEspelho.jsx';
 import PresencialCredenciais from './pages/PresencialCredenciais.jsx';
+import PresencialDistribuicao from './pages/PresencialDistribuicao.jsx';
 import ComiteHome from './pages/ComiteHome.jsx';
 import ComiteTransporte from './pages/ComiteTransporte.jsx';
 import ComiteMapa from './pages/ComiteMapa.jsx';
@@ -240,6 +241,7 @@ export default function Root() {
                             <Route path="/admin/presencial/espelho" element={<PresencialEspelho />} />
                             <Route path="/admin/presencial/voluntarios" element={<CredenciamentoContas setor="avaliacao_presencial" />} />
                             <Route path="/admin/presencial/credenciais" element={<PresencialCredenciais />} />
+                            <Route path="/admin/presencial/distribuicao" element={<PresencialDistribuicao />} />
                             <Route path="/admin/comite" element={<ComiteHome />} />
                             <Route path="/admin/comite/transporte" element={<ComiteTransporte />} />
                             <Route path="/admin/comite/designacoes" element={<ComiteDesignacoes />} />

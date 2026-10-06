@@ -325,7 +325,13 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::patch('/itens/{item}', [AvaliacaoPresencialAdminController::class, 'atualizarItem']);
                 Route::delete('/itens/{item}', [AvaliacaoPresencialAdminController::class, 'excluirItem']);
                 // Avaliações presenciais: designar estandes e acompanhar.
-                Route::get('/avaliacoes', [AvaliacaoPresencialAdminController::class, 'avaliacoes']);
+                // Distribuição presencial por turno (Sprints 169–170): horários,
+                // ativação dos avaliadores na cabine e as designações.
+                Route::get('/distribuicao', [AvaliacaoPresencialAdminController::class, 'distribuicao']);
+                Route::patch('/distribuicao', [AvaliacaoPresencialAdminController::class, 'salvarDistribuicao']);
+                Route::put('/avaliadores/{avaliador}/turnos', [AvaliacaoPresencialAdminController::class, 'turnosDoAvaliador']);
+                Route::post('/distribuicao/distribuir', [AvaliacaoPresencialAdminController::class, 'distribuir']);
+                Route::post('/distribuicao/redistribuir', [AvaliacaoPresencialAdminController::class, 'redistribuir']);
                 Route::post('/avaliacoes/designar', [AvaliacaoPresencialAdminController::class, 'designarAvaliacoes']);
                 Route::delete('/avaliacoes/{avaliacao}', [AvaliacaoPresencialAdminController::class, 'retirarAvaliacao']);
                 // Credenciais: as vagas de premiação e a lista da cerimônia.

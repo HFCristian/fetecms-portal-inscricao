@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Enums\Categoria;
 use App\Enums\SituacaoDocumento;
-use App\Enums\StatusAvaliacao;
 use App\Enums\TipoCredencial;
 use App\Enums\Turno;
 use App\Http\Controllers\Controller;
@@ -14,9 +13,11 @@ use App\Models\Credencial;
 use App\Models\Edicao;
 use App\Models\ItemChecagemEstande;
 use App\Models\Projeto;
-use App\Services\AvaliacaoPresencialAdminService;
+use App\Models\User;
 use App\Services\ChecagemEstandeService;
 use App\Services\CredenciaisService;
+use App\Services\DistribuicaoPresencialService;
+use App\Services\TurnosPresenciaisService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -31,7 +32,8 @@ class AvaliacaoPresencialAdminController extends Controller
     public function __construct(
         private readonly ChecagemEstandeService $checagem,
         private readonly CredenciaisService $credenciais,
-        private readonly AvaliacaoPresencialAdminService $avaliacoes,
+        private readonly DistribuicaoPresencialService $distribuicao,
+        private readonly TurnosPresenciaisService $turnos,
     ) {}
 
     /** Janela, lista em uso, catálogo de itens e as orientações publicadas. */
@@ -174,27 +176,80 @@ class AvaliacaoPresencialAdminController extends Controller
 
     // --- Avaliações presenciais (designação e acompanhamento) --------------
 
-    /** As avaliações presenciais da edição, com quem pode receber estande. */
-    public function avaliacoes(Request $request): JsonResponse
+    // --- Distribuição presencial (Sprints 169–170) -------------------------
+
+    /**
+     * A tela da distribuição: horários dos turnos, a agenda, a ocorrência em
+     * foco (dia × turno), quem está ativado nela, os projetos prontos e as
+     * designações.
+     */
+    public function distribuicao(Request $request): JsonResponse
     {
         $filtros = $request->validate([
-            'status' => ['nullable', Rule::enum(StatusAvaliacao::class)],
-            'avaliador_id' => ['nullable', 'integer', 'exists:users,id'],
+            'dia' => ['nullable', 'date_format:Y-m-d'],
+            'turno' => ['nullable', Rule::enum(Turno::class)],
+            'busca' => ['nullable', 'string', 'max:120'],
         ]);
 
+        return response()->json(['data' => $this->distribuicao->painel(
+            $request->user(), $request->boolean('teste'),
+            $filtros['dia'] ?? null, $filtros['turno'] ?? null, $filtros['busca'] ?? null,
+        )]);
+    }
+
+    /** Horário de cada turno e os dois números da distribuição. */
+    public function salvarDistribuicao(Request $request): JsonResponse
+    {
+        $dados = $request->validate([
+            'horarios' => ['nullable', 'array'],
+            'fila_avaliador' => ['nullable', 'integer', 'min:1', 'max:50'],
+            'por_projeto' => ['nullable', 'integer', 'min:1', 'max:20'],
+        ]);
+
+        $this->turnos->salvarConfig($dados);
+
         return response()->json([
-            'data' => $this->avaliacoes->listar($filtros),
-            'meta' => [
-                'avaliadores' => $this->avaliacoes->avaliadoresConfirmados(),
-                'finalistas' => $this->avaliacoes->finalistas(),
-                'max_por_projeto' => AvaliacaoPresencial::MAX_POR_PROJETO,
-            ],
+            'data' => $this->distribuicao->painel($request->user(), $request->boolean('teste'), $request->input('dia'), $request->input('turno')),
+            'meta' => ['message' => 'Turnos e números da distribuição salvos.'],
         ]);
     }
 
-    /** Designa estandes: N projetos × N avaliadores que confirmaram presença. */
+    /** Os turnos em que o avaliador está ativado (substitui a lista inteira). */
+    public function turnosDoAvaliador(Request $request, User $avaliador): JsonResponse
+    {
+        $dados = $request->validate([
+            'turnos' => ['present', 'array'],
+            'turnos.*' => ['string', 'max:20'],
+        ]);
+
+        $this->turnos->definirTurnos($avaliador, $dados['turnos'], $request->user());
+
+        return response()->json([
+            'data' => $this->distribuicao->painel($request->user(), $request->boolean('teste'), $request->input('dia'), $request->input('turno')),
+            'meta' => ['message' => 'Turnos do avaliador atualizados.'],
+        ]);
+    }
+
+    public function distribuir(Request $request): JsonResponse
+    {
+        [$dia, $turno] = $this->ocorrencia($request);
+        $resultado = $this->distribuicao->distribuir($dia, $turno, $this->turnos->emTeste($request->user(), $request->boolean('teste')));
+
+        return $this->respostaDaOcorrencia($request, $dia, $turno, $resultado);
+    }
+
+    public function redistribuir(Request $request): JsonResponse
+    {
+        [$dia, $turno] = $this->ocorrencia($request);
+        $resultado = $this->distribuicao->redistribuir($dia, $turno, $this->turnos->emTeste($request->user(), $request->boolean('teste')));
+
+        return $this->respostaDaOcorrencia($request, $dia, $turno, $resultado);
+    }
+
+    /** Designação manual: N projetos × N avaliadores ativados na ocorrência. */
     public function designarAvaliacoes(Request $request): JsonResponse
     {
+        [$dia, $turno] = $this->ocorrencia($request);
         $dados = $request->validate([
             'projeto_ids' => ['required', 'array', 'min:1'],
             'projeto_ids.*' => ['integer'],
@@ -202,24 +257,46 @@ class AvaliacaoPresencialAdminController extends Controller
             'avaliador_ids.*' => ['integer'],
         ]);
 
-        $resultado = $this->avaliacoes->designar(
-            $dados['projeto_ids'],
-            $dados['avaliador_ids'],
-            $request->user(),
+        $resultado = $this->distribuicao->designar(
+            $dados['projeto_ids'], $dados['avaliador_ids'], $dia, $turno,
+            $this->turnos->emTeste($request->user(), $request->boolean('teste')),
         );
 
-        return response()->json([
-            'data' => $resultado,
-            'meta' => ['message' => $resultado['resumo']],
-        ]);
+        return $this->respostaDaOcorrencia($request, $dia, $turno, $resultado);
     }
 
     /** Retira uma designação que ainda não virou nota. */
-    public function retirarAvaliacao(AvaliacaoPresencial $avaliacao): JsonResponse
+    public function retirarAvaliacao(Request $request, AvaliacaoPresencial $avaliacao): JsonResponse
     {
-        $this->avaliacoes->retirar($avaliacao);
+        $this->distribuicao->retirar($avaliacao);
 
-        return response()->json(['data' => $this->avaliacoes->listar()]);
+        return response()->json([
+            'data' => $this->distribuicao->painel(
+                $request->user(), $request->boolean('teste'),
+                $avaliacao->dia?->toDateString() ?? $request->input('dia'), $avaliacao->turno?->value ?? $request->input('turno'),
+            ),
+            'meta' => ['message' => 'Designação retirada.'],
+        ]);
+    }
+
+    /** @return array{0: string, 1: Turno} */
+    private function ocorrencia(Request $request): array
+    {
+        $dados = $request->validate([
+            'dia' => ['required', 'date_format:Y-m-d'],
+            'turno' => ['required', Rule::enum(Turno::class)],
+        ]);
+
+        return [$dados['dia'], Turno::from($dados['turno'])];
+    }
+
+    /** @param  array<string, mixed>  $resultado */
+    private function respostaDaOcorrencia(Request $request, string $dia, Turno $turno, array $resultado): JsonResponse
+    {
+        return response()->json([
+            'data' => $this->distribuicao->painel($request->user(), $request->boolean('teste'), $dia, $turno->value),
+            'meta' => ['message' => $resultado['resumo'], 'resultado' => $resultado],
+        ]);
     }
 
     // --- Credenciais (vagas de premiação) ----------------------------------

@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Enums\Role;
-use App\Enums\StatusAvaliacao;
 use App\Models\Avaliacao;
 use App\Models\AvaliacaoPresencial;
 use App\Models\AvaliadorProfile;
@@ -246,83 +245,7 @@ class AvaliacaoPresencialFluxoTest extends TestCase
         $this->postJson("/api/v1/avaliador/presencial/avaliacoes/{$id}/rascunho", ['respostas' => []])->assertForbidden();
     }
 
-    // --- Lado do admin ---
-
-    public function test_admin_designa_estandes_a_quem_confirmou(): void
-    {
-        $this->publicar([$this->projeto]);
-        $semConfirmar = $this->avaliadorPresencial('Bruno', aceitou: false);
-        Sanctum::actingAs(User::factory()->admin()->create());
-
-        $this->postJson('/api/v1/admin/presencial/avaliacoes/designar', [
-            'projeto_ids' => [$this->projeto->id],
-            'avaliador_ids' => [$this->avaliador->id, $semConfirmar->id],
-        ])
-            ->assertOk()
-            ->assertJsonPath('data.designadas', 1);
-
-        $this->assertDatabaseHas('avaliacoes_presenciais', [
-            'projeto_id' => $this->projeto->id,
-            'avaliador_id' => $this->avaliador->id,
-            'designacao_manual' => true,
-            'status' => StatusAvaliacao::Designada->value,
-        ]);
-
-        // Quem não confirmou é dito, não sumido.
-        $this->assertSame(0, AvaliacaoPresencial::where('avaliador_id', $semConfirmar->id)->count());
-    }
-
-    public function test_designacao_repetida_e_avisada(): void
-    {
-        $this->publicar([$this->projeto]);
-        Sanctum::actingAs(User::factory()->admin()->create());
-
-        $payload = ['projeto_ids' => [$this->projeto->id], 'avaliador_ids' => [$this->avaliador->id]];
-
-        $this->postJson('/api/v1/admin/presencial/avaliacoes/designar', $payload)->assertOk();
-
-        $resposta = $this->postJson('/api/v1/admin/presencial/avaliacoes/designar', $payload)->assertOk();
-
-        $this->assertSame(0, $resposta->json('data.designadas'));
-        $this->assertStringContainsString('já está com ele', $resposta->json('data.ignoradas.0'));
-    }
-
-    public function test_designacao_do_admin_passa_por_cima_do_teto(): void
-    {
-        $this->publicar([$this->projeto]);
-
-        foreach (['Bruno', 'Carla', 'Diego'] as $nome) {
-            $outro = $this->avaliadorPresencial($nome);
-            Sanctum::actingAs($outro);
-            $this->postJson("/api/v1/avaliador/presencial/avaliacoes/projetos/{$this->projeto->id}")->assertOk();
-        }
-
-        Sanctum::actingAs(User::factory()->admin()->create());
-
-        // Quem designa à mão sabe que está pondo mais um ali.
-        $this->postJson('/api/v1/admin/presencial/avaliacoes/designar', [
-            'projeto_ids' => [$this->projeto->id],
-            'avaliador_ids' => [$this->avaliador->id],
-        ])->assertOk()->assertJsonPath('data.designadas', 1);
-
-        $this->assertSame(4, AvaliacaoPresencial::where('projeto_id', $this->projeto->id)->count());
-    }
-
-    public function test_admin_retira_designacao_nao_concluida(): void
-    {
-        $this->publicar([$this->projeto]);
-        Sanctum::actingAs(User::factory()->admin()->create());
-
-        $this->postJson('/api/v1/admin/presencial/avaliacoes/designar', [
-            'projeto_ids' => [$this->projeto->id],
-            'avaliador_ids' => [$this->avaliador->id],
-        ])->assertOk();
-
-        $avaliacao = AvaliacaoPresencial::sole();
-
-        $this->deleteJson("/api/v1/admin/presencial/avaliacoes/{$avaliacao->id}")->assertOk();
-        $this->assertSame(0, AvaliacaoPresencial::count());
-    }
+    // --- Lado do admin (a designação mora em DistribuicaoPresencialTest) ---
 
     public function test_avaliacao_concluida_nao_e_retirada(): void
     {

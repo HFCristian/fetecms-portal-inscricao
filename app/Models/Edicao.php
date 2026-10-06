@@ -44,6 +44,7 @@ class Edicao extends Model
         'distribuicao_regras', 'distribuicao_ao_cadastrar', 'modo_distribuicao',
         'dias_avaliacao_aberta', 'horas_sessao_avaliador',
         'info_avaliacao_presencial',
+        'horarios_turnos', 'presencial_fila_avaliador', 'presencial_por_projeto',
     ];
 
     protected function casts(): array
@@ -80,6 +81,9 @@ class Edicao extends Model
             'modo_distribuicao' => ModoDistribuicao::class,
             'dias_avaliacao_aberta' => 'integer',
             'horas_sessao_avaliador' => 'integer',
+            'horarios_turnos' => 'array',
+            'presencial_fila_avaliador' => 'integer',
+            'presencial_por_projeto' => 'integer',
         ];
     }
 

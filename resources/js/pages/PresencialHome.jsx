@@ -20,6 +20,12 @@ const SECOES = [
         descricao: 'Percorra os estandes dos finalistas e registre o que encontrou em cada um.',
     },
     {
+        to: '/admin/presencial/distribuicao',
+        icon: 'shuffle',
+        titulo: 'Distribuição presencial',
+        descricao: 'Horário dos turnos, avaliadores ativados na cabine e os projetos de cada um, turno a turno.',
+    },
+    {
         to: '/admin/presencial/voluntarios',
         icon: 'volunteer_activism',
         titulo: 'Voluntários',
