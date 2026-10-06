@@ -48,6 +48,9 @@ class ListaFinalService
     /** Sigla de projeto sem categoria ou sem área — visível de propósito, para o admin corrigir. */
     private const SIGLA_AUSENTE = 'SEM';
 
+    /** Código digitado à mão: letras, números, ponto e hífen, começando e terminando em letra ou número. */
+    private const FORMATO_CODIGO = '/^[A-Z0-9](?:[A-Z0-9.\-]{1,28})[A-Z0-9]$/';
+
     public function __construct(private readonly RegistroAtividadeService $registros) {}
 
     /**
@@ -511,8 +514,7 @@ class ListaFinalService
      */
     private function proximoCodigo(ListaFinal $lista, ?Projeto $projeto): string
     {
-        $par = ($projeto?->categoria?->sigla() ?? self::SIGLA_AUSENTE)
-            .'.'.($projeto?->area?->siglaDaLista() ?? self::SIGLA_AUSENTE);
+        $par = $this->parDoProjeto($projeto);
 
         $maior = collect($this->codigosFixos($lista))
             ->filter(fn (string $c) => str_starts_with($c, $par.'-'))
@@ -546,8 +548,11 @@ class ListaFinalService
         }
 
         // Rascunho (Sprint 164): edição livre, antes de a lista existir de fato.
+        // Com os códigos já fixados (reordenação, Sprint 168), quem entra ganha
+        // o próximo número do grupo — o calculado poderia repetir um fixado.
         if ($lista->rascunho) {
-            $lista->projetos()->attach($projeto->id, ['manual' => true]);
+            $codigo = $lista->codigos_congelados_em !== null ? $this->proximoCodigo($lista, $projeto) : null;
+            $lista->projetos()->attach($projeto->id, ['manual' => true, 'codigo' => $codigo]);
 
             return $lista->fresh();
         }
@@ -599,6 +604,169 @@ class ListaFinalService
         });
     }
 
+    /**
+     * **Reordena** um grupo categoria+área (Sprint 168): os projetos ganham os
+     * números na ordem pedida (FET.AGR-001, -002…). É como a organização
+     * decide a sequência dos estandes e da programação, que a ordem
+     * alfabética não sabe.
+     *
+     * A ordem só existe com o código gravado, então a lista passa a ter os
+     * códigos **fixados** — daí em diante quem entra ganha o próximo número
+     * livre do grupo, em vez de empurrar os outros. Um código digitado à mão
+     * dentro do grupo volta ao padrão: reordenar é renumerar.
+     *
+     * @param  list<int>  $projetoIds  todos os projetos do grupo, na ordem nova
+     */
+    public function reordenarGrupo(ListaFinal $lista, array $projetoIds, User $admin, ?string $justificativa = null): ListaFinal
+    {
+        $projetoIds = array_values(array_map('intval', $projetoIds));
+        $itens = collect($this->itensDaLista($lista));
+        $primeiro = $itens->firstWhere('projeto_id', $projetoIds[0] ?? 0);
+
+        if ($primeiro === null) {
+            throw ValidationException::withMessages([
+                'projeto_ids' => 'Os projetos informados não estão nesta lista.',
+            ]);
+        }
+
+        $grupo = $itens->filter(fn (array $i) => $i['categoria'] === $primeiro['categoria'] && $i['area'] === $primeiro['area']);
+        $doGrupo = $grupo->pluck('projeto_id')->sort()->values()->all();
+        $pedidos = collect($projetoIds)->sort()->values()->all();
+
+        if ($doGrupo !== $pedidos || count(array_unique($projetoIds)) !== count($projetoIds)) {
+            throw ValidationException::withMessages([
+                'projeto_ids' => 'Envie todos os projetos do grupo '.$primeiro['categoria'].' · '.($primeiro['area'] ?? 'sem área').', uma vez cada.',
+            ]);
+        }
+
+        $projetos = Projeto::with(['area'])->whereIn('id', $projetoIds)->get()->keyBy('id');
+        $par = $this->parDoProjeto($projetos[$projetoIds[0]]);
+        $antes = $grupo->pluck('codigo', 'projeto_id')->all();
+
+        $novos = [];
+        foreach ($projetoIds as $posicao => $id) {
+            $novos[$id] = $par.'-'.str_pad((string) ($posicao + 1), 3, '0', STR_PAD_LEFT);
+        }
+
+        $this->garantirCodigosLivres($itens->whereNotIn('projeto_id', $projetoIds), $novos);
+
+        $mudaram = array_filter($novos, fn (string $codigo, int $id) => ($antes[$id] ?? null) !== $codigo, ARRAY_FILTER_USE_BOTH);
+
+        if ($mudaram === []) {
+            return $lista->fresh();
+        }
+
+        if (! $lista->rascunho) {
+            $this->exigirJustificativa($justificativa);
+        }
+
+        return DB::transaction(function () use ($lista, $novos, $mudaram, $antes, $projetos, $admin, $justificativa) {
+            $this->fixarCodigos($lista);
+
+            foreach ($novos as $id => $codigo) {
+                $this->gravarCodigo($lista, $id, $codigo);
+            }
+
+            if (! $lista->rascunho) {
+                $lista->increment('versao');
+
+                foreach ($mudaram as $id => $codigo) {
+                    $this->registros->codigoNaLista($admin, $lista->nome, $projetos[$id], $antes[$id] ?? null, $codigo, trim((string) $justificativa));
+                }
+            }
+
+            return $lista->fresh();
+        });
+    }
+
+    /**
+     * Troca o código de **um** projeto pelo que o admin digitou (Sprint 168).
+     * Vale qualquer código no formato do portal (letras, números, ponto e
+     * hífen: FET.AGR-010), desde que nenhum outro projeto da lista o use.
+     */
+    public function definirCodigo(ListaFinal $lista, Projeto $projeto, string $codigo, User $admin, ?string $justificativa = null): ListaFinal
+    {
+        $codigo = $this->normalizarCodigo($codigo);
+
+        if (! preg_match(self::FORMATO_CODIGO, $codigo)) {
+            throw ValidationException::withMessages([
+                'codigo' => 'Use letras, números, ponto e hífen, de 3 a 30 caracteres (ex.: FET.AGR-010).',
+            ]);
+        }
+
+        $itens = collect($this->itensDaLista($lista));
+        $atual = $itens->firstWhere('projeto_id', $projeto->id);
+
+        if ($atual === null) {
+            throw ValidationException::withMessages([
+                'projeto_id' => 'Este projeto não está na lista.',
+            ]);
+        }
+
+        if ($atual['codigo'] === $codigo) {
+            return $lista->fresh();
+        }
+
+        $this->garantirCodigosLivres($itens->where('projeto_id', '!=', $projeto->id), [$projeto->id => $codigo]);
+
+        if (! $lista->rascunho) {
+            $this->exigirJustificativa($justificativa);
+        }
+
+        return DB::transaction(function () use ($lista, $projeto, $codigo, $atual, $admin, $justificativa) {
+            $this->fixarCodigos($lista);
+            $this->gravarCodigo($lista, $projeto->id, $codigo);
+
+            if (! $lista->rascunho) {
+                $lista->increment('versao');
+                $this->registros->codigoNaLista($admin, $lista->nome, $projeto, $atual['codigo'], $codigo, trim((string) $justificativa));
+            }
+
+            return $lista->fresh();
+        });
+    }
+
+    /** Maiúsculas e sem espaço: "fet.agr - 10" vira "FET.AGR-10". */
+    private function normalizarCodigo(string $codigo): string
+    {
+        return mb_strtoupper(preg_replace('/\s+/u', '', $codigo));
+    }
+
+    /**
+     * Recusa um código que outro projeto da lista já usa — dois crachás com o
+     * mesmo número no balcão é o erro que o código existe para evitar.
+     *
+     * @param  Collection<int, array<string, mixed>>  $outros
+     * @param  array<int, string>  $novos  projeto_id => código
+     */
+    private function garantirCodigosLivres(Collection $outros, array $novos): void
+    {
+        $ocupados = $outros->pluck('titulo', 'codigo');
+
+        foreach ($novos as $codigo) {
+            if ($ocupados->has($codigo)) {
+                throw ValidationException::withMessages([
+                    'codigo' => "O código {$codigo} já é de \"{$ocupados[$codigo]}\" nesta lista.",
+                ]);
+            }
+        }
+    }
+
+    private function gravarCodigo(ListaFinal $lista, int $projetoId, string $codigo): void
+    {
+        DB::table('lista_final_projetos')
+            ->where('lista_final_id', $lista->id)
+            ->where('projeto_id', $projetoId)
+            ->update(['codigo' => $codigo, 'updated_at' => now()]);
+    }
+
+    /** O prefixo do código do projeto: sigla da categoria + sigla da área. */
+    private function parDoProjeto(?Projeto $projeto): string
+    {
+        return ($projeto?->categoria?->sigla() ?? self::SIGLA_AUSENTE)
+            .'.'.($projeto?->area?->siglaDaLista() ?? self::SIGLA_AUSENTE);
+    }
+
     /** Depois de gerada, mudar a lista é decisão que precisa ficar explicada. */
     private function exigirJustificativa(?string $justificativa): void
     {
@@ -634,6 +802,10 @@ class ListaFinalService
                 'projetos' => count($itens),
                 'origens' => $lista->origens ?? [],
                 'gerada_em' => $lista->gerada_em?->toIso8601String(),
+                // A tela avisa que mexer no código depois do e-mail deixa a
+                // equipe com um número que não é mais o dela.
+                'codigos_congelados_em' => $lista->codigos_congelados_em?->toIso8601String(),
+                'codigos_enviados_em' => $lista->codigos_enviados_em?->toIso8601String(),
             ],
             'itens' => array_map(fn (array $i) => $i + ['manual' => (bool) ($manuais[$i['projeto_id']] ?? false)], $itens),
             // Candidatos: qualquer submetido que está de fora — os avaliados

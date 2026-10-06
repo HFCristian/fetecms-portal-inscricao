@@ -125,6 +125,14 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     soma passa do total, porque quem marcou três conta nos três) e três públicos combináveis na
     mala direta, nos avisos e no feedback. Quem se cadastrou antes do campo fica com a lista vazia:
     a tela cobra o preenchimento e os públicos por idioma não o alcançam.
+  - **Avaliação presencial** (aba própria, `/avaliador/avaliacao-presencial`, só para quem aceitou
+    o presencial): abre **apenas no turno do evento em que a organização o ativou na cabine**, até o
+    fim do turno + 30 minutos (`App\Support\JanelaTurnos`); fora disso aparece fechada, com o motivo.
+    Recebe projetos pela **distribuição presencial por turno** (admin, Avaliação presencial →
+    Distribuição presencial: só projeto credenciado e com estande checado) e pode escolher no
+    corredor entre os do turno; avalia num **wizard** como o da online, com o **checklist dos itens
+    da checagem** (sem nota). Ensaio: `php artisan demo:avaliacao-presencial`
+    ([docs/DEMO_AVALIACAO_PRESENCIAL.md](docs/DEMO_AVALIACAO_PRESENCIAL.md)).
   - Ao **iniciar** uma avaliação o sistema confere se o projeto ainda cabe mais uma: contando as
     **concluídas + em andamento**, se ele já atingiu o **máximo de avaliações da categoria**, o
     avaliador é avisado de que outro chegou antes, o projeto **sai da lista dele** e outro entra no
@@ -317,6 +325,8 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
   - **Avaliação Online → Listas preliminares e finais** (`/admin/avaliacao/listas-finais`):
     `listas_finais.tipo` separa as **preliminares** (várias convivem; nenhuma define finalista) das
     **finais** (uma só **ativa** por edição — `vigente` —, que vale para toda a etapa presencial).
+    A composição aparece **por grupo categoria+área**: *Reordenar* renumera o código do grupo na
+    ordem escolhida e o código também pode ser **digitado** (único na lista).
     Toda lista nasce **rascunho** — da classificação (Ranking → *Gerar lista*) ou, a final, da
     **união de preliminares** já geradas (`origens`) — e no rascunho o admin inclui e retira **sem
     justificativa**, qualquer projeto submetido (avaliado ou não). **Gerar** fecha: a preliminar fica
@@ -629,6 +639,7 @@ npm test                          # testes de componente (Vitest)
 # php artisan demo:ajustes           # projeto-exemplo da aba Ajustes (3 sugestões, 3 avaliadores)
 # php artisan demo:pareceres          # projeto já avaliado: níveis e sugestões na aba Ajustes e Pareceres
 # php artisan demo:credenciamento     # lista final de demonstração, para ensaiar o balcão
+# php artisan demo:avaliacao-presencial # avaliador@fetecms.test pronto para ensaiar a avaliação no estande
 # Admin padrão (seed): admin@fetecms.test / password
 ```
 
@@ -836,8 +847,107 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 164 | Listas **preliminares** (várias) e **finais** (uma ativa): tipo, rascunho editável livre, gerar e reativar | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 165 | Lista final montada pela **união de preliminares** + telas de geração, listas e detalhe | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 166 | Fix (segurança): `league/commonmark` 2.10.1 → 2.10.3 (2 advisories do `composer audit`) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 167 | Orientador: baixar cada documento enviado e **todos num ZIP**, no resumo do projeto | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 168 | Listas preliminares e finais: **reordenar** o grupo (código renumerado) e **digitar o código** | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 169 | Avaliação presencial: **horário dos turnos** (vale todo dia do evento) e **ativação do avaliador** por turno na cabine | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 170 | **Distribuição presencial** por turno: só credenciado + checado, rodadas iguais, prazo = fim do turno + 30 min | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 171 | Avaliador: aba **Avaliação presencial** (só no turno ativado), wizard da rubrica + checklist dos itens da checagem | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 172 | `demo:avaliacao-presencial`: `avaliador@fetecms.test` pronto para ensaiar avaliação e distribuição | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
-> **Sprint 166 (mesma branch):** o job **security** do CI quebrou no `composer audit`: duas
+> **Sprints 171–172 (mesma branch):**
+> (a) **Sprint 171** — o avaliador ganhou a aba **Avaliação presencial**
+> (`/avaliador/avaliacao-presencial`), separada da aba *Presencial* — que voltou a ser só a
+> intenção, as orientações e um atalho. A aba nova só aparece no menu de quem disse "sim"
+> (`avaliador_profiles.presencial` agora vai no `UserResource`, e responder atualiza o menu na
+> hora) e, fora do período, **aparece fechada** com o motivo: sem horário dos turnos, procure a
+> cabine (turno acontecendo sem ativação), o próximo turno, ou o fim da avaliação. Aberta, mostra
+> o turno e o prazo, **Para avaliar** (o que a distribuição ou o admin entregou), **Estandes
+> disponíveis** (escolha no corredor, **restrita** ao turno em andamento, a projeto credenciado e
+> checado e abaixo do teto) e **Avaliados**. A avaliação virou o **wizard da online**: leitura do
+> projeto (resumo, vídeo, documentos — sem o termo do finalista, que é documento do evento com
+> dado pessoal; a `ProjetoPolicy` passou a reconhecer o avaliador presencial para o download), um
+> passo por seção da rubrica presencial com o balão "?", **nota parcial**, rascunho e um passo a
+> mais: o **checklist dos itens da checagem** (`avaliacoes_presenciais.itens_conferidos`,
+> presente/ausente, **sem nota** e obrigatório para enviar). Escrever pede o **prazo da ocorrência**
+> (fim do turno + 30 min) e a **ativação** nela; na margem termina-se o que se abriu, mas nada novo
+> começa. Enviar **repõe a fila** do turno (`DistribuicaoPresencialService::completarFila`). Passado
+> o prazo, a avaliação vira leitura, marcada "Prazo encerrado".
+> (b) **Sprint 172** — `php artisan demo:avaliacao-presencial` deixa **`avaliador@fetecms.test`**
+> pronto para ensaiar: conta demo, presencial aceito, ativado em todos os turnos que ainda não
+> terminaram, e três projetos de um orientador demo na lista final de demonstração, com turno,
+> estande 901–903, **credenciados e checados** na trilha de ensaio (e três itens de checagem, só
+> se o catálogo estiver vazio). O *Modo de teste* do avaliador ignora o relógio e a ativação; o do
+> admin, na Distribuição presencial, usa a lista demo e só os avaliadores demo.
+> Documentado em [docs/DEMO_AVALIACAO_PRESENCIAL.md](docs/DEMO_AVALIACAO_PRESENCIAL.md).
+>
+> **Pendências do Pedro (Sprints 167–172):** (1) `git push origin feat/avaliacao-presencial-distribuicao`
+> + PR para a `main` (o ambiente do Claude não tem credencial do GitHub) e, depois do merge, o
+> deploy pela §11 do [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). Esta release **tem migrations**
+> (`edicoes.horarios_turnos`/`presencial_fila_avaliador`/`presencial_por_projeto`, a tabela
+> `avaliador_turnos_presenciais` e `avaliacoes_presenciais.dia`/`turno`/`itens_conferidos`),
+> **nenhuma variável nova de `.env`** e **nenhuma dependência nova**.
+> (2) **Antes do evento**, em Avaliação presencial → **Distribuição presencial**: o horário de cada
+> turno (vale em todos os dias da janela do evento) e os dois números. Sem horário, a aba do
+> avaliador fica fechada para todo mundo.
+> (3) **No evento**, a cabine ativa cada avaliador no turno (ou pré-ativa os seguintes). Só depois
+> disso ele avalia e a distribuição o alcança. A distribuição só pega projeto **credenciado e com
+> o estande checado** — o projeto que ainda não passou pela checagem fica de fora e a tela conta
+> quantos.
+> (4) **A avaliação presencial antiga (Sprint 135) mudou de regra**: o avaliador que aceitou não
+> avalia mais "durante o evento inteiro", e sim no turno em que foi ativado. As designações feitas
+> antes desta release (sem turno gravado) continuam valendo no turno do projeto.
+> (5) Para ensaiar: `php artisan demo:avaliacao-presencial` e entrar como `avaliador@fetecms.test`
+> com o *Modo de teste* ligado. A conta passa a ser **demo** (sai dos números reais).
+>
+> **Sprints 169–170 (mesma branch):** a avaliação presencial ganhou **turnos** e **distribuição**.
+> (a) **Sprint 169** — a agenda e a cabine. O horário de cada turno (`edicoes.horarios_turnos`,
+> hh:mm) vale **em todos os dias** da janela do evento; cada dia × turno é uma **ocorrência**
+> (`App\Support\JanelaTurnos`), e o prazo de quem avalia nela é o **fim do turno + 30 minutos**
+> (`MARGEM_MINUTOS`). Quem disse "sim" ao presencial só avalia depois de passar na **cabine da
+> avaliação**: a organização o **ativa** no turno em curso ou **pré-ativa** os seguintes que ele
+> escolher (`avaliador_turnos_presenciais`, `TurnosPresenciaisService`,
+> `PUT /admin/presencial/avaliadores/{avaliador}/turnos` — substitui a lista inteira). Só se ativa
+> quem confirmou o presencial, e só em ocorrência da agenda. A mesma tela guarda os dois números da
+> distribuição: projetos por avaliador por turno (`presencial_fila_avaliador`, padrão 5) e
+> avaliações por projeto (`presencial_por_projeto`, padrão 3 — o antigo `MAX_POR_PROJETO`, que o
+> Mapa do Evento também passou a ler da edição). Os três campos são herdados por edição nova.
+> (b) **Sprint 170** — **Avaliação presencial → Distribuição presencial**
+> (`/admin/presencial/distribuicao`, `DistribuicaoPresencialService`), uma ocorrência por vez, nos
+> moldes da online: **rodadas iguais**, prioridade **subárea → área → área correlata → o resto** e
+> teto por projeto. O que o dia acrescenta: só entra projeto **do turno** (Mapa do Evento → Turnos,
+> com o estande como reserva), **credenciado** no balcão e com o estande **checado**; só recebe
+> quem está **ativado** na ocorrência. Cada avaliação guarda a ocorrência
+> (`avaliacoes_presenciais.dia`/`turno`); vencido o prazo sem envio ela **deixa de ocupar vaga**
+> (`AvaliacaoPresencial::ocupaVaga()`), e uma distribuição seguinte **reaproveita a linha** com o
+> rascunho. **Redistribuir** devolve o que foi apenas designado e sorteia de novo (em avaliação,
+> enviado e designado à mão ficam). A **designação manual** passa por cima do teto, mas não do
+> credenciamento, da checagem, do turno do projeto e da ativação — a tela diz quem ficou de fora e
+> por quê. Turno encerrado não distribui. O modo de teste (conta demo) usa a lista final demo, as
+> checagens demo e só os avaliadores demo. Os endpoints antigos de designação sem turno saíram
+> (`AvaliacaoPresencialAdminService` foi removido).
+>
+> **Sprints 167–168 (branch `feat/avaliacao-presencial-distribuicao`, saída da `origin/main` @ `6c92219`):**
+> (a) **Sprint 167** — o **resumo do projeto** do orientador listava os documentos enviados só pelo
+> nome. Agora cada um tem **Baixar** (a rota autenticada de sempre, `GET /documentos/{id}/download`)
+> e o cartão ganhou **Baixar todos (.zip)** (`GET /projetos/{projeto}/documentos/zip`,
+> `DocumentoService::zip()`, `ZipArchive` sem dependência nova). No ZIP cada arquivo leva o tipo na
+> frente do nome ("Projeto de Pesquisa - plano.pdf"), dois anexos de mesmo nome ganham "(2)" em vez
+> de se sobrescrever, e o que sumiu do storage fica de fora — se nada sobrar é **422**, não um ZIP
+> vazio. Quem vê o projeto baixa (a mesma Policy `view`), então o admin também baixa.
+> (b) **Sprint 168** — a composição de uma lista (preliminar ou final) passou a ser mostrada **por
+> grupo categoria+área**, que é onde o código numera. **Reordenar** abre o grupo para arrastar ou
+> subir/descer; salvar **renumera o grupo** na ordem nova (`PUT .../listas-finais/{lista}/ordem`,
+> `ListaFinalService::reordenarGrupo()`), e o lápis ao lado do código deixa **digitá-lo**
+> (`PUT .../projetos/{projeto}/codigo`, `definirCodigo()`): letras, números, ponto e hífen, sem
+> espaço, maiúsculas, e **único na lista** — a recusa diz de quem é o código. As duas ações **fixam
+> os códigos** da lista (`codigos_congelados_em`), porque a ordem só existe gravada; daí em diante
+> quem entra ganha o próximo número livre do grupo — inclusive no rascunho, onde antes um projeto
+> novo podia repetir um número fixado. No rascunho vale na hora; na lista gerada pede
+> **justificativa**, sobe a versão e cada código que mudou vira um registro
+> (`lista_final_codigo_alterado`, "de → para") em Registros → Lista final. Com os códigos já
+> enviados, a tela avisa que a equipe ficará com outro número e que é preciso reenviar.
+>
+> **Sprint 166 (branch `feat/finalistas-suporte-e-certificados`):** o job **security** do CI quebrou no `composer audit`: duas
 > advisories em `league/commonmark` ≤ 2.10.1 — *DisallowedRawHtml* contornável quando a tag
 > proibida termina o literal de HTML (média, GHSA-97jj-33gv-5xf9) e **negação de serviço** de tempo
 > quadrático na extensão de tabelas GFM (alta, GHSA-3q6v-r5mr-hxv8). Ela é **dependência

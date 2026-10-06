@@ -35,6 +35,8 @@ class EdicaoService
         'avaliacoes_por_categoria', 'designacoes_por_projeto',
         'distribuicao_regras', 'distribuicao_ao_cadastrar', 'modo_distribuicao',
         'dias_avaliacao_aberta', 'horas_sessao_avaliador',
+        // Presencial (Sprint 169): horário de cada turno — hora, não data.
+        'horarios_turnos', 'presencial_fila_avaliador', 'presencial_por_projeto',
     ];
 
     /**

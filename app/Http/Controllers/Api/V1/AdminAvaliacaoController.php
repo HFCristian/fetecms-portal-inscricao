@@ -807,6 +807,42 @@ class AdminAvaliacaoController extends Controller
         return response()->json(['data' => $this->listaFinal->detalhar($lista->fresh())]);
     }
 
+    /**
+     * Reordena um grupo categoria+área da lista: os projetos ganham os números
+     * na ordem enviada (Sprint 168). Gerada, pede justificativa.
+     */
+    public function reordenarListaFinal(Request $request, ListaFinal $lista): JsonResponse
+    {
+        $dados = $request->validate([
+            'projeto_ids' => ['required', 'array', 'min:1'],
+            'projeto_ids.*' => ['integer'],
+            'justificativa' => [$lista->rascunho ? 'nullable' : 'required', 'string', 'min:5', 'max:500'],
+        ]);
+
+        $this->listaFinal->reordenarGrupo($lista, $dados['projeto_ids'], $request->user(), $dados['justificativa'] ?? null);
+
+        return response()->json([
+            'data' => $this->listaFinal->detalhar($lista->fresh()),
+            'meta' => ['message' => 'Ordem salva: os códigos do grupo foram renumerados.'],
+        ]);
+    }
+
+    /** Troca o código de um projeto pelo que o admin digitou (Sprint 168). */
+    public function definirCodigoNaListaFinal(Request $request, ListaFinal $lista, Projeto $projeto): JsonResponse
+    {
+        $dados = $request->validate([
+            'codigo' => ['required', 'string', 'max:40'],
+            'justificativa' => [$lista->rascunho ? 'nullable' : 'required', 'string', 'min:5', 'max:500'],
+        ]);
+
+        $this->listaFinal->definirCodigo($lista, $projeto, $dados['codigo'], $request->user(), $dados['justificativa'] ?? null);
+
+        return response()->json([
+            'data' => $this->listaFinal->detalhar($lista->fresh()),
+            'meta' => ['message' => 'Código alterado.'],
+        ]);
+    }
+
     /** Baixa o TXT de uma lista oficial na composição atual dela. */
     public function baixarListaFinal(ListaFinal $lista): Response
     {

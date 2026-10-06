@@ -82,3 +82,32 @@ export async function baixarPremiacao() {
     a.remove();
     URL.revokeObjectURL(url);
 }
+
+// --- Distribuição presencial por turno (Sprints 169–170) --------------------
+// `ocorrencia` é { dia, turno }: o par dia × turno em que a tela está.
+
+const corpo = (dados, teste) => ({ ...dados, teste: teste ? 1 : 0 });
+
+export const getDistribuicaoPresencial = (filtros = {}, teste = false) =>
+    http.get('/admin/presencial/distribuicao', com(filtros, teste)).then((r) => r.data.data);
+
+export const salvarDistribuicaoPresencial = (dados, ocorrencia = {}, teste = false) =>
+    http.patch('/admin/presencial/distribuicao', corpo({ ...dados, ...ocorrencia }, teste)).then((r) => r.data);
+
+export const definirTurnosAvaliador = (avaliadorId, turnos, ocorrencia = {}, teste = false) =>
+    http.put(`/admin/presencial/avaliadores/${avaliadorId}/turnos`, corpo({ turnos, ...ocorrencia }, teste))
+        .then((r) => r.data);
+
+export const distribuirPresencial = (ocorrencia, teste = false) =>
+    http.post('/admin/presencial/distribuicao/distribuir', corpo(ocorrencia, teste)).then((r) => r.data);
+
+export const redistribuirPresencial = (ocorrencia, teste = false) =>
+    http.post('/admin/presencial/distribuicao/redistribuir', corpo(ocorrencia, teste)).then((r) => r.data);
+
+export const designarPresencial = (ocorrencia, projetoIds, avaliadorIds, teste = false) =>
+    http.post('/admin/presencial/avaliacoes/designar', corpo({
+        ...ocorrencia, projeto_ids: projetoIds, avaliador_ids: avaliadorIds,
+    }, teste)).then((r) => r.data);
+
+export const retirarDesignacaoPresencial = (id, ocorrencia = {}, teste = false) =>
+    http.delete(`/admin/presencial/avaliacoes/${id}`, com(ocorrencia, teste)).then((r) => r.data);

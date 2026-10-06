@@ -3,10 +3,12 @@
 namespace Tests\Feature;
 
 use App\Enums\Role;
+use App\Enums\StatusAvaliacao;
 use App\Enums\StatusPresenca;
 use App\Enums\StatusSuporte;
 use App\Enums\TipoRegistro;
 use App\Models\Aluno;
+use App\Models\AvaliacaoPresencial;
 use App\Models\AvaliadorProfile;
 use App\Models\Edicao;
 use App\Models\ListaFinal;
@@ -117,11 +119,17 @@ class ForaPrazoESuporteTest extends TestCase
 
         $avaliador = User::factory()->create(['role' => Role::Avaliador]);
         AvaliadorProfile::factory()->create(['user_id' => $avaliador->id, 'presencial' => true]);
+        // Fora do prazo é, por definição, ainda não credenciado: o projeto não
+        // está entre os disponíveis (Sprint 171), mas a designação mostra o selo.
+        AvaliacaoPresencial::create([
+            'edicao_id' => $this->edicao->id, 'projeto_id' => $this->projeto->id, 'avaliador_id' => $avaliador->id,
+            'status' => StatusAvaliacao::Designada, 'designacao_manual' => true,
+        ]);
         Sanctum::actingAs($avaliador);
 
         $this->getJson('/api/v1/avaliador/presencial/avaliacoes')
             ->assertOk()
-            ->assertJsonPath('data.disponiveis.0.sinalizacoes.fora_prazo.observacao', 'Chega depois.');
+            ->assertJsonPath('data.minhas.0.sinalizacoes.fora_prazo.observacao', 'Chega depois.');
     }
 
     // --- Sprint 162: suporte ------------------------------------------------

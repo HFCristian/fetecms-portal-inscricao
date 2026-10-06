@@ -8,6 +8,7 @@ use App\Enums\Turno;
 use App\Models\AvaliacaoPresencial;
 use App\Models\Edicao;
 use App\Models\EstandeProjeto;
+use App\Support\JanelaTurnos;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
@@ -157,7 +158,7 @@ class MapaSituacaoService
                 array_keys(self::CRITERIOS),
                 array_values(self::CRITERIOS),
             ),
-            'max_avaliacoes' => AvaliacaoPresencial::MAX_POR_PROJETO,
+            'max_avaliacoes' => JanelaTurnos::daEdicao()->porProjeto(),
         ];
     }
 
@@ -286,7 +287,7 @@ class MapaSituacaoService
         $credenciados = $this->carimbos('credenciamentos', 'finalizado_em', $ids, $corte);
         $checados = $this->carimbos('checagens_estande', 'verificado_em', $ids, $corte);
         $avaliacoes = $this->avaliacoes($ids, $corte);
-        $maximo = AvaliacaoPresencial::MAX_POR_PROJETO;
+        $maximo = JanelaTurnos::daEdicao()->porProjeto();
         $sinais = app(SinalizacaoProjetoService::class)->para($ids);
 
         return $alocacoes->map(function (EstandeProjeto $e) use ($credenciados, $checados, $avaliacoes, $maximo, $sinais) {

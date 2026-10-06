@@ -100,6 +100,7 @@ enum TipoRegistro: string
     case ListaFinalReativada = 'lista_final_reativada';
     case ListaFinalCodigosFixados = 'lista_final_codigos_fixados';
     case ListaFinalCodigosEnviados = 'lista_final_codigos_enviados';
+    case ListaFinalCodigoAlterado = 'lista_final_codigo_alterado';
     case CredenciamentoRealizado = 'credenciamento_realizado';
     case CredenciamentoCancelado = 'credenciamento_cancelado';
     case CredenciamentoKitRetirado = 'credenciamento_kit_retirado';
@@ -189,6 +190,7 @@ enum TipoRegistro: string
             self::ListaFinalReativada => 'Lista final reativada',
             self::ListaFinalCodigosFixados => 'Códigos dos projetos fixados',
             self::ListaFinalCodigosEnviados => 'Códigos enviados aos finalistas',
+            self::ListaFinalCodigoAlterado => 'Código do projeto alterado',
             self::CredenciamentoRealizado => 'Credenciamento realizado',
             self::CredenciamentoCancelado => 'Credenciamento cancelado',
             self::CredenciamentoKitRetirado => 'Kit retirado',
@@ -227,7 +229,7 @@ enum TipoRegistro: string
             self::ListaFinalOficializada, self::ListaFinalProjetoAdicionado,
             self::ListaFinalProjetoRemovido, self::ListaFinalCodigosFixados,
             self::ListaPreliminarGerada, self::ListaFinalReativada,
-            self::ListaFinalCodigosEnviados => self::SECAO_LISTA_FINAL,
+            self::ListaFinalCodigosEnviados, self::ListaFinalCodigoAlterado => self::SECAO_LISTA_FINAL,
             self::CredenciamentoRealizado, self::CredenciamentoCancelado,
             self::CredenciamentoKitRetirado,
             self::CredenciamentoRascunhoAssumido,

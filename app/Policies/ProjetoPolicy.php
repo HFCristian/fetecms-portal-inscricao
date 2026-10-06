@@ -2,6 +2,7 @@
 
 namespace App\Policies;
 
+use App\Models\AvaliacaoPresencial;
 use App\Models\Projeto;
 use App\Models\User;
 
@@ -24,9 +25,11 @@ class ProjetoPolicy
             return true;
         }
 
-        // Avaliador designado pode ler o projeto (e baixar seus documentos) para avaliar.
+        // Avaliador designado pode ler o projeto (e baixar seus documentos) para
+        // avaliar — online ou no estande (Sprint 171).
         return $user->isAvaliador()
-            && $projeto->avaliacoes()->where('avaliador_id', $user->id)->exists();
+            && ($projeto->avaliacoes()->where('avaliador_id', $user->id)->exists()
+                || AvaliacaoPresencial::where('projeto_id', $projeto->id)->where('avaliador_id', $user->id)->exists());
     }
 
     public function create(User $user): bool

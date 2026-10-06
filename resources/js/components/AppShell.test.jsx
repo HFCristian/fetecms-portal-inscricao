@@ -74,3 +74,26 @@ describe('AppShell — menu do admin por escopo', () => {
         expect(itens('Credenciamento')).toHaveLength(0);
     });
 });
+
+describe('AppShell — menu do avaliador', () => {
+    const avaliador = (presencial) => {
+        Object.keys(user).forEach((k) => delete user[k]);
+        Object.assign(user, { id: 2, name: 'Ana', role: 'avaliador', avaliador_profile: { presencial } });
+    };
+
+    it('quem aceitou o presencial vê a aba da avaliação no estande', () => {
+        avaliador(true);
+        render(<AppShell><p>conteúdo</p></AppShell>);
+
+        expect(itens('Avaliação presencial').length).toBeGreaterThan(0);
+        expect(itens('Presencial').length).toBeGreaterThan(0);
+    });
+
+    it('quem recusou ou não respondeu não vê a aba', () => {
+        avaliador(null);
+        render(<AppShell><p>conteúdo</p></AppShell>);
+
+        expect(itens('Avaliação presencial')).toHaveLength(0);
+        expect(itens('Presencial').length).toBeGreaterThan(0);
+    });
+});

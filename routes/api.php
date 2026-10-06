@@ -207,6 +207,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             // Documentos do projeto (E5) — upload PDF/DOCX, download autenticado
             Route::get('projetos/{projeto}/documentos', [DocumentoController::class, 'index']);
             Route::post('projetos/{projeto}/documentos', [DocumentoController::class, 'store']);
+            Route::get('projetos/{projeto}/documentos/zip', [DocumentoController::class, 'zip']);
             Route::get('documentos/{documento}/download', [DocumentoController::class, 'download']);
             Route::get('documentos/{documento}/preview', [DocumentoController::class, 'preview']);
             Route::delete('documentos/{documento}', [DocumentoController::class, 'destroy']);
@@ -324,7 +325,13 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::patch('/itens/{item}', [AvaliacaoPresencialAdminController::class, 'atualizarItem']);
                 Route::delete('/itens/{item}', [AvaliacaoPresencialAdminController::class, 'excluirItem']);
                 // Avaliações presenciais: designar estandes e acompanhar.
-                Route::get('/avaliacoes', [AvaliacaoPresencialAdminController::class, 'avaliacoes']);
+                // Distribuição presencial por turno (Sprints 169–170): horários,
+                // ativação dos avaliadores na cabine e as designações.
+                Route::get('/distribuicao', [AvaliacaoPresencialAdminController::class, 'distribuicao']);
+                Route::patch('/distribuicao', [AvaliacaoPresencialAdminController::class, 'salvarDistribuicao']);
+                Route::put('/avaliadores/{avaliador}/turnos', [AvaliacaoPresencialAdminController::class, 'turnosDoAvaliador']);
+                Route::post('/distribuicao/distribuir', [AvaliacaoPresencialAdminController::class, 'distribuir']);
+                Route::post('/distribuicao/redistribuir', [AvaliacaoPresencialAdminController::class, 'redistribuir']);
                 Route::post('/avaliacoes/designar', [AvaliacaoPresencialAdminController::class, 'designarAvaliacoes']);
                 Route::delete('/avaliacoes/{avaliacao}', [AvaliacaoPresencialAdminController::class, 'retirarAvaliacao']);
                 // Credenciais: as vagas de premiação e a lista da cerimônia.
@@ -397,6 +404,9 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::post('/avaliacao/listas/final-de-preliminares', [AdminAvaliacaoController::class, 'listaFinalDePreliminares']);
                 Route::post('/avaliacao/listas-finais/{lista}/projetos', [AdminAvaliacaoController::class, 'adicionarNaListaFinal']);
                 Route::delete('/avaliacao/listas-finais/{lista}/projetos/{projeto}', [AdminAvaliacaoController::class, 'removerDaListaFinal']);
+                // Ordem e código dos projetos (Sprint 168).
+                Route::put('/avaliacao/listas-finais/{lista}/ordem', [AdminAvaliacaoController::class, 'reordenarListaFinal']);
+                Route::put('/avaliacao/listas-finais/{lista}/projetos/{projeto}/codigo', [AdminAvaliacaoController::class, 'definirCodigoNaListaFinal']);
 
                 // Identificação dos participantes: o QR Code e o código de
                 // barras de cada pessoa da lista, para o evento.

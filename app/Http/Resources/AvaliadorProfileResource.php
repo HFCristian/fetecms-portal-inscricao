@@ -18,6 +18,9 @@ class AvaliadorProfileResource extends JsonResource
             'subarea_id' => $this->subarea_id,
             'area' => $this->whenLoaded('area', fn () => $this->area?->nome),
             'subarea' => $this->whenLoaded('subarea', fn () => $this->subarea?->nome),
+            // Respondeu "sim" na aba Presencial: o menu mostra a aba da
+            // avaliação no estande (Sprint 171). Nulo é "ainda não respondeu".
+            'presencial' => $this->presencial,
         ];
     }
 }
