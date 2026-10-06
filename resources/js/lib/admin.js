@@ -358,6 +358,16 @@ export const removerDaListaFinal = (id, projetoId, justificativa = null) =>
     http.delete(`/admin/avaliacao/listas-finais/${id}/projetos/${projetoId}`, { data: justificativa ? { justificativa } : {} })
         .then((r) => r.data.data);
 
+/** Reordena um grupo categoria+área: os códigos seguem a ordem enviada (Sprint 168). */
+export const reordenarListaFinal = (id, projetoIds, justificativa = null) =>
+    http.put(`/admin/avaliacao/listas-finais/${id}/ordem`, { projeto_ids: projetoIds, ...(justificativa ? { justificativa } : {}) })
+        .then((r) => r.data);
+
+/** Troca o código de um projeto pelo que o admin digitou (Sprint 168). */
+export const definirCodigoListaFinal = (id, projetoId, codigo, justificativa = null) =>
+    http.put(`/admin/avaliacao/listas-finais/${id}/projetos/${projetoId}/codigo`, { codigo, ...(justificativa ? { justificativa } : {}) })
+        .then((r) => r.data);
+
 // Projetos com sugestão de reclassificação. `filtros`: { area_id, q, de, ate }.
 export const getReclassificacoes = (filtros = {}) =>
     http.get('/admin/avaliacao/reclassificacoes', { params: limpar(filtros) }).then((r) => r.data.data);

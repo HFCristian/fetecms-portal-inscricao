@@ -8,6 +8,7 @@ import { extractErrors } from '../lib/auth.jsx';
 import { baseProjeto, voltarLabel } from '../lib/rotasProjeto.js';
 import { getResumo, submeterProjeto } from '../lib/submissao.js';
 import { cancelarSubmissao, removerProjeto } from '../lib/projetos.js';
+import { baixarDocumentosZip } from '../lib/documentos.js';
 
 function Linha({ label, valor }) {
     return (
@@ -30,6 +31,7 @@ export default function Resumo({ modoAdmin = false }) {
     const [submitting, setSubmitting] = useState(false);
     const [desfazendo, setDesfazendo] = useState(false);
     const [alert, setAlert] = useState('');
+    const [baixando, setBaixando] = useState(false);
 
     const carregar = useCallback(() => {
         setLoading(true);
@@ -121,6 +123,18 @@ export default function Resumo({ modoAdmin = false }) {
         }
     }
 
+    async function baixarTodos() {
+        setAlert('');
+        setBaixando(true);
+        try {
+            await baixarDocumentosZip(id);
+        } catch (e) {
+            setAlert(e.message);
+        } finally {
+            setBaixando(false);
+        }
+    }
+
     if (loading || !data) {
         return (
             <AppShell>
@@ -179,13 +193,38 @@ export default function Resumo({ modoAdmin = false }) {
                 </p>
             </section>
 
-            {/* Documentos */}
+            {/* Documentos: cada um baixa sozinho, e todos de uma vez num ZIP. */}
             <section className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-6 mb-5">
-                <h2 className="font-display text-primary font-semibold mb-3">Documentos</h2>
-                <ul className="text-sm text-on-surface list-disc pl-5">
-                    {documentos.length === 0 && <li className="text-on-surface-variant list-none pl-0">Nenhum documento anexado.</li>}
-                    {documentos.map((d) => <li key={d.id}>{d.tipo_label}: {d.nome_original}</li>)}
-                </ul>
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                    <h2 className="font-display text-primary font-semibold">Documentos</h2>
+                    {documentos.length > 0 && (
+                        <Button variant="outline" type="button" loading={baixando} onClick={baixarTodos}>
+                            <span className="material-symbols-outlined text-[20px]">folder_zip</span>
+                            Baixar todos (.zip)
+                        </Button>
+                    )}
+                </div>
+                {documentos.length === 0 ? (
+                    <p className="text-sm text-on-surface-variant">Nenhum documento anexado.</p>
+                ) : (
+                    <ul className="divide-y divide-outline-variant/30">
+                        {documentos.map((d) => (
+                            <li key={d.id} className="py-2 flex flex-wrap items-center gap-2 text-sm">
+                                <span className="min-w-0 flex-1 text-on-surface">
+                                    <span className="text-on-surface-variant">{d.tipo_label}:</span> {d.nome_original}
+                                </span>
+                                <a
+                                    href={d.download_url}
+                                    className="inline-flex items-center gap-1 text-primary-container hover:underline"
+                                    aria-label={`Baixar ${d.nome_original}`}
+                                >
+                                    <span className="material-symbols-outlined text-[18px]">download</span>
+                                    Baixar
+                                </a>
+                            </li>
+                        ))}
+                    </ul>
+                )}
             </section>
 
             <PrazoInscricoes inscricoes={inscricoes} className="mb-5" />

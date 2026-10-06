@@ -14,6 +14,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class DocumentoController extends Controller
@@ -49,6 +50,18 @@ class DocumentoController extends Controller
         $this->authorize('view', $documento->projeto);
 
         return Storage::disk($documento->disk)->download($documento->path, $documento->nome_original);
+    }
+
+    /** Todos os documentos do projeto num ZIP (quem vê o projeto, baixa). */
+    public function zip(Projeto $projeto): BinaryFileResponse
+    {
+        $this->authorize('view', $projeto);
+
+        return response()
+            ->download($this->documentos->zip($projeto), $this->documentos->nomeDoZip($projeto), [
+                'Content-Type' => 'application/zip',
+            ])
+            ->deleteFileAfterSend();
     }
 
     /** Serve o arquivo inline (Content-Disposition: inline) para pré-visualização no navegador. */

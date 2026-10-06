@@ -836,8 +836,31 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 164 | Listas **preliminares** (várias) e **finais** (uma ativa): tipo, rascunho editável livre, gerar e reativar | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 165 | Lista final montada pela **união de preliminares** + telas de geração, listas e detalhe | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 166 | Fix (segurança): `league/commonmark` 2.10.1 → 2.10.3 (2 advisories do `composer audit`) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 167 | Orientador: baixar cada documento enviado e **todos num ZIP**, no resumo do projeto | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 168 | Listas preliminares e finais: **reordenar** o grupo (código renumerado) e **digitar o código** | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
-> **Sprint 166 (mesma branch):** o job **security** do CI quebrou no `composer audit`: duas
+> **Sprints 167–168 (branch `feat/avaliacao-presencial-distribuicao`, saída da `origin/main` @ `6c92219`):**
+> (a) **Sprint 167** — o **resumo do projeto** do orientador listava os documentos enviados só pelo
+> nome. Agora cada um tem **Baixar** (a rota autenticada de sempre, `GET /documentos/{id}/download`)
+> e o cartão ganhou **Baixar todos (.zip)** (`GET /projetos/{projeto}/documentos/zip`,
+> `DocumentoService::zip()`, `ZipArchive` sem dependência nova). No ZIP cada arquivo leva o tipo na
+> frente do nome ("Projeto de Pesquisa - plano.pdf"), dois anexos de mesmo nome ganham "(2)" em vez
+> de se sobrescrever, e o que sumiu do storage fica de fora — se nada sobrar é **422**, não um ZIP
+> vazio. Quem vê o projeto baixa (a mesma Policy `view`), então o admin também baixa.
+> (b) **Sprint 168** — a composição de uma lista (preliminar ou final) passou a ser mostrada **por
+> grupo categoria+área**, que é onde o código numera. **Reordenar** abre o grupo para arrastar ou
+> subir/descer; salvar **renumera o grupo** na ordem nova (`PUT .../listas-finais/{lista}/ordem`,
+> `ListaFinalService::reordenarGrupo()`), e o lápis ao lado do código deixa **digitá-lo**
+> (`PUT .../projetos/{projeto}/codigo`, `definirCodigo()`): letras, números, ponto e hífen, sem
+> espaço, maiúsculas, e **único na lista** — a recusa diz de quem é o código. As duas ações **fixam
+> os códigos** da lista (`codigos_congelados_em`), porque a ordem só existe gravada; daí em diante
+> quem entra ganha o próximo número livre do grupo — inclusive no rascunho, onde antes um projeto
+> novo podia repetir um número fixado. No rascunho vale na hora; na lista gerada pede
+> **justificativa**, sobe a versão e cada código que mudou vira um registro
+> (`lista_final_codigo_alterado`, "de → para") em Registros → Lista final. Com os códigos já
+> enviados, a tela avisa que a equipe ficará com outro número e que é preciso reenviar.
+>
+> **Sprint 166 (branch `feat/finalistas-suporte-e-certificados`):** o job **security** do CI quebrou no `composer audit`: duas
 > advisories em `league/commonmark` ≤ 2.10.1 — *DisallowedRawHtml* contornável quando a tag
 > proibida termina o literal de HTML (média, GHSA-97jj-33gv-5xf9) e **negação de serviço** de tempo
 > quadrático na extensão de tabelas GFM (alta, GHSA-3q6v-r5mr-hxv8). Ela é **dependência

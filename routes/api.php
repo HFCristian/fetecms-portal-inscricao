@@ -207,6 +207,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             // Documentos do projeto (E5) — upload PDF/DOCX, download autenticado
             Route::get('projetos/{projeto}/documentos', [DocumentoController::class, 'index']);
             Route::post('projetos/{projeto}/documentos', [DocumentoController::class, 'store']);
+            Route::get('projetos/{projeto}/documentos/zip', [DocumentoController::class, 'zip']);
             Route::get('documentos/{documento}/download', [DocumentoController::class, 'download']);
             Route::get('documentos/{documento}/preview', [DocumentoController::class, 'preview']);
             Route::delete('documentos/{documento}', [DocumentoController::class, 'destroy']);
@@ -397,6 +398,9 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::post('/avaliacao/listas/final-de-preliminares', [AdminAvaliacaoController::class, 'listaFinalDePreliminares']);
                 Route::post('/avaliacao/listas-finais/{lista}/projetos', [AdminAvaliacaoController::class, 'adicionarNaListaFinal']);
                 Route::delete('/avaliacao/listas-finais/{lista}/projetos/{projeto}', [AdminAvaliacaoController::class, 'removerDaListaFinal']);
+                // Ordem e código dos projetos (Sprint 168).
+                Route::put('/avaliacao/listas-finais/{lista}/ordem', [AdminAvaliacaoController::class, 'reordenarListaFinal']);
+                Route::put('/avaliacao/listas-finais/{lista}/projetos/{projeto}/codigo', [AdminAvaliacaoController::class, 'definirCodigoNaListaFinal']);
 
                 // Identificação dos participantes: o QR Code e o código de
                 // barras de cada pessoa da lista, para o evento.

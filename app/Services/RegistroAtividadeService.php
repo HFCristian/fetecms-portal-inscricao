@@ -511,6 +511,21 @@ class RegistroAtividadeService
      * Um ato sobre a lista final inteira que não é "de → para" — fixar os
      * códigos, mandá-los por e-mail. `resumo` diz o que aconteceu.
      */
+    /**
+     * O código de um projeto mudou dentro de uma lista (Sprint 168) — por
+     * reordenação do grupo ou digitado à mão. Uma linha por projeto, com o
+     * "de → para": é o código que a equipe leva ao balcão.
+     */
+    public function codigoNaLista(User $admin, string $lista, Projeto $projeto, ?string $de, string $para, string $justificativa): RegistroAtividade
+    {
+        return $this->registrarNoProjeto(TipoRegistro::ListaFinalCodigoAlterado, $projeto, $admin, [
+            'campo' => "Código — {$lista}",
+            'de' => $de,
+            'para' => $para,
+            'justificativa' => $justificativa,
+        ]);
+    }
+
     public function atoNaLista(TipoRegistro $tipo, User $admin, string $lista, string $resumo): RegistroAtividade
     {
         return RegistroAtividade::create([
