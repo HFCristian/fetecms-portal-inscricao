@@ -325,10 +325,13 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
   - **Avaliação Online → Listas preliminares e finais** (`/admin/avaliacao/listas-finais`):
     `listas_finais.tipo` separa as **preliminares** (várias convivem; nenhuma define finalista) das
     **finais** (uma só **ativa** por edição — `vigente` —, que vale para toda a etapa presencial).
-    A composição aparece **por grupo categoria+área**: *Reordenar* renumera o código do grupo na
-    ordem escolhida e o código também pode ser **digitado** (único na lista).
-    Toda lista nasce **rascunho** — da classificação (Ranking → *Gerar lista*) ou, a final, da
-    **união de preliminares** já geradas (`origens`) — e no rascunho o admin inclui e retira **sem
+    Cada lista tem **apelido** (o `nome`) e **descrição**, editáveis a qualquer momento sem
+    justificativa. A composição aparece **por grupo categoria+área**: **arrastar** um projeto dentro
+    do grupo renumera o código de todos na hora, e o código também pode ser **digitado** — em branco,
+    fora do padrão ou fora da sequência ele vira **aviso**; **repetido** barra a geração (e, numa
+    lista já gerada, é recusado na hora). Toda lista nasce **rascunho** — da classificação
+    (Ranking → *Gerar lista*) ou da **união de listas já geradas**, preliminares e finais, como
+    preliminar ou final (`origens`, com os códigos fixados herdados) — e no rascunho o admin inclui e retira **sem
     justificativa**, qualquer projeto submetido (avaliado ou não). **Gerar** fecha: a preliminar fica
     registrada; a final vira a **ativa** e a anterior passa a inativa, **reativável** com
     justificativa. A ativa é a que define os **finalistas** da feira (projetos + alunos + orientador
@@ -859,7 +862,39 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 176 | Mapa do Evento: termo de imagem no painel do estande, na lista filtrável e nas exportações (online + balcão) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 177 | Listas: código **em branco, fora do padrão ou da sequência** com aviso; **repetido** barra a geração; editar reordena | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 178 | Listas: **arrastar** o projeto dentro do grupo renumera os códigos na hora (sem modo "Reordenar") | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 179 | Listas: montar preliminar **ou** final pela união de listas geradas — **preliminares e finais** —, herdando os códigos fixados | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 180 | Listas: **apelido** e **descrição** na criação, nos cartões e editáveis no detalhe (sem justificativa) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprints 179–180 (mesma branch):** como as listas nascem e como se chamam.
+> (a) **Sprint 179** — a **união** deixou de ser só "preliminares → final". Qualquer lista **já
+> gerada** da edição pode ser origem — preliminar, a final ativa ou uma final inativa —, e o admin
+> escolhe o **destino**: lista preliminar ou final (`POST /admin/avaliacao/listas/uniao`,
+> `ListaFinalService::rascunharDeListas`; a rota antiga `final-de-preliminares` continua, como o caso
+> particular). O caso que motivou: montar uma preliminar a partir da final de hoje mais os suplentes
+> de outra preliminar. Rascunho continua fora (está sendo revisto) e a lista de ensaio também. A
+> união **herda os códigos já fixados** nas origens — a equipe que já recebeu o FET.AGR-007 não pode
+> ganhar outro número só porque a lista foi remontada. A prioridade é a final ativa, depois as outras
+> finais e por fim as preliminares, da mais nova para a mais antiga; quem não herda ganha o próximo
+> número livre do grupo, e a lista já nasce com os códigos fixos. Dois projetos que herdam o mesmo
+> código ficam com ele e o aviso de repetido (Sprint 177) barra a geração até o admin decidir. Sem
+> nenhum código fixado nas origens, a lista numera como sempre, em ordem alfabética. As `origens`
+> passaram a guardar o tipo de cada lista, e a tela diz "Montada das listas: …".
+> (b) **Sprint 180** — **apelido e descrição**. Com várias preliminares convivendo, "Lista
+> preliminar · XVI FETECMS" repetido não diz o que há em cada uma. O apelido é o `nome` que a lista
+> já tinha (a tela passou a chamá-lo assim, e em branco ele volta ao padrão); a **descrição** é nova
+> (`listas_finais.descricao`). Os dois aparecem no último passo do assistente do Ranking, no diálogo
+> da união, nos cartões da página de listas e no cabeçalho do detalhe, onde se editam a qualquer
+> momento — inclusive na lista gerada — **sem justificativa e sem versão nova**
+> (`PATCH /admin/avaliacao/listas-finais/{lista}`): é rótulo, não composição. Os registros antigos
+> guardam o nome que a lista tinha quando foram escritos.
+> Back **1361/1361**, front **668/668**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprints 179–180):** (1) mais uma migration (`listas_finais.descricao`),
+> nenhuma dependência nova, nenhuma variável de `.env`. (2) O botão da página de listas mudou de nome
+> para **"Montar a partir de outras listas"** e agora pergunta o destino (preliminar ou final; o
+> padrão continua sendo final). (3) Ao remontar a final a partir da ativa, os códigos já enviados às
+> equipes vêm junto — confira os avisos no topo antes de gerar.
+>
 > **Sprints 177–178 (mesma branch):** o código do projeto nas listas preliminares e finais ficou
 > nas mãos do admin.
 > (a) **Sprint 177** — o código digitado deixou de ser travado pelo padrão. Ele pode ficar **em
@@ -963,8 +998,9 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 >
 > **Pendências do Pedro (Sprints 173–174):** (1) `git push origin feat/termo-imagem-e-codigos-lista`
 > + PR para a `main` (o ambiente do Claude não tem credencial do GitHub) e, depois do merge, o
-> deploy pela §11 do [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). Esta parte **tem uma migration**
-> (`projeto_documento_alunos`), **nenhuma variável nova de `.env`** e **nenhuma dependência nova**.
+> deploy pela §11 do [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). A branch inteira (Sprints 173–180)
+> **tem três migrations** (`projeto_documento_alunos`, `documentos_credenciamento.chave` e
+> `listas_finais.descricao`), **nenhuma variável nova de `.env`** e **nenhuma dependência nova**.
 > (2) **A caixa "Somente finalistas" virou o card "Todos os finalistas"**: quem marcava a caixa e
 > esperava que ela substituísse os públicos agora precisa desmarcar os outros grupos — ela soma.
 > (3) **O avaliador online deixou de ver o termo de responsabilidade** entre os anexos do projeto.

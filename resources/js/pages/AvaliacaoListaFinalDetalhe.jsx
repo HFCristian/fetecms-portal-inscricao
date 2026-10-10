@@ -10,6 +10,7 @@ import ExportarListaFinal from '../components/ExportarListaFinal.jsx';
 import {
     getListaFinal, adicionarNaListaFinal, removerDaListaFinal, baixarListaOficial,
     publicarListaFinal, reativarListaFinal, reordenarListaFinal, definirCodigoListaFinal,
+    rotularListaFinal,
 } from '../lib/admin.js';
 
 const MIN_JUSTIFICATIVA = 5;
@@ -316,6 +317,83 @@ function GrupoDaLista({ grupo, ordemProvisoria, onReordenar, edicaoCodigo, onEdi
 }
 
 /**
+ * Apelido e descrição da lista (Sprint 180): o que distingue uma preliminar da
+ * outra na relação. É rótulo, não composição — salva na hora, sem
+ * justificativa e sem versão nova, também numa lista já gerada.
+ */
+function RotuloLista({ lista, onSalvo }) {
+    const [editando, setEditando] = useState(false);
+    const [nome, setNome] = useState('');
+    const [descricao, setDescricao] = useState('');
+    const [salvando, setSalvando] = useState(false);
+    const [erro, setErro] = useState('');
+
+    function abrir() {
+        setNome(lista.nome ?? '');
+        setDescricao(lista.descricao ?? '');
+        setErro('');
+        setEditando(true);
+    }
+
+    async function salvar(e) {
+        e.preventDefault();
+        setSalvando(true); setErro('');
+        try {
+            onSalvo(await rotularListaFinal(lista.id, { nome: nome.trim(), descricao: descricao.trim() }));
+            setEditando(false);
+        } catch (err) {
+            const { message, fields } = extractErrors(err);
+            setErro(Object.values(fields ?? {})[0] || message || 'Não foi possível salvar.');
+        } finally {
+            setSalvando(false);
+        }
+    }
+
+    if (!editando) {
+        return (
+            <div className="mb-1">
+                {lista.descricao && <p className="text-sm text-on-surface whitespace-pre-line">{lista.descricao}</p>}
+                <button
+                    type="button"
+                    onClick={abrir}
+                    className="text-xs text-on-surface-variant hover:text-primary inline-flex items-center gap-1"
+                >
+                    <span className="material-symbols-outlined text-[16px]">edit</span>
+                    {lista.descricao ? 'Editar apelido e descrição' : 'Editar apelido e acrescentar descrição'}
+                </button>
+            </div>
+        );
+    }
+
+    return (
+        <form onSubmit={salvar} className="my-2 space-y-2 rounded-lg border border-outline-variant p-3 bg-surface-container-lowest">
+            {erro && <Alert>{erro}</Alert>}
+            <input
+                value={nome}
+                onChange={(e) => setNome(e.target.value)}
+                aria-label="Apelido da lista"
+                placeholder="Apelido (em branco, volta ao nome padrão)"
+                maxLength={120}
+                className="w-full rounded-lg border border-outline-variant bg-surface px-3 py-2 text-sm text-on-surface"
+            />
+            <textarea
+                value={descricao}
+                onChange={(e) => setDescricao(e.target.value)}
+                aria-label="Descrição da lista"
+                placeholder="O que esta lista reúne"
+                maxLength={1000}
+                rows={2}
+                className="w-full rounded-lg border border-outline-variant bg-surface px-3 py-2 text-sm text-on-surface"
+            />
+            <div className="flex gap-2">
+                <Button type="submit" loading={salvando}>Salvar</Button>
+                <Button type="button" variant="outline" disabled={salvando} onClick={() => setEditando(false)}>Cancelar</Button>
+            </div>
+        </form>
+    );
+}
+
+/**
  * A composição de uma lista final: quem está dentro e quem pode entrar.
  *
  * É a mesma tela nos dois momentos da vida da lista. Como **prévia** (rascunho
@@ -541,6 +619,10 @@ export default function AvaliacaoListaFinalDetalhe() {
                                     </span>
                                 )}
                             </h1>
+                            <RotuloLista
+                                lista={lista}
+                                onSalvo={(resp) => { setDados(resp.data); setSucesso(resp.meta?.message ?? ''); }}
+                            />
                             <p className="text-sm text-on-surface-variant">
                                 Versão {lista.versao} · {lista.projetos} {lista.projetos === 1 ? 'projeto' : 'projetos'}.
                                 {lista.rascunho
@@ -549,7 +631,7 @@ export default function AvaliacaoListaFinalDetalhe() {
                             </p>
                             {lista.origens?.length > 0 && (
                                 <p className="text-xs text-on-surface-variant mt-1">
-                                    Montada das preliminares: {lista.origens.map((o) => o.nome).join(', ')}.
+                                    Montada das listas: {lista.origens.map((o) => o.nome).join(', ')}.
                                 </p>
                             )}
                             {lista.rascunho && (

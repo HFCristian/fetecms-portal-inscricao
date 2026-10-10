@@ -177,15 +177,16 @@ class ListaFinalService
      *
      * @param  array<string, mixed>  $cotas
      */
-    public function rascunhar(array $cotas, User $admin, ?string $nome = null, string $tipo = ListaFinal::TIPO_FINAL): ListaFinal
+    public function rascunhar(array $cotas, User $admin, ?string $nome = null, string $tipo = ListaFinal::TIPO_FINAL, ?string $descricao = null): ListaFinal
     {
         $edicao = $this->edicaoOuFalha();
         $itens = $this->gerar($cotas);
 
-        return DB::transaction(function () use ($cotas, $admin, $nome, $edicao, $itens, $tipo) {
+        return DB::transaction(function () use ($cotas, $admin, $nome, $descricao, $edicao, $itens, $tipo) {
             $lista = ListaFinal::create([
                 'edicao_id' => $edicao->id,
                 'nome' => trim((string) $nome) !== '' ? trim((string) $nome) : $this->nomePadrao($edicao, $tipo),
+                'descricao' => trim((string) $descricao) !== '' ? trim((string) $descricao) : null,
                 'tipo' => $tipo,
                 'vigente' => false,
                 'rascunho' => true,
@@ -203,52 +204,112 @@ class ListaFinalService
     }
 
     /**
-     * Rascunho de lista **final** montado pela **união de preliminares**
-     * escolhidas (Sprint 164): todos os projetos delas, sem repetir. Só entram
-     * preliminares já **geradas** — a que ainda é rascunho está sendo revista e
-     * pode mudar. `origens` guarda de onde a final veio.
+     * Rascunho de lista final montado pela união de preliminares (Sprint 164)
+     * — o caminho antigo, que continua valendo: é a união de listas com
+     * destino final ({@see self::rascunharDeListas()}).
      *
      * @param  list<int>  $preliminarIds
      */
     public function rascunharDePreliminares(array $preliminarIds, User $admin, ?string $nome = null): ListaFinal
     {
-        $edicao = $this->edicaoOuFalha();
+        return $this->rascunharDeListas($preliminarIds, ListaFinal::TIPO_FINAL, $admin, $nome, campo: 'preliminares');
+    }
 
-        $preliminares = ListaFinal::query()
-            ->whereIn('id', $preliminarIds)
+    /**
+     * Rascunho de lista — **preliminar ou final** — montado pela **união** de
+     * listas já geradas (Sprint 179): todos os projetos delas, sem repetir.
+     *
+     * Até a Sprint 165 a união só juntava preliminares numa final. Agora a
+     * origem pode ser qualquer lista **gerada** da edição — preliminar, a final
+     * ativa ou uma final inativa —, e o destino é escolhido: a organização
+     * monta, por exemplo, uma preliminar a partir da final de hoje mais uma
+     * preliminar com os suplentes. O rascunho continua fora: ele está sendo
+     * revisto e pode mudar.
+     *
+     * Os **códigos fixados** nas listas de origem vêm junto: a equipe que já
+     * recebeu o FET.AGR-007 não pode ganhar outro número só porque a lista foi
+     * remontada. A prioridade é a final ativa, depois as outras finais e por
+     * último as preliminares, da mais nova para a mais antiga; projeto sem
+     * código herdado ganha o próximo número livre do grupo. Dois projetos que
+     * herdam o mesmo código ficam com ele — e o aviso de código repetido barra
+     * a geração até o admin decidir (Sprint 177).
+     *
+     * @param  list<int>  $listaIds
+     */
+    public function rascunharDeListas(
+        array $listaIds,
+        string $tipo,
+        User $admin,
+        ?string $nome = null,
+        ?string $descricao = null,
+        string $campo = 'listas',
+    ): ListaFinal {
+        $edicao = $this->edicaoOuFalha();
+        $tipo = $tipo === ListaFinal::TIPO_PRELIMINAR ? ListaFinal::TIPO_PRELIMINAR : ListaFinal::TIPO_FINAL;
+
+        $origens = ListaFinal::query()
+            ->whereIn('id', $listaIds)
             ->where('edicao_id', $edicao->id)
-            ->where('tipo', ListaFinal::TIPO_PRELIMINAR)
+            ->whereIn('tipo', [ListaFinal::TIPO_PRELIMINAR, ListaFinal::TIPO_FINAL])
             ->where('rascunho', false)
             ->where('demo', false)
             ->get();
 
-        if ($preliminares->isEmpty() || $preliminares->count() !== count(array_unique($preliminarIds))) {
+        if ($origens->isEmpty() || $origens->count() !== count(array_unique($listaIds))) {
             throw ValidationException::withMessages([
-                'preliminares' => 'Escolha listas preliminares já geradas nesta edição.',
+                $campo => 'Escolha listas preliminares ou finais já geradas nesta edição.',
             ]);
         }
 
-        $projetos = DB::table('lista_final_projetos')
-            ->whereIn('lista_final_id', $preliminares->pluck('id'))
-            ->distinct()
-            ->pluck('projeto_id')
-            ->all();
+        // A ordem das origens é a prioridade da herança dos códigos.
+        $peso = fn (ListaFinal $l) => $l->ehFinal() && $l->vigente ? 0 : ($l->ehFinal() ? 1 : 2);
+        $origens = $origens->sort(fn (ListaFinal $a, ListaFinal $b) => $peso($a) <=> $peso($b)
+            ?: [$b->gerada_em?->getTimestamp() ?? 0, $b->id] <=> [$a->gerada_em?->getTimestamp() ?? 0, $a->id])
+            ->values();
 
-        return DB::transaction(function () use ($edicao, $admin, $nome, $preliminares, $projetos) {
+        $vinculos = DB::table('lista_final_projetos')
+            ->whereIn('lista_final_id', $origens->pluck('id'))
+            ->get(['lista_final_id', 'projeto_id', 'codigo']);
+
+        $congeladas = $origens->whereNotNull('codigos_congelados_em')->pluck('id')->all();
+        $herdados = [];
+        foreach ($origens as $origem) {
+            if (! in_array($origem->id, $congeladas, true)) {
+                continue;
+            }
+            foreach ($vinculos->where('lista_final_id', $origem->id) as $v) {
+                if ($v->codigo !== null && $v->codigo !== '' && ! isset($herdados[$v->projeto_id])) {
+                    $herdados[(int) $v->projeto_id] = (string) $v->codigo;
+                }
+            }
+        }
+
+        $projetos = $vinculos->pluck('projeto_id')->map(fn ($id) => (int) $id)->unique()->values()->all();
+
+        return DB::transaction(function () use ($edicao, $admin, $nome, $descricao, $tipo, $origens, $projetos, $herdados) {
             $lista = ListaFinal::create([
                 'edicao_id' => $edicao->id,
-                'nome' => trim((string) $nome) !== '' ? trim((string) $nome) : $this->nomePadrao($edicao, ListaFinal::TIPO_FINAL),
-                'tipo' => ListaFinal::TIPO_FINAL,
+                'nome' => trim((string) $nome) !== '' ? trim((string) $nome) : $this->nomePadrao($edicao, $tipo),
+                'descricao' => trim((string) $descricao) !== '' ? trim((string) $descricao) : null,
+                'tipo' => $tipo,
                 'vigente' => false,
                 'rascunho' => true,
                 'versao' => 1,
-                'origens' => $preliminares->map(fn (ListaFinal $l) => ['id' => $l->id, 'nome' => $l->nome])->values()->all(),
+                'origens' => $origens->map(fn (ListaFinal $l) => ['id' => $l->id, 'nome' => $l->nome, 'tipo' => $l->tipo])->values()->all(),
                 'gerada_por' => $admin->id,
             ]);
 
             $lista->projetos()->attach(
-                collect($projetos)->mapWithKeys(fn ($id) => [$id => ['manual' => false]])->all(),
+                collect($projetos)->mapWithKeys(fn (int $id) => [$id => ['manual' => false, 'codigo' => $herdados[$id] ?? null]])->all(),
             );
+
+            // Com algum código herdado, a lista já nasce com os códigos fixos:
+            // quem não herdou ganha o próximo número livre do grupo, em vez de
+            // um número calculado que poderia repetir o herdado.
+            if ($herdados !== []) {
+                $lista->forceFill(['codigos_congelados_em' => now()])->save();
+                $this->fixarCodigos($lista);
+            }
 
             return $lista->fresh();
         });
@@ -331,6 +392,26 @@ class ListaFinalService
         });
     }
 
+    /**
+     * Troca o **apelido** (o `nome` da lista) e a **descrição** (Sprint 180).
+     *
+     * Com várias preliminares convivendo, "Lista preliminar · XVI FETECMS"
+     * repetido não diz o que há em cada uma; o apelido e a descrição dizem. São
+     * rótulo, não composição — por isso valem a qualquer momento, sem
+     * justificativa e sem subir a versão. Apelido em branco volta ao nome
+     * padrão. Os registros antigos guardam o nome que a lista tinha quando
+     * foram escritos, e é assim que devem ficar.
+     */
+    public function rotular(ListaFinal $lista, ?string $nome, ?string $descricao): ListaFinal
+    {
+        $lista->update([
+            'nome' => trim((string) $nome) !== '' ? trim((string) $nome) : $this->nomePadrao($lista->edicao ?? $this->edicaoOuFalha(), $lista->tipo),
+            'descricao' => trim((string) $descricao) !== '' ? trim((string) $descricao) : null,
+        ]);
+
+        return $lista->fresh();
+    }
+
     /** O nome antigo do mesmo ato, para quem ainda chama `publicar`. */
     public function publicar(ListaFinal $lista, User $admin): ListaFinal
     {
@@ -407,6 +488,7 @@ class ListaFinalService
             ->map(fn (ListaFinal $l) => [
                 'id' => $l->id,
                 'nome' => $l->nome,
+                'descricao' => $l->descricao,
                 'tipo' => $l->tipo,
                 'vigente' => $l->vigente,
                 'rascunho' => $l->rascunho,
@@ -930,6 +1012,7 @@ class ListaFinalService
             'lista' => [
                 'id' => $lista->id,
                 'nome' => $lista->nome,
+                'descricao' => $lista->descricao,
                 'tipo' => $lista->tipo,
                 'vigente' => $lista->vigente,
                 'rascunho' => $lista->rascunho,

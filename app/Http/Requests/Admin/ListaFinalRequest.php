@@ -40,6 +40,8 @@ class ListaFinalRequest extends FormRequest
                 'tipo' => ['nullable', Rule::in([ListaFinal::TIPO_PRELIMINAR, ListaFinal::TIPO_FINAL])],
                 'oficial' => ['sometimes', 'boolean'],
                 'nome' => ['nullable', 'string', 'max:120'],
+                // O que a lista reúne, para quem abrir a relação depois (Sprint 180).
+                'descricao' => ['nullable', 'string', 'max:1000'],
                 'categorias' => ['nullable', 'array'],
                 'categorias.*' => ['nullable', 'array'],
                 'categorias.*.areas' => ['nullable', 'array'],

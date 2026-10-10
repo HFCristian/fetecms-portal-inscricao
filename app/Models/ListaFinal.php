@@ -33,7 +33,7 @@ class ListaFinal extends Model
     protected $table = 'listas_finais';
 
     protected $fillable = [
-        'edicao_id', 'nome', 'tipo', 'vigente', 'rascunho', 'demo', 'versao', 'cotas', 'origens', 'gerada_em', 'gerada_por',
+        'edicao_id', 'nome', 'descricao', 'tipo', 'vigente', 'rascunho', 'demo', 'versao', 'cotas', 'origens', 'gerada_em', 'gerada_por',
         'codigos_congelados_em', 'codigos_enviados_em', 'codigos_mala_id',
     ];
 

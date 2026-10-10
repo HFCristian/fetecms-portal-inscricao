@@ -3,13 +3,13 @@ import { Link, useNavigate } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { Button, Alert } from '../components/ui.jsx';
 import { extractErrors } from '../lib/auth.jsx';
-import { getListasFinais, baixarListaOficial, criarFinalDePreliminares, reativarListaFinal } from '../lib/admin.js';
+import { getListasFinais, baixarListaOficial, montarListaPorUniao, reativarListaFinal } from '../lib/admin.js';
 
 const dataHora = (iso) => (iso ? new Date(iso).toLocaleString('pt-BR') : '—');
 
 const pill = 'ml-2 align-middle text-xs font-semibold px-2 py-0.5 rounded-full';
 
-/** Uma lista na relação: nome, situação, números e as ações. */
+/** Uma lista na relação: apelido, descrição, situação, números e as ações. */
 function LinhaLista({ lista, baixando, onBaixar, onReativar }) {
     return (
         <li className="p-4 flex flex-col sm:flex-row sm:items-center gap-3">
@@ -22,6 +22,7 @@ function LinhaLista({ lista, baixando, onBaixar, onReativar }) {
                         <span className={`${pill} bg-surface-variant text-on-surface-variant`}>inativa</span>
                     )}
                 </p>
+                {lista.descricao && <p className="text-sm text-on-surface whitespace-pre-line">{lista.descricao}</p>}
                 <p className="text-xs text-on-surface-variant">
                     versão {lista.versao} · {lista.projetos} {lista.projetos === 1 ? 'projeto' : 'projetos'}
                     {lista.gerada_por ? ` · por ${lista.gerada_por}` : ''}
@@ -29,7 +30,7 @@ function LinhaLista({ lista, baixando, onBaixar, onReativar }) {
                 </p>
                 {lista.origens?.length > 0 && (
                     <p className="text-xs text-on-surface-variant">
-                        Montada das preliminares: {lista.origens.map((o) => o.nome).join(', ')}
+                        Montada das listas: {lista.origens.map((o) => o.nome).join(', ')}
                     </p>
                 )}
             </div>
@@ -56,44 +57,101 @@ function LinhaLista({ lista, baixando, onBaixar, onReativar }) {
     );
 }
 
-/** Escolher as preliminares que formam a nova lista final. */
-function MontarFinalDialog({ preliminares, salvando, erro, onConfirmar, onFechar }) {
+/** Uma lista que pode ser origem da união, com a situação dela. */
+function OpcaoOrigem({ lista, marcada, onAlternar }) {
+    return (
+        <li>
+            <label className="flex items-start gap-2 text-sm cursor-pointer">
+                <input type="checkbox" className="mt-1" checked={marcada} onChange={() => onAlternar(lista.id)} aria-label={lista.nome} />
+                <span>
+                    {lista.nome}
+                    {lista.vigente && <span className={`${pill} bg-secondary-container text-on-secondary-container`}>ativa</span>}
+                    {lista.tipo === 'final' && !lista.vigente && <span className={`${pill} bg-surface-variant text-on-surface-variant`}>inativa</span>}
+                    <span className="block text-xs text-on-surface-variant">
+                        {lista.projetos} projeto(s){lista.descricao ? ` · ${lista.descricao}` : ''}
+                    </span>
+                </span>
+            </label>
+        </li>
+    );
+}
+
+/**
+ * Montar uma lista pela **união** de listas já geradas (Sprint 179): as
+ * preliminares e as finais — a ativa e as inativas — podem ser origem, e o
+ * destino é escolhido. Os códigos que já foram fixados nas origens vêm junto.
+ */
+function MontarListaDialog({ finais, preliminares, salvando, erro, onConfirmar, onFechar }) {
     const [marcadas, setMarcadas] = useState([]);
+    const [tipo, setTipo] = useState('final');
     const [nome, setNome] = useState('');
+    const [descricao, setDescricao] = useState('');
     const alternar = (id) => setMarcadas((m) => (m.includes(id) ? m.filter((x) => x !== id) : [...m, id]));
+
+    const grupo = (titulo, listas) => listas.length > 0 && (
+        <div>
+            <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-1">{titulo}</p>
+            <ul className="space-y-1">
+                {listas.map((l) => <OpcaoOrigem key={l.id} lista={l} marcada={marcadas.includes(l.id)} onAlternar={alternar} />)}
+            </ul>
+        </div>
+    );
 
     return (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
             <div className="bg-surface-container-lowest rounded-2xl fetec-card-shadow w-full max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto">
                 <div>
-                    <h3 className="font-display text-lg font-semibold text-on-surface">Montar lista final de preliminares</h3>
+                    <h3 className="font-display text-lg font-semibold text-on-surface">Montar lista a partir de outras</h3>
                     <p className="text-sm text-on-surface-variant">
-                        A final reúne todos os projetos das preliminares marcadas, sem repetir. Ela abre como
-                        rascunho: dá para incluir e retirar antes de gerar.
+                        A nova lista reúne todos os projetos das listas marcadas, sem repetir, e abre como
+                        rascunho: dá para incluir, retirar e ajustar os códigos antes de gerar. O código que um
+                        projeto já tem fixado numa delas vem junto — a final ativa tem prioridade.
                     </p>
                 </div>
                 {erro && <Alert>{erro}</Alert>}
-                <ul className="space-y-1">
-                    {preliminares.map((p) => (
-                        <li key={p.id}>
-                            <label className="flex items-center gap-2 text-sm">
-                                <input type="checkbox" checked={marcadas.includes(p.id)} onChange={() => alternar(p.id)} aria-label={p.nome} />
-                                <span>{p.nome} <span className="text-on-surface-variant">· {p.projetos} projeto(s)</span></span>
+
+                <fieldset>
+                    <legend className="text-sm font-semibold text-on-surface mb-1">Montar como</legend>
+                    <div className="flex flex-wrap gap-4 text-sm">
+                        {[['final', 'Lista final'], ['preliminar', 'Lista preliminar']].map(([valor, rotulo]) => (
+                            <label key={valor} className="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="tipo-uniao" value={valor} checked={tipo === valor} onChange={() => setTipo(valor)} />
+                                {rotulo}
                             </label>
-                        </li>
-                    ))}
-                </ul>
+                        ))}
+                    </div>
+                </fieldset>
+
+                <div className="space-y-3">
+                    {grupo('Listas finais', finais)}
+                    {grupo('Listas preliminares', preliminares)}
+                </div>
+
                 <input
                     value={nome}
                     onChange={(e) => setNome(e.target.value)}
-                    placeholder="Nome da lista final (opcional)"
-                    aria-label="Nome da lista final"
+                    placeholder="Apelido da lista (opcional)"
+                    aria-label="Apelido da lista"
                     maxLength={120}
+                    className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm"
+                />
+                <textarea
+                    value={descricao}
+                    onChange={(e) => setDescricao(e.target.value)}
+                    placeholder="Descrição: o que esta lista reúne (opcional)"
+                    aria-label="Descrição da lista"
+                    maxLength={1000}
+                    rows={2}
                     className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm"
                 />
                 <div className="flex justify-end gap-3">
                     <Button type="button" variant="outline" onClick={onFechar} disabled={salvando}>Cancelar</Button>
-                    <Button type="button" loading={salvando} disabled={marcadas.length === 0} onClick={() => onConfirmar(marcadas, nome.trim() || null)}>
+                    <Button
+                        type="button"
+                        loading={salvando}
+                        disabled={marcadas.length === 0}
+                        onClick={() => onConfirmar({ listas: marcadas, tipo, nome: nome.trim() || null, descricao: descricao.trim() || null })}
+                    >
                         Montar rascunho
                     </Button>
                 </div>
@@ -141,9 +199,10 @@ function ReativarDialog({ lista, salvando, erro, onConfirmar, onFechar }) {
  * **Preliminares** são recortes de trabalho: várias convivem, e nenhuma define
  * finalista. **Finais** têm uma só **ativa**, que vale para toda a etapa
  * presencial; gerar uma nova desativa a anterior, que fica no histórico e pode
- * voltar com justificativa. A final nasce da classificação (Ranking → *Gerar
- * lista*) ou da **união de preliminares** escolhidas aqui. Toda lista nasce
- * **rascunho**: o admin edita à vontade e só então a gera.
+ * voltar com justificativa. Uma lista nasce da classificação (Ranking → *Gerar
+ * lista*) ou da **união de listas já geradas** — preliminares e finais —
+ * escolhidas aqui (Sprint 179). Toda lista nasce **rascunho**: o admin edita à
+ * vontade e só então a gera.
  */
 export default function AvaliacaoListasFinais() {
     const navigate = useNavigate();
@@ -176,10 +235,10 @@ export default function AvaliacaoListasFinais() {
         }
     }
 
-    async function montar(ids, nome) {
+    async function montar(pedido) {
         setSalvando(true); setErroDialogo('');
         try {
-            const d = await criarFinalDePreliminares(ids, nome);
+            const d = await montarListaPorUniao(pedido);
             navigate(`/admin/avaliacao/listas-finais/${d.lista.id}`);
         } catch (e) {
             setErroDialogo(extractErrors(e).message || 'Não foi possível montar a lista.');
@@ -204,6 +263,8 @@ export default function AvaliacaoListasFinais() {
 
     const finais = (listas ?? []).filter((l) => l.tipo === 'final');
     const preliminares = (listas ?? []).filter((l) => l.tipo !== 'final');
+    // Só lista gerada serve de origem: o rascunho ainda está sendo revisto.
+    const finaisGeradas = finais.filter((l) => !l.rascunho);
     const preliminaresGeradas = preliminares.filter((l) => !l.rascunho);
 
     const secao = (titulo, descricao, itens, vazio) => (
@@ -243,9 +304,14 @@ export default function AvaliacaoListasFinais() {
                     <span className="material-symbols-outlined text-[20px]">leaderboard</span>
                     Gerar pela classificação
                 </Link>
-                <Button type="button" variant="outline" disabled={preliminaresGeradas.length === 0} onClick={() => { setErroDialogo(''); setMontando(true); }}>
+                <Button
+                    type="button"
+                    variant="outline"
+                    disabled={finaisGeradas.length + preliminaresGeradas.length === 0}
+                    onClick={() => { setErroDialogo(''); setMontando(true); }}
+                >
                     <span className="material-symbols-outlined text-[20px]">merge</span>
-                    Lista final a partir de preliminares
+                    Montar a partir de outras listas
                 </Button>
                 <Link
                     to="/admin/avaliacao/projetos-manuais"
@@ -273,7 +339,7 @@ export default function AvaliacaoListasFinais() {
                     )}
                     {secao(
                         'Listas preliminares',
-                        'Recortes de trabalho: várias convivem, e as geradas podem ser juntadas numa lista final.',
+                        'Recortes de trabalho: várias convivem, e as geradas podem ser juntadas numa nova lista, preliminar ou final.',
                         preliminares,
                         'Nenhuma lista preliminar ainda. Gere uma no Ranking dos projetos, em “Gerar lista”.',
                     )}
@@ -281,7 +347,14 @@ export default function AvaliacaoListasFinais() {
             )}
 
             {montando && (
-                <MontarFinalDialog preliminares={preliminaresGeradas} salvando={salvando} erro={erroDialogo} onConfirmar={montar} onFechar={() => setMontando(false)} />
+                <MontarListaDialog
+                    finais={finaisGeradas}
+                    preliminares={preliminaresGeradas}
+                    salvando={salvando}
+                    erro={erroDialogo}
+                    onConfirmar={montar}
+                    onFechar={() => setMontando(false)}
+                />
             )}
             {reativando && (
                 <ReativarDialog lista={reativando} salvando={salvando} erro={erroDialogo} onConfirmar={reativar} onFechar={() => setReativando(null)} />

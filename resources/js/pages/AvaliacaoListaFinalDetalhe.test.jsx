@@ -59,7 +59,9 @@ const exportarListaFinal = vi.fn(() => Promise.resolve());
 const reativarListaFinal = vi.fn();
 const reordenarListaFinal = vi.fn();
 const definirCodigoListaFinal = vi.fn();
+const rotularListaFinal = vi.fn();
 vi.mock('../lib/admin.js', () => ({
+    rotularListaFinal: (...a) => rotularListaFinal(...a),
     reordenarListaFinal: (...a) => reordenarListaFinal(...a),
     definirCodigoListaFinal: (...a) => definirCodigoListaFinal(...a),
     reativarListaFinal: (...a) => reativarListaFinal(...a),
@@ -411,6 +413,27 @@ describe('AvaliacaoListaFinalDetalhe — código do projeto', () => {
 
             await waitFor(() => expect(definirCodigoListaFinal).toHaveBeenCalledWith('3', 11, '', null));
             expect(await screen.findByText('Código removido: o projeto ficou sem código.')).toBeInTheDocument();
+        });
+    });
+
+    describe('apelido e descrição (Sprint 180)', () => {
+        it('mostra a descrição e edita apelido e descrição sem justificativa', async () => {
+            getListaFinal.mockResolvedValueOnce({ ...DADOS, lista: { ...DADOS.lista, descricao: 'Cotas de setembro' } });
+            rotularListaFinal.mockResolvedValue({
+                data: { ...DADOS, lista: { ...DADOS.lista, nome: 'Final oficial', descricao: 'Aprovada em 30/09' } },
+                meta: { message: 'Apelido e descrição salvos.' },
+            });
+            render(<AvaliacaoListaFinalDetalhe />);
+
+            expect(await screen.findByText('Cotas de setembro')).toBeInTheDocument();
+            fireEvent.click(screen.getByRole('button', { name: /Editar apelido e descrição/ }));
+            fireEvent.change(screen.getByLabelText('Apelido da lista'), { target: { value: 'Final oficial' } });
+            fireEvent.change(screen.getByLabelText('Descrição da lista'), { target: { value: 'Aprovada em 30/09' } });
+            fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+
+            await waitFor(() => expect(rotularListaFinal).toHaveBeenCalledWith(3, { nome: 'Final oficial', descricao: 'Aprovada em 30/09' }));
+            expect(await screen.findByText('Aprovada em 30/09')).toBeInTheDocument();
+            expect(screen.getByText('Apelido e descrição salvos.')).toBeInTheDocument();
         });
     });
 });

@@ -407,7 +407,11 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 // revisado, montar a final das preliminares e reativar uma final.
                 Route::post('/avaliacao/listas-finais/{lista}/gerar', [AdminAvaliacaoController::class, 'publicarListaFinal']);
                 Route::post('/avaliacao/listas-finais/{lista}/reativar', [AdminAvaliacaoController::class, 'reativarListaFinal']);
+                // Apelido e descrição (Sprint 180): rótulo, sem justificativa nem versão nova.
+                Route::patch('/avaliacao/listas-finais/{lista}', [AdminAvaliacaoController::class, 'rotularListaFinal']);
                 Route::post('/avaliacao/listas/final-de-preliminares', [AdminAvaliacaoController::class, 'listaFinalDePreliminares']);
+                // União de listas geradas (preliminares e finais) em preliminar ou final (Sprint 179).
+                Route::post('/avaliacao/listas/uniao', [AdminAvaliacaoController::class, 'listaPorUniao']);
                 Route::post('/avaliacao/listas-finais/{lista}/projetos', [AdminAvaliacaoController::class, 'adicionarNaListaFinal']);
                 Route::delete('/avaliacao/listas-finais/{lista}/projetos/{projeto}', [AdminAvaliacaoController::class, 'removerDaListaFinal']);
                 // Ordem e código dos projetos (Sprint 168).
