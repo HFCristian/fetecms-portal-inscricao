@@ -13,7 +13,7 @@ const LISTAS = [
     {
         id: 3, nome: 'Final 2026', tipo: 'final', vigente: true, rascunho: false, versao: 2, projetos: 120,
         gerada_por: 'Ana Admin', gerada_em: '2026-09-02T10:00:00-04:00', criada_em: '2026-09-01T10:00:00-04:00',
-        origens: [{ id: 5, nome: 'Preliminar FUNDECT' }],
+        origens: [{ id: 5, nome: 'Preliminar FUNDECT' }], descricao: 'Aprovada na reunião de 30/09',
     },
     {
         id: 1, nome: 'Final antiga', tipo: 'final', vigente: false, rascunho: false, versao: 1, projetos: 100,
@@ -31,12 +31,12 @@ const LISTAS = [
 
 const getListasFinais = vi.fn();
 const baixarListaOficial = vi.fn(() => Promise.resolve());
-const criarFinalDePreliminares = vi.fn(() => Promise.resolve({ lista: { id: 9 } }));
+const montarListaPorUniao = vi.fn(() => Promise.resolve({ lista: { id: 9 } }));
 const reativarListaFinal = vi.fn(() => Promise.resolve({ data: {}, meta: { message: 'Esta lista final voltou a ser a ativa.' } }));
 vi.mock('../lib/admin.js', () => ({
     getListasFinais: (...a) => getListasFinais(...a),
     baixarListaOficial: (...a) => baixarListaOficial(...a),
-    criarFinalDePreliminares: (...a) => criarFinalDePreliminares(...a),
+    montarListaPorUniao: (...a) => montarListaPorUniao(...a),
     reativarListaFinal: (...a) => reativarListaFinal(...a),
 }));
 
@@ -56,7 +56,8 @@ describe('AvaliacaoListasFinais', () => {
         const etiqueta = (txt) => screen.getAllByText(txt).filter((e) => e.tagName === 'SPAN');
         expect(etiqueta('ativa')).toHaveLength(1);
         expect(etiqueta('inativa')).toHaveLength(1);
-        expect(screen.getByText(/Montada das preliminares: Preliminar FUNDECT/)).toBeInTheDocument();
+        expect(screen.getByText(/Montada das listas: Preliminar FUNDECT/)).toBeInTheDocument();
+        expect(screen.getByText('Aprovada na reunião de 30/09')).toBeInTheDocument();
         expect(screen.getByText('Preliminar em revisão')).toBeInTheDocument();
         expect(etiqueta('rascunho')).toHaveLength(1);
     });
@@ -70,18 +71,37 @@ describe('AvaliacaoListasFinais', () => {
         await waitFor(() => expect(baixarListaOficial).toHaveBeenCalledWith(3));
     });
 
-    it('monta a final a partir das preliminares geradas', async () => {
+    it('monta uma lista final a partir de finais e preliminares geradas', async () => {
         render(<AvaliacaoListasFinais />);
-        fireEvent.click(await screen.findByRole('button', { name: /Lista final a partir de preliminares/ }));
+        fireEvent.click(await screen.findByRole('button', { name: /Montar a partir de outras listas/ }));
 
         const dialogo = screen.getByRole('dialog');
-        // A preliminar em rascunho não é oferecida.
+        // O rascunho não é oferecido; a final ativa e a inativa, sim.
         expect(within(dialogo).queryByText(/Preliminar em revisão/)).not.toBeInTheDocument();
+        fireEvent.click(within(dialogo).getByLabelText('Final 2026'));
         fireEvent.click(within(dialogo).getByLabelText('Preliminar FUNDECT'));
+        fireEvent.change(within(dialogo).getByLabelText('Apelido da lista'), { target: { value: 'Final com suplentes' } });
+        fireEvent.change(within(dialogo).getByLabelText('Descrição da lista'), { target: { value: 'Final de setembro + FUNDECT' } });
         fireEvent.click(within(dialogo).getByRole('button', { name: 'Montar rascunho' }));
 
-        await waitFor(() => expect(criarFinalDePreliminares).toHaveBeenCalledWith([5], null));
+        await waitFor(() => expect(montarListaPorUniao).toHaveBeenCalledWith({
+            listas: [3, 5], tipo: 'final', nome: 'Final com suplentes', descricao: 'Final de setembro + FUNDECT',
+        }));
         expect(navigate).toHaveBeenCalledWith('/admin/avaliacao/listas-finais/9');
+    });
+
+    it('monta uma lista preliminar a partir de uma final', async () => {
+        render(<AvaliacaoListasFinais />);
+        fireEvent.click(await screen.findByRole('button', { name: /Montar a partir de outras listas/ }));
+
+        const dialogo = screen.getByRole('dialog');
+        fireEvent.click(within(dialogo).getByLabelText('Lista preliminar'));
+        fireEvent.click(within(dialogo).getByLabelText('Final antiga'));
+        fireEvent.click(within(dialogo).getByRole('button', { name: 'Montar rascunho' }));
+
+        await waitFor(() => expect(montarListaPorUniao).toHaveBeenCalledWith({
+            listas: [1], tipo: 'preliminar', nome: null, descricao: null,
+        }));
     });
 
     it('reativa uma final antiga com justificativa', async () => {

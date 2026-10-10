@@ -15,10 +15,11 @@ vi.mock('../lib/presencial.js', () => ({
 
 import PresencialEspelho from './PresencialEspelho.jsx';
 
+// O servidor manda só os itens ativos da checagem (lista única, Sprint 181).
 const ITENS = [
-    { id: 5, nome: 'Banner montado', ativo: true },
-    { id: 6, nome: 'Tomada', ativo: true },
-    { id: 7, nome: 'Item velho', ativo: false },
+    { id: 5, nome: 'Banner montado', abrangencia: 'projeto', papeis: [] },
+    { id: 6, nome: 'Tomada', abrangencia: 'projeto', papeis: [] },
+    { id: 8, nome: 'Crachá', abrangencia: 'pessoa', papeis: ['aluno'] },
 ];
 
 describe('PresencialEspelho', () => {
@@ -32,6 +33,7 @@ describe('PresencialEspelho', () => {
                     local: { estande: 42, turno_label: 'Matutino' },
                     conferido_em: '2026-10-20T09:00:00-04:00', conferido_por: 'Admin', observacao: 'Tudo certo.',
                     itens: [{ id: 5, situacao: 'presente' }, { id: 6, situacao: 'ausente' }],
+                    itens_pessoa: [{ id: 8, nome: 'Crachá', total: 2, presentes: 1, ausentes: 1 }],
                     termo: { id: 9, nome_original: 'termo.pdf', assinatura_motivo: 'ok' },
                 },
                 {
@@ -39,6 +41,7 @@ describe('PresencialEspelho', () => {
                     local: { estande: null, turno_label: null },
                     conferido_em: null, conferido_por: null, observacao: null,
                     itens: [{ id: 5, situacao: null }, { id: 6, situacao: null }],
+                    itens_pessoa: [{ id: 8, nome: 'Crachá', total: 3, presentes: 3, ausentes: 0 }],
                     termo: null,
                 },
             ],
@@ -46,14 +49,15 @@ describe('PresencialEspelho', () => {
         });
     });
 
-    it('monta a tabela com uma coluna por item ativo', async () => {
+    it('monta a tabela com uma coluna por item, e o item de pessoa conta a equipe', async () => {
         render(<PresencialEspelho />);
 
         expect(await screen.findByText('Bioplástico')).toBeInTheDocument();
         expect(screen.getByRole('columnheader', { name: 'Banner montado' })).toBeInTheDocument();
         expect(screen.getByRole('columnheader', { name: 'Tomada' })).toBeInTheDocument();
-        // Item desativado não vira coluna nova.
-        expect(screen.queryByRole('columnheader', { name: 'Item velho' })).not.toBeInTheDocument();
+        expect(screen.getByRole('columnheader', { name: 'Crachá' })).toBeInTheDocument();
+        expect(screen.getByText('1/2')).toBeInTheDocument();
+        expect(screen.getByText('3/3')).toBeInTheDocument();
     });
 
     it('marca presente, ausente e não conferido de formas diferentes', async () => {
@@ -65,11 +69,19 @@ describe('PresencialEspelho', () => {
         expect(screen.getAllByTitle('Não conferido').length).toBe(2);
     });
 
-    it('mostra o termo quando existe e a falta quando não', async () => {
+    it('item enviado antes pelo portal e ainda não conferido aparece como online (Sprint 184)', async () => {
+        getEspelhoChecagem.mockResolvedValue({
+            data: [{
+                id: 3, titulo: 'Bioplástico', area: 'Exatas', escola: 'EE Alfa', orientador: 'Marta',
+                local: { estande: 42, turno_label: 'Matutino' }, conferido_em: null, conferido_por: null, observacao: null,
+                itens: [{ id: 5, situacao: 'presente', pre_marcado: true, online: [{ id: 9, nome_original: 'termo.pdf' }] }, { id: 6, situacao: null }],
+                itens_pessoa: [],
+            }],
+            meta: { itens: ITENS },
+        });
         render(<PresencialEspelho />);
 
-        expect((await screen.findByRole('link', { name: /Ver/i })).getAttribute('href'))
-            .toBe('/api/v1/documentos/9/preview');
-        expect(screen.getByText('falta')).toBeInTheDocument();
+        expect(await screen.findByText('online')).toBeInTheDocument();
+        expect(screen.queryByRole('columnheader', { name: 'Termo' })).not.toBeInTheDocument();
     });
 });

@@ -11,7 +11,6 @@ use App\Models\Area;
 use App\Models\AvaliacaoPresencial;
 use App\Models\Credencial;
 use App\Models\Edicao;
-use App\Models\ItemChecagemEstande;
 use App\Models\Projeto;
 use App\Models\User;
 use App\Services\ChecagemEstandeService;
@@ -98,8 +97,11 @@ class AvaliacaoPresencialAdminController extends Controller
     {
         $dados = $request->validate([
             'itens' => ['nullable', 'array'],
-            'itens.*.item_id' => ['required', 'integer', 'exists:itens_checagem_estande,id'],
+            'itens.*.item_id' => ['required', 'integer', 'exists:itens_conferencia,id'],
             'itens.*.situacao' => ['required', Rule::enum(SituacaoDocumento::class)],
+            // Item de pessoa (Sprint 182): de quem é a marcação. Sem isso, é do projeto.
+            'itens.*.pessoa_tipo' => ['nullable', 'string', 'max:20'],
+            'itens.*.pessoa_id' => ['nullable', 'integer'],
             'observacao' => ['nullable', 'string', 'max:1000'],
         ]);
 
@@ -131,47 +133,6 @@ class AvaliacaoPresencialAdminController extends Controller
             'data' => $this->checagem->espelho($filtros, $request->user(), $request->boolean('teste')),
             'meta' => ['itens' => $this->checagem->config($request->user(), $request->boolean('teste'))['itens']],
         ]);
-    }
-
-    // --- Catálogo de itens conferidos --------------------------------------
-
-    public function itens(): JsonResponse
-    {
-        return response()->json(['data' => $this->checagem->catalogo()]);
-    }
-
-    public function criarItem(Request $request): JsonResponse
-    {
-        $dados = $request->validate([
-            'nome' => ['required', 'string', 'max:120', 'unique:itens_checagem_estande,nome'],
-            'descricao' => ['nullable', 'string', 'max:255'],
-            'ordem' => ['nullable', 'integer', 'min:0', 'max:999'],
-        ]);
-
-        $this->checagem->criarItem($dados);
-
-        return response()->json(['data' => $this->checagem->catalogo()], 201);
-    }
-
-    public function atualizarItem(Request $request, ItemChecagemEstande $item): JsonResponse
-    {
-        $dados = $request->validate([
-            'nome' => ['sometimes', 'string', 'max:120', Rule::unique('itens_checagem_estande', 'nome')->ignore($item->id)],
-            'descricao' => ['nullable', 'string', 'max:255'],
-            'ordem' => ['nullable', 'integer', 'min:0', 'max:999'],
-            'ativo' => ['sometimes', 'boolean'],
-        ]);
-
-        $this->checagem->atualizarItem($item, $dados);
-
-        return response()->json(['data' => $this->checagem->catalogo()]);
-    }
-
-    public function excluirItem(ItemChecagemEstande $item): JsonResponse
-    {
-        $this->checagem->excluirItem($item);
-
-        return response()->json(['data' => $this->checagem->catalogo()]);
     }
 
     // --- Avaliações presenciais (designação e acompanhamento) --------------

@@ -13,9 +13,9 @@ use App\Models\Area;
 use App\Models\ContaTemporaria;
 use App\Models\Coorientador;
 use App\Models\Credenciamento;
-use App\Models\DocumentoCredenciamento;
 use App\Models\Edicao;
 use App\Models\EscopoAdmin;
+use App\Models\ItemConferencia;
 use App\Models\ListaFinal;
 use App\Models\Projeto;
 use App\Models\RegistroAtividade;
@@ -49,9 +49,19 @@ class CredenciamentoTest extends TestCase
         ]);
     }
 
-    private function documento(TipoPessoaCredenciamento $tipo, string $nome): DocumentoCredenciamento
+    /**
+     * Um item de pessoa da lista única (Sprint 181), conferido no balcão. O
+     * mesmo nome em outro papel soma o papel ao item que já existe.
+     */
+    private function documento(TipoPessoaCredenciamento $tipo, string $nome): ItemConferencia
     {
-        return DocumentoCredenciamento::create(['tipo_pessoa' => $tipo->value, 'nome' => $nome, 'ativo' => true]);
+        $item = ItemConferencia::firstOrNew(['nome' => $nome], [
+            'abrangencia' => ItemConferencia::PESSOA, 'no_credenciamento' => true, 'ativo' => true, 'papeis' => [],
+        ]);
+        $item->papeis = array_values(array_unique([...($item->papeis ?? []), $tipo->value]));
+        $item->save();
+
+        return $item;
     }
 
     /** Projeto finalista (na lista vigente), com aluno e coorientador. */
@@ -292,8 +302,10 @@ class CredenciamentoTest extends TestCase
         $this->assertCount(3, $pessoas);
         $this->assertSame(['aluno', 'orientador', 'coorientador'], array_column($pessoas, 'tipo'));
         $this->assertSame('Ana Aluna', $pessoas[0]['nome']);
-        // Cada papel vê só os documentos da sua lista.
-        $this->assertSame([$rg->id, $autorizacao->id], array_column($pessoas[0]['documentos'], 'id'));
+        // Cada papel vê só os documentos da sua lista — o estudante, também o
+        // termo de uso de imagem, que é item do sistema (Sprint 175).
+        $termo = ItemConferencia::where('chave', ItemConferencia::CHAVE_TERMO_IMAGEM)->firstOrFail();
+        $this->assertSame([$rg->id, $autorizacao->id, $termo->id], array_column($pessoas[0]['documentos'], 'id'));
         $this->assertCount(1, $pessoas[1]['documentos']);
         $this->assertNull($pessoas[0]['documentos'][0]['situacao']);
     }
@@ -340,7 +352,7 @@ class CredenciamentoTest extends TestCase
         // O nome da pessoa fica gravado junto da marcação.
         $this->assertDatabaseHas('credenciamento_documentos', [
             'credenciamento_id' => $credenciamento->id,
-            'documento_credenciamento_id' => $rg->id,
+            'item_id' => $rg->id,
             'pessoa_nome' => 'Ana Aluna',
             'situacao' => SituacaoDocumento::Presente->value,
         ]);
@@ -492,7 +504,7 @@ class CredenciamentoTest extends TestCase
         $this->getJson('/api/v1/admin/credenciamento/finalistas')->assertForbidden();
     }
 
-    public function test_admin_parametriza_janela_do_evento_e_documentos(): void
+    public function test_admin_parametriza_a_janela_do_evento(): void
     {
         Sanctum::actingAs(User::factory()->admin()->create());
 
@@ -500,24 +512,6 @@ class CredenciamentoTest extends TestCase
             'evento_de' => '2026-10-01T08:00',
             'evento_ate' => '2026-10-03T18:00',
         ])->assertOk()->assertJsonPath('data.config.inicio_label', '01/10/2026 08:00');
-
-        $this->postJson('/api/v1/admin/credenciamento/documentos', [
-            'tipo_pessoa' => 'aluno', 'nome' => 'RG',
-        ])->assertCreated();
-
-        // Repetir o mesmo documento no mesmo papel é recusado.
-        $this->postJson('/api/v1/admin/credenciamento/documentos', [
-            'tipo_pessoa' => 'aluno', 'nome' => 'RG',
-        ])->assertStatus(422)->assertJsonValidationErrors('nome');
-
-        // O mesmo nome em outro papel passa.
-        $this->postJson('/api/v1/admin/credenciamento/documentos', [
-            'tipo_pessoa' => 'orientador', 'nome' => 'RG',
-        ])->assertCreated();
-
-        $documento = DocumentoCredenciamento::where('tipo_pessoa', 'aluno')->first();
-        $this->deleteJson("/api/v1/admin/credenciamento/documentos/{$documento->id}")->assertOk();
-        $this->assertDatabaseMissing('documentos_credenciamento', ['id' => $documento->id]);
     }
 
     public function test_fim_do_evento_antes_do_inicio_e_recusado(): void
@@ -544,9 +538,9 @@ class CredenciamentoTest extends TestCase
             ],
         ])->assertOk();
 
-        $this->deleteJson("/api/v1/admin/credenciamento/documentos/{$rg->id}")
+        $this->deleteJson("/api/v1/admin/itens-conferencia/{$rg->id}")
             ->assertStatus(422)
-            ->assertJsonValidationErrors('documento');
+            ->assertJsonValidationErrors('item');
     }
 
     public function test_credenciamento_aparece_na_secao_propria_dos_registros(): void

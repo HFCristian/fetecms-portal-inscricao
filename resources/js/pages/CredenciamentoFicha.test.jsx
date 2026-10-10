@@ -135,6 +135,58 @@ describe('CredenciamentoFicha', () => {
         expect(presente).toHaveAttribute('aria-pressed', 'true');
     });
 
+    it('termo de imagem enviado online já vem marcado, com o arquivo à mão, e pode ser mudado', async () => {
+        getFichaCredenciamento.mockResolvedValue({
+            ...FICHA,
+            pessoas: [{
+                ...FICHA.pessoas[0],
+                documentos: [{
+                    id: 9, nome: 'Termo de uso de imagem', chave: 'termo_uso_imagem', situacao: 'presente',
+                    pre_marcado: true, online: [{ id: 44, nome_original: 'ana.jpg', enviado_em: '2026-10-01T10:00:00-04:00' }],
+                }],
+            }],
+        });
+        render(<CredenciamentoFicha />);
+        await screen.findAllByText('Ana Aluna');
+
+        expect(screen.getByText('Enviado online')).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'ana.jpg' })).toHaveAttribute('href', '/api/v1/documentos/44/preview');
+        const grupo = screen.getByRole('group', { name: 'Termo de uso de imagem de Ana Aluna' });
+        expect(within(grupo).getByRole('button', { name: 'Presente' })).toHaveAttribute('aria-pressed', 'true');
+
+        // O atendente achou o arquivo ilegível.
+        fireEvent.click(within(grupo).getByRole('button', { name: 'Ausente' }));
+        expect(screen.getByText(/confira antes de mudar a marcação/)).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: /Concluir credenciamento/ }));
+        await waitFor(() => expect(credenciarProjeto).toHaveBeenCalled());
+        expect(credenciarProjeto.mock.calls[0][1].marcacoes).toEqual(expect.arrayContaining([
+            { documento_id: 9, pessoa_tipo: 'aluno', pessoa_id: 30, situacao: 'ausente' },
+        ]));
+    });
+
+    it('item do projeto aparece num bloco próprio e vai marcado com o projeto (Sprint 182)', async () => {
+        getFichaCredenciamento.mockResolvedValue({
+            ...FICHA,
+            itens_projeto: [{
+                id: 40, nome: 'Relatório impresso', pessoa_tipo: 'projeto', pessoa_id: 7,
+                situacao: null, pre_marcado: false, online: [],
+            }],
+        });
+        render(<CredenciamentoFicha />);
+        await screen.findAllByText('Ana Aluna');
+
+        expect(screen.getByText('Do projeto')).toBeInTheDocument();
+        const grupo = screen.getByRole('group', { name: 'Relatório impresso de Bioplástico' });
+        fireEvent.click(within(grupo).getByRole('button', { name: 'Presente' }));
+        fireEvent.click(screen.getByRole('button', { name: /Concluir credenciamento/ }));
+
+        await waitFor(() => expect(credenciarProjeto).toHaveBeenCalled());
+        expect(credenciarProjeto.mock.calls[0][1].marcacoes).toEqual(expect.arrayContaining([
+            { documento_id: 40, pessoa_tipo: 'projeto', pessoa_id: 7, situacao: 'presente' },
+        ]));
+    });
+
     it('envia as marcações escolhidas ao concluir', async () => {
         render(<CredenciamentoFicha />);
         await screen.findAllByText('Ana Aluna');

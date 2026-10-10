@@ -3,8 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\Aluno;
-use App\Models\DocumentoCredenciamento;
 use App\Models\Edicao;
+use App\Models\ItemConferencia;
 use App\Models\ListaFinal;
 use App\Models\Projeto;
 use App\Models\User;
@@ -77,10 +77,10 @@ class SemearCredenciamentoDemoTest extends TestCase
     public function test_semeia_documentos_apenas_quando_o_catalogo_esta_vazio(): void
     {
         $this->artisan('demo:credenciamento')->assertSuccessful();
-        $criados = DocumentoCredenciamento::count();
+        $criados = ItemConferencia::count();
         $this->assertGreaterThan(0, $criados);
 
         $this->artisan('demo:credenciamento')->assertSuccessful();
-        $this->assertSame($criados, DocumentoCredenciamento::count());
+        $this->assertSame($criados, ItemConferencia::count());
     }
 }

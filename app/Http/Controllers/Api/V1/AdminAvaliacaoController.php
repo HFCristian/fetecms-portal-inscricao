@@ -481,6 +481,7 @@ class AdminAvaliacaoController extends Controller
             $request->user(),
             $request->input('nome'),
             $tipo,
+            $request->input('descricao'),
         );
 
         // O atalho antigo ("Lista Final Oficial" marcada) gera direto, sem
@@ -527,6 +528,52 @@ class AdminAvaliacaoController extends Controller
         );
 
         return response()->json(['data' => $this->listaFinal->detalhar($lista)], Response::HTTP_CREATED);
+    }
+
+    /**
+     * Monta o rascunho de uma lista — preliminar ou final — pela união de
+     * listas já geradas, preliminares ou finais (Sprint 179). Os códigos
+     * fixados nas listas de origem vêm junto.
+     */
+    public function listaPorUniao(Request $request): JsonResponse
+    {
+        $dados = $request->validate([
+            'listas' => ['required', 'array', 'min:1'],
+            'listas.*' => ['integer'],
+            'tipo' => ['required', Rule::in([ListaFinal::TIPO_PRELIMINAR, ListaFinal::TIPO_FINAL])],
+            'nome' => ['nullable', 'string', 'max:120'],
+            'descricao' => ['nullable', 'string', 'max:1000'],
+        ], [], ['listas' => 'listas de origem', 'nome' => 'apelido', 'descricao' => 'descrição']);
+
+        $lista = $this->listaFinal->rascunharDeListas(
+            array_map('intval', $dados['listas']),
+            $dados['tipo'],
+            $request->user(),
+            $dados['nome'] ?? null,
+            $dados['descricao'] ?? null,
+        );
+
+        return response()->json(['data' => $this->listaFinal->detalhar($lista)], Response::HTTP_CREATED);
+    }
+
+    /**
+     * Troca o **apelido** e a **descrição** da lista (Sprint 180). São rótulo,
+     * não composição: não pedem justificativa, não sobem a versão e valem
+     * também para a lista já gerada.
+     */
+    public function rotularListaFinal(Request $request, ListaFinal $lista): JsonResponse
+    {
+        $dados = $request->validate([
+            'nome' => ['present', 'nullable', 'string', 'max:120'],
+            'descricao' => ['present', 'nullable', 'string', 'max:1000'],
+        ], [], ['nome' => 'apelido', 'descricao' => 'descrição']);
+
+        $this->listaFinal->rotular($lista, $dados['nome'], $dados['descricao']);
+
+        return response()->json([
+            'data' => $this->listaFinal->detalhar($lista->fresh()),
+            'meta' => ['message' => 'Apelido e descrição salvos.'],
+        ]);
     }
 
     /** Volta a ativar uma lista final do histórico (justificativa obrigatória). */
@@ -827,11 +874,14 @@ class AdminAvaliacaoController extends Controller
         ]);
     }
 
-    /** Troca o código de um projeto pelo que o admin digitou (Sprint 168). */
+    /**
+     * Troca o código de um projeto pelo que o admin digitou (Sprint 168). Em
+     * branco, o projeto fica sem código — é aviso, não erro (Sprint 177).
+     */
     public function definirCodigoNaListaFinal(Request $request, ListaFinal $lista, Projeto $projeto): JsonResponse
     {
         $dados = $request->validate([
-            'codigo' => ['required', 'string', 'max:40'],
+            'codigo' => ['present', 'nullable', 'string', 'max:40'],
             'justificativa' => [$lista->rascunho ? 'nullable' : 'required', 'string', 'min:5', 'max:500'],
         ]);
 
@@ -839,7 +889,9 @@ class AdminAvaliacaoController extends Controller
 
         return response()->json([
             'data' => $this->listaFinal->detalhar($lista->fresh()),
-            'meta' => ['message' => 'Código alterado.'],
+            'meta' => ['message' => trim((string) $dados['codigo']) === ''
+                ? 'Código removido: o projeto ficou sem código.'
+                : 'Código alterado.'],
         ]);
     }
 

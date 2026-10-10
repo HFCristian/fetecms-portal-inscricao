@@ -2,23 +2,21 @@
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Enums\TipoPessoaCredenciamento;
 use App\Http\Controllers\Controller;
-use App\Models\DocumentoCredenciamento;
 use App\Models\Edicao;
 use App\Services\CredenciamentoService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Parametrização → Credenciamento: a janela do evento e a lista de documentos
- * exigida de cada papel no balcão.
+ * Parametrização → Credenciamento: a janela do evento e os itens entregues aos
+ * finalistas no balcão.
  *
- * A janela vive na edição (cada ano tem as suas datas); os documentos são
- * catálogo do portal, como áreas e escolas.
+ * A janela vive na edição (cada ano tem as suas datas). Os documentos que o
+ * balcão confere saíram daqui na Sprint 181: são a lista única de itens do
+ * credenciamento e da checagem (`ItensConferenciaController`).
  */
 class ParametrizacaoCredenciamentoController extends Controller
 {
@@ -75,66 +73,13 @@ class ParametrizacaoCredenciamentoController extends Controller
         return response()->json(['data' => $this->payload($request)]);
     }
 
-    public function criarDocumento(Request $request): JsonResponse
-    {
-        $dados = $request->validate([
-            'tipo_pessoa' => ['required', Rule::in(TipoPessoaCredenciamento::valores())],
-            'nome' => ['required', 'string', 'max:120', Rule::unique('documentos_credenciamento', 'nome')
-                ->where(fn ($q) => $q->where('tipo_pessoa', $request->input('tipo_pessoa')))],
-        ], ['nome.unique' => 'Este documento já está na lista deste papel.']);
-
-        DocumentoCredenciamento::create($dados + [
-            'ordem' => (int) DocumentoCredenciamento::where('tipo_pessoa', $dados['tipo_pessoa'])->max('ordem') + 1,
-            'ativo' => true,
-        ]);
-
-        return response()->json(['data' => $this->payload($request)], 201);
-    }
-
-    public function atualizarDocumento(Request $request, DocumentoCredenciamento $documento): JsonResponse
-    {
-        $dados = $request->validate([
-            'nome' => ['sometimes', 'string', 'max:120', Rule::unique('documentos_credenciamento', 'nome')
-                ->where(fn ($q) => $q->where('tipo_pessoa', $documento->tipo_pessoa->value))
-                ->ignore($documento->id)],
-            'ativo' => ['sometimes', 'boolean'],
-            'ordem' => ['sometimes', 'integer', 'min:0', 'max:999'],
-        ], ['nome.unique' => 'Este documento já está na lista deste papel.']);
-
-        $documento->update($dados);
-
-        return response()->json(['data' => $this->payload($request)]);
-    }
-
-    /**
-     * Exclui um documento da lista. O que já foi conferido em algum
-     * credenciamento não é apagado — seria reescrever a auditoria do evento;
-     * nesse caso, desative-o.
-     */
-    public function excluirDocumento(Request $request, DocumentoCredenciamento $documento): JsonResponse
-    {
-        if ($documento->credenciamentos()->exists()) {
-            throw ValidationException::withMessages([
-                'documento' => 'Este documento já foi conferido em algum credenciamento. Desative-o em vez de excluir.',
-            ]);
-        }
-
-        $documento->delete();
-
-        return response()->json(['data' => $this->payload($request)]);
-    }
-
     /** @return array<string, mixed> */
     private function payload(Request $request): array
     {
+        // Os documentos conferidos no balcão moram na lista única de itens
+        // (Parametrização → Itens do credenciamento e da checagem, Sprint 181).
         return [
             'config' => $this->credenciamento->config($request->user()),
-            'tipos' => TipoPessoaCredenciamento::opcoes(),
-            'documentos' => DocumentoCredenciamento::query()
-                ->orderBy('tipo_pessoa')
-                ->orderBy('ordem')
-                ->orderBy('id')
-                ->get(['id', 'tipo_pessoa', 'nome', 'ordem', 'ativo']),
         ];
     }
 

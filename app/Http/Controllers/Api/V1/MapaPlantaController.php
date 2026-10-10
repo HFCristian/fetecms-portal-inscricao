@@ -88,8 +88,9 @@ class MapaPlantaController extends Controller
     {
         return $request->validate([
             'criterio' => ['nullable', Rule::in(array_keys(MapaSituacaoService::CRITERIOS))],
-            // Sim/Não nos dois primeiros critérios, número nos dois de contagem.
-            'valor' => ['nullable', 'string', 'max:10'],
+            // Sim/Não nos dois primeiros critérios, número nos de contagem e a
+            // situação do termo de imagem ("incompleto", "completo"…).
+            'valor' => ['nullable', 'string', 'max:20'],
             'dia' => ['nullable', 'date'],
             'turno' => ['nullable', Rule::in(Turno::valores())],
         ]);

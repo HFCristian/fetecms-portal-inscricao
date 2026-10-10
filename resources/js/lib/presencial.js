@@ -30,19 +30,6 @@ export const registrarChecagem = (projetoId, dados, teste = false) =>
     http.post(`/admin/presencial/checagem/${projetoId}`, { ...dados, teste: teste ? 1 : 0 })
         .then((r) => r.data);
 
-// Catálogo do que se confere em cada estande.
-export const getItensChecagem = () =>
-    http.get('/admin/presencial/itens').then((r) => r.data.data);
-
-export const criarItemChecagem = (dados) =>
-    http.post('/admin/presencial/itens', dados).then((r) => r.data.data);
-
-export const atualizarItemChecagem = (id, dados) =>
-    http.patch(`/admin/presencial/itens/${id}`, dados).then((r) => r.data.data);
-
-export const excluirItemChecagem = (id) =>
-    http.delete(`/admin/presencial/itens/${id}`).then((r) => r.data.data);
-
 /** O PDF do termo de responsabilidade, servido pela rota autenticada. */
 export const urlTermo = (documentoId) => `/api/v1/documentos/${documentoId}/preview`;
 

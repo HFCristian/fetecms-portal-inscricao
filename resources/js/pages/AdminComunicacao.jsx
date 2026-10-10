@@ -46,7 +46,7 @@ export default function AdminComunicacao() {
                     to="/admin/comunicacao/avisos"
                     icon="campaign"
                     titulo="Avisos"
-                    descricao="O card na tela dos orientadores conectados, com o relatório de quem viu, fechou ou ainda não viu."
+                    descricao="O card na tela de orientadores e avaliadores conectados, por público, com o relatório de quem viu, fechou ou ainda não viu."
                 />
                 <CardComunicacao
                     to="/admin/comunicacao/feedback"

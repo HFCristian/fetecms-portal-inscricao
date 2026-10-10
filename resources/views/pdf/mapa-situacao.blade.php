@@ -23,6 +23,7 @@
                 <th>Escola</th>
                 <th>Situação</th>
                 <th class="num">Avaliações</th>
+                <th>Termo de imagem</th>
             </tr>
         </thead>
         <tbody>
@@ -48,6 +49,15 @@
                     <td class="num">
                         {{ $linha['avaliacoes'] }} de {{ $linha['avaliacoes_maximo'] }}
                         <div class="menor">faltam {{ $linha['avaliacoes_faltantes'] }}</div>
+                    </td>
+                    <td>
+                        {{ $linha['termo_imagem_label'] }}
+                        @if ($linha['termo_imagem_total'] > 0)
+                            <div class="menor">
+                                {{ $linha['termo_imagem_cobertos'] }} de {{ $linha['termo_imagem_total'] }}
+                                @if ($linha['termo_imagem_faltando']) · falta: {{ implode(', ', $linha['termo_imagem_faltando']) }} @endif
+                            </div>
+                        @endif
                     </td>
                 </tr>
             @endforeach

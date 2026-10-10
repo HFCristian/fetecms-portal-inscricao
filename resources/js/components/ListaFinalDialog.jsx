@@ -85,7 +85,10 @@ export default function ListaFinalDialog({ open, onClose }) {
     // Preliminar ou final (Sprint 164). As duas nascem rascunho: o admin edita
     // à vontade e gera na tela da lista.
     const [tipo, setTipo] = useState('preliminar');
+    // Apelido (o nome da lista) e descrição (Sprint 180): é o que distingue
+    // uma preliminar da outra na relação das listas.
     const [nome, setNome] = useState('');
+    const [descricao, setDescricao] = useState('');
 
     useEffect(() => {
         if (!open) return;
@@ -93,6 +96,7 @@ export default function ListaFinalDialog({ open, onClose }) {
         setPasso(0);
         setTipo('preliminar');
         setNome('');
+        setDescricao('');
         getOpcoesListaFinal().then(setOpcoes).catch(() => setErro('Não foi possível carregar as opções.'));
     }, [open]);
 
@@ -156,6 +160,7 @@ export default function ListaFinalDialog({ open, onClose }) {
             categorias,
             tipo,
             nome: nome.trim() !== '' ? nome.trim() : null,
+            descricao: descricao.trim() !== '' ? descricao.trim() : null,
         };
     }
 
@@ -304,12 +309,12 @@ export default function ListaFinalDialog({ open, onClose }) {
                     </div>
                 )}
 
-                {/* Tipo e nome: só no último passo, junto do botão que gera. */}
+                {/* Tipo, apelido e descrição: só no último passo, junto do botão que gera. */}
                 {passo === PASSOS.length - 1 && (
                     <fieldset className="mt-4 rounded-lg border border-outline-variant p-3 space-y-2">
                         <legend className="px-1 text-sm font-semibold text-on-surface">Que lista é esta?</legend>
                         {[
-                            ['preliminar', 'Lista preliminar', 'Várias podem existir ao mesmo tempo, e nenhuma define finalista. Depois, uma lista final pode ser montada juntando preliminares.'],
+                            ['preliminar', 'Lista preliminar', 'Várias podem existir ao mesmo tempo, e nenhuma define finalista. Depois, outras listas podem ser montadas juntando esta com as demais.'],
                             ['final', 'Lista final', 'Ao ser gerada, vira a única ativa: os projetos dela são os finalistas de toda a etapa presencial.'],
                         ].map(([valor, rotulo, descricao]) => (
                             <label key={valor} className="flex items-start gap-3 cursor-pointer">
@@ -330,9 +335,18 @@ export default function ListaFinalDialog({ open, onClose }) {
                         <input
                             value={nome}
                             onChange={(e) => setNome(e.target.value)}
-                            placeholder="Nome da lista (opcional)"
-                            aria-label="Nome da lista"
+                            placeholder="Apelido da lista (opcional) — ex.: Cotas FUNDECT"
+                            aria-label="Apelido da lista"
                             maxLength={120}
+                            className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm text-on-surface focus:border-primary-container focus:outline-none focus:ring-2 focus:ring-primary-container/20"
+                        />
+                        <textarea
+                            value={descricao}
+                            onChange={(e) => setDescricao(e.target.value)}
+                            placeholder="Descrição: o que esta lista reúne (opcional)"
+                            aria-label="Descrição da lista"
+                            maxLength={1000}
+                            rows={2}
                             className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm text-on-surface focus:border-primary-container focus:outline-none focus:ring-2 focus:ring-primary-container/20"
                         />
                         <p className="text-xs text-on-surface-variant">

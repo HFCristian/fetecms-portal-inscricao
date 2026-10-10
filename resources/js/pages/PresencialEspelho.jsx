@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { Alert, Toggle } from '../components/ui.jsx';
 import { extractErrors } from '../lib/auth.jsx';
-import { getConfigPresencial, getEspelhoChecagem, urlTermo } from '../lib/presencial.js';
+import { getConfigPresencial, getEspelhoChecagem } from '../lib/presencial.js';
 import SinalizacoesProjeto from '../components/SinalizacoesProjeto.jsx';
 
 const campoClass =
@@ -57,7 +57,7 @@ export default function PresencialEspelho() {
     const carregar = useCallback(() => {
         setLinhas(null);
         return getEspelhoChecagem(filtros, modoTeste)
-            .then((r) => { setLinhas(r.data); setItens(r.meta?.itens?.filter((i) => i.ativo) ?? []); })
+            .then((r) => { setLinhas(r.data); setItens(r.meta?.itens ?? []); })
             .catch((e) => { setLinhas([]); setAlert(extractErrors(e).message); });
     }, [filtros, modoTeste]);
 
@@ -127,7 +127,6 @@ export default function PresencialEspelho() {
                             <tr className="bg-surface-variant/40 text-left">
                                 <th className="px-4 py-3 font-semibold text-on-surface">Projeto</th>
                                 <th className="px-3 py-3 font-semibold text-on-surface">Estande</th>
-                                <th className="px-3 py-3 font-semibold text-on-surface">Termo</th>
                                 {itens.map((i) => (
                                     <th key={i.id} className="px-3 py-3 font-semibold text-on-surface text-center whitespace-nowrap">
                                         {i.nome}
@@ -153,27 +152,31 @@ export default function PresencialEspelho() {
                                         {l.local?.estande ?? '—'}
                                         {l.local?.turno_label ? <span className="block text-xs">{l.local.turno_label}</span> : null}
                                     </td>
-                                    <td className="px-3 py-3 whitespace-nowrap">
-                                        {l.termo ? (
-                                            <a
-                                                href={urlTermo(l.termo.id)}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                className="inline-flex items-center gap-1 text-primary hover:underline"
-                                                title={l.termo.assinatura_motivo}
-                                            >
-                                                <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span>
-                                                Ver
-                                            </a>
-                                        ) : (
-                                            <span className="text-error font-semibold text-xs">falta</span>
-                                        )}
-                                    </td>
-                                    {itens.map((i) => (
-                                        <td key={i.id} className="px-3 py-3 text-center">
-                                            <Marca situacao={(l.itens ?? []).find((x) => x.id === i.id)?.situacao} />
-                                        </td>
-                                    ))}
+                                    {itens.map((i) => {
+                                        // Item de pessoa (Sprint 182): quantos da equipe já foram vistos.
+                                        const dePessoa = (l.itens_pessoa ?? []).find((x) => x.id === i.id);
+
+                                        return (
+                                            <td key={i.id} className="px-3 py-3 text-center">
+                                                {i.abrangencia === 'pessoa' ? (
+                                                    <span className={`text-xs font-semibold ${dePessoa?.ausentes > 0 ? 'text-error' : dePessoa && dePessoa.presentes === dePessoa.total ? 'text-secondary' : 'text-on-surface-variant'}`}>
+                                                        {dePessoa ? `${dePessoa.presentes}/${dePessoa.total}` : '—'}
+                                                    </span>
+                                                ) : (() => {
+                                                    const doProjeto = (l.itens ?? []).find((x) => x.id === i.id);
+                                                    return (
+                                                        <>
+                                                            <Marca situacao={doProjeto?.situacao} />
+                                                            {/* Enviado antes pelo portal e ainda não conferido. */}
+                                                            {doProjeto?.pre_marcado && (
+                                                                <span className="block text-[10px] text-on-surface-variant">online</span>
+                                                            )}
+                                                        </>
+                                                    );
+                                                })()}
+                                            </td>
+                                        );
+                                    })}
                                     <td className="px-3 py-3 whitespace-nowrap text-xs text-on-surface-variant">
                                         {l.conferido_em ? (
                                             <>

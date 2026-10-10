@@ -10,6 +10,7 @@ import ExportarListaFinal from '../components/ExportarListaFinal.jsx';
 import {
     getListaFinal, adicionarNaListaFinal, removerDaListaFinal, baixarListaOficial,
     publicarListaFinal, reativarListaFinal, reordenarListaFinal, definirCodigoListaFinal,
+    rotularListaFinal,
 } from '../lib/admin.js';
 
 const MIN_JUSTIFICATIVA = 5;
@@ -80,41 +81,120 @@ function agrupar(itens) {
 const iconeClass = 'p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-variant disabled:opacity-30 transition-colors';
 
 /**
- * Um grupo categoria+área da lista (Sprint 168). Os códigos são numerados
- * dentro do grupo (FET.AGR-001, -002…), então é aqui que a ordem se mexe:
- * "Reordenar" abre o modo de arrastar (ou subir/descer, que serve no teclado e
- * no celular) e salvar renumera o grupo inteiro. O código de um projeto também
- * pode ser digitado à mão.
+ * Os avisos de código (Sprint 177). Só o duplicado é vermelho — é o único que
+ * impede gerar a lista; os outros pedem atenção, não correção.
  */
-function GrupoDaLista({ grupo, ordem, onIniciarOrdem, onMover, onSalvarOrdem, onCancelarOrdem, edicaoCodigo, onEditarCodigo, onSalvarCodigo, onRetirar, salvando }) {
+const AVISOS = {
+    faltante: { rotulo: 'sem código', classe: 'bg-yellow-100 text-yellow-900 border-yellow-300' },
+    fora_padrao: { rotulo: 'fora do padrão', classe: 'bg-orange-100 text-orange-900 border-orange-300' },
+    fora_sequencia: { rotulo: 'fora da sequência', classe: 'bg-orange-100 text-orange-900 border-orange-300' },
+    duplicado: { rotulo: 'código repetido', classe: 'bg-error-container text-on-error-container border-error/40' },
+};
+
+function SeloAviso({ aviso }) {
+    const a = AVISOS[aviso];
+    if (!a) return null;
+
+    return (
+        <span className={`ml-1 text-[11px] font-semibold px-1.5 py-0.5 rounded-full border align-middle ${a.classe}`}>
+            {a.rotulo}
+        </span>
+    );
+}
+
+/** As frases do resumo, na ordem em que o admin precisa ler. */
+function frasesDosAvisos(r) {
+    if (!r) return [];
+    return [
+        r.duplicados > 0 && {
+            grave: true,
+            texto: `${r.duplicados} projeto(s) com código repetido: ${r.codigos_duplicados.map((d) => `${d.codigo} (${d.projetos.join(', ')})`).join('; ')}. A lista só pode ser gerada depois de corrigir.`,
+        },
+        r.faltantes > 0 && { texto: `${r.faltantes} projeto(s) sem código.` },
+        r.fora_padrao > 0 && { texto: `${r.fora_padrao} código(s) fora do padrão (CATEGORIA.ÁREA-000 da categoria e da área do projeto).` },
+        r.fora_sequencia > 0 && { texto: `${r.fora_sequencia} código(s) fora da sequência do grupo (salto ou buraco na numeração).` },
+    ].filter(Boolean);
+}
+
+/**
+ * O resumo dos avisos de código no topo da composição: o admin vê tudo antes de
+ * gerar, sem descer a lista inteira procurando selo.
+ */
+function ResumoAvisos({ resumo }) {
+    const frases = frasesDosAvisos(resumo);
+    if (frases.length === 0) return null;
+    const grave = frases.some((f) => f.grave);
+
+    return (
+        <div
+            role="status"
+            className={`mb-4 max-w-3xl rounded-xl border p-4 ${grave ? 'border-error/50 bg-error-container/40' : 'border-orange-300 bg-orange-50'}`}
+        >
+            <p className="font-semibold text-sm text-on-surface flex items-center gap-1">
+                <span className={`material-symbols-outlined text-[20px] ${grave ? 'text-error' : 'text-orange-700'}`}>
+                    {grave ? 'error' : 'warning'}
+                </span>
+                Atenção aos códigos desta lista
+            </p>
+            <ul className="mt-1 space-y-0.5 text-sm text-on-surface list-disc pl-5">
+                {frases.map((f) => (
+                    <li key={f.texto} className={f.grave ? 'text-error font-semibold' : ''}>{f.texto}</li>
+                ))}
+            </ul>
+        </div>
+    );
+}
+
+/** A ordem dos ids com o item de `de` levado para a posição `para`. */
+function mover(ids, de, para) {
+    if (para < 0 || para >= ids.length || de === para) return ids;
+    const nova = [...ids];
+    const [item] = nova.splice(de, 1);
+    nova.splice(para, 0, item);
+    return nova;
+}
+
+/**
+ * Um grupo categoria+área da lista. Os códigos são numerados dentro do grupo
+ * (FET.AGR-001, -002…), então é aqui que a ordem se mexe.
+ *
+ * Desde a Sprint 178 não há "modo de reordenar": o admin **arrasta** o projeto
+ * pela alça (ou usa as setas, que servem no teclado e no celular) e, ao soltar,
+ * o grupo inteiro é renumerado na ordem nova — na hora, no rascunho; com
+ * justificativa, numa lista já gerada. O arraste fica dentro do grupo: o
+ * prefixo do código é a categoria e a área do projeto, e mudar de grupo seria
+ * mudar a classificação dele. O código também pode ser digitado à mão.
+ */
+function GrupoDaLista({ grupo, ordemProvisoria, onReordenar, edicaoCodigo, onEditarCodigo, onSalvarCodigo, onRetirar, salvando, destaque, gerada }) {
     const [arrastando, setArrastando] = useState(null);
-    const reordenando = ordem !== null;
-    const itens = reordenando
-        ? ordem.map((id) => grupo.itens.find((i) => i.projeto_id === id)).filter(Boolean)
+    const [alvo, setAlvo] = useState(null);
+    const provisoria = ordemProvisoria !== null;
+    const itens = provisoria
+        ? ordemProvisoria.map((id) => grupo.itens.find((i) => i.projeto_id === id)).filter(Boolean)
         : grupo.itens;
+    const ids = itens.map((i) => i.projeto_id);
     const titulo = [grupo.categoria, grupo.area ?? 'Sem área'].filter(Boolean).join(' · ');
+    const movel = itens.length > 1 && !salvando && !provisoria && edicaoCodigo === null;
+
+    function soltar(para) {
+        if (arrastando !== null) {
+            const nova = mover(ids, arrastando, para);
+            if (nova !== ids) onReordenar(nova);
+        }
+        setArrastando(null);
+        setAlvo(null);
+    }
 
     return (
         <section className="bg-surface-container-lowest rounded-xl fetec-card-shadow max-w-3xl overflow-hidden" aria-label={titulo}>
-            <div className="px-4 py-3 border-b border-outline-variant/40 flex flex-wrap items-center justify-between gap-2 bg-surface-container-low">
-                <div>
-                    <h3 className="font-semibold text-on-surface text-sm">{titulo}</h3>
-                    <p className="text-xs text-on-surface-variant">
-                        {grupo.itens.length} {grupo.itens.length === 1 ? 'projeto' : 'projetos'}
-                        {reordenando && ' · arraste ou use as setas; salvar renumera o grupo na ordem nova.'}
-                    </p>
-                </div>
-                {reordenando ? (
-                    <div className="flex gap-2">
-                        <Button type="button" variant="outline" onClick={onCancelarOrdem} disabled={salvando}>Cancelar</Button>
-                        <Button type="button" onClick={onSalvarOrdem} loading={salvando}>Salvar ordem</Button>
-                    </div>
-                ) : grupo.itens.length > 1 && (
-                    <Button type="button" variant="outline" onClick={onIniciarOrdem} aria-label={`Reordenar ${titulo}`}>
-                        <span className="material-symbols-outlined text-[20px]">swap_vert</span>
-                        Reordenar
-                    </Button>
-                )}
+            <div className="px-4 py-3 border-b border-outline-variant/40 bg-surface-container-low">
+                <h3 className="font-semibold text-on-surface text-sm">{titulo}</h3>
+                <p className="text-xs text-on-surface-variant">
+                    {grupo.itens.length} {grupo.itens.length === 1 ? 'projeto' : 'projetos'}
+                    {grupo.itens.length > 1 && (gerada
+                        ? ' · arraste para mudar a ordem: o grupo é renumerado depois da justificativa.'
+                        : ' · arraste para mudar a ordem: o grupo é renumerado na hora.')}
+                </p>
             </div>
 
             <ul className="divide-y divide-outline-variant/40">
@@ -124,19 +204,33 @@ function GrupoDaLista({ grupo, ordem, onIniciarOrdem, onMover, onSalvarOrdem, on
                     return (
                         <li
                             key={i.projeto_id}
-                            draggable={reordenando}
-                            onDragStart={() => setArrastando(indice)}
-                            onDragOver={(e) => reordenando && e.preventDefault()}
-                            onDrop={(e) => {
-                                e.preventDefault();
-                                if (arrastando !== null) onMover(arrastando, indice);
-                                setArrastando(null);
+                            id={`projeto-${i.projeto_id}`}
+                            draggable={movel}
+                            onDragStart={(e) => {
+                                setArrastando(indice);
+                                // O Firefox só arrasta com algum dado no evento.
+                                e.dataTransfer?.setData?.('text/plain', String(i.projeto_id));
                             }}
-                            onDragEnd={() => setArrastando(null)}
-                            className={`p-4 flex flex-col sm:flex-row sm:items-center gap-3 ${arrastando === indice ? 'opacity-50' : ''}`}
+                            onDragOver={(e) => {
+                                // Só aceita o que veio deste grupo.
+                                if (arrastando === null) return;
+                                e.preventDefault();
+                                if (alvo !== indice) setAlvo(indice);
+                            }}
+                            onDrop={(e) => { e.preventDefault(); soltar(indice); }}
+                            onDragEnd={() => { setArrastando(null); setAlvo(null); }}
+                            className={`p-4 flex flex-col sm:flex-row sm:items-center gap-3 transition-colors ${
+                                arrastando === indice ? 'opacity-50' : ''
+                            } ${alvo === indice && arrastando !== indice ? (arrastando < indice ? 'border-b-2 border-b-primary-container' : 'border-t-2 border-t-primary-container') : ''} ${
+                                destaque === i.projeto_id ? 'bg-primary-fixed/50' : ''
+                            }`}
                         >
-                            {reordenando && (
-                                <span className="material-symbols-outlined text-on-surface-variant cursor-grab hidden sm:inline" aria-hidden="true">
+                            {itens.length > 1 && (
+                                <span
+                                    className={`material-symbols-outlined text-on-surface-variant hidden sm:inline ${movel ? 'cursor-grab' : 'opacity-30'}`}
+                                    title={movel ? 'Arraste para mudar a ordem' : undefined}
+                                    aria-hidden="true"
+                                >
                                     drag_indicator
                                 </span>
                             )}
@@ -154,15 +248,18 @@ function GrupoDaLista({ grupo, ordem, onIniciarOrdem, onMover, onSalvarOrdem, on
                                             autoFocus
                                             className="font-mono text-sm w-40 bg-surface border border-outline-variant rounded-lg px-2 py-1 text-on-surface focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 outline-none"
                                         />
-                                        <Button type="submit" loading={salvando} disabled={edicaoCodigo.valor.trim().length < 3}>Salvar</Button>
+                                        <Button type="submit" loading={salvando}>Salvar</Button>
                                         <Button type="button" variant="outline" onClick={() => onEditarCodigo(null)} disabled={salvando}>Cancelar</Button>
+                                        <span className="basis-full text-xs text-on-surface-variant">
+                                            Padrão: {i.prefixo ?? 'CAT.ARE'}-001. Em branco, o projeto fica sem código.
+                                        </span>
                                     </form>
                                 ) : null}
                                 <p className="text-sm font-semibold text-on-surface">
                                     {!editando && (
                                         <span className="inline-flex items-center gap-1 mr-2 align-middle">
-                                            <span className="font-mono text-xs text-on-surface-variant">{reordenando ? '—' : i.codigo}</span>
-                                            {!reordenando && (
+                                            <span className="font-mono text-xs text-on-surface-variant">{provisoria || !i.codigo ? '—' : i.codigo}</span>
+                                            {!provisoria && (
                                                 <button
                                                     type="button"
                                                     onClick={() => onEditarCodigo({ projetoId: i.projeto_id, valor: i.codigo })}
@@ -176,6 +273,7 @@ function GrupoDaLista({ grupo, ordem, onIniciarOrdem, onMover, onSalvarOrdem, on
                                         </span>
                                     )}
                                     {i.titulo}
+                                    {!provisoria && (i.avisos ?? []).map((a) => <SeloAviso key={a} aviso={a} />)}
                                     {i.manual && (
                                         <span className="ml-2 text-xs font-semibold px-2 py-0.5 rounded-full bg-primary-fixed text-primary-container">
                                             incluído à mão
@@ -186,33 +284,112 @@ function GrupoDaLista({ grupo, ordem, onIniciarOrdem, onMover, onSalvarOrdem, on
                                     {[i.categoria, i.area, i.escola].filter(Boolean).join(' · ')}
                                 </p>
                             </div>
-                            {reordenando ? (
-                                <div className="flex gap-1 shrink-0">
-                                    <button type="button" onClick={() => onMover(indice, indice - 1)} disabled={indice === 0}
-                                        title={`Mover ${i.titulo} para cima`} className={iconeClass}>
-                                        <span className="material-symbols-outlined text-[20px]">arrow_upward</span>
-                                    </button>
-                                    <button type="button" onClick={() => onMover(indice, indice + 1)} disabled={indice === itens.length - 1}
-                                        title={`Mover ${i.titulo} para baixo`} className={iconeClass}>
-                                        <span className="material-symbols-outlined text-[20px]">arrow_downward</span>
-                                    </button>
-                                </div>
-                            ) : (
+                            <div className="flex gap-1 shrink-0 items-center">
+                                {itens.length > 1 && (
+                                    <>
+                                        <button type="button" onClick={() => onReordenar(mover(ids, indice, indice - 1))} disabled={!movel || indice === 0}
+                                            title={`Mover ${i.titulo} para cima`} aria-label={`Mover ${i.titulo} para cima`} className={iconeClass}>
+                                            <span className="material-symbols-outlined text-[20px]">arrow_upward</span>
+                                        </button>
+                                        <button type="button" onClick={() => onReordenar(mover(ids, indice, indice + 1))} disabled={!movel || indice === itens.length - 1}
+                                            title={`Mover ${i.titulo} para baixo`} aria-label={`Mover ${i.titulo} para baixo`} className={iconeClass}>
+                                            <span className="material-symbols-outlined text-[20px]">arrow_downward</span>
+                                        </button>
+                                    </>
+                                )}
                                 <Button
                                     type="button"
                                     variant="outline"
-                                    className="text-error border-error/40 hover:bg-error-container/40"
+                                    className="text-error border-error/40 hover:bg-error-container/40 ml-1"
                                     onClick={() => onRetirar(i)}
+                                    disabled={provisoria}
                                 >
                                     <span className="material-symbols-outlined text-[20px]">playlist_remove</span>
                                     Retirar
                                 </Button>
-                            )}
+                            </div>
                         </li>
                     );
                 })}
             </ul>
         </section>
+    );
+}
+
+/**
+ * Apelido e descrição da lista (Sprint 180): o que distingue uma preliminar da
+ * outra na relação. É rótulo, não composição — salva na hora, sem
+ * justificativa e sem versão nova, também numa lista já gerada.
+ */
+function RotuloLista({ lista, onSalvo }) {
+    const [editando, setEditando] = useState(false);
+    const [nome, setNome] = useState('');
+    const [descricao, setDescricao] = useState('');
+    const [salvando, setSalvando] = useState(false);
+    const [erro, setErro] = useState('');
+
+    function abrir() {
+        setNome(lista.nome ?? '');
+        setDescricao(lista.descricao ?? '');
+        setErro('');
+        setEditando(true);
+    }
+
+    async function salvar(e) {
+        e.preventDefault();
+        setSalvando(true); setErro('');
+        try {
+            onSalvo(await rotularListaFinal(lista.id, { nome: nome.trim(), descricao: descricao.trim() }));
+            setEditando(false);
+        } catch (err) {
+            const { message, fields } = extractErrors(err);
+            setErro(Object.values(fields ?? {})[0] || message || 'Não foi possível salvar.');
+        } finally {
+            setSalvando(false);
+        }
+    }
+
+    if (!editando) {
+        return (
+            <div className="mb-1">
+                {lista.descricao && <p className="text-sm text-on-surface whitespace-pre-line">{lista.descricao}</p>}
+                <button
+                    type="button"
+                    onClick={abrir}
+                    className="text-xs text-on-surface-variant hover:text-primary inline-flex items-center gap-1"
+                >
+                    <span className="material-symbols-outlined text-[16px]">edit</span>
+                    {lista.descricao ? 'Editar apelido e descrição' : 'Editar apelido e acrescentar descrição'}
+                </button>
+            </div>
+        );
+    }
+
+    return (
+        <form onSubmit={salvar} className="my-2 space-y-2 rounded-lg border border-outline-variant p-3 bg-surface-container-lowest">
+            {erro && <Alert>{erro}</Alert>}
+            <input
+                value={nome}
+                onChange={(e) => setNome(e.target.value)}
+                aria-label="Apelido da lista"
+                placeholder="Apelido (em branco, volta ao nome padrão)"
+                maxLength={120}
+                className="w-full rounded-lg border border-outline-variant bg-surface px-3 py-2 text-sm text-on-surface"
+            />
+            <textarea
+                value={descricao}
+                onChange={(e) => setDescricao(e.target.value)}
+                aria-label="Descrição da lista"
+                placeholder="O que esta lista reúne"
+                maxLength={1000}
+                rows={2}
+                className="w-full rounded-lg border border-outline-variant bg-surface px-3 py-2 text-sm text-on-surface"
+            />
+            <div className="flex gap-2">
+                <Button type="submit" loading={salvando}>Salvar</Button>
+                <Button type="button" variant="outline" disabled={salvando} onClick={() => setEditando(false)}>Cancelar</Button>
+            </div>
+        </form>
     );
 }
 
@@ -239,10 +416,21 @@ export default function AvaliacaoListaFinalDetalhe() {
     const [publicando, setPublicando] = useState(false);
     const [sucesso, setSucesso] = useState('');
     const [confirm, dialogoConfirmacao] = useConfirm();
-    // Reordenação (Sprint 168): o grupo aberto e a ordem que está sendo montada.
-    const [ordem, setOrdem] = useState(null); // { chave, ids }
+    // Arraste (Sprint 178): a ordem nova de um grupo enquanto ela é salva — ou
+    // enquanto a justificativa não vem, numa lista já gerada.
+    const [ordemProvisoria, setOrdemProvisoria] = useState(null); // { chave, ids }
     const [edicaoCodigo, setEdicaoCodigo] = useState(null); // { projetoId, valor }
     const [salvandoCodigos, setSalvandoCodigos] = useState(false);
+    // O projeto que acabou de mudar de código: a lista se reordena pelo código
+    // (Sprint 177), e o destaque mostra para onde ele foi.
+    const [destaque, setDestaque] = useState(null);
+
+    useEffect(() => {
+        if (destaque === null) return undefined;
+        document.getElementById(`projeto-${destaque}`)?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+        const t = setTimeout(() => setDestaque(null), 4000);
+        return () => clearTimeout(t);
+    }, [destaque]);
 
     const carregar = useCallback(() => {
         getListaFinal(id)
@@ -261,7 +449,7 @@ export default function AvaliacaoListaFinalDetalhe() {
                 setDados(resp.data);
                 setSucesso(resp.meta?.message ?? 'Lista reativada.');
             } else if (dialogo.tipo === 'ordem' || dialogo.tipo === 'codigo') {
-                aplicarCodigos(await enviarCodigos(dialogo, justificativa));
+                aplicarCodigos(await enviarCodigos(dialogo, justificativa), dialogo.tipo === 'codigo' ? dialogo.projeto.id : null);
             } else {
                 const novo = dialogo.tipo === 'incluir'
                     ? await adicionarNaListaFinal(id, dialogo.projeto.id, justificativa)
@@ -307,11 +495,12 @@ export default function AvaliacaoListaFinalDetalhe() {
             : definirCodigoListaFinal(id, pedido.projeto.id, pedido.codigo, justificativa);
     }
 
-    function aplicarCodigos(resp) {
+    function aplicarCodigos(resp, projetoId = null) {
         setDados(resp.data);
         setSucesso(resp.meta?.message ?? '');
-        setOrdem(null);
+        setOrdemProvisoria(null);
         setEdicaoCodigo(null);
+        setDestaque(projetoId);
     }
 
     /**
@@ -328,32 +517,43 @@ export default function AvaliacaoListaFinalDetalhe() {
 
         setSalvandoCodigos(true);
         try {
-            aplicarCodigos(await enviarCodigos(pedido));
+            aplicarCodigos(await enviarCodigos(pedido), pedido.tipo === 'codigo' ? pedido.projeto.id : null);
         } catch (e) {
             const { message, fields } = extractErrors(e);
             setErro(Object.values(fields ?? {})[0] || message || 'Não foi possível salvar.');
+            setOrdemProvisoria(null);
         } finally {
             setSalvandoCodigos(false);
         }
     }
 
-    function moverNaOrdem(de, para) {
-        setOrdem((atual) => {
-            if (!atual || para < 0 || para >= atual.ids.length || de === para) return atual;
-            const ids = [...atual.ids];
-            const [item] = ids.splice(de, 1);
-            ids.splice(para, 0, item);
-            return { ...atual, ids };
+    /**
+     * Soltar o projeto (ou apertar uma seta) salva a ordem do grupo — o servidor
+     * renumera todos os códigos dele na sequência nova.
+     */
+    function reordenar(grupo, ids) {
+        setEdicaoCodigo(null);
+        setOrdemProvisoria({ chave: grupo.chave, ids });
+        salvarCodigos({
+            tipo: 'ordem', chave: grupo.chave, ids,
+            projeto: { titulo: [grupo.categoria, grupo.area].filter(Boolean).join(' · ') },
         });
     }
 
     async function publicar() {
+        // Avisos de código (Sprint 177): repetido barra; o resto se confirma.
+        const avisos = frasesDosAvisos(dados.lista.avisos_codigos).filter((f) => !f.grave).map((f) => `• ${f.texto}`);
+        const final = dados.lista.tipo === 'final';
+
         // A final gerada passa a valer para a etapa presencial inteira.
-        if (dados.lista.tipo === 'final') {
+        if (final || avisos.length > 0) {
             const ok = await confirm({
-                title: 'Gerar a lista final?',
-                message: 'Ela vira a lista final ativa: os projetos dela passam a ser os finalistas do credenciamento, do mapa, dos crachás e da avaliação presencial. A final ativa de agora fica inativa (dá para reativá-la depois).',
-                confirmLabel: 'Gerar e ativar',
+                title: final ? 'Gerar a lista final?' : 'Gerar a lista preliminar?',
+                message: [
+                    avisos.length > 0 && `A lista vai ser gerada com estes avisos:\n${avisos.join('\n')}`,
+                    final && 'Ela vira a lista final ativa: os projetos dela passam a ser os finalistas do credenciamento, do mapa, dos crachás e da avaliação presencial. A final ativa de agora fica inativa (dá para reativá-la depois).',
+                ].filter(Boolean).join('\n\n'),
+                confirmLabel: final ? 'Gerar e ativar' : 'Gerar mesmo assim',
             });
             if (!ok) return;
         }
@@ -419,6 +619,10 @@ export default function AvaliacaoListaFinalDetalhe() {
                                     </span>
                                 )}
                             </h1>
+                            <RotuloLista
+                                lista={lista}
+                                onSalvo={(resp) => { setDados(resp.data); setSucesso(resp.meta?.message ?? ''); }}
+                            />
                             <p className="text-sm text-on-surface-variant">
                                 Versão {lista.versao} · {lista.projetos} {lista.projetos === 1 ? 'projeto' : 'projetos'}.
                                 {lista.rascunho
@@ -427,7 +631,7 @@ export default function AvaliacaoListaFinalDetalhe() {
                             </p>
                             {lista.origens?.length > 0 && (
                                 <p className="text-xs text-on-surface-variant mt-1">
-                                    Montada das preliminares: {lista.origens.map((o) => o.nome).join(', ')}.
+                                    Montada das listas: {lista.origens.map((o) => o.nome).join(', ')}.
                                 </p>
                             )}
                             {lista.rascunho && (
@@ -444,7 +648,13 @@ export default function AvaliacaoListaFinalDetalhe() {
                                 Baixar TXT
                             </Button>
                             {lista.rascunho && (
-                                <Button type="button" loading={publicando} disabled={lista.projetos === 0} onClick={publicar}>
+                                <Button
+                                    type="button"
+                                    loading={publicando}
+                                    disabled={lista.projetos === 0 || (lista.avisos_codigos?.duplicados ?? 0) > 0}
+                                    title={(lista.avisos_codigos?.duplicados ?? 0) > 0 ? 'Corrija os códigos repetidos antes de gerar.' : undefined}
+                                    onClick={publicar}
+                                >
                                     <span className="material-symbols-outlined text-[20px]">campaign</span>
                                     {lista.tipo === 'preliminar' ? 'Gerar lista preliminar' : 'Gerar lista final'}
                                 </Button>
@@ -486,6 +696,8 @@ export default function AvaliacaoListaFinalDetalhe() {
                         </div>
                     </div>
 
+                    <ResumoAvisos resumo={lista.avisos_codigos} />
+
                     {/* Composição, por grupo categoria+área — é dentro do grupo que o código numera. */}
                     {lista.codigos_enviados_em && (
                         <div className="mb-4 max-w-3xl">
@@ -506,23 +718,17 @@ export default function AvaliacaoListaFinalDetalhe() {
                                 <GrupoDaLista
                                     key={grupo.chave}
                                     grupo={grupo}
-                                    ordem={ordem?.chave === grupo.chave ? ordem.ids : null}
-                                    onIniciarOrdem={() => {
-                                        setEdicaoCodigo(null);
-                                        setOrdem({ chave: grupo.chave, ids: grupo.itens.map((i) => i.projeto_id) });
-                                    }}
-                                    onMover={moverNaOrdem}
-                                    onCancelarOrdem={() => setOrdem(null)}
-                                    onSalvarOrdem={() => salvarCodigos({
-                                        tipo: 'ordem', ids: ordem.ids, projeto: { titulo: [grupo.categoria, grupo.area].filter(Boolean).join(' · ') },
-                                    })}
+                                    ordemProvisoria={ordemProvisoria?.chave === grupo.chave ? ordemProvisoria.ids : null}
+                                    onReordenar={(ids) => reordenar(grupo, ids)}
+                                    gerada={!lista.rascunho}
                                     edicaoCodigo={edicaoCodigo}
-                                    onEditarCodigo={(e) => { setOrdem(null); setEdicaoCodigo(e); }}
+                                    onEditarCodigo={setEdicaoCodigo}
                                     onSalvarCodigo={(i) => salvarCodigos({
                                         tipo: 'codigo', codigo: edicaoCodigo.valor.trim(), projeto: { id: i.projeto_id, titulo: i.titulo },
                                     })}
                                     onRetirar={(i) => alterar('remover', { id: i.projeto_id, titulo: i.titulo })}
                                     salvando={salvandoCodigos}
+                                    destaque={destaque}
                                 />
                             ))}
                         </div>
@@ -538,19 +744,19 @@ export default function AvaliacaoListaFinalDetalhe() {
                 <JustificativaDialog
                     titulo={{
                         incluir: 'Incluir na lista', remover: 'Retirar da lista', reativar: 'Tornar esta a lista final ativa',
-                        ordem: 'Salvar a nova ordem', codigo: `Trocar o código para ${dialogo.codigo ?? ''}`,
+                        ordem: 'Salvar a nova ordem', codigo: dialogo.codigo ? `Trocar o código para ${dialogo.codigo}` : 'Deixar o projeto sem código',
                     }[dialogo.tipo]}
                     projeto={dialogo.projeto.titulo}
                     acao={{ incluir: 'Incluir', remover: 'Retirar', reativar: 'Tornar ativa', ordem: 'Salvar ordem', codigo: 'Trocar código' }[dialogo.tipo]}
                     ajuda={{
                         reativar: 'Os projetos desta lista passam a ser os finalistas da etapa presencial, no lugar da final ativa de agora. Fica em Registros → Lista final.',
-                        ordem: 'Os códigos do grupo são renumerados na ordem nova. Cada código que mudar fica em Registros → Lista final, e uma versão nova do arquivo é gerada.',
+                        ordem: 'Os códigos do grupo são renumerados na ordem nova (inclusive os digitados à mão). Cada código que mudar fica em Registros → Lista final, e uma versão nova do arquivo é gerada.',
                         codigo: 'O código antigo e o novo ficam em Registros → Lista final, e uma versão nova do arquivo é gerada.',
                     }[dialogo.tipo]}
                     salvando={salvando}
                     erro={erroDialogo}
                     onConfirmar={confirmar}
-                    onFechar={() => setDialogo(null)}
+                    onFechar={() => { setDialogo(null); setOrdemProvisoria(null); }}
                 />
             )}
             {dialogoConfirmacao}

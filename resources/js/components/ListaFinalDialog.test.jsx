@@ -104,7 +104,7 @@ describe('ListaFinalDialog — cotas em três passos', () => {
         expect(screen.getAllByLabelText('Quantidade para Ciências Agrárias')).toHaveLength(1);
     });
 
-    it('escolhe entre lista preliminar e final, com o nome', async () => {
+    it('escolhe entre lista preliminar e final, com apelido e descrição', async () => {
         const onClose = vi.fn();
         render(<ListaFinalDialog open onClose={onClose} />);
         await screen.findByText('Quantos projetos em cada categoria?');
@@ -114,7 +114,8 @@ describe('ListaFinalDialog — cotas em três passos', () => {
         // Preliminar é o padrão: várias convivem e nenhuma define finalista.
         expect(await screen.findByRole('radio', { name: /Lista preliminar/ })).toBeChecked();
         fireEvent.click(screen.getByRole('radio', { name: /Lista final/ }));
-        fireEvent.change(screen.getByLabelText('Nome da lista'), { target: { value: 'Final 2026' } });
+        fireEvent.change(screen.getByLabelText('Apelido da lista'), { target: { value: 'Final 2026' } });
+        fireEvent.change(screen.getByLabelText('Descrição da lista'), { target: { value: 'Cotas aprovadas em 30/09' } });
 
         fireEvent.click(screen.getByText('Montar rascunho'));
 
@@ -122,6 +123,7 @@ describe('ListaFinalDialog — cotas em três passos', () => {
         const payload = gerarListaFinal.mock.calls.at(-1)[0];
         expect(payload.tipo).toBe('final');
         expect(payload.nome).toBe('Final 2026');
+        expect(payload.descricao).toBe('Cotas aprovadas em 30/09');
         expect(payload.oficial).toBeUndefined();
         await waitFor(() => expect(onClose).toHaveBeenCalledWith('final', expect.anything()));
     });

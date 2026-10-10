@@ -3,14 +3,17 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\ItemConferencia;
 use App\Models\Projeto;
+use App\Models\ProjetoDocumento;
 use App\Services\DocumentosPresenciaisService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * Aba "Documentos" do orientador: o termo de responsabilidade dos projetos
- * **finalistas**, para o evento.
+ * Aba "Documentos" do orientador: o que a organização quer receber **antes do
+ * evento** dos projetos finalistas — os itens da lista única marcados "receber
+ * antes" (Sprint 183), entre eles os dois termos.
  *
  * Não reaproveita as rotas de anexo da inscrição de propósito: aquelas exigem
  * projeto em rascunho e inscrições abertas, e este documento é exatamente o
@@ -21,7 +24,7 @@ class DocumentoPresencialController extends Controller
 {
     public function __construct(private readonly DocumentosPresenciaisService $documentos) {}
 
-    /** Janela + os projetos finalistas do orientador, com o termo de cada um. */
+    /** Janela + os projetos finalistas do orientador, item a item. */
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -33,38 +36,64 @@ class DocumentoPresencialController extends Controller
         ]]);
     }
 
-    /** Anexa (ou substitui) o termo de responsabilidade do projeto. */
-    public function store(Request $request, Projeto $projeto): JsonResponse
+    /** Envia um arquivo para um item, com as pessoas para quem ele vale. */
+    public function store(Request $request, Projeto $projeto, ItemConferencia $item): JsonResponse
     {
         $this->authorize('view', $projeto);
 
         $request->validate([
             'file' => [
-                'required', 'file', 'mimes:pdf',
+                'required', 'file', 'mimes:'.implode(',', DocumentosPresenciaisService::MIMES),
                 'max:'.DocumentosPresenciaisService::MAX_KB,
             ],
-        ], [], ['file' => 'termo de responsabilidade']);
+            'pessoas' => ['sometimes', 'array'],
+            'pessoas.*' => ['string', 'max:40', 'distinct'],
+        ], [
+            'file.mimes' => 'Envie o arquivo em PDF, JPG ou PNG.',
+        ], ['file' => 'arquivo', 'pessoas' => 'pessoas']);
 
-        $termo = $this->documentos->anexarTermo(
+        $secao = $this->documentos->anexar(
             $projeto,
+            $item,
             $request->file('file'),
+            $request->input('pessoas', []),
             $request->user(),
             $request->boolean('teste'),
         );
 
         return response()->json([
-            'data' => $termo,
-            'meta' => ['message' => 'Termo de responsabilidade enviado.'],
+            'data' => $secao,
+            'meta' => ['message' => "{$item->nome}: arquivo enviado."],
         ], 201);
     }
 
-    /** Remove o termo (o orientador reenvia o arquivo corrigido). */
-    public function destroy(Request $request, Projeto $projeto): JsonResponse
+    /** Troca para quem um arquivo vale. */
+    public function update(Request $request, ProjetoDocumento $documento): JsonResponse
     {
-        $this->authorize('view', $projeto);
+        $this->authorize('view', $documento->projeto ?? abort(404));
 
-        $this->documentos->removerTermo($projeto, $request->user(), $request->boolean('teste'));
+        $request->validate([
+            'pessoas' => ['required', 'array', 'min:1'],
+            'pessoas.*' => ['string', 'max:40', 'distinct'],
+        ], [
+            'pessoas.required' => 'Marque ao menos uma pessoa para quem o arquivo vale.',
+            'pessoas.min' => 'Marque ao menos uma pessoa para quem o arquivo vale.',
+        ], ['pessoas' => 'pessoas']);
 
-        return response()->json(['data' => ['message' => 'Termo removido.']]);
+        $secao = $this->documentos->definirPessoas(
+            $documento, $request->input('pessoas', []), $request->user(), $request->boolean('teste'),
+        );
+
+        return response()->json(['data' => $secao, 'meta' => ['message' => 'Pessoas do arquivo atualizadas.']]);
+    }
+
+    /** Remove um arquivo enviado antes. */
+    public function destroy(Request $request, ProjetoDocumento $documento): JsonResponse
+    {
+        $this->authorize('view', $documento->projeto ?? abort(404));
+
+        $secao = $this->documentos->remover($documento, $request->user(), $request->boolean('teste'));
+
+        return response()->json(['data' => $secao, 'meta' => ['message' => 'Arquivo removido.']]);
     }
 }

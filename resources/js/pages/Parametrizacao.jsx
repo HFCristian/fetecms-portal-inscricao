@@ -58,7 +58,13 @@ export default function Parametrizacao() {
                     to="/admin/parametrizacao/credenciamento"
                     icon="badge"
                     titulo="Credenciamento"
-                    descricao="Os documentos conferidos no balcão, por papel, e os itens entregues ao finalista."
+                    descricao="Os itens entregues ao finalista no balcão."
+                />
+                <CardParametrizacao
+                    to="/admin/parametrizacao/itens-conferencia"
+                    icon="fact_check"
+                    titulo="Itens do credenciamento e da checagem"
+                    descricao="A lista única do que se confere: de cada pessoa ou do projeto, em qual balcão, e o que o orientador envia antes."
                 />
                 <CardParametrizacao
                     to="/admin/parametrizacao/areas"

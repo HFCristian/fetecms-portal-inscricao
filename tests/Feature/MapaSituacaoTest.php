@@ -4,18 +4,23 @@ namespace Tests\Feature;
 
 use App\Enums\Categoria;
 use App\Enums\StatusAvaliacao;
+use App\Enums\TipoDocumento;
 use App\Enums\Turno;
+use App\Models\Aluno;
 use App\Models\Area;
 use App\Models\AvaliacaoPresencial;
 use App\Models\ChecagemEstande;
 use App\Models\Cidade;
 use App\Models\Credenciamento;
+use App\Models\CredenciamentoDocumento;
 use App\Models\Edicao;
 use App\Models\EscopoAdmin;
 use App\Models\Estado;
 use App\Models\EstandeProjeto;
 use App\Models\Instituicao;
+use App\Models\ItemConferencia;
 use App\Models\Projeto;
+use App\Models\ProjetoDocumento;
 use App\Models\TurnoApresentacao;
 use App\Models\User;
 use App\Support\PlantaEvento;
@@ -369,6 +374,122 @@ class MapaSituacaoTest extends TestCase
             ->assertOk();
         $this->assertSame('application/pdf', $pdf->headers->get('Content-Type'));
         $this->assertStringStartsWith('%PDF', $pdf->getContent());
+    }
+
+    /** Um arquivo do termo de uso de imagem enviado online, valendo para os estudantes dados. */
+    private function termoOnline(Projeto $projeto, array $alunos, ?Carbon $quando = null): ProjetoDocumento
+    {
+        $documento = ProjetoDocumento::factory()->create([
+            'projeto_id' => $projeto->id, 'tipo' => TipoDocumento::TermoUsoImagem->value,
+            'nome_original' => 'termo.pdf', 'created_at' => $quando ?? now(),
+        ]);
+        // O arquivo enviado antes vale para pessoas (Sprint 183): aqui, estudantes.
+        $documento->forceFill(['item_conferencia_id' => ItemConferencia::where('chave', ItemConferencia::CHAVE_TERMO_IMAGEM)->value('id')])->save();
+        foreach ($alunos as $aluno) {
+            $documento->pessoas()->create(['pessoa_tipo' => 'aluno', 'pessoa_id' => $aluno->id]);
+        }
+
+        return $documento;
+    }
+
+    public function test_o_estande_mostra_quem_ja_tem_o_termo_de_imagem_online_ou_no_balcao(): void
+    {
+        $this->admin();
+        $projeto = $this->noEstande('Biofiltro', Turno::A, 42);
+        $ana = Aluno::factory()->create(['projeto_id' => $projeto->id, 'nome' => 'Ana']);
+        $beto = Aluno::factory()->create(['projeto_id' => $projeto->id, 'nome' => 'Beto']);
+        $caio = Aluno::factory()->create(['projeto_id' => $projeto->id, 'nome' => 'Caio']);
+
+        $arquivo = $this->termoOnline($projeto, [$ana]);
+
+        $estande = $this->getJson('/api/v1/admin/mapa/planta/situacao?turno=A')->assertOk()->json('data.estandes.42');
+        $this->assertSame('parcial', $estande['termo_imagem']);
+        $this->assertSame(1, $estande['termo_imagem_cobertos']);
+        $this->assertSame(3, $estande['termo_imagem_total']);
+        $this->assertSame(['Beto', 'Caio'], $estande['termo_imagem_faltando']);
+        $this->assertSame([['id' => $arquivo->id, 'nome_original' => 'termo.pdf']], $estande['termo_imagem_arquivos']);
+
+        // No balcão: o Beto mostrou o papel, o Caio foi dispensado.
+        $this->credenciar($projeto);
+        $item = ItemConferencia::where('chave', ItemConferencia::CHAVE_TERMO_IMAGEM)->firstOrFail();
+        $credenciamento = Credenciamento::where('projeto_id', $projeto->id)->firstOrFail();
+        foreach ([[$beto, 'presente'], [$caio, 'nao_necessario']] as [$aluno, $situacao]) {
+            CredenciamentoDocumento::create([
+                'credenciamento_id' => $credenciamento->id, 'item_id' => $item->id,
+                'pessoa_tipo' => 'aluno', 'pessoa_id' => $aluno->id, 'pessoa_nome' => $aluno->nome, 'situacao' => $situacao,
+            ]);
+        }
+
+        $estande = $this->getJson('/api/v1/admin/mapa/planta/situacao?turno=A')->json('data.estandes.42');
+        $this->assertSame('completo', $estande['termo_imagem']);
+        $this->assertSame(1, $estande['termo_imagem_online']);
+        $this->assertSame(2, $estande['termo_imagem_balcao']);
+    }
+
+    public function test_balcao_que_recusou_o_termo_vale_mais_que_o_envio_online(): void
+    {
+        $this->admin();
+        $projeto = $this->noEstande('Biofiltro', Turno::A, 42);
+        $ana = Aluno::factory()->create(['projeto_id' => $projeto->id, 'nome' => 'Ana']);
+        $this->termoOnline($projeto, [$ana]);
+
+        $this->credenciar($projeto);
+        CredenciamentoDocumento::create([
+            'credenciamento_id' => Credenciamento::where('projeto_id', $projeto->id)->value('id'),
+            'item_id' => ItemConferencia::where('chave', 'termo_uso_imagem')->value('id'),
+            'pessoa_tipo' => 'aluno', 'pessoa_id' => $ana->id, 'pessoa_nome' => 'Ana', 'situacao' => 'ausente',
+        ]);
+
+        $estande = $this->getJson('/api/v1/admin/mapa/planta/situacao?turno=A')->json('data.estandes.42');
+        $this->assertSame('nenhum', $estande['termo_imagem']);
+        $this->assertSame(['Ana'], $estande['termo_imagem_faltando']);
+    }
+
+    public function test_o_dia_escolhido_ignora_termo_enviado_depois(): void
+    {
+        $this->admin();
+        $projeto = $this->noEstande('Biofiltro', Turno::A, 42);
+        $ana = Aluno::factory()->create(['projeto_id' => $projeto->id, 'nome' => 'Ana']);
+        $this->termoOnline($projeto, [$ana], now());
+
+        $ontem = now()->subDay()->toDateString();
+        $estande = $this->getJson("/api/v1/admin/mapa/planta/situacao?turno=A&dia={$ontem}")->json('data.estandes.42');
+
+        $this->assertSame('nenhum', $estande['termo_imagem']);
+    }
+
+    public function test_filtra_e_exporta_pelo_termo_de_imagem(): void
+    {
+        $this->admin();
+        $completo = $this->noEstande('Completo', Turno::A, 1);
+        $parcial = $this->noEstande('Parcial', Turno::A, 2);
+        $pendente = $this->noEstande('Pendente', Turno::A, 3);
+        $this->termoOnline($completo, [Aluno::factory()->create(['projeto_id' => $completo->id])]);
+        $this->termoOnline($parcial, [Aluno::factory()->create(['projeto_id' => $parcial->id])]);
+        Aluno::factory()->create(['projeto_id' => $parcial->id, 'nome' => 'Zeca']);
+        Aluno::factory()->create(['projeto_id' => $pendente->id]);
+
+        $titulos = fn (string $valor) => array_column(
+            $this->getJson("/api/v1/admin/mapa/planta/lista?turno=A&criterio=termo_imagem&valor={$valor}")->assertOk()->json('data.linhas'),
+            'titulo',
+        );
+
+        $this->assertSame(['Parcial', 'Pendente'], $titulos('incompleto'));
+        $this->assertSame(['Completo'], $titulos('completo'));
+        $this->assertSame(['Pendente'], $titulos('nenhum'));
+
+        $opcao = collect($this->getJson('/api/v1/admin/mapa/planta')->json('meta.filtros.criterios'))->firstWhere('value', 'termo_imagem');
+        $this->assertSame('opcoes', $opcao['tipo']);
+        $this->assertSame('incompleto', $opcao['padrao']);
+
+        $csv = $this->get('/api/v1/admin/mapa/planta/lista/csv?turno=A&criterio=termo_imagem&valor=parcial')->assertOk()->getContent();
+        $this->assertStringContainsString('Termo de uso de imagem', $csv);
+        $this->assertStringContainsString('"1 de 2";"Zeca"', $csv);
+
+        $txt = $this->get('/api/v1/admin/mapa/planta/lista/txt?turno=A&criterio=termo_imagem&valor=parcial')->assertOk()->getContent();
+        $this->assertStringContainsString('Termo de imagem: Parcial · 1 de 2 (falta: Zeca)', $txt);
+
+        $this->get('/api/v1/admin/mapa/planta/lista/pdf?turno=A&criterio=termo_imagem&valor=parcial')->assertOk();
     }
 
     public function test_admin_sem_a_aba_mapa_nao_ve_a_situacao(): void

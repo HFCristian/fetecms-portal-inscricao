@@ -59,7 +59,9 @@ const exportarListaFinal = vi.fn(() => Promise.resolve());
 const reativarListaFinal = vi.fn();
 const reordenarListaFinal = vi.fn();
 const definirCodigoListaFinal = vi.fn();
+const rotularListaFinal = vi.fn();
 vi.mock('../lib/admin.js', () => ({
+    rotularListaFinal: (...a) => rotularListaFinal(...a),
     reordenarListaFinal: (...a) => reordenarListaFinal(...a),
     definirCodigoListaFinal: (...a) => definirCodigoListaFinal(...a),
     reativarListaFinal: (...a) => reativarListaFinal(...a),
@@ -269,32 +271,54 @@ describe('AvaliacaoListaFinalDetalhe — código do projeto', () => {
             definirCodigoListaFinal.mockReset();
         });
 
-        it('no rascunho, reordena o grupo e salva sem justificativa', async () => {
+        it('no rascunho, a seta move o projeto e salva a ordem na hora', async () => {
             getListaFinal.mockResolvedValueOnce(DOIS);
             reordenarListaFinal.mockResolvedValue({ data: DOIS, meta: { message: 'Ordem salva: os códigos do grupo foram renumerados.' } });
             render(<AvaliacaoListaFinalDetalhe />);
 
-            fireEvent.click(await screen.findByRole('button', { name: 'Reordenar FETECMS · Ciências Agrárias' }));
-            fireEvent.click(screen.getByTitle('Mover Bioplástico para cima'));
-            fireEvent.click(screen.getByRole('button', { name: 'Salvar ordem' }));
+            fireEvent.click(await screen.findByRole('button', { name: 'Mover Bioplástico para cima' }));
 
             await waitFor(() => expect(reordenarListaFinal).toHaveBeenCalledWith('3', [11, 10], null));
             expect(await screen.findByText(/códigos do grupo foram renumerados/)).toBeInTheDocument();
         });
 
-        it('na lista gerada, a ordem pede justificativa antes de salvar', async () => {
+        it('arrastar e soltar dentro do grupo renumera na hora (Sprint 178)', async () => {
+            getListaFinal.mockResolvedValueOnce(DOIS);
+            reordenarListaFinal.mockResolvedValue({ data: DOIS, meta: { message: 'Ordem salva.' } });
+            render(<AvaliacaoListaFinalDetalhe />);
+
+            const abelhas = (await screen.findByText('Abelhas')).closest('li');
+            const bioplastico = screen.getByText('Bioplástico').closest('li');
+            expect(abelhas).toHaveAttribute('draggable', 'true');
+
+            fireEvent.dragStart(abelhas);
+            fireEvent.dragOver(bioplastico);
+            fireEvent.drop(bioplastico);
+
+            await waitFor(() => expect(reordenarListaFinal).toHaveBeenCalledWith('3', [11, 10], null));
+        });
+
+        it('soltar no mesmo lugar não salva nada', async () => {
+            getListaFinal.mockResolvedValueOnce(DOIS);
+            render(<AvaliacaoListaFinalDetalhe />);
+
+            const abelhas = (await screen.findByText('Abelhas')).closest('li');
+            fireEvent.dragStart(abelhas);
+            fireEvent.drop(abelhas);
+
+            expect(reordenarListaFinal).not.toHaveBeenCalled();
+        });
+
+        it('na lista gerada, a ordem nova pede justificativa antes de salvar', async () => {
             getListaFinal.mockResolvedValueOnce({ ...DOIS, lista: { ...DOIS.lista, rascunho: false, vigente: true } });
             reordenarListaFinal.mockResolvedValue({ data: DOIS, meta: {} });
             render(<AvaliacaoListaFinalDetalhe />);
 
-            fireEvent.click(await screen.findByRole('button', { name: /Reordenar/ }));
-            fireEvent.click(screen.getByTitle('Mover Abelhas para baixo'));
-            fireEvent.click(screen.getByRole('button', { name: 'Salvar ordem' }));
+            fireEvent.click(await screen.findByRole('button', { name: 'Mover Abelhas para baixo' }));
 
             expect(reordenarListaFinal).not.toHaveBeenCalled();
             fireEvent.change(await screen.findByRole('textbox'), { target: { value: 'Ordem combinada com a montadora.' } });
-            const salvar = screen.getAllByRole('button', { name: 'Salvar ordem' });
-            fireEvent.click(salvar[salvar.length - 1]);
+            fireEvent.click(screen.getByRole('button', { name: 'Salvar ordem' }));
 
             await waitFor(() => expect(reordenarListaFinal).toHaveBeenCalledWith('3', [11, 10], 'Ordem combinada com a montadora.'));
         });
@@ -316,6 +340,100 @@ describe('AvaliacaoListaFinalDetalhe — código do projeto', () => {
             render(<AvaliacaoListaFinalDetalhe />);
 
             expect(await screen.findByText(/já foram enviados aos finalistas/)).toBeInTheDocument();
+        });
+    });
+
+    describe('avisos de código (Sprint 177)', () => {
+        const COM_AVISOS = {
+            ...RASCUNHO,
+            lista: {
+                ...RASCUNHO.lista, tipo: 'preliminar', projetos: 3,
+                avisos_codigos: { faltantes: 1, fora_padrao: 1, fora_sequencia: 0, duplicados: 0, codigos_duplicados: [] },
+            },
+            itens: [
+                { projeto_id: 10, codigo: 'FET.BIO-001', prefixo: 'FET.AGR', titulo: 'Abelhas', categoria: 'FETECMS', area: 'Ciências Agrárias', escola: 'EE Alfa', manual: false, avisos: ['fora_padrao'] },
+                { projeto_id: 11, codigo: 'FET.AGR-002', prefixo: 'FET.AGR', titulo: 'Bioplástico', categoria: 'FETECMS', area: 'Ciências Agrárias', escola: 'EE Beta', manual: false, avisos: [] },
+                { projeto_id: 12, codigo: '', prefixo: 'FET.AGR', titulo: 'Compostagem', categoria: 'FETECMS', area: 'Ciências Agrárias', escola: 'EE Gama', manual: false, avisos: ['faltante'] },
+            ],
+        };
+
+        beforeEach(() => {
+            publicarListaFinal.mockClear();
+            definirCodigoListaFinal.mockReset();
+        });
+
+        it('marca cada projeto e resume os avisos no topo', async () => {
+            getListaFinal.mockResolvedValueOnce(COM_AVISOS);
+            render(<AvaliacaoListaFinalDetalhe />);
+
+            expect(await screen.findByText('fora do padrão')).toBeInTheDocument();
+            expect(screen.getByText('sem código')).toBeInTheDocument();
+            expect(screen.getByText('Atenção aos códigos desta lista')).toBeInTheDocument();
+            expect(screen.getByText('1 projeto(s) sem código.')).toBeInTheDocument();
+        });
+
+        it('gera com avisos depois de confirmar, listando o que está fora', async () => {
+            getListaFinal.mockResolvedValueOnce(COM_AVISOS);
+            render(<AvaliacaoListaFinalDetalhe />);
+
+            fireEvent.click(await screen.findByRole('button', { name: /Gerar lista preliminar/ }));
+            expect(await screen.findByText(/A lista vai ser gerada com estes avisos/)).toBeInTheDocument();
+            expect(publicarListaFinal).not.toHaveBeenCalled();
+
+            fireEvent.click(screen.getByRole('button', { name: 'Gerar mesmo assim' }));
+            await waitFor(() => expect(publicarListaFinal).toHaveBeenCalledWith('3'));
+        });
+
+        it('código repetido bloqueia a geração e diz quais são', async () => {
+            getListaFinal.mockResolvedValueOnce({
+                ...COM_AVISOS,
+                lista: {
+                    ...COM_AVISOS.lista,
+                    avisos_codigos: {
+                        faltantes: 0, fora_padrao: 0, fora_sequencia: 0, duplicados: 2,
+                        codigos_duplicados: [{ codigo: 'FET.AGR-002', projetos: ['Abelhas', 'Bioplástico'] }],
+                    },
+                },
+            });
+            render(<AvaliacaoListaFinalDetalhe />);
+
+            expect(await screen.findByText(/FET\.AGR-002 \(Abelhas, Bioplástico\)/)).toBeInTheDocument();
+            expect(screen.getByRole('button', { name: /Gerar lista preliminar/ })).toBeDisabled();
+        });
+
+        it('apagar o código salva o projeto sem código', async () => {
+            getListaFinal.mockResolvedValueOnce(COM_AVISOS);
+            definirCodigoListaFinal.mockResolvedValue({ data: COM_AVISOS, meta: { message: 'Código removido: o projeto ficou sem código.' } });
+            render(<AvaliacaoListaFinalDetalhe />);
+
+            fireEvent.click(await screen.findByRole('button', { name: 'Editar o código de Bioplástico' }));
+            expect(screen.getByText(/Em branco, o projeto fica sem código/)).toBeInTheDocument();
+            fireEvent.change(screen.getByRole('textbox', { name: 'Código de Bioplástico' }), { target: { value: '' } });
+            fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+
+            await waitFor(() => expect(definirCodigoListaFinal).toHaveBeenCalledWith('3', 11, '', null));
+            expect(await screen.findByText('Código removido: o projeto ficou sem código.')).toBeInTheDocument();
+        });
+    });
+
+    describe('apelido e descrição (Sprint 180)', () => {
+        it('mostra a descrição e edita apelido e descrição sem justificativa', async () => {
+            getListaFinal.mockResolvedValueOnce({ ...DADOS, lista: { ...DADOS.lista, descricao: 'Cotas de setembro' } });
+            rotularListaFinal.mockResolvedValue({
+                data: { ...DADOS, lista: { ...DADOS.lista, nome: 'Final oficial', descricao: 'Aprovada em 30/09' } },
+                meta: { message: 'Apelido e descrição salvos.' },
+            });
+            render(<AvaliacaoListaFinalDetalhe />);
+
+            expect(await screen.findByText('Cotas de setembro')).toBeInTheDocument();
+            fireEvent.click(screen.getByRole('button', { name: /Editar apelido e descrição/ }));
+            fireEvent.change(screen.getByLabelText('Apelido da lista'), { target: { value: 'Final oficial' } });
+            fireEvent.change(screen.getByLabelText('Descrição da lista'), { target: { value: 'Aprovada em 30/09' } });
+            fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+
+            await waitFor(() => expect(rotularListaFinal).toHaveBeenCalledWith(3, { nome: 'Final oficial', descricao: 'Aprovada em 30/09' }));
+            expect(await screen.findByText('Aprovada em 30/09')).toBeInTheDocument();
+            expect(screen.getByText('Apelido e descrição salvos.')).toBeInTheDocument();
         });
     });
 });

@@ -252,6 +252,17 @@ export const publicarListaFinal = (id) =>
 export const criarFinalDePreliminares = (preliminares, nome = null) =>
     http.post('/admin/avaliacao/listas/final-de-preliminares', { preliminares, nome }).then((r) => r.data.data);
 
+/**
+ * Monta o rascunho de uma lista preliminar ou final pela união de listas já
+ * geradas — preliminares e finais (Sprint 179). Os códigos fixados vêm junto.
+ */
+export const montarListaPorUniao = ({ listas, tipo, nome = null, descricao = null }) =>
+    http.post('/admin/avaliacao/listas/uniao', { listas, tipo, nome, descricao }).then((r) => r.data.data);
+
+/** Troca o apelido e a descrição da lista (Sprint 180) — sem justificativa. */
+export const rotularListaFinal = (id, { nome, descricao }) =>
+    http.patch(`/admin/avaliacao/listas-finais/${id}`, { nome, descricao }).then((r) => r.data);
+
 /** Volta a ativar uma lista final do histórico (justificativa obrigatória). */
 export const reativarListaFinal = (id, justificativa) =>
     http.post(`/admin/avaliacao/listas-finais/${id}/reativar`, { justificativa }).then((r) => r.data);

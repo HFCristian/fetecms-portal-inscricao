@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\SituacaoEstande;
+use App\Enums\SituacaoTermoImagem;
 use App\Enums\StatusAvaliacao;
 use App\Enums\Turno;
 use App\Models\AvaliacaoPresencial;
@@ -26,6 +27,11 @@ use Illuminate\Support\Facades\DB;
  * `checagens_estande.verificado_em` e `avaliacoes_presenciais.concluida_em` —,
  * e é por isso que o mapa nunca discorda das outras abas.
  *
+ * O **termo de uso de imagem** (Sprint 176) segue o mesmo princípio: sai do
+ * envio online do orientador (com a hora do envio) e do que o balcão marcou no
+ * credenciamento (com a hora da conclusão), e não pinta o estande — é outro
+ * eixo, que o painel do estande, a lista e as exportações mostram.
+ *
  * É esse carimbo de hora que também dá o **seletor de dia** de graça: escolher
  * um dia anterior é ler os mesmos fatos com um corte mais cedo, e o mapa volta
  * a ser o que era no fim daquele dia. Nenhum instantâneo precisa ser gravado, e
@@ -41,6 +47,18 @@ class MapaSituacaoService
         'checagem' => 'Checagem do estande',
         'avaliacoes_realizadas' => 'Avaliações realizadas',
         'avaliacoes_faltantes' => 'Avaliações faltantes',
+        'termo_imagem' => 'Termo de uso de imagem',
+    ];
+
+    /**
+     * Valores do filtro do termo de imagem (Sprint 176). "Incompleto" junta
+     * parcial e pendente — é a pergunta da véspera: quem ainda falta?
+     */
+    private const VALORES_TERMO_IMAGEM = [
+        'incompleto' => 'incompleto (parcial ou pendente)',
+        'completo' => 'completo',
+        'parcial' => 'parcial',
+        'nenhum' => 'pendente',
     ];
 
     /**
@@ -152,9 +170,21 @@ class MapaSituacaoService
                 fn (string $chave, string $label) => [
                     'value' => $chave,
                     'label' => $label,
-                    // Sim/Não nos dois primeiros; número nos dois de contagem.
-                    'tipo' => str_starts_with($chave, 'avaliacoes_') ? 'numero' : 'booleano',
-                ],
+                    // Sim/Não nos dois primeiros, número nos de contagem e uma
+                    // lista própria no termo de imagem.
+                    'tipo' => match (true) {
+                        $chave === 'termo_imagem' => 'opcoes',
+                        str_starts_with($chave, 'avaliacoes_') => 'numero',
+                        default => 'booleano',
+                    },
+                ] + ($chave === 'termo_imagem' ? [
+                    'valores' => array_map(
+                        fn (string $valor, string $rotulo) => ['value' => $valor, 'label' => ucfirst($rotulo)],
+                        array_keys(self::VALORES_TERMO_IMAGEM),
+                        array_values(self::VALORES_TERMO_IMAGEM),
+                    ),
+                    'padrao' => 'incompleto',
+                ] : []),
                 array_keys(self::CRITERIOS),
                 array_values(self::CRITERIOS),
             ),
@@ -182,10 +212,25 @@ class MapaSituacaoService
             $linhas[] = '      '.$l['escola'];
             $linhas[] = '      '.$l['situacao_label']
                 .' · '.$l['avaliacoes'].' de '.$l['avaliacoes_maximo'].' avaliação(ões)';
+            $linhas[] = '      Termo de imagem: '.$this->termoImagem($l);
             $linhas[] = '';
         }
 
         return implode("\n", $linhas);
+    }
+
+    /** "Parcial · 2 de 3 (falta: Caio)", "Completo · 3 de 3" ou "Sem estudantes". */
+    private function termoImagem(array $linha): string
+    {
+        if ($linha['termo_imagem_total'] === 0) {
+            return $linha['termo_imagem_label'];
+        }
+
+        $texto = $linha['termo_imagem_label'].' · '.$linha['termo_imagem_cobertos'].' de '.$linha['termo_imagem_total'];
+
+        return $linha['termo_imagem_faltando'] === []
+            ? $texto
+            : $texto.' (falta: '.implode(', ', $linha['termo_imagem_faltando']).')';
     }
 
     /** "previsto 05/10/2026 14:00", "sim" ou vazio. */
@@ -205,7 +250,8 @@ class MapaSituacaoService
         $saida = "\u{FEFF}".implode(';', [
             'Estande', 'Turno', 'Projeto', 'Categoria', 'Área', 'Escola', 'Orientador',
             'Situação', 'Credenciado em', 'Checado em', 'Avaliações realizadas', 'Avaliações faltantes',
-            'Credenciamento fora do prazo',
+            'Credenciamento fora do prazo', 'Termo de uso de imagem', 'Estudantes cobertos',
+            'Estudantes sem termo de imagem',
         ])."\n";
 
         foreach ($lista['linhas'] as $l) {
@@ -217,6 +263,9 @@ class MapaSituacaoService
                     $l['situacao_label'], $l['credenciado_em'] ?? '', $l['checado_em'] ?? '',
                     $l['avaliacoes'], $l['avaliacoes_faltantes'],
                     $this->foraPrazo($l),
+                    $l['termo_imagem_label'],
+                    $l['termo_imagem_total'] === 0 ? '' : $l['termo_imagem_cobertos'].' de '.$l['termo_imagem_total'],
+                    implode(', ', $l['termo_imagem_faltando']),
                 ],
             ))."\n";
         }
@@ -289,8 +338,9 @@ class MapaSituacaoService
         $avaliacoes = $this->avaliacoes($ids, $corte);
         $maximo = JanelaTurnos::daEdicao()->porProjeto();
         $sinais = app(SinalizacaoProjetoService::class)->para($ids);
+        $termos = app(TermosImagemService::class)->noEvento($ids, $corte);
 
-        return $alocacoes->map(function (EstandeProjeto $e) use ($credenciados, $checados, $avaliacoes, $maximo, $sinais) {
+        return $alocacoes->map(function (EstandeProjeto $e) use ($credenciados, $checados, $avaliacoes, $maximo, $sinais, $termos) {
             $projeto = $e->projeto;
             $feitas = (int) ($avaliacoes[$projeto->id] ?? 0);
             $credenciado = $credenciados[$projeto->id] ?? null;
@@ -298,6 +348,8 @@ class MapaSituacaoService
 
             // Cumulativo e na ordem do evento: a última coisa que aconteceu é a
             // que manda na cor.
+            $termo = $termos[$projeto->id] ?? null;
+
             $situacao = match (true) {
                 $feitas > 0 => SituacaoEstande::Avaliado,
                 $checado !== null => SituacaoEstande::Checado,
@@ -326,6 +378,18 @@ class MapaSituacaoService
                 'avaliacoes_maximo' => $maximo,
                 // Estande vazio com explicação: fora do prazo aprovado (Sprint 161).
                 'sinalizacoes' => $sinais[$projeto->id] ?? null,
+                // Termo de uso de imagem (Sprint 176): online + balcão, no corte.
+                'termo_imagem' => $termo['situacao'] ?? SituacaoTermoImagem::SemEstudantes->value,
+                'termo_imagem_label' => $termo['situacao_label'] ?? SituacaoTermoImagem::SemEstudantes->label(),
+                'termo_imagem_cobertos' => $termo['cobertos'] ?? 0,
+                'termo_imagem_total' => $termo['total'] ?? 0,
+                'termo_imagem_online' => $termo['online'] ?? 0,
+                'termo_imagem_balcao' => $termo['balcao'] ?? 0,
+                'termo_imagem_faltando' => $termo['faltando'] ?? [],
+                'termo_imagem_arquivos' => array_map(
+                    fn (array $a) => ['id' => $a['id'], 'nome_original' => $a['nome_original']],
+                    $termo['arquivos'] ?? [],
+                ),
             ];
         })->values()->all();
     }
@@ -384,6 +448,11 @@ class MapaSituacaoService
             'checagem' => $linha['checado'] === $this->booleano($valor),
             'avaliacoes_realizadas' => $valor === null || $linha['avaliacoes'] === (int) $valor,
             'avaliacoes_faltantes' => $valor === null || $linha['avaliacoes_faltantes'] === (int) $valor,
+            // Sem valor, "incompleto": quem ainda deve a autorização de alguém.
+            'termo_imagem' => match ($valor ?? 'incompleto') {
+                'incompleto' => in_array($linha['termo_imagem'], [SituacaoTermoImagem::Parcial->value, SituacaoTermoImagem::Nenhum->value], true),
+                default => $linha['termo_imagem'] === $valor,
+            },
             default => true,
         };
     }
@@ -399,6 +468,7 @@ class MapaSituacaoService
             'credenciamento', 'checagem' => $this->booleano($valor) ? 'já passou' : 'ainda não passou',
             'avaliacoes_realizadas' => $valor === null ? 'qualquer quantidade' : $valor.' realizada(s)',
             'avaliacoes_faltantes' => $valor === null ? 'qualquer quantidade' : $valor.' faltante(s)',
+            'termo_imagem' => self::VALORES_TERMO_IMAGEM[$valor ?? 'incompleto'] ?? (string) $valor,
             default => '',
         };
     }

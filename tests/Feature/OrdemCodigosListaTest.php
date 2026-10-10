@@ -159,18 +159,66 @@ class OrdemCodigosListaTest extends TestCase
         $this->assertNotNull($lista->fresh()->codigos_congelados_em);
     }
 
-    public function test_codigo_repetido_ou_mal_formado_e_recusado(): void
+    /**
+     * Sprint 178: arrastar renumera o grupo inteiro — inclusive o projeto sem
+     * código e o código digitado fora do padrão —, e esbarrar no código de
+     * outro grupo é aviso no rascunho, não recusa.
+     */
+    public function test_arrastar_renumera_o_grupo_inteiro_e_colisao_vira_aviso_no_rascunho(): void
     {
         $lista = $this->lista(rascunho: true);
         $a = $this->projeto($lista, 'Abelhas');
-        $this->projeto($lista, 'Bioplástico');
+        $b = $this->projeto($lista, 'Bioplástico');
+        $c = $this->projeto($lista, 'Compostagem');
+        $drone = $this->projeto($lista, 'Drone', $this->bio);
 
-        $this->putJson("/api/v1/admin/avaliacao/listas-finais/{$lista->id}/projetos/{$a->id}/codigo", ['codigo' => 'FET.AGR-002'])
-            ->assertStatus(422)
-            ->assertJsonPath('errors.codigo.0', 'O código FET.AGR-002 já é de "Bioplástico" nesta lista.');
+        $url = "/api/v1/admin/avaliacao/listas-finais/{$lista->id}";
+        $this->putJson("{$url}/projetos/{$a->id}/codigo", ['codigo' => ''])->assertOk();
+        $this->putJson("{$url}/projetos/{$b->id}/codigo", ['codigo' => 'XYZ'])->assertOk();
+        // Um projeto de Biológicas já ocupa o número que o arraste vai dar.
+        $this->putJson("{$url}/projetos/{$drone->id}/codigo", ['codigo' => 'FET.AGR-003'])->assertOk();
+
+        $this->putJson("{$url}/ordem", ['projeto_ids' => [$c->id, $b->id, $a->id]])
+            ->assertOk()
+            ->assertJsonPath('data.lista.avisos_codigos.duplicados', 2);
+
+        $codigos = $this->codigos($lista);
+        $this->assertSame('FET.AGR-001', $codigos[$c->id]);
+        $this->assertSame('FET.AGR-002', $codigos[$b->id]);
+        $this->assertSame('FET.AGR-003', $codigos[$a->id]);
+    }
+
+    public function test_codigo_mal_formado_e_recusado(): void
+    {
+        $lista = $this->lista(rascunho: true);
+        $a = $this->projeto($lista, 'Abelhas');
 
         $this->putJson("/api/v1/admin/avaliacao/listas-finais/{$lista->id}/projetos/{$a->id}/codigo", ['codigo' => 'FET/AGR#1'])
             ->assertStatus(422)->assertJsonValidationErrors('codigo');
+    }
+
+    /**
+     * Sprint 177: no rascunho o código repetido é aceito (e barra a geração);
+     * na lista já gerada ele continua recusado na hora.
+     */
+    public function test_codigo_repetido_e_aceito_no_rascunho_e_recusado_na_lista_gerada(): void
+    {
+        $rascunho = $this->lista(rascunho: true);
+        $a = $this->projeto($rascunho, 'Abelhas');
+        $this->projeto($rascunho, 'Bioplástico');
+
+        $this->putJson("/api/v1/admin/avaliacao/listas-finais/{$rascunho->id}/projetos/{$a->id}/codigo", ['codigo' => 'FET.AGR-002'])
+            ->assertOk()
+            ->assertJsonPath('data.lista.avisos_codigos.duplicados', 2);
+
+        $gerada = $this->lista();
+        $c = $this->projeto($gerada, 'Compostagem');
+        $this->projeto($gerada, 'Drone');
+
+        $this->putJson("/api/v1/admin/avaliacao/listas-finais/{$gerada->id}/projetos/{$c->id}/codigo", [
+            'codigo' => 'FET.AGR-002', 'justificativa' => 'Troca pedida pela organização.',
+        ])->assertStatus(422)
+            ->assertJsonPath('errors.codigo.0', 'O código FET.AGR-002 já é de "Drone" nesta lista.');
     }
 
     public function test_codigo_na_lista_gerada_pede_justificativa_e_registra(): void

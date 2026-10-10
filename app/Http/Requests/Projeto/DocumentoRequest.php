@@ -17,7 +17,10 @@ class DocumentoRequest extends FormRequest
     {
         return [
             'file' => ['required', 'file', 'mimes:pdf,docx', 'max:10240'], // 10 MB
-            'tipo' => ['required', Rule::enum(TipoDocumento::class)],
+            // Os termos do finalista têm a aba Documentos e regras próprias
+            // (lista final publicada, estudantes cobertos): não entram como
+            // anexo de inscrição.
+            'tipo' => ['required', Rule::enum(TipoDocumento::class)->except(TipoDocumento::doEventoTodos())],
         ];
     }
 

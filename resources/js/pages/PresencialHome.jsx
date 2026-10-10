@@ -3,10 +3,7 @@ import { Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { Alert, Button } from '../components/ui.jsx';
 import { extractErrors } from '../lib/auth.jsx';
-import {
-    getConfigPresencial, definirInformacoesPresencial,
-    getItensChecagem, criarItemChecagem, atualizarItemChecagem, excluirItemChecagem,
-} from '../lib/presencial.js';
+import { getConfigPresencial, definirInformacoesPresencial } from '../lib/presencial.js';
 
 const campoClass =
     'w-full bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface ' +
@@ -41,113 +38,28 @@ const SECOES = [
         to: '/admin/presencial/espelho',
         icon: 'table_view',
         titulo: 'Espelho da checagem',
-        descricao: 'Todos os finalistas lado a lado, com o que foi conferido e o termo de responsabilidade.',
+        descricao: 'Todos os finalistas lado a lado, com o que foi conferido — e o que chegou antes pelo portal.',
     },
 ];
 
-/** O catálogo do que se confere em cada estande. */
+/**
+ * O que se confere no estande saiu daqui na Sprint 181: é a lista única de
+ * itens do credenciamento e da checagem, na Parametrização.
+ */
 function Itens() {
-    const [itens, setItens] = useState(null);
-    const [nome, setNome] = useState('');
-    const [descricao, setDescricao] = useState('');
-    const [erro, setErro] = useState('');
-    const [salvando, setSalvando] = useState(false);
-
-    useEffect(() => { getItensChecagem().then(setItens).catch(() => setItens([])); }, []);
-
-    async function acao(fn) {
-        setSalvando(true); setErro('');
-        try {
-            setItens(await fn());
-        } catch (e) {
-            const { message, fields } = extractErrors(e);
-            setErro(Object.values(fields ?? {})[0] || message || 'Não foi possível concluir.');
-        } finally {
-            setSalvando(false);
-        }
-    }
-
     return (
         <section className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-4 max-w-3xl">
             <h2 className="font-display text-lg font-semibold text-on-surface mb-1">
                 Itens conferidos no estande
             </h2>
-            <p className="text-sm text-on-surface-variant mb-3">
-                O que a equipe confere em cada estande. Item já usado em alguma checagem não pode
-                ser excluído — <strong>desative-o</strong>, e ele some das fichas novas sem apagar
-                as antigas.
+            <p className="text-sm text-on-surface-variant">
+                O que a equipe confere em cada estande faz parte da{' '}
+                <Link to="/admin/parametrizacao/itens-conferencia" className="underline">
+                    lista de itens do credenciamento e da checagem
+                </Link>
+                , na Parametrização: lá cada item diz se é do projeto ou de cada pessoa, onde é
+                conferido e se o orientador pode enviá-lo antes.
             </p>
-
-            {erro && <div className="mb-3"><Alert>{erro}</Alert></div>}
-
-            <div className="flex flex-col sm:flex-row gap-2 mb-4">
-                <input
-                    className={campoClass}
-                    placeholder="Nome do item (ex.: Banner montado)"
-                    aria-label="Nome do item"
-                    value={nome}
-                    onChange={(e) => setNome(e.target.value)}
-                />
-                <input
-                    className={campoClass}
-                    placeholder="Descrição (opcional)"
-                    aria-label="Descrição do item"
-                    value={descricao}
-                    onChange={(e) => setDescricao(e.target.value)}
-                />
-                <Button
-                    type="button"
-                    loading={salvando}
-                    disabled={nome.trim() === ''}
-                    onClick={() => acao(async () => {
-                        const novos = await criarItemChecagem({ nome: nome.trim(), descricao: descricao.trim() || null });
-                        setNome(''); setDescricao('');
-                        return novos;
-                    })}
-                >
-                    Adicionar
-                </Button>
-            </div>
-
-            {itens === null ? (
-                <p className="text-sm text-on-surface-variant">Carregando…</p>
-            ) : itens.length === 0 ? (
-                <p className="text-sm text-on-surface-variant">
-                    Nenhum item cadastrado ainda — sem eles a ficha do estande fica só com o termo.
-                </p>
-            ) : (
-                <ul className="divide-y divide-outline-variant/30">
-                    {itens.map((i) => (
-                        <li key={i.id} className="py-3 flex flex-wrap items-center gap-3">
-                            <div className="min-w-0 flex-1">
-                                <p className={`text-sm ${i.ativo ? 'text-on-surface' : 'text-on-surface-variant line-through'}`}>
-                                    {i.nome}
-                                </p>
-                                {i.descricao && <p className="text-xs text-on-surface-variant">{i.descricao}</p>}
-                            </div>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                disabled={salvando}
-                                onClick={() => acao(() => atualizarItemChecagem(i.id, { ativo: !i.ativo }))}
-                            >
-                                {i.ativo ? 'Desativar' : 'Reativar'}
-                            </Button>
-                            {!i.em_uso && (
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    className="text-error border-error/40 hover:bg-error-container/40"
-                                    disabled={salvando}
-                                    onClick={() => acao(() => excluirItemChecagem(i.id))}
-                                >
-                                    Excluir
-                                </Button>
-                            )}
-                        </li>
-                    ))}
-                </ul>
-            )}
         </section>
     );
 }

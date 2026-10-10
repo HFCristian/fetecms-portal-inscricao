@@ -3,13 +3,12 @@
 namespace App\Services;
 
 use App\Enums\StatusAvaliacao;
-use App\Enums\TipoDocumento;
 use App\Enums\Turno;
 use App\Models\AvaliacaoPresencial;
 use App\Models\AvaliadorTurnoPresencial;
 use App\Models\Edicao;
 use App\Models\EstandeProjeto;
-use App\Models\ItemChecagemEstande;
+use App\Models\ItemConferencia;
 use App\Models\ListaFinal;
 use App\Models\Projeto;
 use App\Models\User;
@@ -277,12 +276,9 @@ class AvaliacaoPresencialFluxoService
         $avaliacao->loadMissing(['projeto.user:id,name']);
         $projeto = $avaliacao->projeto;
         $leitura = app(AvaliacaoFluxoService::class)->detalhesProjeto($projeto);
-        // O termo do finalista é documento do evento, com dados pessoais: não
-        // faz parte do que se avalia.
-        $leitura['documentos'] = array_values(array_filter(
-            $leitura['documentos'],
-            fn (array $d) => $d['tipo'] !== TipoDocumento::TermoResponsabilidade->value,
-        ));
+        // Os termos do finalista (responsabilidade e uso de imagem) já saem da
+        // leitura em detalhesProjeto(): são documentos do evento, com dados
+        // pessoais, e não fazem parte do que se avalia.
 
         return [
             'id' => $avaliacao->id,
@@ -554,11 +550,15 @@ class AvaliacaoPresencialFluxoService
      */
     private function catalogo(): array
     {
-        return ItemChecagemEstande::where('ativo', true)
-            ->orderBy('ordem')
-            ->orderBy('id')
+        // Os itens da checagem que são do projeto (a lista única, Sprint 181):
+        // o avaliador no estande não confere documento de cada pessoa, nem o
+        // que o orientador manda antes pelo portal — isso é da organização.
+        return ItemConferencia::naChecagem()
+            ->where('abrangencia', ItemConferencia::PROJETO)
+            ->where('receber_antes', false)
             ->get(['id', 'nome', 'descricao'])
-            ->map(fn (ItemChecagemEstande $i) => ['id' => $i->id, 'nome' => $i->nome, 'descricao' => $i->descricao])
+            ->map(fn (ItemConferencia $i) => ['id' => $i->id, 'nome' => $i->nome, 'descricao' => $i->descricao])
+            ->values()
             ->all();
     }
 

@@ -94,22 +94,47 @@ describe('PresencialChecagem', () => {
         expect(await screen.findByText('Checagem do estande registrada.')).toBeInTheDocument();
     });
 
-    it('a ficha mostra o termo do orientador com link para o PDF', async () => {
+    it('item de pessoa tem um marcador para cada pessoa da equipe (Sprint 182)', async () => {
         getFichaEstande.mockResolvedValue({
             ...FICHA,
-            termo: {
-                id: 9, nome_original: 'termo.pdf', assinatura_valida: true,
-                assinatura_motivo: 'Assinatura digital ICP-Brasil conferida.',
-            },
+            itens_pessoa: [{
+                id: 8, nome: 'Crachá', descricao: null,
+                pessoas: [
+                    { tipo: 'aluno', tipo_label: 'Aluno', id: 11, nome: 'Ana', situacao: 'presente' },
+                    { tipo: 'aluno', tipo_label: 'Aluno', id: 12, nome: 'Beto', situacao: null },
+                ],
+            }],
+        });
+        registrarChecagem.mockResolvedValue({ data: FICHA, meta: { message: 'Checagem do estande registrada.' } });
+        render(<PresencialChecagem />);
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Conferir' }));
+        expect(await screen.findByLabelText('Crachá de Ana')).toHaveValue('presente');
+        fireEvent.change(screen.getByLabelText('Crachá de Beto'), { target: { value: 'ausente' } });
+        fireEvent.click(screen.getByRole('button', { name: /Registrar checagem/i }));
+
+        await waitFor(() => expect(registrarChecagem).toHaveBeenCalled());
+        expect(registrarChecagem.mock.calls[0][1].itens).toEqual(expect.arrayContaining([
+            { item_id: 8, pessoa_tipo: 'aluno', pessoa_id: 11, situacao: 'presente' },
+            { item_id: 8, pessoa_tipo: 'aluno', pessoa_id: 12, situacao: 'ausente' },
+        ]));
+    });
+
+    it('item enviado antes chega marcado, com o arquivo a um clique (Sprint 184)', async () => {
+        getFichaEstande.mockResolvedValue({
+            ...FICHA,
+            itens: [{
+                id: 1, nome: 'Termo de responsabilidade', descricao: null, situacao: 'presente', pre_marcado: true,
+                online: [{ id: 9, nome_original: 'termo.pdf', enviado_em: '2026-10-01T10:00:00-04:00' }],
+            }],
         });
         render(<PresencialChecagem />);
 
         fireEvent.click(await screen.findByRole('button', { name: 'Conferir' }));
 
-        expect(await screen.findByText('termo.pdf')).toBeInTheDocument();
-        expect(screen.getByRole('link', { name: /Ver PDF/i }).getAttribute('href'))
-            .toBe('/api/v1/documentos/9/preview');
-        expect(screen.getByText(/ICP-Brasil conferida/)).toBeInTheDocument();
+        expect(await screen.findByText('Enviado online')).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'termo.pdf' }).getAttribute('href')).toBe('/api/v1/documentos/9/preview');
+        expect(screen.getByLabelText('Situação de Termo de responsabilidade')).toHaveValue('presente');
     });
 
     it('fora da janela a tela explica e não deixa registrar', async () => {

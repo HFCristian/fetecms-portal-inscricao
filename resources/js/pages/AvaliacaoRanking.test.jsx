@@ -195,6 +195,7 @@ describe('AvaliacaoRanking', () => {
             // Preliminar é o padrão; toda lista nasce rascunho (Sprint 164).
             tipo: 'preliminar',
             nome: null,
+            descricao: null,
         }));
     });
 

@@ -25,6 +25,7 @@ const OPCOES = {
         { chave: 'prazo_inscricoes', rotulo: 'Prazo das inscrições', descricao: 'A data-limite.' },
         { chave: 'tempo_restante', rotulo: 'Tempo restante', descricao: 'Quanto falta.' },
         { chave: 'inicio_avaliacoes', rotulo: 'Início das avaliações', descricao: 'A liberação.' },
+        { chave: 'turno', rotulo: 'Turno', descricao: 'Só para finalistas.', somente_finalistas: true },
     ],
     modelo: { titulo: 'As inscrições estão se encerrando', mensagem: 'Faltam {{tempo_restante}}.' },
     inscricoes: { encerradas: false, prazo_label: '30/09/2026 23:59' },
@@ -33,6 +34,7 @@ const OPCOES = {
     publicos: [
         { value: 'orientadores', label: 'Todos os orientadores', descricao: 'Toda conta de orientador ativa.' },
         { value: 'avaliadores_comissao', label: 'Avaliadores da comissão especial', descricao: 'Marcado pelo admin.' },
+        { value: 'orientadores_finalistas', label: 'Orientadores de projetos finalistas', descricao: 'Tem projeto na lista final ativa.' },
     ],
 };
 
@@ -65,6 +67,23 @@ describe('AdminAvisos — aviso na tela', () => {
         expect(screen.getByLabelText('Mensagem')).toHaveValue('Faltam {{tempo_restante}}.');
         expect(screen.getByText('Nenhum aviso no ar')).toBeInTheDocument();
         expect(screen.getByText(/42/)).toBeInTheDocument();
+    });
+
+    it('variável de finalista com público que não é só de finalistas avisa e não publica (Sprint 186)', async () => {
+        render(<AdminAvisos />);
+
+        const mensagem = await screen.findByLabelText('Mensagem');
+        expect(screen.getByText('só finalistas')).toBeInTheDocument();
+        fireEvent.change(mensagem, { target: { value: 'Seu turno: {{turno}}' } });
+
+        // O público padrão é "Todos os orientadores": não é só de finalistas.
+        expect(screen.getByText(/que só existe para finalistas/)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Publicar aviso/ })).toBeDisabled();
+
+        fireEvent.click(screen.getByLabelText(/Todos os orientadores/));
+        fireEvent.click(screen.getByLabelText(/Orientadores de projetos finalistas/));
+        expect(screen.queryByText(/que só existe para finalistas/)).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Publicar aviso/ })).toBeEnabled();
     });
 
     it('insere a variável na posição do cursor', async () => {

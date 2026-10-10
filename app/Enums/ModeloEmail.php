@@ -169,6 +169,9 @@ enum ModeloEmail: string
                 ['chave' => 'nome_completo', 'descricao' => 'Nome completo'],
                 ['chave' => 'email', 'descricao' => 'E-mail de quem recebe'],
                 ['chave' => 'projetos', 'descricao' => 'O código e o título do projeto (um por linha, se forem vários)'],
+                // Sprint 186: este e-mail só vai à equipe dos finalistas.
+                ['chave' => 'codigo_projeto', 'descricao' => 'Só o código do projeto (FET.AGR-001)'],
+                ['chave' => 'turno', 'descricao' => 'O turno de apresentação do projeto'],
             ],
             self::ConfirmacaoCadastro => [
                 ['chave' => 'nome', 'descricao' => 'Primeiro nome de quem se cadastrou'],

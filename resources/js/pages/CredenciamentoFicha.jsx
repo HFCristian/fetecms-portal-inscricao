@@ -40,6 +40,63 @@ const chave = (documentoId, tipo, pessoaId) => `${documentoId}:${tipo}:${pessoaI
 const chavePessoa = (pessoa) => `${pessoa.tipo}:${pessoa.id}`;
 
 /**
+ * Um item conferido no balcão: o nome, o arquivo enviado antes (quando houver)
+ * e os botões de situação. Serve à pessoa e ao bloco "Do projeto" (Sprint 182),
+ * que usa o próprio projeto no lugar da pessoa.
+ */
+function LinhaDocumento({ doc, pessoa, marcacoes, situacoes, aberto, marcar }) {
+    return (
+        <li key={doc.id} className="flex flex-col sm:flex-row sm:items-center gap-2">
+            <span className="text-sm text-on-surface flex-1 min-w-0">
+                {doc.nome}
+                {/* Enviado antes pelo orientador (Sprints 175 e 184): já vem
+                    marcado; o atendente confere o arquivo e muda se precisar. */}
+                {doc.online?.length > 0 && (
+                    <span className="block text-xs text-on-surface-variant mt-0.5">
+                        <span className="font-semibold text-secondary">Enviado online</span>
+                        {' · '}
+                        {doc.online.map((arquivo, i) => (
+                            <span key={arquivo.id}>
+                                {i > 0 && ', '}
+                                <a
+                                    href={`/api/v1/documentos/${arquivo.id}/preview`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="underline hover:text-primary"
+                                >
+                                    {arquivo.nome_original}
+                                </a>
+                            </span>
+                        ))}
+                        {marcacoes[chave(doc.id, pessoa.tipo, pessoa.id)] !== 'presente'
+                            && ' — confira antes de mudar a marcação.'}
+                    </span>
+                )}
+            </span>
+            <div className="flex flex-wrap gap-1" role="group" aria-label={`${doc.nome} de ${pessoa.nome}`}>
+                {situacoes.map((s) => {
+                    const ativo = marcacoes[chave(doc.id, pessoa.tipo, pessoa.id)] === s.value;
+                    return (
+                        <button
+                            key={s.value}
+                            type="button"
+                            disabled={!aberto}
+                            aria-pressed={ativo}
+                            onClick={() => marcar(doc.id, pessoa, s.value)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors disabled:opacity-50 ${ativo
+                                ? 'bg-primary-container text-on-primary border-primary-container'
+                                : 'border-outline-variant text-on-surface-variant hover:bg-surface-variant'}`}
+                        >
+                            {s.label}
+                        </button>
+                    );
+                })}
+            </div>
+        </li>
+    );
+}
+
+/**
  * Ficha de credenciamento de um finalista.
  *
  * Cada pessoa do projeto — alunos, orientador e coorientador — aparece com os
@@ -106,6 +163,9 @@ export default function CredenciamentoFicha() {
                     for (const doc of pessoa.documentos) {
                         if (doc.situacao) atual[chave(doc.id, pessoa.tipo, pessoa.id)] = doc.situacao;
                     }
+                }
+                for (const doc of d.itens_projeto ?? []) {
+                    if (doc.situacao) atual[chave(doc.id, doc.pessoa_tipo, doc.pessoa_id)] = doc.situacao;
                 }
                 setMarcacoes(atual);
                 setPresencas(Object.fromEntries(d.pessoas.map((p) => [chavePessoa(p), p.presente !== false])));
@@ -274,6 +334,9 @@ export default function CredenciamentoFicha() {
     }
 
     const { projeto, pessoas, credenciamento, situacoes, config } = dados;
+    const itensProjeto = dados.itens_projeto ?? [];
+    // O item do projeto é marcado com o próprio projeto no lugar da pessoa.
+    const doProjeto = { tipo: 'projeto', id: projeto.id, nome: projeto.titulo };
     // Credenciamento de outra conta só é alterado por admin permanente — o
     // servidor barra de qualquer forma, aqui é para a tela não mentir.
     const podeAlterar = credenciamento?.pode_alterar !== false;
@@ -286,7 +349,7 @@ export default function CredenciamentoFicha() {
     const janelaAberta = Boolean(config?.aberto);
     const concluido = Boolean(credenciamento?.concluido);
     // Sem nenhum documento cadastrado não há o que conferir — a lista é parametrizável.
-    const semDocumentos = pessoas.every((p) => p.documentos.length === 0);
+    const semDocumentos = itensProjeto.length === 0 && pessoas.every((p) => p.documentos.length === 0);
 
     return (
         <AppShell>
@@ -404,13 +467,33 @@ export default function CredenciamentoFicha() {
             {semDocumentos && (
                 <div className="mb-4 max-w-3xl">
                     <Alert type="info">
-                        Nenhum documento cadastrado em Parametrização → Credenciamento. Você ainda pode
-                        concluir o credenciamento, mas não haverá conferência registrada.
+                        Nenhum item do credenciamento cadastrado em Parametrização → Itens do credenciamento
+                        e da checagem. Você ainda pode concluir o credenciamento, mas não haverá conferência
+                        registrada.
                     </Alert>
                 </div>
             )}
 
             <div className="space-y-4 max-w-3xl">
+                {/* Itens do projeto (Sprint 182): conferidos uma vez, não por pessoa. */}
+                {itensProjeto.length > 0 && (
+                    <section className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-5">
+                        <h2 className="font-display text-primary font-semibold mb-3">Do projeto</h2>
+                        <ul className="space-y-2">
+                            {itensProjeto.map((doc) => (
+                                <LinhaDocumento
+                                    key={doc.id}
+                                    doc={doc}
+                                    pessoa={doProjeto}
+                                    marcacoes={marcacoes}
+                                    situacoes={situacoes}
+                                    aberto={aberto}
+                                    marcar={marcar}
+                                />
+                            ))}
+                        </ul>
+                    </section>
+                )}
                 {pessoas.map((pessoa) => (
                     <section key={`${pessoa.tipo}:${pessoa.id}`} className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-5">
                         <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
@@ -461,28 +544,15 @@ export default function CredenciamentoFicha() {
                         ) : (
                             <ul className="space-y-2">
                                 {pessoa.documentos.map((doc) => (
-                                    <li key={doc.id} className="flex flex-col sm:flex-row sm:items-center gap-2">
-                                        <span className="text-sm text-on-surface flex-1 min-w-0">{doc.nome}</span>
-                                        <div className="flex flex-wrap gap-1" role="group" aria-label={`${doc.nome} de ${pessoa.nome}`}>
-                                            {situacoes.map((s) => {
-                                                const ativo = marcacoes[chave(doc.id, pessoa.tipo, pessoa.id)] === s.value;
-                                                return (
-                                                    <button
-                                                        key={s.value}
-                                                        type="button"
-                                                        disabled={!aberto}
-                                                        aria-pressed={ativo}
-                                                        onClick={() => marcar(doc.id, pessoa, s.value)}
-                                                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors disabled:opacity-50 ${ativo
-                                                            ? 'bg-primary-container text-on-primary border-primary-container'
-                                                            : 'border-outline-variant text-on-surface-variant hover:bg-surface-variant'}`}
-                                                    >
-                                                        {s.label}
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                    </li>
+                                    <LinhaDocumento
+                                        key={doc.id}
+                                        doc={doc}
+                                        pessoa={pessoa}
+                                        marcacoes={marcacoes}
+                                        situacoes={situacoes}
+                                        aberto={aberto}
+                                        marcar={marcar}
+                                    />
                                 ))}
                             </ul>
                         )}

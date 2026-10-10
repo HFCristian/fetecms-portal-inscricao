@@ -74,6 +74,7 @@ import AlmoxarifadoHome from './pages/AlmoxarifadoHome.jsx';
 import AlmoxarifadoNovo from './pages/AlmoxarifadoNovo.jsx';
 import AlmoxarifadoRegistros from './pages/AlmoxarifadoRegistros.jsx';
 import ParametrizacaoCredenciamento from './pages/ParametrizacaoCredenciamento.jsx';
+import ParametrizacaoItensConferencia from './pages/ParametrizacaoItensConferencia.jsx';
 import AdminAvaliacaoOnline from './pages/AdminAvaliacaoOnline.jsx';
 import AvaliacaoAvaliadores from './pages/AvaliacaoAvaliadores.jsx';
 import AvaliacaoDistribuicao from './pages/AvaliacaoDistribuicao.jsx';
@@ -194,6 +195,7 @@ export default function Root() {
                             <Route path="/admin/parametrizacao/escopos" element={<ParametrizacaoEscopos />} />
                             <Route path="/admin/parametrizacao/abas" element={<ParametrizacaoAbas />} />
                             <Route path="/admin/parametrizacao/credenciamento" element={<ParametrizacaoCredenciamento />} />
+                            <Route path="/admin/parametrizacao/itens-conferencia" element={<ParametrizacaoItensConferencia />} />
                             <Route path="/admin/parametrizacao/escolas" element={<ParametrizacaoEscolas />} />
                             <Route path="/admin/parametrizacao/datas" element={<ParametrizacaoDatas />} />
                             <Route path="/admin/parametrizacao/demo" element={<ParametrizacaoDemo />} />

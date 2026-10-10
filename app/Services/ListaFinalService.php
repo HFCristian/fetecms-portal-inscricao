@@ -48,8 +48,22 @@ class ListaFinalService
     /** Sigla de projeto sem categoria ou sem área — visível de propósito, para o admin corrigir. */
     private const SIGLA_AUSENTE = 'SEM';
 
-    /** Código digitado à mão: letras, números, ponto e hífen, começando e terminando em letra ou número. */
-    private const FORMATO_CODIGO = '/^[A-Z0-9](?:[A-Z0-9.\-]{1,28})[A-Z0-9]$/';
+    /**
+     * Código digitado à mão: até 30 caracteres entre letras, números, ponto,
+     * hífen, barra e sublinhado, começando por letra ou número. É a única
+     * trava dura — fora dela o código vira texto que quebra arquivo e e-mail.
+     * Fugir do padrão FET.AGR-001 é permitido, com aviso (Sprint 177).
+     */
+    private const FORMATO_CODIGO = '/^[A-Z0-9][A-Z0-9.\-\/_]{0,29}$/';
+
+    /** Os avisos que um código pode ter na composição (Sprint 177). */
+    public const AVISO_FALTANTE = 'faltante';
+
+    public const AVISO_FORA_PADRAO = 'fora_padrao';
+
+    public const AVISO_FORA_SEQUENCIA = 'fora_sequencia';
+
+    public const AVISO_DUPLICADO = 'duplicado';
 
     public function __construct(private readonly RegistroAtividadeService $registros) {}
 
@@ -131,7 +145,7 @@ class ListaFinalService
     {
         $blocos = array_map(function (array $item) {
             $linhas = [
-                "{$item['codigo']} - {$item['titulo']}",
+                ($item['codigo'] === '' ? '(sem código)' : $item['codigo'])." - {$item['titulo']}",
                 $item['escola'],
                 ...$item['alunos'],
             ];
@@ -163,15 +177,16 @@ class ListaFinalService
      *
      * @param  array<string, mixed>  $cotas
      */
-    public function rascunhar(array $cotas, User $admin, ?string $nome = null, string $tipo = ListaFinal::TIPO_FINAL): ListaFinal
+    public function rascunhar(array $cotas, User $admin, ?string $nome = null, string $tipo = ListaFinal::TIPO_FINAL, ?string $descricao = null): ListaFinal
     {
         $edicao = $this->edicaoOuFalha();
         $itens = $this->gerar($cotas);
 
-        return DB::transaction(function () use ($cotas, $admin, $nome, $edicao, $itens, $tipo) {
+        return DB::transaction(function () use ($cotas, $admin, $nome, $descricao, $edicao, $itens, $tipo) {
             $lista = ListaFinal::create([
                 'edicao_id' => $edicao->id,
                 'nome' => trim((string) $nome) !== '' ? trim((string) $nome) : $this->nomePadrao($edicao, $tipo),
+                'descricao' => trim((string) $descricao) !== '' ? trim((string) $descricao) : null,
                 'tipo' => $tipo,
                 'vigente' => false,
                 'rascunho' => true,
@@ -189,52 +204,112 @@ class ListaFinalService
     }
 
     /**
-     * Rascunho de lista **final** montado pela **união de preliminares**
-     * escolhidas (Sprint 164): todos os projetos delas, sem repetir. Só entram
-     * preliminares já **geradas** — a que ainda é rascunho está sendo revista e
-     * pode mudar. `origens` guarda de onde a final veio.
+     * Rascunho de lista final montado pela união de preliminares (Sprint 164)
+     * — o caminho antigo, que continua valendo: é a união de listas com
+     * destino final ({@see self::rascunharDeListas()}).
      *
      * @param  list<int>  $preliminarIds
      */
     public function rascunharDePreliminares(array $preliminarIds, User $admin, ?string $nome = null): ListaFinal
     {
-        $edicao = $this->edicaoOuFalha();
+        return $this->rascunharDeListas($preliminarIds, ListaFinal::TIPO_FINAL, $admin, $nome, campo: 'preliminares');
+    }
 
-        $preliminares = ListaFinal::query()
-            ->whereIn('id', $preliminarIds)
+    /**
+     * Rascunho de lista — **preliminar ou final** — montado pela **união** de
+     * listas já geradas (Sprint 179): todos os projetos delas, sem repetir.
+     *
+     * Até a Sprint 165 a união só juntava preliminares numa final. Agora a
+     * origem pode ser qualquer lista **gerada** da edição — preliminar, a final
+     * ativa ou uma final inativa —, e o destino é escolhido: a organização
+     * monta, por exemplo, uma preliminar a partir da final de hoje mais uma
+     * preliminar com os suplentes. O rascunho continua fora: ele está sendo
+     * revisto e pode mudar.
+     *
+     * Os **códigos fixados** nas listas de origem vêm junto: a equipe que já
+     * recebeu o FET.AGR-007 não pode ganhar outro número só porque a lista foi
+     * remontada. A prioridade é a final ativa, depois as outras finais e por
+     * último as preliminares, da mais nova para a mais antiga; projeto sem
+     * código herdado ganha o próximo número livre do grupo. Dois projetos que
+     * herdam o mesmo código ficam com ele — e o aviso de código repetido barra
+     * a geração até o admin decidir (Sprint 177).
+     *
+     * @param  list<int>  $listaIds
+     */
+    public function rascunharDeListas(
+        array $listaIds,
+        string $tipo,
+        User $admin,
+        ?string $nome = null,
+        ?string $descricao = null,
+        string $campo = 'listas',
+    ): ListaFinal {
+        $edicao = $this->edicaoOuFalha();
+        $tipo = $tipo === ListaFinal::TIPO_PRELIMINAR ? ListaFinal::TIPO_PRELIMINAR : ListaFinal::TIPO_FINAL;
+
+        $origens = ListaFinal::query()
+            ->whereIn('id', $listaIds)
             ->where('edicao_id', $edicao->id)
-            ->where('tipo', ListaFinal::TIPO_PRELIMINAR)
+            ->whereIn('tipo', [ListaFinal::TIPO_PRELIMINAR, ListaFinal::TIPO_FINAL])
             ->where('rascunho', false)
             ->where('demo', false)
             ->get();
 
-        if ($preliminares->isEmpty() || $preliminares->count() !== count(array_unique($preliminarIds))) {
+        if ($origens->isEmpty() || $origens->count() !== count(array_unique($listaIds))) {
             throw ValidationException::withMessages([
-                'preliminares' => 'Escolha listas preliminares já geradas nesta edição.',
+                $campo => 'Escolha listas preliminares ou finais já geradas nesta edição.',
             ]);
         }
 
-        $projetos = DB::table('lista_final_projetos')
-            ->whereIn('lista_final_id', $preliminares->pluck('id'))
-            ->distinct()
-            ->pluck('projeto_id')
-            ->all();
+        // A ordem das origens é a prioridade da herança dos códigos.
+        $peso = fn (ListaFinal $l) => $l->ehFinal() && $l->vigente ? 0 : ($l->ehFinal() ? 1 : 2);
+        $origens = $origens->sort(fn (ListaFinal $a, ListaFinal $b) => $peso($a) <=> $peso($b)
+            ?: [$b->gerada_em?->getTimestamp() ?? 0, $b->id] <=> [$a->gerada_em?->getTimestamp() ?? 0, $a->id])
+            ->values();
 
-        return DB::transaction(function () use ($edicao, $admin, $nome, $preliminares, $projetos) {
+        $vinculos = DB::table('lista_final_projetos')
+            ->whereIn('lista_final_id', $origens->pluck('id'))
+            ->get(['lista_final_id', 'projeto_id', 'codigo']);
+
+        $congeladas = $origens->whereNotNull('codigos_congelados_em')->pluck('id')->all();
+        $herdados = [];
+        foreach ($origens as $origem) {
+            if (! in_array($origem->id, $congeladas, true)) {
+                continue;
+            }
+            foreach ($vinculos->where('lista_final_id', $origem->id) as $v) {
+                if ($v->codigo !== null && $v->codigo !== '' && ! isset($herdados[$v->projeto_id])) {
+                    $herdados[(int) $v->projeto_id] = (string) $v->codigo;
+                }
+            }
+        }
+
+        $projetos = $vinculos->pluck('projeto_id')->map(fn ($id) => (int) $id)->unique()->values()->all();
+
+        return DB::transaction(function () use ($edicao, $admin, $nome, $descricao, $tipo, $origens, $projetos, $herdados) {
             $lista = ListaFinal::create([
                 'edicao_id' => $edicao->id,
-                'nome' => trim((string) $nome) !== '' ? trim((string) $nome) : $this->nomePadrao($edicao, ListaFinal::TIPO_FINAL),
-                'tipo' => ListaFinal::TIPO_FINAL,
+                'nome' => trim((string) $nome) !== '' ? trim((string) $nome) : $this->nomePadrao($edicao, $tipo),
+                'descricao' => trim((string) $descricao) !== '' ? trim((string) $descricao) : null,
+                'tipo' => $tipo,
                 'vigente' => false,
                 'rascunho' => true,
                 'versao' => 1,
-                'origens' => $preliminares->map(fn (ListaFinal $l) => ['id' => $l->id, 'nome' => $l->nome])->values()->all(),
+                'origens' => $origens->map(fn (ListaFinal $l) => ['id' => $l->id, 'nome' => $l->nome, 'tipo' => $l->tipo])->values()->all(),
                 'gerada_por' => $admin->id,
             ]);
 
             $lista->projetos()->attach(
-                collect($projetos)->mapWithKeys(fn ($id) => [$id => ['manual' => false]])->all(),
+                collect($projetos)->mapWithKeys(fn (int $id) => [$id => ['manual' => false, 'codigo' => $herdados[$id] ?? null]])->all(),
             );
+
+            // Com algum código herdado, a lista já nasce com os códigos fixos:
+            // quem não herdou ganha o próximo número livre do grupo, em vez de
+            // um número calculado que poderia repetir o herdado.
+            if ($herdados !== []) {
+                $lista->forceFill(['codigos_congelados_em' => now()])->save();
+                $this->fixarCodigos($lista);
+            }
 
             return $lista->fresh();
         });
@@ -280,6 +355,19 @@ class ListaFinalService
             ]);
         }
 
+        // Código repetido barra a geração (Sprint 177): é o único aviso que
+        // impede — faltante, fora do padrão e fora da sequência só avisam.
+        $duplicados = $this->avisosDosCodigos($this->itensDaLista($lista))['resumo']['codigos_duplicados'];
+
+        if ($duplicados !== []) {
+            throw ValidationException::withMessages([
+                'codigos' => 'Há projetos com o mesmo código: '.implode('; ', array_map(
+                    fn (array $d) => $d['codigo'].' ('.implode(', ', $d['projetos']).')',
+                    $duplicados,
+                )).'. Corrija antes de gerar a lista.',
+            ]);
+        }
+
         return DB::transaction(function () use ($lista, $admin) {
             $projetos = $lista->projetos()->count().' projeto(s)';
 
@@ -302,6 +390,26 @@ class ListaFinalService
 
             return $lista->fresh();
         });
+    }
+
+    /**
+     * Troca o **apelido** (o `nome` da lista) e a **descrição** (Sprint 180).
+     *
+     * Com várias preliminares convivendo, "Lista preliminar · XVI FETECMS"
+     * repetido não diz o que há em cada uma; o apelido e a descrição dizem. São
+     * rótulo, não composição — por isso valem a qualquer momento, sem
+     * justificativa e sem subir a versão. Apelido em branco volta ao nome
+     * padrão. Os registros antigos guardam o nome que a lista tinha quando
+     * foram escritos, e é assim que devem ficar.
+     */
+    public function rotular(ListaFinal $lista, ?string $nome, ?string $descricao): ListaFinal
+    {
+        $lista->update([
+            'nome' => trim((string) $nome) !== '' ? trim((string) $nome) : $this->nomePadrao($lista->edicao ?? $this->edicaoOuFalha(), $lista->tipo),
+            'descricao' => trim((string) $descricao) !== '' ? trim((string) $descricao) : null,
+        ]);
+
+        return $lista->fresh();
     }
 
     /** O nome antigo do mesmo ato, para quem ainda chama `publicar`. */
@@ -380,6 +488,7 @@ class ListaFinalService
             ->map(fn (ListaFinal $l) => [
                 'id' => $l->id,
                 'nome' => $l->nome,
+                'descricao' => $l->descricao,
                 'tipo' => $l->tipo,
                 'vigente' => $l->vigente,
                 'rascunho' => $l->rascunho,
@@ -450,10 +559,99 @@ class ListaFinalService
             $grupos[$item['categoria'].'|'.$item['area']] ??= count($grupos);
         }
 
-        usort($itens, fn (array $a, array $b) => [$grupos[$a['categoria'].'|'.$a['area']], $a['codigo']]
-            <=> [$grupos[$b['categoria'].'|'.$b['area']], $b['codigo']]);
+        // Dentro do grupo, pela ordem do código (natural: -9 antes de -10);
+        // projeto sem código vai para o fim, e empate desempata pelo título.
+        usort($itens, fn (array $a, array $b) => [
+            $grupos[$a['categoria'].'|'.$a['area']], $a['codigo'] === '' ? 1 : 0,
+        ] <=> [
+            $grupos[$b['categoria'].'|'.$b['area']], $b['codigo'] === '' ? 1 : 0,
+        ] ?: (strnatcasecmp($a['codigo'], $b['codigo']) ?: strcmp($this->chave($a['titulo']), $this->chave($b['titulo']))));
 
         return $itens;
+    }
+
+    /**
+     * Os avisos dos códigos de uma composição (Sprint 177), calculados uma vez
+     * e mandados para a tela:
+     *
+     * - **faltante**: o projeto está sem código (o admin apagou o campo);
+     * - **fora do padrão**: o código não é `CAT.ARE-000` da categoria e da
+     *   área do próprio projeto (FET.BIO-001 num projeto de Agrárias, "ABC12");
+     * - **fora da sequência**: dentro do grupo categoria+área, os números não
+     *   formam 001, 002, 003… — houve salto ou buraco;
+     * - **duplicado**: o mesmo código em mais de um projeto da lista.
+     *
+     * Os três primeiros são avisos: a lista pode ser gerada assim mesmo. O
+     * duplicado **impede** a geração ({@see self::gerarLista()}) — dois crachás
+     * com o mesmo número no balcão é o erro que o código existe para evitar.
+     *
+     * @param  list<array<string, mixed>>  $itens
+     * @return array{por_projeto: array<int, list<string>>, resumo: array<string, mixed>}
+     */
+    public function avisosDosCodigos(array $itens): array
+    {
+        $avisos = array_fill_keys(array_column($itens, 'projeto_id'), []);
+        $usos = [];
+        $numerosPorGrupo = [];
+
+        foreach ($itens as $item) {
+            $codigo = (string) $item['codigo'];
+
+            if ($codigo === '') {
+                $avisos[$item['projeto_id']][] = self::AVISO_FALTANTE;
+
+                continue;
+            }
+
+            $usos[$codigo][] = $item;
+
+            if (! preg_match('/^'.preg_quote((string) $item['prefixo'], '/').'-(\d{3})$/', $codigo, $m)) {
+                $avisos[$item['projeto_id']][] = self::AVISO_FORA_PADRAO;
+
+                continue;
+            }
+
+            $numerosPorGrupo[$item['categoria'].'|'.$item['area']][(int) $m[1]][] = $item['projeto_id'];
+        }
+
+        // A sequência é 001, 002, 003… sobre os números distintos do grupo:
+        // o n-ésimo número tem de ser n. Repetido conta uma vez (é duplicado,
+        // não salto).
+        foreach ($numerosPorGrupo as $porNumero) {
+            ksort($porNumero);
+            $posicao = 0;
+            foreach ($porNumero as $numero => $projetos) {
+                $posicao++;
+                if ($numero !== $posicao) {
+                    foreach ($projetos as $id) {
+                        $avisos[$id][] = self::AVISO_FORA_SEQUENCIA;
+                    }
+                }
+            }
+        }
+
+        $duplicados = [];
+        foreach ($usos as $codigo => $doCodigo) {
+            if (count($doCodigo) > 1) {
+                $duplicados[] = ['codigo' => (string) $codigo, 'projetos' => array_column($doCodigo, 'titulo')];
+                foreach ($doCodigo as $item) {
+                    $avisos[$item['projeto_id']][] = self::AVISO_DUPLICADO;
+                }
+            }
+        }
+
+        $contar = fn (string $aviso) => count(array_filter($avisos, fn (array $a) => in_array($aviso, $a, true)));
+
+        return [
+            'por_projeto' => $avisos,
+            'resumo' => [
+                'faltantes' => $contar(self::AVISO_FALTANTE),
+                'fora_padrao' => $contar(self::AVISO_FORA_PADRAO),
+                'fora_sequencia' => $contar(self::AVISO_FORA_SEQUENCIA),
+                'duplicados' => $contar(self::AVISO_DUPLICADO),
+                'codigos_duplicados' => $duplicados,
+            ],
+        ];
     }
 
     /** @return array<int, string> projeto_id => código fixado */
@@ -531,7 +729,12 @@ class ListaFinalService
      */
     public function codigosDaLista(ListaFinal $lista): array
     {
-        return array_column($this->itensDaLista($lista), 'codigo', 'projeto_id');
+        // Projeto sem código (Sprint 177) fica de fora: quem lê daqui escreve
+        // "CÓDIGO - Título", e um código vazio viraria " - Título".
+        return array_filter(
+            array_column($this->itensDaLista($lista), 'codigo', 'projeto_id'),
+            fn ($codigo) => $codigo !== '',
+        );
     }
 
     /**
@@ -648,7 +851,11 @@ class ListaFinalService
             $novos[$id] = $par.'-'.str_pad((string) ($posicao + 1), 3, '0', STR_PAD_LEFT);
         }
 
-        $this->garantirCodigosLivres($itens->whereNotIn('projeto_id', $projetoIds), $novos);
+        // Colidir com o código de outro grupo é aviso no rascunho e recusa na
+        // lista gerada — a mesma regra do código digitado (Sprint 177).
+        if (! $lista->rascunho) {
+            $this->garantirCodigosLivres($itens->whereNotIn('projeto_id', $projetoIds), $novos);
+        }
 
         $mudaram = array_filter($novos, fn (string $codigo, int $id) => ($antes[$id] ?? null) !== $codigo, ARRAY_FILTER_USE_BOTH);
 
@@ -681,16 +888,22 @@ class ListaFinalService
 
     /**
      * Troca o código de **um** projeto pelo que o admin digitou (Sprint 168).
-     * Vale qualquer código no formato do portal (letras, números, ponto e
-     * hífen: FET.AGR-010), desde que nenhum outro projeto da lista o use.
+     *
+     * Desde a Sprint 177 o código pode **fugir do padrão** (FET.AGR-010) ou da
+     * sequência do grupo, e pode ficar **em branco** — tudo isso vira aviso na
+     * tela, e a lista pode ser gerada assim. Só os demais projetos mudam de
+     * lugar: a lista se reordena pelo código, e quem digitou um número que já
+     * existe vê o duplicado em vermelho. O duplicado é tolerado no
+     * **rascunho** (bloqueia a geração) e recusado na hora numa lista já
+     * gerada, que não tem mais um "Gerar" para barrar.
      */
-    public function definirCodigo(ListaFinal $lista, Projeto $projeto, string $codigo, User $admin, ?string $justificativa = null): ListaFinal
+    public function definirCodigo(ListaFinal $lista, Projeto $projeto, ?string $codigo, User $admin, ?string $justificativa = null): ListaFinal
     {
-        $codigo = $this->normalizarCodigo($codigo);
+        $codigo = $this->normalizarCodigo((string) $codigo);
 
-        if (! preg_match(self::FORMATO_CODIGO, $codigo)) {
+        if ($codigo !== '' && ! preg_match(self::FORMATO_CODIGO, $codigo)) {
             throw ValidationException::withMessages([
-                'codigo' => 'Use letras, números, ponto e hífen, de 3 a 30 caracteres (ex.: FET.AGR-010).',
+                'codigo' => 'Use até 30 letras, números, ponto, hífen, barra ou sublinhado (ex.: FET.AGR-010). Para deixar o projeto sem código, apague o campo.',
             ]);
         }
 
@@ -707,9 +920,8 @@ class ListaFinalService
             return $lista->fresh();
         }
 
-        $this->garantirCodigosLivres($itens->where('projeto_id', '!=', $projeto->id), [$projeto->id => $codigo]);
-
         if (! $lista->rascunho) {
+            $this->garantirCodigosLivres($itens->where('projeto_id', '!=', $projeto->id), [$projeto->id => $codigo]);
             $this->exigirJustificativa($justificativa);
         }
 
@@ -719,7 +931,12 @@ class ListaFinalService
 
             if (! $lista->rascunho) {
                 $lista->increment('versao');
-                $this->registros->codigoNaLista($admin, $lista->nome, $projeto, $atual['codigo'], $codigo, trim((string) $justificativa));
+                $this->registros->codigoNaLista(
+                    $admin, $lista->nome, $projeto,
+                    $atual['codigo'] === '' ? '(sem código)' : $atual['codigo'],
+                    $codigo === '' ? '(sem código)' : $codigo,
+                    trim((string) $justificativa),
+                );
             }
 
             return $lista->fresh();
@@ -744,7 +961,7 @@ class ListaFinalService
         $ocupados = $outros->pluck('titulo', 'codigo');
 
         foreach ($novos as $codigo) {
-            if ($ocupados->has($codigo)) {
+            if ($codigo !== '' && $ocupados->has($codigo)) {
                 throw ValidationException::withMessages([
                     'codigo' => "O código {$codigo} já é de \"{$ocupados[$codigo]}\" nesta lista.",
                 ]);
@@ -789,11 +1006,13 @@ class ListaFinalService
         $itens = $this->itensDaLista($lista);
         $dentro = array_column($itens, 'projeto_id');
         $manuais = $lista->projetos()->pluck('lista_final_projetos.manual', 'projetos.id');
+        $avisos = $this->avisosDosCodigos($itens);
 
         return [
             'lista' => [
                 'id' => $lista->id,
                 'nome' => $lista->nome,
+                'descricao' => $lista->descricao,
                 'tipo' => $lista->tipo,
                 'vigente' => $lista->vigente,
                 'rascunho' => $lista->rascunho,
@@ -806,8 +1025,13 @@ class ListaFinalService
                 // equipe com um número que não é mais o dela.
                 'codigos_congelados_em' => $lista->codigos_congelados_em?->toIso8601String(),
                 'codigos_enviados_em' => $lista->codigos_enviados_em?->toIso8601String(),
+                // O que a tela avisa antes de gerar (Sprint 177).
+                'avisos_codigos' => $avisos['resumo'],
             ],
-            'itens' => array_map(fn (array $i) => $i + ['manual' => (bool) ($manuais[$i['projeto_id']] ?? false)], $itens),
+            'itens' => array_map(fn (array $i) => $i + [
+                'manual' => (bool) ($manuais[$i['projeto_id']] ?? false),
+                'avisos' => $avisos['por_projeto'][$i['projeto_id']] ?? [],
+            ], $itens),
             // Candidatos: qualquer submetido que está de fora — os avaliados
             // primeiro (com a média), depois os sem avaliação.
             'candidatos' => $this->candidatos($dentro)
@@ -1147,6 +1371,9 @@ class ListaFinalService
             return [
                 'projeto_id' => $projeto->id,
                 'codigo' => $par.'-'.$numero,
+                // O começo que o código deveria ter — é contra ele que o
+                // "fora do padrão" é conferido.
+                'prefixo' => $par,
                 'titulo' => $projeto->titulo,
                 'categoria' => $projeto->categoria?->label(),
                 'area' => $projeto->area?->nome,

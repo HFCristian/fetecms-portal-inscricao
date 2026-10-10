@@ -133,8 +133,9 @@ class ListasPreliminaresEFinaisTest extends TestCase
             'preliminares' => [$p1, $p2], 'nome' => 'Final oficial',
         ])->assertCreated()
             ->assertJsonPath('data.lista.tipo', 'final')
-            ->assertJsonPath('data.lista.rascunho', true)
-            ->assertJsonPath('data.lista.origens.0.nome', 'Primeira');
+            ->assertJsonPath('data.lista.rascunho', true);
+        // As origens vêm na ordem da herança dos códigos: a mais nova primeiro.
+        $this->assertSame(['Segunda', 'Primeira'], array_column($resposta->json('data.lista.origens'), 'nome'));
 
         $final = ListaFinal::findOrFail($resposta->json('data.lista.id'));
         // União sem repetir: Abelhas está nas duas.

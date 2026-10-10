@@ -13,6 +13,7 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Avisos na tela: o admin escreve título e mensagem e o card aparece para os
@@ -42,6 +43,29 @@ class AvisoService
             'rotulo' => 'Início das avaliações',
             'descricao' => 'A data de liberação da avaliação online, ex.: "05/10/2026 às 08:00".',
         ],
+        // Sprint 186: as do projeto finalista de quem lê. Só valem num aviso
+        // cujo público é inteiro de finalistas.
+        [
+            'chave' => 'codigo_projeto',
+            'rotulo' => 'Código do projeto',
+            'descricao' => 'O código do projeto finalista de quem lê (FET.AGR-001). Só para finalistas.',
+            'somente_finalistas' => true,
+        ],
+        [
+            'chave' => 'turno',
+            'rotulo' => 'Turno',
+            'descricao' => 'O turno de apresentação do projeto de quem lê. Só para finalistas.',
+            'somente_finalistas' => true,
+        ],
+    ];
+
+    /** Públicos inteiramente de finalistas — os únicos que aceitam as variáveis do projeto. */
+    public const PUBLICOS_FINALISTAS = [PublicoMala::OrientadoresFinalistas, PublicoMala::FinalistasSemTermo];
+
+    /** Na prévia do admin (que não é finalista), as variáveis do projeto saem como exemplo. */
+    private const EXEMPLO_FINALISTA = [
+        'codigo_projeto' => 'FET.AGR-001 (exemplo)',
+        'turno' => 'Turno A (matutino) (exemplo)',
     ];
 
     /** Texto que o formulário do admin já abre preenchido. */
@@ -94,6 +118,7 @@ class AvisoService
     ): Aviso {
         $alvo = $publicos !== [] ? $publicos : self::PUBLICO_PADRAO;
         $valores = array_map(fn (PublicoMala $p) => $p->value, $alvo);
+        $this->garantirSoFinalistas($titulo.' '.$mensagem, $alvo);
 
         return DB::transaction(function () use ($admin, $titulo, $mensagem, $valores, $expiraEm) {
             $this->encerrarMesmoPublico($valores);
@@ -187,30 +212,89 @@ class AvisoService
     /**
      * Troca as variáveis pelos valores de agora. Aceita `{{chave}}` com ou sem
      * espaços dentro das chaves, como na mala direta.
+     *
+     * O código e o turno são **de quem lê** (Sprint 186): o orientador de dois
+     * finalistas vê os dois. Sem leitor — a prévia do admin —, saem como
+     * exemplo.
      */
-    public function personalizar(string $texto): string
+    public function personalizar(string $texto, ?User $leitor = null): string
     {
+        $finalista = $leitor === null
+            ? null
+            : (app(MalaDiretaService::class)->dadosFinalistas()[mb_strtolower((string) $leitor->email)] ?? []);
+
         $valores = [
             'prazo_inscricoes' => $this->comoData($this->inscricoes->prazo()),
             'tempo_restante' => $this->tempoRestante(),
             'inicio_avaliacoes' => $this->comoData(Edicao::atual()?->avaliacao_liberada_em),
+            'codigo_projeto' => $finalista === null
+                ? self::EXEMPLO_FINALISTA['codigo_projeto']
+                : MalaDiretaService::codigosDoFinalista($finalista),
+            'turno' => $finalista === null
+                ? self::EXEMPLO_FINALISTA['turno']
+                : MalaDiretaService::turnosDoFinalista($finalista),
         ];
 
         foreach (self::VARIAVEIS as $variavel) {
             $chave = $variavel['chave'];
-            $texto = preg_replace('/\{\{\s*'.$chave.'\s*\}\}/u', $valores[$chave], $texto);
+            $texto = preg_replace_callback('/\{\{\s*'.$chave.'\s*\}\}/u', fn () => $valores[$chave], $texto);
         }
 
         return $texto;
     }
 
-    /** O aviso já com as variáveis resolvidas, pronto para a tela. */
-    public function paraTela(Aviso $aviso): array
+    /**
+     * Recusa o aviso que usa `{{codigo_projeto}}` ou `{{turno}}` para um
+     * público que não é inteiro de finalistas (Sprint 186) — para os outros não
+     * existe projeto finalista a mostrar —, ou com projeto finalista ainda sem
+     * o dado.
+     *
+     * @param  array<int, PublicoMala>  $publicos
+     */
+    private function garantirSoFinalistas(string $texto, array $publicos): void
+    {
+        $usaCodigo = MalaDiretaService::usaVariavel($texto, 'codigo_projeto');
+        $usaTurno = MalaDiretaService::usaVariavel($texto, 'turno');
+
+        if (! $usaCodigo && ! $usaTurno) {
+            return;
+        }
+
+        $nomes = implode(' e ', array_filter([$usaCodigo ? '{{codigo_projeto}}' : null, $usaTurno ? '{{turno}}' : null]));
+        $fora = array_filter($publicos, fn (PublicoMala $p) => ! in_array($p, self::PUBLICOS_FINALISTAS, true));
+
+        if ($fora !== []) {
+            throw ValidationException::withMessages([
+                'mensagem' => "O aviso usa {$nomes}, que só existe para finalistas, mas o público "
+                    .implode(', ', array_map(fn (PublicoMala $p) => '"'.$p->label().'"', $fora))
+                    .' não é só de finalistas. Escolha apenas "Orientadores de projetos finalistas" ou "Finalistas sem o termo".',
+            ]);
+        }
+
+        $projetos = collect(app(MalaDiretaService::class)->dadosFinalistas())->flatten(1)->unique('projeto_id');
+        $semCodigo = $projetos->filter(fn (array $p) => ($p['codigo'] ?? '') === '')->pluck('titulo')->all();
+        $semTurno = $projetos->filter(fn (array $p) => ($p['turno'] ?? null) === null)->pluck('titulo')->all();
+
+        if ($usaCodigo && $semCodigo !== []) {
+            throw ValidationException::withMessages([
+                'mensagem' => count($semCodigo).' projeto(s) finalista(s) ainda sem código: '.implode('; ', $semCodigo).'.',
+            ]);
+        }
+
+        if ($usaTurno && $semTurno !== []) {
+            throw ValidationException::withMessages([
+                'mensagem' => count($semTurno).' projeto(s) finalista(s) ainda sem turno (Mapa do Evento → Turnos): '.implode('; ', $semTurno).'.',
+            ]);
+        }
+    }
+
+    /** O aviso já com as variáveis resolvidas, pronto para a tela de quem lê. */
+    public function paraTela(Aviso $aviso, ?User $leitor = null): array
     {
         return [
             'id' => $aviso->id,
-            'titulo' => $this->personalizar($aviso->titulo),
-            'mensagem' => $this->personalizar($aviso->mensagem),
+            'titulo' => $this->personalizar($aviso->titulo, $leitor),
+            'mensagem' => $this->personalizar($aviso->mensagem, $leitor),
             'publicado_em' => $aviso->created_at?->format('d/m/Y H:i'),
             'expira_em_label' => $aviso->expira_em?->format('d/m/Y H:i'),
         ];

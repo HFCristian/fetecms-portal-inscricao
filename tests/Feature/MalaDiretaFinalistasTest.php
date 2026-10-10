@@ -20,8 +20,9 @@ use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 /**
- * Sprint 158 — caixa "Somente finalistas" na mala direta: a equipe inteira
- * (estudantes, orientador e coorientador) dos projetos da lista final vigente.
+ * Sprint 158 — a equipe inteira (estudantes, orientador e coorientador) dos
+ * projetos da lista final vigente na mala direta. Na Sprint 173 a caixa
+ * exclusiva virou o grupo "Todos os finalistas", combinável com os outros.
  */
 class MalaDiretaFinalistasTest extends TestCase
 {
@@ -112,6 +113,50 @@ class MalaDiretaFinalistasTest extends TestCase
 
         (new EnviarMalaDireta($ana->id))->handle(app(MalaDiretaService::class));
         Mail::assertSent(MalaDiretaMensagem::class, fn ($m) => $m->hasTo('ana@aluno.test'));
+    }
+
+    /**
+     * Sprint 173: "Todos os finalistas" virou um grupo como os outros — ele se
+     * combina com os públicos de conta e com a lista avulsa, e quem está em
+     * mais de um recebe uma vez só, com todas as origens.
+     */
+    public function test_finalistas_se_combinam_com_publicos_e_lista_avulsa(): void
+    {
+        Mail::fake();
+        $marta = User::factory()->create(['name' => 'Marta Orientadora', 'email' => 'marta@escola.test']);
+        $projeto = $this->finalista($marta, 'Biofiltro');
+        Aluno::factory()->create(['projeto_id' => $projeto->id, 'nome' => 'Ana', 'email' => 'ana@aluno.test']);
+        // Orientador sem projeto finalista: só entra pelo público de conta.
+        User::factory()->create(['name' => 'Rui Orientador', 'email' => 'rui@escola.test']);
+
+        $criterio = [
+            'publicos' => ['orientadores'],
+            'finalistas' => true,
+            'destinatarios' => [['email' => 'ana@aluno.test', 'nome' => 'Ana'], ['email' => 'imprensa@jornal.test']],
+        ];
+
+        $previa = $this->postJson('/api/v1/admin/mala-direta/previa', $criterio)->assertOk();
+        $porEmail = collect($previa->json('data'))->keyBy('email');
+        $this->assertEqualsCanonicalizing(
+            ['marta@escola.test', 'rui@escola.test', 'ana@aluno.test', 'imprensa@jornal.test'],
+            $porEmail->keys()->all(),
+        );
+        $this->assertEqualsCanonicalizing(['orientadores', 'finalistas'], $porEmail['marta@escola.test']['origens']);
+        $this->assertEqualsCanonicalizing(['finalistas', 'personalizado'], $porEmail['ana@aluno.test']['origens']);
+
+        $this->postJson('/api/v1/admin/mala-direta', $criterio + [
+            'nome' => 'Credenciamento', 'justificativa' => 'Aviso do credenciamento.',
+            'assunto' => 'Credenciamento', 'corpo' => 'Olá, {{nome}}.',
+        ])->assertCreated()
+            ->assertJsonPath('data.publicos', ['orientadores', 'finalistas'])
+            ->assertJsonPath('data.publicos_labels', ['Todos os orientadores', 'Finalistas (equipe inteira)']);
+
+        $mala = MalaDireta::firstOrFail();
+        $this->assertSame(4, $mala->destinatarios()->count());
+        $this->assertSame(
+            ['orientadores', 'finalistas'],
+            MalaDiretaDestinatario::where('email', 'marta@escola.test')->firstOrFail()->origens,
+        );
     }
 
     public function test_sem_lista_final_publicada_nao_ha_destinatario(): void

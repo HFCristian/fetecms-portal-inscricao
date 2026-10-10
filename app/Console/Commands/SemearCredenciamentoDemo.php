@@ -9,9 +9,9 @@ use App\Enums\TipoPessoaCredenciamento;
 use App\Models\Aluno;
 use App\Models\Area;
 use App\Models\Coorientador;
-use App\Models\DocumentoCredenciamento;
 use App\Models\Edicao;
 use App\Models\Instituicao;
+use App\Models\ItemConferencia;
 use App\Models\ListaFinal;
 use App\Models\Projeto;
 use App\Models\Subarea;
@@ -229,28 +229,30 @@ class SemearCredenciamentoDemo extends Command
      */
     private function semearDocumentos(): int
     {
-        if (DocumentoCredenciamento::query()->exists()) {
+        // Os itens do sistema (os termos) existem desde a migration e não
+        // contam: "zerado" é sem nenhum item da organização no balcão.
+        if (ItemConferencia::where('no_credenciamento', true)->whereNull('chave')->exists()) {
             return 0;
         }
 
+        // Lista única (Sprint 181): o mesmo documento serve a vários papéis.
         $padrao = [
-            [TipoPessoaCredenciamento::Aluno, ['Documento de identidade com foto', 'Autorização do responsável', 'Termo de imagem']],
-            [TipoPessoaCredenciamento::Orientador, ['Documento de identidade com foto', 'Comprovante de vínculo com a escola']],
-            [TipoPessoaCredenciamento::Coorientador, ['Documento de identidade com foto']],
+            ['Documento de identidade com foto', [TipoPessoaCredenciamento::Aluno, TipoPessoaCredenciamento::Orientador, TipoPessoaCredenciamento::Coorientador]],
+            ['Autorização do responsável', [TipoPessoaCredenciamento::Aluno]],
+            ['Comprovante de vínculo com a escola', [TipoPessoaCredenciamento::Orientador]],
         ];
 
         $criados = 0;
 
-        foreach ($padrao as [$tipo, $nomes]) {
-            foreach ($nomes as $ordem => $nome) {
-                DocumentoCredenciamento::create([
-                    'tipo_pessoa' => $tipo->value,
-                    'nome' => $nome,
-                    'ordem' => $ordem,
-                    'ativo' => true,
-                ]);
-                $criados++;
-            }
+        foreach ($padrao as $ordem => [$nome, $papeis]) {
+            ItemConferencia::firstOrCreate(['nome' => $nome], [
+                'abrangencia' => ItemConferencia::PESSOA,
+                'papeis' => array_map(fn (TipoPessoaCredenciamento $p) => $p->value, $papeis),
+                'no_credenciamento' => true,
+                'ordem' => $ordem,
+                'ativo' => true,
+            ]);
+            $criados++;
         }
 
         return $criados;

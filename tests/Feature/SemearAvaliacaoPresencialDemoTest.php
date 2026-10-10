@@ -6,7 +6,7 @@ use App\Enums\Role;
 use App\Models\AvaliacaoPresencial;
 use App\Models\AvaliadorTurnoPresencial;
 use App\Models\Edicao;
-use App\Models\ItemChecagemEstande;
+use App\Models\ItemConferencia;
 use App\Models\ListaFinal;
 use App\Models\User;
 use Database\Seeders\CatalogoSeeder;
@@ -49,7 +49,8 @@ class SemearAvaliacaoPresencialDemoTest extends TestCase
         $this->assertTrue($avaliador->avaliadorProfile->presencial);
         // Os quatro turnos da agenda ainda não terminaram às 9h do primeiro dia.
         $this->assertSame(4, AvaliadorTurnoPresencial::where('user_id', $avaliador->id)->count());
-        $this->assertSame(3, ItemChecagemEstande::count());
+        // Os três itens do ensaio, além dos itens do sistema (os termos).
+        $this->assertSame(3, ItemConferencia::where('na_checagem', true)->whereNull('chave')->count());
 
         $lista = ListaFinal::vigente($this->edicao, true);
         $this->assertSame(3, $lista->projetos()->count());

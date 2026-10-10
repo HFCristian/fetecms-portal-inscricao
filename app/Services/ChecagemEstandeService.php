@@ -8,12 +8,13 @@ use App\Models\ChecagemEstande;
 use App\Models\ChecagemEstandeItem;
 use App\Models\Edicao;
 use App\Models\EstandeProjeto;
-use App\Models\ItemChecagemEstande;
+use App\Models\ItemConferencia;
 use App\Models\ListaFinal;
 use App\Models\Projeto;
 use App\Models\ProjetoDocumento;
 use App\Models\TurnoApresentacao;
 use App\Models\User;
+use App\Support\EquipeProjeto;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
@@ -82,7 +83,15 @@ class ChecagemEstandeService
             'pode_testar' => (bool) $user?->is_demo,
             'modo_teste' => $emTeste,
             'situacoes' => SituacaoDocumento::opcoes(),
-            'itens' => $this->catalogo(),
+            // O que se confere no estande: a parte da lista única marcada
+            // "checagem" (Sprint 181). O cadastro é na Parametrização.
+            'itens' => array_map(fn (ItemConferencia $i) => [
+                'id' => $i->id,
+                'nome' => $i->nome,
+                'descricao' => $i->descricao,
+                'abrangencia' => $i->abrangencia,
+                'papeis' => $i->papeis ?? [],
+            ], $this->catalogoAtivo()),
             'lista' => $lista === null ? null : [
                 'id' => $lista->id, 'nome' => $lista->nome, 'versao' => $lista->versao, 'demo' => $lista->demo,
             ],
@@ -175,9 +184,11 @@ class ChecagemEstandeService
         $emTeste = $this->emTeste($user, $teste);
         $this->garantirFinalista($projeto, $user, $teste);
 
-        $projeto->loadMissing(['area:id,nome', 'user:id,name', 'instituicao:id,nome', 'alunos:id,projeto_id,nome']);
+        $projeto->loadMissing(['area:id,nome', 'user:id,name', 'instituicao:id,nome', 'alunos:id,projeto_id,nome', 'coorientador']);
         $checagem = $this->checagemDe($projeto, $emTeste);
-        $marcado = $checagem?->itens->keyBy('item_id') ?? collect();
+        $marcado = $this->marcacoes($checagem);
+        $catalogo = $this->catalogoAtivo();
+        $online = $this->enviadosAntes([$projeto->id], $catalogo)[$projeto->id] ?? [];
 
         return [
             'projeto' => [
@@ -191,15 +202,25 @@ class ChecagemEstandeService
             ],
             'local' => $this->local($projeto->id),
             'sinalizacoes' => app(SinalizacaoProjetoService::class)->de($projeto->id),
-            'itens' => array_map(fn (ItemChecagemEstande $i) => [
+            'itens' => array_values(array_map(fn (ItemConferencia $i) => [
                 'id' => $i->id,
                 'nome' => $i->nome,
                 'descricao' => $i->descricao,
-                'situacao' => $marcado->get($i->id)?->situacao?->value,
-            ], $this->catalogoAtivo()),
-            // O termo não é editável aqui: quem o envia é o orientador. Ele
-            // aparece já conferido (ou faltando) e pode ser aberto na hora.
-            'termo' => $this->termo($projeto),
+            ] + $this->situacaoComEnvio(
+                $marcado[$this->chave($i->id, ItemConferencia::PROJETO, $projeto->id)] ?? null,
+                $online[$i->id][ItemConferencia::PROJETO.':'.$projeto->id] ?? [],
+            ), array_filter($catalogo, fn (ItemConferencia $i) => $i->doProjeto()))),
+            // Itens de pessoa (Sprint 182): um marcador para cada pessoa dos
+            // papéis do item — o termo de imagem de cada estudante, por exemplo.
+            'itens_pessoa' => array_values(array_map(fn (ItemConferencia $i) => [
+                'id' => $i->id,
+                'nome' => $i->nome,
+                'descricao' => $i->descricao,
+                'pessoas' => array_map(fn (array $p) => $p + $this->situacaoComEnvio(
+                    $marcado[$this->chave($i->id, $p['tipo'], $p['id'])] ?? null,
+                    $online[$i->id][$p['chave']] ?? [],
+                ), array_values(array_filter($this->pessoas($projeto), fn (array $p) => $i->valePara($p['tipo'])))),
+            ], array_filter($catalogo, fn (ItemConferencia $i) => ! $i->doProjeto()))),
             'checagem' => $checagem === null ? null : [
                 'verificado_em' => $checagem->verificado_em?->toIso8601String(),
                 'verificado_por' => $checagem->autor?->name,
@@ -225,8 +246,9 @@ class ChecagemEstandeService
         $this->garantirFinalista($projeto, $admin, $teste);
 
         $catalogo = collect($this->catalogoAtivo())->keyBy('id');
+        $pessoas = collect($this->pessoas($projeto))->keyBy(fn (array $p) => $p['tipo'].':'.$p['id']);
 
-        DB::transaction(function () use ($projeto, $dados, $admin, $emTeste, $catalogo) {
+        DB::transaction(function () use ($projeto, $dados, $admin, $emTeste, $catalogo, $pessoas) {
             $checagem = ChecagemEstande::firstOrNew([
                 'projeto_id' => $projeto->id,
                 'demo' => $emTeste,
@@ -249,8 +271,22 @@ class ChecagemEstandeService
                     continue;
                 }
 
+                // Item do projeto é marcado com o próprio projeto; o de pessoa
+                // precisa ser de alguém da equipe, num papel do item.
+                if ($doCatalogo->doProjeto()) {
+                    [$tipo, $pessoaId] = [ItemConferencia::PROJETO, $projeto->id];
+                } else {
+                    [$tipo, $pessoaId] = [(string) ($item['pessoa_tipo'] ?? ''), (int) ($item['pessoa_id'] ?? 0)];
+
+                    if (! $pessoas->has($tipo.':'.$pessoaId) || ! $doCatalogo->valePara($tipo)) {
+                        continue;
+                    }
+                }
+
                 $checagem->itens()->create([
                     'item_id' => $doCatalogo->id,
+                    'pessoa_tipo' => $tipo,
+                    'pessoa_id' => $pessoaId,
                     // Desnormalizado: renomear o catálogo depois do evento não
                     // pode reescrever o que foi conferido.
                     'item_nome' => $doCatalogo->nome,
@@ -285,10 +321,14 @@ class ChecagemEstandeService
         $checagens = $this->checagensDe($ids, $emTeste);
         $ativos = $this->catalogoAtivo();
         $sinais = app(SinalizacaoProjetoService::class)->para($ids);
+        $projetos->loadMissing(['user:id,name', 'coorientador']);
+        $enviados = $this->enviadosAntes($ids, $ativos);
 
-        return $projetos->map(function (Projeto $p) use ($estandes, $checagens, $ativos, $sinais) {
+        return $projetos->map(function (Projeto $p) use ($estandes, $checagens, $ativos, $sinais, $enviados) {
             $checagem = $checagens[$p->id] ?? null;
-            $marcado = $checagem?->itens->keyBy('item_id') ?? collect();
+            $marcado = $this->marcacoes($checagem);
+            $pessoas = $this->pessoas($p);
+            $online = $enviados[$p->id] ?? [];
 
             return [
                 'id' => $p->id,
@@ -301,80 +341,32 @@ class ChecagemEstandeService
                 'conferido_em' => $checagem?->verificado_em?->toIso8601String(),
                 'conferido_por' => $checagem?->autor?->name,
                 'observacao' => $checagem?->observacao,
-                'itens' => array_map(fn (ItemChecagemEstande $i) => [
+                'itens' => array_values(array_map(fn (ItemConferencia $i) => [
                     'id' => $i->id,
                     'nome' => $i->nome,
-                    'situacao' => $marcado->get($i->id)?->situacao?->value,
-                ], $ativos),
-                'termo' => $this->termo($p),
+                ] + $this->situacaoComEnvio(
+                    $marcado[$this->chave($i->id, ItemConferencia::PROJETO, $p->id)] ?? null,
+                    $online[$i->id][ItemConferencia::PROJETO.':'.$p->id] ?? [],
+                ), array_filter($ativos, fn (ItemConferencia $i) => $i->doProjeto()))),
+                // Item de pessoa no espelho: quantos da equipe já foram vistos.
+                'itens_pessoa' => array_values(array_map(function (ItemConferencia $i) use ($pessoas, $marcado, $online) {
+                    $daqui = array_values(array_filter($pessoas, fn (array $pessoa) => $i->valePara($pessoa['tipo'])));
+                    $situacoes = array_map(fn (array $pessoa) => $this->situacaoComEnvio(
+                        $marcado[$this->chave($i->id, $pessoa['tipo'], $pessoa['id'])] ?? null,
+                        $online[$i->id][$pessoa['chave']] ?? [],
+                    )['situacao'], $daqui);
+
+                    return [
+                        'id' => $i->id,
+                        'nome' => $i->nome,
+                        'total' => count($daqui),
+                        'presentes' => count(array_filter($situacoes, fn ($s) => $s === SituacaoDocumento::Presente->value || $s === SituacaoDocumento::NaoNecessario->value)),
+                        'ausentes' => count(array_filter($situacoes, fn ($s) => $s === SituacaoDocumento::Ausente->value)),
+                    ];
+                }, array_filter($ativos, fn (ItemConferencia $i) => ! $i->doProjeto()))),
                 'sinalizacoes' => $sinais[$p->id] ?? null,
             ];
         })->all();
-    }
-
-    // --- Catálogo de itens -------------------------------------------------
-
-    /**
-     * O catálogo inteiro (inclusive os desativados), para a tela de
-     * parametrização.
-     *
-     * @return list<array<string, mixed>>
-     */
-    public function catalogo(): array
-    {
-        return ItemChecagemEstande::orderBy('ordem')
-            ->orderBy('nome')
-            ->get()
-            ->map(fn (ItemChecagemEstande $i) => [
-                'id' => $i->id,
-                'nome' => $i->nome,
-                'descricao' => $i->descricao,
-                'ordem' => $i->ordem,
-                'ativo' => $i->ativo,
-                // Item já conferido não é excluído: desative-o.
-                'em_uso' => $i->id !== null && ChecagemEstandeItem::where('item_id', $i->id)->exists(),
-            ])
-            ->all();
-    }
-
-    /** @param  array<string, mixed>  $dados */
-    public function criarItem(array $dados): ItemChecagemEstande
-    {
-        return ItemChecagemEstande::create([
-            'nome' => trim($dados['nome']),
-            'descricao' => $dados['descricao'] ?? null,
-            'ordem' => (int) ($dados['ordem'] ?? 0),
-            'ativo' => $dados['ativo'] ?? true,
-        ]);
-    }
-
-    /** @param  array<string, mixed>  $dados */
-    public function atualizarItem(ItemChecagemEstande $item, array $dados): ItemChecagemEstande
-    {
-        $item->fill(array_filter([
-            'nome' => isset($dados['nome']) ? trim($dados['nome']) : null,
-            'descricao' => $dados['descricao'] ?? null,
-            'ordem' => $dados['ordem'] ?? null,
-        ], fn ($v) => $v !== null));
-
-        if (array_key_exists('ativo', $dados)) {
-            $item->ativo = (bool) $dados['ativo'];
-        }
-
-        $item->save();
-
-        return $item;
-    }
-
-    public function excluirItem(ItemChecagemEstande $item): void
-    {
-        if (ChecagemEstandeItem::where('item_id', $item->id)->exists()) {
-            throw ValidationException::withMessages([
-                'item' => 'Este item já foi conferido em algum estande — desative-o em vez de excluir.',
-            ]);
-        }
-
-        $item->delete();
     }
 
     // --- Internos ----------------------------------------------------------
@@ -479,14 +471,80 @@ class ChecagemEstandeService
         ];
     }
 
-    /** @return list<ItemChecagemEstande> */
+    /** @return list<ItemConferencia> */
     private function catalogoAtivo(): array
     {
-        return ItemChecagemEstande::where('ativo', true)
-            ->orderBy('ordem')
-            ->orderBy('nome')
-            ->get()
+        return ItemConferencia::naChecagem()->get()->all();
+    }
+
+    /**
+     * A equipe do projeto, para os itens de pessoa.
+     *
+     * @return list<array{chave:string, tipo:string, tipo_label:string, id:int, nome:string}>
+     */
+    private function pessoas(Projeto $projeto): array
+    {
+        return EquipeProjeto::de($projeto);
+    }
+
+    /**
+     * A situação de um item na checagem, com o que o orientador mandou antes
+     * (Sprint 184): sem marcação, o arquivo enviado pelo portal já conta como
+     * presente — é o que o termo de responsabilidade sempre fez aqui —, e o
+     * voluntário muda se o papel não bater.
+     *
+     * @param  list<array<string, mixed>>  $online
+     * @return array{situacao: ?string, pre_marcado: bool, online: list<array<string, mixed>>}
+     */
+    private function situacaoComEnvio(?string $marcada, array $online): array
+    {
+        $preMarcado = $marcada === null && $online !== [];
+
+        return [
+            'situacao' => $preMarcado ? SituacaoDocumento::Presente->value : $marcada,
+            'pre_marcado' => $preMarcado,
+            'online' => $online,
+        ];
+    }
+
+    /**
+     * O que foi enviado antes para os itens recebidos antes, por projeto:
+     * `[projeto_id][item_id]["papel:id"] => arquivos`.
+     *
+     * @param  list<int>  $ids
+     * @param  list<ItemConferencia>  $itens
+     * @return array<int, array<int, array<string, list<array<string, mixed>>>>>
+     */
+    private function enviadosAntes(array $ids, array $itens): array
+    {
+        $envios = app(EnviosAntecipadosService::class);
+        $arquivos = $envios->arquivos($ids);
+        $cobertura = [];
+
+        foreach ($arquivos as $projetoId => $porItem) {
+            foreach ($itens as $item) {
+                if ($item->receber_antes && isset($porItem[$item->id])) {
+                    $cobertura[$projetoId][$item->id] = $envios->cobertura($item, $projetoId, $porItem[$item->id]);
+                }
+            }
+        }
+
+        return $cobertura;
+    }
+
+    /** @return array<string, string> "item:tipo:id" => situação */
+    private function marcacoes(?ChecagemEstande $checagem): array
+    {
+        return ($checagem?->itens ?? collect())
+            ->mapWithKeys(fn (ChecagemEstandeItem $m) => [
+                $this->chave((int) $m->item_id, (string) $m->pessoa_tipo, $m->pessoa_id) => $m->situacao?->value,
+            ])
             ->all();
+    }
+
+    private function chave(int $itemId, string $tipo, ?int $pessoaId): string
+    {
+        return $itemId.':'.$tipo.':'.$pessoaId;
     }
 
     /**
