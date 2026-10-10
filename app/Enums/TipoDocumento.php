@@ -12,7 +12,10 @@ namespace App\Enums;
  *
  * O **termo de uso de imagem** (Sprint 174) é da mesma fase e mora na mesma
  * aba, com uma diferença: o projeto pode mandar **vários** arquivos, e cada um
- * diz para quais estudantes vale (`projeto_documento_alunos`).
+ * diz para quem vale. Desde a Sprint 183 qualquer item da lista única marcado
+ * "receber antes" tem a sua seção ali: os dois termos mantêm o tipo próprio (o
+ * portal os reconhece), e os demais são **documento do evento**, ligados ao
+ * item por `item_conferencia_id` e às pessoas por `projeto_documento_pessoas`.
  */
 enum TipoDocumento: string
 {
@@ -21,6 +24,7 @@ enum TipoDocumento: string
     case TermoEtica = 'termo_etica';
     case TermoResponsabilidade = 'termo_responsabilidade';
     case TermoUsoImagem = 'termo_uso_imagem';
+    case DocumentoEvento = 'documento_evento';
     case Anexo = 'anexo';
 
     public function label(): string
@@ -31,7 +35,18 @@ enum TipoDocumento: string
             self::TermoEtica => 'Termo do Comitê de Ética',
             self::TermoResponsabilidade => 'Termo de Responsabilidade',
             self::TermoUsoImagem => 'Termo de Uso de Imagem',
+            self::DocumentoEvento => 'Documento do evento',
             self::Anexo => 'Anexo',
+        };
+    }
+
+    /** O tipo do arquivo enviado antes para um item da lista única. */
+    public static function doItem(?string $chave): self
+    {
+        return match ($chave) {
+            'termo_responsabilidade' => self::TermoResponsabilidade,
+            'termo_uso_imagem' => self::TermoUsoImagem,
+            default => self::DocumentoEvento,
         };
     }
 
@@ -48,6 +63,6 @@ enum TipoDocumento: string
     /** @return list<self> */
     public static function doEventoTodos(): array
     {
-        return [self::TermoResponsabilidade, self::TermoUsoImagem];
+        return [self::TermoResponsabilidade, self::TermoUsoImagem, self::DocumentoEvento];
     }
 }

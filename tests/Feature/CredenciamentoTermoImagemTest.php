@@ -63,7 +63,11 @@ class CredenciamentoTermoImagemTest extends TestCase
         $documento = ProjetoDocumento::factory()->create([
             'projeto_id' => $this->projeto->id, 'tipo' => TipoDocumento::TermoUsoImagem->value, 'nome_original' => $nome,
         ]);
-        $documento->alunos()->sync(collect($alunos)->pluck('id'));
+        // O arquivo enviado antes vale para pessoas (Sprint 183): aqui, estudantes.
+        $documento->forceFill(['item_conferencia_id' => ItemConferencia::where('chave', ItemConferencia::CHAVE_TERMO_IMAGEM)->value('id')])->save();
+        foreach ($alunos as $aluno) {
+            $documento->pessoas()->create(['pessoa_tipo' => 'aluno', 'pessoa_id' => $aluno->id]);
+        }
 
         return $documento;
     }

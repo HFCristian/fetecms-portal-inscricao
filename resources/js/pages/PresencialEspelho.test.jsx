@@ -69,11 +69,19 @@ describe('PresencialEspelho', () => {
         expect(screen.getAllByTitle('Não conferido').length).toBe(2);
     });
 
-    it('mostra o termo quando existe e a falta quando não', async () => {
+    it('item enviado antes pelo portal e ainda não conferido aparece como online (Sprint 184)', async () => {
+        getEspelhoChecagem.mockResolvedValue({
+            data: [{
+                id: 3, titulo: 'Bioplástico', area: 'Exatas', escola: 'EE Alfa', orientador: 'Marta',
+                local: { estande: 42, turno_label: 'Matutino' }, conferido_em: null, conferido_por: null, observacao: null,
+                itens: [{ id: 5, situacao: 'presente', pre_marcado: true, online: [{ id: 9, nome_original: 'termo.pdf' }] }, { id: 6, situacao: null }],
+                itens_pessoa: [],
+            }],
+            meta: { itens: ITENS },
+        });
         render(<PresencialEspelho />);
 
-        expect((await screen.findByRole('link', { name: /Ver/i })).getAttribute('href'))
-            .toBe('/api/v1/documentos/9/preview');
-        expect(screen.getByText('falta')).toBeInTheDocument();
+        expect(await screen.findByText('online')).toBeInTheDocument();
+        expect(screen.queryByRole('columnheader', { name: 'Termo' })).not.toBeInTheDocument();
     });
 });

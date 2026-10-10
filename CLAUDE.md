@@ -874,7 +874,36 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 180 | Listas: **apelido** e **descrição** na criação, nos cartões e editáveis no detalhe (sem justificativa) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 181 | Parametrização: **lista única** de itens do credenciamento e da checagem (de pessoa ou do projeto, onde conferir, receber antes) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 182 | Credenciamento e checagem lendo a lista única: bloco "Do projeto" no balcão e marcador por pessoa na checagem | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 183 | Aba Documentos genérica: cada item "receber antes" da lista tem a sua seção (um ou mais arquivos, pessoas marcadas) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 184 | O que chegou antes já vem marcado no balcão e na checagem, para qualquer item (o bloco fixo do termo saiu) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprints 183–184 (mesma branch):** o que o orientador manda antes deixou de ser só os termos.
+> (a) **Sprint 183** — a aba **Documentos** não conhece documento nenhum de cor: ela mostra os itens
+> da lista única marcados **"receber antes"**, na ordem da lista — os dois termos (itens do sistema)
+> e o que mais a organização pedir. Todo item aceita **um ou mais arquivos** (PDF, JPG ou PNG); no
+> item de **pessoa**, cada arquivo diz para quem vale, e as pessoas são as dos **papéis do item** —
+> agora pode ser orientador e coorientador, não só estudante. Por isso o vínculo virou
+> `projeto_documento_pessoas` (papel + id, como o balcão), no lugar de `projeto_documento_alunos`. As
+> rotas também ficaram genéricas: `POST /documentos-presenciais/projetos/{projeto}/itens/{item}`,
+> `PUT|DELETE /documentos-presenciais/arquivos/{documento}` (as de `/termo` e `/termo-imagem` saíram).
+> Os termos guardam o tipo próprio (o público "finalistas sem o termo" e o Mapa do Evento os
+> reconhecem); o resto é `documento_evento`. O termo de responsabilidade passou a aceitar mais de um
+> arquivo, como os demais — corrigir é remover o errado —, e a conferência gov.br continua aparecendo
+> nele.
+> (b) **Sprint 184** — o que chegou antes **já vem marcado "Presente"** no credenciamento e na
+> checagem, para qualquer item recebido antes, com o arquivo a um clique (`EnviosAntecipadosService`,
+> uma consulta por página). Item do projeto está coberto com qualquer arquivo; item de pessoa, pessoa
+> a pessoa. A marcação gravada vale mais, como antes. Com isso o bloco fixo **"Termo de
+> responsabilidade"** saiu da ficha da checagem e a coluna "Termo" saiu do espelho: o termo é um item
+> como os outros, que no espelho aparece marcado com "online" enquanto ninguém o conferiu.
+> Back **1377/1377**, front **672/672**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprints 183–184):** (1) mais uma migration (`projeto_documento_pessoas`,
+> que copia os vínculos do termo de imagem e apaga a tabela antiga). (2) Para pedir um documento novo
+> aos finalistas, crie o item em Parametrização → Itens do credenciamento e da checagem com **"receber
+> antes"** marcado: ele aparece na hora na aba Documentos de todos os orientadores finalistas. Vale
+> avisá-los por mala direta (o público "Orientadores de projetos finalistas" existe para isso).
+>
 > **Sprints 181–182 (mesma branch):** uma lista só para os dois balcões.
 > (a) **Sprint 181** — o credenciamento tinha o seu catálogo (`documentos_credenciamento`, um item
 > por papel) e a checagem o dela (`itens_checagem_estande`, por estande); a organização cadastrava a

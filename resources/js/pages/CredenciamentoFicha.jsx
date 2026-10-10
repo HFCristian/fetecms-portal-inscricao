@@ -49,7 +49,7 @@ function LinhaDocumento({ doc, pessoa, marcacoes, situacoes, aberto, marcar }) {
         <li key={doc.id} className="flex flex-col sm:flex-row sm:items-center gap-2">
             <span className="text-sm text-on-surface flex-1 min-w-0">
                 {doc.nome}
-                {/* Termo de imagem enviado online (Sprint 175): já vem
+                {/* Enviado antes pelo orientador (Sprints 175 e 184): já vem
                     marcado; o atendente confere o arquivo e muda se precisar. */}
                 {doc.online?.length > 0 && (
                     <span className="block text-xs text-on-surface-variant mt-0.5">

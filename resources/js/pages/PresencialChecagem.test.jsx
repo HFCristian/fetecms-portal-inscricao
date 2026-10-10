@@ -120,22 +120,21 @@ describe('PresencialChecagem', () => {
         ]));
     });
 
-    it('a ficha mostra o termo do orientador com link para o PDF', async () => {
+    it('item enviado antes chega marcado, com o arquivo a um clique (Sprint 184)', async () => {
         getFichaEstande.mockResolvedValue({
             ...FICHA,
-            termo: {
-                id: 9, nome_original: 'termo.pdf', assinatura_valida: true,
-                assinatura_motivo: 'Assinatura digital ICP-Brasil conferida.',
-            },
+            itens: [{
+                id: 1, nome: 'Termo de responsabilidade', descricao: null, situacao: 'presente', pre_marcado: true,
+                online: [{ id: 9, nome_original: 'termo.pdf', enviado_em: '2026-10-01T10:00:00-04:00' }],
+            }],
         });
         render(<PresencialChecagem />);
 
         fireEvent.click(await screen.findByRole('button', { name: 'Conferir' }));
 
-        expect(await screen.findByText('termo.pdf')).toBeInTheDocument();
-        expect(screen.getByRole('link', { name: /Ver PDF/i }).getAttribute('href'))
-            .toBe('/api/v1/documentos/9/preview');
-        expect(screen.getByText(/ICP-Brasil conferida/)).toBeInTheDocument();
+        expect(await screen.findByText('Enviado online')).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'termo.pdf' }).getAttribute('href')).toBe('/api/v1/documentos/9/preview');
+        expect(screen.getByLabelText('Situação de Termo de responsabilidade')).toHaveValue('presente');
     });
 
     it('fora da janela a tela explica e não deixa registrar', async () => {

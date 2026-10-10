@@ -1,50 +1,36 @@
 import http from './http.js';
 
-// Aba "Documentos" do orientador: o termo de responsabilidade e o termo de uso
-// de imagem dos projetos finalistas. `teste` só tem efeito para a conta demo — é o modo que ignora as
-// datas do evento e usa a lista final de demonstração.
+// Aba "Documentos" do orientador: os itens que a organização quer receber dos
+// finalistas antes do evento (Sprint 183). `teste` só tem efeito para a conta
+// demo — é o modo que ignora as datas do evento e usa a lista final de
+// demonstração.
 const params = (teste) => ({ params: teste ? { teste: 1 } : {} });
 
 export const getDocumentosPresenciais = (teste = false) =>
     http.get('/documentos-presenciais', params(teste)).then((r) => r.data.data);
 
-/** Envia (ou substitui) o termo de responsabilidade do projeto. */
-export function enviarTermo(projetoId, file, teste = false) {
-    const form = new FormData();
-    form.append('file', file);
-    if (teste) form.append('teste', '1');
-
-    return http.post(`/documentos-presenciais/projetos/${projetoId}/termo`, form)
-        .then((r) => r.data);
-}
-
-export const removerTermo = (projetoId, teste = false) =>
-    http.delete(`/documentos-presenciais/projetos/${projetoId}/termo`, {
-        data: teste ? { teste: 1 } : {},
-    }).then((r) => r.data);
-
 /**
- * Envia um arquivo do termo de uso de imagem (Sprint 174), valendo para os
- * estudantes marcados. Devolve a situação do termo de imagem do projeto.
+ * Envia um arquivo para um item. No item de pessoa, `pessoas` são as chaves
+ * "papel:id" de quem o arquivo cobre. Devolve a seção do item atualizada.
  */
-export function enviarTermoImagem(projetoId, file, alunoIds, teste = false) {
+export function enviarArquivoItem(projetoId, itemId, file, pessoas = [], teste = false) {
     const form = new FormData();
     form.append('file', file);
-    alunoIds.forEach((id) => form.append('alunos[]', String(id)));
+    pessoas.forEach((p) => form.append('pessoas[]', p));
     if (teste) form.append('teste', '1');
 
-    return http.post(`/documentos-presenciais/projetos/${projetoId}/termo-imagem`, form)
+    return http.post(`/documentos-presenciais/projetos/${projetoId}/itens/${itemId}`, form)
         .then((r) => r.data);
 }
 
-/** Troca para quais estudantes um arquivo do termo de imagem vale. */
-export const definirAlunosTermoImagem = (documentoId, alunoIds, teste = false) =>
-    http.put(`/documentos-presenciais/termo-imagem/${documentoId}`, {
-        alunos: alunoIds,
+/** Troca para quem um arquivo vale. */
+export const definirPessoasArquivo = (documentoId, pessoas, teste = false) =>
+    http.put(`/documentos-presenciais/arquivos/${documentoId}`, {
+        pessoas,
         ...(teste ? { teste: 1 } : {}),
     }).then((r) => r.data);
 
-export const removerTermoImagem = (documentoId, teste = false) =>
-    http.delete(`/documentos-presenciais/termo-imagem/${documentoId}`, {
+export const removerArquivo = (documentoId, teste = false) =>
+    http.delete(`/documentos-presenciais/arquivos/${documentoId}`, {
         data: teste ? { teste: 1 } : {},
     }).then((r) => r.data);

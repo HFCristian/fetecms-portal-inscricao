@@ -20,8 +20,31 @@ const local = (l) =>
         : [l.estande ? `Estande ${l.estande}` : null, l.turno_label].filter(Boolean).join(' · ');
 
 /**
- * A ficha de um estande: os itens conferidos um a um, o termo de
- * responsabilidade que o orientador enviou e a observação de quem conferiu.
+ * O que o orientador mandou antes pelo portal (Sprint 184): o item já chega
+ * marcado presente, e o arquivo fica a um clique para o voluntário conferir.
+ */
+function EnviadoOnline({ online }) {
+    if (!online?.length) return null;
+
+    return (
+        <p className="text-xs text-on-surface-variant mt-0.5">
+            <span className="font-semibold text-secondary">Enviado online</span>
+            {' · '}
+            {online.map((a, i) => (
+                <span key={a.id}>
+                    {i > 0 && ', '}
+                    <a href={urlTermo(a.id)} target="_blank" rel="noreferrer" className="underline hover:text-primary">
+                        {a.nome_original}
+                    </a>
+                </span>
+            ))}
+        </p>
+    );
+}
+
+/**
+ * A ficha de um estande: os itens conferidos um a um — o que o orientador
+ * mandou antes já chega marcado — e a observação de quem conferiu.
  */
 function Ficha({ ficha, situacoes, aberto, salvando, erro, onSalvar, onVoltar }) {
     // Item do projeto: chave = id. Item de pessoa (Sprint 182): id:papel:pessoa.
@@ -73,37 +96,6 @@ function Ficha({ ficha, situacoes, aberto, salvando, erro, onSalvar, onVoltar })
                 )}
             </div>
 
-            {/* O termo vem do orientador: aqui ele é conferido e lido, não enviado. */}
-            <section className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-4">
-                <h3 className="font-display text-base font-semibold text-on-surface mb-2">
-                    Termo de responsabilidade
-                </h3>
-                {ficha.termo ? (
-                    <div className="flex flex-wrap items-center gap-3">
-                        <span className="text-xs font-semibold px-2 py-1 rounded-full bg-secondary-container text-on-secondary-container">
-                            Presente
-                        </span>
-                        <span className="text-sm text-on-surface">{ficha.termo.nome_original}</span>
-                        <a
-                            href={urlTermo(ficha.termo.id)}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
-                        >
-                            <span className="material-symbols-outlined text-[18px]">open_in_new</span>
-                            Ver PDF
-                        </a>
-                        <span className="w-full text-xs text-on-surface-variant">
-                            {ficha.termo.assinatura_motivo}
-                        </span>
-                    </div>
-                ) : (
-                    <p className="text-sm text-error font-semibold">
-                        Ausente — o orientador ainda não enviou o termo.
-                    </p>
-                )}
-            </section>
-
             <section className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-4">
                 <h3 className="font-display text-base font-semibold text-on-surface mb-2">
                     Itens conferidos
@@ -121,6 +113,7 @@ function Ficha({ ficha, situacoes, aberto, salvando, erro, onSalvar, onVoltar })
                                     {item.descricao && (
                                         <p className="text-xs text-on-surface-variant">{item.descricao}</p>
                                     )}
+                                    <EnviadoOnline online={item.online} />
                                 </div>
                                 {seletor(String(item.id), `Situação de ${item.nome}`)}
                             </li>
@@ -135,6 +128,7 @@ function Ficha({ ficha, situacoes, aberto, salvando, erro, onSalvar, onVoltar })
                                         <li key={`${p.tipo}:${p.id}`} className="flex flex-wrap items-center gap-3">
                                             <span className="text-sm text-on-surface flex-1 min-w-0">
                                                 {p.nome} <span className="text-xs text-on-surface-variant">{p.tipo_label}</span>
+                                                <EnviadoOnline online={p.online} />
                                             </span>
                                             {seletor(`${item.id}:${p.tipo}:${p.id}`, `${item.nome} de ${p.nome}`)}
                                         </li>

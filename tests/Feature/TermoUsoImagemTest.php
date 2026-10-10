@@ -6,6 +6,7 @@ use App\Enums\Role;
 use App\Enums\TipoDocumento;
 use App\Models\Aluno;
 use App\Models\Edicao;
+use App\Models\ItemConferencia;
 use App\Models\ListaFinal;
 use App\Models\Projeto;
 use App\Models\ProjetoDocumento;
@@ -64,11 +65,14 @@ class TermoUsoImagemTest extends TestCase
         Sanctum::actingAs($this->orientador);
     }
 
+    /** Envia o termo de imagem (item do sistema da lista única, Sprint 183) valendo para os estudantes dados. */
     private function enviar(array $alunos, ?UploadedFile $arquivo = null, ?Projeto $projeto = null)
     {
-        return $this->post('/api/v1/documentos-presenciais/projetos/'.($projeto ?? $this->projeto)->id.'/termo-imagem', [
+        $item = ItemConferencia::where('chave', ItemConferencia::CHAVE_TERMO_IMAGEM)->value('id');
+
+        return $this->post('/api/v1/documentos-presenciais/projetos/'.($projeto ?? $this->projeto)->id."/itens/{$item}", [
             'file' => $arquivo ?? UploadedFile::fake()->create('autorizacao.jpg', 200, 'image/jpeg'),
-            'alunos' => $alunos,
+            'pessoas' => array_map(fn ($id) => "aluno:{$id}", $alunos),
         ], ['Accept' => 'application/json']);
     }
 
@@ -76,7 +80,7 @@ class TermoUsoImagemTest extends TestCase
     {
         $this->enviar([$this->ana->id, $this->beto->id])
             ->assertCreated()
-            ->assertJsonPath('meta.message', 'Termo de uso de imagem enviado.')
+            ->assertJsonPath('meta.message', 'Termo de uso de imagem: arquivo enviado.')
             ->assertJsonPath('data.situacao', 'parcial')
             ->assertJsonPath('data.cobertos', 2)
             ->assertJsonPath('data.total', 3)
@@ -115,12 +119,12 @@ class TermoUsoImagemTest extends TestCase
 
     public function test_precisa_marcar_ao_menos_um_estudante_do_proprio_projeto(): void
     {
-        $this->enviar([])->assertStatus(422)->assertJsonValidationErrors('alunos');
+        $this->enviar([])->assertStatus(422)->assertJsonValidationErrors('pessoas');
 
         $outro = Aluno::factory()->create();
         $this->enviar([$outro->id])
             ->assertStatus(422)
-            ->assertJsonValidationErrors(['alunos' => 'Marque só estudantes deste projeto.']);
+            ->assertJsonValidationErrors(['pessoas' => 'Marque só pessoas deste projeto a quem o item se aplica.']);
 
         $this->assertSame(0, ProjetoDocumento::count());
     }
@@ -130,7 +134,7 @@ class TermoUsoImagemTest extends TestCase
         $this->enviar([$this->ana->id], UploadedFile::fake()->create('foto.png', 100, 'image/png'))->assertCreated();
         $this->enviar([$this->ana->id], UploadedFile::fake()->create('termo.docx', 100))
             ->assertStatus(422)
-            ->assertJsonValidationErrors(['file' => 'Envie o termo em PDF, JPG ou PNG.']);
+            ->assertJsonValidationErrors(['file' => 'Envie o arquivo em PDF, JPG ou PNG.']);
         $this->enviar([$this->ana->id], UploadedFile::fake()->create('grande.jpg', 11000, 'image/jpeg'))
             ->assertStatus(422)
             ->assertJsonValidationErrors('file');
@@ -143,7 +147,7 @@ class TermoUsoImagemTest extends TestCase
 
         $this->enviar([$aluno->id], null, $fora)
             ->assertStatus(422)
-            ->assertJsonValidationErrors(['projeto' => 'Só projetos finalistas enviam o termo de uso de imagem.']);
+            ->assertJsonValidationErrors(['projeto' => 'Só projetos finalistas enviam documentos para o evento.']);
     }
 
     public function test_fora_da_janela_nao_envia(): void
@@ -158,14 +162,14 @@ class TermoUsoImagemTest extends TestCase
         $this->enviar([$this->ana->id])->assertCreated();
         $documento = ProjetoDocumento::firstOrFail();
 
-        $this->putJson("/api/v1/documentos-presenciais/termo-imagem/{$documento->id}", [
-            'alunos' => [$this->ana->id, $this->beto->id, $this->caio->id],
+        $this->putJson("/api/v1/documentos-presenciais/arquivos/{$documento->id}", [
+            'pessoas' => ["aluno:{$this->ana->id}", "aluno:{$this->beto->id}", "aluno:{$this->caio->id}"],
         ])->assertOk()
             ->assertJsonPath('data.situacao', 'completo')
-            ->assertJsonPath('data.arquivos.0.alunos.2.nome', 'Caio');
+            ->assertJsonPath('data.arquivos.0.pessoas.2', "aluno:{$this->caio->id}");
 
-        $this->putJson("/api/v1/documentos-presenciais/termo-imagem/{$documento->id}", ['alunos' => []])
-            ->assertStatus(422)->assertJsonValidationErrors('alunos');
+        $this->putJson("/api/v1/documentos-presenciais/arquivos/{$documento->id}", ['pessoas' => []])
+            ->assertStatus(422)->assertJsonValidationErrors('pessoas');
     }
 
     public function test_remover_arquivo_devolve_os_estudantes_para_a_pendencia(): void
@@ -173,13 +177,13 @@ class TermoUsoImagemTest extends TestCase
         $this->enviar([$this->ana->id])->assertCreated();
         $documento = ProjetoDocumento::firstOrFail();
 
-        $this->deleteJson("/api/v1/documentos-presenciais/termo-imagem/{$documento->id}")
+        $this->deleteJson("/api/v1/documentos-presenciais/arquivos/{$documento->id}")
             ->assertOk()
             ->assertJsonPath('data.situacao', 'nenhum')
             ->assertJsonCount(0, 'data.arquivos');
 
         $this->assertDatabaseCount('projeto_documentos', 0);
-        $this->assertDatabaseCount('projeto_documento_alunos', 0);
+        $this->assertDatabaseCount('projeto_documento_pessoas', 0);
         Storage::disk('local')->assertMissing($documento->path);
     }
 
@@ -190,9 +194,9 @@ class TermoUsoImagemTest extends TestCase
 
         Sanctum::actingAs(User::factory()->create(['role' => Role::Orientador->value]));
 
-        $this->putJson("/api/v1/documentos-presenciais/termo-imagem/{$documento->id}", ['alunos' => [$this->ana->id]])
+        $this->putJson("/api/v1/documentos-presenciais/arquivos/{$documento->id}", ['pessoas' => ["aluno:{$this->ana->id}"]])
             ->assertForbidden();
-        $this->deleteJson("/api/v1/documentos-presenciais/termo-imagem/{$documento->id}")->assertForbidden();
+        $this->deleteJson("/api/v1/documentos-presenciais/arquivos/{$documento->id}")->assertForbidden();
         $this->enviar([$this->ana->id])->assertForbidden();
     }
 
@@ -202,7 +206,7 @@ class TermoUsoImagemTest extends TestCase
             'projeto_id' => $this->projeto->id, 'tipo' => TipoDocumento::PlanoPesquisa->value,
         ]);
 
-        $this->deleteJson("/api/v1/documentos-presenciais/termo-imagem/{$plano->id}")->assertNotFound();
+        $this->deleteJson("/api/v1/documentos-presenciais/arquivos/{$plano->id}")->assertNotFound();
         $this->assertDatabaseHas('projeto_documentos', ['id' => $plano->id]);
     }
 
@@ -210,12 +214,13 @@ class TermoUsoImagemTest extends TestCase
     {
         $this->enviar([$this->beto->id])->assertCreated();
 
-        $projeto = $this->getJson('/api/v1/documentos-presenciais')->assertOk()->json('data.projetos.0');
+        $itens = $this->getJson('/api/v1/documentos-presenciais')->assertOk()->json('data.projetos.0.itens');
+        $termo = collect($itens)->firstWhere('chave', 'termo_uso_imagem');
 
-        $this->assertSame(['Ana', 'Beto', 'Caio'], array_column($projeto['alunos'], 'nome'));
-        $this->assertSame('parcial', $projeto['termo_imagem']['situacao']);
-        $this->assertSame(['Ana', 'Caio'], $projeto['termo_imagem']['faltando']);
-        $this->assertSame(['Beto'], array_column($projeto['termo_imagem']['arquivos'][0]['alunos'], 'nome'));
+        $this->assertSame(['Ana', 'Beto', 'Caio'], array_column($termo['pessoas'], 'nome'));
+        $this->assertSame('parcial', $termo['situacao']);
+        $this->assertSame(['Ana', 'Caio'], $termo['faltando']);
+        $this->assertSame(["aluno:{$this->beto->id}"], $termo['arquivos'][0]['pessoas']);
     }
 
     public function test_estudante_que_sai_da_equipe_deixa_de_contar(): void

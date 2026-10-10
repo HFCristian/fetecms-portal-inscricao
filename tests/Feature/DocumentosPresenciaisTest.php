@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\Role;
 use App\Enums\TipoDocumento;
 use App\Models\Edicao;
+use App\Models\ItemConferencia;
 use App\Models\ListaFinal;
 use App\Models\Projeto;
 use App\Models\ProjetoDocumento;
@@ -72,6 +73,14 @@ class DocumentosPresenciaisTest extends TestCase
         Sanctum::actingAs($this->orientador);
     }
 
+    /** A rota de envio do termo de responsabilidade: um item da lista única (Sprint 183). */
+    private function urlTermo(?Projeto $projeto = null): string
+    {
+        $item = ItemConferencia::where('chave', ItemConferencia::CHAVE_TERMO_RESPONSABILIDADE)->value('id');
+
+        return '/api/v1/documentos-presenciais/projetos/'.($projeto ?? $this->projeto)->id."/itens/{$item}";
+    }
+
     public function test_sem_lista_final_a_aba_nao_abre(): void
     {
         $this->comoOrientador();
@@ -99,8 +108,7 @@ class DocumentosPresenciaisTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.janela.aberta', true)
             ->assertJsonCount(1, 'data.projetos')
-            ->assertJsonPath('data.projetos.0.titulo', 'Bioplástico de mandioca')
-            ->assertJsonPath('data.projetos.0.termo', null);
+            ->assertJsonPath('data.projetos.0.titulo', 'Bioplástico de mandioca');
 
         $this->assertNotNull($naoFinalista);
     }
@@ -110,18 +118,19 @@ class DocumentosPresenciaisTest extends TestCase
         $this->listaFinal([$this->projeto]);
         $this->comoOrientador();
 
-        $this->post("/api/v1/documentos-presenciais/projetos/{$this->projeto->id}/termo", [
+        $this->post($this->urlTermo(), [
             'file' => $this->pdf(),
-        ])->assertCreated()->assertJsonPath('data.nome_original', 'termo.pdf');
+        ])->assertCreated()->assertJsonPath('data.arquivos.0.nome_original', 'termo.pdf')
+            ->assertJsonPath('data.situacao_label', 'Enviado');
 
         $this->assertDatabaseHas('projeto_documentos', [
             'projeto_id' => $this->projeto->id,
             'tipo' => TipoDocumento::TermoResponsabilidade->value,
         ]);
 
-        $this->getJson('/api/v1/documentos-presenciais')
-            ->assertOk()
-            ->assertJsonPath('data.projetos.0.termo.nome_original', 'termo.pdf');
+        $itens = $this->getJson('/api/v1/documentos-presenciais')->assertOk()->json('data.projetos.0.itens');
+        $termo = collect($itens)->firstWhere('chave', 'termo_responsabilidade');
+        $this->assertSame('termo.pdf', $termo['arquivos'][0]['nome_original']);
     }
 
     public function test_pdf_sem_assinatura_e_aceito_mas_marcado(): void
@@ -131,47 +140,37 @@ class DocumentosPresenciaisTest extends TestCase
 
         // O arquivo não é recusado: um termo assinado à caneta e digitalizado
         // continua sendo um termo, e travar o envio deixaria o finalista sem saída.
-        $this->post("/api/v1/documentos-presenciais/projetos/{$this->projeto->id}/termo", [
+        $this->post($this->urlTermo(), [
             'file' => $this->pdf(),
         ])
             ->assertCreated()
-            ->assertJsonPath('data.assinatura.valida', false)
-            ->assertJsonPath('data.assinatura.assinado', false)
-            ->assertJsonPath('data.assinatura.motivo', 'O arquivo não traz assinatura digital.');
+            ->assertJsonPath('data.arquivos.0.assinatura.valida', false)
+            ->assertJsonPath('data.arquivos.0.assinatura.assinado', false)
+            ->assertJsonPath('data.arquivos.0.assinatura.motivo', 'O arquivo não traz assinatura digital.');
     }
 
-    public function test_reenviar_substitui_o_termo_anterior(): void
+    /**
+     * Sprint 183: o termo virou um item da lista única, e todo item aceita mais
+     * de um arquivo (frente e verso, um por página escaneada). Corrigir é
+     * remover o errado.
+     */
+    public function test_um_segundo_arquivo_se_soma_ao_primeiro_e_cada_um_se_remove(): void
     {
         $this->listaFinal([$this->projeto]);
         $this->comoOrientador();
 
-        $this->post("/api/v1/documentos-presenciais/projetos/{$this->projeto->id}/termo", ['file' => $this->pdf('velho.pdf')])
-            ->assertCreated();
-        $this->post("/api/v1/documentos-presenciais/projetos/{$this->projeto->id}/termo", ['file' => $this->pdf('novo.pdf')])
-            ->assertCreated();
+        $this->post($this->urlTermo(), ['file' => $this->pdf('pagina1.pdf')])->assertCreated();
+        $id = $this->post($this->urlTermo(), ['file' => $this->pdf('pagina2.pdf')])
+            ->assertCreated()
+            ->assertJsonCount(2, 'data.arquivos')
+            ->json('data.arquivos.0.id');
 
-        $termos = ProjetoDocumento::where('projeto_id', $this->projeto->id)
-            ->where('tipo', TipoDocumento::TermoResponsabilidade->value)
-            ->get();
+        $this->deleteJson("/api/v1/documentos-presenciais/arquivos/{$id}")
+            ->assertOk()
+            ->assertJsonCount(1, 'data.arquivos')
+            ->assertJsonPath('data.arquivos.0.nome_original', 'pagina2.pdf');
 
-        $this->assertCount(1, $termos);
-        $this->assertSame('novo.pdf', $termos->first()->nome_original);
-    }
-
-    public function test_remove_o_termo(): void
-    {
-        $this->listaFinal([$this->projeto]);
-        $this->comoOrientador();
-
-        $this->post("/api/v1/documentos-presenciais/projetos/{$this->projeto->id}/termo", ['file' => $this->pdf()])
-            ->assertCreated();
-
-        $this->deleteJson("/api/v1/documentos-presenciais/projetos/{$this->projeto->id}/termo")->assertOk();
-
-        $this->assertDatabaseMissing('projeto_documentos', [
-            'projeto_id' => $this->projeto->id,
-            'tipo' => TipoDocumento::TermoResponsabilidade->value,
-        ]);
+        $this->assertSame(1, ProjetoDocumento::where('tipo', TipoDocumento::TermoResponsabilidade->value)->count());
     }
 
     public function test_projeto_nao_finalista_nao_aceita_termo(): void
@@ -180,7 +179,7 @@ class DocumentosPresenciaisTest extends TestCase
         $this->listaFinal([$this->projeto]);
         $this->comoOrientador();
 
-        $this->post("/api/v1/documentos-presenciais/projetos/{$fora->id}/termo", ['file' => $this->pdf()])
+        $this->post($this->urlTermo($fora), ['file' => $this->pdf()])
             ->assertStatus(422)
             ->assertJsonValidationErrors('projeto');
     }
@@ -193,7 +192,7 @@ class DocumentosPresenciaisTest extends TestCase
         $this->listaFinal([$alheio]);
         $this->comoOrientador();
 
-        $this->post("/api/v1/documentos-presenciais/projetos/{$alheio->id}/termo", ['file' => $this->pdf()])
+        $this->post($this->urlTermo($alheio), ['file' => $this->pdf()])
             ->assertForbidden();
     }
 
@@ -208,21 +207,25 @@ class DocumentosPresenciaisTest extends TestCase
             ->assertJsonPath('data.janela.aberta', false)
             ->assertJsonPath('data.janela.encerrada', true);
 
-        $this->post("/api/v1/documentos-presenciais/projetos/{$this->projeto->id}/termo", ['file' => $this->pdf()])
+        $this->post($this->urlTermo(), ['file' => $this->pdf()])
             ->assertStatus(422)
             ->assertJsonValidationErrors('periodo');
     }
 
-    public function test_so_aceita_pdf_e_respeita_o_tamanho(): void
+    public function test_aceita_pdf_ou_foto_e_respeita_o_tamanho(): void
     {
         $this->listaFinal([$this->projeto]);
         $this->comoOrientador();
 
-        $this->post("/api/v1/documentos-presenciais/projetos/{$this->projeto->id}/termo", [
+        $this->post($this->urlTermo(), [
             'file' => UploadedFile::fake()->create('termo.docx', 100),
         ])->assertStatus(422)->assertJsonValidationErrors('file');
 
-        $this->post("/api/v1/documentos-presenciais/projetos/{$this->projeto->id}/termo", [
+        $this->post($this->urlTermo(), [
+            'file' => UploadedFile::fake()->create('termo.jpg', 100, 'image/jpeg'),
+        ])->assertCreated();
+
+        $this->post($this->urlTermo(), [
             'file' => UploadedFile::fake()->create('termo.pdf', 20480, 'application/pdf'),
         ])->assertStatus(422)->assertJsonValidationErrors('file');
     }

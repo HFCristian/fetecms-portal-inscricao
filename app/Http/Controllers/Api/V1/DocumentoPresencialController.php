@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\ItemConferencia;
 use App\Models\Projeto;
 use App\Models\ProjetoDocumento;
 use App\Services\DocumentosPresenciaisService;
@@ -10,8 +11,9 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * Aba "Documentos" do orientador: o termo de responsabilidade e o termo de uso
- * de imagem dos projetos **finalistas**, para o evento.
+ * Aba "Documentos" do orientador: o que a organização quer receber **antes do
+ * evento** dos projetos finalistas — os itens da lista única marcados "receber
+ * antes" (Sprint 183), entre eles os dois termos.
  *
  * Não reaproveita as rotas de anexo da inscrição de propósito: aquelas exigem
  * projeto em rascunho e inscrições abertas, e este documento é exatamente o
@@ -22,7 +24,7 @@ class DocumentoPresencialController extends Controller
 {
     public function __construct(private readonly DocumentosPresenciaisService $documentos) {}
 
-    /** Janela + os projetos finalistas do orientador, com o termo de cada um. */
+    /** Janela + os projetos finalistas do orientador, item a item. */
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -34,110 +36,64 @@ class DocumentoPresencialController extends Controller
         ]]);
     }
 
-    /** Anexa (ou substitui) o termo de responsabilidade do projeto. */
-    public function store(Request $request, Projeto $projeto): JsonResponse
+    /** Envia um arquivo para um item, com as pessoas para quem ele vale. */
+    public function store(Request $request, Projeto $projeto, ItemConferencia $item): JsonResponse
     {
         $this->authorize('view', $projeto);
 
         $request->validate([
             'file' => [
-                'required', 'file', 'mimes:pdf',
+                'required', 'file', 'mimes:'.implode(',', DocumentosPresenciaisService::MIMES),
                 'max:'.DocumentosPresenciaisService::MAX_KB,
             ],
-        ], [], ['file' => 'termo de responsabilidade']);
+            'pessoas' => ['sometimes', 'array'],
+            'pessoas.*' => ['string', 'max:40', 'distinct'],
+        ], [
+            'file.mimes' => 'Envie o arquivo em PDF, JPG ou PNG.',
+        ], ['file' => 'arquivo', 'pessoas' => 'pessoas']);
 
-        $termo = $this->documentos->anexarTermo(
+        $secao = $this->documentos->anexar(
             $projeto,
+            $item,
             $request->file('file'),
+            $request->input('pessoas', []),
             $request->user(),
             $request->boolean('teste'),
         );
 
         return response()->json([
-            'data' => $termo,
-            'meta' => ['message' => 'Termo de responsabilidade enviado.'],
+            'data' => $secao,
+            'meta' => ['message' => "{$item->nome}: arquivo enviado."],
         ], 201);
     }
 
-    /**
-     * Envia um arquivo do termo de uso de imagem (Sprint 174), com os
-     * estudantes para quem ele vale. Os anteriores ficam: o projeto pode ter
-     * um arquivo por estudante.
-     */
-    public function storeImagem(Request $request, Projeto $projeto): JsonResponse
-    {
-        $this->authorize('view', $projeto);
-
-        $request->validate([
-            'file' => [
-                'required', 'file', 'mimes:'.implode(',', DocumentosPresenciaisService::MIMES_IMAGEM),
-                'max:'.DocumentosPresenciaisService::MAX_KB,
-            ],
-            'alunos' => ['required', 'array', 'min:1'],
-            'alunos.*' => ['integer', 'distinct'],
-        ], [
-            'file.mimes' => 'Envie o termo em PDF, JPG ou PNG.',
-            'alunos.required' => 'Marque ao menos um estudante para quem o termo vale.',
-            'alunos.min' => 'Marque ao menos um estudante para quem o termo vale.',
-        ], ['file' => 'termo de uso de imagem', 'alunos' => 'estudantes']);
-
-        $termo = $this->documentos->anexarTermoImagem(
-            $projeto,
-            $request->file('file'),
-            $request->input('alunos', []),
-            $request->user(),
-            $request->boolean('teste'),
-        );
-
-        return response()->json([
-            'data' => $termo,
-            'meta' => ['message' => 'Termo de uso de imagem enviado.'],
-        ], 201);
-    }
-
-    /** Troca para quais estudantes um arquivo do termo de imagem vale. */
-    public function updateImagem(Request $request, ProjetoDocumento $documento): JsonResponse
+    /** Troca para quem um arquivo vale. */
+    public function update(Request $request, ProjetoDocumento $documento): JsonResponse
     {
         $this->authorize('view', $documento->projeto ?? abort(404));
 
         $request->validate([
-            'alunos' => ['required', 'array', 'min:1'],
-            'alunos.*' => ['integer', 'distinct'],
+            'pessoas' => ['required', 'array', 'min:1'],
+            'pessoas.*' => ['string', 'max:40', 'distinct'],
         ], [
-            'alunos.required' => 'Marque ao menos um estudante para quem o termo vale.',
-            'alunos.min' => 'Marque ao menos um estudante para quem o termo vale.',
-        ], ['alunos' => 'estudantes']);
+            'pessoas.required' => 'Marque ao menos uma pessoa para quem o arquivo vale.',
+            'pessoas.min' => 'Marque ao menos uma pessoa para quem o arquivo vale.',
+        ], ['pessoas' => 'pessoas']);
 
-        $termo = $this->documentos->definirAlunosTermoImagem(
-            $documento, $request->input('alunos', []), $request->user(), $request->boolean('teste'),
+        $secao = $this->documentos->definirPessoas(
+            $documento, $request->input('pessoas', []), $request->user(), $request->boolean('teste'),
         );
 
-        return response()->json([
-            'data' => $termo,
-            'meta' => ['message' => 'Estudantes do termo atualizados.'],
-        ]);
+        return response()->json(['data' => $secao, 'meta' => ['message' => 'Pessoas do arquivo atualizadas.']]);
     }
 
-    /** Remove um arquivo do termo de imagem. */
-    public function destroyImagem(Request $request, ProjetoDocumento $documento): JsonResponse
+    /** Remove um arquivo enviado antes. */
+    public function destroy(Request $request, ProjetoDocumento $documento): JsonResponse
     {
         $this->authorize('view', $documento->projeto ?? abort(404));
 
-        $termo = $this->documentos->removerTermoImagem($documento, $request->user(), $request->boolean('teste'));
+        $secao = $this->documentos->remover($documento, $request->user(), $request->boolean('teste'));
 
-        return response()->json([
-            'data' => $termo,
-            'meta' => ['message' => 'Arquivo removido.'],
-        ]);
-    }
-
-    /** Remove o termo (o orientador reenvia o arquivo corrigido). */
-    public function destroy(Request $request, Projeto $projeto): JsonResponse
-    {
-        $this->authorize('view', $projeto);
-
-        $this->documentos->removerTermo($projeto, $request->user(), $request->boolean('teste'));
-
-        return response()->json(['data' => ['message' => 'Termo removido.']]);
+        return response()->json(['data' => $secao, 'meta' => ['message' => 'Arquivo removido.']]);
     }
 }

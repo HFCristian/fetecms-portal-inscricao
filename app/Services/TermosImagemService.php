@@ -56,7 +56,7 @@ class TermosImagemService
             ->whereIn('projeto_id', $ids)
             ->where('tipo', TipoDocumento::TermoUsoImagem->value)
             ->when($corte !== null, fn ($q) => $q->where('created_at', '<=', $corte))
-            ->with('alunos:id,nome')
+            ->with('pessoas')
             ->orderBy('id')
             ->get()
             ->groupBy('projeto_id');
@@ -165,11 +165,13 @@ class TermosImagemService
      */
     private function montar(Collection $alunos, Collection $arquivos): array
     {
-        // Estudante => arquivos que o cobrem.
+        // Estudante => arquivos que o cobrem. O vínculo é por pessoa (Sprint
+        // 183); o termo de imagem é dos estudantes, então só eles contam.
         $porAluno = [];
+        $nomes = $alunos->pluck('nome', 'id');
         foreach ($arquivos as $arquivo) {
-            foreach ($arquivo->alunos as $aluno) {
-                $porAluno[$aluno->id][] = $arquivo->id;
+            foreach ($arquivo->pessoas->where('pessoa_tipo', 'aluno') as $pessoa) {
+                $porAluno[$pessoa->pessoa_id][] = $arquivo->id;
             }
         }
 
@@ -196,9 +198,11 @@ class TermosImagemService
                 'mime' => $d->mime,
                 'tamanho_bytes' => $d->tamanho_bytes,
                 'enviado_em' => $d->created_at?->toIso8601String(),
-                'alunos' => $d->alunos
-                    ->sortBy(fn (Aluno $a) => mb_strtolower((string) $a->nome))
-                    ->map(fn (Aluno $a) => ['id' => $a->id, 'nome' => $a->nome])
+                'alunos' => $d->pessoas
+                    ->where('pessoa_tipo', 'aluno')
+                    ->filter(fn ($p) => $nomes->has($p->pessoa_id))
+                    ->map(fn ($p) => ['id' => $p->pessoa_id, 'nome' => $nomes[$p->pessoa_id]])
+                    ->sortBy(fn (array $a) => mb_strtolower((string) $a['nome']))
                     ->values()
                     ->all(),
             ])->values()->all(),

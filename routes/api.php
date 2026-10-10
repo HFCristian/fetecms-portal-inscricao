@@ -226,20 +226,17 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::post('/projetos/{projeto}/decidir', [OrientadorAjusteController::class, 'decidir']);
         });
 
-        // Aba "Documentos" do orientador: o termo de responsabilidade e o de
-        // uso de imagem dos projetos finalistas, enviados para o evento (não são
-        // anexo de inscrição: exigem lista final publicada, não rascunho).
+        // Aba "Documentos" do orientador: o que a organização quer receber dos
+        // finalistas antes do evento (não é anexo de inscrição: exige lista
+        // final publicada, não rascunho).
         Route::middleware('role:orientador')->prefix('documentos-presenciais')->group(function () {
             Route::get('/', [DocumentoPresencialController::class, 'index']);
-            Route::post('/projetos/{projeto}/termo', [DocumentoPresencialController::class, 'store'])
-                ->middleware('throttle:20,1');
-            Route::delete('/projetos/{projeto}/termo', [DocumentoPresencialController::class, 'destroy']);
-            // Termo de uso de imagem (Sprint 174): vários arquivos por projeto,
-            // cada um com os estudantes para quem vale.
-            Route::post('/projetos/{projeto}/termo-imagem', [DocumentoPresencialController::class, 'storeImagem'])
-                ->middleware('throttle:20,1');
-            Route::put('/termo-imagem/{documento}', [DocumentoPresencialController::class, 'updateImagem']);
-            Route::delete('/termo-imagem/{documento}', [DocumentoPresencialController::class, 'destroyImagem']);
+            // Um arquivo para um item da lista única marcado "receber antes"
+            // (Sprint 183): os termos e o que mais a organização pedir.
+            Route::post('/projetos/{projeto}/itens/{item}', [DocumentoPresencialController::class, 'store'])
+                ->middleware('throttle:30,1');
+            Route::put('/arquivos/{documento}', [DocumentoPresencialController::class, 'update']);
+            Route::delete('/arquivos/{documento}', [DocumentoPresencialController::class, 'destroy']);
         });
 
         // Aba "Suporte" do orientador (Sprint 162): acompanhante e intérpretes

@@ -155,23 +155,41 @@ class ChecagemEstandeTest extends TestCase
         $this->assertSame(1, ChecagemEstande::first()->itens()->count());
     }
 
-    public function test_termo_do_orientador_aparece_na_ficha_e_nao_e_editado_aqui(): void
+    /**
+     * Sprint 184: o termo de responsabilidade é um item da lista única,
+     * recebido antes. Enviado pelo orientador, ele chega marcado presente na
+     * ficha, com o arquivo à mão — e o voluntário pode mudar.
+     */
+    public function test_termo_enviado_antes_chega_marcado_e_pode_ser_mudado(): void
     {
+        $termo = ItemConferencia::where('chave', ItemConferencia::CHAVE_TERMO_RESPONSABILIDADE)->firstOrFail();
+        $termo->update(['ativo' => true]);
         $this->publicar([$this->projeto]);
-        ProjetoDocumento::factory()->create([
+        $arquivo = ProjetoDocumento::factory()->create([
             'projeto_id' => $this->projeto->id,
             'tipo' => TipoDocumento::TermoResponsabilidade->value,
+            'item_conferencia_id' => $termo->id,
             'nome_original' => 'termo-assinado.pdf',
-            'assinatura_valida' => true,
-            'assinatura' => ['motivo' => 'Assinatura digital ICP-Brasil conferida.'],
         ]);
         $this->comoAdmin();
 
-        $this->getJson("/api/v1/admin/presencial/checagem/{$this->projeto->id}")
-            ->assertOk()
-            ->assertJsonPath('data.termo.nome_original', 'termo-assinado.pdf')
-            ->assertJsonPath('data.termo.assinatura_valida', true)
-            ->assertJsonPath('data.termo.assinatura_motivo', 'Assinatura digital ICP-Brasil conferida.');
+        $item = collect($this->getJson("/api/v1/admin/presencial/checagem/{$this->projeto->id}")->assertOk()->json('data.itens'))
+            ->firstWhere('id', $termo->id);
+        $this->assertSame('presente', $item['situacao']);
+        $this->assertTrue($item['pre_marcado']);
+        $this->assertSame([['id' => $arquivo->id, 'nome_original' => 'termo-assinado.pdf', 'enviado_em' => $arquivo->created_at->toIso8601String()]], $item['online']);
+
+        $this->postJson("/api/v1/admin/presencial/checagem/{$this->projeto->id}", [
+            'itens' => [['item_id' => $termo->id, 'situacao' => 'ausente']],
+        ])->assertOk();
+
+        $item = collect($this->getJson("/api/v1/admin/presencial/checagem/{$this->projeto->id}")->json('data.itens'))
+            ->firstWhere('id', $termo->id);
+        $this->assertSame('ausente', $item['situacao']);
+        $this->assertFalse($item['pre_marcado']);
+
+        $espelho = collect($this->getJson('/api/v1/admin/presencial/checagem/espelho')->json('data.0.itens'))->firstWhere('id', $termo->id);
+        $this->assertSame('ausente', $espelho['situacao']);
     }
 
     public function test_projeto_sem_termo_e_sinalizado_na_lista(): void
@@ -184,7 +202,7 @@ class ChecagemEstandeTest extends TestCase
             ->assertJsonPath('data.0.tem_termo', false);
     }
 
-    public function test_espelho_traz_todos_com_itens_e_termo(): void
+    public function test_espelho_traz_todos_com_itens(): void
     {
         $this->publicar([$this->projeto]);
         $this->comoAdmin();
@@ -197,8 +215,7 @@ class ChecagemEstandeTest extends TestCase
             ->assertOk()
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.titulo', 'Bioplástico de mandioca')
-            ->assertJsonPath('data.0.itens.0.situacao', 'presente')
-            ->assertJsonPath('data.0.termo', null);
+            ->assertJsonPath('data.0.itens.0.situacao', 'presente');
     }
 
     public function test_fora_da_janela_do_evento_a_checagem_e_recusada(): void

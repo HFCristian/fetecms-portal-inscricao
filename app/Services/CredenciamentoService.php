@@ -219,20 +219,19 @@ class CredenciamentoService
         $marcado = $this->marcacoes($credenciamento);
         $estados = $this->estados($credenciamento);
         $catalogo = $this->catalogo();
-        $termosImagem = $this->termosImagemPorAluno($projeto);
+        $online = $this->enviadosAntes($projeto, $catalogo);
 
         $pessoas = [];
 
         foreach ($projeto->alunos as $aluno) {
             $pessoas[] = $this->pessoa(
-                TipoPessoaCredenciamento::Aluno, $aluno->id, $aluno->nome, $catalogo, $marcado, $estados,
-                $termosImagem[$aluno->id] ?? [],
+                TipoPessoaCredenciamento::Aluno, $aluno->id, $aluno->nome, $catalogo, $marcado, $estados, $online,
             );
         }
 
         if ($projeto->user !== null) {
             $pessoas[] = $this->pessoa(
-                TipoPessoaCredenciamento::Orientador, $projeto->user->id, $projeto->user->name, $catalogo, $marcado, $estados,
+                TipoPessoaCredenciamento::Orientador, $projeto->user->id, $projeto->user->name, $catalogo, $marcado, $estados, $online,
             );
         }
 
@@ -244,6 +243,7 @@ class CredenciamentoService
                 $catalogo,
                 $marcado,
                 $estados,
+                $online,
             );
         }
 
@@ -259,16 +259,13 @@ class CredenciamentoService
             // Itens do projeto, e não de alguém (Sprint 182): conferidos uma vez,
             // marcados com o próprio projeto no lugar da pessoa.
             'itens_projeto' => array_map(fn (ItemConferencia $i) => [
-                'id' => $i->id,
-                'nome' => $i->nome,
-                'descricao' => $i->descricao,
-                'chave' => $i->chave,
                 'pessoa_tipo' => ItemConferencia::PROJETO,
                 'pessoa_id' => $projeto->id,
-                'situacao' => $marcado[$this->chave($i->id, ItemConferencia::PROJETO, $projeto->id)] ?? null,
-                'pre_marcado' => false,
-                'online' => [],
-            ], $catalogo[ItemConferencia::PROJETO]),
+            ] + $this->itemDaFicha(
+                $i,
+                $marcado[$this->chave($i->id, ItemConferencia::PROJETO, $projeto->id)] ?? null,
+                $online[$i->id][ItemConferencia::PROJETO.':'.$projeto->id] ?? [],
+            ), $catalogo[ItemConferencia::PROJETO]),
             'sinalizacoes' => app(SinalizacaoProjetoService::class)->de($projeto->id),
             // Fora do prazo é exceção aprovada pela organização: a conta
             // temporária do balcão vê o selo, mas não marca.
@@ -925,7 +922,7 @@ class CredenciamentoService
         array $catalogo,
         array $marcado,
         array $estados = [],
-        array $termosImagem = [],
+        array $online = [],
     ): array {
         $estado = $estados[$tipo->value.':'.$id] ?? null;
 
@@ -944,24 +941,12 @@ class CredenciamentoService
                 'por_tipo' => $estado?->kit_retirado_por_tipo,
                 'por_id' => $estado?->kit_retirado_por_id,
             ],
-            'documentos' => array_map(function (ItemConferencia $d) use ($tipo, $id, $marcado, $termosImagem) {
-                $gravada = $marcado[$this->chave($d->id, $tipo->value, $id)] ?? null;
-                // Termo de uso de imagem enviado online (Sprint 175): o item já
-                // chega marcado, com o arquivo à mão. É sugestão, não trava — o
-                // atendente muda se o arquivo estiver errado, e o que ele gravar
-                // passa a valer.
-                $online = $d->ehTermoImagem() ? $termosImagem : [];
-                $preMarcado = $gravada === null && $online !== [];
-
-                return [
-                    'id' => $d->id,
-                    'nome' => $d->nome,
-                    'descricao' => $d->descricao,
-                    'chave' => $d->chave,
-                    'situacao' => $preMarcado ? SituacaoDocumento::Presente->value : $gravada,
-                    'pre_marcado' => $preMarcado,
-                    'online' => $online,
-                ];
+            'documentos' => array_map(function (ItemConferencia $d) use ($tipo, $id, $marcado, $online) {
+                return $this->itemDaFicha(
+                    $d,
+                    $marcado[$this->chave($d->id, $tipo->value, $id)] ?? null,
+                    $online[$d->id][$tipo->value.':'.$id] ?? [],
+                );
             }, array_values(array_filter(
                 $catalogo[ItemConferencia::PESSOA],
                 fn (ItemConferencia $i) => $i->valePara($tipo),
@@ -970,26 +955,49 @@ class CredenciamentoService
     }
 
     /**
-     * Os arquivos do termo de uso de imagem que cobrem cada estudante do
-     * projeto, enviados online pelo orientador (Sprint 174).
+     * Um item na ficha, com o que o orientador mandou antes (Sprints 175 e
+     * 184): quem está coberto por arquivo enviado pelo portal chega com o item
+     * marcado, e o arquivo à mão. É sugestão, não trava — o atendente muda se o
+     * arquivo estiver errado, e o que ele gravar passa a valer.
      *
-     * @return array<int, list<array{id:int, nome_original:string, enviado_em:?string}>>
+     * @param  list<array<string, mixed>>  $online
+     * @return array<string, mixed>
      */
-    private function termosImagemPorAluno(Projeto $projeto): array
+    private function itemDaFicha(ItemConferencia $item, ?string $gravada, array $online): array
     {
-        $cobertura = app(TermosImagemService::class)->doProjeto($projeto->id);
-        $arquivos = collect($cobertura['arquivos'])->keyBy('id');
+        $preMarcado = $gravada === null && $online !== [];
 
-        $porAluno = [];
-        foreach ($cobertura['alunos'] as $aluno) {
-            $porAluno[$aluno['id']] = array_values(array_map(fn (int $arquivo) => [
-                'id' => $arquivo,
-                'nome_original' => $arquivos[$arquivo]['nome_original'],
-                'enviado_em' => $arquivos[$arquivo]['enviado_em'],
-            ], $aluno['arquivos']));
+        return [
+            'id' => $item->id,
+            'nome' => $item->nome,
+            'descricao' => $item->descricao,
+            'chave' => $item->chave,
+            'situacao' => $preMarcado ? SituacaoDocumento::Presente->value : $gravada,
+            'pre_marcado' => $preMarcado,
+            'online' => $online,
+        ];
+    }
+
+    /**
+     * Os arquivos enviados antes que cobrem cada pessoa (ou o projeto), por
+     * item: `[item_id]["papel:id"] => arquivos`.
+     *
+     * @param  array{pessoa: list<ItemConferencia>, projeto: list<ItemConferencia>}  $catalogo
+     * @return array<int, array<string, list<array<string, mixed>>>>
+     */
+    private function enviadosAntes(Projeto $projeto, array $catalogo): array
+    {
+        $envios = app(EnviosAntecipadosService::class);
+        $arquivos = $envios->arquivos([$projeto->id])[$projeto->id] ?? [];
+        $cobertura = [];
+
+        foreach ([...$catalogo[ItemConferencia::PESSOA], ...$catalogo[ItemConferencia::PROJETO]] as $item) {
+            if ($item->receber_antes && isset($arquivos[$item->id])) {
+                $cobertura[$item->id] = $envios->cobertura($item, $projeto->id, $arquivos[$item->id]);
+            }
         }
 
-        return array_filter($porAluno);
+        return $cobertura;
     }
 
     /**

@@ -38,7 +38,7 @@ const SECOES = [
         to: '/admin/presencial/espelho',
         icon: 'table_view',
         titulo: 'Espelho da checagem',
-        descricao: 'Todos os finalistas lado a lado, com o que foi conferido e o termo de responsabilidade.',
+        descricao: 'Todos os finalistas lado a lado, com o que foi conferido — e o que chegou antes pelo portal.',
     },
 ];
 

@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Enums\SituacaoDocumento;
 use App\Enums\TipoDocumento;
-use App\Enums\TipoPessoaCredenciamento;
 use App\Models\ChecagemEstande;
 use App\Models\ChecagemEstandeItem;
 use App\Models\Edicao;
@@ -15,6 +14,7 @@ use App\Models\Projeto;
 use App\Models\ProjetoDocumento;
 use App\Models\TurnoApresentacao;
 use App\Models\User;
+use App\Support\EquipeProjeto;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
@@ -188,6 +188,7 @@ class ChecagemEstandeService
         $checagem = $this->checagemDe($projeto, $emTeste);
         $marcado = $this->marcacoes($checagem);
         $catalogo = $this->catalogoAtivo();
+        $online = $this->enviadosAntes([$projeto->id], $catalogo)[$projeto->id] ?? [];
 
         return [
             'projeto' => [
@@ -205,21 +206,21 @@ class ChecagemEstandeService
                 'id' => $i->id,
                 'nome' => $i->nome,
                 'descricao' => $i->descricao,
-                'situacao' => $marcado[$this->chave($i->id, ItemConferencia::PROJETO, $projeto->id)] ?? null,
-            ], array_filter($catalogo, fn (ItemConferencia $i) => $i->doProjeto()))),
+            ] + $this->situacaoComEnvio(
+                $marcado[$this->chave($i->id, ItemConferencia::PROJETO, $projeto->id)] ?? null,
+                $online[$i->id][ItemConferencia::PROJETO.':'.$projeto->id] ?? [],
+            ), array_filter($catalogo, fn (ItemConferencia $i) => $i->doProjeto()))),
             // Itens de pessoa (Sprint 182): um marcador para cada pessoa dos
             // papéis do item — o termo de imagem de cada estudante, por exemplo.
             'itens_pessoa' => array_values(array_map(fn (ItemConferencia $i) => [
                 'id' => $i->id,
                 'nome' => $i->nome,
                 'descricao' => $i->descricao,
-                'pessoas' => array_map(fn (array $p) => $p + [
-                    'situacao' => $marcado[$this->chave($i->id, $p['tipo'], $p['id'])] ?? null,
-                ], array_values(array_filter($this->pessoas($projeto), fn (array $p) => $i->valePara($p['tipo'])))),
+                'pessoas' => array_map(fn (array $p) => $p + $this->situacaoComEnvio(
+                    $marcado[$this->chave($i->id, $p['tipo'], $p['id'])] ?? null,
+                    $online[$i->id][$p['chave']] ?? [],
+                ), array_values(array_filter($this->pessoas($projeto), fn (array $p) => $i->valePara($p['tipo'])))),
             ], array_filter($catalogo, fn (ItemConferencia $i) => ! $i->doProjeto()))),
-            // O termo não é editável aqui: quem o envia é o orientador. Ele
-            // aparece já conferido (ou faltando) e pode ser aberto na hora.
-            'termo' => $this->termo($projeto),
             'checagem' => $checagem === null ? null : [
                 'verificado_em' => $checagem->verificado_em?->toIso8601String(),
                 'verificado_por' => $checagem->autor?->name,
@@ -321,11 +322,13 @@ class ChecagemEstandeService
         $ativos = $this->catalogoAtivo();
         $sinais = app(SinalizacaoProjetoService::class)->para($ids);
         $projetos->loadMissing(['user:id,name', 'coorientador']);
+        $enviados = $this->enviadosAntes($ids, $ativos);
 
-        return $projetos->map(function (Projeto $p) use ($estandes, $checagens, $ativos, $sinais) {
+        return $projetos->map(function (Projeto $p) use ($estandes, $checagens, $ativos, $sinais, $enviados) {
             $checagem = $checagens[$p->id] ?? null;
             $marcado = $this->marcacoes($checagem);
             $pessoas = $this->pessoas($p);
+            $online = $enviados[$p->id] ?? [];
 
             return [
                 'id' => $p->id,
@@ -341,12 +344,17 @@ class ChecagemEstandeService
                 'itens' => array_values(array_map(fn (ItemConferencia $i) => [
                     'id' => $i->id,
                     'nome' => $i->nome,
-                    'situacao' => $marcado[$this->chave($i->id, ItemConferencia::PROJETO, $p->id)] ?? null,
-                ], array_filter($ativos, fn (ItemConferencia $i) => $i->doProjeto()))),
+                ] + $this->situacaoComEnvio(
+                    $marcado[$this->chave($i->id, ItemConferencia::PROJETO, $p->id)] ?? null,
+                    $online[$i->id][ItemConferencia::PROJETO.':'.$p->id] ?? [],
+                ), array_filter($ativos, fn (ItemConferencia $i) => $i->doProjeto()))),
                 // Item de pessoa no espelho: quantos da equipe já foram vistos.
-                'itens_pessoa' => array_values(array_map(function (ItemConferencia $i) use ($pessoas, $marcado) {
+                'itens_pessoa' => array_values(array_map(function (ItemConferencia $i) use ($pessoas, $marcado, $online) {
                     $daqui = array_values(array_filter($pessoas, fn (array $pessoa) => $i->valePara($pessoa['tipo'])));
-                    $situacoes = array_map(fn (array $pessoa) => $marcado[$this->chave($i->id, $pessoa['tipo'], $pessoa['id'])] ?? null, $daqui);
+                    $situacoes = array_map(fn (array $pessoa) => $this->situacaoComEnvio(
+                        $marcado[$this->chave($i->id, $pessoa['tipo'], $pessoa['id'])] ?? null,
+                        $online[$i->id][$pessoa['chave']] ?? [],
+                    )['situacao'], $daqui);
 
                     return [
                         'id' => $i->id,
@@ -356,7 +364,6 @@ class ChecagemEstandeService
                         'ausentes' => count(array_filter($situacoes, fn ($s) => $s === SituacaoDocumento::Ausente->value)),
                     ];
                 }, array_filter($ativos, fn (ItemConferencia $i) => ! $i->doProjeto()))),
-                'termo' => $this->termo($p),
                 'sinalizacoes' => $sinais[$p->id] ?? null,
             ];
         })->all();
@@ -471,30 +478,58 @@ class ChecagemEstandeService
     }
 
     /**
-     * A equipe do projeto, para os itens de pessoa: estudantes, orientador e
-     * coorientador, cada um com o seu papel.
+     * A equipe do projeto, para os itens de pessoa.
      *
-     * @return list<array{tipo:string, tipo_label:string, id:int, nome:string}>
+     * @return list<array{chave:string, tipo:string, tipo_label:string, id:int, nome:string}>
      */
     private function pessoas(Projeto $projeto): array
     {
-        $projeto->loadMissing(['alunos:id,projeto_id,nome', 'user:id,name', 'coorientador']);
-        $pessoa = fn (TipoPessoaCredenciamento $t, int $id, string $nome) => [
-            'tipo' => $t->value, 'tipo_label' => $t->label(), 'id' => $id, 'nome' => $nome,
+        return EquipeProjeto::de($projeto);
+    }
+
+    /**
+     * A situação de um item na checagem, com o que o orientador mandou antes
+     * (Sprint 184): sem marcação, o arquivo enviado pelo portal já conta como
+     * presente — é o que o termo de responsabilidade sempre fez aqui —, e o
+     * voluntário muda se o papel não bater.
+     *
+     * @param  list<array<string, mixed>>  $online
+     * @return array{situacao: ?string, pre_marcado: bool, online: list<array<string, mixed>>}
+     */
+    private function situacaoComEnvio(?string $marcada, array $online): array
+    {
+        $preMarcado = $marcada === null && $online !== [];
+
+        return [
+            'situacao' => $preMarcado ? SituacaoDocumento::Presente->value : $marcada,
+            'pre_marcado' => $preMarcado,
+            'online' => $online,
         ];
+    }
 
-        $lista = $projeto->alunos->sortBy('nome')
-            ->map(fn ($a) => $pessoa(TipoPessoaCredenciamento::Aluno, $a->id, $a->nome))->values()->all();
+    /**
+     * O que foi enviado antes para os itens recebidos antes, por projeto:
+     * `[projeto_id][item_id]["papel:id"] => arquivos`.
+     *
+     * @param  list<int>  $ids
+     * @param  list<ItemConferencia>  $itens
+     * @return array<int, array<int, array<string, list<array<string, mixed>>>>>
+     */
+    private function enviadosAntes(array $ids, array $itens): array
+    {
+        $envios = app(EnviosAntecipadosService::class);
+        $arquivos = $envios->arquivos($ids);
+        $cobertura = [];
 
-        if ($projeto->user !== null) {
-            $lista[] = $pessoa(TipoPessoaCredenciamento::Orientador, $projeto->user->id, $projeto->user->name);
+        foreach ($arquivos as $projetoId => $porItem) {
+            foreach ($itens as $item) {
+                if ($item->receber_antes && isset($porItem[$item->id])) {
+                    $cobertura[$projetoId][$item->id] = $envios->cobertura($item, $projetoId, $porItem[$item->id]);
+                }
+            }
         }
 
-        if ($projeto->coorientador !== null) {
-            $lista[] = $pessoa(TipoPessoaCredenciamento::Coorientador, $projeto->coorientador->id, $projeto->coorientador->nome);
-        }
-
-        return $lista;
+        return $cobertura;
     }
 
     /** @return array<string, string> "item:tipo:id" => situação */

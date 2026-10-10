@@ -383,7 +383,11 @@ class MapaSituacaoTest extends TestCase
             'projeto_id' => $projeto->id, 'tipo' => TipoDocumento::TermoUsoImagem->value,
             'nome_original' => 'termo.pdf', 'created_at' => $quando ?? now(),
         ]);
-        $documento->alunos()->sync(collect($alunos)->pluck('id'));
+        // O arquivo enviado antes vale para pessoas (Sprint 183): aqui, estudantes.
+        $documento->forceFill(['item_conferencia_id' => ItemConferencia::where('chave', ItemConferencia::CHAVE_TERMO_IMAGEM)->value('id')])->save();
+        foreach ($alunos as $aluno) {
+            $documento->pessoas()->create(['pessoa_tipo' => 'aluno', 'pessoa_id' => $aluno->id]);
+        }
 
         return $documento;
     }

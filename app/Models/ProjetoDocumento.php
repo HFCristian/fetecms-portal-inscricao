@@ -7,7 +7,7 @@ use Database\Factories\ProjetoDocumentoFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ProjetoDocumento extends Model
 {
@@ -17,7 +17,7 @@ class ProjetoDocumento extends Model
     protected $table = 'projeto_documentos';
 
     protected $fillable = [
-        'projeto_id', 'tipo', 'disk', 'path', 'nome_original', 'mime', 'tamanho_bytes',
+        'projeto_id', 'tipo', 'item_conferencia_id', 'disk', 'path', 'nome_original', 'mime', 'tamanho_bytes',
         'assinatura_valida', 'assinatura',
     ];
 
@@ -39,11 +39,20 @@ class ProjetoDocumento extends Model
     }
 
     /**
-     * Para quais estudantes o arquivo vale — só o termo de uso de imagem usa
-     * (Sprint 174): o mesmo projeto pode mandar um arquivo por estudante.
+     * O item da lista única que este arquivo atende (Sprint 181) — só nos
+     * documentos enviados antes do evento, pela aba Documentos.
      */
-    public function alunos(): BelongsToMany
+    public function item(): BelongsTo
     {
-        return $this->belongsToMany(Aluno::class, 'projeto_documento_alunos')->withTimestamps();
+        return $this->belongsTo(ItemConferencia::class, 'item_conferencia_id');
+    }
+
+    /**
+     * Para quem o arquivo vale, quando o item é de pessoa (Sprint 183): o
+     * mesmo projeto pode mandar um arquivo por pessoa ou um para a equipe.
+     */
+    public function pessoas(): HasMany
+    {
+        return $this->hasMany(ProjetoDocumentoPessoa::class, 'projeto_documento_id');
     }
 }
