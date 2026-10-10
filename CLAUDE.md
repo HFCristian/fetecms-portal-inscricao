@@ -857,7 +857,45 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 174 | Orientador: **termo de uso de imagem** (vários arquivos, estudantes assinalados) + card "Agilize o processo!" | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 175 | Credenciamento: **termo de uso de imagem** já marcado por estudante quando enviado online (item do sistema no catálogo) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 176 | Mapa do Evento: termo de imagem no painel do estande, na lista filtrável e nas exportações (online + balcão) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 177 | Listas: código **em branco, fora do padrão ou da sequência** com aviso; **repetido** barra a geração; editar reordena | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 178 | Listas: **arrastar** o projeto dentro do grupo renumera os códigos na hora (sem modo "Reordenar") | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprints 177–178 (mesma branch):** o código do projeto nas listas preliminares e finais ficou
+> nas mãos do admin.
+> (a) **Sprint 177** — o código digitado deixou de ser travado pelo padrão. Ele pode ficar **em
+> branco** (o projeto fica "sem código"), **fugir do padrão** — não é `CAT.ARE-000` da categoria e
+> da área do próprio projeto, como FET.BIO-001 num projeto de Agrárias — ou **fugir da sequência** do
+> grupo (001, 002, 005). Os três viram **aviso**: um selo na linha do projeto, um resumo no topo da
+> composição e de novo na confirmação de **Gerar**, que gera assim mesmo. O **código repetido** é o
+> único que impede: selo e resumo em vermelho, botão Gerar desabilitado e **422** no servidor
+> (`gerarLista`), para a preliminar e para a final — dois crachás com o mesmo número no balcão é o
+> erro que o código existe para evitar. No **rascunho** o repetido é aceito ao digitar (é assim que o
+> admin troca dois códigos de lugar); numa lista **já gerada**, que não tem mais um "Gerar" para
+> barrar, ele continua recusado na hora, como antes. Os avisos saem do servidor uma vez
+> (`ListaFinalService::avisosDosCodigos`), sobre a composição atual. A sequência é conferida nos
+> números **distintos** do grupo — o n-ésimo tem de ser n —, então um salto marca quem está depois
+> dele, e um repetido não conta duas vezes como salto. Editar um código muda **só aquele projeto**:
+> a lista se reordena pelo código dentro do grupo (ordem natural: -9 antes de -10; sem código vai
+> para o fim) e a linha editada pisca no lugar novo. A trava dura que sobrou é de caracteres
+> (letras, números, ponto, hífen, barra e sublinhado, até 30), porque o código vai para TXT, CSV e
+> e-mail. Quem lê o código para escrever "CÓDIGO - Título" (o `{{projetos}}` da mala direta) pula o
+> projeto sem código, e o TXT escreve "(sem código)".
+> (b) **Sprint 178** — o modo **Reordenar** (abrir o grupo, mexer, salvar) saiu. Cada projeto tem uma
+> **alça de arrastar** e as setas de subir/descer (teclado e celular); ao **soltar**, o grupo inteiro é
+> renumerado na ordem nova — na hora no rascunho, com **justificativa** numa lista gerada (que sobe a
+> versão e registra cada código que mudou, como antes). O arraste fica **dentro do grupo**
+> categoria+área: o prefixo do código é a classificação do projeto, e levá-lo para outro grupo seria
+> reclassificá-lo. Renumerar alcança todos do grupo, inclusive o código digitado fora do padrão e o
+> projeto sem código. Esbarrar num código igual de outro grupo segue a regra da Sprint 177: aviso no
+> rascunho, recusa na lista gerada.
+> Back **1350/1350**, front **666/666**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprints 177–178):** (1) sem migration nem dependência nova. (2) **A regra de
+> código mudou de lugar**: o que antes era recusado ao digitar (fora do formato, repetido no rascunho)
+> agora é aviso, e o repetido só barra no **Gerar**. Vale testar uma vez num rascunho antes de mexer na
+> final ativa. (3) Numa lista com os **códigos já enviados** aos finalistas, arrastar renumera o grupo
+> inteiro — a tela já avisa que é preciso reenviar.
+>
 > **Sprints 175–176 (mesma branch):** o termo de uso de imagem chegou ao balcão e ao mapa.
 > (a) **Sprint 175** — o **credenciamento** passou a conhecer o termo. O catálogo de documentos é
 > texto livre, então o portal ganhou um jeito de reconhecer um item: `documentos_credenciamento.chave`,

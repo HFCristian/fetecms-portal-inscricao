@@ -827,11 +827,14 @@ class AdminAvaliacaoController extends Controller
         ]);
     }
 
-    /** Troca o código de um projeto pelo que o admin digitou (Sprint 168). */
+    /**
+     * Troca o código de um projeto pelo que o admin digitou (Sprint 168). Em
+     * branco, o projeto fica sem código — é aviso, não erro (Sprint 177).
+     */
     public function definirCodigoNaListaFinal(Request $request, ListaFinal $lista, Projeto $projeto): JsonResponse
     {
         $dados = $request->validate([
-            'codigo' => ['required', 'string', 'max:40'],
+            'codigo' => ['present', 'nullable', 'string', 'max:40'],
             'justificativa' => [$lista->rascunho ? 'nullable' : 'required', 'string', 'min:5', 'max:500'],
         ]);
 
@@ -839,7 +842,9 @@ class AdminAvaliacaoController extends Controller
 
         return response()->json([
             'data' => $this->listaFinal->detalhar($lista->fresh()),
-            'meta' => ['message' => 'Código alterado.'],
+            'meta' => ['message' => trim((string) $dados['codigo']) === ''
+                ? 'Código removido: o projeto ficou sem código.'
+                : 'Código alterado.'],
         ]);
     }
 

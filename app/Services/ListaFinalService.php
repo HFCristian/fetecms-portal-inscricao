@@ -48,8 +48,22 @@ class ListaFinalService
     /** Sigla de projeto sem categoria ou sem área — visível de propósito, para o admin corrigir. */
     private const SIGLA_AUSENTE = 'SEM';
 
-    /** Código digitado à mão: letras, números, ponto e hífen, começando e terminando em letra ou número. */
-    private const FORMATO_CODIGO = '/^[A-Z0-9](?:[A-Z0-9.\-]{1,28})[A-Z0-9]$/';
+    /**
+     * Código digitado à mão: até 30 caracteres entre letras, números, ponto,
+     * hífen, barra e sublinhado, começando por letra ou número. É a única
+     * trava dura — fora dela o código vira texto que quebra arquivo e e-mail.
+     * Fugir do padrão FET.AGR-001 é permitido, com aviso (Sprint 177).
+     */
+    private const FORMATO_CODIGO = '/^[A-Z0-9][A-Z0-9.\-\/_]{0,29}$/';
+
+    /** Os avisos que um código pode ter na composição (Sprint 177). */
+    public const AVISO_FALTANTE = 'faltante';
+
+    public const AVISO_FORA_PADRAO = 'fora_padrao';
+
+    public const AVISO_FORA_SEQUENCIA = 'fora_sequencia';
+
+    public const AVISO_DUPLICADO = 'duplicado';
 
     public function __construct(private readonly RegistroAtividadeService $registros) {}
 
@@ -131,7 +145,7 @@ class ListaFinalService
     {
         $blocos = array_map(function (array $item) {
             $linhas = [
-                "{$item['codigo']} - {$item['titulo']}",
+                ($item['codigo'] === '' ? '(sem código)' : $item['codigo'])." - {$item['titulo']}",
                 $item['escola'],
                 ...$item['alunos'],
             ];
@@ -277,6 +291,19 @@ class ListaFinalService
         if ($lista->projetos()->count() === 0) {
             throw ValidationException::withMessages([
                 'lista' => 'Uma lista sem nenhum projeto não pode ser gerada.',
+            ]);
+        }
+
+        // Código repetido barra a geração (Sprint 177): é o único aviso que
+        // impede — faltante, fora do padrão e fora da sequência só avisam.
+        $duplicados = $this->avisosDosCodigos($this->itensDaLista($lista))['resumo']['codigos_duplicados'];
+
+        if ($duplicados !== []) {
+            throw ValidationException::withMessages([
+                'codigos' => 'Há projetos com o mesmo código: '.implode('; ', array_map(
+                    fn (array $d) => $d['codigo'].' ('.implode(', ', $d['projetos']).')',
+                    $duplicados,
+                )).'. Corrija antes de gerar a lista.',
             ]);
         }
 
@@ -450,10 +477,99 @@ class ListaFinalService
             $grupos[$item['categoria'].'|'.$item['area']] ??= count($grupos);
         }
 
-        usort($itens, fn (array $a, array $b) => [$grupos[$a['categoria'].'|'.$a['area']], $a['codigo']]
-            <=> [$grupos[$b['categoria'].'|'.$b['area']], $b['codigo']]);
+        // Dentro do grupo, pela ordem do código (natural: -9 antes de -10);
+        // projeto sem código vai para o fim, e empate desempata pelo título.
+        usort($itens, fn (array $a, array $b) => [
+            $grupos[$a['categoria'].'|'.$a['area']], $a['codigo'] === '' ? 1 : 0,
+        ] <=> [
+            $grupos[$b['categoria'].'|'.$b['area']], $b['codigo'] === '' ? 1 : 0,
+        ] ?: (strnatcasecmp($a['codigo'], $b['codigo']) ?: strcmp($this->chave($a['titulo']), $this->chave($b['titulo']))));
 
         return $itens;
+    }
+
+    /**
+     * Os avisos dos códigos de uma composição (Sprint 177), calculados uma vez
+     * e mandados para a tela:
+     *
+     * - **faltante**: o projeto está sem código (o admin apagou o campo);
+     * - **fora do padrão**: o código não é `CAT.ARE-000` da categoria e da
+     *   área do próprio projeto (FET.BIO-001 num projeto de Agrárias, "ABC12");
+     * - **fora da sequência**: dentro do grupo categoria+área, os números não
+     *   formam 001, 002, 003… — houve salto ou buraco;
+     * - **duplicado**: o mesmo código em mais de um projeto da lista.
+     *
+     * Os três primeiros são avisos: a lista pode ser gerada assim mesmo. O
+     * duplicado **impede** a geração ({@see self::gerarLista()}) — dois crachás
+     * com o mesmo número no balcão é o erro que o código existe para evitar.
+     *
+     * @param  list<array<string, mixed>>  $itens
+     * @return array{por_projeto: array<int, list<string>>, resumo: array<string, mixed>}
+     */
+    public function avisosDosCodigos(array $itens): array
+    {
+        $avisos = array_fill_keys(array_column($itens, 'projeto_id'), []);
+        $usos = [];
+        $numerosPorGrupo = [];
+
+        foreach ($itens as $item) {
+            $codigo = (string) $item['codigo'];
+
+            if ($codigo === '') {
+                $avisos[$item['projeto_id']][] = self::AVISO_FALTANTE;
+
+                continue;
+            }
+
+            $usos[$codigo][] = $item;
+
+            if (! preg_match('/^'.preg_quote((string) $item['prefixo'], '/').'-(\d{3})$/', $codigo, $m)) {
+                $avisos[$item['projeto_id']][] = self::AVISO_FORA_PADRAO;
+
+                continue;
+            }
+
+            $numerosPorGrupo[$item['categoria'].'|'.$item['area']][(int) $m[1]][] = $item['projeto_id'];
+        }
+
+        // A sequência é 001, 002, 003… sobre os números distintos do grupo:
+        // o n-ésimo número tem de ser n. Repetido conta uma vez (é duplicado,
+        // não salto).
+        foreach ($numerosPorGrupo as $porNumero) {
+            ksort($porNumero);
+            $posicao = 0;
+            foreach ($porNumero as $numero => $projetos) {
+                $posicao++;
+                if ($numero !== $posicao) {
+                    foreach ($projetos as $id) {
+                        $avisos[$id][] = self::AVISO_FORA_SEQUENCIA;
+                    }
+                }
+            }
+        }
+
+        $duplicados = [];
+        foreach ($usos as $codigo => $doCodigo) {
+            if (count($doCodigo) > 1) {
+                $duplicados[] = ['codigo' => (string) $codigo, 'projetos' => array_column($doCodigo, 'titulo')];
+                foreach ($doCodigo as $item) {
+                    $avisos[$item['projeto_id']][] = self::AVISO_DUPLICADO;
+                }
+            }
+        }
+
+        $contar = fn (string $aviso) => count(array_filter($avisos, fn (array $a) => in_array($aviso, $a, true)));
+
+        return [
+            'por_projeto' => $avisos,
+            'resumo' => [
+                'faltantes' => $contar(self::AVISO_FALTANTE),
+                'fora_padrao' => $contar(self::AVISO_FORA_PADRAO),
+                'fora_sequencia' => $contar(self::AVISO_FORA_SEQUENCIA),
+                'duplicados' => $contar(self::AVISO_DUPLICADO),
+                'codigos_duplicados' => $duplicados,
+            ],
+        ];
     }
 
     /** @return array<int, string> projeto_id => código fixado */
@@ -531,7 +647,12 @@ class ListaFinalService
      */
     public function codigosDaLista(ListaFinal $lista): array
     {
-        return array_column($this->itensDaLista($lista), 'codigo', 'projeto_id');
+        // Projeto sem código (Sprint 177) fica de fora: quem lê daqui escreve
+        // "CÓDIGO - Título", e um código vazio viraria " - Título".
+        return array_filter(
+            array_column($this->itensDaLista($lista), 'codigo', 'projeto_id'),
+            fn ($codigo) => $codigo !== '',
+        );
     }
 
     /**
@@ -648,7 +769,11 @@ class ListaFinalService
             $novos[$id] = $par.'-'.str_pad((string) ($posicao + 1), 3, '0', STR_PAD_LEFT);
         }
 
-        $this->garantirCodigosLivres($itens->whereNotIn('projeto_id', $projetoIds), $novos);
+        // Colidir com o código de outro grupo é aviso no rascunho e recusa na
+        // lista gerada — a mesma regra do código digitado (Sprint 177).
+        if (! $lista->rascunho) {
+            $this->garantirCodigosLivres($itens->whereNotIn('projeto_id', $projetoIds), $novos);
+        }
 
         $mudaram = array_filter($novos, fn (string $codigo, int $id) => ($antes[$id] ?? null) !== $codigo, ARRAY_FILTER_USE_BOTH);
 
@@ -681,16 +806,22 @@ class ListaFinalService
 
     /**
      * Troca o código de **um** projeto pelo que o admin digitou (Sprint 168).
-     * Vale qualquer código no formato do portal (letras, números, ponto e
-     * hífen: FET.AGR-010), desde que nenhum outro projeto da lista o use.
+     *
+     * Desde a Sprint 177 o código pode **fugir do padrão** (FET.AGR-010) ou da
+     * sequência do grupo, e pode ficar **em branco** — tudo isso vira aviso na
+     * tela, e a lista pode ser gerada assim. Só os demais projetos mudam de
+     * lugar: a lista se reordena pelo código, e quem digitou um número que já
+     * existe vê o duplicado em vermelho. O duplicado é tolerado no
+     * **rascunho** (bloqueia a geração) e recusado na hora numa lista já
+     * gerada, que não tem mais um "Gerar" para barrar.
      */
-    public function definirCodigo(ListaFinal $lista, Projeto $projeto, string $codigo, User $admin, ?string $justificativa = null): ListaFinal
+    public function definirCodigo(ListaFinal $lista, Projeto $projeto, ?string $codigo, User $admin, ?string $justificativa = null): ListaFinal
     {
-        $codigo = $this->normalizarCodigo($codigo);
+        $codigo = $this->normalizarCodigo((string) $codigo);
 
-        if (! preg_match(self::FORMATO_CODIGO, $codigo)) {
+        if ($codigo !== '' && ! preg_match(self::FORMATO_CODIGO, $codigo)) {
             throw ValidationException::withMessages([
-                'codigo' => 'Use letras, números, ponto e hífen, de 3 a 30 caracteres (ex.: FET.AGR-010).',
+                'codigo' => 'Use até 30 letras, números, ponto, hífen, barra ou sublinhado (ex.: FET.AGR-010). Para deixar o projeto sem código, apague o campo.',
             ]);
         }
 
@@ -707,9 +838,8 @@ class ListaFinalService
             return $lista->fresh();
         }
 
-        $this->garantirCodigosLivres($itens->where('projeto_id', '!=', $projeto->id), [$projeto->id => $codigo]);
-
         if (! $lista->rascunho) {
+            $this->garantirCodigosLivres($itens->where('projeto_id', '!=', $projeto->id), [$projeto->id => $codigo]);
             $this->exigirJustificativa($justificativa);
         }
 
@@ -719,7 +849,12 @@ class ListaFinalService
 
             if (! $lista->rascunho) {
                 $lista->increment('versao');
-                $this->registros->codigoNaLista($admin, $lista->nome, $projeto, $atual['codigo'], $codigo, trim((string) $justificativa));
+                $this->registros->codigoNaLista(
+                    $admin, $lista->nome, $projeto,
+                    $atual['codigo'] === '' ? '(sem código)' : $atual['codigo'],
+                    $codigo === '' ? '(sem código)' : $codigo,
+                    trim((string) $justificativa),
+                );
             }
 
             return $lista->fresh();
@@ -744,7 +879,7 @@ class ListaFinalService
         $ocupados = $outros->pluck('titulo', 'codigo');
 
         foreach ($novos as $codigo) {
-            if ($ocupados->has($codigo)) {
+            if ($codigo !== '' && $ocupados->has($codigo)) {
                 throw ValidationException::withMessages([
                     'codigo' => "O código {$codigo} já é de \"{$ocupados[$codigo]}\" nesta lista.",
                 ]);
@@ -789,6 +924,7 @@ class ListaFinalService
         $itens = $this->itensDaLista($lista);
         $dentro = array_column($itens, 'projeto_id');
         $manuais = $lista->projetos()->pluck('lista_final_projetos.manual', 'projetos.id');
+        $avisos = $this->avisosDosCodigos($itens);
 
         return [
             'lista' => [
@@ -806,8 +942,13 @@ class ListaFinalService
                 // equipe com um número que não é mais o dela.
                 'codigos_congelados_em' => $lista->codigos_congelados_em?->toIso8601String(),
                 'codigos_enviados_em' => $lista->codigos_enviados_em?->toIso8601String(),
+                // O que a tela avisa antes de gerar (Sprint 177).
+                'avisos_codigos' => $avisos['resumo'],
             ],
-            'itens' => array_map(fn (array $i) => $i + ['manual' => (bool) ($manuais[$i['projeto_id']] ?? false)], $itens),
+            'itens' => array_map(fn (array $i) => $i + [
+                'manual' => (bool) ($manuais[$i['projeto_id']] ?? false),
+                'avisos' => $avisos['por_projeto'][$i['projeto_id']] ?? [],
+            ], $itens),
             // Candidatos: qualquer submetido que está de fora — os avaliados
             // primeiro (com a média), depois os sem avaliação.
             'candidatos' => $this->candidatos($dentro)
@@ -1147,6 +1288,9 @@ class ListaFinalService
             return [
                 'projeto_id' => $projeto->id,
                 'codigo' => $par.'-'.$numero,
+                // O começo que o código deveria ter — é contra ele que o
+                // "fora do padrão" é conferido.
+                'prefixo' => $par,
                 'titulo' => $projeto->titulo,
                 'categoria' => $projeto->categoria?->label(),
                 'area' => $projeto->area?->nome,
