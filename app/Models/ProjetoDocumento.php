@@ -7,6 +7,7 @@ use Database\Factories\ProjetoDocumentoFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class ProjetoDocumento extends Model
 {
@@ -35,5 +36,14 @@ class ProjetoDocumento extends Model
     public function projeto(): BelongsTo
     {
         return $this->belongsTo(Projeto::class);
+    }
+
+    /**
+     * Para quais estudantes o arquivo vale — só o termo de uso de imagem usa
+     * (Sprint 174): o mesmo projeto pode mandar um arquivo por estudante.
+     */
+    public function alunos(): BelongsToMany
+    {
+        return $this->belongsToMany(Aluno::class, 'projeto_documento_alunos')->withTimestamps();
     }
 }

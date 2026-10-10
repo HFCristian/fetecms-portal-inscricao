@@ -15,7 +15,7 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * Aba "Documentos" do orientador: o que a organização precisa receber **antes
- * do evento**, hoje o **termo de responsabilidade**.
+ * do evento** — o **termo de responsabilidade** e o **termo de uso de imagem**.
  *
  * Só **projeto finalista** anexa. Finalista é quem está na lista final vigente
  * da edição — a mesma definição do credenciamento e do almoxarifado. Antes da
@@ -31,13 +31,30 @@ use Illuminate\Validation\ValidationException;
  * laudo fica guardado junto do arquivo. O documento **não é recusado** por
  * falhar nela: o laudo é o que o balcão lê na checagem do estande, e um termo
  * assinado à caneta e escaneado continua sendo um termo.
+ *
+ * O **termo de uso de imagem** (Sprint 174) é diferente em dois pontos. Pode
+ * vir em **vários arquivos** — a escola às vezes tem um por estudante, às vezes
+ * um da turma —, e cada arquivo diz **para quais estudantes vale**: é isso que
+ * o credenciamento lê para já marcar quem está coberto. E aceita **foto**
+ * (JPG/PNG) além do PDF, porque a autorização costuma ser assinada à mão pelos
+ * responsáveis. A conferência da assinatura gov.br roda só no PDF, e só informa.
+ *
+ * Nenhum dos dois é obrigatório online: quem não enviar apresenta o termo de
+ * responsabilidade na checagem do estande e a autorização de imagem no
+ * credenciamento. O envio antecipado só agiliza o dia da feira.
  */
 class DocumentosPresenciaisService
 {
     /** Tamanho máximo do arquivo — o mesmo dos anexos da inscrição. */
     public const MAX_KB = 10240;
 
-    public function __construct(private readonly DocumentoService $documentos) {}
+    /** Arquivos aceitos no termo de uso de imagem: o PDF e a foto do papel assinado. */
+    public const MIMES_IMAGEM = ['pdf', 'jpg', 'jpeg', 'png'];
+
+    public function __construct(
+        private readonly DocumentoService $documentos,
+        private readonly TermosImagemService $termosImagem,
+    ) {}
 
     /**
      * Estado da janela para esta pessoa.
@@ -93,9 +110,11 @@ class DocumentosPresenciaisService
             return [];
         }
 
+        $cobertura = $this->termosImagem->cobertura($ids);
+
         return Projeto::query()
             ->whereIn('id', $ids)
-            ->with(['area:id,nome', 'documentos'])
+            ->with(['area:id,nome', 'documentos.alunos:id,nome', 'alunos:id,projeto_id,nome'])
             ->orderBy('titulo')
             ->get()
             ->map(fn (Projeto $p) => [
@@ -104,6 +123,13 @@ class DocumentosPresenciaisService
                 'area' => $p->area?->nome,
                 'categoria' => $p->categoria?->label(),
                 'termo' => $this->termoDe($p),
+                // Os estudantes, para o orientador marcar quem cada arquivo cobre.
+                'alunos' => $p->alunos
+                    ->sortBy(fn ($a) => mb_strtolower((string) $a->nome))
+                    ->map(fn ($a) => ['id' => $a->id, 'nome' => $a->nome])
+                    ->values()
+                    ->all(),
+                'termo_imagem' => $this->resumoImagem($p, $cobertura[$p->id]),
             ])
             ->all();
     }
@@ -164,6 +190,146 @@ class DocumentosPresenciaisService
     }
 
     /**
+     * Anexa um arquivo do **termo de uso de imagem**, valendo para os
+     * estudantes marcados (Sprint 174). Não substitui os anteriores: o projeto
+     * pode ter um arquivo por estudante.
+     *
+     * @param  list<int>  $alunoIds
+     * @return array<string, mixed> a cobertura do projeto depois do envio
+     */
+    public function anexarTermoImagem(Projeto $projeto, UploadedFile $arquivo, array $alunoIds, User $autor, bool $teste = false): array
+    {
+        $this->garantirJanelaAberta($autor, $teste);
+        $this->garantirFinalista($projeto, $autor, $teste, 'o termo de uso de imagem');
+        $alunoIds = $this->alunosDoProjeto($projeto, $alunoIds);
+
+        $documento = $this->documentos->armazenar($projeto, $arquivo, TipoDocumento::TermoUsoImagem);
+
+        // A conferência da assinatura digital só faz sentido no PDF — a foto do
+        // papel assinado à mão não tem o que conferir, e nem por isso vale menos.
+        if ($this->ehPdf($documento)) {
+            $laudo = AssinaturaPdf::conferir((string) file_get_contents($arquivo->getRealPath()));
+            $documento->forceFill(['assinatura_valida' => $laudo['valida'], 'assinatura' => $laudo])->save();
+        }
+
+        $documento->alunos()->sync($alunoIds);
+
+        return $this->resumoImagem($projeto->fresh(['documentos.alunos:id,nome']));
+    }
+
+    /**
+     * Troca para quais estudantes um arquivo do termo de imagem vale — o
+     * orientador marcou errado e não precisa reenviar o arquivo por isso.
+     *
+     * @param  list<int>  $alunoIds
+     * @return array<string, mixed> a cobertura do projeto depois da troca
+     */
+    public function definirAlunosTermoImagem(ProjetoDocumento $documento, array $alunoIds, User $autor, bool $teste = false): array
+    {
+        $projeto = $this->termoImagemDoOrientador($documento, $autor, $teste);
+
+        $documento->alunos()->sync($this->alunosDoProjeto($projeto, $alunoIds));
+
+        return $this->resumoImagem($projeto->fresh(['documentos.alunos:id,nome']));
+    }
+
+    /**
+     * Remove um arquivo do termo de imagem; os estudantes que só ele cobria
+     * voltam a faltar.
+     *
+     * @return array<string, mixed> a cobertura do projeto depois da remoção
+     */
+    public function removerTermoImagem(ProjetoDocumento $documento, User $autor, bool $teste = false): array
+    {
+        $projeto = $this->termoImagemDoOrientador($documento, $autor, $teste);
+
+        $this->documentos->remover($documento);
+
+        return $this->resumoImagem($projeto->fresh(['documentos.alunos:id,nome']));
+    }
+
+    /**
+     * A situação do termo de imagem de um projeto, no formato da tela: a
+     * cobertura (quem está e quem falta) e cada arquivo, com os estudantes
+     * dele e o laudo da assinatura quando é PDF.
+     *
+     * @param  array<string, mixed>|null  $cobertura  já calculada em lote, quando houver
+     * @return array<string, mixed>
+     */
+    private function resumoImagem(Projeto $projeto, ?array $cobertura = null): array
+    {
+        $cobertura ??= $this->termosImagem->doProjeto($projeto->id);
+
+        $arquivos = $projeto->documentos
+            ->filter(fn (ProjetoDocumento $d) => $d->tipo === TipoDocumento::TermoUsoImagem)
+            ->sortBy('id')
+            ->map(fn (ProjetoDocumento $d) => $this->formatar($d) + [
+                'pdf' => $this->ehPdf($d),
+                'alunos' => $d->alunos
+                    ->sortBy(fn ($a) => mb_strtolower((string) $a->nome))
+                    ->map(fn ($a) => ['id' => $a->id, 'nome' => $a->nome])
+                    ->values()
+                    ->all(),
+            ])
+            ->values()
+            ->all();
+
+        return ['arquivos' => $arquivos] + $cobertura;
+    }
+
+    /**
+     * O projeto do arquivo, se ele é um termo de imagem de um finalista deste
+     * orientador e a janela está aberta. Arquivo de outro tipo responde como
+     * inexistente — esta rota não mexe em anexo de inscrição.
+     */
+    private function termoImagemDoOrientador(ProjetoDocumento $documento, User $autor, bool $teste): Projeto
+    {
+        if ($documento->tipo !== TipoDocumento::TermoUsoImagem) {
+            abort(404);
+        }
+
+        $projeto = $documento->projeto;
+
+        $this->garantirJanelaAberta($autor, $teste);
+        $this->garantirFinalista($projeto, $autor, $teste, 'o termo de uso de imagem');
+
+        return $projeto;
+    }
+
+    /**
+     * Os estudantes marcados, conferidos contra a equipe do projeto: ao menos
+     * um, e nenhum de fora.
+     *
+     * @param  array<int, mixed>  $alunoIds
+     * @return list<int>
+     */
+    private function alunosDoProjeto(Projeto $projeto, array $alunoIds): array
+    {
+        $alunoIds = array_values(array_unique(array_map('intval', $alunoIds)));
+        $daEquipe = $projeto->alunos()->pluck('id')->map(fn ($id) => (int) $id)->all();
+
+        if ($alunoIds === []) {
+            throw ValidationException::withMessages([
+                'alunos' => 'Marque ao menos um estudante para quem o termo vale.',
+            ]);
+        }
+
+        if (array_diff($alunoIds, $daEquipe) !== []) {
+            throw ValidationException::withMessages([
+                'alunos' => 'Marque só estudantes deste projeto.',
+            ]);
+        }
+
+        return $alunoIds;
+    }
+
+    private function ehPdf(ProjetoDocumento $documento): bool
+    {
+        return $documento->mime === 'application/pdf'
+            || str_ends_with(mb_strtolower((string) $documento->nome_original), '.pdf');
+    }
+
+    /**
      * Os ids dos projetos deste orientador que estão na lista final vigente.
      *
      * @return Collection<int, int>
@@ -182,11 +348,11 @@ class DocumentosPresenciaisService
             ->pluck('projetos.id');
     }
 
-    private function garantirFinalista(Projeto $projeto, User $autor, bool $teste = false): void
+    private function garantirFinalista(Projeto $projeto, User $autor, bool $teste = false, string $documento = 'o termo de responsabilidade'): void
     {
         if (! $this->finalistas($autor, $teste)->contains($projeto->id)) {
             throw ValidationException::withMessages([
-                'projeto' => 'Só projetos finalistas enviam o termo de responsabilidade.',
+                'projeto' => "Só projetos finalistas enviam {$documento}.",
             ]);
         }
     }

@@ -52,7 +52,68 @@ const ICONE_PUBLICO = {
     orientadores_submetidos: 'task_alt',
     avaliadores_pendentes: 'pending_actions',
     avaliadores_concluidas: 'done_all',
+    avaliadores_comissao: 'star',
+    avaliadores_portugues: 'translate',
+    avaliadores_espanhol: 'translate',
+    avaliadores_ingles: 'translate',
+    orientadores_finalistas: 'emoji_events',
+    finalistas_sem_termo: 'assignment_late',
 };
+
+/** Rótulo das origens que não são públicos de conta (a prévia mostra de onde veio cada um). */
+const ORIGEM_ESPECIAL = {
+    finalistas: 'Todos os finalistas',
+    personalizado: 'Lista personalizada',
+};
+
+/**
+ * "Todos os finalistas" (Sprint 173): a equipe inteira dos projetos da lista
+ * final ativa — estudantes, orientadores e coorientadores. Não é um público de
+ * conta (estudante finalista não tem login), então ele vive à parte no
+ * servidor, mas na tela é um grupo como os outros e se combina com eles.
+ */
+function FinalistasCard({ resumo, marcado, contagem, onToggle }) {
+    const semLista = resumo && !resumo.lista;
+    const pessoas = contagem?.pessoas ?? resumo?.pessoas;
+    const semEmail = contagem?.sem_email ?? resumo?.sem_email ?? 0;
+
+    return (
+        <button
+            type="button"
+            role="checkbox"
+            aria-checked={marcado}
+            aria-label="Todos os finalistas"
+            disabled={semLista}
+            onClick={onToggle}
+            className={`sm:col-span-2 text-left rounded-xl border p-3 transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${
+                marcado
+                    ? 'border-secondary bg-secondary-container/50'
+                    : 'border-secondary/40 bg-secondary-container/20 hover:bg-secondary-container/40'
+            }`}
+        >
+            <div className="flex items-start gap-2">
+                <span className={`material-symbols-outlined text-[20px] ${marcado ? 'text-secondary' : 'text-on-surface-variant'}`}>
+                    {marcado ? 'check_box' : 'emoji_events'}
+                </span>
+                <div className="min-w-0">
+                    <p className="text-sm font-semibold text-on-surface">Todos os finalistas</p>
+                    <p className="text-xs text-on-surface-variant">
+                        {semLista
+                            ? 'Ainda não há lista final ativa.'
+                            : <>Estudantes, orientadores e coorientadores dos projetos da lista final ativa
+                                {resumo?.lista ? ` (${resumo.lista})` : ''} — a equipe inteira, por e-mail.</>}
+                    </p>
+                    {!semLista && typeof pessoas === 'number' && (
+                        <p className="text-xs font-semibold text-primary mt-1">
+                            {pessoas} {pessoas === 1 ? 'pessoa' : 'pessoas'}
+                            {semEmail > 0 && ` · ${semEmail} sem e-mail cadastrado (ficam de fora)`}
+                        </p>
+                    )}
+                </div>
+            </div>
+        </button>
+    );
+}
 
 /** Cartão clicável de um público-alvo, com a contagem que ele traz sozinho. */
 function PublicoCard({ publico, marcado, total, onToggle }) {
@@ -109,8 +170,9 @@ export default function AdminMalaDiretaForm() {
 
     const [opcoes, setOpcoes] = useState(null);
     const [publicos, setPublicos] = useState([]);
-    // "Somente finalistas": a equipe inteira da lista final vigente, no lugar
-    // dos públicos (que são contas, e estudante finalista não tem conta).
+    // "Todos os finalistas": a equipe inteira da lista final ativa. Vai à parte
+    // dos públicos (que são contas, e estudante finalista não tem conta), mas se
+    // combina com eles — quem estiver nos dois recebe uma vez só.
     const [finalistas, setFinalistas] = useState(false);
     const [personalizados, setPersonalizados] = useState([]);
     const [texto, setTexto] = useState('');
@@ -135,7 +197,7 @@ export default function AdminMalaDiretaForm() {
     const destinatariosTeste = useMemo(() => parseEmailsColados(emailsTeste), [emailsTeste]);
 
     const criterio = useMemo(
-        () => ({ publicos: finalistas ? [] : publicos, destinatarios: personalizados, finalistas }),
+        () => ({ publicos, destinatarios: personalizados, finalistas }),
         [publicos, personalizados, finalistas],
     );
     const temCriterio = finalistas || publicos.length > 0 || personalizados.length > 0;
@@ -364,6 +426,11 @@ export default function AdminMalaDiretaForm() {
 
     const meta = previa?.meta;
     const listaPrevia = previa?.data ?? [];
+    // De onde veio cada destinatário, em palavras — o mesmo rótulo do relatório.
+    const rotuloPublico = Object.fromEntries((opcoes?.publicos ?? []).map((p) => [p.value, p.label]));
+    const rotulosDasOrigens = (origens) => (origens ?? [])
+        .map((o) => ORIGEM_ESPECIAL[o] ?? rotuloPublico[o] ?? o)
+        .join(' · ') || '—';
 
     return (
         <AppShell>
@@ -387,38 +454,21 @@ export default function AdminMalaDiretaForm() {
                     <h2 className="font-display text-lg font-semibold text-on-surface mb-1">1. Quem vai receber</h2>
                     <p className="text-sm text-on-surface-variant mb-4">
                         Pode marcar mais de um: quem aparece em dois grupos recebe uma vez só.
-                        Contas inativas, de teste e de administrador ficam de fora.
+                        Nos grupos de contas, as inativas, as de teste e as de administrador ficam de fora;
+                        &quot;Todos os finalistas&quot; vem da lista final ativa e alcança também quem não tem conta.
                     </p>
-                    <label className="flex items-start gap-3 rounded-xl border border-secondary/40 bg-secondary-container/30 p-3 mb-3 cursor-pointer">
-                        <input
-                            type="checkbox"
-                            className="mt-1"
-                            aria-label="Somente finalistas"
-                            checked={finalistas}
-                            onChange={(e) => { setFinalistas(e.target.checked); setPaginaLista(1); }}
+                    <div className="grid sm:grid-cols-2 gap-2">
+                        <FinalistasCard
+                            resumo={opcoes?.finalistas}
+                            marcado={finalistas}
+                            contagem={finalistas ? meta?.finalistas : null}
+                            onToggle={() => { setFinalistas((atual) => !atual); setPaginaLista(1); }}
                         />
-                        <span>
-                            <span className="block text-sm font-semibold text-on-surface">Somente finalistas</span>
-                            <span className="block text-xs text-on-surface-variant">
-                                Estudantes, orientadores e coorientadores dos projetos da lista final vigente
-                                {opcoes?.finalistas?.lista ? ` (${opcoes.finalistas.lista})` : ''} — para avisos de
-                                credenciamento, documentos e programação.
-                                {opcoes?.finalistas && !opcoes.finalistas.lista && ' Ainda não há lista final publicada.'}
-                            </span>
-                            {finalistas && meta?.finalistas && (
-                                <span className="block text-xs font-semibold text-primary mt-1">
-                                    {meta.finalistas.pessoas} {meta.finalistas.pessoas === 1 ? 'pessoa' : 'pessoas'}
-                                    {meta.finalistas.sem_email > 0 && ` · ${meta.finalistas.sem_email} sem e-mail cadastrado (ficam de fora)`}
-                                </span>
-                            )}
-                        </span>
-                    </label>
-                    <div className={`grid sm:grid-cols-2 gap-2 ${finalistas ? 'opacity-40 pointer-events-none' : ''}`} aria-disabled={finalistas}>
                         {(opcoes?.publicos ?? []).map((publico) => (
                             <PublicoCard
                                 key={publico.value}
                                 publico={publico}
-                                marcado={!finalistas && publicos.includes(publico.value)}
+                                marcado={publicos.includes(publico.value)}
                                 total={meta?.por_publico?.[publico.value]}
                                 onToggle={alternarPublico}
                             />
@@ -745,7 +795,7 @@ export default function AdminMalaDiretaForm() {
                                                         )}
                                                     </td>
                                                     <td className="px-3 py-2 text-xs text-on-surface-variant">
-                                                        {(d.origens ?? []).length} origem(ns)
+                                                        {rotulosDasOrigens(d.origens)}
                                                     </td>
                                                     <td className="px-3 py-2 text-right text-on-surface-variant">{d.projetos_total}</td>
                                                 </tr>

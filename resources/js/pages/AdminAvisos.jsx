@@ -203,6 +203,10 @@ function AvisoSection({ opcoes, vigentes, onPublicado, onEncerrado }) {
                         Combine quantos públicos quiser — os mesmos da mala direta. Contas inativas e de
                         teste nunca recebem.
                     </p>
+                    <p className="text-xs text-on-surface-variant">
+                        O aviso aparece para quem tem conta no portal: dos finalistas, só os orientadores.
+                        Para falar com a equipe inteira (estudantes e coorientadores), use a mala direta.
+                    </p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 pt-1">
                         {(opcoes.publicos ?? []).map((p) => (
                             <label key={p.value} className="flex items-start gap-2 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-surface-variant/40">

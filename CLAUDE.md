@@ -835,25 +835,67 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 152 | Mapa do Evento: ruas nomeadas, tela cheia, cor por situação e lista filtrável | ✅ sim | ❌ não (manual do Pedro) | 2 |
 | 153 | Ranking dos projetos: baixar em CSV, Excel, PDF e TXT, no recorte dos filtros | ✅ sim | ✅ sim (Pedro, PR #99 → v1.27.2) | 0 |
 | 154 | Avaliador: idiomas em que pode avaliar (cadastro, perfil, tabela, públicos e painel) | ✅ sim | ✅ sim (Pedro, PR #99 → v1.27.2) | 0 |
-| 155 | Contas temporárias: cadastro **em lote** (modelo Excel → prévia → senhas geradas) + **remoção** | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 156 | Fix: PDF de etiquetas (QR/barras) sem código e estourando a memória | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 157 | Cadastro manual de projeto (finalista ou credencial de feira afiliada; já credenciado opcional) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 158 | Mala direta: caixa **Somente finalistas** (equipe inteira) + variável `{{projetos}}` | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 159 | Lista final: código do projeto **fixado** e enviado por e-mail à equipe de cada finalista | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 160 | Lista final: **exportar** (lista nominal, crachás, certificados, contatos, projetos e recorte livre) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 161 | Credenciamento **fora do prazo** aprovado (data prevista), visível no credenciamento e na avaliação | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 162 | **Suporte no evento**: acompanhante e intérpretes (aba do orientador, aprovação, crachá do acompanhante) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 163 | Nova aba **Certificados**: avaliadores por fase, participantes (CPF, função, atividade) e declaração nominal | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 164 | Listas **preliminares** (várias) e **finais** (uma ativa): tipo, rascunho editável livre, gerar e reativar | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 165 | Lista final montada pela **união de preliminares** + telas de geração, listas e detalhe | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 166 | Fix (segurança): `league/commonmark` 2.10.1 → 2.10.3 (2 advisories do `composer audit`) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 167 | Orientador: baixar cada documento enviado e **todos num ZIP**, no resumo do projeto | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 168 | Listas preliminares e finais: **reordenar** o grupo (código renumerado) e **digitar o código** | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 169 | Avaliação presencial: **horário dos turnos** (vale todo dia do evento) e **ativação do avaliador** por turno na cabine | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 170 | **Distribuição presencial** por turno: só credenciado + checado, rodadas iguais, prazo = fim do turno + 30 min | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 171 | Avaliador: aba **Avaliação presencial** (só no turno ativado), wizard da rubrica + checklist dos itens da checagem | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 172 | `demo:avaliacao-presencial`: `avaliador@fetecms.test` pronto para ensaiar avaliação e distribuição | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 155 | Contas temporárias: cadastro **em lote** (modelo Excel → prévia → senhas geradas) + **remoção** | ✅ sim | ✅ sim (Pedro, PR #104 → v1.28) | 0 |
+| 156 | Fix: PDF de etiquetas (QR/barras) sem código e estourando a memória | ✅ sim | ✅ sim (Pedro, PR #104 → v1.28) | 0 |
+| 157 | Cadastro manual de projeto (finalista ou credencial de feira afiliada; já credenciado opcional) | ✅ sim | ✅ sim (Pedro, PR #104 → v1.28) | 0 |
+| 158 | Mala direta: caixa **Somente finalistas** (equipe inteira) + variável `{{projetos}}` | ✅ sim | ✅ sim (Pedro, PR #104 → v1.28) | 0 |
+| 159 | Lista final: código do projeto **fixado** e enviado por e-mail à equipe de cada finalista | ✅ sim | ✅ sim (Pedro, PR #104 → v1.28) | 0 |
+| 160 | Lista final: **exportar** (lista nominal, crachás, certificados, contatos, projetos e recorte livre) | ✅ sim | ✅ sim (Pedro, PR #104 → v1.28) | 0 |
+| 161 | Credenciamento **fora do prazo** aprovado (data prevista), visível no credenciamento e na avaliação | ✅ sim | ✅ sim (Pedro, PR #104 → v1.28) | 0 |
+| 162 | **Suporte no evento**: acompanhante e intérpretes (aba do orientador, aprovação, crachá do acompanhante) | ✅ sim | ✅ sim (Pedro, PR #104 → v1.28) | 0 |
+| 163 | Nova aba **Certificados**: avaliadores por fase, participantes (CPF, função, atividade) e declaração nominal | ✅ sim | ✅ sim (Pedro, PR #104 → v1.28) | 0 |
+| 164 | Listas **preliminares** (várias) e **finais** (uma ativa): tipo, rascunho editável livre, gerar e reativar | ✅ sim | ✅ sim (Pedro, PR #104 → v1.28) | 0 |
+| 165 | Lista final montada pela **união de preliminares** + telas de geração, listas e detalhe | ✅ sim | ✅ sim (Pedro, PR #104 → v1.28) | 0 |
+| 166 | Fix (segurança): `league/commonmark` 2.10.1 → 2.10.3 (2 advisories do `composer audit`) | ✅ sim | ✅ sim (Pedro, PR #104 → v1.28) | 0 |
+| 167 | Orientador: baixar cada documento enviado e **todos num ZIP**, no resumo do projeto | ✅ sim | ✅ sim (Pedro, PR #105 → v1.29) | 0 |
+| 168 | Listas preliminares e finais: **reordenar** o grupo (código renumerado) e **digitar o código** | ✅ sim | ✅ sim (Pedro, PR #105 → v1.29) | 0 |
+| 169 | Avaliação presencial: **horário dos turnos** (vale todo dia do evento) e **ativação do avaliador** por turno na cabine | ✅ sim | ✅ sim (Pedro, PR #105 → v1.29) | 0 |
+| 170 | **Distribuição presencial** por turno: só credenciado + checado, rodadas iguais, prazo = fim do turno + 30 min | ✅ sim | ✅ sim (Pedro, PR #105 → v1.29) | 0 |
+| 171 | Avaliador: aba **Avaliação presencial** (só no turno ativado), wizard da rubrica + checklist dos itens da checagem | ✅ sim | ✅ sim (Pedro, PR #105 → v1.29) | 0 |
+| 172 | `demo:avaliacao-presencial`: `avaliador@fetecms.test` pronto para ensaiar avaliação e distribuição | ✅ sim | ✅ sim (Pedro, PR #105 → v1.29) | 0 |
+| 173 | Comunicação: grupo **Todos os finalistas** combinável (mala direta) + público de orientadores finalistas (avisos e feedback) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 174 | Orientador: **termo de uso de imagem** (vários arquivos, estudantes assinalados) + card "Agilize o processo!" | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprints 173–174 (branch `feat/termo-imagem-e-codigos-lista`, saída da `main` @ `dfef533`):**
+> (a) **Sprint 173** — o grupo **"Todos os finalistas"** (estudantes, orientadores e coorientadores
+> da lista final ativa) passou a existir nos três canais da Comunicação. Na **mala direta** a caixa
+> "Somente finalistas" da Sprint 158 era **exclusiva** — marcá-la apagava os outros públicos da
+> tela, embora o servidor sempre soubesse combiná-los. Agora ela é um **card da grade**, combinável
+> com os públicos e com os e-mails avulsos, com a contagem de pessoas e de quem fica de fora por não
+> ter e-mail; o contrato da API não mudou (o booleano `finalistas` segue ao lado de `publicos`), e a
+> prévia passou a dizer de onde veio cada destinatário pelo nome do grupo. **Avisos e feedback** só
+> alcançam quem tem conta — o aviso precisa de sessão, a resposta do feedback precisa de login —, e
+> estudante e coorientador não têm. Para eles nasceu o público de conta **"Orientadores de projetos
+> finalistas"** (`PublicoMala::OrientadoresFinalistas`), que aparece também na mala direta, e as
+> duas telas ganharam uma nota dizendo isso em vez de prometer a equipe inteira. Ele e o
+> "finalistas sem o termo" leem a mesma lista: a final **ativa** e oficial — preliminar, final
+> inativa e a de ensaio não definem finalista.
+> (b) **Sprint 174** — a aba **Documentos** do orientador ganhou o **termo de uso de imagem**. Ao
+> contrário do termo de responsabilidade (um por projeto, reenviar substitui), ele vem em **um ou
+> mais arquivos** — a escola às vezes tem um da turma, às vezes um por estudante — e cada arquivo
+> diz **para quais estudantes vale** (`projeto_documento_alunos`, que apaga em cascata dos dois
+> lados). A tela mostra quem já está coberto e quem falta, já marca quem falta ao escolher um
+> arquivo novo e deixa corrigir os estudantes de um arquivo sem reenviá-lo. Aceita **PDF, JPG ou
+> PNG** (a autorização costuma ser assinada à mão pelos responsáveis); a conferência gov.br roda só
+> no PDF e só informa. A cobertura mora num leitor em lote, `TermosImagemService` — a mesma
+> pergunta ("quem ainda falta?") vai ser feita pelo credenciamento e pelo Mapa do Evento, este a
+> cada 30 segundos, então ela é uma consulta por fato e não uma por projeto. No topo da aba, o card
+> **"Agilize o processo!"** convida a anexar antes e diz com todas as letras que não enviar não
+> prejudica: quem não anexou apresenta a autorização de imagem no credenciamento e o termo de
+> responsabilidade na checagem do estande (o texto do laudo de assinatura foi alinhado a isso). Os
+> dois termos viraram **documentos do evento** (`TipoDocumento::doEvento()`): não entram mais pelo
+> anexo da inscrição e saem da leitura do **avaliador online** também — o presencial já os
+> escondia; o online recebia o termo de responsabilidade junto dos anexos.
+> Back **1332/1332**, front **658/658**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprints 173–174):** (1) `git push origin feat/termo-imagem-e-codigos-lista`
+> + PR para a `main` (o ambiente do Claude não tem credencial do GitHub) e, depois do merge, o
+> deploy pela §11 do [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). Esta parte **tem uma migration**
+> (`projeto_documento_alunos`), **nenhuma variável nova de `.env`** e **nenhuma dependência nova**.
+> (2) **A caixa "Somente finalistas" virou o card "Todos os finalistas"**: quem marcava a caixa e
+> esperava que ela substituísse os públicos agora precisa desmarcar os outros grupos — ela soma.
+> (3) **O avaliador online deixou de ver o termo de responsabilidade** entre os anexos do projeto.
+>
 > **Sprints 171–172 (mesma branch):**
 > (a) **Sprint 171** — o avaliador ganhou a aba **Avaliação presencial**
 > (`/avaliador/avaliacao-presencial`), separada da aba *Presencial* — que voltou a ser só a
@@ -880,7 +922,8 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > admin, na Distribuição presencial, usa a lista demo e só os avaliadores demo.
 > Documentado em [docs/DEMO_AVALIACAO_PRESENCIAL.md](docs/DEMO_AVALIACAO_PRESENCIAL.md).
 >
-> **Pendências do Pedro (Sprints 167–172):** (1) `git push origin feat/avaliacao-presencial-distribuicao`
+> **Pendências do Pedro (Sprints 167–172):** ~~push + PR~~ — **entrou na `main` pelo PR #105** (v1.29).
+> As observações de uso continuam valendo: (1) `git push origin feat/avaliacao-presencial-distribuicao`
 > + PR para a `main` (o ambiente do Claude não tem credencial do GitHub) e, depois do merge, o
 > deploy pela §11 do [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). Esta release **tem migrations**
 > (`edicoes.horarios_turnos`/`presencial_fila_avaliador`/`presencial_por_projeto`, a tabela
@@ -2293,7 +2336,8 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > e **Escolas** (`/admin/parametrizacao/escolas`): admin busca, **renomeia, mescla** (reatribui
 > projetos/alunos/orientadores) e **exclui** instituições sem uso (`InstituicaoAdminService`/Controller,
 > rotas `admin/instituicoes`). Back **117/117**, front 11/11, Pint limpo, build OK.
-> **Pendências do Pedro (Sprints 155–163):** (1) `git push origin feat/finalistas-suporte-e-certificados`
+> **Pendências do Pedro (Sprints 155–163):** ~~push + PR~~ — **entrou na `main` pelo PR #104** (v1.28).
+> As observações de uso continuam valendo: (1) `git push origin feat/finalistas-suporte-e-certificados`
 > + PR para a `main` (o ambiente do Claude não tem credencial do GitHub) e, depois do merge, o
 > deploy pela §11 do [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). Esta release **tem migrations**
 > (`contas_temporarias.removida_em`; `projetos.cadastro_manual` e CPF/e-mail **anuláveis** em

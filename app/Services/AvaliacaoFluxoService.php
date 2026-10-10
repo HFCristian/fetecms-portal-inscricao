@@ -419,7 +419,11 @@ class AvaliacaoFluxoService
             'instituicao' => $projeto->instituicao?->nome,
             'alunos' => $projeto->alunos->pluck('nome')->values()->all(),
             'coorientador' => $projeto->coorientador?->nome,
-            'documentos' => DocumentoResource::collection($projeto->documentos)->resolve(),
+            // Os termos do finalista são documentos do evento, com dados
+            // pessoais: não fazem parte do que se avalia.
+            'documentos' => DocumentoResource::collection(
+                $projeto->documentos->reject(fn ($d) => $d->tipo->doEvento())->values(),
+            )->resolve(),
         ];
     }
 }

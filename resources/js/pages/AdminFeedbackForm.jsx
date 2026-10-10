@@ -298,6 +298,10 @@ export default function AdminFeedbackForm() {
                             Os mesmos recortes da mala direta, combináveis. Quem cair em mais de um recebe
                             só um convite.
                         </p>
+                        <p className="text-xs text-on-surface-variant mb-3">
+                            Responder exige conta no portal: dos finalistas, só os orientadores conseguem.
+                            Estudantes e coorientadores não têm login.
+                        </p>
                         {errors.publicos && <p className="text-xs text-error mb-2">{errors.publicos}</p>}
                         {(opcoes.publicos ?? []).length === 0 && (
                             <p className="text-sm text-error">

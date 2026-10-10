@@ -60,18 +60,28 @@ class PublicoUsuariosService
             PublicoMala::AvaliadoresPortugues => $this->porIdioma('pt'),
             PublicoMala::AvaliadoresEspanhol => $this->porIdioma('es'),
             PublicoMala::AvaliadoresIngles => $this->porIdioma('en'),
+            // Orientadores dos projetos finalistas (Sprint 173): o pedaço da
+            // equipe finalista que tem conta — é tudo o que avisos e feedback
+            // conseguem alcançar. A equipe inteira (estudantes e coorientadores)
+            // só se alcança por e-mail, na mala direta.
+            PublicoMala::OrientadoresFinalistas => function (Builder $q) {
+                $finalistas = $this->projetosFinalistas();
+
+                return $finalistas === null
+                    ? $q->whereRaw('1 = 0')
+                    : $q->where('role', Role::Orientador)
+                        ->whereHas('projetos', fn ($p) => $p->whereIn('projetos.id', $finalistas));
+            },
             // Finalista que ainda deve o termo de responsabilidade (Sprint 129):
             // é o público da cobrança antes do evento. Sem lista final
             // publicada não há finalista nenhum, e o público fica vazio em vez
             // de alcançar a base inteira.
             PublicoMala::FinalistasSemTermo => function (Builder $q) {
-                $lista = ListaFinal::vigente();
+                $finalistas = $this->projetosFinalistas();
 
-                if ($lista === null) {
+                if ($finalistas === null) {
                     return $q->whereRaw('1 = 0');
                 }
-
-                $finalistas = $lista->projetos()->pluck('projetos.id')->all();
 
                 return $q->where('role', Role::Orientador)
                     ->whereHas('projetos', fn ($p) => $p
@@ -80,6 +90,20 @@ class PublicoUsuariosService
                             ->where('tipo', TipoDocumento::TermoResponsabilidade->value)));
             },
         };
+    }
+
+    /**
+     * Ids dos projetos da lista final ativa (a oficial, nunca a de ensaio) —
+     * `null` quando ainda não há lista: os públicos de finalista ficam vazios
+     * em vez de alcançar a base inteira.
+     *
+     * @return list<int>|null
+     */
+    private function projetosFinalistas(): ?array
+    {
+        $lista = ListaFinal::vigente();
+
+        return $lista?->projetos()->pluck('projetos.id')->all();
     }
 
     /** Avaliadores que declararam este idioma no perfil. */

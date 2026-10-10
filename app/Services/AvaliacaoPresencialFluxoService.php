@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Enums\StatusAvaliacao;
-use App\Enums\TipoDocumento;
 use App\Enums\Turno;
 use App\Models\AvaliacaoPresencial;
 use App\Models\AvaliadorTurnoPresencial;
@@ -277,12 +276,9 @@ class AvaliacaoPresencialFluxoService
         $avaliacao->loadMissing(['projeto.user:id,name']);
         $projeto = $avaliacao->projeto;
         $leitura = app(AvaliacaoFluxoService::class)->detalhesProjeto($projeto);
-        // O termo do finalista é documento do evento, com dados pessoais: não
-        // faz parte do que se avalia.
-        $leitura['documentos'] = array_values(array_filter(
-            $leitura['documentos'],
-            fn (array $d) => $d['tipo'] !== TipoDocumento::TermoResponsabilidade->value,
-        ));
+        // Os termos do finalista (responsabilidade e uso de imagem) já saem da
+        // leitura em detalhesProjeto(): são documentos do evento, com dados
+        // pessoais, e não fazem parte do que se avalia.
 
         return [
             'id' => $avaliacao->id,

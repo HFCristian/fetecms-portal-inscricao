@@ -23,6 +23,7 @@ enum PublicoMala: string
     case AvaliadoresPortugues = 'avaliadores_portugues';
     case AvaliadoresEspanhol = 'avaliadores_espanhol';
     case AvaliadoresIngles = 'avaliadores_ingles';
+    case OrientadoresFinalistas = 'orientadores_finalistas';
     case FinalistasSemTermo = 'finalistas_sem_termo';
 
     public function label(): string
@@ -39,6 +40,7 @@ enum PublicoMala: string
             self::AvaliadoresPortugues => 'Avaliadores que avaliam em Português',
             self::AvaliadoresEspanhol => 'Avaliadores que avaliam em Espanhol',
             self::AvaliadoresIngles => 'Avaliadores que avaliam em Inglês',
+            self::OrientadoresFinalistas => 'Orientadores de projetos finalistas',
             self::FinalistasSemTermo => 'Finalistas sem o termo de responsabilidade',
         };
     }
@@ -57,6 +59,7 @@ enum PublicoMala: string
             self::AvaliadoresPortugues => 'Declarou no perfil que avalia em Português.',
             self::AvaliadoresEspanhol => 'Declarou no perfil que avalia em Espanhol.',
             self::AvaliadoresIngles => 'Declarou no perfil que avalia em Inglês.',
+            self::OrientadoresFinalistas => 'Tem projeto na lista final ativa. Estudantes e coorientadores não têm conta — para a equipe inteira, use a mala direta (Todos os finalistas).',
             self::FinalistasSemTermo => 'Tem projeto na lista final vigente e ainda não anexou o termo.',
         };
     }
@@ -66,7 +69,7 @@ enum PublicoMala: string
     {
         return match ($this) {
             self::Orientadores, self::OrientadoresRascunho, self::OrientadoresSubmetidos,
-            self::FinalistasSemTermo => Role::Orientador,
+            self::OrientadoresFinalistas, self::FinalistasSemTermo => Role::Orientador,
             self::Avaliadores, self::AvaliadoresPendentes, self::AvaliadoresConcluidas,
             self::AvaliadoresComissao, self::AvaliadoresPortugues, self::AvaliadoresEspanhol,
             self::AvaliadoresIngles => Role::Avaliador,
