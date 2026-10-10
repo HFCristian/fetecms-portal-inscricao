@@ -81,6 +81,9 @@ class AdminMalaDiretaController extends Controller
                 'invalidos' => $invalidos,
                 'por_publico' => $this->malas->totaisPorPublico($request->publicos()),
                 'finalistas' => $request->finalistas() ? $this->malas->resumoFinalistas() : null,
+                // O que impediria usar {{codigo_projeto}} e {{turno}} neste
+                // recorte (Sprint 185): a tela avisa antes de o admin enviar.
+                'pendencias_finalistas' => $this->malas->pendenciasFinalistas($lista),
                 'pagina_atual' => $pagina,
                 'por_pagina' => $porPagina,
                 'ultima_pagina' => max(1, (int) ceil($lista->count() / $porPagina)),

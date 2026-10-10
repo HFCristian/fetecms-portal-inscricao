@@ -17,7 +17,7 @@ class MalaDiretaDestinatario extends Model
 
     protected $fillable = [
         'mala_direta_id', 'user_id', 'email', 'nome', 'papel', 'origens',
-        'projetos_total', 'projetos_titulos', 'status', 'erro', 'enviado_em',
+        'projetos_total', 'projetos_titulos', 'finalista', 'status', 'erro', 'enviado_em',
     ];
 
     protected function casts(): array
@@ -25,6 +25,7 @@ class MalaDiretaDestinatario extends Model
         return [
             'origens' => 'array',
             'projetos_titulos' => 'array',
+            'finalista' => 'array',
             'status' => StatusDestinatario::class,
             'projetos_total' => 'integer',
             'enviado_em' => 'datetime',

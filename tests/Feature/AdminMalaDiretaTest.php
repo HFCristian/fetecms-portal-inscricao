@@ -370,7 +370,7 @@ class AdminMalaDiretaTest extends TestCase
         $this->assertCount(count(StatusDestinatario::cases()), $resposta->json('data.situacoes'));
         // A tela desenha os botões de variável a partir desta lista.
         $this->assertSame(
-            ['nome', 'nome_completo', 'email', 'projetos'],
+            ['nome', 'nome_completo', 'email', 'projetos', 'codigo_projeto', 'turno'],
             array_column($resposta->json('data.variaveis'), 'chave'),
         );
     }

@@ -22,7 +22,8 @@ class AvisoController extends Controller
         $aviso = $this->avisos->paraUsuario($request->user());
 
         return response()->json([
-            'data' => $aviso ? $this->avisos->paraTela($aviso) : null,
+            // O código e o turno (Sprint 186) são os do projeto finalista de quem lê.
+            'data' => $aviso ? $this->avisos->paraTela($aviso, $request->user()) : null,
         ]);
     }
 

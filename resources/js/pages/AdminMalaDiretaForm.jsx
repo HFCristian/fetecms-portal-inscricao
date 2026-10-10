@@ -30,6 +30,33 @@ function textoDoCorpo(html) {
     return (div.textContent ?? '').trim();
 }
 
+/** O corpo usa esta variável? Aceita `{{turno}}` e `{{ turno }}`, como o servidor. */
+const usaVariavel = (texto, chave) => new RegExp(`\\{\\{\\s*${chave}\\s*\\}\\}`).test(texto ?? '');
+
+/**
+ * Por que a mensagem não pode sair com as variáveis de finalista (Sprint 185):
+ * elas só existem para quem é da equipe de um projeto finalista, e precisam do
+ * código e do turno de cada projeto. Vazio quando está tudo certo.
+ */
+function problemaFinalistas(corpo, variaveis, pendencias) {
+    const usadas = (variaveis ?? []).filter((v) => v.somente_finalistas && usaVariavel(corpo, v.chave));
+    if (usadas.length === 0 || !pendencias) return '';
+
+    const nomes = usadas.map((v) => `{{${v.chave}}}`).join(' e ');
+    if (pendencias.nao_finalistas > 0) {
+        return `A mensagem usa ${nomes}, que só existe para finalistas, mas ${pendencias.nao_finalistas} `
+            + `destinatário(s) não são da equipe de um projeto finalista (${pendencias.exemplos.join(', ')}). `
+            + 'Deixe só os grupos de finalistas e confira os e-mails avulsos.';
+    }
+    if (usadas.some((v) => v.chave === 'codigo_projeto') && pendencias.sem_codigo.length > 0) {
+        return `${pendencias.sem_codigo.length} projeto(s) finalista(s) ainda sem código: ${pendencias.sem_codigo.join('; ')}.`;
+    }
+    if (usadas.some((v) => v.chave === 'turno') && pendencias.sem_turno.length > 0) {
+        return `${pendencias.sem_turno.length} projeto(s) finalista(s) ainda sem turno (Mapa do Evento → Turnos): ${pendencias.sem_turno.join('; ')}.`;
+    }
+    return '';
+}
+
 /** Tamanho legível de um arquivo ("1,2 MB"). */
 function tamanhoLegivel(bytes) {
     const mb = (bytes ?? 0) / (1024 * 1024);
@@ -391,6 +418,12 @@ export default function AdminMalaDiretaForm() {
             return;
         }
 
+        // Variável de finalista para quem não é finalista: nem chega a sair.
+        if (erroFinalistas) {
+            setAlert(erroFinalistas);
+            return;
+        }
+
         const invalidos = previa?.meta?.invalidos ?? 0;
         const ok = await confirmar({
             title: 'Confirmar o envio',
@@ -426,6 +459,7 @@ export default function AdminMalaDiretaForm() {
 
     const meta = previa?.meta;
     const listaPrevia = previa?.data ?? [];
+    const erroFinalistas = problemaFinalistas(form.corpo, opcoes?.variaveis, meta?.pendencias_finalistas);
     // De onde veio cada destinatário, em palavras — o mesmo rótulo do relatório.
     const rotuloPublico = Object.fromEntries((opcoes?.publicos ?? []).map((p) => [p.value, p.label]));
     const rotulosDasOrigens = (origens) => (origens ?? [])
@@ -621,9 +655,15 @@ export default function AdminMalaDiretaForm() {
                                 >
                                     <span className="material-symbols-outlined text-[14px]">add</span>
                                     {`{{${variavel.chave}}}`}
+                                    {variavel.somente_finalistas && (
+                                        <span className="font-normal text-[10px] text-on-surface-variant">só finalistas</span>
+                                    )}
                                 </button>
                             ))}
                         </div>
+                        {erroFinalistas && (
+                            <div className="pt-2" role="alert"><Alert>{erroFinalistas}</Alert></div>
+                        )}
                     </Field>
 
                     {/* Anexos: vão junto do e-mail, e não dentro do texto. */}
@@ -820,7 +860,7 @@ export default function AdminMalaDiretaForm() {
                         <Link to="/admin/mala-direta">
                             <Button type="button" variant="outline">Cancelar</Button>
                         </Link>
-                        <Button type="submit" loading={enviando} disabled={!temCriterio || (meta?.validos ?? 0) === 0}>
+                        <Button type="submit" loading={enviando} disabled={!temCriterio || (meta?.validos ?? 0) === 0 || Boolean(erroFinalistas)}>
                             <span className="material-symbols-outlined text-[20px]">send</span>
                             Enviar mensagem
                         </Button>

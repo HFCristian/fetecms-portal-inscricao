@@ -13,6 +13,7 @@ use App\Models\MalaDireta;
 use App\Models\MalaDiretaArquivo;
 use App\Models\MalaDiretaDestinatario;
 use App\Models\Projeto;
+use App\Models\TurnoApresentacao;
 use App\Models\User;
 use App\Support\HtmlEmail;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -22,6 +23,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Mala direta do admin: resolve o público-alvo, congela a lista de
@@ -70,6 +72,16 @@ class MalaDiretaService
         ['chave' => 'nome_completo', 'rotulo' => 'Nome completo', 'descricao' => 'O nome como está no cadastro.'],
         ['chave' => 'email', 'rotulo' => 'E-mail', 'descricao' => 'O endereço de quem recebe.'],
         ['chave' => 'projetos', 'rotulo' => 'Projetos', 'descricao' => 'Os projetos de quem recebe — para os finalistas, com o código da lista final.'],
+        // Sprint 185: só existem para quem é da equipe de um projeto finalista.
+        // A mala que as usa só sai se todo destinatário for finalista.
+        ['chave' => 'codigo_projeto', 'rotulo' => 'Código do projeto', 'descricao' => 'O código na lista final (FET.AGR-001). Só para finalistas.', 'somente_finalistas' => true],
+        ['chave' => 'turno', 'rotulo' => 'Turno', 'descricao' => 'O turno de apresentação (Turno A (matutino)). Só para finalistas.', 'somente_finalistas' => true],
+    ];
+
+    /** Valores de exemplo no envio de teste: os endereços de conferência não são finalistas. */
+    private const EXEMPLO_FINALISTA = [
+        'codigo_projeto' => 'FET.AGR-001 (exemplo)',
+        'turno' => 'Turno A (matutino) (exemplo)',
     ];
 
     /** Colunas do CSV de destinatários, na ordem em que aparecem. */
@@ -121,6 +133,14 @@ class MalaDiretaService
             $porEmail[$email] = $dados;
         }
 
+        // Código e turno de quem é da equipe de um finalista (Sprint 185) —
+        // chegue ela pelo grupo dos finalistas, por um público de conta ou
+        // pela lista avulsa.
+        $dados = $this->dadosFinalistas();
+        foreach ($porEmail as $email => $linha) {
+            $porEmail[$email]['finalista'] = $dados[$email] ?? [];
+        }
+
         return collect($porEmail)
             ->values()
             ->sortBy([
@@ -160,6 +180,12 @@ class MalaDiretaService
         $personalizados = $dados['destinatarios'] ?? [];
         $finalistas = (bool) ($dados['finalistas'] ?? false);
         $lista = $this->resolver($publicos, $personalizados, $finalistas);
+
+        // O teste vai para endereços de conferência, que não são finalistas:
+        // lá as variáveis de finalista saem com valores de exemplo.
+        if (! ($dados['teste'] ?? false)) {
+            $this->garantirSoFinalistas((string) ($dados['corpo'] ?? ''), $lista);
+        }
 
         // A equipe dos finalistas fica registrada entre os públicos da mala, para
         // o histórico dizer para quem ela foi.
@@ -202,6 +228,7 @@ class MalaDiretaService
                     'origens' => json_encode(array_values(array_unique($d['origens']))),
                     'projetos_total' => $d['projetos_total'],
                     'projetos_titulos' => json_encode($d['projetos_titulos']),
+                    'finalista' => json_encode($d['finalista'] ?? []),
                     'status' => $d['status'],
                     'erro' => $d['erro'],
                     'created_at' => $agora,
@@ -334,11 +361,20 @@ class MalaDiretaService
         $escapar = fn (string $v) => $html ? htmlspecialchars($v, ENT_QUOTES, 'UTF-8') : $v;
         $projetos = array_map($escapar, (array) ($destinatario->projetos_titulos ?? []));
 
+        $finalista = (array) ($destinatario->finalista ?? []);
+        $teste = (bool) $destinatario->mala?->teste;
+
         $valores = [
             'nome' => $escapar($destinatario->primeiroNome() ?? self::TRATAMENTO_PADRAO),
             'nome_completo' => $escapar($destinatario->nome ?: self::TRATAMENTO_PADRAO),
             'email' => $escapar($destinatario->email),
             'projetos' => implode($html ? '<br>' : "\n", $projetos),
+            'codigo_projeto' => $escapar($finalista === [] && $teste
+                ? self::EXEMPLO_FINALISTA['codigo_projeto']
+                : self::codigosDoFinalista($finalista)),
+            'turno' => $escapar($finalista === [] && $teste
+                ? self::EXEMPLO_FINALISTA['turno']
+                : self::turnosDoFinalista($finalista)),
         ];
 
         foreach (self::VARIAVEIS as $variavel) {
@@ -446,6 +482,152 @@ class MalaDiretaService
         }
 
         return $porEmail;
+    }
+
+    /**
+     * O código e o turno de cada projeto finalista, por e-mail de quem é da
+     * equipe dele (Sprint 185) — orientador, coorientador e estudantes. Quem
+     * está em dois finalistas leva os dois, na ordem dos títulos.
+     *
+     * @return array<string, list<array{projeto_id:int, codigo:?string, titulo:string, turno:?string}>>
+     */
+    public function dadosFinalistas(): array
+    {
+        $lista = ListaFinal::vigente();
+
+        if ($lista === null) {
+            return [];
+        }
+
+        $codigos = app(ListaFinalService::class)->codigosDaLista($lista);
+        $projetos = $this->projetosFinalistas($lista);
+        $turnos = TurnoApresentacao::query()
+            ->where('edicao_id', $lista->edicao_id)
+            ->whereIn('projeto_id', $projetos->pluck('id'))
+            ->get()
+            ->mapWithKeys(fn (TurnoApresentacao $t) => [$t->projeto_id => $t->turno?->label()])
+            ->all();
+
+        $porEmail = [];
+
+        foreach ($projetos as $projeto) {
+            $dado = [
+                'projeto_id' => $projeto->id,
+                'codigo' => $codigos[$projeto->id] ?? null,
+                'titulo' => $projeto->titulo,
+                'turno' => $turnos[$projeto->id] ?? null,
+            ];
+            $emails = array_filter([
+                $projeto->user?->email,
+                $projeto->coorientador?->email,
+                ...$projeto->alunos->pluck('email')->all(),
+            ]);
+
+            foreach ($emails as $email) {
+                $email = mb_strtolower(NormalizaEmail::semEspacos((string) $email));
+                if ($email !== '' && ! in_array($projeto->id, array_column($porEmail[$email] ?? [], 'projeto_id'), true)) {
+                    $porEmail[$email][] = $dado;
+                }
+            }
+        }
+
+        return $porEmail;
+    }
+
+    /**
+     * O que impede uma mala com as variáveis de finalista (Sprint 185): quem
+     * não é da equipe de um finalista — para essa pessoa não existe código nem
+     * turno — e o projeto finalista ainda sem código ou sem turno. Calculado
+     * sempre, para a prévia avisar antes do envio.
+     *
+     * @param  Collection<int, array<string, mixed>>  $lista
+     * @return array{nao_finalistas:int, exemplos:list<string>, sem_codigo:list<string>, sem_turno:list<string>}
+     */
+    public function pendenciasFinalistas(Collection $lista): array
+    {
+        $validos = $lista->where('status', '!=', StatusDestinatario::Invalido->value);
+        $fora = $validos->filter(fn (array $d) => ($d['finalista'] ?? []) === []);
+        $projetos = $validos->flatMap(fn (array $d) => $d['finalista'] ?? [])->unique('projeto_id');
+
+        return [
+            'nao_finalistas' => $fora->count(),
+            'exemplos' => $fora->take(5)->pluck('email')->values()->all(),
+            'sem_codigo' => $projetos->filter(fn (array $p) => ($p['codigo'] ?? '') === '')->pluck('titulo')->values()->all(),
+            'sem_turno' => $projetos->filter(fn (array $p) => ($p['turno'] ?? null) === null)->pluck('titulo')->values()->all(),
+        ];
+    }
+
+    /**
+     * Recusa o disparo que usa `{{codigo_projeto}}` ou `{{turno}}` para quem
+     * não é 100% finalista, ou com projeto ainda sem o dado.
+     *
+     * @param  Collection<int, array<string, mixed>>  $lista
+     */
+    private function garantirSoFinalistas(string $corpo, Collection $lista): void
+    {
+        $usaCodigo = self::usaVariavel($corpo, 'codigo_projeto');
+        $usaTurno = self::usaVariavel($corpo, 'turno');
+
+        if (! $usaCodigo && ! $usaTurno) {
+            return;
+        }
+
+        $p = $this->pendenciasFinalistas($lista);
+        $nomes = implode(' e ', array_filter([$usaCodigo ? '{{codigo_projeto}}' : null, $usaTurno ? '{{turno}}' : null]));
+
+        if ($p['nao_finalistas'] > 0) {
+            throw ValidationException::withMessages([
+                'corpo' => "A mensagem usa {$nomes}, que só existe para finalistas, mas {$p['nao_finalistas']} destinatário(s) "
+                    .'não são da equipe de um projeto finalista ('.implode(', ', $p['exemplos']).'). '
+                    .'Deixe só os grupos de finalistas e confira os e-mails avulsos.',
+            ]);
+        }
+
+        if ($usaCodigo && $p['sem_codigo'] !== []) {
+            throw ValidationException::withMessages([
+                'corpo' => count($p['sem_codigo']).' projeto(s) finalista(s) ainda sem código: '.implode('; ', $p['sem_codigo']).'.',
+            ]);
+        }
+
+        if ($usaTurno && $p['sem_turno'] !== []) {
+            throw ValidationException::withMessages([
+                'corpo' => count($p['sem_turno']).' projeto(s) finalista(s) ainda sem turno (Mapa do Evento → Turnos): '
+                    .implode('; ', $p['sem_turno']).'.',
+            ]);
+        }
+    }
+
+    public static function usaVariavel(string $texto, string $chave): bool
+    {
+        return (bool) preg_match('/\{\{\s*'.preg_quote($chave, '/').'\s*\}\}/u', $texto);
+    }
+
+    /**
+     * "FET.AGR-001" — ou "FET.AGR-001, FET.BIO-003" para quem está em dois.
+     *
+     * @param  list<array<string, mixed>>  $finalista
+     */
+    public static function codigosDoFinalista(array $finalista): string
+    {
+        return implode(', ', array_filter(array_map(fn (array $p) => $p['codigo'] ?? null, $finalista)));
+    }
+
+    /**
+     * "Turno A (matutino)" — ou, com dois projetos, o turno junto do código:
+     * "FET.AGR-001: Turno A (matutino); FET.BIO-003: Turno B (vespertino)".
+     *
+     * @param  list<array<string, mixed>>  $finalista
+     */
+    public static function turnosDoFinalista(array $finalista): string
+    {
+        if (count($finalista) <= 1) {
+            return (string) ($finalista[0]['turno'] ?? '');
+        }
+
+        return implode('; ', array_map(
+            fn (array $p) => ($p['codigo'] ?: $p['titulo']).': '.($p['turno'] ?? 'a definir'),
+            $finalista,
+        ));
     }
 
     /** @return \Illuminate\Database\Eloquent\Collection<int, Projeto> */

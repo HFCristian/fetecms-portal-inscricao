@@ -53,6 +53,7 @@ const OPCOES = {
         { chave: 'nome', rotulo: 'Primeiro nome', descricao: 'De "Ana Souza", vira "Ana".' },
         { chave: 'nome_completo', rotulo: 'Nome completo', descricao: 'O nome como está no cadastro.' },
         { chave: 'email', rotulo: 'E-mail', descricao: 'O endereço de quem recebe.' },
+        { chave: 'turno', rotulo: 'Turno', descricao: 'Só para finalistas.', somente_finalistas: true },
     ],
     max_personalizados: 5000,
     finalistas: { lista: 'Lista oficial (v2)', pessoas: 40, sem_email: 3 },
@@ -350,5 +351,27 @@ describe('AdminMalaDiretaForm — anexos', () => {
         await waitFor(() => expect(screen.getByText('Ainda não há lista final ativa.')).toBeInTheDocument());
 
         expect(screen.getByRole('checkbox', { name: 'Todos os finalistas' })).toBeDisabled();
+    });
+
+    it('variável de finalista para quem não é finalista avisa e não deixa enviar (Sprint 185)', async () => {
+        getPreviaMala.mockResolvedValue({
+            ...previaPadrao,
+            meta: {
+                ...previaPadrao.meta,
+                pendencias_finalistas: { nao_finalistas: 1, exemplos: ['rui@escola.test'], sem_codigo: [], sem_turno: [] },
+            },
+        });
+        render(<AdminMalaDiretaForm />);
+        await waitFor(() => expect(screen.getByText('Todos os usuários')).toBeInTheDocument());
+        expect(screen.getByText('só finalistas')).toBeInTheDocument();
+        fireEvent.click(screen.getByText('Todos os usuários'));
+        await waitFor(() => expect(screen.getByText('e-mail será enviado')).toBeInTheDocument());
+
+        preencherMensagem();
+        fireEvent.change(screen.getByLabelText('Texto da mensagem'), { target: { value: 'Seu turno: {{ turno }}' } });
+
+        expect(await screen.findByText(/que só existe para finalistas, mas 1 destinatário\(s\)/)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Enviar mensagem/ })).toBeDisabled();
+        expect(dispararMala).not.toHaveBeenCalled();
     });
 });

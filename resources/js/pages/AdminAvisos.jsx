@@ -13,6 +13,12 @@ const campoClass =
 
 // Aviso publicado para um recorte da base. Vários podem estar no ar ao mesmo
 // tempo — um por público; cada pessoa vê o mais recente que a alcança.
+
+/** Públicos inteiramente de finalistas — os únicos em que o projeto de quem lê existe. */
+const PUBLICOS_FINALISTAS = ['orientadores_finalistas', 'finalistas_sem_termo'];
+
+const usaVariavel = (texto, chave) => new RegExp(`\\{\\{\\s*${chave}\\s*\\}\\}`).test(texto ?? '');
+
 function AvisoSection({ opcoes, vigentes, onPublicado, onEncerrado }) {
     const [confirm, dialogo] = useConfirm();
     const [titulo, setTitulo] = useState(opcoes.modelo.titulo);
@@ -52,6 +58,18 @@ function AvisoSection({ opcoes, vigentes, onPublicado, onEncerrado }) {
     useEffect(() => { setPrevia(null); }, [titulo, mensagem, publicos, expiraEm]);
 
     const preenchido = titulo.trim() !== '' && mensagem.trim() !== '' && publicos.length > 0;
+
+    // Código e turno (Sprint 186) só existem para finalistas: o aviso que os
+    // usa precisa de um público inteiro de finalistas. O servidor confere de
+    // novo, e ainda barra projeto sem código ou sem turno.
+    const variaveisFinalista = (opcoes.variaveis ?? [])
+        .filter((v) => v.somente_finalistas && usaVariavel(`${titulo} ${mensagem}`, v.chave))
+        .map((v) => `{{${v.chave}}}`);
+    const publicosFora = publicos.filter((p) => !PUBLICOS_FINALISTAS.includes(p));
+    const erroFinalistas = variaveisFinalista.length > 0 && publicosFora.length > 0
+        ? `O aviso usa ${variaveisFinalista.join(' e ')}, que só existe para finalistas. Escolha apenas `
+            + '"Orientadores de projetos finalistas" ou "Finalistas sem o termo" como público.'
+        : '';
 
     const alternarPublico = (valor) => setPublicos((atual) => (
         atual.includes(valor) ? atual.filter((p) => p !== valor) : [...atual, valor]
@@ -188,6 +206,9 @@ function AvisoSection({ opcoes, vigentes, onPublicado, onEncerrado }) {
                             >
                                 <span className="material-symbols-outlined text-[14px]">add</span>
                                 {`{{${variavel.chave}}}`}
+                                {variavel.somente_finalistas && (
+                                    <span className="font-normal text-[10px] text-on-surface-variant">só finalistas</span>
+                                )}
                             </button>
                         ))}
                     </div>
@@ -253,12 +274,14 @@ function AvisoSection({ opcoes, vigentes, onPublicado, onEncerrado }) {
                     </div>
                 )}
 
+                {erroFinalistas && <div role="alert"><Alert>{erroFinalistas}</Alert></div>}
+
                 <div className="flex gap-2 flex-wrap">
                     <Button type="button" variant="outline" disabled={!preenchido} onClick={verPrevia}>
                         <span className="material-symbols-outlined text-[18px]">visibility</span>
                         Ver prévia
                     </Button>
-                    <Button type="button" loading={publicando} disabled={!preenchido} onClick={publicar}>
+                    <Button type="button" loading={publicando} disabled={!preenchido || Boolean(erroFinalistas)} onClick={publicar}>
                         <span className="material-symbols-outlined text-[18px]">campaign</span>
                         Publicar aviso
                     </Button>

@@ -559,7 +559,8 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     que aparece para os **orientadores ativos** conectados em até ~1 min (polling; não há
     WebSocket no projeto) e pode ser fechado por cada um. **Um ativo por vez** — publicar um
     novo encerra o anterior; dá para encerrar à mão. O texto aceita `{{prazo_inscricoes}}`,
-    `{{tempo_restante}}` e `{{inicio_avaliacoes}}` (`AvisoService::VARIAVEIS`), inseridas por
+    `{{tempo_restante}}` e `{{inicio_avaliacoes}}` (`AvisoService::VARIAVEIS`) — e, num aviso cujo
+    público é inteiro de finalistas, `{{codigo_projeto}}` e `{{turno}}` do projeto de quem lê —, inseridas por
     **botões abaixo do campo, na posição do cursor**, e o formulário abre com um **modelo
     pronto**. As variáveis são resolvidas **na hora da leitura** — "faltam X minutos" é o tempo
     real de quem está lendo. **Relatório** por aviso: quantos viram, fecharam e ainda não viram,
@@ -598,7 +599,8 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     a situação de cada endereço, o motivo das falhas e o **reenvio só das falhas**. E-mail malformado
     entra como `invalido` no relatório em vez de barrar o disparo. Campos da mala: nome, justificativa,
     solicitante (opcional — metadado interno, não vai no e-mail), assunto e texto. O texto aceita as
-    variáveis `{{nome}}` — primeiro nome —, `{{nome_completo}}` e `{{email}}` (com ou sem espaços
+    variáveis `{{nome}}` — primeiro nome —, `{{nome_completo}}`, `{{email}}`, `{{projetos}}` e, só
+    quando **todo** destinatário é da equipe de um finalista, `{{codigo_projeto}}` e `{{turno}}` (com ou sem espaços
     dentro das chaves; sem nome conhecido, o tratamento vira "participante"), inseridas por **botões
     abaixo do campo, na posição do cursor**. A lista mora em `MalaDiretaService::VARIAVEIS` e chega à
     tela por `GET /admin/mala-direta/opcoes` — é a mesma que o `personalizar()` percorre, então
@@ -876,7 +878,38 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 182 | Credenciamento e checagem lendo a lista única: bloco "Do projeto" no balcão e marcador por pessoa na checagem | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 183 | Aba Documentos genérica: cada item "receber antes" da lista tem a sua seção (um ou mais arquivos, pessoas marcadas) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 184 | O que chegou antes já vem marcado no balcão e na checagem, para qualquer item (o bloco fixo do termo saiu) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 185 | Mala direta: variáveis `{{codigo_projeto}}` e `{{turno}}`, só com destino 100% finalista (aviso na tela e recusa no servidor) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 186 | As mesmas variáveis no modelo "Código do projeto" e nos avisos (resolvidas para quem lê) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprints 185–186 (mesma branch):** o código e o turno do projeto na comunicação.
+> (a) **Sprint 185** — a mala direta ganhou `{{codigo_projeto}}` (o código na lista final ativa) e
+> `{{turno}}` (o turno de Mapa do Evento → Turnos), marcadas "só finalistas" nos botões. Elas só
+> existem para quem é da **equipe de um projeto finalista**, e por isso a mala que as usa só sai se
+> **todo** destinatário for finalista — chegue ele pelo grupo "Todos os finalistas", pelos públicos
+> de conta dos finalistas ou pela lista avulsa (o e-mail avulso é conferido contra a equipe dos
+> finalistas). A regra é sobre as pessoas resolvidas, e não sobre o nome dos grupos: "Todos os
+> orientadores" com um único orientador de fora já barra. Também barra projeto finalista **sem
+> código** (o admin apagou na lista) ou **sem turno** (turnos ainda não gerados), conforme a
+> variável usada. A prévia devolve o que impediria (`meta.pendencias_finalistas`), a tela mostra o
+> erro embaixo do editor e desabilita o envio **antes** de o admin tentar, e o servidor recusa de novo
+> (422). Quem está em dois finalistas recebe os dois: "FET.AGR-001, FET.BIO-003" e "FET.AGR-001:
+> Turno A (matutino); FET.BIO-003: Turno B (vespertino)". Os dados ficam congelados no disparo
+> (`mala_direta_destinatarios.finalista`), como o resto da lista; o **envio de teste** usa valores de
+> exemplo, porque os endereços de conferência não são finalistas.
+> (b) **Sprint 186** — as mesmas variáveis no modelo de e-mail **"Código do projeto"** (que já sai
+> só para a equipe dos finalistas, pela mala direta) e nos **avisos**, onde são resolvidas para
+> **quem lê**: cada orientador finalista vê o seu código e o seu turno. Aviso que as usa precisa de um
+> público inteiro de finalistas ("Orientadores de projetos finalistas" ou "Finalistas sem o termo") —
+> a tela avisa e não publica, e o servidor confere de novo, junto do código e do turno de cada
+> projeto. Na prévia do admin elas saem como exemplo.
+> Back **1390/1390**, front **674/674**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprints 185–186):** (1) mais uma migration
+> (`mala_direta_destinatarios.finalista`). (2) Antes de usar `{{turno}}`, gere os turnos em Mapa do
+> Evento → Turnos; antes de `{{codigo_projeto}}`, confira que nenhum finalista está sem código na
+> lista final ativa. (3) Para incluir as variáveis no e-mail do código, edite o modelo "Código do
+> projeto" em Comunicação → Modelos de e-mail.
+>
 > **Sprints 183–184 (mesma branch):** o que o orientador manda antes deixou de ser só os termos.
 > (a) **Sprint 183** — a aba **Documentos** não conhece documento nenhum de cor: ela mostra os itens
 > da lista única marcados **"receber antes"**, na ordem da lista — os dois termos (itens do sistema)
