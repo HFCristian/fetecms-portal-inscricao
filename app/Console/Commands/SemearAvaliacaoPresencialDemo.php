@@ -14,7 +14,7 @@ use App\Models\Credenciamento;
 use App\Models\Edicao;
 use App\Models\EstandeProjeto;
 use App\Models\Instituicao;
-use App\Models\ItemChecagemEstande;
+use App\Models\ItemConferencia;
 use App\Models\ListaFinal;
 use App\Models\Projeto;
 use App\Models\Subarea;
@@ -302,12 +302,17 @@ class SemearAvaliacaoPresencialDemo extends Command
     /** O checklist do avaliador sai deste catálogo; sem ele, o passo some. */
     private function semearItens(): int
     {
-        if (ItemChecagemEstande::query()->exists()) {
+        // Os itens do sistema (os termos) não contam: "vazio" é sem nenhum
+        // item da organização marcado para a checagem.
+        if (ItemConferencia::where('na_checagem', true)->whereNull('chave')->exists()) {
             return 0;
         }
 
         foreach (self::ITENS as $ordem => [$nome, $descricao]) {
-            ItemChecagemEstande::create(['nome' => $nome, 'descricao' => $descricao, 'ordem' => $ordem, 'ativo' => true]);
+            ItemConferencia::firstOrCreate(['nome' => $nome], [
+                'descricao' => $descricao, 'abrangencia' => ItemConferencia::PROJETO,
+                'na_checagem' => true, 'ordem' => $ordem, 'ativo' => true,
+            ]);
         }
 
         return count(self::ITENS);

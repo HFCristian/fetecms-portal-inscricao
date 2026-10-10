@@ -15,10 +15,11 @@ vi.mock('../lib/presencial.js', () => ({
 
 import PresencialEspelho from './PresencialEspelho.jsx';
 
+// O servidor manda só os itens ativos da checagem (lista única, Sprint 181).
 const ITENS = [
-    { id: 5, nome: 'Banner montado', ativo: true },
-    { id: 6, nome: 'Tomada', ativo: true },
-    { id: 7, nome: 'Item velho', ativo: false },
+    { id: 5, nome: 'Banner montado', abrangencia: 'projeto', papeis: [] },
+    { id: 6, nome: 'Tomada', abrangencia: 'projeto', papeis: [] },
+    { id: 8, nome: 'Crachá', abrangencia: 'pessoa', papeis: ['aluno'] },
 ];
 
 describe('PresencialEspelho', () => {
@@ -32,6 +33,7 @@ describe('PresencialEspelho', () => {
                     local: { estande: 42, turno_label: 'Matutino' },
                     conferido_em: '2026-10-20T09:00:00-04:00', conferido_por: 'Admin', observacao: 'Tudo certo.',
                     itens: [{ id: 5, situacao: 'presente' }, { id: 6, situacao: 'ausente' }],
+                    itens_pessoa: [{ id: 8, nome: 'Crachá', total: 2, presentes: 1, ausentes: 1 }],
                     termo: { id: 9, nome_original: 'termo.pdf', assinatura_motivo: 'ok' },
                 },
                 {
@@ -39,6 +41,7 @@ describe('PresencialEspelho', () => {
                     local: { estande: null, turno_label: null },
                     conferido_em: null, conferido_por: null, observacao: null,
                     itens: [{ id: 5, situacao: null }, { id: 6, situacao: null }],
+                    itens_pessoa: [{ id: 8, nome: 'Crachá', total: 3, presentes: 3, ausentes: 0 }],
                     termo: null,
                 },
             ],
@@ -46,14 +49,15 @@ describe('PresencialEspelho', () => {
         });
     });
 
-    it('monta a tabela com uma coluna por item ativo', async () => {
+    it('monta a tabela com uma coluna por item, e o item de pessoa conta a equipe', async () => {
         render(<PresencialEspelho />);
 
         expect(await screen.findByText('Bioplástico')).toBeInTheDocument();
         expect(screen.getByRole('columnheader', { name: 'Banner montado' })).toBeInTheDocument();
         expect(screen.getByRole('columnheader', { name: 'Tomada' })).toBeInTheDocument();
-        // Item desativado não vira coluna nova.
-        expect(screen.queryByRole('columnheader', { name: 'Item velho' })).not.toBeInTheDocument();
+        expect(screen.getByRole('columnheader', { name: 'Crachá' })).toBeInTheDocument();
+        expect(screen.getByText('1/2')).toBeInTheDocument();
+        expect(screen.getByText('3/3')).toBeInTheDocument();
     });
 
     it('marca presente, ausente e não conferido de formas diferentes', async () => {

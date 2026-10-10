@@ -10,7 +10,7 @@ use App\Models\ChecagemEstande;
 use App\Models\Edicao;
 use App\Models\EscopoAdmin;
 use App\Models\EstandeProjeto;
-use App\Models\ItemChecagemEstande;
+use App\Models\ItemConferencia;
 use App\Models\ListaFinal;
 use App\Models\Projeto;
 use App\Models\ProjetoDocumento;
@@ -32,7 +32,7 @@ class ChecagemEstandeTest extends TestCase
 
     private Projeto $projeto;
 
-    private ItemChecagemEstande $banner;
+    private ItemConferencia $banner;
 
     protected function setUp(): void
     {
@@ -48,7 +48,12 @@ class ChecagemEstandeTest extends TestCase
             'titulo' => 'Bioplástico de mandioca',
         ]);
 
-        $this->banner = ItemChecagemEstande::create(['nome' => 'Banner montado', 'ordem' => 1]);
+        $this->banner = ItemConferencia::create([
+            'nome' => 'Banner montado', 'abrangencia' => 'projeto', 'na_checagem' => true, 'ordem' => 1, 'ativo' => true,
+        ]);
+        // O termo de responsabilidade é item do sistema na checagem; aqui ele
+        // fica desligado para os testes contarem só o banner.
+        ItemConferencia::where('chave', ItemConferencia::CHAVE_TERMO_RESPONSABILIDADE)->update(['ativo' => false]);
     }
 
     private function publicar(array $projetos, bool $demo = false): ListaFinal
@@ -250,19 +255,19 @@ class ChecagemEstandeTest extends TestCase
     {
         $this->comoAdmin();
 
-        $this->postJson('/api/v1/admin/presencial/itens', ['nome' => 'Tomada disponível'])
-            ->assertCreated()
-            ->assertJsonCount(2, 'data');
+        // Sprint 181: o cadastro mora na Parametrização, na lista única.
+        $this->postJson('/api/v1/admin/itens-conferencia', [
+            'nome' => 'Tomada disponível', 'abrangencia' => 'projeto', 'na_checagem' => true,
+        ])->assertCreated();
 
-        // Nome repetido é recusado.
-        $this->postJson('/api/v1/admin/presencial/itens', ['nome' => 'Tomada disponível'])
-            ->assertStatus(422)
-            ->assertJsonValidationErrors('nome');
+        $this->postJson('/api/v1/admin/itens-conferencia', [
+            'nome' => 'tomada disponivel', 'abrangencia' => 'projeto', 'na_checagem' => true,
+        ])->assertStatus(422)->assertJsonValidationErrors('nome');
 
-        $this->patchJson("/api/v1/admin/presencial/itens/{$this->banner->id}", ['ativo' => false])
+        $this->patchJson("/api/v1/admin/itens-conferencia/{$this->banner->id}", ['ativo' => false])
             ->assertOk();
 
-        $this->assertFalse(ItemChecagemEstande::find($this->banner->id)->ativo);
+        $this->assertFalse(ItemConferencia::find($this->banner->id)->ativo);
     }
 
     public function test_item_ja_conferido_nao_e_excluido(): void
@@ -274,18 +279,18 @@ class ChecagemEstandeTest extends TestCase
             'itens' => [['item_id' => $this->banner->id, 'situacao' => 'presente']],
         ])->assertOk();
 
-        $this->deleteJson("/api/v1/admin/presencial/itens/{$this->banner->id}")
+        $this->deleteJson("/api/v1/admin/itens-conferencia/{$this->banner->id}")
             ->assertStatus(422)
             ->assertJsonValidationErrors('item');
 
-        $this->assertDatabaseHas('itens_checagem_estande', ['id' => $this->banner->id]);
+        $this->assertDatabaseHas('itens_conferencia', ['id' => $this->banner->id]);
     }
 
     public function test_item_desativado_sai_das_fichas_novas(): void
     {
         $this->publicar([$this->projeto]);
         $this->comoAdmin();
-        $this->patchJson("/api/v1/admin/presencial/itens/{$this->banner->id}", ['ativo' => false])->assertOk();
+        $this->patchJson("/api/v1/admin/itens-conferencia/{$this->banner->id}", ['ativo' => false])->assertOk();
 
         $this->getJson("/api/v1/admin/presencial/checagem/{$this->projeto->id}")
             ->assertOk()

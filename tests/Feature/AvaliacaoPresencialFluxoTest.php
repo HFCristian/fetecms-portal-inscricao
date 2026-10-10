@@ -13,7 +13,7 @@ use App\Models\ChecagemEstande;
 use App\Models\Credenciamento;
 use App\Models\Edicao;
 use App\Models\EstandeProjeto;
-use App\Models\ItemChecagemEstande;
+use App\Models\ItemConferencia;
 use App\Models\ListaFinal;
 use App\Models\Projeto;
 use App\Models\TurnoApresentacao;
@@ -42,7 +42,7 @@ class AvaliacaoPresencialFluxoTest extends TestCase
 
     private Projeto $projeto;
 
-    private ItemChecagemEstande $banner;
+    private ItemConferencia $banner;
 
     private int $estande = 0;
 
@@ -60,7 +60,9 @@ class AvaliacaoPresencialFluxoTest extends TestCase
         $this->lista = ListaFinal::create([
             'edicao_id' => $this->edicao->id, 'nome' => 'Lista final', 'tipo' => 'final', 'vigente' => true, 'versao' => 1,
         ]);
-        $this->banner = ItemChecagemEstande::create(['nome' => 'Banner montado', 'ordem' => 1, 'ativo' => true]);
+        $this->banner = ItemConferencia::create([
+            'nome' => 'Banner montado', 'abrangencia' => 'projeto', 'na_checagem' => true, 'ordem' => 1, 'ativo' => true,
+        ]);
 
         $this->avaliador = $this->avaliadorPresencial('Ana Avaliadora');
         $this->projeto = $this->finalista('Bioplástico de mandioca');

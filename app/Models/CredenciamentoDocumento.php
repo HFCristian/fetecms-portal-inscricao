@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use App\Enums\SituacaoDocumento;
-use App\Enums\TipoPessoaCredenciamento;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -18,15 +17,19 @@ class CredenciamentoDocumento extends Model
 {
     protected $table = 'credenciamento_documentos';
 
+    /**
+     * `pessoa_tipo` é o papel (aluno, orientador, coorientador) ou `projeto`,
+     * no item que é do projeto e não de alguém (Sprint 182) — por isso fica
+     * como texto, e não no enum dos papéis.
+     */
     protected $fillable = [
-        'credenciamento_id', 'documento_credenciamento_id',
+        'credenciamento_id', 'item_id',
         'pessoa_tipo', 'pessoa_id', 'pessoa_nome', 'situacao',
     ];
 
     protected function casts(): array
     {
         return [
-            'pessoa_tipo' => TipoPessoaCredenciamento::class,
             'situacao' => SituacaoDocumento::class,
         ];
     }
@@ -36,8 +39,9 @@ class CredenciamentoDocumento extends Model
         return $this->belongsTo(Credenciamento::class);
     }
 
+    /** O item da lista única conferido (Sprint 181). */
     public function documento(): BelongsTo
     {
-        return $this->belongsTo(DocumentoCredenciamento::class, 'documento_credenciamento_id');
+        return $this->belongsTo(ItemConferencia::class, 'item_id');
     }
 }

@@ -7,7 +7,7 @@ use App\Enums\SituacaoTermoImagem;
 use App\Enums\TipoDocumento;
 use App\Enums\TipoPessoaCredenciamento;
 use App\Models\Aluno;
-use App\Models\DocumentoCredenciamento;
+use App\Models\ItemConferencia;
 use App\Models\ProjetoDocumento;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
@@ -129,7 +129,7 @@ class TermosImagemService
      */
     private function marcacoesDoBalcao(array $projetoIds, ?CarbonInterface $corte): array
     {
-        $item = DocumentoCredenciamento::where('chave', DocumentoCredenciamento::CHAVE_TERMO_IMAGEM)->value('id');
+        $item = ItemConferencia::where('chave', ItemConferencia::CHAVE_TERMO_IMAGEM)->value('id');
 
         if ($item === null || $projetoIds === []) {
             return [];
@@ -142,7 +142,7 @@ class TermosImagemService
             ->whereIn('c.projeto_id', $projetoIds)
             ->whereNotNull('c.finalizado_em')
             ->when($corte !== null, fn ($q) => $q->where('c.finalizado_em', '<=', $corte))
-            ->where('cd.documento_credenciamento_id', $item)
+            ->where('cd.item_id', $item)
             ->where('cd.pessoa_tipo', TipoPessoaCredenciamento::Aluno->value)
             ->get(['c.projeto_id', 'cd.pessoa_id', 'cd.situacao'])
             ->each(function ($m) use (&$porProjeto) {

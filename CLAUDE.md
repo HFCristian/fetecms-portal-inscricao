@@ -498,11 +498,19 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     Existe porque cada dado de ensaio sumia de uma tela diferente e ninguém conseguia
     responder "o que ainda é de mentira no sistema?". `DadosDemoService`.
   - **Parametrização → Credenciamento** (`/admin/parametrizacao/credenciamento`): os **itens
-    entregues** aos finalistas (`edicoes.itens_credenciamento`) e a **lista de documentos** exigida
-    de cada papel (`documentos_credenciamento`, catálogo do portal). Documento já conferido em algum
-    credenciamento não é excluído — desative-o. O **período do evento**
+    entregues** aos finalistas (`edicoes.itens_credenciamento`). O **período do evento**
     (`edicoes.evento_de`/`evento_ate`, **fechado enquanto não for definido** — credenciar é ato
     presencial) fica em *Datas e períodos*.
+  - **Parametrização → Itens do credenciamento e da checagem**
+    (`/admin/parametrizacao/itens-conferencia`, `itens_conferencia`, `ItensConferenciaService`): a
+    **lista única** do que se confere nos dois balcões. Cada item é **de cada pessoa** (com os papéis:
+    aluno, orientador, coorientador) ou **do projeto**, é conferido **no credenciamento**, **na
+    checagem** do estande ou nos dois, e pode ser **recebido antes** — o orientador o envia pela aba
+    Documentos. No credenciamento o item de pessoa aparece em cada pessoa e o do projeto num bloco
+    "Do projeto"; na checagem o do projeto aparece uma vez e o de pessoa com um marcador por pessoa. O
+    checklist do avaliador presencial usa só os itens do projeto que não são recebidos antes. Item
+    conferido ou com arquivo não é excluído — desative-o. Os dois termos do finalista são **itens do
+    sistema** (`chave`): renomeiam-se e ligam/desligam, mas não mudam de abrangência nem se excluem.
   - **Comitê especial** (`/admin/comite`): o deslocamento das equipes durante a feira, em duas
     seções. **Transporte de comitê** lista quem está com o localizador ligado e o que cada um
     configurou, e traz o botão **Habilitar localização** — um assistente de **seis passos**:
@@ -864,7 +872,41 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 178 | Listas: **arrastar** o projeto dentro do grupo renumera os códigos na hora (sem modo "Reordenar") | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 179 | Listas: montar preliminar **ou** final pela união de listas geradas — **preliminares e finais** —, herdando os códigos fixados | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 180 | Listas: **apelido** e **descrição** na criação, nos cartões e editáveis no detalhe (sem justificativa) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 181 | Parametrização: **lista única** de itens do credenciamento e da checagem (de pessoa ou do projeto, onde conferir, receber antes) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 182 | Credenciamento e checagem lendo a lista única: bloco "Do projeto" no balcão e marcador por pessoa na checagem | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprints 181–182 (mesma branch):** uma lista só para os dois balcões.
+> (a) **Sprint 181** — o credenciamento tinha o seu catálogo (`documentos_credenciamento`, um item
+> por papel) e a checagem o dela (`itens_checagem_estande`, por estande); a organização cadastrava a
+> mesma coisa duas vezes e não tinha onde dizer "este eu quero receber antes". Nasceu
+> `itens_conferencia`: cada item diz **de quem é** (de cada pessoa, com os papéis, ou do projeto),
+> **onde é conferido** (credenciamento, checagem ou os dois) e se é **recebido antes** pelo portal. A
+> tela é um card novo na Parametrização; a lista de documentos saiu de Parametrização →
+> Credenciamento (que ficou com os itens a entregar) e o cadastro de itens saiu de Avaliação
+> presencial (que aponta para a Parametrização). A migration **preserva tudo**: os itens da checagem
+> entram com o mesmo id (as checagens e o checklist do avaliador, que guarda o id, seguem valendo),
+> os documentos de mesmo nome em papéis diferentes viram um item com os papéis somados, nome igual
+> nos dois catálogos funde num item marcado nos dois lugares, e as marcações do balcão são
+> remapeadas. Os dois termos do finalista viram **itens do sistema** (`chave`), com "receber antes"
+> ligado; a migration também liga cada arquivo já enviado ao seu item
+> (`projeto_documentos.item_conferencia_id`).
+> (b) **Sprint 182** — os balcões passaram a ler a lista. No **credenciamento**, o item de pessoa
+> aparece em cada pessoa dos papéis dele e o item do projeto num bloco **"Do projeto"**, marcado com o
+> próprio projeto no lugar da pessoa (`pessoa_tipo = projeto`). Na **checagem**, o item do projeto
+> aparece uma vez, como sempre, e o de pessoa ganha **um marcador por pessoa** (o espelho mostra
+> "2/3"). O checklist do **avaliador presencial** continua só com itens do projeto, e sem os que o
+> orientador manda antes — documento é assunto da organização. Marcação de item em papel que não é
+> dele, ou de pessoa de outro projeto, é descartada nos dois balcões.
+> Back **1371/1371**, front **674/674**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprints 181–182):** (1) **duas migrations** (`itens_conferencia`, que funde
+> e **apaga** os dois catálogos antigos depois de copiar tudo, e `projeto_documentos.item_conferencia_id`).
+> Vale um backup do banco antes do deploy, como em toda migration que move dado. (2) Depois do deploy,
+> confira a lista em Parametrização → Itens do credenciamento e da checagem: documentos com o mesmo
+> nome em papéis diferentes viraram um item só, e o termo de responsabilidade passou a ser um item da
+> checagem. (3) A rota `/admin/presencial/itens` e as de `/admin/credenciamento/documentos` saíram
+> do ar; o cadastro é `/admin/itens-conferencia`.
+>
 > **Sprints 179–180 (mesma branch):** como as listas nascem e como se chamam.
 > (a) **Sprint 179** — a **união** deixou de ser só "preliminares → final". Qualquer lista **já
 > gerada** da edição pode ser origem — preliminar, a final ativa ou uma final inativa —, e o admin
@@ -998,9 +1040,9 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 >
 > **Pendências do Pedro (Sprints 173–174):** (1) `git push origin feat/termo-imagem-e-codigos-lista`
 > + PR para a `main` (o ambiente do Claude não tem credencial do GitHub) e, depois do merge, o
-> deploy pela §11 do [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). A branch inteira (Sprints 173–180)
-> **tem três migrations** (`projeto_documento_alunos`, `documentos_credenciamento.chave` e
-> `listas_finais.descricao`), **nenhuma variável nova de `.env`** e **nenhuma dependência nova**.
+> deploy pela §11 do [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md). A branch inteira tem migrations
+> (as de cada bloco de sprints estão nas pendências de cada um), **nenhuma variável nova de `.env`**
+> e **nenhuma dependência nova**.
 > (2) **A caixa "Somente finalistas" virou o card "Todos os finalistas"**: quem marcava a caixa e
 > esperava que ela substituísse os públicos agora precisa desmarcar os outros grupos — ela soma.
 > (3) **O avaliador online deixou de ver o termo de responsabilidade** entre os anexos do projeto.

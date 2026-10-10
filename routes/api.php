@@ -43,6 +43,7 @@ use App\Http\Controllers\Api\V1\IdentificacaoController;
 use App\Http\Controllers\Api\V1\InscricoesController;
 use App\Http\Controllers\Api\V1\InstituicaoAdminController;
 use App\Http\Controllers\Api\V1\IntegranteController;
+use App\Http\Controllers\Api\V1\ItensConferenciaController;
 use App\Http\Controllers\Api\V1\MapaEstandesController;
 use App\Http\Controllers\Api\V1\MapaPlantaController;
 use App\Http\Controllers\Api\V1\MapaTurnosController;
@@ -325,11 +326,6 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::get('/checagem/espelho', [AvaliacaoPresencialAdminController::class, 'espelho']);
                 Route::get('/checagem/{projeto}', [AvaliacaoPresencialAdminController::class, 'show']);
                 Route::post('/checagem/{projeto}', [AvaliacaoPresencialAdminController::class, 'store']);
-                // Catálogo do que se confere em cada estande.
-                Route::get('/itens', [AvaliacaoPresencialAdminController::class, 'itens']);
-                Route::post('/itens', [AvaliacaoPresencialAdminController::class, 'criarItem']);
-                Route::patch('/itens/{item}', [AvaliacaoPresencialAdminController::class, 'atualizarItem']);
-                Route::delete('/itens/{item}', [AvaliacaoPresencialAdminController::class, 'excluirItem']);
                 // Avaliações presenciais: designar estandes e acompanhar.
                 // Distribuição presencial por turno (Sprints 169–170): horários,
                 // ativação dos avaliadores na cabine e as designações.
@@ -624,14 +620,18 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::put('/abas', [ParametrizacaoAbasController::class, 'definir']);
                 Route::delete('/abas', [ParametrizacaoAbasController::class, 'restaurar']);
 
-                // Parametrização → Credenciamento: janela do evento e a lista de
-                // documentos exigida de cada papel no balcão.
+                // Parametrização → Credenciamento: janela do evento e os itens
+                // entregues aos finalistas.
                 Route::get('/credenciamento', [ParametrizacaoCredenciamentoController::class, 'show']);
                 Route::patch('/credenciamento/janela', [ParametrizacaoCredenciamentoController::class, 'definirJanela']);
                 Route::patch('/credenciamento/itens', [ParametrizacaoCredenciamentoController::class, 'definirItens']);
-                Route::post('/credenciamento/documentos', [ParametrizacaoCredenciamentoController::class, 'criarDocumento']);
-                Route::put('/credenciamento/documentos/{documento}', [ParametrizacaoCredenciamentoController::class, 'atualizarDocumento']);
-                Route::delete('/credenciamento/documentos/{documento}', [ParametrizacaoCredenciamentoController::class, 'excluirDocumento']);
+
+                // Parametrização → Itens do credenciamento e da checagem (Sprint
+                // 181): a lista única que os dois balcões conferem.
+                Route::get('/itens-conferencia', [ItensConferenciaController::class, 'index']);
+                Route::post('/itens-conferencia', [ItensConferenciaController::class, 'store']);
+                Route::patch('/itens-conferencia/{item}', [ItensConferenciaController::class, 'update']);
+                Route::delete('/itens-conferencia/{item}', [ItensConferenciaController::class, 'destroy']);
 
                 // Parametrização do catálogo (áreas/subáreas)
                 Route::get('/catalogo', [CatalogoAdminController::class, 'index']);

@@ -165,6 +165,28 @@ describe('CredenciamentoFicha', () => {
         ]));
     });
 
+    it('item do projeto aparece num bloco próprio e vai marcado com o projeto (Sprint 182)', async () => {
+        getFichaCredenciamento.mockResolvedValue({
+            ...FICHA,
+            itens_projeto: [{
+                id: 40, nome: 'Relatório impresso', pessoa_tipo: 'projeto', pessoa_id: 7,
+                situacao: null, pre_marcado: false, online: [],
+            }],
+        });
+        render(<CredenciamentoFicha />);
+        await screen.findAllByText('Ana Aluna');
+
+        expect(screen.getByText('Do projeto')).toBeInTheDocument();
+        const grupo = screen.getByRole('group', { name: 'Relatório impresso de Bioplástico' });
+        fireEvent.click(within(grupo).getByRole('button', { name: 'Presente' }));
+        fireEvent.click(screen.getByRole('button', { name: /Concluir credenciamento/ }));
+
+        await waitFor(() => expect(credenciarProjeto).toHaveBeenCalled());
+        expect(credenciarProjeto.mock.calls[0][1].marcacoes).toEqual(expect.arrayContaining([
+            { documento_id: 40, pessoa_tipo: 'projeto', pessoa_id: 7, situacao: 'presente' },
+        ]));
+    });
+
     it('envia as marcações escolhidas ao concluir', async () => {
         render(<CredenciamentoFicha />);
         await screen.findAllByText('Ana Aluna');

@@ -7,6 +7,7 @@ use App\Enums\SituacaoDocumento;
 use App\Enums\TipoPessoaCredenciamento;
 use App\Http\Controllers\Controller;
 use App\Models\Area;
+use App\Models\ItemConferencia;
 use App\Models\Projeto;
 use App\Services\CredenciamentoService;
 use App\Services\ForaPrazoService;
@@ -170,8 +171,10 @@ class CredenciamentoController extends Controller
     {
         return [
             'marcacoes' => ['present', 'array'],
-            'marcacoes.*.documento_id' => ['required', 'integer', 'exists:documentos_credenciamento,id'],
-            'marcacoes.*.pessoa_tipo' => ['required', Rule::in(TipoPessoaCredenciamento::valores())],
+            // `documento_id` é o item da lista única (Sprint 181); o item do
+            // projeto vem com `pessoa_tipo` = projeto.
+            'marcacoes.*.documento_id' => ['required', 'integer', 'exists:itens_conferencia,id'],
+            'marcacoes.*.pessoa_tipo' => ['required', Rule::in([...TipoPessoaCredenciamento::valores(), ItemConferencia::PROJETO])],
             'marcacoes.*.pessoa_id' => ['nullable', 'integer'],
             'marcacoes.*.situacao' => ['required', Rule::in(SituacaoDocumento::valores())],
             'observacao' => ['nullable', 'string', 'max:1000'],

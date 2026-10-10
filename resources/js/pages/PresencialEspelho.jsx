@@ -57,7 +57,7 @@ export default function PresencialEspelho() {
     const carregar = useCallback(() => {
         setLinhas(null);
         return getEspelhoChecagem(filtros, modoTeste)
-            .then((r) => { setLinhas(r.data); setItens(r.meta?.itens?.filter((i) => i.ativo) ?? []); })
+            .then((r) => { setLinhas(r.data); setItens(r.meta?.itens ?? []); })
             .catch((e) => { setLinhas([]); setAlert(extractErrors(e).message); });
     }, [filtros, modoTeste]);
 
@@ -169,11 +169,22 @@ export default function PresencialEspelho() {
                                             <span className="text-error font-semibold text-xs">falta</span>
                                         )}
                                     </td>
-                                    {itens.map((i) => (
-                                        <td key={i.id} className="px-3 py-3 text-center">
-                                            <Marca situacao={(l.itens ?? []).find((x) => x.id === i.id)?.situacao} />
-                                        </td>
-                                    ))}
+                                    {itens.map((i) => {
+                                        // Item de pessoa (Sprint 182): quantos da equipe já foram vistos.
+                                        const dePessoa = (l.itens_pessoa ?? []).find((x) => x.id === i.id);
+
+                                        return (
+                                            <td key={i.id} className="px-3 py-3 text-center">
+                                                {i.abrangencia === 'pessoa' ? (
+                                                    <span className={`text-xs font-semibold ${dePessoa?.ausentes > 0 ? 'text-error' : dePessoa && dePessoa.presentes === dePessoa.total ? 'text-secondary' : 'text-on-surface-variant'}`}>
+                                                        {dePessoa ? `${dePessoa.presentes}/${dePessoa.total}` : '—'}
+                                                    </span>
+                                                ) : (
+                                                    <Marca situacao={(l.itens ?? []).find((x) => x.id === i.id)?.situacao} />
+                                                )}
+                                            </td>
+                                        );
+                                    })}
                                     <td className="px-3 py-3 whitespace-nowrap text-xs text-on-surface-variant">
                                         {l.conferido_em ? (
                                             <>

@@ -8,7 +8,7 @@ use App\Models\AvaliacaoPresencial;
 use App\Models\AvaliadorTurnoPresencial;
 use App\Models\Edicao;
 use App\Models\EstandeProjeto;
-use App\Models\ItemChecagemEstande;
+use App\Models\ItemConferencia;
 use App\Models\ListaFinal;
 use App\Models\Projeto;
 use App\Models\User;
@@ -550,11 +550,15 @@ class AvaliacaoPresencialFluxoService
      */
     private function catalogo(): array
     {
-        return ItemChecagemEstande::where('ativo', true)
-            ->orderBy('ordem')
-            ->orderBy('id')
+        // Os itens da checagem que são do projeto (a lista única, Sprint 181):
+        // o avaliador no estande não confere documento de cada pessoa, nem o
+        // que o orientador manda antes pelo portal — isso é da organização.
+        return ItemConferencia::naChecagem()
+            ->where('abrangencia', ItemConferencia::PROJETO)
+            ->where('receber_antes', false)
             ->get(['id', 'nome', 'descricao'])
-            ->map(fn (ItemChecagemEstande $i) => ['id' => $i->id, 'nome' => $i->nome, 'descricao' => $i->descricao])
+            ->map(fn (ItemConferencia $i) => ['id' => $i->id, 'nome' => $i->nome, 'descricao' => $i->descricao])
+            ->values()
             ->all();
     }
 

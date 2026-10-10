@@ -81,15 +81,6 @@ export const definirJanelaEvento = (eventoDe, eventoAte) =>
 export const definirItensCredenciamento = (itens) =>
     http.patch('/admin/credenciamento/itens', { itens }).then((r) => r.data.data);
 
-export const criarDocumentoCredenciamento = (payload) =>
-    http.post('/admin/credenciamento/documentos', payload).then((r) => r.data.data);
-
-export const atualizarDocumentoCredenciamento = (id, payload) =>
-    http.put(`/admin/credenciamento/documentos/${id}`, payload).then((r) => r.data.data);
-
-export const excluirDocumentoCredenciamento = (id) =>
-    http.delete(`/admin/credenciamento/documentos/${id}`).then((r) => r.data.data);
-
 // --- Fora do prazo (Sprint 161) e suporte (Sprint 162) -------------------------
 
 /** Marca (ou corrige) o credenciamento fora do prazo aprovado. Devolve a ficha. */

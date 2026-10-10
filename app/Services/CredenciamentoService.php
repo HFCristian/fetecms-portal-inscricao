@@ -9,8 +9,8 @@ use App\Enums\TipoSuporte;
 use App\Models\Credenciamento;
 use App\Models\CredenciamentoDocumento;
 use App\Models\CredenciamentoPessoa;
-use App\Models\DocumentoCredenciamento;
 use App\Models\Edicao;
+use App\Models\ItemConferencia;
 use App\Models\ListaFinal;
 use App\Models\Projeto;
 use App\Models\User;
@@ -256,6 +256,19 @@ class CredenciamentoService
                 'escola' => $projeto->instituicao?->nome,
             ],
             'pessoas' => $pessoas,
+            // Itens do projeto, e não de alguém (Sprint 182): conferidos uma vez,
+            // marcados com o próprio projeto no lugar da pessoa.
+            'itens_projeto' => array_map(fn (ItemConferencia $i) => [
+                'id' => $i->id,
+                'nome' => $i->nome,
+                'descricao' => $i->descricao,
+                'chave' => $i->chave,
+                'pessoa_tipo' => ItemConferencia::PROJETO,
+                'pessoa_id' => $projeto->id,
+                'situacao' => $marcado[$this->chave($i->id, ItemConferencia::PROJETO, $projeto->id)] ?? null,
+                'pre_marcado' => false,
+                'online' => [],
+            ], $catalogo[ItemConferencia::PROJETO]),
             'sinalizacoes' => app(SinalizacaoProjetoService::class)->de($projeto->id),
             // Fora do prazo é exceção aprovada pela organização: a conta
             // temporária do balcão vê o selo, mas não marca.
@@ -900,7 +913,7 @@ class CredenciamentoService
      * Uma pessoa da ficha, com os documentos do papel dela e o que já foi
      * marcado antes.
      *
-     * @param  array<string, list<DocumentoCredenciamento>>  $catalogo
+     * @param  array<string, list<ItemConferencia>>  $catalogo
      * @param  array<string, string>  $marcado
      * @param  array<string, CredenciamentoPessoa>  $estados
      * @return array<string, mixed>
@@ -931,7 +944,7 @@ class CredenciamentoService
                 'por_tipo' => $estado?->kit_retirado_por_tipo,
                 'por_id' => $estado?->kit_retirado_por_id,
             ],
-            'documentos' => array_map(function (DocumentoCredenciamento $d) use ($tipo, $id, $marcado, $termosImagem) {
+            'documentos' => array_map(function (ItemConferencia $d) use ($tipo, $id, $marcado, $termosImagem) {
                 $gravada = $marcado[$this->chave($d->id, $tipo->value, $id)] ?? null;
                 // Termo de uso de imagem enviado online (Sprint 175): o item já
                 // chega marcado, com o arquivo à mão. É sugestão, não trava — o
@@ -943,12 +956,16 @@ class CredenciamentoService
                 return [
                     'id' => $d->id,
                     'nome' => $d->nome,
+                    'descricao' => $d->descricao,
                     'chave' => $d->chave,
                     'situacao' => $preMarcado ? SituacaoDocumento::Presente->value : $gravada,
                     'pre_marcado' => $preMarcado,
                     'online' => $online,
                 ];
-            }, $catalogo[$tipo->value] ?? []),
+            }, array_values(array_filter(
+                $catalogo[ItemConferencia::PESSOA],
+                fn (ItemConferencia $i) => $i->valePara($tipo),
+            ))),
         ];
     }
 
@@ -992,23 +1009,19 @@ class CredenciamentoService
     }
 
     /**
-     * O catálogo de documentos por papel, numa consulta só.
+     * Os itens que o balcão confere, numa consulta só (Sprint 182): os de
+     * pessoa (cada um diz de que papéis) e os do projeto.
      *
-     * @return array<string, list<DocumentoCredenciamento>>
+     * @return array{pessoa: list<ItemConferencia>, projeto: list<ItemConferencia>}
      */
     private function catalogo(): array
     {
-        $porTipo = DocumentoCredenciamento::query()
-            ->where('ativo', true)
-            ->orderBy('ordem')
-            ->orderBy('id')
-            ->get()
-            ->groupBy(fn (DocumentoCredenciamento $d) => $d->tipo_pessoa->value);
+        $itens = ItemConferencia::noCredenciamento()->get();
 
-        return array_map(
-            fn (string $tipo) => $porTipo->get($tipo, collect())->all(),
-            array_combine(TipoPessoaCredenciamento::valores(), TipoPessoaCredenciamento::valores()),
-        );
+        return [
+            ItemConferencia::PESSOA => $itens->reject(fn (ItemConferencia $i) => $i->doProjeto())->values()->all(),
+            ItemConferencia::PROJETO => $itens->filter(fn (ItemConferencia $i) => $i->doProjeto())->values()->all(),
+        ];
     }
 
     /**
@@ -1024,7 +1037,7 @@ class CredenciamentoService
 
         return $credenciamento->documentos
             ->mapWithKeys(fn (CredenciamentoDocumento $d) => [
-                $this->chave($d->documento_credenciamento_id, $d->pessoa_tipo->value, $d->pessoa_id) => $d->situacao->value,
+                $this->chave((int) $d->item_id, (string) $d->pessoa_tipo, $d->pessoa_id) => $d->situacao->value,
             ])
             ->all();
     }
@@ -1220,32 +1233,33 @@ class CredenciamentoService
             ->where('presente', false)
             ->map(fn (CredenciamentoPessoa $p) => $p->pessoa_tipo->value.':'.$p->pessoa_id)
             ->all();
-        // `pluck` devolve o enum já convertido; o mapa guarda o valor cru.
-        $documentos = DocumentoCredenciamento::where('ativo', true)
-            ->pluck('tipo_pessoa', 'id')
-            ->map(fn ($tipo) => $tipo instanceof TipoPessoaCredenciamento ? $tipo->value : (string) $tipo);
+        $itens = ItemConferencia::noCredenciamento()->get()->keyBy('id');
+        // O item do projeto é marcado com o próprio projeto no lugar da pessoa.
+        $validos[ItemConferencia::PROJETO.':'.$projeto->id] = $projeto->titulo;
 
         foreach ($marcacoes as $marcacao) {
-            $documentoId = (int) ($marcacao['documento_id'] ?? 0);
+            $item = $itens->get((int) ($marcacao['documento_id'] ?? 0));
             $tipo = (string) ($marcacao['pessoa_tipo'] ?? '');
             $pessoaId = $marcacao['pessoa_id'] ?? null;
             $situacao = SituacaoDocumento::tryFrom((string) ($marcacao['situacao'] ?? ''));
 
             $chavePessoa = $tipo.':'.$pessoaId;
 
-            if ($situacao === null || ! isset($validos[$chavePessoa]) || in_array($chavePessoa, $ausentes, true)) {
+            if ($item === null || $situacao === null || ! isset($validos[$chavePessoa]) || in_array($chavePessoa, $ausentes, true)) {
                 continue;
             }
 
-            // O documento precisa ser do papel da pessoa marcada.
-            if (($documentos[$documentoId] ?? null) !== $tipo) {
+            // O item precisa ser do projeto, ou do papel da pessoa marcada.
+            $cabe = $item->doProjeto() ? $tipo === ItemConferencia::PROJETO : $item->valePara($tipo);
+
+            if (! $cabe) {
                 continue;
             }
 
             CredenciamentoDocumento::updateOrCreate(
                 [
                     'credenciamento_id' => $credenciamento->id,
-                    'documento_credenciamento_id' => $documentoId,
+                    'item_id' => $item->id,
                     'pessoa_tipo' => $tipo,
                     'pessoa_id' => $pessoaId,
                 ],

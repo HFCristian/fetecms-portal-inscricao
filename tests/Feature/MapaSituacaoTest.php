@@ -13,12 +13,12 @@ use App\Models\ChecagemEstande;
 use App\Models\Cidade;
 use App\Models\Credenciamento;
 use App\Models\CredenciamentoDocumento;
-use App\Models\DocumentoCredenciamento;
 use App\Models\Edicao;
 use App\Models\EscopoAdmin;
 use App\Models\Estado;
 use App\Models\EstandeProjeto;
 use App\Models\Instituicao;
+use App\Models\ItemConferencia;
 use App\Models\Projeto;
 use App\Models\ProjetoDocumento;
 use App\Models\TurnoApresentacao;
@@ -407,11 +407,11 @@ class MapaSituacaoTest extends TestCase
 
         // No balcão: o Beto mostrou o papel, o Caio foi dispensado.
         $this->credenciar($projeto);
-        $item = DocumentoCredenciamento::where('chave', DocumentoCredenciamento::CHAVE_TERMO_IMAGEM)->firstOrFail();
+        $item = ItemConferencia::where('chave', ItemConferencia::CHAVE_TERMO_IMAGEM)->firstOrFail();
         $credenciamento = Credenciamento::where('projeto_id', $projeto->id)->firstOrFail();
         foreach ([[$beto, 'presente'], [$caio, 'nao_necessario']] as [$aluno, $situacao]) {
             CredenciamentoDocumento::create([
-                'credenciamento_id' => $credenciamento->id, 'documento_credenciamento_id' => $item->id,
+                'credenciamento_id' => $credenciamento->id, 'item_id' => $item->id,
                 'pessoa_tipo' => 'aluno', 'pessoa_id' => $aluno->id, 'pessoa_nome' => $aluno->nome, 'situacao' => $situacao,
             ]);
         }
@@ -432,7 +432,7 @@ class MapaSituacaoTest extends TestCase
         $this->credenciar($projeto);
         CredenciamentoDocumento::create([
             'credenciamento_id' => Credenciamento::where('projeto_id', $projeto->id)->value('id'),
-            'documento_credenciamento_id' => DocumentoCredenciamento::where('chave', 'termo_uso_imagem')->value('id'),
+            'item_id' => ItemConferencia::where('chave', 'termo_uso_imagem')->value('id'),
             'pessoa_tipo' => 'aluno', 'pessoa_id' => $ana->id, 'pessoa_nome' => 'Ana', 'situacao' => 'ausente',
         ]);
 

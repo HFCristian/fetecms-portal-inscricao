@@ -5,11 +5,10 @@ namespace Tests\Feature;
 use App\Enums\Categoria;
 use App\Enums\SituacaoDocumento;
 use App\Enums\TipoDocumento;
-use App\Enums\TipoPessoaCredenciamento;
 use App\Models\Aluno;
 use App\Models\CredenciamentoDocumento;
-use App\Models\DocumentoCredenciamento;
 use App\Models\Edicao;
+use App\Models\ItemConferencia;
 use App\Models\ListaFinal;
 use App\Models\Projeto;
 use App\Models\ProjetoDocumento;
@@ -34,7 +33,7 @@ class CredenciamentoTermoImagemTest extends TestCase
 
     private Aluno $beto;
 
-    private DocumentoCredenciamento $termo;
+    private ItemConferencia $termo;
 
     protected function setUp(): void
     {
@@ -54,7 +53,7 @@ class CredenciamentoTermoImagemTest extends TestCase
         ListaFinal::create(['edicao_id' => $this->edicao->id, 'nome' => 'Oficial', 'vigente' => true, 'versao' => 1])
             ->projetos()->attach($this->projeto->id, ['manual' => false]);
 
-        $this->termo = DocumentoCredenciamento::where('chave', DocumentoCredenciamento::CHAVE_TERMO_IMAGEM)->firstOrFail();
+        $this->termo = ItemConferencia::where('chave', ItemConferencia::CHAVE_TERMO_IMAGEM)->firstOrFail();
         Sanctum::actingAs(User::factory()->admin()->create());
     }
 
@@ -82,9 +81,11 @@ class CredenciamentoTermoImagemTest extends TestCase
 
     public function test_o_item_do_sistema_existe_para_o_estudante(): void
     {
-        $this->assertSame(TipoPessoaCredenciamento::Aluno, $this->termo->tipo_pessoa);
+        $this->assertSame(['aluno'], $this->termo->papeis);
         $this->assertSame('Termo de uso de imagem', $this->termo->nome);
         $this->assertTrue($this->termo->ativo);
+        $this->assertTrue($this->termo->no_credenciamento);
+        $this->assertTrue($this->termo->receber_antes);
     }
 
     public function test_estudante_coberto_chega_marcado_e_o_outro_em_branco(): void
@@ -137,7 +138,7 @@ class CredenciamentoTermoImagemTest extends TestCase
 
         $this->assertSame(
             SituacaoDocumento::Presente,
-            CredenciamentoDocumento::where('documento_credenciamento_id', $this->termo->id)->firstOrFail()->situacao,
+            CredenciamentoDocumento::where('item_id', $this->termo->id)->firstOrFail()->situacao,
         );
     }
 
@@ -152,14 +153,14 @@ class CredenciamentoTermoImagemTest extends TestCase
 
     public function test_item_do_sistema_nao_pode_ser_excluido_mas_pode_ser_desativado(): void
     {
-        $this->deleteJson("/api/v1/admin/credenciamento/documentos/{$this->termo->id}")
+        $this->deleteJson("/api/v1/admin/itens-conferencia/{$this->termo->id}")
             ->assertStatus(422)
-            ->assertJsonValidationErrors('documento');
+            ->assertJsonValidationErrors('item');
 
-        $this->putJson("/api/v1/admin/credenciamento/documentos/{$this->termo->id}", ['ativo' => false])->assertOk();
+        $this->patchJson("/api/v1/admin/itens-conferencia/{$this->termo->id}", ['ativo' => false])->assertOk();
         $this->assertFalse($this->termo->fresh()->ativo);
 
-        $documentos = $this->getJson('/api/v1/admin/credenciamento')->assertOk()->json('data.documentos');
-        $this->assertSame('termo_uso_imagem', collect($documentos)->firstWhere('id', $this->termo->id)['chave']);
+        $itens = $this->getJson('/api/v1/admin/itens-conferencia')->assertOk()->json('data.itens');
+        $this->assertSame('termo_uso_imagem', collect($itens)->firstWhere('id', $this->termo->id)['chave']);
     }
 }

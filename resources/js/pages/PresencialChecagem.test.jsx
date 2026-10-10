@@ -94,6 +94,32 @@ describe('PresencialChecagem', () => {
         expect(await screen.findByText('Checagem do estande registrada.')).toBeInTheDocument();
     });
 
+    it('item de pessoa tem um marcador para cada pessoa da equipe (Sprint 182)', async () => {
+        getFichaEstande.mockResolvedValue({
+            ...FICHA,
+            itens_pessoa: [{
+                id: 8, nome: 'Crachá', descricao: null,
+                pessoas: [
+                    { tipo: 'aluno', tipo_label: 'Aluno', id: 11, nome: 'Ana', situacao: 'presente' },
+                    { tipo: 'aluno', tipo_label: 'Aluno', id: 12, nome: 'Beto', situacao: null },
+                ],
+            }],
+        });
+        registrarChecagem.mockResolvedValue({ data: FICHA, meta: { message: 'Checagem do estande registrada.' } });
+        render(<PresencialChecagem />);
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Conferir' }));
+        expect(await screen.findByLabelText('Crachá de Ana')).toHaveValue('presente');
+        fireEvent.change(screen.getByLabelText('Crachá de Beto'), { target: { value: 'ausente' } });
+        fireEvent.click(screen.getByRole('button', { name: /Registrar checagem/i }));
+
+        await waitFor(() => expect(registrarChecagem).toHaveBeenCalled());
+        expect(registrarChecagem.mock.calls[0][1].itens).toEqual(expect.arrayContaining([
+            { item_id: 8, pessoa_tipo: 'aluno', pessoa_id: 11, situacao: 'presente' },
+            { item_id: 8, pessoa_tipo: 'aluno', pessoa_id: 12, situacao: 'ausente' },
+        ]));
+    });
+
     it('a ficha mostra o termo do orientador com link para o PDF', async () => {
         getFichaEstande.mockResolvedValue({
             ...FICHA,
