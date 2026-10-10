@@ -101,6 +101,48 @@ function Rua({ rua }) {
     );
 }
 
+/**
+ * O termo de uso de imagem do projeto no estande (Sprint 176): quantos da
+ * equipe estão cobertos — pelo envio online ou pelo papel mostrado no balcão —,
+ * quem ainda falta e os arquivos, a um clique.
+ */
+function TermoImagemEstande({ linha }) {
+    if (!linha || linha.termo_imagem === undefined) return null;
+
+    if (linha.termo_imagem_total === 0) {
+        return <p className="text-xs text-on-surface-variant">Termo de imagem: projeto sem estudantes</p>;
+    }
+
+    const origem = [
+        linha.termo_imagem_online > 0 && `${linha.termo_imagem_online} online`,
+        linha.termo_imagem_balcao > 0 && `${linha.termo_imagem_balcao} no balcão`,
+    ].filter(Boolean).join(' · ');
+
+    return (
+        <div className="text-xs mt-1">
+            <p className={linha.termo_imagem === 'completo' ? 'text-secondary font-semibold' : 'text-on-surface-variant'}>
+                Termo de imagem: {linha.termo_imagem_label} · {linha.termo_imagem_cobertos} de {linha.termo_imagem_total}
+                {origem && ` (${origem})`}
+            </p>
+            {linha.termo_imagem_faltando?.length > 0 && (
+                <p className="text-on-surface-variant">Falta: {linha.termo_imagem_faltando.join(', ')}</p>
+            )}
+            {linha.termo_imagem_arquivos?.length > 0 && (
+                <p className="text-on-surface-variant">
+                    {linha.termo_imagem_arquivos.map((a, i) => (
+                        <span key={a.id}>
+                            {i > 0 && ', '}
+                            <a href={`/api/v1/documentos/${a.id}/preview`} target="_blank" rel="noreferrer" className="underline hover:text-primary">
+                                {a.nome_original}
+                            </a>
+                        </span>
+                    ))}
+                </p>
+            )}
+        </div>
+    );
+}
+
 export default function MapaPlanta() {
     const [dados, setDados] = useState(null);
     const [filtros, setFiltros] = useState(null);      // opções vindas do servidor
@@ -627,6 +669,7 @@ export default function MapaPlanta() {
                                             {situacaoDoSelecionado.avaliacoes} de {situacaoDoSelecionado.avaliacoes_maximo}{' '}
                                             avaliação(ões) · faltam {situacaoDoSelecionado.avaliacoes_faltantes}
                                         </p>
+                                        <TermoImagemEstande linha={situacaoDoSelecionado} />
                                     </div>
                                 )}
 
@@ -699,8 +742,9 @@ export default function MapaPlanta() {
                                     aria-label="Filtrar por"
                                     value={criterio}
                                     onChange={(e) => {
+                                        const escolhido = filtros?.criterios?.find((c) => c.value === e.target.value);
                                         setCriterio(e.target.value);
-                                        setValor(e.target.value.startsWith('avaliacoes_') ? '0' : 'sim');
+                                        setValor(escolhido?.padrao ?? (e.target.value.startsWith('avaliacoes_') ? '0' : 'sim'));
                                         setLista(null);
                                     }}
                                 >
@@ -712,7 +756,11 @@ export default function MapaPlanta() {
 
                             <Field label={tipoDoCriterio === 'numero' ? 'Quantidade' : 'Situação'}>
                                 <Select aria-label="Valor do filtro" value={valor} onChange={(e) => setValor(e.target.value)}>
-                                    {tipoDoCriterio === 'numero'
+                                    {tipoDoCriterio === 'opcoes'
+                                        ? (filtros?.criterios?.find((c) => c.value === criterio)?.valores ?? []).map((v) => (
+                                            <option key={v.value} value={v.value}>{v.label}</option>
+                                        ))
+                                        : tipoDoCriterio === 'numero'
                                         ? Array.from({ length: (filtros?.max_avaliacoes ?? 3) + 1 }, (_, n) => (
                                             <option key={n} value={String(n)}>{n}</option>
                                         ))
@@ -751,6 +799,12 @@ export default function MapaPlanta() {
                                                 <p className="text-xs text-on-surface-variant">
                                                     {l.situacao_label} · {l.avaliacoes} de {l.avaliacoes_maximo} avaliação(ões)
                                                 </p>
+                                                {l.termo_imagem_total > 0 && (
+                                                    <p className={`text-xs ${l.termo_imagem === 'completo' ? 'text-secondary' : 'text-on-surface-variant'}`}>
+                                                        Termo de imagem: {l.termo_imagem_label} · {l.termo_imagem_cobertos} de {l.termo_imagem_total}
+                                                        {l.termo_imagem_faltando?.length > 0 && ` · falta: ${l.termo_imagem_faltando.join(', ')}`}
+                                                    </p>
+                                                )}
                                                 <SinalizacoesProjeto sinalizacoes={l.sinalizacoes} compacto />
                                             </li>
                                         ))}

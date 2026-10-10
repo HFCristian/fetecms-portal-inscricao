@@ -229,12 +229,14 @@ class SemearCredenciamentoDemo extends Command
      */
     private function semearDocumentos(): int
     {
-        if (DocumentoCredenciamento::query()->exists()) {
+        // O item do sistema (termo de uso de imagem, Sprint 175) existe desde a
+        // migration e não conta: "zerado" é sem nenhum item da organização.
+        if (DocumentoCredenciamento::query()->whereNull('chave')->exists()) {
             return 0;
         }
 
         $padrao = [
-            [TipoPessoaCredenciamento::Aluno, ['Documento de identidade com foto', 'Autorização do responsável', 'Termo de imagem']],
+            [TipoPessoaCredenciamento::Aluno, ['Documento de identidade com foto', 'Autorização do responsável']],
             [TipoPessoaCredenciamento::Orientador, ['Documento de identidade com foto', 'Comprovante de vínculo com a escola']],
             [TipoPessoaCredenciamento::Coorientador, ['Documento de identidade com foto']],
         ];

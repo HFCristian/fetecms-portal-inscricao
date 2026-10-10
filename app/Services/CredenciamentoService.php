@@ -164,9 +164,20 @@ class CredenciamentoService
         // Fora do prazo e suporte aprovado (Sprints 161–162): uma consulta só
         // para a página inteira.
         $sinais = app(SinalizacaoProjetoService::class)->para($pagina->getCollection()->pluck('id'));
+        // Quem da equipe já mandou o termo de imagem online (Sprint 175): o
+        // balcão vê antes de abrir a ficha o que ainda vai conferir em papel.
+        $termos = app(TermosImagemService::class)->cobertura($pagina->getCollection()->pluck('id'));
 
         $pagina->getCollection()->transform(
-            fn (Projeto $p) => $this->linha($p) + ['sinalizacoes' => $sinais[$p->id] ?? null],
+            fn (Projeto $p) => $this->linha($p) + [
+                'sinalizacoes' => $sinais[$p->id] ?? null,
+                'termo_imagem' => isset($termos[$p->id]) ? [
+                    'situacao' => $termos[$p->id]['situacao'],
+                    'situacao_label' => $termos[$p->id]['situacao_label'],
+                    'cobertos' => $termos[$p->id]['cobertos'],
+                    'total' => $termos[$p->id]['total'],
+                ] : null,
+            ],
         );
 
         return $pagina;
@@ -208,11 +219,15 @@ class CredenciamentoService
         $marcado = $this->marcacoes($credenciamento);
         $estados = $this->estados($credenciamento);
         $catalogo = $this->catalogo();
+        $termosImagem = $this->termosImagemPorAluno($projeto);
 
         $pessoas = [];
 
         foreach ($projeto->alunos as $aluno) {
-            $pessoas[] = $this->pessoa(TipoPessoaCredenciamento::Aluno, $aluno->id, $aluno->nome, $catalogo, $marcado, $estados);
+            $pessoas[] = $this->pessoa(
+                TipoPessoaCredenciamento::Aluno, $aluno->id, $aluno->nome, $catalogo, $marcado, $estados,
+                $termosImagem[$aluno->id] ?? [],
+            );
         }
 
         if ($projeto->user !== null) {
@@ -897,6 +912,7 @@ class CredenciamentoService
         array $catalogo,
         array $marcado,
         array $estados = [],
+        array $termosImagem = [],
     ): array {
         $estado = $estados[$tipo->value.':'.$id] ?? null;
 
@@ -915,12 +931,48 @@ class CredenciamentoService
                 'por_tipo' => $estado?->kit_retirado_por_tipo,
                 'por_id' => $estado?->kit_retirado_por_id,
             ],
-            'documentos' => array_map(fn (DocumentoCredenciamento $d) => [
-                'id' => $d->id,
-                'nome' => $d->nome,
-                'situacao' => $marcado[$this->chave($d->id, $tipo->value, $id)] ?? null,
-            ], $catalogo[$tipo->value] ?? []),
+            'documentos' => array_map(function (DocumentoCredenciamento $d) use ($tipo, $id, $marcado, $termosImagem) {
+                $gravada = $marcado[$this->chave($d->id, $tipo->value, $id)] ?? null;
+                // Termo de uso de imagem enviado online (Sprint 175): o item já
+                // chega marcado, com o arquivo à mão. É sugestão, não trava — o
+                // atendente muda se o arquivo estiver errado, e o que ele gravar
+                // passa a valer.
+                $online = $d->ehTermoImagem() ? $termosImagem : [];
+                $preMarcado = $gravada === null && $online !== [];
+
+                return [
+                    'id' => $d->id,
+                    'nome' => $d->nome,
+                    'chave' => $d->chave,
+                    'situacao' => $preMarcado ? SituacaoDocumento::Presente->value : $gravada,
+                    'pre_marcado' => $preMarcado,
+                    'online' => $online,
+                ];
+            }, $catalogo[$tipo->value] ?? []),
         ];
+    }
+
+    /**
+     * Os arquivos do termo de uso de imagem que cobrem cada estudante do
+     * projeto, enviados online pelo orientador (Sprint 174).
+     *
+     * @return array<int, list<array{id:int, nome_original:string, enviado_em:?string}>>
+     */
+    private function termosImagemPorAluno(Projeto $projeto): array
+    {
+        $cobertura = app(TermosImagemService::class)->doProjeto($projeto->id);
+        $arquivos = collect($cobertura['arquivos'])->keyBy('id');
+
+        $porAluno = [];
+        foreach ($cobertura['alunos'] as $aluno) {
+            $porAluno[$aluno['id']] = array_values(array_map(fn (int $arquivo) => [
+                'id' => $arquivo,
+                'nome_original' => $arquivos[$arquivo]['nome_original'],
+                'enviado_em' => $arquivos[$arquivo]['enviado_em'],
+            ], $aluno['arquivos']));
+        }
+
+        return array_filter($porAluno);
     }
 
     /**

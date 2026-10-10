@@ -292,8 +292,10 @@ class CredenciamentoTest extends TestCase
         $this->assertCount(3, $pessoas);
         $this->assertSame(['aluno', 'orientador', 'coorientador'], array_column($pessoas, 'tipo'));
         $this->assertSame('Ana Aluna', $pessoas[0]['nome']);
-        // Cada papel vê só os documentos da sua lista.
-        $this->assertSame([$rg->id, $autorizacao->id], array_column($pessoas[0]['documentos'], 'id'));
+        // Cada papel vê só os documentos da sua lista — o estudante, também o
+        // termo de uso de imagem, que é item do sistema (Sprint 175).
+        $termo = DocumentoCredenciamento::where('chave', DocumentoCredenciamento::CHAVE_TERMO_IMAGEM)->firstOrFail();
+        $this->assertSame([$rg->id, $autorizacao->id, $termo->id], array_column($pessoas[0]['documentos'], 'id'));
         $this->assertCount(1, $pessoas[1]['documentos']);
         $this->assertNull($pessoas[0]['documentos'][0]['situacao']);
     }

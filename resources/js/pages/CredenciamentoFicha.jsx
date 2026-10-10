@@ -462,7 +462,32 @@ export default function CredenciamentoFicha() {
                             <ul className="space-y-2">
                                 {pessoa.documentos.map((doc) => (
                                     <li key={doc.id} className="flex flex-col sm:flex-row sm:items-center gap-2">
-                                        <span className="text-sm text-on-surface flex-1 min-w-0">{doc.nome}</span>
+                                        <span className="text-sm text-on-surface flex-1 min-w-0">
+                                            {doc.nome}
+                                            {/* Termo de imagem enviado online (Sprint 175): já vem
+                                                marcado; o atendente confere o arquivo e muda se precisar. */}
+                                            {doc.online?.length > 0 && (
+                                                <span className="block text-xs text-on-surface-variant mt-0.5">
+                                                    <span className="font-semibold text-secondary">Enviado online</span>
+                                                    {' · '}
+                                                    {doc.online.map((arquivo, i) => (
+                                                        <span key={arquivo.id}>
+                                                            {i > 0 && ', '}
+                                                            <a
+                                                                href={`/api/v1/documentos/${arquivo.id}/preview`}
+                                                                target="_blank"
+                                                                rel="noreferrer"
+                                                                className="underline hover:text-primary"
+                                                            >
+                                                                {arquivo.nome_original}
+                                                            </a>
+                                                        </span>
+                                                    ))}
+                                                    {marcacoes[chave(doc.id, pessoa.tipo, pessoa.id)] !== 'presente'
+                                                        && ' — confira antes de mudar a marcação.'}
+                                                </span>
+                                            )}
+                                        </span>
                                         <div className="flex flex-wrap gap-1" role="group" aria-label={`${doc.nome} de ${pessoa.nome}`}>
                                             {situacoes.map((s) => {
                                                 const ativo = marcacoes[chave(doc.id, pessoa.tipo, pessoa.id)] === s.value;

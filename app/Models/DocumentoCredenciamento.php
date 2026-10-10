@@ -10,10 +10,18 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * Um documento exigido no credenciamento, por papel (Parametrização →
  * Credenciamento). A lista é catálogo do portal: vale para todas as edições e
  * é o que o balcão confere pessoa a pessoa.
+ *
+ * Um item é **do sistema** (Sprint 175): o termo de uso de imagem do
+ * estudante, reconhecido pela `chave`, que a ficha já traz marcado quando o
+ * orientador o enviou online. Ele pode ser renomeado e desativado, mas não
+ * excluído — sem ele o envio antecipado não chegaria ao balcão.
  */
 class DocumentoCredenciamento extends Model
 {
     protected $table = 'documentos_credenciamento';
+
+    /** O termo de uso de imagem do estudante (Sprint 175). */
+    public const CHAVE_TERMO_IMAGEM = 'termo_uso_imagem';
 
     protected $fillable = ['tipo_pessoa', 'nome', 'ordem', 'ativo'];
 
@@ -24,6 +32,16 @@ class DocumentoCredenciamento extends Model
             'ordem' => 'integer',
             'ativo' => 'boolean',
         ];
+    }
+
+    public function doSistema(): bool
+    {
+        return $this->chave !== null;
+    }
+
+    public function ehTermoImagem(): bool
+    {
+        return $this->chave === self::CHAVE_TERMO_IMAGEM;
     }
 
     /** Conferências já feitas com este documento — o que impede excluí-lo. */

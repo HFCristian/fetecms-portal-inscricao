@@ -140,6 +140,14 @@ export default function CredenciamentoLista({ situacao = 'pendentes' }) {
                                     {/* Fora do prazo e suporte aprovado: o porquê de um
                                         projeto ainda ausente, sem lista à parte. */}
                                     <SinalizacoesProjeto sinalizacoes={p.sinalizacoes} compacto />
+                                    {/* Termo de uso de imagem enviado online (Sprint 175): o que o
+                                        balcão ainda vai conferir em papel. */}
+                                    {!credenciados && p.termo_imagem && p.termo_imagem.total > 0 && (
+                                        <p className={`text-xs mt-0.5 ${p.termo_imagem.situacao === 'completo' ? 'text-secondary font-semibold' : 'text-on-surface-variant'}`}>
+                                            Termo de imagem online: {p.termo_imagem.cobertos} de {p.termo_imagem.total}
+                                            {p.termo_imagem.situacao === 'completo' ? ' — equipe completa' : ' estudantes'}
+                                        </p>
+                                    )}
                                     {/* Atendimento em aberto: quem está com ele. */}
                                     {p.em_rascunho && (
                                         <p className="text-xs font-semibold text-primary-container mt-0.5">

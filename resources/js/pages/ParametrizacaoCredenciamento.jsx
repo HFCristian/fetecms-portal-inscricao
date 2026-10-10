@@ -218,18 +218,27 @@ export default function ParametrizacaoCredenciamento() {
                                             <li key={d.id} className="py-2 flex items-center gap-3">
                                                 <span className={`text-sm flex-1 min-w-0 ${d.ativo ? 'text-on-surface' : 'text-on-surface-variant line-through'}`}>
                                                     {d.nome}
+                                                    {/* Item do sistema (Sprint 175): chega marcado quando o termo foi enviado online. */}
+                                                    {d.chave && (
+                                                        <span className="ml-2 text-xs font-semibold px-2 py-0.5 rounded-full bg-secondary-container text-on-secondary-container no-underline inline-block">
+                                                            preenchido pelo envio online
+                                                        </span>
+                                                    )}
                                                 </span>
                                                 <Button type="button" variant="outline" onClick={() => alternarAtivo(d)}>
                                                     {d.ativo ? 'Desativar' : 'Reativar'}
                                                 </Button>
-                                                <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    className="text-error border-error/40 hover:bg-error-container/40"
-                                                    onClick={() => excluir(d)}
-                                                >
-                                                    <span className="material-symbols-outlined text-[20px]">delete</span>
-                                                </Button>
+                                                {!d.chave && (
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        className="text-error border-error/40 hover:bg-error-container/40"
+                                                        onClick={() => excluir(d)}
+                                                        aria-label={`Excluir ${d.nome}`}
+                                                    >
+                                                        <span className="material-symbols-outlined text-[20px]">delete</span>
+                                                    </Button>
+                                                )}
                                             </li>
                                         ))}
                                     </ul>

@@ -855,7 +855,42 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 172 | `demo:avaliacao-presencial`: `avaliador@fetecms.test` pronto para ensaiar avaliação e distribuição | ✅ sim | ✅ sim (Pedro, PR #105 → v1.29) | 0 |
 | 173 | Comunicação: grupo **Todos os finalistas** combinável (mala direta) + público de orientadores finalistas (avisos e feedback) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 174 | Orientador: **termo de uso de imagem** (vários arquivos, estudantes assinalados) + card "Agilize o processo!" | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 175 | Credenciamento: **termo de uso de imagem** já marcado por estudante quando enviado online (item do sistema no catálogo) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 176 | Mapa do Evento: termo de imagem no painel do estande, na lista filtrável e nas exportações (online + balcão) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprints 175–176 (mesma branch):** o termo de uso de imagem chegou ao balcão e ao mapa.
+> (a) **Sprint 175** — o **credenciamento** passou a conhecer o termo. O catálogo de documentos é
+> texto livre, então o portal ganhou um jeito de reconhecer um item: `documentos_credenciamento.chave`,
+> nulo nos itens da organização e `termo_uso_imagem` no **item do sistema** do estudante. A migration
+> **adota** um item de estudante que já fale de imagem ("Termo de imagem", "Autorização de uso de
+> imagem") em vez de criar um duplicado; sem nenhum, ele nasce no fim da lista. Na Parametrização ele
+> aparece com o selo "preenchido pelo envio online", pode ser desativado e **não pode ser excluído**
+> (sem ele o envio antecipado não chegaria ao balcão). Na **ficha**, o estudante coberto por arquivo
+> enviado online já chega com o item marcado **Presente**, com o nome do arquivo e o link para
+> abri-lo; o atendente confere e **pode mudar** — o que ele gravar passa a valer, inclusive um
+> "Ausente" para o arquivo ilegível, e o arquivo continua à mão. Quem não está coberto fica em
+> branco, para a autorização em papel. A lista do balcão mostra "Termo de imagem online: 2 de 3"
+> antes de abrir a ficha. O `demo:credenciamento` deixou de semear o "Termo de imagem" (o item do
+> sistema já existe) e o catálogo "vazio" passou a ignorá-lo.
+> (b) **Sprint 176** — o **Mapa do Evento** acompanha o termo, sem mudar a cor do estande (é outro
+> eixo: um estande checado pode estar sem termo). A cobertura de cada projeto soma o **envio online**
+> e o que o **balcão** registrou num credenciamento concluído — para a organização, quem mostrou o
+> papel está tão coberto quanto quem mandou pelo portal (`TermosImagemService::noEvento`). A marcação
+> do balcão vale mais que o envio: "presente" cobre, "não necessário" dispensa, "ausente" deixa
+> pendente. Os dois fatos têm hora, então o **seletor de dia** funciona igual ao resto do mapa. O
+> painel do estande diz "Parcial · 2 de 3 (1 online · 1 no balcão)", quem falta e os arquivos; a
+> lista filtrável ganhou o critério **Termo de uso de imagem** (incompleto, completo, parcial,
+> pendente — começa em "incompleto", a pergunta da véspera), e TXT, CSV e PDF ganharam a situação,
+> os cobertos e os nomes de quem falta. O critério passou a vir com os valores do servidor, em vez de
+> o front deduzir o tipo pelo nome.
+> Back **1342/1342**, front **660/660**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprints 175–176):** (1) mais uma migration (`documentos_credenciamento.chave`),
+> que **cria ou adota** o item "Termo de uso de imagem" do estudante no catálogo do credenciamento —
+> confira em Parametrização → Credenciamento depois do deploy, e renomeie se a organização usa outro
+> nome. (2) Se a organização já tinha um item de imagem cadastrado à mão, é ele que vira o item do
+> sistema (o primeiro ativo, pela ordem); os outros parecidos ficam como estavam.
+>
 > **Sprints 173–174 (branch `feat/termo-imagem-e-codigos-lista`, saída da `main` @ `dfef533`):**
 > (a) **Sprint 173** — o grupo **"Todos os finalistas"** (estudantes, orientadores e coorientadores
 > da lista final ativa) passou a existir nos três canais da Comunicação. Na **mala direta** a caixa

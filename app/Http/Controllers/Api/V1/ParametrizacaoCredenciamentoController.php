@@ -113,6 +113,14 @@ class ParametrizacaoCredenciamentoController extends Controller
      */
     public function excluirDocumento(Request $request, DocumentoCredenciamento $documento): JsonResponse
     {
+        // O termo de uso de imagem é o item que recebe o envio online do
+        // orientador (Sprint 175): sem ele, o envio antecipado não chega ao balcão.
+        if ($documento->doSistema()) {
+            throw ValidationException::withMessages([
+                'documento' => 'Este item é preenchido pelo envio online do termo e não pode ser excluído. Desative-o se não quiser conferi-lo.',
+            ]);
+        }
+
         if ($documento->credenciamentos()->exists()) {
             throw ValidationException::withMessages([
                 'documento' => 'Este documento já foi conferido em algum credenciamento. Desative-o em vez de excluir.',
@@ -134,7 +142,7 @@ class ParametrizacaoCredenciamentoController extends Controller
                 ->orderBy('tipo_pessoa')
                 ->orderBy('ordem')
                 ->orderBy('id')
-                ->get(['id', 'tipo_pessoa', 'nome', 'ordem', 'ativo']),
+                ->get(['id', 'tipo_pessoa', 'nome', 'chave', 'ordem', 'ativo']),
         ];
     }
 

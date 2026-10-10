@@ -91,6 +91,15 @@ const FILTROS = {
         { value: 'checagem', label: 'Checagem do estande', tipo: 'booleano' },
         { value: 'avaliacoes_realizadas', label: 'Avaliações realizadas', tipo: 'numero' },
         { value: 'avaliacoes_faltantes', label: 'Avaliações faltantes', tipo: 'numero' },
+        {
+            value: 'termo_imagem', label: 'Termo de uso de imagem', tipo: 'opcoes', padrao: 'incompleto',
+            valores: [
+                { value: 'incompleto', label: 'Incompleto (parcial ou pendente)' },
+                { value: 'completo', label: 'Completo' },
+                { value: 'parcial', label: 'Parcial' },
+                { value: 'nenhum', label: 'Pendente' },
+            ],
+        },
     ],
     max_avaliacoes: 3,
 };
@@ -108,6 +117,9 @@ const SITUACAO = {
             cor: '#9fd8ae', credenciado: true, credenciado_em: '02/10/2026 09:10',
             checado: true, checado_em: '02/10/2026 10:30',
             avaliacoes: 0, avaliacoes_faltantes: 3, avaliacoes_maximo: 3,
+            termo_imagem: 'parcial', termo_imagem_label: 'Parcial', termo_imagem_cobertos: 2,
+            termo_imagem_total: 3, termo_imagem_online: 1, termo_imagem_balcao: 1,
+            termo_imagem_faltando: ['Caio'], termo_imagem_arquivos: [{ id: 77, nome_original: 'ana.pdf' }],
         },
     },
     resumo: { livre: 0, aguardando: 1, credenciado: 0, checado: 1, avaliado: 0 },
@@ -266,6 +278,10 @@ describe('MapaPlanta', () => {
         expect(screen.getByText('Credenciado em 02/10/2026 09:10')).toBeInTheDocument();
         expect(screen.getByText('Estande checado em 02/10/2026 10:30')).toBeInTheDocument();
         expect(screen.getByText(/0 de 3 avaliação\(ões\) · faltam 3/)).toBeInTheDocument();
+        // Termo de uso de imagem: quantos, de onde veio e quem falta.
+        expect(screen.getByText('Termo de imagem: Parcial · 2 de 3 (1 online · 1 no balcão)')).toBeInTheDocument();
+        expect(screen.getByText('Falta: Caio')).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'ana.pdf' })).toHaveAttribute('href', '/api/v1/documentos/77/preview');
     });
 
     /** O dia é um corte no tempo: escolher um anterior volta o mapa. */
@@ -356,6 +372,31 @@ describe('MapaPlanta', () => {
         // De 0 a 3: o teto de avaliações presenciais por projeto.
         const opcoes = [...screen.getByLabelText('Valor do filtro').options].map((o) => o.value);
         expect(opcoes).toEqual(['0', '1', '2', '3']);
+    });
+
+    it('o critério do termo de imagem oferece as situações e começa em "incompleto"', async () => {
+        getListaSituacao.mockResolvedValue({
+            criterio: 'termo_imagem', criterio_label: 'Termo de uso de imagem', valor: 'incompleto',
+            valor_label: 'incompleto (parcial ou pendente)', turno_label: 'Turno A (matutino)', total: 1,
+            linhas: [{
+                projeto_id: 5, estande: '007', titulo: 'Horta na escola', situacao_label: 'Credenciado',
+                avaliacoes: 0, avaliacoes_maximo: 3, termo_imagem: 'parcial', termo_imagem_label: 'Parcial',
+                termo_imagem_cobertos: 1, termo_imagem_total: 2, termo_imagem_faltando: ['Zeca'],
+            }],
+        });
+        render(<MapaPlanta />);
+
+        fireEvent.change(await screen.findByLabelText('Filtrar por'), { target: { value: 'termo_imagem' } });
+
+        const valor = screen.getByLabelText('Valor do filtro');
+        expect(valor.value).toBe('incompleto');
+        expect([...valor.options].map((o) => o.value)).toEqual(['incompleto', 'completo', 'parcial', 'nenhum']);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Ver lista' }));
+        await waitFor(() => expect(getListaSituacao).toHaveBeenCalledWith(expect.objectContaining({
+            criterio: 'termo_imagem', valor: 'incompleto',
+        })));
+        expect(await screen.findByText('Termo de imagem: Parcial · 1 de 2 · falta: Zeca')).toBeInTheDocument();
     });
 
     it('exporta o mesmo recorte nos três formatos', async () => {
