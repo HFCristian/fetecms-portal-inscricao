@@ -586,7 +586,9 @@ export default function MapaPlanta() {
                         </div>
                     )}
 
-                    <div className={telaCheia ? 'relative flex-1 min-h-0' : ''}>
+                    {/* Com o dashboard aberto o desenho encolhe para o lado, em vez
+                        de ficar escondido embaixo do painel. */}
+                    <div className={telaCheia ? `relative flex-1 min-h-0 ${painelAberto ? 'pr-[23rem]' : ''}` : ''}>
                     <svg
                         role="img"
                         aria-label="Planta do evento com os estandes"
@@ -717,11 +719,17 @@ export default function MapaPlanta() {
                         })}
                     </svg>
 
+                    {telaCheia && painelAberto && (
+                        <PainelAvaliacoesMapa linhas={linhasDoTurno} maximo={maxAvaliacoes} onFechar={() => setPainelAberto(false)} />
+                    )}
+                    </div>
+
+                    {/* Canto inferior esquerdo: o que o mapa está mostrando
+                        (Sprint 199), com a legenda e os números. Numa faixa
+                        própria, abaixo do desenho — por cima, cobriria estandes. */}
                     {telaCheia && (
-                        <>
-                            {/* Canto inferior esquerdo: o que o mapa está mostrando
-                                (Sprint 199), com a legenda e os números. */}
-                            <div className="absolute left-0 bottom-0 bg-surface-container-lowest/95 backdrop-blur rounded-xl fetec-card-shadow p-3 max-w-[22rem]">
+                        <div className="mt-2 flex">
+                            <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-3 max-w-[28rem]">
                                 <div className="flex flex-wrap gap-1 mb-2" role="group" aria-label="Visualização do mapa">
                                     {ESCOPOS.map((o) => (
                                         <button
@@ -749,13 +757,8 @@ export default function MapaPlanta() {
                                     ))}
                                 </ul>
                             </div>
-
-                            {painelAberto && (
-                                <PainelAvaliacoesMapa linhas={linhasDoTurno} maximo={maxAvaliacoes} onFechar={() => setPainelAberto(false)} />
-                            )}
-                        </>
+                        </div>
                     )}
-                    </div>
 
                     <div className={`flex flex-wrap gap-4 mt-3 text-xs text-on-surface-variant ${telaCheia ? 'hidden' : ''}`}>
                         {modo === 'situacao' ? (
