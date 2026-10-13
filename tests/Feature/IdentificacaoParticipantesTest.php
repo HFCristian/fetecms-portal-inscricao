@@ -177,6 +177,39 @@ class IdentificacaoParticipantesTest extends TestCase
         }
     }
 
+    /**
+     * Sprint 189 — a lista sai em ordem alfabética de nome, misturando papéis e
+     * projetos: a folha de etiquetas é procurada pela pessoa.
+     */
+    public function test_participantes_saem_em_ordem_alfabetica_de_nome(): void
+    {
+        $this->admin();
+        $lista = $this->listaCom($this->finalista());
+
+        $nomes = array_column(
+            $this->getJson("/api/v1/admin/avaliacao/listas-finais/{$lista->id}/identificacao")->json('data.participantes'),
+            'nome',
+        );
+
+        $this->assertSame(['Ana Paula', 'Caio Silva', 'Marta Orientadora', 'Zuleica Nunes'], $nomes);
+    }
+
+    public function test_acento_e_caixa_nao_mudam_a_ordem_alfabetica(): void
+    {
+        $this->admin();
+        $projeto = $this->finalista();
+        Aluno::factory()->create(['projeto_id' => $projeto->id, 'nome' => 'Ângela Souza', 'cpf' => '44455566677']);
+        Aluno::factory()->create(['projeto_id' => $projeto->id, 'nome' => 'beatriz Lima', 'cpf' => '55566677788']);
+        $lista = $this->listaCom($projeto);
+
+        $nomes = array_column(
+            $this->getJson("/api/v1/admin/avaliacao/listas-finais/{$lista->id}/identificacao")->json('data.participantes'),
+            'nome',
+        );
+
+        $this->assertSame(['Ana Paula', 'Ângela Souza', 'beatriz Lima', 'Caio Silva'], array_slice($nomes, 0, 4));
+    }
+
     // --- Os arquivos ------------------------------------------------------
 
     public function test_serve_o_qr_e_o_codigo_de_barras_em_svg(): void
@@ -269,7 +302,7 @@ class IdentificacaoParticipantesTest extends TestCase
      * Relato de produção: o PDF de etiquetas dava erro. O HTML do Dompdf não
      * pintava o SVG embutido e estourava a memória a partir de ~200 pessoas; a
      * lista real tem perto de 1.800. Desenhada direto na página, a lista inteira
-     * cabe com folga: 10 etiquetas por folha e memória quase constante.
+     * cabe com folga: 16 etiquetas por folha e memória quase constante.
      */
     public function test_pdf_de_etiquetas_aguenta_a_lista_inteira(): void
     {
@@ -288,7 +321,8 @@ class IdentificacaoParticipantesTest extends TestCase
         $pdf = EtiquetasPdf::gerar('Identificação', 'teste', $etiquetas);
 
         $this->assertStringStartsWith('%PDF', $pdf);
-        $this->assertSame(120, preg_match_all('#/Type /Page\b#', $pdf));
+        // 16 por folha desde a Sprint 189.
+        $this->assertSame(75, preg_match_all('#/Type /Page\b#', $pdf));
         $this->assertLessThan(64 * 1024 * 1024, memory_get_peak_usage() - $antes);
     }
 

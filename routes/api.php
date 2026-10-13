@@ -28,6 +28,7 @@ use App\Http\Controllers\Api\V1\ChatAdminController;
 use App\Http\Controllers\Api\V1\ChatController;
 use App\Http\Controllers\Api\V1\CodigosFinalistasController;
 use App\Http\Controllers\Api\V1\ComiteDesignacaoController;
+use App\Http\Controllers\Api\V1\ComitePremiacaoController;
 use App\Http\Controllers\Api\V1\ComiteTransporteController;
 use App\Http\Controllers\Api\V1\ContaTemporariaController;
 use App\Http\Controllers\Api\V1\CoorientadorController;
@@ -549,6 +550,12 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 // Designação do comitê: só para os avaliadores da comissão especial.
                 Route::get('/designacoes/opcoes', [ComiteDesignacaoController::class, 'opcoes']);
                 Route::post('/designacoes', [ComiteDesignacaoController::class, 'designar']);
+                // Premiação (Sprint 190): as credenciais e prêmios da feira nos
+                // projetos premiados — a mesma base da Avaliação presencial.
+                Route::get('/premiacao', [ComitePremiacaoController::class, 'index']);
+                Route::get('/premiacao/arquivo', [ComitePremiacaoController::class, 'arquivo']);
+                Route::post('/premiacao/{credencial}/projetos', [ComitePremiacaoController::class, 'atribuir']);
+                Route::delete('/premiacao/{credencial}/projetos/{projeto}', [ComitePremiacaoController::class, 'retirar']);
             });
 
             // --- Aba "Mapa do Evento": a ocupação do ginásio ---

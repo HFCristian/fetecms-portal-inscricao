@@ -64,7 +64,7 @@ enum AbaAdmin: string
             self::Credenciamento => 'Credenciar os finalistas no dia do evento e conferir os documentos.',
             self::Cerimonial => 'Check-in da cerimônia de premiação e o painel de quem já chegou.',
             self::Almoxarifado => 'Guardar e devolver o material dos finalistas durante o evento.',
-            self::Comite => 'Transporte do comitê e o mapa de quem está a caminho.',
+            self::Comite => 'Transporte do comitê, mapa de quem está a caminho, designações e premiação.',
             self::AvaliacaoPresencial => 'Checagem dos estandes, voluntários e as credenciais e prêmios da feira.',
             self::Mapa => 'Turnos de apresentação, estandes dos projetos e a planta do evento.',
             self::Comunicacao => 'Mala direta, avisos na tela e modelos de e-mail.',

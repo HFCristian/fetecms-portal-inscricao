@@ -40,11 +40,13 @@ use Illuminate\Validation\ValidationException;
 class CredenciaisService
 {
     /**
-     * As credenciais da edição, com quem já as recebeu.
+     * As credenciais da edição, com quem já as recebeu. `$soAtivas` é o recorte
+     * do comitê (Sprint 190), que atribui mas não cadastra: a desativada não
+     * pode mais ser dada, então só atrapalharia a tela dele.
      *
      * @return list<array<string, mixed>>
      */
-    public function listar(): array
+    public function listar(bool $soAtivas = false): array
     {
         $edicao = Edicao::atual();
 
@@ -53,6 +55,7 @@ class CredenciaisService
         }
 
         return Credencial::where('edicao_id', $edicao->id)
+            ->when($soAtivas, fn ($q) => $q->where('ativa', true))
             ->with(['projetos:id,titulo,categoria,area_id', 'projetos.area:id,nome'])
             ->orderBy('ordem')
             ->orderBy('nome')

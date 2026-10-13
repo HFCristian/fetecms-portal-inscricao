@@ -59,6 +59,7 @@ import ComiteHome from './pages/ComiteHome.jsx';
 import ComiteTransporte from './pages/ComiteTransporte.jsx';
 import ComiteMapa from './pages/ComiteMapa.jsx';
 import ComiteDesignacoes from './pages/ComiteDesignacoes.jsx';
+import ComitePremiacao from './pages/ComitePremiacao.jsx';
 import MapaEventoHome from './pages/MapaEventoHome.jsx';
 import MapaTurnos from './pages/MapaTurnos.jsx';
 import MapaEstandes from './pages/MapaEstandes.jsx';
@@ -250,6 +251,7 @@ export default function Root() {
                             <Route path="/admin/comite/transporte" element={<ComiteTransporte />} />
                             <Route path="/admin/comite/designacoes" element={<ComiteDesignacoes />} />
                             <Route path="/admin/comite/mapa" element={<ComiteMapa />} />
+                            <Route path="/admin/comite/premiacao" element={<ComitePremiacao />} />
                             <Route path="/admin/comunicacao" element={<AdminComunicacao />} />
                             <Route path="/admin/comunicacao/avisos" element={<AdminAvisos />} />
                             <Route path="/admin/comunicacao/modelos" element={<AdminModelosEmail />} />

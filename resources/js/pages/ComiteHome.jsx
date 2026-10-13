@@ -19,7 +19,7 @@ function CardSecao({ to, icon, titulo, descricao }) {
     );
 }
 
-/** Aba Comitê especial: o transporte de quem está a caminho e o mapa geral. */
+/** Aba Comitê especial: o transporte, as designações, o mapa geral e a premiação. */
 export default function ComiteHome() {
     return (
         <AppShell>
@@ -41,6 +41,12 @@ export default function ComiteHome() {
                     icon="person_add"
                     titulo="Designações do comitê"
                     descricao="Projetos para os avaliadores da comissão especial — e só para eles."
+                />
+                <CardSecao
+                    to="/admin/comite/premiacao"
+                    icon="workspace_premium"
+                    titulo="Premiação"
+                    descricao="As credenciais e prêmios da feira nos projetos premiados — e a lista de premiação para baixar."
                 />
                 <CardSecao
                     to="/admin/comite/mapa"

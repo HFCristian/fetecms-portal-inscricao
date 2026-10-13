@@ -515,7 +515,9 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     conferido ou com arquivo não é excluído — desative-o. Os dois termos do finalista são **itens do
     sistema** (`chave`): renomeiam-se e ligam/desligam, mas não mudam de abrangência nem se excluem.
   - **Comitê especial** (`/admin/comite`): o deslocamento das equipes durante a feira, em duas
-    seções. **Transporte de comitê** lista quem está com o localizador ligado e o que cada um
+    seções (mais as **Designações** do comitê e a **Premiação** — as credenciais e prêmios nos
+    projetos premiados, na mesma base de Avaliação presencial → Credenciais e Prêmios, com a lista de
+    premiação em TXT; `ComitePremiacaoController`). **Transporte de comitê** lista quem está com o localizador ligado e o que cada um
     configurou, e traz o botão **Habilitar localização** — um assistente de **seis passos**:
     quantas pessoas estão junto → os **nomes** (opcionais, com a área de cada uma) → o **meio de
     transporte** → o **ponto de partida** → o **destino** (autocomplete do Google Places) e por
@@ -885,7 +887,38 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 186 | As mesmas variáveis no modelo "Código do projeto" e nos avisos (resolvidas para quem lê) | ✅ sim | ✅ sim (Pedro, PR #107 → v1.30) | 0 |
 | 187 | Lista final: baixar os **projetos de pesquisa** num ZIP (todos ou por seleção individual, de categoria ou de área) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 188 | Etiquetas de identificação: **turno e estande**, papel ao lado do nome, sem projeto nem escola | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 189 | Identificação dos participantes em **ordem alfabética** de nome + **16 etiquetas por folha** (margem ~5 mm, cabeçalho de uma linha) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 190 | Comitê especial → **Premiação**: credenciais e prêmios nos projetos premiados (mesma base) + lista de premiação em TXT | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprints 189–190 (mesma branch):**
+> (a) **Sprint 189** — a identificação dos participantes passou a sair em **ordem alfabética de
+> nome** (sem acento e sem caixa; empate pelo código), na tela e no PDF — a folha de etiquetas é
+> procurada pela pessoa, não pelo projeto. O ZIP de SVGs continua com uma pasta por equipe. A folha
+> aproveita mais a página: margem de ~5 mm, cabeçalho numa linha só e **2 colunas × 8 linhas = 16
+> etiquetas** (eram 10). Três colunas foram descartadas: o código de barras ficaria fino demais para
+> o leitor USB. A folga entre o QR e as barras subiu para 10 pt (zona de silêncio do leitor).
+> (b) **Sprint 190** — o **Comitê especial** ganhou a seção **Premiação** (`/admin/comite/premiacao`,
+> `ComitePremiacaoController`): quem tem o escopo do comitê anexa e retira as credenciais e prêmios
+> nos projetos premiados e baixa a **lista de premiação em TXT** — o mesmo arquivo, byte a byte, de
+> Avaliação presencial → Credenciais e Prêmios. A base é **a mesma** (`credencial_projeto`): o que o
+> comitê anexa vale no cerimonial e na lista da cerimônia, porque duas listas paralelas acabariam
+> discordando no palco. O comitê **não cadastra**: só aparecem as credenciais **ativas**
+> (`CredenciaisService::listar(soAtivas: true)`), e as regras de sempre continuam no servidor (só
+> finalista, teto de vagas, credencial desativada recusada). A tela traz também a visão inversa —
+> **Projetos premiados**, cada um com o que recebeu. O cartão da credencial virou componente
+> compartilhado (`CartaoCredencial.jsx`), com os botões de cadastro opcionais.
+> Back **1407/1407**, front **690/690**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprints 187–190):** (1) `git push origin feat/premiacao-comite-e-etiquetas`
+> + PR para a `main` (o ambiente do Claude não tem credencial do GitHub). Esta release **não tem
+> migration, variável nova de `.env` nem dependência nova**. (2) **Etiquetas**: o layout mudou de
+> novo (16 por folha, QR à esquerda) — imprima uma folha e teste no leitor USB e na câmera antes da
+> impressão grande. Turno e estande só aparecem depois de gerados em Mapa do Evento. (3) **Premiação
+> no comitê**: quem tem só o escopo do comitê passa a premiar projetos. O cadastro das credenciais
+> continua em Avaliação presencial. (4) **ZIP dos projetos de pesquisa**: com a lista inteira ele
+> pode passar de 1 GB; o download vai pelo navegador (blob), então vale testar com a lista real e,
+> se o proxy cortar por tempo, baixar por categoria.
+>
 > **Sprints 187–188 (branch `feat/premiacao-comite-e-etiquetas`, saída da `main` @ `6af22e2`):**
 > (a) **Sprint 187** — o detalhe de uma lista (preliminar ou final) ganhou a seção **Projetos de
 > pesquisa**: o arquivo do projeto de pesquisa (`TipoDocumento::PlanoPesquisa`) de cada projeto da

@@ -55,8 +55,9 @@ export default function IdentificacaoParticipantes({ listaId }) {
                         Identificação dos participantes
                     </h2>
                     <p className="text-sm text-on-surface-variant">
-                        Um QR Code e um código de barras por pessoa da lista, para identificar quem
-                        chega ao evento. {dados ? `${dados.total} participante(s)` : 'Carregando…'}
+                        Um QR Code e um código de barras por pessoa da lista, em ordem alfabética de
+                        nome, para identificar quem chega ao evento. As etiquetas saem 16 por folha A4,
+                        com o papel, o turno e o estande. {dados ? `${dados.total} participante(s)` : 'Carregando…'}
                         {dados && (
                             <> · {porPapel.A ?? 0} aluno(s), {porPapel.O ?? 0} orientador(es), {porPapel.C ?? 0} coorientador(es)</>
                         )}

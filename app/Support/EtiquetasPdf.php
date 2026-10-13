@@ -24,8 +24,12 @@ use Picqer\Barcode\Types\TypeCode128;
  * Vetor puro: imprime nítido em qualquer impressora, sem depender da extensão
  * GD, e 2.000 etiquetas saem em poucos segundos.
  *
- * Layout: A4 retrato, **2 colunas × 5 linhas** (10 por folha), com moldura
- * tracejada para o recorte.
+ * Layout: A4 retrato, **2 colunas × 8 linhas** (16 por folha), com moldura
+ * tracejada para o recorte. A margem é de ~5 mm — o que a maioria das
+ * impressoras ainda imprime — e o cabeçalho é uma linha só (Sprint 189): a
+ * folha é para recortar, e cada centímetro de título era uma etiqueta a menos.
+ * Três colunas não cabem: o código de barras ficaria fino demais para o leitor
+ * USB do balcão.
  */
 final class EtiquetasPdf
 {
@@ -33,13 +37,13 @@ final class EtiquetasPdf
 
     private const PAGINA_A = 841.89;
 
-    private const MARGEM = 28.0;
+    private const MARGEM = 14.0;
 
     private const COLUNAS = 2;
 
-    private const LINHAS = 5;
+    private const LINHAS = 8;
 
-    private const ESPACO = 8.0;
+    private const ESPACO = 4.0;
 
     private Cpdf $pdf;
 
@@ -65,7 +69,7 @@ final class EtiquetasPdf
     private function desenhar(string $titulo, string $subtitulo, array $etiquetas): string
     {
         $largura = (self::PAGINA_L - 2 * self::MARGEM - (self::COLUNAS - 1) * self::ESPACO) / self::COLUNAS;
-        $topo = self::PAGINA_A - self::MARGEM - 34;
+        $topo = self::PAGINA_A - self::MARGEM - 14;
         $altura = ($topo - self::MARGEM - (self::LINHAS - 1) * self::ESPACO) / self::LINHAS;
         $porPagina = self::COLUNAS * self::LINHAS;
 
@@ -79,7 +83,7 @@ final class EtiquetasPdf
             $this->cabecalho($titulo, $subtitulo, $p + 1, $paginas);
 
             if ($etiquetas === []) {
-                $this->texto('Helvetica', 10, self::MARGEM, $topo - 20, 'A lista final não tem participantes.', [0.29, 0.27, 0.31]);
+                $this->texto('Helvetica', 10, self::MARGEM, $topo - 14, 'A lista final não tem participantes.', [0.29, 0.27, 0.31]);
             }
 
             foreach (array_slice($etiquetas, $p * $porPagina, $porPagina) as $i => $etiqueta) {
@@ -93,15 +97,14 @@ final class EtiquetasPdf
         return (string) $this->pdf->output();
     }
 
+    /** O cabeçalho numa linha só: título, de que lista é e a página. */
     private function cabecalho(string $titulo, string $subtitulo, int $pagina, int $total): void
     {
-        $y = self::PAGINA_A - self::MARGEM - 14;
-        $this->texto('Helvetica-Bold', 14, self::MARGEM, $y, $titulo, [0.26, 0.08, 0.48]);
-        $this->texto('Helvetica', 8, self::MARGEM, $y - 13, $subtitulo." · página {$pagina} de {$total}", [0.29, 0.27, 0.31]);
-
-        $this->pdf->setStrokeColor([0.26, 0.08, 0.48]);
-        $this->pdf->setLineStyle(1.5);
-        $this->pdf->line(self::MARGEM, $y - 19, self::PAGINA_L - self::MARGEM, $y - 19);
+        $y = self::PAGINA_A - self::MARGEM - 8;
+        $this->texto('Helvetica-Bold', 9, self::MARGEM, $y, $titulo, [0.26, 0.08, 0.48]);
+        $this->fonte('Helvetica-Bold');
+        $x = self::MARGEM + $this->largura(9, $titulo) + 6;
+        $this->texto('Helvetica', 7, $x, $y, $subtitulo." · página {$pagina} de {$total}", [0.29, 0.27, 0.31]);
     }
 
     /**
@@ -128,10 +131,12 @@ final class EtiquetasPdf
 
         // O QR na altura toda: é o que a câmera do balcão lê, e quanto maior,
         // de mais longe ela lê.
-        $ladoQr = min(84.0, $a - 2 * $pad, ($l - 2 * $pad) * 0.32);
+        $ladoQr = min(76.0, $a - 2 * $pad, ($l - 2 * $pad) * 0.3);
         $this->qr($codigo, $x + $pad, $y + ($a - $ladoQr) / 2, $ladoQr);
 
-        $tx = $x + $pad + $ladoQr + 8;
+        // Folga de 10 pt: a zona de silêncio que o leitor precisa antes da
+        // primeira barra.
+        $tx = $x + $pad + $ladoQr + 10;
         $tl = $x + $l - $pad - $tx;
         $cursor = $y + $a - $pad - 11;
 

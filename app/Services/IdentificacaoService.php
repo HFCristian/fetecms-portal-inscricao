@@ -130,7 +130,8 @@ class IdentificacaoService
     }
 
     /**
-     * Todas as pessoas da lista final, com projeto, papel e código.
+     * Todas as pessoas da lista final, com projeto, papel e código, em ordem
+     * alfabética de nome.
      *
      * @return Collection<int, array<string, mixed>>
      */
@@ -201,7 +202,14 @@ class IdentificacaoService
             }
         }
 
-        return $linhas;
+        // Em ordem alfabética de nome (Sprint 189): a folha de etiquetas é
+        // procurada pela pessoa, não pelo projeto — o ZIP é que separa por equipe.
+        return $linhas
+            ->sortBy([
+                fn (array $a, array $b) => strcmp(Str::lower(Str::ascii($a['nome'])), Str::lower(Str::ascii($b['nome']))),
+                fn (array $a, array $b) => strcmp($a['codigo'], $b['codigo']),
+            ])
+            ->values();
     }
 
     /** @return array<string, mixed> */
