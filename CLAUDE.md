@@ -338,7 +338,10 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     + coorientador). Dentro de cada lista o admin **inclui e retira projetos**
     com **justificativa obrigatória** — cada alteração **sobe a versão**, gera um TXT novo (o
     arquivo sai sempre da composição atual, com a numeração refeita) e entra em **Registros → Lista
-    final**. `listas_finais` + `lista_final_projetos`, `ListaFinalService`.
+    final**. `listas_finais` + `lista_final_projetos`, `ListaFinalService`. O detalhe da lista baixa
+    ainda os **projetos de pesquisa** num ZIP — todos, ou por seleção individual, de categoria ou de
+    área —, em pastas categoria → área e com o código do projeto no nome
+    (`ExportacaoProjetosPesquisaService`).
   - **Avaliação Online → Ranking dos projetos → baixar**: o ranking sai em **CSV, Excel (.xlsx),
     PDF e TXT**, sempre no **recorte dos filtros da tela** (área e categoria) — quatro formatos
     porque são quatro usos: planilha para conferir, papel para a reunião, texto para colar num
@@ -866,21 +869,44 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 170 | **Distribuição presencial** por turno: só credenciado + checado, rodadas iguais, prazo = fim do turno + 30 min | ✅ sim | ✅ sim (Pedro, PR #105 → v1.29) | 0 |
 | 171 | Avaliador: aba **Avaliação presencial** (só no turno ativado), wizard da rubrica + checklist dos itens da checagem | ✅ sim | ✅ sim (Pedro, PR #105 → v1.29) | 0 |
 | 172 | `demo:avaliacao-presencial`: `avaliador@fetecms.test` pronto para ensaiar avaliação e distribuição | ✅ sim | ✅ sim (Pedro, PR #105 → v1.29) | 0 |
-| 173 | Comunicação: grupo **Todos os finalistas** combinável (mala direta) + público de orientadores finalistas (avisos e feedback) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 174 | Orientador: **termo de uso de imagem** (vários arquivos, estudantes assinalados) + card "Agilize o processo!" | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 175 | Credenciamento: **termo de uso de imagem** já marcado por estudante quando enviado online (item do sistema no catálogo) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 176 | Mapa do Evento: termo de imagem no painel do estande, na lista filtrável e nas exportações (online + balcão) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 177 | Listas: código **em branco, fora do padrão ou da sequência** com aviso; **repetido** barra a geração; editar reordena | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 178 | Listas: **arrastar** o projeto dentro do grupo renumera os códigos na hora (sem modo "Reordenar") | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 179 | Listas: montar preliminar **ou** final pela união de listas geradas — **preliminares e finais** —, herdando os códigos fixados | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 180 | Listas: **apelido** e **descrição** na criação, nos cartões e editáveis no detalhe (sem justificativa) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 181 | Parametrização: **lista única** de itens do credenciamento e da checagem (de pessoa ou do projeto, onde conferir, receber antes) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 182 | Credenciamento e checagem lendo a lista única: bloco "Do projeto" no balcão e marcador por pessoa na checagem | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 183 | Aba Documentos genérica: cada item "receber antes" da lista tem a sua seção (um ou mais arquivos, pessoas marcadas) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 184 | O que chegou antes já vem marcado no balcão e na checagem, para qualquer item (o bloco fixo do termo saiu) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 185 | Mala direta: variáveis `{{codigo_projeto}}` e `{{turno}}`, só com destino 100% finalista (aviso na tela e recusa no servidor) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 186 | As mesmas variáveis no modelo "Código do projeto" e nos avisos (resolvidas para quem lê) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 173 | Comunicação: grupo **Todos os finalistas** combinável (mala direta) + público de orientadores finalistas (avisos e feedback) | ✅ sim | ✅ sim (Pedro, PR #107 → v1.30) | 0 |
+| 174 | Orientador: **termo de uso de imagem** (vários arquivos, estudantes assinalados) + card "Agilize o processo!" | ✅ sim | ✅ sim (Pedro, PR #107 → v1.30) | 0 |
+| 175 | Credenciamento: **termo de uso de imagem** já marcado por estudante quando enviado online (item do sistema no catálogo) | ✅ sim | ✅ sim (Pedro, PR #107 → v1.30) | 0 |
+| 176 | Mapa do Evento: termo de imagem no painel do estande, na lista filtrável e nas exportações (online + balcão) | ✅ sim | ✅ sim (Pedro, PR #107 → v1.30) | 0 |
+| 177 | Listas: código **em branco, fora do padrão ou da sequência** com aviso; **repetido** barra a geração; editar reordena | ✅ sim | ✅ sim (Pedro, PR #107 → v1.30) | 0 |
+| 178 | Listas: **arrastar** o projeto dentro do grupo renumera os códigos na hora (sem modo "Reordenar") | ✅ sim | ✅ sim (Pedro, PR #107 → v1.30) | 0 |
+| 179 | Listas: montar preliminar **ou** final pela união de listas geradas — **preliminares e finais** —, herdando os códigos fixados | ✅ sim | ✅ sim (Pedro, PR #107 → v1.30) | 0 |
+| 180 | Listas: **apelido** e **descrição** na criação, nos cartões e editáveis no detalhe (sem justificativa) | ✅ sim | ✅ sim (Pedro, PR #107 → v1.30) | 0 |
+| 181 | Parametrização: **lista única** de itens do credenciamento e da checagem (de pessoa ou do projeto, onde conferir, receber antes) | ✅ sim | ✅ sim (Pedro, PR #107 → v1.30) | 0 |
+| 182 | Credenciamento e checagem lendo a lista única: bloco "Do projeto" no balcão e marcador por pessoa na checagem | ✅ sim | ✅ sim (Pedro, PR #107 → v1.30) | 0 |
+| 183 | Aba Documentos genérica: cada item "receber antes" da lista tem a sua seção (um ou mais arquivos, pessoas marcadas) | ✅ sim | ✅ sim (Pedro, PR #107 → v1.30) | 0 |
+| 184 | O que chegou antes já vem marcado no balcão e na checagem, para qualquer item (o bloco fixo do termo saiu) | ✅ sim | ✅ sim (Pedro, PR #107 → v1.30) | 0 |
+| 185 | Mala direta: variáveis `{{codigo_projeto}}` e `{{turno}}`, só com destino 100% finalista (aviso na tela e recusa no servidor) | ✅ sim | ✅ sim (Pedro, PR #107 → v1.30) | 0 |
+| 186 | As mesmas variáveis no modelo "Código do projeto" e nos avisos (resolvidas para quem lê) | ✅ sim | ✅ sim (Pedro, PR #107 → v1.30) | 0 |
+| 187 | Lista final: baixar os **projetos de pesquisa** num ZIP (todos ou por seleção individual, de categoria ou de área) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 188 | Etiquetas de identificação: **turno e estande**, papel ao lado do nome, sem projeto nem escola | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprints 187–188 (branch `feat/premiacao-comite-e-etiquetas`, saída da `main` @ `6af22e2`):**
+> (a) **Sprint 187** — o detalhe de uma lista (preliminar ou final) ganhou a seção **Projetos de
+> pesquisa**: o arquivo do projeto de pesquisa (`TipoDocumento::PlanoPesquisa`) de cada projeto da
+> lista num ZIP, **de todos** ou **dos escolhidos** — projeto a projeto, ou de uma vez por
+> **categoria** (FETECMS, FETEC Jr, FETECMS FUNDECT) ou por **área**, marcações que se somam.
+> `POST /admin/avaliacao/listas-finais/{lista}/projetos-pesquisa` (sem `projeto_ids` = a lista
+> inteira; POST porque a seleção pode ter centenas de ids), `ExportacaoProjetosPesquisaService`. O
+> ZIP sai em pastas **categoria → área**, cada arquivo com o **código do projeto na lista** no nome
+> (`FETECMS/Ciências Agrárias/FET.AGR-001 - Título.pdf`). Os arquivos entram **por caminho e sem
+> recompressão** — `addFromString` seguraria centenas de PDFs na memória até o `close()`; storage
+> remoto é copiado para temporário. Projeto sem o arquivo não some calado: o ZIP leva
+> `_projetos-sem-arquivo.txt`; sem arquivo nenhum, é 422 em vez de ZIP vazio.
+> (b) **Sprint 188** — a etiqueta passou a ser **da pessoa**: o QR à esquerda na altura toda, o
+> nome com o **papel ao lado** ("Ana Paula - aluno(a)"), o **turno e o estande** (Mapa do Evento;
+> sem estande vale o turno de Turnos, sem nenhum a linha some) e o código de barras embaixo. Saíram
+> o título do projeto e a escola. Nome comprido reduz a fonte (11 → 10 → 9) antes de ser cortado, e
+> quando o papel não cabe na última linha a última palavra do nome desce com ele. De quebra, a
+> medição de texto do `EtiquetasPdf` estava errada para acento (o `Cpdf` fora do modo Unicode mede
+> byte a byte): agora mede pelo texto sem acento, que nas fontes padrão tem a mesma largura.
+> Back **1399/1399**, front **683/683**, Pint limpo.
+>
 > **Sprints 185–186 (mesma branch):** o código e o turno do projeto na comunicação.
 > (a) **Sprint 185** — a mala direta ganhou `{{codigo_projeto}}` (o código na lista final ativa) e
 > `{{turno}}` (o turno de Mapa do Evento → Turnos), marcadas "só finalistas" nos botões. Elas só

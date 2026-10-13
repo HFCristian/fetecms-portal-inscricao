@@ -607,6 +607,36 @@ export const urlCodigo = (codigo, tipo) =>
     `/api/v1/admin/avaliacao/identificacao/${tipo}/${codigo}.svg`;
 
 /** Baixa as etiquetas de todo mundo: 'pdf' (folha para recortar) ou 'zip' (SVGs). */
+/**
+ * Os arquivos do projeto de pesquisa dos finalistas num ZIP (Sprint 187).
+ * `projetoIds` nulo baixa a lista inteira. Com responseType blob, o erro
+ * também chega como blob — é lido para a tela mostrar o motivo.
+ */
+export async function baixarProjetosPesquisa(listaId, projetoIds = null) {
+    let r;
+    try {
+        r = await http.post(
+            `/admin/avaliacao/listas-finais/${listaId}/projetos-pesquisa`,
+            projetoIds === null ? {} : { projeto_ids: projetoIds },
+            { responseType: 'blob' },
+        );
+    } catch (e) {
+        const corpo = e?.response?.data;
+        let mensagem = 'Não foi possível montar o arquivo.';
+        if (corpo instanceof Blob) {
+            try {
+                const json = JSON.parse(await corpo.text());
+                mensagem = Object.values(json.errors ?? {})[0]?.[0] || json.message || mensagem;
+            } catch {
+                // corpo que não é JSON: fica a mensagem genérica
+            }
+        }
+        throw new Error(mensagem);
+    }
+    const nome = /filename="?([^";]+)"?/.exec(r.headers['content-disposition'] ?? '')?.[1] ?? 'projetos-de-pesquisa.zip';
+    baixarBlob(r.data, nome);
+}
+
 export async function baixarIdentificacao(listaId, formato) {
     const resp = await http.get(`/admin/avaliacao/listas-finais/${listaId}/identificacao/${formato}`, {
         responseType: 'blob',

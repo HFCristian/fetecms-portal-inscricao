@@ -7,6 +7,7 @@ import { extractErrors } from '../lib/auth.jsx';
 import IdentificacaoParticipantes from '../components/IdentificacaoParticipantes.jsx';
 import EnvioCodigosFinalistas from '../components/EnvioCodigosFinalistas.jsx';
 import ExportarListaFinal from '../components/ExportarListaFinal.jsx';
+import ExportarProjetosPesquisa from '../components/ExportarProjetosPesquisa.jsx';
 import {
     getListaFinal, adicionarNaListaFinal, removerDaListaFinal, baixarListaOficial,
     publicarListaFinal, reativarListaFinal, reordenarListaFinal, definirCodigoListaFinal,
@@ -737,6 +738,7 @@ export default function AvaliacaoListaFinalDetalhe() {
             )}
 
             {lista && <ExportarListaFinal listaId={lista.id} />}
+            {lista && <ExportarProjetosPesquisa listaId={lista.id} itens={itens} />}
             {lista?.vigente && !lista.rascunho && <EnvioCodigosFinalistas listaId={lista.id} />}
             {lista?.tipo === 'final' && <IdentificacaoParticipantes listaId={lista.id} />}
 

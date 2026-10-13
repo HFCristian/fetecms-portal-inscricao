@@ -5,10 +5,12 @@ namespace Tests\Feature;
 use App\Models\Aluno;
 use App\Models\Coorientador;
 use App\Models\Edicao;
+use App\Models\EstandeProjeto;
 use App\Models\Instituicao;
 use App\Models\ListaFinal;
 use App\Models\OrientadorProfile;
 use App\Models\Projeto;
+use App\Models\TurnoApresentacao;
 use App\Models\User;
 use App\Support\CodigoParticipante;
 use App\Support\EtiquetasPdf;
@@ -222,6 +224,48 @@ class IdentificacaoParticipantesTest extends TestCase
     }
 
     /**
+     * Sprint 188 — a etiqueta é da pessoa: nome com o papel ao lado, turno e
+     * estande; o título do projeto e a escola saíram.
+     */
+    public function test_etiqueta_traz_papel_ao_lado_do_nome_turno_e_estande_sem_projeto_nem_escola(): void
+    {
+        $this->admin();
+        $projeto = $this->finalista();
+        EstandeProjeto::create(['edicao_id' => $this->edicao->id, 'projeto_id' => $projeto->id, 'turno' => 'B', 'numero' => 42]);
+        $lista = $this->listaCom($projeto);
+
+        $texto = $this->textoDoPdf(
+            $this->get("/api/v1/admin/avaliacao/listas-finais/{$lista->id}/identificacao/pdf")->assertOk()->getContent()
+        );
+        $win = fn (string $s) => mb_convert_encoding($s, 'Windows-1252', 'UTF-8');
+
+        $this->assertStringContainsString('(Zuleica Nunes)', $texto);
+        // Os parênteses do papel chegam escapados na string do PDF.
+        $this->assertStringContainsString('( - aluno\\(a\\))', $texto);
+        $this->assertStringContainsString('( - orientador\\(a\\))', $texto);
+        $this->assertStringContainsString('( - coorientador\\(a\\))', $texto);
+        $this->assertStringContainsString($win('Turno B \\(vespertino\\) · Estande 42'), $texto);
+        $this->assertStringNotContainsString($win('Bioplástico'), $texto);
+        $this->assertStringNotContainsString($win('Maria Constança'), $texto);
+    }
+
+    public function test_sem_estande_vale_o_turno_e_sem_nenhum_a_linha_some(): void
+    {
+        $this->admin();
+        $comTurno = $this->finalista();
+        TurnoApresentacao::create(['edicao_id' => $this->edicao->id, 'projeto_id' => $comTurno->id, 'turno' => 'A']);
+        $lista = $this->listaCom($comTurno);
+
+        $dados = $this->getJson("/api/v1/admin/avaliacao/listas-finais/{$lista->id}/identificacao")->json('data.participantes');
+        $this->assertSame('Turno A (matutino)', $dados[0]['turno']);
+        $this->assertNull($dados[0]['estande']);
+
+        $texto = $this->textoDoPdf($this->get("/api/v1/admin/avaliacao/listas-finais/{$lista->id}/identificacao/pdf")->getContent());
+        $this->assertStringContainsString('(Turno A \\(matutino\\))', $texto);
+        $this->assertStringNotContainsString('Estande', $texto);
+    }
+
+    /**
      * Relato de produção: o PDF de etiquetas dava erro. O HTML do Dompdf não
      * pintava o SVG embutido e estourava a memória a partir de ~200 pessoas; a
      * lista real tem perto de 1.800. Desenhada direto na página, a lista inteira
@@ -234,8 +278,8 @@ class IdentificacaoParticipantesTest extends TestCase
             $etiquetas[] = [
                 'papel_label' => 'Aluno(a)',
                 'nome' => "Participante número {$i} com nome comprido de verdade",
-                'projeto' => 'Análise da produção de biogás a partir de resíduos agroindustriais em São Gabriel do Oeste',
-                'escola' => 'Escola Estadual Professora Ana Maria de Souza',
+                'turno' => 'Turno B (vespertino)',
+                'estande' => $i % 230,
                 'codigo' => "2026-{$i}-123-A{$i}",
             ];
         }

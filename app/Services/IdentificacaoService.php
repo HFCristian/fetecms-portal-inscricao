@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use App\Models\EstandeProjeto;
 use App\Models\ListaFinal;
 use App\Models\Projeto;
+use App\Models\TurnoApresentacao;
 use App\Support\CodigoParticipante;
 use App\Support\EtiquetasPdf;
 use BaconQrCode\Renderer\Image\SvgImageBackEnd;
@@ -147,14 +149,26 @@ class IdentificacaoService
             ->acompanhantesAprovados($projetos->pluck('id')->all())
             ->groupBy('projeto_id');
 
+        // Turno e estande (Sprint 188) vão na etiqueta: é o que o participante
+        // procura depois de passar pelo balcão. O estande guarda o turno dele;
+        // sem estande gerado, vale o turno de Mapa do Evento → Turnos.
+        $ids = $projetos->pluck('id')->all();
+        $estandes = EstandeProjeto::whereIn('projeto_id', $ids)->get()->keyBy('projeto_id');
+        $turnos = TurnoApresentacao::whereIn('projeto_id', $ids)->get()->keyBy('projeto_id');
+
         $linhas = collect();
 
         foreach ($projetos as $projeto) {
+            $estande = $estandes->get($projeto->id);
+            $turno = $estande?->turno ?? $turnos->get($projeto->id)?->turno;
+
             $comum = [
                 'projeto_id' => $projeto->id,
                 'projeto' => $projeto->titulo,
                 'categoria' => $projeto->categoria?->label(),
                 'escola' => $projeto->instituicao?->nome,
+                'turno' => $turno?->label(),
+                'estande' => $estande?->numero,
             ];
 
             foreach ($projeto->alunos as $aluno) {

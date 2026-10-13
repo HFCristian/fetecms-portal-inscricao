@@ -5,6 +5,7 @@ namespace App\Support;
 use BaconQrCode\Common\ErrorCorrectionLevel;
 use BaconQrCode\Encoder\Encoder;
 use Dompdf\Cpdf;
+use Illuminate\Support\Str;
 use Picqer\Barcode\Types\TypeCode128;
 
 /**
@@ -47,7 +48,7 @@ final class EtiquetasPdf
     private ?string $fonteAtual = null;
 
     /**
-     * @param  list<array{papel_label: string, nome: string, projeto: ?string, escola: ?string, codigo: string}>  $etiquetas
+     * @param  list<array{papel_label: string, nome: string, codigo: string, turno?: ?string, estande?: ?int}>  $etiquetas
      */
     public static function gerar(string $titulo, string $subtitulo, array $etiquetas): string
     {
@@ -103,7 +104,17 @@ final class EtiquetasPdf
         $this->pdf->line(self::MARGEM, $y - 19, self::PAGINA_L - self::MARGEM, $y - 19);
     }
 
-    /** @param  array<string, mixed>  $e */
+    /**
+     * Uma etiqueta: o QR à esquerda, na altura toda; à direita o nome com o
+     * papel ao lado ("Ana Paula - aluno(a)"), o turno e o estande, e o código
+     * de barras com o texto do código embaixo.
+     *
+     * Projeto e escola saíram (Sprint 188): o crachá é de uma pessoa, e o que
+     * ela procura depois do balcão é onde e quando apresenta — o título do
+     * projeto ocupava duas linhas para dizer o que ela já sabe.
+     *
+     * @param  array<string, mixed>  $e
+     */
     private function etiqueta(array $e, float $x, float $y, float $l, float $a): void
     {
         // Moldura tracejada: é por ela que a tesoura passa.
@@ -112,40 +123,122 @@ final class EtiquetasPdf
         $this->pdf->rectangle($x, $y, $l, $a);
         $this->pdf->setLineStyle(1, '', '', []);
 
-        $pad = 9.0;
-        $util = $l - 2 * $pad;
-        $cursor = $y + $a - $pad;
+        $pad = 7.0;
+        $codigo = (string) $e['codigo'];
 
-        $cursor -= 8;
-        $this->texto('Helvetica', 7, $x + $pad, $cursor, mb_strtoupper((string) $e['papel_label']), [0.26, 0.08, 0.48]);
+        // O QR na altura toda: é o que a câmera do balcão lê, e quanto maior,
+        // de mais longe ela lê.
+        $ladoQr = min(84.0, $a - 2 * $pad, ($l - 2 * $pad) * 0.32);
+        $this->qr($codigo, $x + $pad, $y + ($a - $ladoQr) / 2, $ladoQr);
 
-        foreach ($this->quebrar('Helvetica-Bold', 11, (string) $e['nome'], $util, 2) as $linha) {
-            $cursor -= 13;
-            $this->texto('Helvetica-Bold', 11, $x + $pad, $cursor, $linha, [0.16, 0, 0.35]);
+        $tx = $x + $pad + $ladoQr + 8;
+        $tl = $x + $l - $pad - $tx;
+        $cursor = $y + $a - $pad - 11;
+
+        $papel = mb_strtolower(trim((string) ($e['papel_label'] ?? '')));
+        $nome = $this->nomeComPapel((string) $e['nome'], $papel, $tl);
+        $tamanhoSufixo = max(7.5, $nome['tamanho'] - 2);
+
+        foreach ($nome['linhas'] as $i => [$parte, $sufixo]) {
+            if ($i > 0) {
+                $cursor -= $nome['tamanho'] + 1.5;
+            }
+
+            if ($parte !== '') {
+                $this->texto('Helvetica-Bold', $nome['tamanho'], $tx, $cursor, $parte, [0.16, 0, 0.35]);
+            }
+
+            if ($sufixo !== '') {
+                $this->fonte('Helvetica-Bold');
+                $deslocamento = $parte === '' ? 0.0 : $this->largura($nome['tamanho'], $parte);
+                $this->texto('Helvetica', $tamanhoSufixo, $tx + $deslocamento, $cursor, $parte === '' ? ltrim($sufixo) : $sufixo, [0.26, 0.08, 0.48]);
+            }
         }
 
-        $detalhe = trim((string) ($e['projeto'] ?? ''));
-        foreach ($this->quebrar('Helvetica', 7, $detalhe, $util, 2) as $linha) {
-            $cursor -= 9;
-            $this->texto('Helvetica', 7, $x + $pad, $cursor, $linha, [0.29, 0.27, 0.31]);
+        $local = $this->turnoEEstande($e);
+
+        if ($local !== '') {
+            $cursor -= 12;
+            $this->fonte('Helvetica-Bold');
+            $this->texto('Helvetica-Bold', 8, $tx, $cursor, $this->cortar($local, $tl, 8), [0.26, 0.08, 0.48]);
         }
 
-        if (! empty($e['escola'])) {
-            $cursor -= 9;
-            $escola = $this->quebrar('Helvetica', 7, (string) $e['escola'], $util, 1)[0] ?? '';
-            $this->texto('Helvetica', 7, $x + $pad, $cursor, $escola, [0.29, 0.27, 0.31]);
+        // O código de barras na base, com o texto do código por último.
+        $baseBarras = $y + $pad + 11;
+        $alturaBarras = min(44.0, $cursor - 6 - $baseBarras);
+
+        if ($alturaBarras > 10) {
+            $this->barras($codigo, $tx, $baseBarras, $tl, $alturaBarras);
         }
 
-        // Os códigos ocupam a base da etiqueta, com o texto do código embaixo.
-        $baseCodigos = $y + $pad + 12;
-        $ladoQr = min(66.0, $cursor - $baseCodigos - 4);
+        $this->texto('Courier', 8.5, $tx, $y + $pad + 1, $codigo, [0.11, 0.11, 0.12]);
+    }
 
-        if ($ladoQr > 20) {
-            $this->qr((string) $e['codigo'], $x + $pad, $baseCodigos, $ladoQr);
-            $this->barras((string) $e['codigo'], $x + $pad + $ladoQr + 8, $baseCodigos + 4, $util - $ladoQr - 8, min(44.0, $ladoQr - 8));
+    /** "Turno A (matutino) · Estande 42" — o que houver dos dois. */
+    private function turnoEEstande(array $e): string
+    {
+        $partes = array_filter([
+            trim((string) ($e['turno'] ?? '')),
+            ($e['estande'] ?? null) === null ? '' : 'Estande '.$e['estande'],
+        ], fn (string $p) => $p !== '');
+
+        return implode(' · ', $partes);
+    }
+
+    /**
+     * O nome em até duas linhas, com o papel colado na última: cada linha é
+     * [parte em negrito, sufixo " - aluno(a)"]. Quando o sufixo não cabe na
+     * última linha do nome, a última palavra desce com ele — um papel sozinho
+     * na linha parece outro dado, não o papel daquela pessoa.
+     *
+     * Nome comprido diminui a fonte (11 → 10 → 9) antes de ser cortado: o nome
+     * inteiro é o que o balcão confere contra o documento.
+     *
+     * @return array{tamanho: float, linhas: list<array{0: string, 1: string}>}
+     */
+    private function nomeComPapel(string $nome, string $papel, float $largura): array
+    {
+        $sufixo = $papel === '' ? '' : ' - '.$papel;
+
+        foreach ([11.0, 10.0, 9.0] as $tamanho) {
+            $this->fonte('Helvetica');
+            $larguraSufixo = $sufixo === '' ? 0.0 : $this->largura(max(7.5, $tamanho - 2), $sufixo);
+
+            // Todas as linhas do nome; daqui em diante a fonte selecionada é a negrita.
+            $linhas = $this->quebrar('Helvetica-Bold', $tamanho, $nome, $largura, PHP_INT_MAX);
+
+            if ($linhas === []) {
+                return ['tamanho' => $tamanho, 'linhas' => $sufixo === '' ? [] : [['', $sufixo]]];
+            }
+
+            $ultima = array_pop($linhas);
+
+            if ($sufixo !== '' && $this->largura($tamanho, $ultima) + $larguraSufixo > $largura) {
+                $espaco = mb_strrpos($ultima, ' ');
+                $linhas[] = $espaco === false ? $ultima : mb_substr($ultima, 0, $espaco);
+                $ultima = $espaco === false ? '' : mb_substr($ultima, $espaco + 1);
+            }
+
+            $linhas[] = $ultima;
+            $cabe = count($linhas) <= 2 && $this->largura($tamanho, $ultima) + $larguraSufixo <= $largura;
+
+            if ($cabe || $tamanho === 9.0) {
+                break;
+            }
         }
 
-        $this->texto('Courier', 8.5, $x + $pad, $y + $pad, (string) $e['codigo'], [0.11, 0.11, 0.12]);
+        if (count($linhas) > 2) {
+            $linhas = [$linhas[0], $this->cortar(implode(' ', array_slice($linhas, 1)), $largura - $larguraSufixo, $tamanho, forcar: true)];
+        } else {
+            $linhas[count($linhas) - 1] = $this->cortar($linhas[count($linhas) - 1], $largura - $larguraSufixo, $tamanho);
+        }
+
+        $ultimo = count($linhas) - 1;
+
+        return [
+            'tamanho' => $tamanho,
+            'linhas' => array_map(fn (string $linha, int $i) => [$linha, $i === $ultimo ? $sufixo : ''], $linhas, array_keys($linhas)),
+        ];
     }
 
     /** O QR módulo a módulo, emendando os pretos vizinhos numa barra só. */
@@ -206,6 +299,20 @@ final class EtiquetasPdf
         $this->pdf->addText($x, $y, $tamanho, $texto);
     }
 
+    /**
+     * A largura do texto na fonte selecionada.
+     *
+     * O `Cpdf` está fora do modo Unicode e mede **byte a byte**: em UTF-8 cada
+     * acento conta como dois caracteres (o nome parecia mais largo do que é), e
+     * convertido para Windows-1252 ele descarta a string inteira (o filtro de
+     * controle dele usa `/u`). Nas fontes padrão do PDF a letra acentuada tem a
+     * largura da letra base (é = e, Ç = C), então mede-se o texto sem acento.
+     */
+    private function largura(float $tamanho, string $texto): float
+    {
+        return $this->pdf->getTextWidth($tamanho, Str::ascii(strtr($texto, ['·' => '.', '…' => '...'])));
+    }
+
     /** Troca de fonte só quando muda: o `selectFont` relê a métrica a cada chamada. */
     private function fonte(string $fonte): void
     {
@@ -230,7 +337,7 @@ final class EtiquetasPdf
         }
 
         $this->fonte($fonte);
-        $cabe = fn (string $s) => $this->pdf->getTextWidth($tamanho, $s) <= $largura;
+        $cabe = fn (string $s) => $this->largura($tamanho, $s) <= $largura;
 
         $linhas = [];
         $atual = '';
@@ -267,13 +374,13 @@ final class EtiquetasPdf
     /** Corta uma linha que nem quebrando coube (uma palavra enorme). */
     private function cortar(string $linha, float $largura, float $tamanho, bool $forcar = false): string
     {
-        if (! $forcar && $this->pdf->getTextWidth($tamanho, $linha) <= $largura) {
+        if (! $forcar && $this->largura($tamanho, $linha) <= $largura) {
             return $linha;
         }
 
         $base = rtrim(preg_replace('/\s*…$/u', '', $linha) ?? $linha);
 
-        while ($base !== '' && $this->pdf->getTextWidth($tamanho, $base.'…') > $largura) {
+        while ($base !== '' && $this->largura($tamanho, $base.'…') > $largura) {
             $base = mb_substr($base, 0, -1);
         }
 

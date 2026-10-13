@@ -5,10 +5,12 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\ListaFinal;
 use App\Services\ExportacaoListaFinalService;
+use App\Services\ExportacaoProjetosPesquisaService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
  * Lista final → **Exportar** (Sprint 160): o recorte que cada uso pede, por
@@ -39,5 +41,28 @@ class ExportacaoListaFinalController extends Controller
             'Content-Type' => $arquivo['tipo'],
             'Content-Disposition' => 'attachment; filename="'.$arquivo['nome'].'"',
         ]);
+    }
+
+    /**
+     * Os arquivos do projeto de pesquisa dos finalistas num ZIP (Sprint 187):
+     * sem `projeto_ids`, a lista inteira; com eles, só os escolhidos.
+     *
+     * POST, e não GET: a seleção pode ter centenas de ids, o que estoura o
+     * tamanho de URL que um proxy aceita.
+     */
+    public function projetosPesquisa(Request $request, ListaFinal $lista, ExportacaoProjetosPesquisaService $service): BinaryFileResponse
+    {
+        $dados = $request->validate([
+            'projeto_ids' => ['sometimes', 'array', 'min:1'],
+            'projeto_ids.*' => ['integer'],
+        ], [
+            'projeto_ids.min' => 'Selecione ao menos um projeto.',
+        ]);
+
+        $arquivo = $service->zip($lista, $dados['projeto_ids'] ?? null);
+
+        return response()
+            ->download($arquivo['caminho'], $arquivo['nome'], ['Content-Type' => 'application/zip'])
+            ->deleteFileAfterSend();
     }
 }

@@ -419,6 +419,8 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 // Exportação da lista (Sprint 160): lista nominal e recortes.
                 Route::get('/avaliacao/listas-finais/exportar/opcoes', [ExportacaoListaFinalController::class, 'opcoes']);
                 Route::get('/avaliacao/listas-finais/{lista}/exportar', [ExportacaoListaFinalController::class, 'exportar']);
+                // Os arquivos do projeto de pesquisa, todos ou os escolhidos (Sprint 187).
+                Route::post('/avaliacao/listas-finais/{lista}/projetos-pesquisa', [ExportacaoListaFinalController::class, 'projetosPesquisa']);
                 // Código do projeto (Sprint 159): fixar e mandar aos finalistas.
                 Route::get('/avaliacao/listas-finais/{lista}/codigos', [CodigosFinalistasController::class, 'show']);
                 Route::post('/avaliacao/listas-finais/{lista}/codigos/fixar', [CodigosFinalistasController::class, 'fixar']);
