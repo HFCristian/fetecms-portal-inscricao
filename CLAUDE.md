@@ -897,7 +897,33 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 196 | **Painel da premiação**: vagas que faltam por credencial + ranking dos premiados por área (admin e comissão, tela cheia) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 197 | Mapa do Evento: **rua da borda esquerda**, ao lado da primeira coluna de estandes (nomeável na configuração) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 198 | Mapa em tela cheia: **faixa da área** em cada estande (cor + sigla, legenda que destaca) e atualização a cada **5 s** com aviso no canto | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 199 | Mapa em tela cheia: **visualizações** Credenciamento, Checagem e Avaliação (cor por nº de avaliações), no canto inferior esquerdo | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 200 | Mapa em tela cheia: **dashboard** das avaliações (por nº recebido, geral e por área; comissão especial por área; barra de progresso) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprints 199–200 (mesma branch):**
+> (a) **Sprint 199** — no **canto inferior esquerdo** da tela cheia, três **visualizações**:
+> *Credenciamento* e *Checagem* (verde para quem já passou, branco para quem falta) e *Avaliação*,
+> que pinta o estande pela **quantidade de avaliações presenciais concluídas** — branco para
+> nenhuma e um azul cada vez mais escuro até o máximo por projeto da edição (até 3, os passos
+> validados da escala ordinal). A legenda fica no mesmo canto, com quantos estandes há em cada faixa.
+> A faixa da área (Sprint 198) continua por cima de qualquer visualização. Fora da tela cheia o mapa
+> segue com a cor de sempre (situação ou ocupação).
+> (b) **Sprint 200** — o botão **Dashboard**, ao lado de *Sair da tela cheia*, abre um painel
+> sobre o lado direito do mapa (`PainelAvaliacoesMapa.jsx`), no espírito do resumo da avaliação
+> online: a **barra** de avaliações feitas sobre a meta (projetos do turno × avaliações por projeto;
+> o que passa da meta num projeto não compensa a falta em outro), **projetos por quantidade de
+> avaliações recebidas** (0, 1, 2, 3+) no geral e **por área**, e quantos projetos de cada área já
+> foram avaliados pela **comissão especial** (avaliação presencial de avaliador marcado como
+> comissão). É calculado das mesmas linhas que pintam o mapa (`lib/mapaTelaCheia.js`), então se
+> atualiza junto, a cada 5 segundos, e nunca discorda do desenho. Só avaliações **presenciais**.
+> Back **1442/1442**, front **737/737**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprints 197–200):** nenhuma migration, nenhuma variável de `.env`, nenhuma
+> dependência. O mapa precisa de **estandes gerados** (Mapa do Evento → Estandes) para pintar
+> alguma coisa; a faixa da área usa a **sigla** de Parametrização → Áreas (área sem sigla ganha as
+> três primeiras letras do nome e a cor cinza "Outras" se não for uma das oito da feira). A rua da
+> borda nasce sem nome: batize-a em *Editar planta*.
+>
 > **Sprints 197–198 (mesma branch):**
 > (a) **Sprint 197** — a **rua da borda esquerda**: a varredura de corredores (`PlantaEvento::ruas()`)
 > só achava o vão **entre** duas fileiras, e a rua que passa ao lado da primeira coluna, entre ela e

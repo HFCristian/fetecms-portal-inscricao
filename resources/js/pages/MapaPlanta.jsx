@@ -8,7 +8,8 @@ import {
     getSituacaoPlanta, getListaSituacao, baixarListaSituacao,
 } from '../lib/mapaEvento.js';
 import SinalizacoesProjeto from '../components/SinalizacoesProjeto.jsx';
-import { corDaArea, textoSobreArea } from '../lib/mapaTelaCheia.js';
+import PainelAvaliacoesMapa from '../components/PainelAvaliacoesMapa.jsx';
+import { ESCOPOS, corDaArea, textoSobreArea, corNoEscopo, legendaDoEscopo } from '../lib/mapaTelaCheia.js';
 
 /**
  * Mapa do Evento → **a planta do ginásio**.
@@ -178,8 +179,10 @@ export default function MapaPlanta() {
     const [telaCheia, setTelaCheia] = useState(false);
     const palco = useRef(null);
 
-    // --- Tela cheia (Sprint 198) ---------------------------------------
+    // --- Tela cheia (Sprints 198–200) ---------------------------------
+    const [escopo, setEscopo] = useState('credenciamento');
     const [areaDestacada, setAreaDestacada] = useState(null);
+    const [painelAberto, setPainelAberto] = useState(false);
     const [atualizadoEm, setAtualizadoEm] = useState(null);
     const [semConexao, setSemConexao] = useState(false);
 
@@ -246,6 +249,7 @@ export default function MapaPlanta() {
     const ocupacao = dados?.ocupacao ?? {};
     const porNumero = situacao?.estandes ?? {};
     const linhasDoTurno = useMemo(() => Object.values(situacao?.estandes ?? {}), [situacao]);
+    const maxAvaliacoes = filtros?.max_avaliacoes ?? 3;
     // As áreas que aparecem neste turno, na ordem da legenda do servidor.
     const areasDoTurno = useMemo(() => {
         const presentes = new Set(linhasDoTurno.map((l) => l.area_sigla).filter(Boolean));
@@ -542,7 +546,17 @@ export default function MapaPlanta() {
                                     )}
                                 </p>
                             </div>
-                            <Button variant="outline" onClick={alternarTelaCheia}>Sair da tela cheia</Button>
+                            <div className="flex gap-2 shrink-0">
+                                <Button
+                                    variant={painelAberto ? 'primary' : 'outline'}
+                                    onClick={() => setPainelAberto((a) => !a)}
+                                    aria-pressed={painelAberto}
+                                >
+                                    <span className="material-symbols-outlined text-[20px]">monitoring</span>
+                                    Dashboard
+                                </Button>
+                                <Button variant="outline" onClick={alternarTelaCheia}>Sair da tela cheia</Button>
+                            </div>
                         </div>
                     )}
 
@@ -624,10 +638,13 @@ export default function MapaPlanta() {
 
                         {estandes.map((e) => {
                             const linha = porNumero[e.numero];
-                            // Em tela cheia a faixa de baixo é a da área (Sprint 198).
-                            const cores = modo === 'situacao' || telaCheia
-                                ? corPorSituacao({ selecionado: e.numero === selecionado, linha })
-                                : corPorOcupacao({ selecionado: e.numero === selecionado, ocupacao: ocupacao[e.numero] });
+                            // Em tela cheia a cor é a da visualização escolhida
+                            // (Sprint 199) e a faixa de baixo é a da área (198).
+                            const cores = telaCheia
+                                ? corNoEscopo(escopo, linha, maxAvaliacoes)
+                                : modo === 'situacao'
+                                    ? corPorSituacao({ selecionado: e.numero === selecionado, linha })
+                                    : corPorOcupacao({ selecionado: e.numero === selecionado, ocupacao: ocupacao[e.numero] });
                             const faixa = telaCheia && linha;
                             const corFaixa = faixa ? corDaArea(linha.area_sigla) : null;
                             const apagado = telaCheia && areaDestacada && linha?.area_sigla !== areaDestacada;
@@ -700,9 +717,47 @@ export default function MapaPlanta() {
                         })}
                     </svg>
 
+                    {telaCheia && (
+                        <>
+                            {/* Canto inferior esquerdo: o que o mapa está mostrando
+                                (Sprint 199), com a legenda e os números. */}
+                            <div className="absolute left-0 bottom-0 bg-surface-container-lowest/95 backdrop-blur rounded-xl fetec-card-shadow p-3 max-w-[22rem]">
+                                <div className="flex flex-wrap gap-1 mb-2" role="group" aria-label="Visualização do mapa">
+                                    {ESCOPOS.map((o) => (
+                                        <button
+                                            key={o.value}
+                                            type="button"
+                                            aria-pressed={escopo === o.value}
+                                            onClick={() => setEscopo(o.value)}
+                                            className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
+                                                escopo === o.value
+                                                    ? 'bg-primary-container text-on-primary border-primary-container'
+                                                    : 'border-outline-variant text-on-surface-variant hover:bg-surface-variant'
+                                            }`}
+                                        >
+                                            {o.label}
+                                        </button>
+                                    ))}
+                                </div>
+                                <ul className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-on-surface">
+                                    {legendaDoEscopo(escopo, linhasDoTurno, maxAvaliacoes).map((l) => (
+                                        <li key={l.label} className="inline-flex items-center gap-1">
+                                            <span className="w-3 h-3 rounded-sm border" style={{ background: l.cor, borderColor: l.borda }} />
+                                            {escopo === 'avaliacao' && l.label !== 'Nenhuma' ? `${l.label} avaliação(ões)` : l.label}
+                                            <span className="text-on-surface-variant tabular-nums">({l.total})</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+
+                            {painelAberto && (
+                                <PainelAvaliacoesMapa linhas={linhasDoTurno} maximo={maxAvaliacoes} onFechar={() => setPainelAberto(false)} />
+                            )}
+                        </>
+                    )}
                     </div>
 
-                    <div className="flex flex-wrap gap-4 mt-3 text-xs text-on-surface-variant">
+                    <div className={`flex flex-wrap gap-4 mt-3 text-xs text-on-surface-variant ${telaCheia ? 'hidden' : ''}`}>
                         {modo === 'situacao' ? (
                             (filtros?.legenda ?? []).map((l) => (
                                 <span key={l.value} className="inline-flex items-center gap-1">

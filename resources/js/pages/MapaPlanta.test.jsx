@@ -437,7 +437,7 @@ describe('MapaPlanta', () => {
         expect(screen.getByPlaceholderText('Rua da borda esquerda')).toHaveValue('Rua da Entrada');
     });
 
-    // --- Sprint 198: tela cheia ----------------------------------------------
+    // --- Sprints 198–200: tela cheia ----------------------------------------
     describe('em tela cheia', () => {
         beforeEach(() => {
             // O documento é o mesmo entre os testes: começa fora da tela cheia.
@@ -457,8 +457,7 @@ describe('MapaPlanta', () => {
         async function entrar() {
             const utils = render(<MapaPlanta />);
             fireEvent.click(await screen.findByRole('button', { name: /Tela cheia/ }));
-            // Os dois botões de sair (barra e palco) dizem que entrou.
-            await waitFor(() => expect(screen.getAllByRole('button', { name: /Sair da tela cheia/ })).toHaveLength(2));
+            await screen.findByRole('button', { name: /Dashboard/ });
             return utils;
         }
 
@@ -487,6 +486,34 @@ describe('MapaPlanta', () => {
             await waitFor(() => expect(intervalo).toHaveBeenCalledWith(expect.any(Function), 5000));
             expect(await screen.findByText(/Ao vivo · atualizado às .* · atualiza a cada 5 segundos/)).toBeInTheDocument();
             intervalo.mockRestore();
+        });
+
+        it('troca a visualização no canto inferior esquerdo', async () => {
+            await entrar();
+            const escopos = screen.getByRole('group', { name: 'Visualização do mapa' });
+
+            expect(screen.getByText('Credenciado').parentElement).toHaveTextContent('(1)');
+
+            fireEvent.click(within(escopos).getByRole('button', { name: 'Avaliação' }));
+            expect(screen.getByText('Nenhuma').parentElement).toHaveTextContent('(1)');
+            expect(screen.getByText('3 ou mais avaliação(ões)')).toBeInTheDocument();
+            // Nenhuma avaliação: o estande fica branco.
+            expect(screen.getByRole('button', { name: 'Estande 042 · Ciências Agrárias' }).querySelector('rect').getAttribute('fill')).toBe('#ffffff');
+        });
+
+        it('abre o dashboard ao lado do botão de sair', async () => {
+            await entrar();
+
+            fireEvent.click(screen.getByRole('button', { name: /Dashboard/ }));
+
+            const painel = screen.getByRole('complementary', { name: 'Dashboard das avaliações' });
+            expect(within(painel).getByText('0 de 3 avaliações previstas')).toBeInTheDocument();
+            expect(within(painel).getByText('Avaliados pela comissão especial')).toBeInTheDocument();
+            // Geral e por área: 0 de 1 projeto avaliado pela comissão.
+            expect(within(within(painel).getByRole('region', { name: 'Comissão especial' })).getAllByText('0 de 1')).toHaveLength(2);
+
+            fireEvent.click(within(painel).getByRole('button', { name: 'Fechar o dashboard' }));
+            expect(screen.queryByRole('complementary', { name: 'Dashboard das avaliações' })).not.toBeInTheDocument();
         });
     });
 });
