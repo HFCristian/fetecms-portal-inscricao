@@ -58,6 +58,17 @@ describe('ComitePremiacao', () => {
         expect(within(premiados).getByText('Abelhas nativas')).toBeInTheDocument();
     });
 
+    it('mostra as informações adicionais só para leitura', async () => {
+        getPremiacaoComite.mockResolvedValue({
+            data: [{ ...MOSTRATEC, informacoes: 'Só projetos do ensino médio.' }],
+            meta: { candidatos: CANDIDATOS },
+        });
+        render(<ComitePremiacao />);
+
+        expect(await screen.findByText('Só projetos do ensino médio.')).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Editar' })).not.toBeInTheDocument();
+    });
+
     it('premia um finalista pela credencial', async () => {
         render(<ComitePremiacao />);
         await screen.findByText('MOSTRATEC 2027');

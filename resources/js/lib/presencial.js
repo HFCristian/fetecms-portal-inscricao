@@ -33,6 +33,18 @@ export const registrarChecagem = (projetoId, dados, teste = false) =>
 /** O PDF do termo de responsabilidade, servido pela rota autenticada. */
 export const urlTermo = (documentoId) => `/api/v1/documentos/${documentoId}/preview`;
 
+// --- Cadastro de avaliadores do evento presencial (Sprint 191) --------------
+// A senha vem em `meta.senha`, uma única vez: o portal guarda só o hash.
+
+export const getAvaliadoresCadastrados = (q = '') =>
+    http.get('/admin/presencial/avaliadores-cadastrados', { params: q ? { q } : {} }).then((r) => r.data.data);
+
+export const cadastrarAvaliadorPresencial = (dados) =>
+    http.post('/admin/presencial/avaliadores-cadastrados', dados).then((r) => r.data);
+
+export const novaSenhaAvaliadorPresencial = (id) =>
+    http.post(`/admin/presencial/avaliadores-cadastrados/${id}/senha`).then((r) => r.data);
+
 // --- Credenciais e prêmios (o que a feira tem para dar) ---------------------
 
 export const getCredenciais = () =>

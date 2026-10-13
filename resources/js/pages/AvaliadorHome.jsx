@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Navigate } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { Alert, Toggle, Button, useConfirm } from '../components/ui.jsx';
 import AvaliacaoModal from '../components/AvaliacaoModal.jsx';
@@ -161,7 +162,21 @@ function Abas({ aba, setAba, pendentes, concluidos }) {
     );
 }
 
+/**
+ * Conta cadastrada pela organização só para o evento presencial (Sprint 191):
+ * não tem avaliação online, então a tela inicial é a do estande.
+ */
 export default function AvaliadorHome() {
+    const { user } = useAuth();
+
+    if (user?.avaliador_profile?.apenas_presencial) {
+        return <Navigate to="/avaliador/avaliacao-presencial" replace />;
+    }
+
+    return <AvaliadorHomeOnline />;
+}
+
+function AvaliadorHomeOnline() {
     const { user } = useAuth();
     const sub = user?.avaliador_profile?.subarea;
     const area = user?.avaliador_profile?.area;

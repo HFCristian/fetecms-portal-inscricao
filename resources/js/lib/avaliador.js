@@ -1,5 +1,16 @@
 import http from './http.js';
 
+// Titulação com a situação explícita: quem está CURSANDO a pós-graduação já
+// pode avaliar, não precisa ter concluído (espelha AvaliadorProfile::TITULACOES).
+export const TITULACOES = [
+    'Especialização (em andamento)',
+    'Especialização (concluída)',
+    'Mestrado (em andamento)',
+    'Mestrado (concluído)',
+    'Doutorado (em andamento)',
+    'Doutorado (concluído)',
+];
+
 // Perfil do avaliador: estatísticas do certificado e a própria área/subárea.
 export const getPerfilAvaliador = () => http.get('/avaliador/perfil').then((r) => r.data.data);
 

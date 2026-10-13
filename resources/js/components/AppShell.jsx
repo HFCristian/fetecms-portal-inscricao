@@ -30,7 +30,7 @@ function NavBadge({ count }) {
 
 
 // Links de navegação por papel. onNavigate fecha o menu mobile ao clicar num link.
-function NavLinks({ role, abas, presencial = false, onNavigate, suporteBadge = 0 }) {
+function NavLinks({ role, abas, presencial = false, apenasPresencial = false, onNavigate, suporteBadge = 0 }) {
     if (role === 'admin') {
         return (
             <>
@@ -53,10 +53,13 @@ function NavLinks({ role, abas, presencial = false, onNavigate, suporteBadge = 0
     if (role === 'avaliador') {
         return (
             <>
-                <NavLink to="/avaliador" end className={navClass} onClick={onNavigate}>
-                    <span className="material-symbols-outlined">fact_check</span>
-                    Avaliações
-                </NavLink>
+                {/* Conta só do evento presencial (Sprint 191): sem avaliação online. */}
+                {!apenasPresencial && (
+                    <NavLink to="/avaliador" end className={navClass} onClick={onNavigate}>
+                        <span className="material-symbols-outlined">fact_check</span>
+                        Avaliações
+                    </NavLink>
+                )}
                 {/* A aba fica sempre visível: é nela que ele diz se vai (ou
                     não) avaliar no dia da feira. */}
                 <NavLink to="/avaliador/presencial" className={navClass} onClick={onNavigate}>
@@ -175,7 +178,7 @@ export default function AppShell({ children }) {
                     não tem efeito nenhum dentro de uma coluna flex. */}
                 <div className="flex-1 min-h-0 flex flex-col gap-1 overflow-y-auto fetec-scroll">
                     <SeletorEdicao />
-                    <NavLinks role={user?.role} abas={user?.abas} presencial={user?.avaliador_profile?.presencial === true} suporteBadge={suporteBadge} />
+                    <NavLinks role={user?.role} abas={user?.abas} presencial={user?.avaliador_profile?.presencial === true} apenasPresencial={user?.avaliador_profile?.apenas_presencial === true} suporteBadge={suporteBadge} />
                 </div>
                 {/* Acesso, Sair e o rodapé de suporte ficam ancorados embaixo:
                     são a saída da tela e não podem depender de rolagem. */}
@@ -221,7 +224,7 @@ export default function AppShell({ children }) {
                             Olá, <strong className="text-on-surface">{user?.name}</strong>
                         </p>
                         <SeletorEdicao />
-                        <NavLinks role={user?.role} abas={user?.abas} presencial={user?.avaliador_profile?.presencial === true} onNavigate={() => setMenuOpen(false)} suporteBadge={suporteBadge} />
+                        <NavLinks role={user?.role} abas={user?.abas} presencial={user?.avaliador_profile?.presencial === true} apenasPresencial={user?.avaliador_profile?.apenas_presencial === true} onNavigate={() => setMenuOpen(false)} suporteBadge={suporteBadge} />
                     </div>
                     <div className="p-4 border-t border-outline-variant/30 flex flex-col gap-1 shrink-0">
                         <NavLink to="/acesso" className={navClass} onClick={() => setMenuOpen(false)}>

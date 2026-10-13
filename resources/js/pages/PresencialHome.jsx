@@ -23,6 +23,12 @@ const SECOES = [
         descricao: 'Horário dos turnos, avaliadores ativados na cabine e os projetos de cada um, turno a turno.',
     },
     {
+        to: '/admin/presencial/avaliadores',
+        icon: 'person_add',
+        titulo: 'Cadastro de avaliadores',
+        descricao: 'Contas de quem avalia só no dia da feira: já confirmadas para o presencial, com a senha gerada.',
+    },
+    {
         to: '/admin/presencial/voluntarios',
         icon: 'volunteer_activism',
         titulo: 'Voluntários',
@@ -113,8 +119,8 @@ function Orientacoes({ inicial }) {
 
 /**
  * Aba "Avaliação presencial": o que a organização faz no **dia da feira** —
- * conferir os estandes, cadastrar quem trabalha no evento e registrar as
- * credenciais de premiação.
+ * conferir os estandes, cadastrar quem trabalha e quem avalia no evento e
+ * registrar as credenciais de premiação.
  *
  * A janela é a mesma do credenciamento e do almoxarifado (as datas do evento):
  * é tudo trabalho de campo, e fora dela as seções abrem em leitura.

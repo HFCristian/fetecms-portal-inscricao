@@ -326,6 +326,7 @@ class DistribuicaoService
                 ->where('role', Role::Avaliador->value)
                 ->where('is_active', true)
                 ->where('is_demo', false)
+                ->avaliadorDaOnline()
                 ->with('avaliadorProfile.areasExtras')
                 ->get();
 
@@ -397,6 +398,7 @@ class DistribuicaoService
             ->where('role', Role::Avaliador->value)
             ->where('is_active', true)
             ->where('is_demo', false)
+            ->avaliadorDaOnline()
             ->whereNotIn('id', [...$jaTem, ...$excluir])
             ->with('avaliadorProfile.areasExtras')
             ->withCount('avaliacoes as carga_count')
@@ -470,6 +472,7 @@ class DistribuicaoService
             ->where('role', Role::Avaliador->value)
             ->where('is_active', true)
             ->where('is_demo', false)
+            ->avaliadorDaOnline()
             ->with(['avaliadorProfile:id,user_id,area_id,subarea_id,limite_avaliacoes', 'avaliadorProfile.areasExtras'])
             ->get(['id'])
             ->each(function (User $u) use (&$avaliadores, $limites) {

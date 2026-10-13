@@ -47,6 +47,65 @@ export function Vagas({ credencial }) {
 }
 
 /**
+ * As informações adicionais da credencial (Sprint 192): o texto longo da
+ * organização — critérios, regras do órgão —, que o comitê lê ao recomendar.
+ * Quem passa `onSalvar` (a Avaliação presencial, que cadastra) também edita.
+ */
+export function InformacoesAdicionais({ credencial, ocupado = false, onSalvar = null }) {
+    const [editando, setEditando] = useState(false);
+    const [texto, setTexto] = useState(credencial.informacoes ?? '');
+
+    if (editando) {
+        return (
+            <div className="mt-3">
+                <label className="block text-xs font-semibold text-on-surface mb-1" htmlFor={`informacoes-${credencial.id}`}>
+                    Informações adicionais
+                </label>
+                <textarea
+                    id={`informacoes-${credencial.id}`}
+                    rows={4}
+                    maxLength={5000}
+                    value={texto}
+                    onChange={(e) => setTexto(e.target.value)}
+                    className="w-full bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 outline-none"
+                />
+                <div className="flex justify-end gap-2 mt-2">
+                    <Button type="button" variant="outline" disabled={ocupado} onClick={() => { setTexto(credencial.informacoes ?? ''); setEditando(false); }}>
+                        Cancelar
+                    </Button>
+                    <Button type="button" disabled={ocupado} onClick={async () => { await onSalvar(credencial, texto); setEditando(false); }}>
+                        Salvar informações
+                    </Button>
+                </div>
+            </div>
+        );
+    }
+
+    if (!credencial.informacoes && !onSalvar) return null;
+
+    return (
+        <div className="mt-3 rounded-lg bg-surface-container-low px-3 py-2">
+            <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold text-on-surface">Informações adicionais</p>
+                {onSalvar && (
+                    <button
+                        type="button"
+                        className="text-xs text-primary hover:underline disabled:opacity-50"
+                        disabled={ocupado}
+                        onClick={() => { setTexto(credencial.informacoes ?? ''); setEditando(true); }}
+                    >
+                        {credencial.informacoes ? 'Editar' : 'Adicionar'}
+                    </button>
+                )}
+            </div>
+            {credencial.informacoes
+                ? <p className="text-sm text-on-surface-variant whitespace-pre-line mt-1">{credencial.informacoes}</p>
+                : <p className="text-xs text-on-surface-variant mt-1">Nenhuma informação adicional.</p>}
+        </div>
+    );
+}
+
+/**
  * Uma credencial: o que é, quem já recebeu e o campo para anexar mais um.
  *
  * Serve às duas telas que mexem na mesma base (`credencial_projeto`): a de
@@ -56,7 +115,7 @@ export function Vagas({ credencial }) {
  */
 export default function CartaoCredencial({
     credencial, candidatos, ocupado, onAtribuir, onRetirar, onAlternar = null, onExcluir = null,
-    rotuloAnexar = 'Anexar',
+    onSalvarInformacoes = null, rotuloAnexar = 'Anexar',
 }) {
     const [projeto, setProjeto] = useState(null);
 
@@ -104,6 +163,8 @@ export default function CartaoCredencial({
                     )}
                 </div>
             </div>
+
+            <InformacoesAdicionais credencial={credencial} ocupado={ocupado} onSalvar={onSalvarInformacoes} />
 
             {credencial.projetos.length > 0 && (
                 <ul className="mt-3 divide-y divide-outline-variant/30">

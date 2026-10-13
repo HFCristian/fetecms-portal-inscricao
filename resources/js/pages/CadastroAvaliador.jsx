@@ -10,20 +10,11 @@ import { validarObrigatorios } from '../lib/validacao.js';
 // Ao contrário da camiseta, marcar ao menos um idioma é obrigatório: a
 // organização precisa saber a quem mandar um projeto estrangeiro.
 import { IDIOMAS } from '../lib/idiomas.js';
+import { TITULACOES } from '../lib/avaliador.js';
 
 // Obrigatórios do avaliador (todos menos a subárea).
 const AVALIADOR_OBRIGATORIOS = ['name', 'email', 'cpf', 'titulacao', 'area_id', 'password', 'password_confirmation'];
 
-// Titulação com a situação explícita: quem está CURSANDO a pós-graduação já
-// pode avaliar, não precisa ter concluído (espelha AvaliadorProfile::TITULACOES).
-const TITULACOES = [
-    'Especialização (em andamento)',
-    'Especialização (concluída)',
-    'Mestrado (em andamento)',
-    'Mestrado (concluído)',
-    'Doutorado (em andamento)',
-    'Doutorado (concluído)',
-];
 
 // Tamanhos da camiseta do evento — os mesmos do orientador (espelha
 // AvaliadorProfile::CAMISETAS). O campo é opcional: quem não responde fica de

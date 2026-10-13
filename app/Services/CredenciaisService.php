@@ -117,6 +117,7 @@ class CredenciaisService
             'nome' => trim($dados['nome']),
             'orgao' => $dados['orgao'] ?? null,
             'descricao' => $dados['descricao'] ?? null,
+            'informacoes' => $this->texto($dados['informacoes'] ?? null),
             'vagas' => $dados['vagas'] ?? null,
             'ordem' => (int) ($dados['ordem'] ?? 0),
             'ativa' => $dados['ativa'] ?? true,
@@ -134,8 +135,12 @@ class CredenciaisService
             ]);
         }
 
+        if (array_key_exists('informacoes', $dados)) {
+            $dados['informacoes'] = $this->texto($dados['informacoes']);
+        }
+
         $credencial->fill(array_intersect_key($dados, array_flip([
-            'tipo', 'nome', 'orgao', 'descricao', 'vagas', 'ordem', 'ativa',
+            'tipo', 'nome', 'orgao', 'descricao', 'informacoes', 'vagas', 'ordem', 'ativa',
         ])))->save();
 
         return $credencial->refresh();
@@ -312,6 +317,8 @@ class CredenciaisService
             'nome' => $credencial->nome,
             'orgao' => $credencial->orgao,
             'descricao' => $credencial->descricao,
+            // Texto longo da organização (Sprint 192), lido também pelo comitê.
+            'informacoes' => $credencial->informacoes,
             'vagas' => $credencial->vagas,
             'usadas' => $usadas,
             // Nulo = sem teto: a tela mostra "—" em vez de um número inventado.
@@ -352,6 +359,14 @@ class CredenciaisService
         $partes = array_filter([$instituicao?->nome, $local === '' ? null : $local]);
 
         return $partes === [] ? '—' : implode(' / ', $partes);
+    }
+
+    /** Texto livre aparado; em branco vira nulo. */
+    private function texto(?string $texto): ?string
+    {
+        $texto = trim((string) $texto);
+
+        return $texto === '' ? null : $texto;
     }
 
     private function chave(?string $texto): string

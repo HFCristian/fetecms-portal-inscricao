@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\V1\AvaliadorAvaliacaoController;
 use App\Http\Controllers\Api\V1\AvaliadorController;
 use App\Http\Controllers\Api\V1\AvaliadorPerfilController;
 use App\Http\Controllers\Api\V1\AvaliadorPresencialAvaliacaoController;
+use App\Http\Controllers\Api\V1\AvaliadorPresencialCadastroController;
 use App\Http\Controllers\Api\V1\AvaliadorPresencialController;
 use App\Http\Controllers\Api\V1\AvisoController;
 use App\Http\Controllers\Api\V1\CadastroPendenteController;
@@ -334,6 +335,13 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::post('/distribuicao/redistribuir', [AvaliacaoPresencialAdminController::class, 'redistribuir']);
                 Route::post('/avaliacoes/designar', [AvaliacaoPresencialAdminController::class, 'designarAvaliacoes']);
                 Route::delete('/avaliacoes/{avaliacao}', [AvaliacaoPresencialAdminController::class, 'retirarAvaliacao']);
+                // Cadastro de avaliadores só do evento presencial (Sprint 191):
+                // a organização cria a conta e entrega a senha gerada.
+                Route::get('/avaliadores-cadastrados', [AvaliadorPresencialCadastroController::class, 'index']);
+                Route::post('/avaliadores-cadastrados', [AvaliadorPresencialCadastroController::class, 'store'])
+                    ->middleware('throttle:30,1');
+                Route::post('/avaliadores-cadastrados/{avaliador}/senha', [AvaliadorPresencialCadastroController::class, 'novaSenha'])
+                    ->middleware('throttle:30,1');
                 // Credenciais: as vagas de premiação e a lista da cerimônia.
                 Route::get('/credenciais', [AvaliacaoPresencialAdminController::class, 'credenciais']);
                 Route::post('/credenciais', [AvaliacaoPresencialAdminController::class, 'criarCredencial']);

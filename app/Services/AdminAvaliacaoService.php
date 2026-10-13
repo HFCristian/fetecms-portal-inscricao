@@ -89,7 +89,9 @@ class AdminAvaliacaoService
             // Fase presencial à parte (Sprint 163): o certificado de cada fase
             // sai em momento diferente, então os números não se misturam.
             'presenciais' => (int) ($u->presenciais_count ?? 0),
-            'faltam' => max(0, $min - $avaliou),
+            // Quem é só do presencial (Sprint 191) não deve avaliação online.
+            'faltam' => $perfil?->apenas_presencial ? 0 : max(0, $min - $avaliou),
+            'apenas_presencial' => (bool) $perfil?->apenas_presencial,
             'limite' => $perfil?->limite_avaliacoes,
             // Em que idiomas ele se declarou apto. Quem se cadastrou antes de
             // o campo existir vem com a lista vazia, e é assim que a tela
@@ -120,6 +122,7 @@ class AdminAvaliacaoService
     {
         return User::query()
             ->where('role', Role::Avaliador->value)
+            ->avaliadorDaOnline()
             ->when($somenteComissao, fn ($q) => $q->whereHas(
                 'avaliadorProfile',
                 fn ($perfil) => $perfil->where('comissao_especial', true),
@@ -1222,6 +1225,11 @@ class AdminAvaliacaoService
             default => [],
         };
         $avaliadorIds = array_values(array_filter($avaliadorIds, fn ($id) => $id !== null));
+
+        // Quem a organização cadastrou só para o evento presencial (Sprint 191)
+        // não recebe projeto da avaliação online.
+        $soPresencial = AvaliadorProfile::whereIn('user_id', $avaliadorIds)->where('apenas_presencial', true)->pluck('user_id')->all();
+        $avaliadorIds = array_values(array_diff($avaliadorIds, $soPresencial));
 
         // As avaliações que estas pessoas já têm neste projeto — inclusive as
         // devolvidas, que o escopo esconde por padrão e que são justamente as

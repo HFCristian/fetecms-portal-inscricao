@@ -889,7 +889,30 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 188 | Etiquetas de identificação: **turno e estande**, papel ao lado do nome, sem projeto nem escola | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 189 | Identificação dos participantes em **ordem alfabética** de nome + **16 etiquetas por folha** (margem ~5 mm, cabeçalho de uma linha) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 190 | Comitê especial → **Premiação**: credenciais e prêmios nos projetos premiados (mesma base) + lista de premiação em TXT | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 191 | Avaliação presencial → **Cadastro de avaliadores** só do evento (senha gerada, fora da avaliação online) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 192 | Credenciais e Prêmios: campo **Informações adicionais** (cadastro, edição no cartão, visível ao comitê) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprints 191–192 (mesma branch):**
+> (a) **Sprint 191** — **Avaliação presencial → Cadastro de avaliadores**
+> (`/admin/presencial/avaliadores`, `AvaliadorPresencialCadastroService`): a organização cria a conta
+> de quem avalia **só no dia da feira**, com os mesmos dados do cadastro público de avaliador menos
+> camiseta, idiomas, cidade e estado — e as mesmas validações, inclusive a exclusão mútua com
+> orientador e coorientador (`CadastrarAvaliadorPresencialRequest` estende o
+> `RegisterAvaliadorRequest`). Sem código de confirmação: a **senha é gerada**
+> (`App\Support\SenhaGerada`, a mesma das contas temporárias em lote) e mostrada **uma vez**;
+> perdida, gera-se outra na mesma tela (as sessões abertas caem). A conta nasce com o "sim" da aba
+> Presencial e com `avaliador_profiles.apenas_presencial`, que a tira da **avaliação online**:
+> distribuição em massa, `designarUm`, reposição da fila, sorteio, fila do login, opções e designação
+> manual (individual, por área, por subárea, comissão e em massa) — `User::scopeAvaliadorDaOnline()`.
+> Para essa pessoa o menu esconde *Avaliações*, a tela inicial abre a avaliação no estande e a
+> intenção presencial não pode virar "não". Em Avaliadores Online ela aparece com o selo
+> **Só presencial** (é lá que se marca a comissão especial).
+> (b) **Sprint 192** — **Informações adicionais** da credencial ou prêmio (`credenciais.informacoes`,
+> até 5.000 caracteres): critérios, regras do órgão, o que a vaga cobre. A `descricao` continua sendo
+> a linha curta. Entra no cadastro e é **editável no cartão** (Avaliação presencial); o comitê o lê
+> na Premiação e, na Sprint 193, ao recomendar. **Não vai** para a lista de premiação em TXT.
+> Back **1421/1421**, front **698/698**, Pint limpo.
+>
 > **Sprints 189–190 (mesma branch):**
 > (a) **Sprint 189** — a identificação dos participantes passou a sair em **ordem alfabética de
 > nome** (sem acento e sem caixa; empate pelo código), na tela e no PDF — a folha de etiquetas é

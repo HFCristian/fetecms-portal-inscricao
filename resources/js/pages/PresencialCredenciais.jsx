@@ -9,7 +9,7 @@ import {
     atribuirCredencial, retirarCredencial, baixarPremiacao,
 } from '../lib/presencial.js';
 
-const VAZIA = { tipo: 'credencial', nome: '', orgao: '', vagas: '', descricao: '' };
+const VAZIA = { tipo: 'credencial', nome: '', orgao: '', vagas: '', descricao: '', informacoes: '' };
 
 /**
  * Avaliação presencial → **Credenciais e Prêmios**.
@@ -96,6 +96,7 @@ export default function PresencialCredenciais() {
                                 nome: form.nome.trim(),
                                 orgao: form.orgao.trim() || null,
                                 descricao: form.descricao.trim() || null,
+                                informacoes: form.informacoes.trim() || null,
                                 vagas: form.vagas === '' ? null : Number(form.vagas),
                             });
                             setForm(VAZIA);
@@ -133,6 +134,22 @@ export default function PresencialCredenciais() {
                         <Field label="Descrição" error={errors.descricao}>
                             <Input aria-label="Descrição" value={form.descricao} onChange={campo('descricao')} />
                         </Field>
+                        <div className="sm:col-span-2">
+                            <Field
+                                label="Informações adicionais"
+                                error={errors.informacoes}
+                                hint="Critérios, regras do órgão, o que a vaga cobre. Os avaliadores do comitê leem ao recomendar."
+                            >
+                                <textarea
+                                    aria-label="Informações adicionais"
+                                    rows={4}
+                                    maxLength={5000}
+                                    value={form.informacoes}
+                                    onChange={campo('informacoes')}
+                                    className="w-full bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 outline-none"
+                                />
+                            </Field>
+                        </div>
                     </div>
                     <div className="flex justify-end gap-2 mt-4">
                         <Button type="button" variant="outline" onClick={() => { setCriando(false); setErrors({}); }}>
@@ -177,6 +194,10 @@ export default function PresencialCredenciais() {
                                 'Retirado do projeto.',
                             )}
                             onAlternar={(cred) => acao(() => atualizarCredencial(cred.id, { ativa: !cred.ativa }))}
+                            onSalvarInformacoes={(cred, texto) => acao(
+                                () => atualizarCredencial(cred.id, { informacoes: texto.trim() || null }),
+                                'Informações adicionais salvas.',
+                            )}
                             onExcluir={(cred) => acao(() => excluirCredencial(cred.id), 'Item excluído.')}
                         />
                     ))}

@@ -105,6 +105,7 @@ class DesignacaoService
         $avaliadores = User::whereIn('id', $avaliadorIds)
             ->where('role', Role::Avaliador->value)
             ->where('is_active', true)
+            ->avaliadorDaOnline()
             ->when($soComissao, fn ($q) => $q->whereHas(
                 'avaliadorProfile',
                 fn ($p) => $p->where('comissao_especial', true),
@@ -505,6 +506,7 @@ class DesignacaoService
         $avaliadores = User::where('role', Role::Avaliador->value)
             ->where('is_active', true)
             ->where('is_demo', false)
+            ->avaliadorDaOnline()
             ->when(trim($avaliador) !== '', fn ($q) => $q->where(fn ($sub) => $sub
                 ->whereRaw('LOWER(name) LIKE ?', [$como($avaliador)])
                 ->orWhereRaw('LOWER(email) LIKE ?', [$como($avaliador)])))

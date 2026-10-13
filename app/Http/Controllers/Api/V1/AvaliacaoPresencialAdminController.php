@@ -281,6 +281,8 @@ class AvaliacaoPresencialAdminController extends Controller
             'nome' => ['required', 'string', 'max:120'],
             'orgao' => ['nullable', 'string', 'max:120'],
             'descricao' => ['nullable', 'string', 'max:500'],
+            // Informações adicionais (Sprint 192): critérios, regras do órgão.
+            'informacoes' => ['nullable', 'string', 'max:5000'],
             // Em branco = sem teto: nem todo órgão fecha o número antes.
             'vagas' => ['nullable', 'integer', 'min:1', 'max:999'],
             'ordem' => ['nullable', 'integer', 'min:0', 'max:999'],
@@ -298,6 +300,8 @@ class AvaliacaoPresencialAdminController extends Controller
             'nome' => ['sometimes', 'string', 'max:120'],
             'orgao' => ['nullable', 'string', 'max:120'],
             'descricao' => ['nullable', 'string', 'max:500'],
+            // Informações adicionais (Sprint 192): critérios, regras do órgão.
+            'informacoes' => ['nullable', 'string', 'max:5000'],
             'vagas' => ['nullable', 'integer', 'min:1', 'max:999'],
             'ordem' => ['nullable', 'integer', 'min:0', 'max:999'],
             'ativa' => ['sometimes', 'boolean'],

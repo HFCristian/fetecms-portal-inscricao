@@ -94,7 +94,7 @@ describe('PresencialCredenciais', () => {
 
         await waitFor(() => expect(criarCredencial).toHaveBeenCalledWith({
             // Sem escolher nada, credencial: era o único tipo antes dos prêmios.
-            tipo: 'credencial', nome: 'Feira Nacional', orgao: null, descricao: null, vagas: 5,
+            tipo: 'credencial', nome: 'Feira Nacional', orgao: null, descricao: null, informacoes: null, vagas: 5,
         }));
     });
 
@@ -107,8 +107,38 @@ describe('PresencialCredenciais', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Cadastrar' }));
 
         await waitFor(() => expect(criarCredencial).toHaveBeenCalledWith({
-            tipo: 'premio', nome: 'Destaque da feira', orgao: null, descricao: null, vagas: null,
+            tipo: 'premio', nome: 'Destaque da feira', orgao: null, descricao: null, informacoes: null, vagas: null,
         }));
+    });
+
+    // Sprint 192: o texto longo da organização, no cadastro e editável no cartão.
+    it('cadastra com informações adicionais', async () => {
+        render(<PresencialCredenciais />);
+
+        fireEvent.click(await screen.findByRole('button', { name: /Nova credencial/i }));
+        fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'MOSTRATEC' } });
+        fireEvent.change(screen.getByLabelText('Informações adicionais'), { target: { value: '  Só ensino médio.  ' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Cadastrar' }));
+
+        await waitFor(() => expect(criarCredencial).toHaveBeenCalledWith(expect.objectContaining({
+            informacoes: 'Só ensino médio.',
+        })));
+    });
+
+    it('edita as informações adicionais no cartão', async () => {
+        getCredenciais.mockResolvedValue({
+            data: [{ ...COM_VAGAS, informacoes: 'Texto antigo' }],
+            meta: { candidatos: CANDIDATOS, tipos: TIPOS },
+        });
+        atualizarCredencial.mockResolvedValue([]);
+        render(<PresencialCredenciais />);
+
+        expect(await screen.findByText('Texto antigo')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
+        fireEvent.change(screen.getByLabelText('Informações adicionais'), { target: { value: 'Texto novo' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Salvar informações' }));
+
+        await waitFor(() => expect(atualizarCredencial).toHaveBeenCalledWith(1, { informacoes: 'Texto novo' }));
     });
 
     it('credencial já dada não oferece excluir', async () => {
