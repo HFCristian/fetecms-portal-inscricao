@@ -6,7 +6,9 @@ use App\Enums\SituacaoEstande;
 use App\Enums\SituacaoTermoImagem;
 use App\Enums\StatusAvaliacao;
 use App\Enums\Turno;
+use App\Models\Area;
 use App\Models\AvaliacaoPresencial;
+use App\Models\AvaliadorProfile;
 use App\Models\Edicao;
 use App\Models\EstandeProjeto;
 use App\Support\JanelaTurnos;
@@ -189,6 +191,10 @@ class MapaSituacaoService
                 array_values(self::CRITERIOS),
             ),
             'max_avaliacoes' => JanelaTurnos::daEdicao()->porProjeto(),
+            // A legenda das faixas de área da tela cheia (Sprint 198).
+            'areas' => Area::orderBy('nome')->get(['id', 'nome', 'sigla'])
+                ->map(fn (Area $a) => ['id' => $a->id, 'nome' => $a->nome, 'sigla' => $a->siglaDaLista()])
+                ->all(),
         ];
     }
 
@@ -326,7 +332,7 @@ class MapaSituacaoService
 
         $alocacoes = EstandeProjeto::where('edicao_id', $edicao->id)
             ->where('turno', $turno->value)
-            ->with(['projeto.area:id,nome', 'projeto.instituicao:id,nome', 'projeto.user:id,name'])
+            ->with(['projeto.area:id,nome,sigla', 'projeto.instituicao:id,nome', 'projeto.user:id,name'])
             ->orderBy('numero')
             ->get()
             ->filter(fn (EstandeProjeto $e) => $e->projeto !== null);
@@ -336,11 +342,12 @@ class MapaSituacaoService
         $credenciados = $this->carimbos('credenciamentos', 'finalizado_em', $ids, $corte);
         $checados = $this->carimbos('checagens_estande', 'verificado_em', $ids, $corte);
         $avaliacoes = $this->avaliacoes($ids, $corte);
+        $doComite = $this->avaliacoes($ids, $corte, soComite: true);
         $maximo = JanelaTurnos::daEdicao()->porProjeto();
         $sinais = app(SinalizacaoProjetoService::class)->para($ids);
         $termos = app(TermosImagemService::class)->noEvento($ids, $corte);
 
-        return $alocacoes->map(function (EstandeProjeto $e) use ($credenciados, $checados, $avaliacoes, $maximo, $sinais, $termos) {
+        return $alocacoes->map(function (EstandeProjeto $e) use ($credenciados, $checados, $avaliacoes, $doComite, $maximo, $sinais, $termos) {
             $projeto = $e->projeto;
             $feitas = (int) ($avaliacoes[$projeto->id] ?? 0);
             $credenciado = $credenciados[$projeto->id] ?? null;
@@ -364,6 +371,10 @@ class MapaSituacaoService
                 'titulo' => $projeto->titulo,
                 'categoria' => $projeto->categoria?->label(),
                 'area' => $projeto->area?->nome,
+                // A faixa colorida da tela cheia (Sprint 198) segue a área, e a
+                // sigla vai escrita nela: a cor sozinha não separa oito áreas.
+                'area_id' => $projeto->area_id,
+                'area_sigla' => $projeto->area?->siglaDaLista(),
                 'escola' => $projeto->instituicao?->nome ?? '—',
                 'orientador' => $projeto->user?->name,
                 'situacao' => $situacao->value,
@@ -376,6 +387,9 @@ class MapaSituacaoService
                 'avaliacoes' => $feitas,
                 'avaliacoes_faltantes' => max(0, $maximo - $feitas),
                 'avaliacoes_maximo' => $maximo,
+                // Das avaliações no estande, as feitas por avaliador da
+                // comissão especial (Sprint 200, painel da tela cheia).
+                'avaliacoes_comite' => (int) ($doComite[$projeto->id] ?? 0),
                 // Estande vazio com explicação: fora do prazo aprovado (Sprint 161).
                 'sinalizacoes' => $sinais[$projeto->id] ?? null,
                 // Termo de uso de imagem (Sprint 176): online + balcão, no corte.
@@ -422,13 +436,17 @@ class MapaSituacaoService
      * @param  list<int>  $ids
      * @return array<int, int>
      */
-    private function avaliacoes(array $ids, CarbonImmutable $corte): array
+    private function avaliacoes(array $ids, CarbonImmutable $corte, bool $soComite = false): array
     {
         if ($ids === []) {
             return [];
         }
 
         return AvaliacaoPresencial::whereIn('projeto_id', $ids)
+            ->when($soComite, fn ($q) => $q->whereIn(
+                'avaliador_id',
+                AvaliadorProfile::where('comissao_especial', true)->select('user_id'),
+            ))
             ->where('status', StatusAvaliacao::Concluida->value)
             ->whereNotNull('concluida_em')
             ->where('concluida_em', '<=', $corte)

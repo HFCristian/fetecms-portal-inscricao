@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../components/AppShell.jsx', () => ({ default: ({ children }) => <div>{children}</div> }));
@@ -102,6 +102,10 @@ const FILTROS = {
         },
     ],
     max_avaliacoes: 3,
+    areas: [
+        { id: 3, nome: 'Ciências Agrárias', sigla: 'AGR' },
+        { id: 4, nome: 'Ciências Biológicas', sigla: 'BIO' },
+    ],
 };
 
 const SITUACAO = {
@@ -114,6 +118,7 @@ const SITUACAO = {
             numero: 42, estande: '042', projeto_id: 1, titulo: 'Bioplástico de mandioca',
             categoria: 'FETECMS', area: 'Ciências Agrárias', escola: 'EE Maria Constança',
             orientador: 'Marta', situacao: 'checado', situacao_label: 'Pronto para avaliação',
+            area_id: 3, area_sigla: 'AGR', avaliacoes_comite: 0,
             cor: '#9fd8ae', credenciado: true, credenciado_em: '02/10/2026 09:10',
             checado: true, checado_em: '02/10/2026 10:30',
             avaliacoes: 0, avaliacoes_faltantes: 3, avaliacoes_maximo: 3,
@@ -416,5 +421,72 @@ describe('MapaPlanta', () => {
         render(<MapaPlanta />);
 
         expect(await screen.findByRole('button', { name: /Tela cheia/ })).toBeInTheDocument();
+    });
+
+    // --- Sprint 197: a rua da borda esquerda --------------------------------
+    it('abre espaço à esquerda para a rua da borda e a oferece para nomear', async () => {
+        getPlanta.mockResolvedValue(resposta({
+            ruas: [{ chave: 'v:-0.5', orientacao: 'v', posicao: -0.5, de: 0, ate: 1, nome: 'Rua da Entrada', borda: true }],
+        }));
+        const { container } = render(<MapaPlanta />);
+        await screen.findByText('Rua da Entrada');
+
+        expect(container.querySelector('svg[role="img"]').getAttribute('viewBox')).toMatch(/^-10 0 /);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Editar planta' }));
+        expect(screen.getByPlaceholderText('Rua da borda esquerda')).toHaveValue('Rua da Entrada');
+    });
+
+    // --- Sprint 198: tela cheia ----------------------------------------------
+    describe('em tela cheia', () => {
+        beforeEach(() => {
+            // O documento é o mesmo entre os testes: começa fora da tela cheia.
+            Object.defineProperty(document, 'fullscreenElement', { configurable: true, value: null });
+            HTMLElement.prototype.requestFullscreen = vi.fn(function entrar() {
+                Object.defineProperty(document, 'fullscreenElement', { configurable: true, value: this });
+                document.dispatchEvent(new Event('fullscreenchange'));
+                return Promise.resolve();
+            });
+            document.exitFullscreen = vi.fn(() => {
+                Object.defineProperty(document, 'fullscreenElement', { configurable: true, value: null });
+                document.dispatchEvent(new Event('fullscreenchange'));
+                return Promise.resolve();
+            });
+        });
+
+        async function entrar() {
+            const utils = render(<MapaPlanta />);
+            fireEvent.click(await screen.findByRole('button', { name: /Tela cheia/ }));
+            // Os dois botões de sair (barra e palco) dizem que entrou.
+            await waitFor(() => expect(screen.getAllByRole('button', { name: /Sair da tela cheia/ })).toHaveLength(2));
+            return utils;
+        }
+
+        it('grifa o estande com a faixa da área e a sigla, e destaca uma área', async () => {
+            const { container } = await entrar();
+
+            const estande = await screen.findByRole('button', { name: 'Estande 042 · Ciências Agrárias' });
+            expect(estande.textContent).toContain('AGR');
+            // A faixa tem a cor fixa de Agrárias.
+            expect(estande.querySelector('rect[fill="#008300"]')).not.toBeNull();
+            // Só as áreas do turno vão para a legenda.
+            const legenda = screen.getByRole('group', { name: 'Áreas do conhecimento' });
+            expect(legenda.textContent).toContain('Ciências Agrárias');
+            expect(legenda.textContent).not.toContain('Ciências Biológicas');
+
+            fireEvent.click(within(legenda).getByRole('button', { name: /Ciências Agrárias/ }));
+            expect(within(legenda).getByRole('button', { name: /Ciências Agrárias/ })).toHaveAttribute('aria-pressed', 'true');
+            // O estande sem projeto (outra "área") fica apagado.
+            expect(container.querySelector('[aria-label="Estande 001"]').getAttribute('opacity')).toBe('0.18');
+        });
+
+        it('se atualiza a cada 5 segundos e diz isso no canto', async () => {
+            const intervalo = vi.spyOn(window, 'setInterval');
+            await entrar();
+
+            await waitFor(() => expect(intervalo).toHaveBeenCalledWith(expect.any(Function), 5000));
+            expect(await screen.findByText(/Ao vivo · atualizado às .* · atualiza a cada 5 segundos/)).toBeInTheDocument();
+            intervalo.mockRestore();
+        });
     });
 });

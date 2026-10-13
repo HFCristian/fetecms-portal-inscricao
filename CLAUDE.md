@@ -895,7 +895,27 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 194 | Recomendações do comitê: filtro por **título do projeto, área e categoria** (contagem presa ao recorte) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 195 | Cartão da credencial mostra as **aprovadas pelo comitê**, com botão **Premiar** (Premiação e Credenciais e Prêmios) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 196 | **Painel da premiação**: vagas que faltam por credencial + ranking dos premiados por área (admin e comissão, tela cheia) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 197 | Mapa do Evento: **rua da borda esquerda**, ao lado da primeira coluna de estandes (nomeável na configuração) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 198 | Mapa em tela cheia: **faixa da área** em cada estande (cor + sigla, legenda que destaca) e atualização a cada **5 s** com aviso no canto | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprints 197–198 (mesma branch):**
+> (a) **Sprint 197** — a **rua da borda esquerda**: a varredura de corredores (`PlantaEvento::ruas()`)
+> só achava o vão **entre** duas fileiras, e a rua que passa ao lado da primeira coluna, entre ela e
+> a parede, não tem fileira do outro lado. Ela entra agora como uma rua a mais (`borda: true`), meia
+> célula à esquerda da primeira coluna (chave `v:-0.5` na prancha padrão) — e, como as outras, anda
+> junto se a coluna for movida. Nomeia-se em *Editar planta → Ruas do evento*; o desenho abre uma
+> célula a mais à esquerda para o nome caber.
+> (b) **Sprint 198** — em **tela cheia** cada estande ganha uma **faixa na cor da área** do projeto,
+> na base do quadrado, separada do preenchimento por um fio branco e com a **sigla escrita** (AGR,
+> BIO…). A cor é fixa por área (nunca pela posição na lista; área nova cai em cinza "Outras") e foi
+> escolhida pelo guia de cores, com validação por script: as oito passam lado a lado, mas num mapa em
+> que todas aparecem juntas algumas ficam próximas demais (vermelho × laranja) — por isso a sigla
+> escrita e a **legenda que destaca uma área** (clicar apaga as outras). O mapa em tela cheia se
+> atualiza **a cada 5 segundos** (fora dela, 30s) e o canto superior esquerdo diz isso — "Ao vivo ·
+> atualizado às 14:32:05" —, avisa quando a conexão cai (o mapa fica no último retrato) e quando o
+> dia escolhido já acabou. A linha do estande passou a trazer `area_id`, `area_sigla` e
+> `avaliacoes_comite` (este usado pelo painel da Sprint 200), e a planta traz a lista `areas`.
+>
 > **Sprint 196 (mesma branch):** o **Painel da premiação** — a base de Credenciais e Prêmios
 > lida de longe, para a mesa da deliberação. Abre por botão na **Premiação do comitê** (admin,
 > `/admin/comite/premiacao/painel`, `GET /admin/premiacao/painel`) e na aba **Comitê especial** da

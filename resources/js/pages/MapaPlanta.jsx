@@ -8,6 +8,7 @@ import {
     getSituacaoPlanta, getListaSituacao, baixarListaSituacao,
 } from '../lib/mapaEvento.js';
 import SinalizacoesProjeto from '../components/SinalizacoesProjeto.jsx';
+import { corDaArea, textoSobreArea } from '../lib/mapaTelaCheia.js';
 
 /**
  * Mapa do Evento → **a planta do ginásio**.
@@ -34,6 +35,17 @@ const MARGEM = 6;
 
 /** De quanto em quanto tempo o mapa ao vivo se recarrega sozinho. */
 const POLLING_MS = 30000;
+
+/**
+ * Em tela cheia o mapa está projetado no ginásio (Sprint 198): recarrega a
+ * cada 5 segundos, e a tela diz isso no canto.
+ */
+const POLLING_TELA_CHEIA_MS = 5000;
+
+/** Altura da faixa de área na base do quadrado, em unidades do viewBox. */
+const FAIXA = 2.8;
+
+const relogio = (d) => d?.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) ?? '—';
 
 /**
  * Cor do estande por **ocupação** — quem apresenta nele, sem olhar o evento.
@@ -166,6 +178,11 @@ export default function MapaPlanta() {
     const [telaCheia, setTelaCheia] = useState(false);
     const palco = useRef(null);
 
+    // --- Tela cheia (Sprint 198) ---------------------------------------
+    const [areaDestacada, setAreaDestacada] = useState(null);
+    const [atualizadoEm, setAtualizadoEm] = useState(null);
+    const [semConexao, setSemConexao] = useState(false);
+
     // --- Lista filtrada -----------------------------------------------
     const [criterio, setCriterio] = useState('credenciamento');
     const [valor, setValor] = useState('sim');
@@ -187,12 +204,15 @@ export default function MapaPlanta() {
 
     const carregarSituacao = useCallback(() => {
         // Espera a planta chegar: o dia padrão sai dela, e disparar antes faria
-        // uma consulta a mais em toda abertura da tela.
-        if (modo !== 'situacao' || !pronto) return;
+        // uma consulta a mais em toda abertura da tela. A tela cheia sempre
+        // mostra a situação, qualquer que seja a cor escolhida fora dela.
+        if ((modo !== 'situacao' && !telaCheia) || !pronto) return;
         getSituacaoPlanta({ dia: dia || undefined, turno })
-            .then(setSituacao)
-            .catch(() => setSituacao(null));
-    }, [modo, dia, turno, pronto]);
+            .then((r) => { setSituacao(r); setAtualizadoEm(new Date()); setSemConexao(false); })
+            // Falha de rede no meio do evento: o mapa fica com o último retrato
+            // e o canto avisa, em vez de apagar tudo.
+            .catch(() => setSemConexao(true));
+    }, [modo, dia, turno, pronto, telaCheia]);
 
     useEffect(() => { carregarSituacao(); }, [carregarSituacao]);
 
@@ -201,10 +221,10 @@ export default function MapaPlanta() {
     const ehHoje = !dia || filtros?.dias?.find((d) => d.value === dia)?.hoje;
 
     useEffect(() => {
-        if (modo !== 'situacao' || !ehHoje || editando || !pronto) return undefined;
-        const id = setInterval(carregarSituacao, POLLING_MS);
+        if ((modo !== 'situacao' && !telaCheia) || !ehHoje || editando || !pronto) return undefined;
+        const id = setInterval(carregarSituacao, telaCheia ? POLLING_TELA_CHEIA_MS : POLLING_MS);
         return () => clearInterval(id);
-    }, [modo, ehHoje, editando, pronto, carregarSituacao]);
+    }, [modo, ehHoje, editando, pronto, telaCheia, carregarSituacao]);
 
     useEffect(() => {
         const aoTrocar = () => setTelaCheia(Boolean(document.fullscreenElement));
@@ -225,6 +245,12 @@ export default function MapaPlanta() {
     const estandes = layout?.estandes ?? [];
     const ocupacao = dados?.ocupacao ?? {};
     const porNumero = situacao?.estandes ?? {};
+    const linhasDoTurno = useMemo(() => Object.values(situacao?.estandes ?? {}), [situacao]);
+    // As áreas que aparecem neste turno, na ordem da legenda do servidor.
+    const areasDoTurno = useMemo(() => {
+        const presentes = new Set(linhasDoTurno.map((l) => l.area_sigla).filter(Boolean));
+        return (filtros?.areas ?? []).filter((a) => presentes.has(a.sigla));
+    }, [filtros, linhasDoTurno]);
 
     /** A moldura do desenho acompanha o que existe nele. */
     const caixa = useMemo(() => {
@@ -235,6 +261,13 @@ export default function MapaPlanta() {
             altura: Math.max(...estandes.map((e) => e.y)) + 1,
         };
     }, [estandes]);
+
+    // A rua da borda esquerda (Sprint 197) fica à esquerda da primeira coluna:
+    // a moldura abre uma célula a mais desse lado para o nome dela caber.
+    const esquerda = useMemo(
+        () => Math.min(0, ...ruas.filter((r) => r.orientacao === 'v').map((r) => Math.floor(r.posicao))),
+        [ruas],
+    );
 
     /** As células livres da grade — os destinos possíveis no modo de edição. */
     const livres = useMemo(() => {
@@ -483,24 +516,68 @@ export default function MapaPlanta() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 <div
                     ref={palco}
-                    className="lg:col-span-2 bg-surface-container-lowest rounded-xl fetec-card-shadow p-4 overflow-x-auto"
+                    className={telaCheia
+                        ? 'relative flex flex-col h-full w-full bg-background p-4 overflow-hidden'
+                        : 'lg:col-span-2 bg-surface-container-lowest rounded-xl fetec-card-shadow p-4 overflow-x-auto'}
                 >
                     {/* Em tela cheia o fundo do palco precisa existir: o elemento
                         sai do fluxo da página e levaria o `body` junto. */}
                     {telaCheia && (
-                        <div className="flex items-center justify-between mb-3">
-                            <h2 className="font-display text-lg font-semibold text-primary">
-                                {situacao ? `${situacao.turno_label} · ${situacao.corte_label}` : 'Mapa do Evento'}
-                            </h2>
+                        <div className="flex items-start justify-between gap-3 mb-2">
+                            <div>
+                                <h2 className="font-display text-lg font-semibold text-primary">
+                                    {situacao ? `${situacao.turno_label} · ${situacao.corte_label}` : 'Mapa do Evento'}
+                                </h2>
+                                {/* O canto que diz que o mapa está vivo (Sprint 198). */}
+                                <p className="text-xs text-on-surface-variant flex items-center gap-1.5" aria-live="polite">
+                                    {ehHoje ? (
+                                        <>
+                                            <span className={`inline-block w-2 h-2 rounded-full ${semConexao ? 'bg-error' : 'bg-[#0ca30c] animate-pulse'}`} />
+                                            {semConexao
+                                                ? `Sem conexão — mostrando o retrato das ${relogio(atualizadoEm)}, tentando de novo`
+                                                : `Ao vivo · atualizado às ${relogio(atualizadoEm)} · atualiza a cada 5 segundos`}
+                                        </>
+                                    ) : (
+                                        <>Dia encerrado: o mapa mostra como estava no fim do dia e não se atualiza.</>
+                                    )}
+                                </p>
+                            </div>
                             <Button variant="outline" onClick={alternarTelaCheia}>Sair da tela cheia</Button>
                         </div>
                     )}
 
+                    {/* As áreas do turno: a cor da faixa de cada estande. Clicar
+                        destaca uma área e apaga as outras. */}
+                    {telaCheia && areasDoTurno.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mb-2" role="group" aria-label="Áreas do conhecimento">
+                            {areasDoTurno.map((a) => (
+                                <button
+                                    key={a.id}
+                                    type="button"
+                                    aria-pressed={areaDestacada === a.sigla}
+                                    onClick={() => setAreaDestacada((d) => (d === a.sigla ? null : a.sigla))}
+                                    className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs transition-opacity ${
+                                        areaDestacada && areaDestacada !== a.sigla ? 'opacity-40' : ''
+                                    } ${areaDestacada === a.sigla ? 'border-primary-container bg-primary-fixed' : 'border-outline-variant bg-surface-container-lowest'}`}
+                                >
+                                    <span
+                                        className="rounded-sm px-1 text-[10px] font-bold"
+                                        style={{ background: corDaArea(a.sigla), color: textoSobreArea(corDaArea(a.sigla)) }}
+                                    >
+                                        {a.sigla}
+                                    </span>
+                                    <span className="text-on-surface">{a.nome}</span>
+                                </button>
+                            ))}
+                        </div>
+                    )}
+
+                    <div className={telaCheia ? 'relative flex-1 min-h-0' : ''}>
                     <svg
                         role="img"
                         aria-label="Planta do evento com os estandes"
-                        viewBox={`0 0 ${caixa.largura * CELULA + MARGEM * 2} ${caixa.altura * CELULA + MARGEM * 2}`}
-                        className={`w-full h-auto min-w-[36rem] ${telaCheia ? 'max-h-[85vh]' : ''}`}
+                        viewBox={`${esquerda * CELULA} 0 ${(caixa.largura - esquerda) * CELULA + MARGEM * 2} ${caixa.altura * CELULA + MARGEM * 2}`}
+                        className={telaCheia ? 'w-full h-full' : 'w-full h-auto min-w-[36rem]'}
                     >
                         {/* As células livres só aparecem no modo de edição: são
                             o destino de quem está selecionado. */}
@@ -546,23 +623,31 @@ export default function MapaPlanta() {
                         ))}
 
                         {estandes.map((e) => {
-                            const cores = modo === 'situacao'
-                                ? corPorSituacao({ selecionado: e.numero === selecionado, linha: porNumero[e.numero] })
+                            const linha = porNumero[e.numero];
+                            // Em tela cheia a faixa de baixo é a da área (Sprint 198).
+                            const cores = modo === 'situacao' || telaCheia
+                                ? corPorSituacao({ selecionado: e.numero === selecionado, linha })
                                 : corPorOcupacao({ selecionado: e.numero === selecionado, ocupacao: ocupacao[e.numero] });
+                            const faixa = telaCheia && linha;
+                            const corFaixa = faixa ? corDaArea(linha.area_sigla) : null;
+                            const apagado = telaCheia && areaDestacada && linha?.area_sigla !== areaDestacada;
+                            const x0 = MARGEM + e.x * CELULA;
+                            const y0 = MARGEM + e.y * CELULA;
 
                             return (
                                 <g
                                     key={e.numero}
                                     role="button"
                                     tabIndex={0}
-                                    aria-label={`Estande ${String(e.numero).padStart(3, '0')}`}
+                                    aria-label={`Estande ${String(e.numero).padStart(3, '0')}${linha?.area ? ` · ${linha.area}` : ''}`}
                                     style={{ cursor: 'pointer' }}
+                                    opacity={apagado ? 0.18 : 1}
                                     onClick={() => setSelecionado(e.numero)}
                                     onKeyDown={(ev) => { if (ev.key === 'Enter') setSelecionado(e.numero); }}
                                 >
                                     <rect
-                                        x={MARGEM + e.x * CELULA}
-                                        y={MARGEM + e.y * CELULA}
+                                        x={x0}
+                                        y={y0}
                                         width={CELULA - 1}
                                         height={CELULA - 1}
                                         rx="1.5"
@@ -571,11 +656,40 @@ export default function MapaPlanta() {
                                         stroke={cores.stroke}
                                         strokeWidth="0.6"
                                     />
+                                    {faixa && (
+                                        <>
+                                            {/* A faixa da área, separada do preenchimento por
+                                                um fio branco, com a sigla escrita: a cor não é
+                                                a única pista de qual área é. */}
+                                            <rect
+                                                x={x0 + 0.3}
+                                                y={y0 + CELULA - 1 - FAIXA - 0.3}
+                                                width={CELULA - 1.6}
+                                                height={FAIXA}
+                                                rx="0.8"
+                                                fill={corFaixa}
+                                                stroke="#ffffff"
+                                                strokeWidth="0.4"
+                                            />
+                                            <text
+                                                x={x0 + (CELULA - 1) / 2}
+                                                y={y0 + CELULA - 1 - 0.3 - FAIXA / 2 + 0.75}
+                                                textAnchor="middle"
+                                                fontSize="2.1"
+                                                fontWeight="700"
+                                                letterSpacing="0.2"
+                                                fill={textoSobreArea(corFaixa)}
+                                                style={{ pointerEvents: 'none' }}
+                                            >
+                                                {linha.area_sigla}
+                                            </text>
+                                        </>
+                                    )}
                                     <text
-                                        x={MARGEM + e.x * CELULA + (CELULA - 1) / 2}
-                                        y={MARGEM + e.y * CELULA + (CELULA - 1) / 2 + 1.6}
+                                        x={x0 + (CELULA - 1) / 2}
+                                        y={faixa ? y0 + 4.4 : y0 + (CELULA - 1) / 2 + 1.6}
                                         textAnchor="middle"
-                                        fontSize="4"
+                                        fontSize={faixa ? 3.6 : 4}
                                         fontWeight="600"
                                         fill={cores.texto}
                                     >
@@ -585,6 +699,8 @@ export default function MapaPlanta() {
                             );
                         })}
                     </svg>
+
+                    </div>
 
                     <div className="flex flex-wrap gap-4 mt-3 text-xs text-on-surface-variant">
                         {modo === 'situacao' ? (
@@ -711,8 +827,9 @@ export default function MapaPlanta() {
                             <h2 className="font-display font-semibold text-on-surface mb-1">Ruas do evento</h2>
                             <p className="text-xs text-on-surface-variant mb-3">
                                 Os corredores entre as ilhas de estandes, encontrados no próprio
-                                desenho. Dê nome aos que a organização usa — quem fica em branco não
-                                aparece no mapa.
+                                desenho, e a rua da borda esquerda, ao lado da primeira coluna. Dê
+                                nome aos que a organização usa — quem fica em branco não aparece no
+                                mapa.
                             </p>
                             <ul className="space-y-2">
                                 {ruas.map((r) => (
@@ -723,7 +840,7 @@ export default function MapaPlanta() {
                                         <Input
                                             aria-label={`Nome do corredor ${r.chave}`}
                                             value={r.nome ?? ''}
-                                            placeholder={r.orientacao === 'h' ? 'Corredor horizontal' : 'Corredor vertical'}
+                                            placeholder={r.borda ? 'Rua da borda esquerda' : r.orientacao === 'h' ? 'Corredor horizontal' : 'Corredor vertical'}
                                             onChange={(ev) => nomearRua(r.chave, ev.target.value)}
                                         />
                                     </li>
