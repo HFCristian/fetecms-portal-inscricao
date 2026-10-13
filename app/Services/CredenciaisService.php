@@ -336,7 +336,7 @@ class CredenciaisService
         ];
     }
 
-    private function garantirFinalista(Projeto $projeto): void
+    public function garantirFinalista(Projeto $projeto): void
     {
         $lista = ListaFinal::vigente();
 

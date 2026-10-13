@@ -17,6 +17,7 @@ import Perfil from './pages/Perfil.jsx';
 import AvaliadorHome from './pages/AvaliadorHome.jsx';
 import AvaliadorPerfil from './pages/AvaliadorPerfil.jsx';
 import AvaliadorPresencial from './pages/AvaliadorPresencial.jsx';
+import AvaliadorComite from './pages/AvaliadorComite.jsx';
 import AvaliadorAvaliacaoPresencial from './pages/AvaliadorAvaliacaoPresencial.jsx';
 import AdminAvisoDetalhe from './pages/AdminAvisoDetalhe.jsx';
 import AdminAvisos from './pages/AdminAvisos.jsx';
@@ -154,6 +155,7 @@ export default function Root() {
                             <Route path="/avaliador" element={<AvaliadorHome />} />
                             <Route path="/avaliador/presencial" element={<AvaliadorPresencial />} />
                             <Route path="/avaliador/avaliacao-presencial" element={<AvaliadorAvaliacaoPresencial />} />
+                            <Route path="/avaliador/comite" element={<AvaliadorComite />} />
                             <Route path="/avaliador/perfil" element={<AvaliadorPerfil />} />
                         </Route>
 

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { Alert, Button } from '../components/ui.jsx';
+import RecomendacoesPremiacao from '../components/RecomendacoesPremiacao.jsx';
 import CartaoCredencial, { PilulaTipo } from '../components/CartaoCredencial.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import {
@@ -93,6 +94,8 @@ export default function ComitePremiacao() {
 
             {alerta && <div className="mb-4 max-w-3xl"><Alert>{alerta}</Alert></div>}
             {sucesso && <div className="mb-4 max-w-3xl"><Alert type="info">{sucesso}</Alert></div>}
+
+            <RecomendacoesPremiacao />
 
             {credenciais === null ? (
                 <div className="text-center py-10 text-on-surface-variant">

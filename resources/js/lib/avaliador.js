@@ -33,3 +33,16 @@ export const atualizarCamisetaAvaliador = (camiseta) =>
  */
 export const atualizarIdiomasAvaliador = (idiomas) =>
     http.put('/avaliador/perfil/idiomas', { idiomas }).then((r) => r.data);
+
+// --- Comitê especial (Sprint 193) -------------------------------------------
+// Só a comissão especial: recomenda finalistas para as credenciais e prêmios.
+// As três devolvem o painel inteiro ({ credenciais, candidatos, recomendacoes }).
+
+export const getComiteAvaliador = () => http.get('/avaliador/comite').then((r) => r.data.data);
+
+export const recomendarProjeto = (credencialId, projetoId, justificativa = null) =>
+    http.post('/avaliador/comite/recomendacoes', { credencial_id: credencialId, projeto_id: projetoId, justificativa })
+        .then((r) => r.data);
+
+export const retirarRecomendacao = (id) =>
+    http.delete(`/avaliador/comite/recomendacoes/${id}`).then((r) => r.data);

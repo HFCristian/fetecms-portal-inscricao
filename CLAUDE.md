@@ -891,7 +891,34 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 190 | Comitê especial → **Premiação**: credenciais e prêmios nos projetos premiados (mesma base) + lista de premiação em TXT | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 191 | Avaliação presencial → **Cadastro de avaliadores** só do evento (senha gerada, fora da avaliação online) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 192 | Credenciais e Prêmios: campo **Informações adicionais** (cadastro, edição no cartão, visível ao comitê) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 193 | Avaliador da comissão especial: aba **Comitê especial** recomenda finalistas para credenciais/prêmios; admins aprovam ou rejeitam | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprint 193 (mesma branch):** o avaliador marcado como **comissão especial** ganhou a aba
+> **Comitê especial** (`/avaliador/comite`, `AvaliadorComiteController`): para cada credencial ou
+> prêmio **ativo** — com as informações adicionais da Sprint 192 — ele **recomenda** finalistas da
+> lista vigente, com justificativa opcional, e vê a situação de cada recomendação (aguardando,
+> aprovada, rejeitada); enquanto ninguém decidiu, pode retirá-la. **Sem teto** por avaliador nem por
+> credencial — o único limite é não repetir a mesma (mesma pessoa, projeto e credencial). Quem não
+> é da comissão não vê a aba e recebe 403. O que o projeto já recebeu não vai para ele.
+> A organização decide na seção **Recomendações do comitê**, que aparece em Comitê especial →
+> Premiação e em Avaliação presencial → Credenciais e Prêmios (`aba:comite,avaliacao_presencial`,
+> `/admin/premiacao/recomendacoes`): filtro por situação, quem recomendou e por quê, e **Aprovar** /
+> **Rejeitar** — trocáveis depois, com o nome de quem decidiu por último. **Aprovar só marca**: a
+> credencial continua sendo anexada no cartão dela, que é onde valem as vagas (duas aprovadas para
+> uma vaga não estouram nada). A linha avisa quando o projeto **já recebeu** aquela credencial.
+> `recomendacoes_premiacao`, `RecomendacaoPremiacaoService`, `App\Enums\StatusRecomendacao`.
+> Back **1432/1432**, front **712/712**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprints 191–193):** (1) as três sprints estão na mesma branch das
+> 187–190 (`feat/premiacao-comite-e-etiquetas`): um push só. **Três migrations novas**
+> (`avaliador_profiles.apenas_presencial`/`cadastrado_por`, `credenciais.informacoes` e a tabela
+> `recomendacoes_premiacao`), nenhuma variável de `.env` e nenhuma dependência nova. (2) A aba
+> **Comitê especial** do avaliador só aparece para quem está marcado como comissão especial em
+> Avaliadores Online (a estrela) — marque antes do evento, e quem já estiver logado precisa
+> recarregar a página. (3) Para o avaliador cadastrado pelo presencial entrar no comitê, marque-o
+> também lá: ele aparece em Avaliadores Online com o selo *Só presencial*. (4) A senha gerada no
+> cadastro presencial aparece **uma vez**; perdida, use *Gerar nova senha* na mesma tela.
+>
 > **Sprints 191–192 (mesma branch):**
 > (a) **Sprint 191** — **Avaliação presencial → Cadastro de avaliadores**
 > (`/admin/presencial/avaliadores`, `AvaliadorPresencialCadastroService`): a organização cria a conta

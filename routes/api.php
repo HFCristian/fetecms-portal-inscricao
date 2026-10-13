@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\V1\AlunoController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\AvaliacaoPresencialAdminController;
 use App\Http\Controllers\Api\V1\AvaliadorAvaliacaoController;
+use App\Http\Controllers\Api\V1\AvaliadorComiteController;
 use App\Http\Controllers\Api\V1\AvaliadorController;
 use App\Http\Controllers\Api\V1\AvaliadorPerfilController;
 use App\Http\Controllers\Api\V1\AvaliadorPresencialAvaliacaoController;
@@ -58,6 +59,7 @@ use App\Http\Controllers\Api\V1\PresencaContaTemporariaController;
 use App\Http\Controllers\Api\V1\ProjetoController;
 use App\Http\Controllers\Api\V1\ProjetoManualController;
 use App\Http\Controllers\Api\V1\ProjetoSubmissaoController;
+use App\Http\Controllers\Api\V1\RecomendacaoPremiacaoController;
 use App\Http\Controllers\Api\V1\SuporteAdminController;
 use App\Http\Controllers\Api\V1\SuporteOrientadorController;
 use Illuminate\Support\Facades\Route;
@@ -276,6 +278,12 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             // Intenção de avaliar presencialmente, e as orientações de quem aceita.
             Route::get('/presencial', [AvaliadorPresencialController::class, 'show']);
             Route::put('/presencial', [AvaliadorPresencialController::class, 'update']);
+            // Comitê especial (Sprint 193): só a comissão especial recomenda
+            // finalistas para as credenciais e os prêmios.
+            Route::get('/comite', [AvaliadorComiteController::class, 'show']);
+            Route::post('/comite/recomendacoes', [AvaliadorComiteController::class, 'recomendar'])
+                ->middleware('throttle:60,1');
+            Route::delete('/comite/recomendacoes/{recomendacao}', [AvaliadorComiteController::class, 'retirar']);
             // A avaliação no estande, para quem aceitou e durante o evento.
             Route::get('/presencial/avaliacoes', [AvaliadorPresencialAvaliacaoController::class, 'index']);
             Route::post('/presencial/avaliacoes/projetos/{projeto}', [AvaliadorPresencialAvaliacaoController::class, 'iniciar']);
@@ -542,6 +550,13 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::post('/registros/{guarda}/retiradas', [AlmoxarifadoController::class, 'retirar']);
                 Route::put('/registros/{guarda}', [AlmoxarifadoController::class, 'update']);
                 Route::delete('/registros/{guarda}', [AlmoxarifadoController::class, 'destroy']);
+            });
+
+            // --- Recomendações do comitê para a premiação (Sprint 193) ---
+            // Decididas nas duas abas que mexem na premiação.
+            Route::middleware('aba:comite,avaliacao_presencial')->prefix('premiacao')->group(function () {
+                Route::get('/recomendacoes', [RecomendacaoPremiacaoController::class, 'index']);
+                Route::post('/recomendacoes/{recomendacao}/decisao', [RecomendacaoPremiacaoController::class, 'decidir']);
             });
 
             // --- Aba "Comitê especial": transporte e mapa em tempo real ---

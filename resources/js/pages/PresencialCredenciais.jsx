@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { Alert, Button, Field, Input } from '../components/ui.jsx';
+import RecomendacoesPremiacao from '../components/RecomendacoesPremiacao.jsx';
 import CartaoCredencial from '../components/CartaoCredencial.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import {
@@ -168,6 +169,8 @@ export default function PresencialCredenciais() {
                     </Button>
                 </div>
             )}
+
+            <RecomendacoesPremiacao />
 
             {credenciais === null ? (
                 <div className="text-center py-10 text-on-surface-variant">

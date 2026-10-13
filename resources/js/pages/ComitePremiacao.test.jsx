@@ -2,6 +2,8 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../components/AppShell.jsx', () => ({ default: ({ children }) => <div>{children}</div> }));
+// A seção de recomendações tem teste próprio (RecomendacoesPremiacao.test.jsx).
+vi.mock('../components/RecomendacoesPremiacao.jsx', () => ({ default: () => <div data-testid="recomendacoes" /> }));
 vi.mock('react-router-dom', () => ({ Link: ({ children }) => <a>{children}</a> }));
 vi.mock('../lib/auth.jsx', () => ({
     extractErrors: (e) => ({ message: e?.message ?? 'Erro.', fields: e?.fields ?? {} }),

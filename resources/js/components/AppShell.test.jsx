@@ -76,9 +76,9 @@ describe('AppShell — menu do admin por escopo', () => {
 });
 
 describe('AppShell — menu do avaliador', () => {
-    const avaliador = (presencial) => {
+    const avaliador = (presencial, extra = {}) => {
         Object.keys(user).forEach((k) => delete user[k]);
-        Object.assign(user, { id: 2, name: 'Ana', role: 'avaliador', avaliador_profile: { presencial } });
+        Object.assign(user, { id: 2, name: 'Ana', role: 'avaliador', avaliador_profile: { presencial, ...extra } });
     };
 
     it('quem aceitou o presencial vê a aba da avaliação no estande', () => {
@@ -95,5 +95,24 @@ describe('AppShell — menu do avaliador', () => {
 
         expect(itens('Avaliação presencial')).toHaveLength(0);
         expect(itens('Presencial').length).toBeGreaterThan(0);
+    });
+
+    it('a comissão especial vê a aba Comitê especial; os demais, não', () => {
+        avaliador(true, { comissao_especial: true });
+        const { unmount } = render(<AppShell><p>conteúdo</p></AppShell>);
+        expect(itens('Comitê especial').length).toBeGreaterThan(0);
+        unmount();
+
+        avaliador(true, { comissao_especial: false });
+        render(<AppShell><p>conteúdo</p></AppShell>);
+        expect(itens('Comitê especial')).toHaveLength(0);
+    });
+
+    it('quem é só do presencial não vê a avaliação online', () => {
+        avaliador(true, { apenas_presencial: true });
+        render(<AppShell><p>conteúdo</p></AppShell>);
+
+        expect(itens('Avaliações')).toHaveLength(0);
+        expect(itens('Avaliação presencial').length).toBeGreaterThan(0);
     });
 });
