@@ -83,7 +83,7 @@ export default function RecomendacoesPremiacao({ atualizacao = 0, onDecidido = n
             </p>
 
             <form
-                className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto] gap-2 mb-3"
+                className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_11rem_11rem] gap-2 mb-3"
                 onSubmit={(e) => { e.preventDefault(); setRecorte((r) => ({ ...r, q: busca.trim() })); }}
                 aria-label="Filtrar por projeto"
             >
