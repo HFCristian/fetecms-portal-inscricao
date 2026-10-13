@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use App\Enums\Categoria;
 use App\Enums\Role;
 use App\Enums\StatusRecomendacao;
+use App\Models\Area;
 use App\Models\Credencial;
 use App\Models\Edicao;
 use App\Models\Projeto;
@@ -11,6 +13,7 @@ use App\Models\RecomendacaoPremiacao;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -125,12 +128,25 @@ class RecomendacaoPremiacaoService
     /**
      * As recomendações das credenciais da edição, para a organização decidir.
      *
-     * @return array{recomendacoes: list<array<string, mixed>>, contagem: array<string, int>}
+     * Os filtros (Sprint 194) recortam pelo **projeto**: título, área e
+     * categoria. A contagem por situação respeita o mesmo recorte — o número
+     * no botão "Pendentes" é o que a lista vai mostrar ao clicar nele.
+     *
+     * @param  array{q?: ?string, area_id?: ?int, categoria?: ?string}  $filtros
+     * @return array{recomendacoes: list<array<string, mixed>>, contagem: array<string, int>, opcoes: array<string, mixed>}
      */
-    public function listar(?StatusRecomendacao $status = null): array
+    public function listar(?StatusRecomendacao $status = null, array $filtros = []): array
     {
+        $busca = Str::lower(trim((string) ($filtros['q'] ?? '')));
+        $areaId = $filtros['area_id'] ?? null;
+        $categoria = $filtros['categoria'] ?? null;
+
         $base = RecomendacaoPremiacao::query()
-            ->whereIn('credencial_id', $this->credenciaisDaEdicao()->select('id'));
+            ->whereIn('credencial_id', $this->credenciaisDaEdicao()->select('id'))
+            ->when($busca !== '' || $areaId || $categoria, fn ($q) => $q->whereHas('projeto', fn ($p) => $p
+                ->when($busca !== '', fn ($sub) => $sub->whereRaw('LOWER(titulo) LIKE ?', ['%'.$busca.'%']))
+                ->when($areaId, fn ($sub) => $sub->where('area_id', $areaId))
+                ->when($categoria, fn ($sub) => $sub->where('categoria', $categoria))));
 
         $contagem = (clone $base)->select('status', DB::raw('count(*) as total'))
             ->groupBy('status')
@@ -156,6 +172,11 @@ class RecomendacaoPremiacaoService
 
         return [
             'recomendacoes' => $recomendacoes,
+            // O que os seletores oferecem: as áreas do catálogo e as categorias.
+            'opcoes' => [
+                'areas' => Area::orderBy('nome')->get(['id', 'nome'])->toArray(),
+                'categorias' => Categoria::opcoes(),
+            ],
             'contagem' => [
                 'pendente' => $contagem[StatusRecomendacao::Pendente->value] ?? 0,
                 'aprovada' => $contagem[StatusRecomendacao::Aprovada->value] ?? 0,

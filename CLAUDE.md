@@ -892,7 +892,25 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 191 | Avaliação presencial → **Cadastro de avaliadores** só do evento (senha gerada, fora da avaliação online) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 192 | Credenciais e Prêmios: campo **Informações adicionais** (cadastro, edição no cartão, visível ao comitê) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 193 | Avaliador da comissão especial: aba **Comitê especial** recomenda finalistas para credenciais/prêmios; admins aprovam ou rejeitam | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 194 | Recomendações do comitê: filtro por **título do projeto, área e categoria** (contagem presa ao recorte) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 195 | Cartão da credencial mostra as **aprovadas pelo comitê**, com botão **Premiar** (Premiação e Credenciais e Prêmios) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprints 194–195 (mesma branch):**
+> (a) **Sprint 194** — a seção **Recomendações do comitê** ganhou o recorte pelo **projeto**: busca
+> pelo título, **área** e **categoria** (FETECMS, FETEC Jr, FETECMS FUNDECT), no servidor
+> (`GET /admin/premiacao/recomendacoes?q=&area_id=&categoria=`). A contagem de cada situação
+> (Pendentes, Aprovadas, Rejeitadas) respeita o mesmo recorte — o número no botão é o que a lista
+> mostra ao clicar nele. Os seletores vêm na própria resposta (`opcoes`).
+> (b) **Sprint 195** — o **cartão de cada credencial** mostra as recomendações **aprovadas** para
+> ela, uma linha por projeto com quem recomendou, e um botão **Premiar** que faz a atribuição de
+> sempre (mesmas vagas; desabilitado com a credencial esgotada). A aprovação continua **só
+> marcando** — o clique é que premia. Projeto que já recebeu a credencial aparece como *Premiado*.
+> Vale nas duas telas do cartão (Comitê → Premiação e Avaliação presencial → Credenciais e Prêmios),
+> e as duas metades conversam: decidir uma recomendação recarrega os cartões, e premiar pelo
+> cartão recarrega o "já recebeu" da lista. `CredenciaisService::listar()` traz `aprovadas` e
+> `aprovadas_pendentes` por credencial.
+> Back **1434/1434**, front **717/717**, Pint limpo.
+>
 > **Sprint 193 (mesma branch):** o avaliador marcado como **comissão especial** ganhou a aba
 > **Comitê especial** (`/avaliador/comite`, `AvaliadorComiteController`): para cada credencial ou
 > prêmio **ativo** — com as informações adicionais da Sprint 192 — ele **recomenda** finalistas da

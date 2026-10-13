@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Enums\Categoria;
 use App\Enums\StatusRecomendacao;
 use App\Enums\TipoCredencial;
+use App\Models\Area;
 use App\Models\AvaliadorProfile;
 use App\Models\Credencial;
 use App\Models\Edicao;
@@ -189,6 +191,71 @@ class RecomendacaoPremiacaoTest extends TestCase
         $this->getJson('/api/v1/admin/premiacao/recomendacoes?status=aprovada')
             ->assertJsonCount(1, 'data.recomendacoes')
             ->assertJsonPath('data.contagem.aprovada', 1);
+    }
+
+    /** Sprint 194 — filtrar as indicações pelo projeto: título, área e categoria. */
+    public function test_filtra_por_titulo_area_e_categoria_e_a_contagem_acompanha(): void
+    {
+        $agrarias = Area::create(['nome' => 'Ciências Agrárias', 'sigla' => 'AGR']);
+        $biologicas = Area::create(['nome' => 'Ciências Biológicas', 'sigla' => 'BIO']);
+        $this->finalista->update(['area_id' => $agrarias->id, 'categoria' => Categoria::Fetecms]);
+        $this->outroFinalista->update(['area_id' => $biologicas->id, 'categoria' => Categoria::FetecJr]);
+        $ana = $this->avaliador();
+        $this->recomendar($ana)->assertCreated();
+        $this->recomendar($ana, $this->outroFinalista)->assertCreated();
+        RecomendacaoPremiacao::where('projeto_id', $this->outroFinalista->id)->update(['status' => 'aprovada']);
+        $this->adminDe('comite');
+
+        $titulos = fn (string $query) => array_column(
+            $this->getJson('/api/v1/admin/premiacao/recomendacoes'.$query)->assertOk()->json('data.recomendacoes'),
+            'projeto',
+        );
+
+        $this->assertSame(['Bioplástico de mandioca'], $titulos('?q=MANDIOCA'));
+        $this->assertSame(['Abelhas nativas'], $titulos('?area_id='.$biologicas->id));
+        $this->assertSame(['Bioplástico de mandioca'], $titulos('?categoria=fetecms'));
+        $this->assertSame([], $titulos('?categoria=fetecms_fundect'));
+        $this->assertSame(['Abelhas nativas'], $titulos('?categoria=fetec_jr&status=aprovada'));
+
+        $this->getJson('/api/v1/admin/premiacao/recomendacoes?area_id='.$agrarias->id)
+            ->assertJsonPath('data.contagem', ['pendente' => 1, 'aprovada' => 0, 'rejeitada' => 0])
+            ->assertJsonPath('data.opcoes.categorias.0.value', 'fetec_jr');
+
+        $this->getJson('/api/v1/admin/premiacao/recomendacoes?categoria=pictec')
+            ->assertStatus(422)->assertJsonValidationErrors('categoria');
+    }
+
+    /** Sprint 195 — as aprovadas aparecem no cartão da credencial, nas duas telas. */
+    public function test_aprovadas_aparecem_no_cartao_da_credencial_agrupadas_por_projeto(): void
+    {
+        $ana = $this->avaliador();
+        $bruno = $this->avaliador();
+        $this->recomendar($ana)->assertCreated();
+        $this->recomendar($bruno)->assertCreated();
+        $this->recomendar($ana, $this->outroFinalista)->assertCreated();
+        RecomendacaoPremiacao::where('projeto_id', $this->finalista->id)->update(['status' => 'aprovada']);
+        RecomendacaoPremiacao::where('projeto_id', $this->outroFinalista->id)->update(['status' => 'rejeitada']);
+        $this->adminDe('comite');
+
+        $cartao = $this->getJson('/api/v1/admin/comite/premiacao')->assertOk()->json('data.0');
+
+        // Só a aprovada, uma linha por projeto com os dois nomes.
+        $this->assertCount(1, $cartao['aprovadas']);
+        $this->assertSame('Bioplástico de mandioca', $cartao['aprovadas'][0]['projeto']);
+        $this->assertEqualsCanonicalizing([$ana->name, $bruno->name], $cartao['aprovadas'][0]['avaliadores']);
+        $this->assertFalse($cartao['aprovadas'][0]['ja_premiado']);
+        $this->assertSame(1, $cartao['aprovadas_pendentes']);
+
+        // Premiar pelo cartão é a atribuição de sempre; a linha passa a dizer que já foi.
+        $this->postJson("/api/v1/admin/comite/premiacao/{$this->credencial->id}/projetos", ['projeto_id' => $this->finalista->id])
+            ->assertOk()
+            ->assertJsonPath('data.0.aprovadas.0.ja_premiado', true)
+            ->assertJsonPath('data.0.aprovadas_pendentes', 0);
+
+        // A mesma informação na Avaliação presencial.
+        $this->adminDe('avaliacao_presencial');
+        $this->getJson('/api/v1/admin/presencial/credenciais')
+            ->assertJsonPath('data.0.aprovadas.0.projeto', 'Bioplástico de mandioca');
     }
 
     public function test_rejeita_e_pode_reconsiderar(): void

@@ -36,6 +36,8 @@ export default function ComitePremiacao() {
     const [credenciais, setCredenciais] = useState(null);
     const [candidatos, setCandidatos] = useState([]);
     const [ocupado, setOcupado] = useState(false);
+    // Sobe a cada mudança nos cartões: a seção de recomendações recarrega o "já recebeu".
+    const [versao, setVersao] = useState(0);
     const [alerta, setAlerta] = useState('');
     const [sucesso, setSucesso] = useState('');
 
@@ -53,6 +55,7 @@ export default function ComitePremiacao() {
         try {
             await fn();
             await carregar();
+            setVersao((v) => v + 1);
             setSucesso(mensagem);
         } catch (e) {
             const { message, fields } = extractErrors(e);
@@ -95,7 +98,7 @@ export default function ComitePremiacao() {
             {alerta && <div className="mb-4 max-w-3xl"><Alert>{alerta}</Alert></div>}
             {sucesso && <div className="mb-4 max-w-3xl"><Alert type="info">{sucesso}</Alert></div>}
 
-            <RecomendacoesPremiacao />
+            <RecomendacoesPremiacao atualizacao={versao} onDecidido={carregar} />
 
             {credenciais === null ? (
                 <div className="text-center py-10 text-on-surface-variant">

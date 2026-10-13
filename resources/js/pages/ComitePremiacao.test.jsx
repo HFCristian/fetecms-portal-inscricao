@@ -130,4 +130,45 @@ describe('ComitePremiacao', () => {
 
         expect(await screen.findByText(/Nenhuma credencial ou prêmio ativo nesta edição/)).toBeInTheDocument();
     });
+
+    // Sprint 195: as aprovadas no cartão, com o atalho para premiar.
+    it('mostra as aprovadas no cartão e premia com um clique', async () => {
+        getPremiacaoComite.mockResolvedValue({
+            data: [{
+                ...MOSTRATEC,
+                aprovadas: [
+                    { projeto_id: 7, projeto: 'Bioplástico', categoria: 'FETECMS', area: 'Agrárias', avaliadores: ['Ana', 'Bruno'], ja_premiado: false },
+                    { projeto_id: 8, projeto: 'Abelhas nativas', categoria: 'FETEC Jr', area: 'Biológicas', avaliadores: ['Ana'], ja_premiado: true },
+                ],
+                aprovadas_pendentes: 1,
+            }],
+            meta: { candidatos: CANDIDATOS },
+        });
+        render(<ComitePremiacao />);
+
+        const bloco = (await screen.findByText('Aprovadas pelo comitê')).closest('div');
+        expect(within(bloco).getByText(/recomendado por Ana, Bruno/)).toBeInTheDocument();
+        expect(within(bloco).getByText('Premiado')).toBeInTheDocument();
+        expect(within(bloco).getByText(/1 ainda sem a credencial/)).toBeInTheDocument();
+
+        fireEvent.click(within(bloco).getByRole('button', { name: /Premiar/ }));
+
+        await waitFor(() => expect(premiarProjeto).toHaveBeenCalledWith(1, 7));
+        expect(await screen.findByText('Bioplástico premiado com MOSTRATEC 2027.')).toBeInTheDocument();
+    });
+
+    it('credencial esgotada não deixa premiar pela aprovada', async () => {
+        getPremiacaoComite.mockResolvedValue({
+            data: [{
+                ...MOSTRATEC, usadas: 2, disponiveis: 0,
+                aprovadas: [{ projeto_id: 7, projeto: 'Bioplástico', categoria: 'FETECMS', area: 'Agrárias', avaliadores: ['Ana'], ja_premiado: false }],
+                aprovadas_pendentes: 1,
+            }],
+            meta: { candidatos: CANDIDATOS },
+        });
+        render(<ComitePremiacao />);
+
+        const bloco = (await screen.findByText('Aprovadas pelo comitê')).closest('div');
+        expect(within(bloco).getByRole('button', { name: /Premiar/ })).toBeDisabled();
+    });
 });

@@ -2,11 +2,13 @@
 
 namespace App\Services;
 
+use App\Enums\StatusRecomendacao;
 use App\Enums\TipoCredencial;
 use App\Models\Credencial;
 use App\Models\Edicao;
 use App\Models\ListaFinal;
 use App\Models\Projeto;
+use App\Models\RecomendacaoPremiacao;
 use App\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -54,13 +56,17 @@ class CredenciaisService
             return [];
         }
 
-        return Credencial::where('edicao_id', $edicao->id)
+        $credenciais = Credencial::where('edicao_id', $edicao->id)
             ->when($soAtivas, fn ($q) => $q->where('ativa', true))
             ->with(['projetos:id,titulo,categoria,area_id', 'projetos.area:id,nome'])
             ->orderBy('ordem')
             ->orderBy('nome')
-            ->get()
-            ->map(fn (Credencial $c) => $this->resumo($c))
+            ->get();
+
+        $aprovadas = $this->aprovadasPorCredencial($credenciais->pluck('id')->all());
+
+        return $credenciais
+            ->map(fn (Credencial $c) => $this->resumo($c, $aprovadas->get($c->id, collect())))
             ->all();
     }
 
@@ -305,10 +311,50 @@ class CredenciaisService
             ->get();
     }
 
-    /** @return array<string, mixed> */
-    private function resumo(Credencial $credencial): array
+    /**
+     * As recomendações **aprovadas** do comitê (Sprint 195), por credencial e
+     * uma entrada por projeto — dois avaliadores que recomendaram o mesmo
+     * projeto viram uma linha com os dois nomes.
+     *
+     * @param  list<int>  $credencialIds
+     * @return Collection<int, Collection<int, RecomendacaoPremiacao>>
+     */
+    private function aprovadasPorCredencial(array $credencialIds): Collection
+    {
+        if ($credencialIds === []) {
+            return collect();
+        }
+
+        return RecomendacaoPremiacao::whereIn('credencial_id', $credencialIds)
+            ->where('status', StatusRecomendacao::Aprovada->value)
+            ->with(['avaliador:id,name', 'projeto:id,titulo,categoria,area_id', 'projeto.area:id,nome'])
+            ->orderBy('id')
+            ->get()
+            ->groupBy('credencial_id');
+    }
+
+    /**
+     * @param  Collection<int, RecomendacaoPremiacao>  $aprovadas
+     * @return array<string, mixed>
+     */
+    private function resumo(Credencial $credencial, ?Collection $aprovadas = null): array
     {
         $usadas = $credencial->projetos->count();
+        $premiados = $credencial->projetos->pluck('id')->flip();
+
+        // Aprovar só marca: o cartão mostra as aprovadas para o admin anexar
+        // com um clique, e diz quais já foram anexadas.
+        $linhasAprovadas = ($aprovadas ?? collect())
+            ->groupBy('projeto_id')
+            ->map(fn (Collection $doProjeto) => [
+                'projeto_id' => $doProjeto->first()->projeto_id,
+                'projeto' => $doProjeto->first()->projeto?->titulo,
+                'categoria' => $doProjeto->first()->projeto?->categoria?->label(),
+                'area' => $doProjeto->first()->projeto?->area?->nome,
+                'avaliadores' => $doProjeto->map(fn (RecomendacaoPremiacao $r) => $r->avaliador?->name)->filter()->values()->all(),
+                'ja_premiado' => $premiados->has($doProjeto->first()->projeto_id),
+            ])
+            ->values();
 
         return [
             'id' => $credencial->id,
@@ -325,6 +371,8 @@ class CredenciaisService
             'disponiveis' => $credencial->vagas === null ? null : max(0, $credencial->vagas - $usadas),
             'ativa' => $credencial->ativa,
             'ordem' => $credencial->ordem,
+            'aprovadas' => $linhasAprovadas->all(),
+            'aprovadas_pendentes' => $linhasAprovadas->where('ja_premiado', false)->count(),
             'projetos' => $credencial->projetos->map(fn (Projeto $p) => [
                 'id' => $p->id,
                 'titulo' => $p->titulo,

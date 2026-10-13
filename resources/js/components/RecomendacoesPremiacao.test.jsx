@@ -21,7 +21,12 @@ const PENDENTE = {
     credencial_tipo_label: 'Credencial', avaliador: 'Ana Comissão', decidida_por: null, decidida_em: null, ja_premiado: false,
 };
 
-const resposta = (recomendacoes, contagem = { pendente: 1, aprovada: 0, rejeitada: 0 }) => ({ recomendacoes, contagem });
+const OPCOES = {
+    areas: [{ id: 3, nome: 'Ciências Agrárias' }, { id: 4, nome: 'Ciências Biológicas' }],
+    categorias: [{ value: 'fetec_jr', label: 'FETEC Jr' }, { value: 'fetecms', label: 'FETECMS' }, { value: 'fetecms_fundect', label: 'FETECMS FUNDECT' }],
+};
+const SEM_RECORTE = { q: '', area_id: '', categoria: '' };
+const resposta = (recomendacoes, contagem = { pendente: 1, aprovada: 0, rejeitada: 0 }) => ({ recomendacoes, contagem, opcoes: OPCOES });
 
 describe('RecomendacoesPremiacao', () => {
     beforeEach(() => {
@@ -33,7 +38,7 @@ describe('RecomendacoesPremiacao', () => {
         render(<RecomendacoesPremiacao />);
 
         expect(await screen.findByText('Bioplástico de mandioca')).toBeInTheDocument();
-        expect(getRecomendacoes).toHaveBeenCalledWith('pendente');
+        expect(getRecomendacoes).toHaveBeenCalledWith('pendente', SEM_RECORTE);
         expect(screen.getByText(/recomendado por Ana Comissão/)).toBeInTheDocument();
         expect(screen.getByText('Estande impecável.')).toBeInTheDocument();
         expect(screen.getByText('1 pendente(s)')).toBeInTheDocument();
@@ -76,7 +81,7 @@ describe('RecomendacoesPremiacao', () => {
 
         fireEvent.click(screen.getByRole('button', { name: /Todas/ }));
 
-        await waitFor(() => expect(getRecomendacoes).toHaveBeenLastCalledWith(null));
+        await waitFor(() => expect(getRecomendacoes).toHaveBeenLastCalledWith(null, SEM_RECORTE));
     });
 
     it('sem recomendação nenhuma diz isso', async () => {
@@ -84,5 +89,48 @@ describe('RecomendacoesPremiacao', () => {
         render(<RecomendacoesPremiacao />);
 
         expect(await screen.findByText('O comitê ainda não fez nenhuma recomendação.')).toBeInTheDocument();
+    });
+
+    // Sprint 194: o recorte pelo projeto.
+    it('filtra por título, área e categoria e limpa', async () => {
+        render(<RecomendacoesPremiacao />);
+        await screen.findByText('Bioplástico de mandioca');
+
+        fireEvent.change(screen.getByLabelText('Buscar pelo título do projeto'), { target: { value: ' mandioca ' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Buscar' }));
+        await waitFor(() => expect(getRecomendacoes).toHaveBeenLastCalledWith('pendente', { ...SEM_RECORTE, q: 'mandioca' }));
+
+        fireEvent.change(screen.getByLabelText('Área do conhecimento'), { target: { value: '3' } });
+        await waitFor(() => expect(getRecomendacoes).toHaveBeenLastCalledWith('pendente', { q: 'mandioca', area_id: '3', categoria: '' }));
+
+        fireEvent.change(screen.getByLabelText('Categoria'), { target: { value: 'fetecms_fundect' } });
+        await waitFor(() => expect(getRecomendacoes).toHaveBeenLastCalledWith('pendente', { q: 'mandioca', area_id: '3', categoria: 'fetecms_fundect' }));
+
+        fireEvent.click(screen.getByRole('button', { name: 'Limpar filtros' }));
+        await waitFor(() => expect(getRecomendacoes).toHaveBeenLastCalledWith('pendente', SEM_RECORTE));
+        expect(screen.getByLabelText('Buscar pelo título do projeto')).toHaveValue('');
+    });
+
+    it('filtro sem resultado diz isso', async () => {
+        getRecomendacoes.mockResolvedValue(resposta([], { pendente: 0, aprovada: 0, rejeitada: 0 }));
+        render(<RecomendacoesPremiacao />);
+        await screen.findByText('O comitê ainda não fez nenhuma recomendação.');
+
+        fireEvent.change(screen.getByLabelText('Categoria'), { target: { value: 'fetecms' } });
+
+        expect(await screen.findByText('Nenhuma recomendação com esses filtros.')).toBeInTheDocument();
+    });
+
+    it('avisa a página depois de decidir e recarrega quando a página muda', async () => {
+        const onDecidido = vi.fn();
+        const { rerender } = render(<RecomendacoesPremiacao atualizacao={0} onDecidido={onDecidido} />);
+        await screen.findByText('Bioplástico de mandioca');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Aprovar' }));
+        await waitFor(() => expect(onDecidido).toHaveBeenCalled());
+
+        const chamadas = getRecomendacoes.mock.calls.length;
+        rerender(<RecomendacoesPremiacao atualizacao={1} onDecidido={onDecidido} />);
+        await waitFor(() => expect(getRecomendacoes.mock.calls.length).toBe(chamadas + 1));
     });
 });

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\Categoria;
 use App\Enums\StatusRecomendacao;
 use App\Http\Controllers\Controller;
 use App\Models\RecomendacaoPremiacao;
@@ -23,10 +24,21 @@ class RecomendacaoPremiacaoController extends Controller
     {
         $filtros = $request->validate([
             'status' => ['nullable', Rule::enum(StatusRecomendacao::class)],
+            // Recorte pelo projeto (Sprint 194).
+            'q' => ['nullable', 'string', 'max:120'],
+            'area_id' => ['nullable', 'integer', 'exists:areas,id'],
+            'categoria' => ['nullable', Rule::enum(Categoria::class)],
         ]);
 
         return response()->json([
-            'data' => $this->recomendacoes->listar(StatusRecomendacao::tryFrom((string) ($filtros['status'] ?? ''))),
+            'data' => $this->recomendacoes->listar(
+                StatusRecomendacao::tryFrom((string) ($filtros['status'] ?? '')),
+                [
+                    'q' => $filtros['q'] ?? null,
+                    'area_id' => isset($filtros['area_id']) ? (int) $filtros['area_id'] : null,
+                    'categoria' => $filtros['categoria'] ?? null,
+                ],
+            ),
         ]);
     }
 

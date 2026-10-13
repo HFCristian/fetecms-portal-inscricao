@@ -32,6 +32,8 @@ export default function PresencialCredenciais() {
     const [form, setForm] = useState(VAZIA);
     const [criando, setCriando] = useState(false);
     const [ocupado, setOcupado] = useState(false);
+    // Sobe a cada mudança nos cartões: a seção de recomendações recarrega o "já recebeu".
+    const [versao, setVersao] = useState(0);
     const [errors, setErrors] = useState({});
     const [alerta, setAlerta] = useState('');
     const [sucesso, setSucesso] = useState('');
@@ -51,6 +53,7 @@ export default function PresencialCredenciais() {
         try {
             await fn();
             await carregar();
+            setVersao((v) => v + 1);
             if (mensagem) setSucesso(mensagem);
         } catch (e) {
             const { message, fields } = extractErrors(e);
@@ -170,7 +173,7 @@ export default function PresencialCredenciais() {
                 </div>
             )}
 
-            <RecomendacoesPremiacao />
+            <RecomendacoesPremiacao atualizacao={versao} onDecidido={carregar} />
 
             {credenciais === null ? (
                 <div className="text-center py-10 text-on-surface-variant">

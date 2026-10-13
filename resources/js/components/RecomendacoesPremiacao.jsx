@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Button } from './ui.jsx';
+import { Alert, Button, Input, Select } from './ui.jsx';
 import { PilulaTipo } from './CartaoCredencial.jsx';
 import StatusRecomendacao from './StatusRecomendacao.jsx';
 import { extractErrors } from '../lib/auth.jsx';
@@ -24,23 +24,38 @@ const data = (iso) => (iso ? new Date(iso).toLocaleString('pt-BR', { dateStyle: 
  * aprovadas para uma vaga só não estouram nada, e a organização escolhe quem
  * leva. A decisão pode ser trocada depois.
  */
-export default function RecomendacoesPremiacao() {
+const SEM_RECORTE = { q: '', area_id: '', categoria: '' };
+
+/**
+ * `atualizacao` muda quando a página mexe nos cartões (premiar pela
+ * aprovada, retirar): a lista recarrega para o "já recebeu" acompanhar.
+ * `onDecidido` avisa a página, que recarrega os cartões com a aprovada nova.
+ */
+export default function RecomendacoesPremiacao({ atualizacao = 0, onDecidido = null }) {
     const [filtro, setFiltro] = useState('pendente');
+    // O recorte pelo projeto (Sprint 194): a busca só vale ao enviar, os
+    // seletores valem na hora.
+    const [recorte, setRecorte] = useState(SEM_RECORTE);
+    const [busca, setBusca] = useState('');
     const [dados, setDados] = useState(null);
     const [ocupado, setOcupado] = useState(null);
     const [erro, setErro] = useState('');
 
-    const carregar = useCallback(() => getRecomendacoes(filtro)
+    const carregar = useCallback(() => getRecomendacoes(filtro, recorte)
         .then((d) => { setDados(d); setErro(''); })
-        .catch(() => setErro('Não foi possível carregar as recomendações do comitê.')), [filtro]);
+        .catch(() => setErro('Não foi possível carregar as recomendações do comitê.')), [filtro, recorte, atualizacao]);
 
     useEffect(() => { carregar(); }, [carregar]);
+
+    const recortando = recorte.q !== '' || recorte.area_id !== '' || recorte.categoria !== '';
+    const opcoes = dados?.opcoes ?? { areas: [], categorias: [] };
 
     async function decidir(r, status) {
         setOcupado(r.id); setErro('');
         try {
             await decidirRecomendacao(r.id, status);
             await carregar();
+            onDecidido?.();
         } catch (e) {
             setErro(extractErrors(e).message || 'Não foi possível registrar a decisão.');
         } finally {
@@ -67,6 +82,47 @@ export default function RecomendacoesPremiacao() {
                 Aprovar <strong>não premia</strong>: anexe a credencial ao projeto no cartão dela.
             </p>
 
+            <form
+                className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto] gap-2 mb-3"
+                onSubmit={(e) => { e.preventDefault(); setRecorte((r) => ({ ...r, q: busca.trim() })); }}
+                aria-label="Filtrar por projeto"
+            >
+                <div className="flex gap-2">
+                    <Input
+                        aria-label="Buscar pelo título do projeto"
+                        placeholder="Buscar pelo título do projeto"
+                        value={busca}
+                        onChange={(e) => setBusca(e.target.value)}
+                    />
+                    <Button type="submit" variant="outline">Buscar</Button>
+                </div>
+                <Select
+                    aria-label="Área do conhecimento"
+                    value={recorte.area_id}
+                    onChange={(e) => setRecorte((r) => ({ ...r, area_id: e.target.value }))}
+                >
+                    <option value="">Todas as áreas</option>
+                    {opcoes.areas.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
+                </Select>
+                <Select
+                    aria-label="Categoria"
+                    value={recorte.categoria}
+                    onChange={(e) => setRecorte((r) => ({ ...r, categoria: e.target.value }))}
+                >
+                    <option value="">Todas as categorias</option>
+                    {opcoes.categorias.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                </Select>
+            </form>
+            {recortando && (
+                <button
+                    type="button"
+                    className="text-xs text-primary hover:underline mb-3"
+                    onClick={() => { setRecorte(SEM_RECORTE); setBusca(''); }}
+                >
+                    Limpar filtros
+                </button>
+            )}
+
             <div className="flex flex-wrap gap-2 mb-3" role="group" aria-label="Filtrar recomendações">
                 {FILTROS.map((f) => (
                     <button
@@ -91,7 +147,9 @@ export default function RecomendacoesPremiacao() {
                 <p className="text-sm text-on-surface-variant">Carregando…</p>
             ) : recomendacoes.length === 0 ? (
                 <p className="text-sm text-on-surface-variant">
-                    {total === 0 ? 'O comitê ainda não fez nenhuma recomendação.' : 'Nenhuma recomendação nesta situação.'}
+                    {total === 0 && !recortando
+                        ? 'O comitê ainda não fez nenhuma recomendação.'
+                        : 'Nenhuma recomendação com esses filtros.'}
                 </p>
             ) : (
                 <ul className="divide-y divide-outline-variant/30">

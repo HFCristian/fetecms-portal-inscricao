@@ -106,6 +106,59 @@ export function InformacoesAdicionais({ credencial, ocupado = false, onSalvar = 
 }
 
 /**
+ * As recomendações do comitê **aprovadas** para esta credencial (Sprint 195).
+ * Aprovar só marca; aqui o admin anexa com um clique — a mesma atribuição do
+ * campo de busca, com as mesmas vagas.
+ */
+function AprovadasDoComite({ credencial, ocupado, rotulo, onAtribuir }) {
+    const aprovadas = credencial.aprovadas ?? [];
+    if (aprovadas.length === 0) return null;
+
+    const esgotada = credencial.disponiveis === 0;
+
+    return (
+        <div className="mt-3 rounded-lg border border-secondary/30 bg-secondary-container/20 px-3 py-2">
+            <p className="text-xs font-semibold text-on-surface">
+                Aprovadas pelo comitê
+                {credencial.aprovadas_pendentes > 0 && (
+                    <span className="font-normal text-on-surface-variant"> · {credencial.aprovadas_pendentes} ainda sem a credencial</span>
+                )}
+            </p>
+            <ul className="mt-1 divide-y divide-outline-variant/30">
+                {aprovadas.map((a) => (
+                    <li key={a.projeto_id} className="py-1.5 flex flex-wrap items-center gap-2">
+                        <div className="min-w-0 flex-1">
+                            <p className="text-sm text-on-surface">{a.projeto}</p>
+                            <p className="text-xs text-on-surface-variant">
+                                {[a.categoria, a.area].filter(Boolean).join(' · ')}
+                                {a.avaliadores.length > 0 && ` · recomendado por ${a.avaliadores.join(', ')}`}
+                            </p>
+                        </div>
+                        {a.ja_premiado ? (
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-secondary">
+                                <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                                Premiado
+                            </span>
+                        ) : (
+                            <Button
+                                type="button"
+                                variant="success"
+                                disabled={ocupado || esgotada || !credencial.ativa}
+                                title={esgotada ? 'As vagas desta credencial já foram distribuídas.' : undefined}
+                                onClick={() => onAtribuir(credencial, { id: a.projeto_id, nome: a.projeto })}
+                            >
+                                <span className="material-symbols-outlined text-[20px]">workspace_premium</span>
+                                {rotulo}
+                            </Button>
+                        )}
+                    </li>
+                ))}
+            </ul>
+        </div>
+    );
+}
+
+/**
  * Uma credencial: o que é, quem já recebeu e o campo para anexar mais um.
  *
  * Serve às duas telas que mexem na mesma base (`credencial_projeto`): a de
@@ -165,6 +218,8 @@ export default function CartaoCredencial({
             </div>
 
             <InformacoesAdicionais credencial={credencial} ocupado={ocupado} onSalvar={onSalvarInformacoes} />
+
+            <AprovadasDoComite credencial={credencial} ocupado={ocupado} rotulo={rotuloAnexar} onAtribuir={onAtribuir} />
 
             {credencial.projetos.length > 0 && (
                 <ul className="mt-3 divide-y divide-outline-variant/30">
