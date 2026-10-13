@@ -46,3 +46,6 @@ export const recomendarProjeto = (credencialId, projetoId, justificativa = null)
 
 export const retirarRecomendacao = (id) =>
     http.delete(`/avaliador/comite/recomendacoes/${id}`).then((r) => r.data);
+
+/** O mesmo painel da premiação, só leitura, para a comissão especial (Sprint 196). */
+export const getPainelComite = () => http.get('/avaliador/comite/painel').then((r) => r.data.data);

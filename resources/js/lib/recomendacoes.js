@@ -23,3 +23,6 @@ export function getRecomendacoes(status = null, filtros = {}) {
 /** `status`: 'aprovada' | 'rejeitada'. */
 export const decidirRecomendacao = (id, status) =>
     http.post(`/admin/premiacao/recomendacoes/${id}/decisao`, { status }).then((r) => r.data);
+
+/** O painel da premiação (Sprint 196): o que falta e o ranking por área. */
+export const getPainelPremiacao = () => http.get('/admin/premiacao/painel').then((r) => r.data.data);

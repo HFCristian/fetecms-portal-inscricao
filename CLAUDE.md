@@ -894,7 +894,26 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 193 | Avaliador da comissão especial: aba **Comitê especial** recomenda finalistas para credenciais/prêmios; admins aprovam ou rejeitam | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 194 | Recomendações do comitê: filtro por **título do projeto, área e categoria** (contagem presa ao recorte) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 195 | Cartão da credencial mostra as **aprovadas pelo comitê**, com botão **Premiar** (Premiação e Credenciais e Prêmios) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 196 | **Painel da premiação**: vagas que faltam por credencial + ranking dos premiados por área (admin e comissão, tela cheia) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprint 196 (mesma branch):** o **Painel da premiação** — a base de Credenciais e Prêmios
+> lida de longe, para a mesa da deliberação. Abre por botão na **Premiação do comitê** (admin,
+> `/admin/comite/premiacao/painel`, `GET /admin/premiacao/painel`) e na aba **Comitê especial** da
+> comissão (`/avaliador/comite/painel`, `GET /avaliador/comite/painel`), só leitura, com **tela
+> cheia** e recarga a cada 30s. Traz: quantas **vagas faltam** (só onde há número de vagas — a
+> credencial sem limite conta o que deu e não entra na soma), preenchidas de quantas, esgotadas,
+> projetos premiados e recomendações **aprovadas aguardando o anexo**; um cartão por credencial
+> com a barra de vagas e quem já levou; e o **ranking por área do conhecimento** — em cada área, os
+> premiados do que mais recebeu para o que menos, mesma quantidade dividindo a posição, áreas da que
+> mais premiou para a que menos. Só credenciais **ativas**, as mesmas da lista em TXT.
+> `PainelPremiacaoService`. A comissão passa a enxergar quem recebeu o quê **neste painel** — a aba
+> de recomendação continua sem essa informação no formulário.
+> Back **1440/1440**, front **725/725**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprints 194–196):** nenhuma migration nova, nenhuma variável de `.env`,
+> nenhuma dependência. Vão no mesmo push das 187–193. Quem estiver com o portal aberto precisa
+> recarregar a página para ver os botões novos.
+>
 > **Sprints 194–195 (mesma branch):**
 > (a) **Sprint 194** — a seção **Recomendações do comitê** ganhou o recorte pelo **projeto**: busca
 > pelo título, **área** e **categoria** (FETECMS, FETEC Jr, FETECMS FUNDECT), no servidor

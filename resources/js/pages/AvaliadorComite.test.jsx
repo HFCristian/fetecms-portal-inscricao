@@ -2,6 +2,7 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../components/AppShell.jsx', () => ({ default: ({ children }) => <div>{children}</div> }));
+vi.mock('react-router-dom', () => ({ Link: ({ children, to }) => <a href={to}>{children}</a> }));
 vi.mock('../lib/auth.jsx', () => ({
     extractErrors: (e) => ({ message: e?.message ?? '', fields: e?.fields ?? {} }),
 }));
@@ -99,5 +100,12 @@ describe('AvaliadorComite', () => {
         render(<AvaliadorComite />);
 
         expect(await screen.findByText(/A lista final ainda não foi publicada/)).toBeInTheDocument();
+    });
+
+    it('leva ao painel da premiação', async () => {
+        render(<AvaliadorComite />);
+        await screen.findByText('MOSTRATEC 2027');
+
+        expect(screen.getByRole('link', { name: /Painel da premiação/ })).toHaveAttribute('href', '/avaliador/comite/painel');
     });
 });

@@ -52,6 +52,7 @@ use App\Http\Controllers\Api\V1\MapaPlantaController;
 use App\Http\Controllers\Api\V1\MapaTurnosController;
 use App\Http\Controllers\Api\V1\OrientadorAjusteController;
 use App\Http\Controllers\Api\V1\OrientadorController;
+use App\Http\Controllers\Api\V1\PainelPremiacaoController;
 use App\Http\Controllers\Api\V1\ParametrizacaoAbasController;
 use App\Http\Controllers\Api\V1\ParametrizacaoCredenciamentoController;
 use App\Http\Controllers\Api\V1\PerfilController;
@@ -281,6 +282,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             // Comitê especial (Sprint 193): só a comissão especial recomenda
             // finalistas para as credenciais e os prêmios.
             Route::get('/comite', [AvaliadorComiteController::class, 'show']);
+            Route::get('/comite/painel', [AvaliadorComiteController::class, 'painel']);
             Route::post('/comite/recomendacoes', [AvaliadorComiteController::class, 'recomendar'])
                 ->middleware('throttle:60,1');
             Route::delete('/comite/recomendacoes/{recomendacao}', [AvaliadorComiteController::class, 'retirar']);
@@ -555,6 +557,8 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             // --- Recomendações do comitê para a premiação (Sprint 193) ---
             // Decididas nas duas abas que mexem na premiação.
             Route::middleware('aba:comite,avaliacao_presencial')->prefix('premiacao')->group(function () {
+                // Painel da premiação (Sprint 196): o que falta e o ranking por área.
+                Route::get('/painel', PainelPremiacaoController::class);
                 Route::get('/recomendacoes', [RecomendacaoPremiacaoController::class, 'index']);
                 Route::post('/recomendacoes/{recomendacao}/decisao', [RecomendacaoPremiacaoController::class, 'decidir']);
             });

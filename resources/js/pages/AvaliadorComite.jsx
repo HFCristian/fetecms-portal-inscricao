@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { Alert, Button } from '../components/ui.jsx';
 import BuscaCombobox from '../components/BuscaCombobox.jsx';
@@ -136,7 +137,16 @@ export default function AvaliadorComite() {
 
     return (
         <AppShell>
-            <h1 className="font-display text-2xl font-semibold text-primary mb-1">Comitê especial</h1>
+            <div className="flex flex-wrap items-start justify-between gap-3 mb-1 max-w-3xl">
+                <h1 className="font-display text-2xl font-semibold text-primary">Comitê especial</h1>
+                <Link
+                    to="/avaliador/comite/painel"
+                    className="inline-flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 font-semibold border-2 border-primary-container text-primary-container hover:bg-primary-fixed transition-colors"
+                >
+                    <span className="material-symbols-outlined text-[20px]">leaderboard</span>
+                    Painel da premiação
+                </Link>
+            </div>
             <p className="text-on-surface-variant mb-6 max-w-3xl">
                 Recomende projetos finalistas para as credenciais e os prêmios da feira — quantos quiser. A
                 organização aprova ou rejeita cada recomendação, e a decisão aparece aqui.

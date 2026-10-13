@@ -62,6 +62,7 @@ import ComiteTransporte from './pages/ComiteTransporte.jsx';
 import ComiteMapa from './pages/ComiteMapa.jsx';
 import ComiteDesignacoes from './pages/ComiteDesignacoes.jsx';
 import ComitePremiacao from './pages/ComitePremiacao.jsx';
+import PainelPremiacao from './pages/PainelPremiacao.jsx';
 import MapaEventoHome from './pages/MapaEventoHome.jsx';
 import MapaTurnos from './pages/MapaTurnos.jsx';
 import MapaEstandes from './pages/MapaEstandes.jsx';
@@ -156,6 +157,7 @@ export default function Root() {
                             <Route path="/avaliador/presencial" element={<AvaliadorPresencial />} />
                             <Route path="/avaliador/avaliacao-presencial" element={<AvaliadorAvaliacaoPresencial />} />
                             <Route path="/avaliador/comite" element={<AvaliadorComite />} />
+                            <Route path="/avaliador/comite/painel" element={<PainelPremiacao origem="avaliador" />} />
                             <Route path="/avaliador/perfil" element={<AvaliadorPerfil />} />
                         </Route>
 
@@ -256,6 +258,7 @@ export default function Root() {
                             <Route path="/admin/comite/designacoes" element={<ComiteDesignacoes />} />
                             <Route path="/admin/comite/mapa" element={<ComiteMapa />} />
                             <Route path="/admin/comite/premiacao" element={<ComitePremiacao />} />
+                            <Route path="/admin/comite/premiacao/painel" element={<PainelPremiacao origem="admin" />} />
                             <Route path="/admin/comunicacao" element={<AdminComunicacao />} />
                             <Route path="/admin/comunicacao/avisos" element={<AdminAvisos />} />
                             <Route path="/admin/comunicacao/modelos" element={<AdminModelosEmail />} />

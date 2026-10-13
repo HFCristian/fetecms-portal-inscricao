@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../components/AppShell.jsx', () => ({ default: ({ children }) => <div>{children}</div> }));
 // A seção de recomendações tem teste próprio (RecomendacoesPremiacao.test.jsx).
 vi.mock('../components/RecomendacoesPremiacao.jsx', () => ({ default: () => <div data-testid="recomendacoes" /> }));
-vi.mock('react-router-dom', () => ({ Link: ({ children }) => <a>{children}</a> }));
+vi.mock('react-router-dom', () => ({ Link: ({ children, to }) => <a href={to}>{children}</a> }));
 vi.mock('../lib/auth.jsx', () => ({
     extractErrors: (e) => ({ message: e?.message ?? 'Erro.', fields: e?.fields ?? {} }),
 }));
@@ -170,5 +170,12 @@ describe('ComitePremiacao', () => {
 
         const bloco = (await screen.findByText('Aprovadas pelo comitê')).closest('div');
         expect(within(bloco).getByRole('button', { name: /Premiar/ })).toBeDisabled();
+    });
+
+    it('leva ao painel da premiação', async () => {
+        render(<ComitePremiacao />);
+        await screen.findByText('MOSTRATEC 2027');
+
+        expect(screen.getByRole('link', { name: /Painel da premiação/ })).toHaveAttribute('href', '/admin/comite/premiacao/painel');
     });
 });

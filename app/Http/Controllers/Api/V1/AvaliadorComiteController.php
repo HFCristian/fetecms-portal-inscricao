@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Credencial;
 use App\Models\Projeto;
 use App\Models\RecomendacaoPremiacao;
+use App\Services\PainelPremiacaoService;
 use App\Services\RecomendacaoPremiacaoService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -59,6 +60,14 @@ class AvaliadorComiteController extends Controller
             'data' => $this->recomendacoes->painel($request->user()),
             'meta' => ['message' => 'Recomendação retirada.'],
         ]);
+    }
+
+    /** O painel da premiação (Sprint 196), só leitura: o que falta e quem já levou. */
+    public function painel(Request $request, PainelPremiacaoService $painel): JsonResponse
+    {
+        $this->garantirComissao($request);
+
+        return response()->json(['data' => $painel->painel()]);
     }
 
     private function garantirComissao(Request $request): void
