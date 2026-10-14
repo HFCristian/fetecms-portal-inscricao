@@ -107,6 +107,9 @@ export function InformacoesAdicionais({ credencial, ocupado = false, onSalvar = 
 
 const quando = (iso) => (iso ? new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '');
 
+/** "FET.AGR-001 — Título" quando o projeto tem código na lista final (Sprint 203). */
+export const comCodigo = (codigo, titulo) => (codigo ? `${codigo} — ${titulo}` : titulo);
+
 function LinhaProjeto({ codigo, titulo, categoria, area, children }) {
     return (
         <div className="min-w-0 flex-1">
@@ -287,7 +290,8 @@ export default function CartaoCredencial({
         .filter((c) => !credencial.projetos.some((p) => p.id === c.id))
         .map((c) => ({
             id: c.id,
-            nome: c.titulo,
+            // Com o código na frente, a busca acha "FET.AGR-001" (Sprint 203).
+            nome: comCodigo(c.codigo, c.titulo),
             detalhe: [c.categoria, c.area, c.credenciais.length ? `já tem: ${c.credenciais.join(', ')}` : null]
                 .filter(Boolean).join(' · '),
         }));
@@ -346,7 +350,10 @@ export default function CartaoCredencial({
                     {credencial.projetos.map((p) => (
                         <li key={p.id} className="py-2 flex flex-wrap items-center gap-2">
                             <div className="min-w-0 flex-1">
-                                <p className="text-sm text-on-surface truncate">{p.titulo}</p>
+                                <p className="text-sm text-on-surface truncate">
+                                    {p.codigo && <code className="text-xs text-primary-container mr-1">{p.codigo}</code>}
+                                    {p.titulo}
+                                </p>
                                 <p className="text-xs text-on-surface-variant">
                                     {[p.categoria, p.area].filter(Boolean).join(' · ')}
                                     {p.observacao ? ` · ${p.observacao}` : ''}
@@ -372,7 +379,7 @@ export default function CartaoCredencial({
                             options={opcoes}
                             value={projeto}
                             onChange={setProjeto}
-                            placeholder="Buscar entre os finalistas…"
+                            placeholder="Buscar finalista pelo código ou título…"
                             vazio="Nenhum finalista disponível"
                         />
                     </div>

@@ -355,4 +355,18 @@ class RecomendacaoPremiacaoTest extends TestCase
         $this->postJson("/api/v1/admin/premiacao/recomendacoes/{$recomendacao->id}/decisao", ['status' => 'aprovada'])
             ->assertForbidden();
     }
+
+    /** Sprint 203 — os finalistas vêm com o código da lista final, para buscar por ele. */
+    public function test_os_finalistas_vem_com_o_codigo_da_lista_final(): void
+    {
+        $this->finalista->update(['categoria' => Categoria::Fetecms, 'area_id' => Area::create(['nome' => 'Ciências Agrárias', 'sigla' => 'AGR'])->id]);
+        $this->adminDe('comite');
+
+        $candidatos = collect($this->getJson('/api/v1/admin/comite/premiacao')->json('meta.candidatos'))->keyBy('titulo');
+        $this->assertSame('FET.AGR-001', $candidatos['Bioplástico de mandioca']['codigo']);
+
+        Sanctum::actingAs($this->avaliador());
+        $doAvaliador = collect($this->getJson('/api/v1/avaliador/comite')->json('data.candidatos'))->keyBy('titulo');
+        $this->assertSame('FET.AGR-001', $doAvaliador['Bioplástico de mandioca']['codigo']);
+    }
 }

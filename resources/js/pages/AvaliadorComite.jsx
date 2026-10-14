@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { Alert, Button } from '../components/ui.jsx';
 import BuscaCombobox from '../components/BuscaCombobox.jsx';
-import { PilulaTipo, InformacoesAdicionais } from '../components/CartaoCredencial.jsx';
+import { PilulaTipo, InformacoesAdicionais, comCodigo } from '../components/CartaoCredencial.jsx';
 import StatusRecomendacao from '../components/StatusRecomendacao.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import { getComiteAvaliador, recomendarProjeto, retirarRecomendacao } from '../lib/avaliador.js';
@@ -20,7 +20,8 @@ function CartaoRecomendacao({ credencial, candidatos, minhas, ocupado, onRecomen
     const jaRecomendados = new Set(minhas.map((r) => r.projeto_id));
     const opcoes = candidatos
         .filter((c) => !jaRecomendados.has(c.id))
-        .map((c) => ({ id: c.id, nome: c.titulo, detalhe: [c.categoria, c.area].filter(Boolean).join(' · ') }));
+        // Com o código na frente, a busca acha "FET.AGR-001" (Sprint 203).
+        .map((c) => ({ id: c.id, nome: comCodigo(c.codigo, c.titulo), detalhe: [c.categoria, c.area].filter(Boolean).join(' · ') }));
 
     async function enviar() {
         const ok = await onRecomendar(credencial, projeto, justificativa);
@@ -46,7 +47,7 @@ function CartaoRecomendacao({ credencial, candidatos, minhas, ocupado, onRecomen
                     options={opcoes}
                     value={projeto}
                     onChange={setProjeto}
-                    placeholder="Buscar entre os finalistas…"
+                    placeholder="Buscar finalista pelo código ou título…"
                     vazio="Nenhum finalista disponível"
                 />
                 <textarea
@@ -73,7 +74,10 @@ function CartaoRecomendacao({ credencial, candidatos, minhas, ocupado, onRecomen
                         {minhas.map((r) => (
                             <li key={r.id} className="py-2 flex flex-wrap items-start gap-2">
                                 <div className="min-w-0 flex-1">
-                                    <p className="text-sm text-on-surface">{r.projeto}</p>
+                                    <p className="text-sm text-on-surface">
+                                        {r.codigo && <code className="text-xs text-primary-container mr-1">{r.codigo}</code>}
+                                        {r.projeto}
+                                    </p>
                                     <p className="text-xs text-on-surface-variant">{[r.categoria, r.area].filter(Boolean).join(' · ')}</p>
                                     {r.justificativa && (
                                         <p className="text-xs text-on-surface-variant whitespace-pre-line mt-0.5">{r.justificativa}</p>

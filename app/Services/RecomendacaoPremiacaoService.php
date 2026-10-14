@@ -63,7 +63,7 @@ class RecomendacaoPremiacaoService
             ])->values()->all(),
             // O que o projeto já recebeu fica de fora: é decisão da
             // organização, e quem recomenda não precisa dela para opinar.
-            'candidatos' => array_map(fn (array $p) => array_intersect_key($p, array_flip(['id', 'titulo', 'categoria', 'area', 'escola'])),
+            'candidatos' => array_map(fn (array $p) => array_intersect_key($p, array_flip(['id', 'codigo', 'titulo', 'categoria', 'area', 'escola'])),
                 $this->credenciais->candidatos()),
             'recomendacoes' => RecomendacaoPremiacao::where('avaliador_id', $avaliador->id)
                 ->whereIn('credencial_id', $credenciais->pluck('id'))
@@ -161,6 +161,7 @@ class RecomendacaoPremiacaoService
             'id' => $r->id,
             'credencial_id' => $r->credencial_id,
             'projeto_id' => $r->projeto_id,
+            'codigo' => $this->credenciais->codigos()[$r->projeto_id] ?? null,
             'projeto' => $r->projeto?->titulo,
             'categoria' => $r->projeto?->categoria?->label(),
             'area' => $r->projeto?->area?->nome,

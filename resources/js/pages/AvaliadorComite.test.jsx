@@ -62,7 +62,7 @@ describe('AvaliadorComite', () => {
         fireEvent.click(screen.getByRole('button', { name: /Recomendar/ }));
 
         await waitFor(() => expect(recomendarProjeto).toHaveBeenCalledWith(1, 7, 'Estande impecável.'));
-        expect(await screen.findByText('Bioplástico de mandioca recomendado para MOSTRATEC 2027.')).toBeInTheDocument();
+        expect(await screen.findByText('FET.AGR-001 — Bioplástico de mandioca recomendado para MOSTRATEC 2027.')).toBeInTheDocument();
     });
 
     it('retira a recomendação pendente', async () => {
@@ -107,5 +107,16 @@ describe('AvaliadorComite', () => {
         await screen.findByText('MOSTRATEC 2027');
 
         expect(screen.getByRole('link', { name: /Painel da premiação/ })).toHaveAttribute('href', '/avaliador/comite/painel');
+    });
+
+    // Sprint 203: a busca acha o finalista pelo código da lista final.
+    it('busca o finalista pelo código', async () => {
+        render(<AvaliadorComite />);
+        await screen.findByText('MOSTRATEC 2027');
+
+        const combo = screen.getByRole('combobox');
+        fireEvent.change(combo, { target: { value: 'FET.AGR-001' } });
+
+        expect(within(combo.parentElement).getByRole('button', { name: /FET\.AGR-001 — Bioplástico de mandioca/ })).toBeInTheDocument();
     });
 });

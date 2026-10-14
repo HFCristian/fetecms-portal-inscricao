@@ -257,6 +257,20 @@ describe('ComitePremiacao', () => {
         expect(retirarPremiacao).not.toHaveBeenCalled();
     });
 
+    it('busca o finalista pelo código no cartão', async () => {
+        comPedidos({ pendentes: [] });
+        render(<ComitePremiacao />);
+        await screen.findByText('MOSTRATEC 2027');
+
+        // O seletor de área e o de categoria também são "combobox": vai pelo texto do campo.
+        const combo = screen.getByPlaceholderText('Buscar finalista pelo código ou título…');
+        fireEvent.change(combo, { target: { value: 'jr.bio' } });
+
+        const lista = combo.parentElement;
+        expect(within(lista).getByRole('button', { name: /JR\.BIO-001 — Abelhas nativas/ })).toBeInTheDocument();
+        expect(within(lista).queryByRole('button', { name: /Bioplástico/ })).not.toBeInTheDocument();
+    });
+
     it('os filtros recarregam os cartões com o recorte', async () => {
         comPedidos();
         render(<ComitePremiacao />);

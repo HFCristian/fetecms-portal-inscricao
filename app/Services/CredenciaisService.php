@@ -144,6 +144,9 @@ class CredenciaisService
             ->get()
             ->map(fn (Projeto $p) => [
                 'id' => $p->id,
+                // O código da lista final (Sprint 203): é por ele que a
+                // organização procura o projeto no evento.
+                'codigo' => $this->codigos()[$p->id] ?? null,
                 'titulo' => $p->titulo,
                 'categoria' => $p->categoria?->label(),
                 'area' => $p->area?->nome,
@@ -402,6 +405,7 @@ class CredenciaisService
         return [
             'id' => $r->id,
             'projeto_id' => $r->projeto_id,
+            'codigo' => $this->codigos()[$r->projeto_id] ?? null,
             'projeto' => $r->projeto?->titulo,
             'categoria' => $r->projeto?->categoria?->label(),
             'area' => $r->projeto?->area?->nome,
@@ -430,6 +434,7 @@ class CredenciaisService
             ->groupBy('projeto_id')
             ->map(fn (Collection $doProjeto) => [
                 'projeto_id' => $doProjeto->first()->projeto_id,
+                'codigo' => $this->codigos()[$doProjeto->first()->projeto_id] ?? null,
                 'projeto' => $doProjeto->first()->projeto?->titulo,
                 'categoria' => $doProjeto->first()->projeto?->categoria?->label(),
                 'area' => $doProjeto->first()->projeto?->area?->nome,
@@ -463,6 +468,7 @@ class CredenciaisService
                 ->map(fn (RecomendacaoPremiacao $r) => $this->linhaDaRecomendacao($r))->values()->all(),
             'projetos' => $credencial->projetos->map(fn (Projeto $p) => [
                 'id' => $p->id,
+                'codigo' => $this->codigos()[$p->id] ?? null,
                 'titulo' => $p->titulo,
                 'categoria' => $p->categoria?->label(),
                 'area' => $p->area?->nome,

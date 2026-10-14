@@ -901,7 +901,21 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 200 | Mapa em tela cheia: **dashboard** das avaliações (por nº recebido, geral e por área; comissão especial por área; barra de progresso) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 201 | Premiação: os **pedidos de aprovação** do comitê dentro do **cartão da credencial** (aprovar/rejeitar ali); a seção separada sai e os filtros recortam os cartões | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 202 | Premiação: **cancelar a premiação** de uma recomendação aprovada (tira a credencial, a recomendação continua aprovada) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 203 | Premiação: buscar o finalista pelo **código da lista final** (FET.AGR-001) no cartão da credencial e na aba do comitê | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprint 203 (mesma branch):** o campo de busca de cada cartão de credencial (Premiação e
+> Credenciais e Prêmios) e o da aba **Comitê especial** do avaliador passaram a mostrar e achar o
+> finalista pelo **código da lista final vigente** — "FET.AGR-001 — Título"; digitar "agr-001" ou
+> "FET.AGR" já filtra. O código também aparece nas linhas do cartão (quem recebeu, pedidos,
+> aprovadas, rejeitadas) e nas recomendações do avaliador. `candidatos()` e as linhas trazem
+> `codigo` (nulo quando o projeto está sem código na lista).
+> Back **1445/1445**, front **735/735**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprints 201–203):** nenhuma migration, variável de `.env` ou dependência.
+> O `GET /api/v1/admin/premiacao/recomendacoes` deixou de existir (as recomendações vêm no
+> `GET /admin/comite/premiacao` e no `GET /admin/presencial/credenciais`). Recarregue a página
+> para ver os cartões novos.
+>
 > **Sprints 201–202 (mesma branch):**
 > (a) **Sprint 201** — as recomendações do comitê saíram da seção separada e foram para **dentro do
 > cartão de cada credencial**, nas duas telas que o usam (Comitê → Premiação e Avaliação presencial →
