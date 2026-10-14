@@ -53,7 +53,7 @@ class AvaliadorProfile extends Model
 
     protected $fillable = [
         'cpf', 'titulacao', 'camiseta', 'idiomas', 'area_id', 'subarea_id', 'limite_avaliacoes', 'comissao_especial',
-        'estado_id', 'cidade_id', 'presencial', 'presencial_em',
+        'estado_id', 'cidade_id', 'presencial', 'presencial_em', 'apenas_presencial', 'cadastrado_por',
     ];
 
     protected function casts(): array
@@ -66,6 +66,9 @@ class AvaliadorProfile extends Model
             // Nulo = ainda não respondeu, que não é a mesma coisa que "não vai".
             'presencial' => 'boolean',
             'presencial_em' => 'datetime',
+            // Cadastrado pela organização só para o evento (Sprint 191): fica
+            // fora da distribuição da avaliação online.
+            'apenas_presencial' => 'boolean',
         ];
     }
 
@@ -140,6 +143,12 @@ class AvaliadorProfile extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /** Quem da organização cadastrou a conta só para o presencial (Sprint 191). */
+    public function cadastradoPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cadastrado_por');
     }
 
     public function area(): BelongsTo

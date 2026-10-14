@@ -21,6 +21,11 @@ class AvaliadorProfileResource extends JsonResource
             // Respondeu "sim" na aba Presencial: o menu mostra a aba da
             // avaliação no estande (Sprint 171). Nulo é "ainda não respondeu".
             'presencial' => $this->presencial,
+            // Conta da organização só para o evento (Sprint 191): o menu
+            // esconde a avaliação online.
+            'apenas_presencial' => (bool) $this->apenas_presencial,
+            // Comissão especial: o menu mostra a aba Comitê especial (Sprint 193).
+            'comissao_especial' => (bool) $this->comissao_especial,
         ];
     }
 }

@@ -23,7 +23,7 @@ class Credencial extends Model
 {
     protected $table = 'credenciais';
 
-    protected $fillable = ['edicao_id', 'tipo', 'nome', 'orgao', 'descricao', 'vagas', 'ativa', 'ordem'];
+    protected $fillable = ['edicao_id', 'tipo', 'nome', 'orgao', 'descricao', 'informacoes', 'vagas', 'ativa', 'ordem'];
 
     protected function casts(): array
     {

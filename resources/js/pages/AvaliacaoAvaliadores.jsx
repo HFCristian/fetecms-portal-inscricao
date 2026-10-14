@@ -449,6 +449,14 @@ export default function AvaliacaoAvaliadores() {
                                                             <p className="text-on-surface truncate">{a.nome}</p>
                                                             <p className="text-xs text-on-surface-variant truncate">{a.email}</p>
                                                         </div>
+                                                        {a.apenas_presencial && (
+                                                            <span
+                                                                title="Cadastrado pela organização só para o evento presencial: fora da distribuição online"
+                                                                className="text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap bg-tertiary-container/60 text-on-surface"
+                                                            >
+                                                                Só presencial
+                                                            </span>
+                                                        )}
                                                         {a.comissao_especial && (
                                                             <span
                                                                 title="Comissão especial"

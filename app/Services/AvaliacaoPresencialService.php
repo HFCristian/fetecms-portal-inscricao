@@ -40,8 +40,11 @@ class AvaliacaoPresencialService
             'respondido' => $perfil?->presencial !== null,
             'presencial' => $perfil?->presencial,
             'respondido_em' => $perfil?->presencial_em?->toIso8601String(),
-            // Depois que o evento começa, a escala do dia já está montada.
-            'pode_alterar' => $modoTeste || ! $comecou,
+            // Depois que o evento começa, a escala do dia já está montada. A
+            // conta criada pela organização só para o presencial (Sprint 191)
+            // não tem o que responder: ela existe para isso.
+            'pode_alterar' => ! $perfil?->apenas_presencial && ($modoTeste || ! $comecou),
+            'apenas_presencial' => (bool) $perfil?->apenas_presencial,
             'evento_iniciado' => $comecou,
             'evento_de_label' => $edicao?->evento_de?->format('d/m/Y H:i'),
             'evento_ate_label' => $edicao?->evento_ate?->format('d/m/Y H:i'),
@@ -71,6 +74,12 @@ class AvaliacaoPresencialService
         if ($perfil === null) {
             throw ValidationException::withMessages([
                 'presencial' => 'Complete o seu cadastro de avaliador antes de responder.',
+            ]);
+        }
+
+        if ($perfil->apenas_presencial) {
+            throw ValidationException::withMessages([
+                'presencial' => 'Sua conta foi criada pela organização para a avaliação presencial — fale com ela para mudar a sua participação.',
             ]);
         }
 

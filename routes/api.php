@@ -14,9 +14,11 @@ use App\Http\Controllers\Api\V1\AlunoController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\AvaliacaoPresencialAdminController;
 use App\Http\Controllers\Api\V1\AvaliadorAvaliacaoController;
+use App\Http\Controllers\Api\V1\AvaliadorComiteController;
 use App\Http\Controllers\Api\V1\AvaliadorController;
 use App\Http\Controllers\Api\V1\AvaliadorPerfilController;
 use App\Http\Controllers\Api\V1\AvaliadorPresencialAvaliacaoController;
+use App\Http\Controllers\Api\V1\AvaliadorPresencialCadastroController;
 use App\Http\Controllers\Api\V1\AvaliadorPresencialController;
 use App\Http\Controllers\Api\V1\AvisoController;
 use App\Http\Controllers\Api\V1\CadastroPendenteController;
@@ -28,6 +30,7 @@ use App\Http\Controllers\Api\V1\ChatAdminController;
 use App\Http\Controllers\Api\V1\ChatController;
 use App\Http\Controllers\Api\V1\CodigosFinalistasController;
 use App\Http\Controllers\Api\V1\ComiteDesignacaoController;
+use App\Http\Controllers\Api\V1\ComitePremiacaoController;
 use App\Http\Controllers\Api\V1\ComiteTransporteController;
 use App\Http\Controllers\Api\V1\ContaTemporariaController;
 use App\Http\Controllers\Api\V1\CoorientadorController;
@@ -49,6 +52,7 @@ use App\Http\Controllers\Api\V1\MapaPlantaController;
 use App\Http\Controllers\Api\V1\MapaTurnosController;
 use App\Http\Controllers\Api\V1\OrientadorAjusteController;
 use App\Http\Controllers\Api\V1\OrientadorController;
+use App\Http\Controllers\Api\V1\PainelPremiacaoController;
 use App\Http\Controllers\Api\V1\ParametrizacaoAbasController;
 use App\Http\Controllers\Api\V1\ParametrizacaoCredenciamentoController;
 use App\Http\Controllers\Api\V1\PerfilController;
@@ -56,6 +60,7 @@ use App\Http\Controllers\Api\V1\PresencaContaTemporariaController;
 use App\Http\Controllers\Api\V1\ProjetoController;
 use App\Http\Controllers\Api\V1\ProjetoManualController;
 use App\Http\Controllers\Api\V1\ProjetoSubmissaoController;
+use App\Http\Controllers\Api\V1\RecomendacaoPremiacaoController;
 use App\Http\Controllers\Api\V1\SuporteAdminController;
 use App\Http\Controllers\Api\V1\SuporteOrientadorController;
 use Illuminate\Support\Facades\Route;
@@ -274,6 +279,13 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             // Intenção de avaliar presencialmente, e as orientações de quem aceita.
             Route::get('/presencial', [AvaliadorPresencialController::class, 'show']);
             Route::put('/presencial', [AvaliadorPresencialController::class, 'update']);
+            // Comitê especial (Sprint 193): só a comissão especial recomenda
+            // finalistas para as credenciais e os prêmios.
+            Route::get('/comite', [AvaliadorComiteController::class, 'show']);
+            Route::get('/comite/painel', [AvaliadorComiteController::class, 'painel']);
+            Route::post('/comite/recomendacoes', [AvaliadorComiteController::class, 'recomendar'])
+                ->middleware('throttle:60,1');
+            Route::delete('/comite/recomendacoes/{recomendacao}', [AvaliadorComiteController::class, 'retirar']);
             // A avaliação no estande, para quem aceitou e durante o evento.
             Route::get('/presencial/avaliacoes', [AvaliadorPresencialAvaliacaoController::class, 'index']);
             Route::post('/presencial/avaliacoes/projetos/{projeto}', [AvaliadorPresencialAvaliacaoController::class, 'iniciar']);
@@ -333,6 +345,13 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::post('/distribuicao/redistribuir', [AvaliacaoPresencialAdminController::class, 'redistribuir']);
                 Route::post('/avaliacoes/designar', [AvaliacaoPresencialAdminController::class, 'designarAvaliacoes']);
                 Route::delete('/avaliacoes/{avaliacao}', [AvaliacaoPresencialAdminController::class, 'retirarAvaliacao']);
+                // Cadastro de avaliadores só do evento presencial (Sprint 191):
+                // a organização cria a conta e entrega a senha gerada.
+                Route::get('/avaliadores-cadastrados', [AvaliadorPresencialCadastroController::class, 'index']);
+                Route::post('/avaliadores-cadastrados', [AvaliadorPresencialCadastroController::class, 'store'])
+                    ->middleware('throttle:30,1');
+                Route::post('/avaliadores-cadastrados/{avaliador}/senha', [AvaliadorPresencialCadastroController::class, 'novaSenha'])
+                    ->middleware('throttle:30,1');
                 // Credenciais: as vagas de premiação e a lista da cerimônia.
                 Route::get('/credenciais', [AvaliacaoPresencialAdminController::class, 'credenciais']);
                 Route::post('/credenciais', [AvaliacaoPresencialAdminController::class, 'criarCredencial']);
@@ -419,6 +438,8 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 // Exportação da lista (Sprint 160): lista nominal e recortes.
                 Route::get('/avaliacao/listas-finais/exportar/opcoes', [ExportacaoListaFinalController::class, 'opcoes']);
                 Route::get('/avaliacao/listas-finais/{lista}/exportar', [ExportacaoListaFinalController::class, 'exportar']);
+                // Os arquivos do projeto de pesquisa, todos ou os escolhidos (Sprint 187).
+                Route::post('/avaliacao/listas-finais/{lista}/projetos-pesquisa', [ExportacaoListaFinalController::class, 'projetosPesquisa']);
                 // Código do projeto (Sprint 159): fixar e mandar aos finalistas.
                 Route::get('/avaliacao/listas-finais/{lista}/codigos', [CodigosFinalistasController::class, 'show']);
                 Route::post('/avaliacao/listas-finais/{lista}/codigos/fixar', [CodigosFinalistasController::class, 'fixar']);
@@ -533,6 +554,14 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::delete('/registros/{guarda}', [AlmoxarifadoController::class, 'destroy']);
             });
 
+            // --- Recomendações do comitê para a premiação (Sprint 193) ---
+            // Decididas nas duas abas que mexem na premiação.
+            Route::middleware('aba:comite,avaliacao_presencial')->prefix('premiacao')->group(function () {
+                // Painel da premiação (Sprint 196): o que falta e o ranking por área.
+                Route::get('/painel', PainelPremiacaoController::class);
+                Route::post('/recomendacoes/{recomendacao}/decisao', [RecomendacaoPremiacaoController::class, 'decidir']);
+            });
+
             // --- Aba "Comitê especial": transporte e mapa em tempo real ---
             Route::middleware('aba:comite')->prefix('comite')->group(function () {
                 Route::get('/localizacao', [ComiteTransporteController::class, 'minha']);
@@ -547,6 +576,12 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 // Designação do comitê: só para os avaliadores da comissão especial.
                 Route::get('/designacoes/opcoes', [ComiteDesignacaoController::class, 'opcoes']);
                 Route::post('/designacoes', [ComiteDesignacaoController::class, 'designar']);
+                // Premiação (Sprint 190): as credenciais e prêmios da feira nos
+                // projetos premiados — a mesma base da Avaliação presencial.
+                Route::get('/premiacao', [ComitePremiacaoController::class, 'index']);
+                Route::get('/premiacao/arquivo', [ComitePremiacaoController::class, 'arquivo']);
+                Route::post('/premiacao/{credencial}/projetos', [ComitePremiacaoController::class, 'atribuir']);
+                Route::delete('/premiacao/{credencial}/projetos/{projeto}', [ComitePremiacaoController::class, 'retirar']);
             });
 
             // --- Aba "Mapa do Evento": a ocupação do ginásio ---

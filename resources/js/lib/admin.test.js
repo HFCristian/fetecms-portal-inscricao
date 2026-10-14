@@ -7,7 +7,7 @@ vi.mock('./http.js', () => ({ default: { patch: (...a) => patch(...a), post: (..
 const {
     definirInicioAjustes, definirFimAjustes,
     definirLiberacaoAvaliacao, definirEncerramentoAvaliacao,
-    desconsiderarNota, avaliarNoLugarDaNota,
+    desconsiderarNota, avaliarNoLugarDaNota, baixarProjetosPesquisa,
 } = await import('./admin.js');
 
 // O `CampoDataCard` faz `onSalvo(resp.data)` e `resp.meta?.message`: todo helper
@@ -59,5 +59,38 @@ describe('desconsiderar uma nota', () => {
         expect(post).toHaveBeenCalledWith('/admin/avaliacao/avaliacoes/7/avaliar-no-lugar', {
             justificativa: 'Nota incompatível com o trabalho.',
         });
+    });
+});
+
+// Sprint 187: "todos" não manda ids (o servidor pega a lista inteira); a
+// seleção manda exatamente os ids marcados.
+describe('baixar os projetos de pesquisa', () => {
+    beforeEach(() => {
+        post.mockReset().mockResolvedValue({
+            data: new Blob(['zip']),
+            headers: { 'content-disposition': 'attachment; filename=projetos-de-pesquisa-lista.zip' },
+        });
+        globalThis.URL.createObjectURL = vi.fn(() => 'blob:x');
+        globalThis.URL.revokeObjectURL = vi.fn();
+    });
+
+    it('todos: corpo vazio', async () => {
+        await baixarProjetosPesquisa(7);
+
+        expect(post).toHaveBeenCalledWith('/admin/avaliacao/listas-finais/7/projetos-pesquisa', {}, { responseType: 'blob' });
+    });
+
+    it('selecionados: manda os ids', async () => {
+        await baixarProjetosPesquisa(7, [3, 4]);
+
+        expect(post).toHaveBeenCalledWith('/admin/avaliacao/listas-finais/7/projetos-pesquisa', { projeto_ids: [3, 4] }, { responseType: 'blob' });
+    });
+
+    it('a recusa do servidor vira a mensagem do erro', async () => {
+        post.mockRejectedValue({
+            response: { data: new Blob([JSON.stringify({ errors: { projeto_ids: ['Selecione ao menos um projeto.'] } })]) },
+        });
+
+        await expect(baixarProjetosPesquisa(7, [])).rejects.toThrow('Selecione ao menos um projeto.');
     });
 });

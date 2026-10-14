@@ -9,6 +9,7 @@ use App\Enums\Turno;
 use App\Models\Aluno;
 use App\Models\Area;
 use App\Models\AvaliacaoPresencial;
+use App\Models\AvaliadorProfile;
 use App\Models\ChecagemEstande;
 use App\Models\Cidade;
 use App\Models\Credenciamento;
@@ -254,6 +255,41 @@ class MapaSituacaoTest extends TestCase
         $this->assertTrue(collect($dias)->firstWhere('hoje', true) !== null);
     }
 
+    /**
+     * Sprints 198 e 200 — a tela cheia pinta a faixa da área (com a sigla) e o
+     * painel conta, por área, quem já recebeu avaliação da comissão especial.
+     */
+    public function test_a_linha_traz_a_area_e_as_avaliacoes_da_comissao_especial(): void
+    {
+        $projeto = $this->noEstande('Bioplástico', Turno::A, 42);
+        $this->avaliar($projeto, 2);
+        $daComissao = AvaliadorProfile::factory()->create(['comissao_especial' => true])->user;
+        AvaliacaoPresencial::create([
+            'edicao_id' => Edicao::atual()?->id, 'projeto_id' => $projeto->id, 'avaliador_id' => $daComissao->id,
+            'status' => StatusAvaliacao::Concluida->value, 'nota' => 9, 'concluida_em' => now(),
+        ]);
+        // Em andamento não conta, nem da comissão.
+        AvaliacaoPresencial::create([
+            'edicao_id' => Edicao::atual()?->id, 'projeto_id' => $projeto->id,
+            'avaliador_id' => AvaliadorProfile::factory()->create(['comissao_especial' => true])->user_id,
+            'status' => StatusAvaliacao::EmAndamento->value,
+        ]);
+        $this->admin();
+
+        $linha = $this->getJson('/api/v1/admin/mapa/planta/situacao?turno=A')->assertOk()->json('data.estandes.42');
+
+        $this->assertSame($this->area->id, $linha['area_id']);
+        $this->assertSame('AGR', $linha['area_sigla']);
+        $this->assertSame(3, $linha['avaliacoes']);
+        $this->assertSame(1, $linha['avaliacoes_comite']);
+
+        // A legenda das áreas vem com a planta.
+        $this->assertSame(
+            [['id' => $this->area->id, 'nome' => 'Ciências Agrárias', 'sigla' => 'AGR']],
+            $this->getJson('/api/v1/admin/mapa/planta')->json('meta.filtros.areas'),
+        );
+    }
+
     // ------------------------------------------------------------------ //
     // Ruas                                                                //
     // ------------------------------------------------------------------ //
@@ -272,6 +308,29 @@ class MapaSituacaoTest extends TestCase
         // E os corredores entre as ilhas de duas colunas.
         $this->assertGreaterThan(4, collect($ruas)->where('orientacao', 'v')->count());
         $this->assertNull($ruas[0]['nome']);
+    }
+
+    /**
+     * Sprint 197 — a rua da borda esquerda: ao lado da primeira coluna, sem
+     * fileira do outro lado. Nomeável como as outras, e acompanha a coluna.
+     */
+    public function test_ha_uma_rua_na_borda_esquerda_que_acompanha_a_primeira_coluna(): void
+    {
+        $planta = PlantaEvento::padrao();
+        $borda = collect(PlantaEvento::ruas($planta))->firstWhere('borda', true);
+
+        $this->assertNotNull($borda);
+        $this->assertSame('v', $borda['orientacao']);
+        $this->assertSame('v:-0.5', $borda['chave']);
+        $this->assertEquals(-0.5, $borda['posicao']);
+
+        // A primeira coluna anda duas casas para a direita: a rua vai junto.
+        $planta['estandes'] = array_map(fn (array $e) => ['x' => $e['x'] + 2] + $e, $planta['estandes']);
+        $this->assertSame('v:1.5', collect(PlantaEvento::ruas($planta))->firstWhere('borda', true)['chave']);
+
+        // E o nome dado a ela é guardado como o de qualquer corredor.
+        $planta['ruas'] = ['v:1.5' => 'Rua da Entrada'];
+        $this->assertSame('Rua da Entrada', collect(PlantaEvento::ruas($planta))->firstWhere('borda', true)['nome']);
     }
 
     public function test_admin_batiza_um_corredor_e_o_nome_sobrevive_a_nova_versao(): void

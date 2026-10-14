@@ -1,4 +1,5 @@
 import http from './http.js';
+import { paramsDoRecorte } from './recomendacoes.js';
 
 /**
  * Comitê especial → Transporte de comitê.
@@ -50,3 +51,32 @@ export const designarPeloComite = (projetoIds, avaliadorIds) =>
         projeto_ids: projetoIds,
         avaliador_ids: avaliadorIds,
     }).then((r) => r.data);
+
+// --- Premiação (Sprint 190) --------------------------------------------------
+//
+// A mesma base de Avaliação presencial → Credenciais e Prêmios: o comitê
+// anexa e retira, mas não cadastra. Só vêm as credenciais ativas.
+
+/** As credenciais ativas (data) e os finalistas que podem recebê-las (meta.candidatos). */
+export const getPremiacaoComite = (filtros = {}) =>
+    http.get('/admin/comite/premiacao', { params: paramsDoRecorte(filtros) }).then((r) => r.data);
+
+export const premiarProjeto = (credencialId, projetoId, observacao = null) =>
+    http.post(`/admin/comite/premiacao/${credencialId}/projetos`, { projeto_id: projetoId, observacao })
+        .then((r) => r.data);
+
+export const retirarPremiacao = (credencialId, projetoId) =>
+    http.delete(`/admin/comite/premiacao/${credencialId}/projetos/${projetoId}`).then((r) => r.data);
+
+/** A lista de premiação em TXT — o mesmo arquivo da Avaliação presencial. */
+export async function baixarPremiacaoComite() {
+    const r = await http.get('/admin/comite/premiacao/arquivo', { responseType: 'blob' });
+    const url = URL.createObjectURL(r.data);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'lista-premiacao.txt';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+}

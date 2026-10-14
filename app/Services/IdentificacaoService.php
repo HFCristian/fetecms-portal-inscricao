@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use App\Models\EstandeProjeto;
 use App\Models\ListaFinal;
 use App\Models\Projeto;
+use App\Models\TurnoApresentacao;
 use App\Support\CodigoParticipante;
 use App\Support\EtiquetasPdf;
 use BaconQrCode\Renderer\Image\SvgImageBackEnd;
@@ -128,7 +130,8 @@ class IdentificacaoService
     }
 
     /**
-     * Todas as pessoas da lista final, com projeto, papel e código.
+     * Todas as pessoas da lista final, com projeto, papel e código, em ordem
+     * alfabética de nome.
      *
      * @return Collection<int, array<string, mixed>>
      */
@@ -147,14 +150,26 @@ class IdentificacaoService
             ->acompanhantesAprovados($projetos->pluck('id')->all())
             ->groupBy('projeto_id');
 
+        // Turno e estande (Sprint 188) vão na etiqueta: é o que o participante
+        // procura depois de passar pelo balcão. O estande guarda o turno dele;
+        // sem estande gerado, vale o turno de Mapa do Evento → Turnos.
+        $ids = $projetos->pluck('id')->all();
+        $estandes = EstandeProjeto::whereIn('projeto_id', $ids)->get()->keyBy('projeto_id');
+        $turnos = TurnoApresentacao::whereIn('projeto_id', $ids)->get()->keyBy('projeto_id');
+
         $linhas = collect();
 
         foreach ($projetos as $projeto) {
+            $estande = $estandes->get($projeto->id);
+            $turno = $estande?->turno ?? $turnos->get($projeto->id)?->turno;
+
             $comum = [
                 'projeto_id' => $projeto->id,
                 'projeto' => $projeto->titulo,
                 'categoria' => $projeto->categoria?->label(),
                 'escola' => $projeto->instituicao?->nome,
+                'turno' => $turno?->label(),
+                'estande' => $estande?->numero,
             ];
 
             foreach ($projeto->alunos as $aluno) {
@@ -187,7 +202,14 @@ class IdentificacaoService
             }
         }
 
-        return $linhas;
+        // Em ordem alfabética de nome (Sprint 189): a folha de etiquetas é
+        // procurada pela pessoa, não pelo projeto — o ZIP é que separa por equipe.
+        return $linhas
+            ->sortBy([
+                fn (array $a, array $b) => strcmp(Str::lower(Str::ascii($a['nome'])), Str::lower(Str::ascii($b['nome']))),
+                fn (array $a, array $b) => strcmp($a['codigo'], $b['codigo']),
+            ])
+            ->values();
     }
 
     /** @return array<string, mixed> */

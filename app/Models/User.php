@@ -9,6 +9,7 @@ use App\Notifications\RedefinirSenhaNotification;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -173,6 +174,23 @@ class User extends Authenticatable
     public function avaliadorProfile(): HasOne
     {
         return $this->hasOne(AvaliadorProfile::class);
+    }
+
+    /**
+     * Avaliador que entra na **avaliação online**: fica de fora quem a
+     * organização cadastrou só para o evento presencial (Sprint 191). É o
+     * recorte de toda distribuição e designação online — a fila de quem não
+     * vai abri-la é projeto parado.
+     */
+    public function scopeAvaliadorDaOnline(Builder $query): Builder
+    {
+        return $query->whereDoesntHave('avaliadorProfile', fn (Builder $p) => $p->where('apenas_presencial', true));
+    }
+
+    /** Conta de avaliador cadastrada só para o evento presencial (Sprint 191). */
+    public function ehAvaliadorSoPresencial(): bool
+    {
+        return $this->role === Role::Avaliador && (bool) $this->avaliadorProfile?->apenas_presencial;
     }
 
     public function projetos(): HasMany

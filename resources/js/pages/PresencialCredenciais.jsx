@@ -1,155 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
-import { Alert, Button, Field, Input } from '../components/ui.jsx';
-import BuscaCombobox from '../components/BuscaCombobox.jsx';
+import { Alert, Button, Field, Input, useConfirm } from '../components/ui.jsx';
+import FiltroRecomendacoes, { SEM_RECORTE } from '../components/FiltroRecomendacoes.jsx';
+import CartaoCredencial from '../components/CartaoCredencial.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import {
     getCredenciais, criarCredencial, atualizarCredencial, excluirCredencial,
     atribuirCredencial, retirarCredencial, baixarPremiacao,
 } from '../lib/presencial.js';
+import { decidirRecomendacao } from '../lib/recomendacoes.js';
 
-const VAZIA = { tipo: 'credencial', nome: '', orgao: '', vagas: '', descricao: '' };
-
-/**
- * Credencial ou prêmio? A pílula não é decoração: no cerimonial, a
- * **credencial** é objeto a separar na mesa e entra no card de credenciais a
- * separar; o **prêmio** faz o projeto ser premiado (e render medalha) sem
- * entrar naquela pilha.
- */
-function PilulaTipo({ tipo, label }) {
-    const premio = tipo === 'premio';
-    return (
-        <span
-            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold shrink-0 ${
-                premio
-                    ? 'bg-tertiary-container/60 text-on-surface'
-                    : 'bg-primary-fixed text-primary-container'
-            }`}
-        >
-            <span className="material-symbols-outlined text-[14px]">
-                {premio ? 'emoji_events' : 'badge'}
-            </span>
-            {label}
-        </span>
-    );
-}
-
-/** Quantas vagas ainda cabem — "—" quando a credencial não tem teto. */
-function Vagas({ credencial }) {
-    if (credencial.vagas === null) {
-        return (
-            <span className="text-xs text-on-surface-variant">
-                {credencial.usadas} atribuída(s) · sem limite de vagas
-            </span>
-        );
-    }
-
-    const esgotada = credencial.disponiveis === 0;
-
-    return (
-        <span className={`text-xs font-semibold ${esgotada ? 'text-error' : 'text-on-surface-variant'}`}>
-            {credencial.usadas} de {credencial.vagas} vaga(s)
-            {esgotada ? ' · esgotada' : ` · ${credencial.disponiveis} disponível(is)`}
-        </span>
-    );
-}
-
-/** Uma credencial: o que é, quem já recebeu e o campo para anexar mais um. */
-function CartaoCredencial({ credencial, candidatos, ocupado, onAtribuir, onRetirar, onAlternar, onExcluir }) {
-    const [projeto, setProjeto] = useState(null);
-
-    const opcoes = candidatos
-        .filter((c) => !credencial.projetos.some((p) => p.id === c.id))
-        .map((c) => ({
-            id: c.id,
-            nome: c.titulo,
-            detalhe: [c.categoria, c.area, c.credenciais.length ? `já tem: ${c.credenciais.join(', ')}` : null]
-                .filter(Boolean).join(' · '),
-        }));
-
-    return (
-        <li className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                        <PilulaTipo tipo={credencial.tipo} label={credencial.tipo_label} />
-                    </div>
-                    <p className={`font-semibold mt-1 ${credencial.ativa ? 'text-on-surface' : 'text-on-surface-variant line-through'}`}>
-                        {credencial.nome}
-                        {credencial.orgao && <span className="text-on-surface-variant font-normal"> · {credencial.orgao}</span>}
-                    </p>
-                    {credencial.descricao && (
-                        <p className="text-xs text-on-surface-variant mt-0.5">{credencial.descricao}</p>
-                    )}
-                    <Vagas credencial={credencial} />
-                </div>
-                <div className="flex gap-2 shrink-0">
-                    <Button type="button" variant="outline" disabled={ocupado} onClick={() => onAlternar(credencial)}>
-                        {credencial.ativa ? 'Desativar' : 'Reativar'}
-                    </Button>
-                    {credencial.usadas === 0 && (
-                        <Button
-                            type="button"
-                            variant="outline"
-                            className="text-error border-error/40 hover:bg-error-container/40"
-                            disabled={ocupado}
-                            onClick={() => onExcluir(credencial)}
-                        >
-                            Excluir
-                        </Button>
-                    )}
-                </div>
-            </div>
-
-            {credencial.projetos.length > 0 && (
-                <ul className="mt-3 divide-y divide-outline-variant/30">
-                    {credencial.projetos.map((p) => (
-                        <li key={p.id} className="py-2 flex flex-wrap items-center gap-2">
-                            <div className="min-w-0 flex-1">
-                                <p className="text-sm text-on-surface truncate">{p.titulo}</p>
-                                <p className="text-xs text-on-surface-variant">
-                                    {[p.categoria, p.area].filter(Boolean).join(' · ')}
-                                    {p.observacao ? ` · ${p.observacao}` : ''}
-                                </p>
-                            </div>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                disabled={ocupado}
-                                onClick={() => onRetirar(credencial, p)}
-                            >
-                                Retirar
-                            </Button>
-                        </li>
-                    ))}
-                </ul>
-            )}
-
-            {credencial.ativa && (
-                <div className="mt-3 flex flex-col sm:flex-row gap-2 sm:items-center">
-                    <div className="flex-1">
-                        <BuscaCombobox
-                            options={opcoes}
-                            value={projeto}
-                            onChange={setProjeto}
-                            placeholder="Buscar entre os finalistas…"
-                            vazio="Nenhum finalista disponível"
-                        />
-                    </div>
-                    <Button
-                        type="button"
-                        disabled={!projeto || ocupado}
-                        onClick={() => { onAtribuir(credencial, projeto); setProjeto(null); }}
-                    >
-                        <span className="material-symbols-outlined text-[20px]">workspace_premium</span>
-                        Anexar
-                    </Button>
-                </div>
-            )}
-        </li>
-    );
-}
+const VAZIA = { tipo: 'credencial', nome: '', orgao: '', vagas: '', descricao: '', informacoes: '' };
 
 /**
  * Avaliação presencial → **Credenciais e Prêmios**.
@@ -171,17 +33,22 @@ export default function PresencialCredenciais() {
     const [form, setForm] = useState(VAZIA);
     const [criando, setCriando] = useState(false);
     const [ocupado, setOcupado] = useState(false);
+    // O recorte das recomendações do comitê dentro dos cartões (Sprint 201).
+    const [recorte, setRecorte] = useState(SEM_RECORTE);
+    const [resumoRecomendacoes, setResumoRecomendacoes] = useState(null);
+    const [confirmar, dialogoConfirmacao] = useConfirm();
     const [errors, setErrors] = useState({});
     const [alerta, setAlerta] = useState('');
     const [sucesso, setSucesso] = useState('');
 
-    const carregar = useCallback(() => getCredenciais()
+    const carregar = useCallback(() => getCredenciais(recorte)
         .then((r) => {
             setCredenciais(r.data);
             setCandidatos(r.meta?.candidatos ?? []);
+            setResumoRecomendacoes(r.meta?.recomendacoes ?? null);
             if (r.meta?.tipos?.length) setTipos(r.meta.tipos);
         })
-        .catch(() => { setCredenciais([]); setAlerta('Não foi possível carregar as credenciais e prêmios.'); }), []);
+        .catch(() => { setCredenciais([]); setAlerta('Não foi possível carregar as credenciais e prêmios.'); }), [recorte]);
 
     useEffect(() => { carregar(); }, [carregar]);
 
@@ -236,6 +103,7 @@ export default function PresencialCredenciais() {
                                 nome: form.nome.trim(),
                                 orgao: form.orgao.trim() || null,
                                 descricao: form.descricao.trim() || null,
+                                informacoes: form.informacoes.trim() || null,
                                 vagas: form.vagas === '' ? null : Number(form.vagas),
                             });
                             setForm(VAZIA);
@@ -273,6 +141,22 @@ export default function PresencialCredenciais() {
                         <Field label="Descrição" error={errors.descricao}>
                             <Input aria-label="Descrição" value={form.descricao} onChange={campo('descricao')} />
                         </Field>
+                        <div className="sm:col-span-2">
+                            <Field
+                                label="Informações adicionais"
+                                error={errors.informacoes}
+                                hint="Critérios, regras do órgão, o que a vaga cobre. Os avaliadores do comitê leem ao recomendar."
+                            >
+                                <textarea
+                                    aria-label="Informações adicionais"
+                                    rows={4}
+                                    maxLength={5000}
+                                    value={form.informacoes}
+                                    onChange={campo('informacoes')}
+                                    className="w-full bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 outline-none"
+                                />
+                            </Field>
+                        </div>
                     </div>
                     <div className="flex justify-end gap-2 mt-4">
                         <Button type="button" variant="outline" onClick={() => { setCriando(false); setErrors({}); }}>
@@ -291,6 +175,13 @@ export default function PresencialCredenciais() {
                     </Button>
                 </div>
             )}
+
+            <FiltroRecomendacoes
+                valor={recorte}
+                onChange={setRecorte}
+                opcoes={resumoRecomendacoes?.opcoes}
+                pendentes={resumoRecomendacoes?.pendentes ?? 0}
+            />
 
             {credenciais === null ? (
                 <div className="text-center py-10 text-on-surface-variant">
@@ -317,11 +208,30 @@ export default function PresencialCredenciais() {
                                 'Retirado do projeto.',
                             )}
                             onAlternar={(cred) => acao(() => atualizarCredencial(cred.id, { ativa: !cred.ativa }))}
+                            onDecidir={(ids, status, r) => acao(
+                                () => Promise.all(ids.map((id) => decidirRecomendacao(id, status))),
+                                `Recomendação de ${r.projeto} ${status === 'aprovada' ? 'aprovada' : 'rejeitada'}.`,
+                            )}
+                            onCancelarPremiacao={async (cred, projeto) => {
+                                const ok = await confirmar({
+                                    title: 'Cancelar premiação',
+                                    message: `${cred.nome} sai de ${projeto.titulo} e a vaga volta. A recomendação continua aprovada.`,
+                                    confirmLabel: 'Cancelar premiação',
+                                    cancelLabel: 'Voltar',
+                                    danger: true,
+                                });
+                                if (ok) acao(() => retirarCredencial(cred.id, projeto.id), 'Premiação cancelada.');
+                            }}
+                            onSalvarInformacoes={(cred, texto) => acao(
+                                () => atualizarCredencial(cred.id, { informacoes: texto.trim() || null }),
+                                'Informações adicionais salvas.',
+                            )}
                             onExcluir={(cred) => acao(() => excluirCredencial(cred.id), 'Item excluído.')}
                         />
                     ))}
                 </ul>
             )}
+            {dialogoConfirmacao}
         </AppShell>
     );
 }

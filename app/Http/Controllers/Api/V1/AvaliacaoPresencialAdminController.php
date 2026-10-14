@@ -7,6 +7,7 @@ use App\Enums\SituacaoDocumento;
 use App\Enums\TipoCredencial;
 use App\Enums\Turno;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\FiltroRecomendacoesRequest;
 use App\Models\Area;
 use App\Models\AvaliacaoPresencial;
 use App\Models\Credencial;
@@ -263,13 +264,17 @@ class AvaliacaoPresencialAdminController extends Controller
     // --- Credenciais (vagas de premiação) ----------------------------------
 
     /** As credenciais e prêmios da edição e os projetos que podem recebê-los. */
-    public function credenciais(): JsonResponse
+    public function credenciais(FiltroRecomendacoesRequest $request): JsonResponse
     {
+        $cartoes = $this->credenciais->listar(filtros: $request->filtros());
+
         return response()->json([
-            'data' => $this->credenciais->listar(),
+            'data' => $cartoes,
             'meta' => [
                 'candidatos' => $this->credenciais->candidatos(),
                 'tipos' => TipoCredencial::opcoes(),
+                // As recomendações do comitê dentro de cada cartão (Sprint 201).
+                'recomendacoes' => $this->credenciais->resumoDasRecomendacoes($cartoes),
             ],
         ]);
     }
@@ -281,6 +286,8 @@ class AvaliacaoPresencialAdminController extends Controller
             'nome' => ['required', 'string', 'max:120'],
             'orgao' => ['nullable', 'string', 'max:120'],
             'descricao' => ['nullable', 'string', 'max:500'],
+            // Informações adicionais (Sprint 192): critérios, regras do órgão.
+            'informacoes' => ['nullable', 'string', 'max:5000'],
             // Em branco = sem teto: nem todo órgão fecha o número antes.
             'vagas' => ['nullable', 'integer', 'min:1', 'max:999'],
             'ordem' => ['nullable', 'integer', 'min:0', 'max:999'],
@@ -298,6 +305,8 @@ class AvaliacaoPresencialAdminController extends Controller
             'nome' => ['sometimes', 'string', 'max:120'],
             'orgao' => ['nullable', 'string', 'max:120'],
             'descricao' => ['nullable', 'string', 'max:500'],
+            // Informações adicionais (Sprint 192): critérios, regras do órgão.
+            'informacoes' => ['nullable', 'string', 'max:5000'],
             'vagas' => ['nullable', 'integer', 'min:1', 'max:999'],
             'ordem' => ['nullable', 'integer', 'min:0', 'max:999'],
             'ativa' => ['sometimes', 'boolean'],

@@ -225,7 +225,7 @@ class SessaoAvaliadorService
      */
     private function seAplica(User $user): bool
     {
-        if ($user->role !== Role::Avaliador || ! Edicao::modoDistribuicao()->designaNoLogin()) {
+        if ($user->role !== Role::Avaliador || $user->ehAvaliadorSoPresencial() || ! Edicao::modoDistribuicao()->designaNoLogin()) {
             return false;
         }
 

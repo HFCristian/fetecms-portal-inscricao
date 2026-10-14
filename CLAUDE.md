@@ -338,7 +338,10 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     + coorientador). Dentro de cada lista o admin **inclui e retira projetos**
     com **justificativa obrigatória** — cada alteração **sobe a versão**, gera um TXT novo (o
     arquivo sai sempre da composição atual, com a numeração refeita) e entra em **Registros → Lista
-    final**. `listas_finais` + `lista_final_projetos`, `ListaFinalService`.
+    final**. `listas_finais` + `lista_final_projetos`, `ListaFinalService`. O detalhe da lista baixa
+    ainda os **projetos de pesquisa** num ZIP — todos, ou por seleção individual, de categoria ou de
+    área —, em pastas categoria → área e com o código do projeto no nome
+    (`ExportacaoProjetosPesquisaService`).
   - **Avaliação Online → Ranking dos projetos → baixar**: o ranking sai em **CSV, Excel (.xlsx),
     PDF e TXT**, sempre no **recorte dos filtros da tela** (área e categoria) — quatro formatos
     porque são quatro usos: planilha para conferir, papel para a reunião, texto para colar num
@@ -512,7 +515,9 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     conferido ou com arquivo não é excluído — desative-o. Os dois termos do finalista são **itens do
     sistema** (`chave`): renomeiam-se e ligam/desligam, mas não mudam de abrangência nem se excluem.
   - **Comitê especial** (`/admin/comite`): o deslocamento das equipes durante a feira, em duas
-    seções. **Transporte de comitê** lista quem está com o localizador ligado e o que cada um
+    seções (mais as **Designações** do comitê e a **Premiação** — as credenciais e prêmios nos
+    projetos premiados, na mesma base de Avaliação presencial → Credenciais e Prêmios, com a lista de
+    premiação em TXT; `ComitePremiacaoController`). **Transporte de comitê** lista quem está com o localizador ligado e o que cada um
     configurou, e traz o botão **Habilitar localização** — um assistente de **seis passos**:
     quantas pessoas estão junto → os **nomes** (opcionais, com a área de cada uma) → o **meio de
     transporte** → o **ponto de partida** → o **destino** (autocomplete do Google Places) e por
@@ -866,21 +871,241 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 170 | **Distribuição presencial** por turno: só credenciado + checado, rodadas iguais, prazo = fim do turno + 30 min | ✅ sim | ✅ sim (Pedro, PR #105 → v1.29) | 0 |
 | 171 | Avaliador: aba **Avaliação presencial** (só no turno ativado), wizard da rubrica + checklist dos itens da checagem | ✅ sim | ✅ sim (Pedro, PR #105 → v1.29) | 0 |
 | 172 | `demo:avaliacao-presencial`: `avaliador@fetecms.test` pronto para ensaiar avaliação e distribuição | ✅ sim | ✅ sim (Pedro, PR #105 → v1.29) | 0 |
-| 173 | Comunicação: grupo **Todos os finalistas** combinável (mala direta) + público de orientadores finalistas (avisos e feedback) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 174 | Orientador: **termo de uso de imagem** (vários arquivos, estudantes assinalados) + card "Agilize o processo!" | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 175 | Credenciamento: **termo de uso de imagem** já marcado por estudante quando enviado online (item do sistema no catálogo) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 176 | Mapa do Evento: termo de imagem no painel do estande, na lista filtrável e nas exportações (online + balcão) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 177 | Listas: código **em branco, fora do padrão ou da sequência** com aviso; **repetido** barra a geração; editar reordena | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 178 | Listas: **arrastar** o projeto dentro do grupo renumera os códigos na hora (sem modo "Reordenar") | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 179 | Listas: montar preliminar **ou** final pela união de listas geradas — **preliminares e finais** —, herdando os códigos fixados | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 180 | Listas: **apelido** e **descrição** na criação, nos cartões e editáveis no detalhe (sem justificativa) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 181 | Parametrização: **lista única** de itens do credenciamento e da checagem (de pessoa ou do projeto, onde conferir, receber antes) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 182 | Credenciamento e checagem lendo a lista única: bloco "Do projeto" no balcão e marcador por pessoa na checagem | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 183 | Aba Documentos genérica: cada item "receber antes" da lista tem a sua seção (um ou mais arquivos, pessoas marcadas) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 184 | O que chegou antes já vem marcado no balcão e na checagem, para qualquer item (o bloco fixo do termo saiu) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 185 | Mala direta: variáveis `{{codigo_projeto}}` e `{{turno}}`, só com destino 100% finalista (aviso na tela e recusa no servidor) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 186 | As mesmas variáveis no modelo "Código do projeto" e nos avisos (resolvidas para quem lê) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 173 | Comunicação: grupo **Todos os finalistas** combinável (mala direta) + público de orientadores finalistas (avisos e feedback) | ✅ sim | ✅ sim (Pedro, PR #107 → v1.30) | 0 |
+| 174 | Orientador: **termo de uso de imagem** (vários arquivos, estudantes assinalados) + card "Agilize o processo!" | ✅ sim | ✅ sim (Pedro, PR #107 → v1.30) | 0 |
+| 175 | Credenciamento: **termo de uso de imagem** já marcado por estudante quando enviado online (item do sistema no catálogo) | ✅ sim | ✅ sim (Pedro, PR #107 → v1.30) | 0 |
+| 176 | Mapa do Evento: termo de imagem no painel do estande, na lista filtrável e nas exportações (online + balcão) | ✅ sim | ✅ sim (Pedro, PR #107 → v1.30) | 0 |
+| 177 | Listas: código **em branco, fora do padrão ou da sequência** com aviso; **repetido** barra a geração; editar reordena | ✅ sim | ✅ sim (Pedro, PR #107 → v1.30) | 0 |
+| 178 | Listas: **arrastar** o projeto dentro do grupo renumera os códigos na hora (sem modo "Reordenar") | ✅ sim | ✅ sim (Pedro, PR #107 → v1.30) | 0 |
+| 179 | Listas: montar preliminar **ou** final pela união de listas geradas — **preliminares e finais** —, herdando os códigos fixados | ✅ sim | ✅ sim (Pedro, PR #107 → v1.30) | 0 |
+| 180 | Listas: **apelido** e **descrição** na criação, nos cartões e editáveis no detalhe (sem justificativa) | ✅ sim | ✅ sim (Pedro, PR #107 → v1.30) | 0 |
+| 181 | Parametrização: **lista única** de itens do credenciamento e da checagem (de pessoa ou do projeto, onde conferir, receber antes) | ✅ sim | ✅ sim (Pedro, PR #107 → v1.30) | 0 |
+| 182 | Credenciamento e checagem lendo a lista única: bloco "Do projeto" no balcão e marcador por pessoa na checagem | ✅ sim | ✅ sim (Pedro, PR #107 → v1.30) | 0 |
+| 183 | Aba Documentos genérica: cada item "receber antes" da lista tem a sua seção (um ou mais arquivos, pessoas marcadas) | ✅ sim | ✅ sim (Pedro, PR #107 → v1.30) | 0 |
+| 184 | O que chegou antes já vem marcado no balcão e na checagem, para qualquer item (o bloco fixo do termo saiu) | ✅ sim | ✅ sim (Pedro, PR #107 → v1.30) | 0 |
+| 185 | Mala direta: variáveis `{{codigo_projeto}}` e `{{turno}}`, só com destino 100% finalista (aviso na tela e recusa no servidor) | ✅ sim | ✅ sim (Pedro, PR #107 → v1.30) | 0 |
+| 186 | As mesmas variáveis no modelo "Código do projeto" e nos avisos (resolvidas para quem lê) | ✅ sim | ✅ sim (Pedro, PR #107 → v1.30) | 0 |
+| 187 | Lista final: baixar os **projetos de pesquisa** num ZIP (todos ou por seleção individual, de categoria ou de área) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 188 | Etiquetas de identificação: **turno e estande**, papel ao lado do nome, sem projeto nem escola | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 189 | Identificação dos participantes em **ordem alfabética** de nome + **16 etiquetas por folha** (margem ~5 mm, cabeçalho de uma linha) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 190 | Comitê especial → **Premiação**: credenciais e prêmios nos projetos premiados (mesma base) + lista de premiação em TXT | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 191 | Avaliação presencial → **Cadastro de avaliadores** só do evento (senha gerada, fora da avaliação online) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 192 | Credenciais e Prêmios: campo **Informações adicionais** (cadastro, edição no cartão, visível ao comitê) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 193 | Avaliador da comissão especial: aba **Comitê especial** recomenda finalistas para credenciais/prêmios; admins aprovam ou rejeitam | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 194 | Recomendações do comitê: filtro por **título do projeto, área e categoria** (contagem presa ao recorte) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 195 | Cartão da credencial mostra as **aprovadas pelo comitê**, com botão **Premiar** (Premiação e Credenciais e Prêmios) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 196 | **Painel da premiação**: vagas que faltam por credencial + ranking dos premiados por área (admin e comissão, tela cheia) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 197 | Mapa do Evento: **rua da borda esquerda**, ao lado da primeira coluna de estandes (nomeável na configuração) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 198 | Mapa em tela cheia: **faixa da área** em cada estande (cor + sigla, legenda que destaca) e atualização a cada **5 s** com aviso no canto | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 199 | Mapa em tela cheia: **visualizações** Credenciamento, Checagem e Avaliação (cor por nº de avaliações), no canto inferior esquerdo | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 200 | Mapa em tela cheia: **dashboard** das avaliações (por nº recebido, geral e por área; comissão especial por área; barra de progresso) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 201 | Premiação: os **pedidos de aprovação** do comitê dentro do **cartão da credencial** (aprovar/rejeitar ali); a seção separada sai e os filtros recortam os cartões | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 202 | Premiação: **cancelar a premiação** de uma recomendação aprovada (tira a credencial, a recomendação continua aprovada) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 203 | Premiação: buscar o finalista pelo **código da lista final** (FET.AGR-001) no cartão da credencial e na aba do comitê | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprint 203 (mesma branch):** o campo de busca de cada cartão de credencial (Premiação e
+> Credenciais e Prêmios) e o da aba **Comitê especial** do avaliador passaram a mostrar e achar o
+> finalista pelo **código da lista final vigente** — "FET.AGR-001 — Título"; digitar "agr-001" ou
+> "FET.AGR" já filtra. O código também aparece nas linhas do cartão (quem recebeu, pedidos,
+> aprovadas, rejeitadas) e nas recomendações do avaliador. `candidatos()` e as linhas trazem
+> `codigo` (nulo quando o projeto está sem código na lista).
+> Back **1445/1445**, front **735/735**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprints 201–203):** nenhuma migration, variável de `.env` ou dependência.
+> O `GET /api/v1/admin/premiacao/recomendacoes` deixou de existir (as recomendações vêm no
+> `GET /admin/comite/premiacao` e no `GET /admin/presencial/credenciais`). Recarregue a página
+> para ver os cartões novos.
+>
+> **Sprints 201–202 (mesma branch):**
+> (a) **Sprint 201** — as recomendações do comitê saíram da seção separada e foram para **dentro do
+> cartão de cada credencial**, nas duas telas que o usam (Comitê → Premiação e Avaliação presencial →
+> Credenciais e Prêmios): os **pedidos de aprovação**, com quem recomendou, quando e a justificativa,
+> e os botões **Aprovar**/**Rejeitar**; as **aprovadas**, com **Premiar** (e um *Rejeitar* para
+> desaprovar); e as **rejeitadas**, recolhidas em "ver rejeitadas", com *Reconsiderar e aprovar*. No
+> lugar da seção ficou a **barra de filtros** no topo — busca pelo **título ou código** do projeto
+> (FET.AGR-001), área e categoria —, que recorta só as recomendações dos cartões (o cartão e quem já
+> recebeu a credencial aparecem sempre) e mostra quantos pedidos há no recorte. No servidor,
+> `CredenciaisService::listar()` passou a trazer `pendentes`, `aprovadas` e `rejeitadas` por
+> credencial, aceita os filtros (`FiltroRecomendacoesRequest`) e casa o código pela lista final
+> vigente (`codigos()`); o `GET /admin/premiacao/recomendacoes` e o componente da seção saíram — só
+> a decisão (`POST .../recomendacoes/{id}/decisao`) continua.
+> (b) **Sprint 202** — a aprovada **já premiada** ganha **Cancelar premiação**: depois de uma
+> confirmação, a credencial sai do projeto (a vaga volta) e a recomendação **continua aprovada**,
+> com o *Premiar* de volta. É a retirada de sempre, sem justificativa — para desaprovar, *Rejeitar*.
+>
+> **Sprints 199–200 (mesma branch):**
+> (a) **Sprint 199** — no **canto inferior esquerdo** da tela cheia, três **visualizações**:
+> *Credenciamento* e *Checagem* (verde para quem já passou, branco para quem falta) e *Avaliação*,
+> que pinta o estande pela **quantidade de avaliações presenciais concluídas** — branco para
+> nenhuma e um azul cada vez mais escuro até o máximo por projeto da edição (até 3, os passos
+> validados da escala ordinal). A legenda fica no mesmo canto, com quantos estandes há em cada faixa.
+> A faixa da área (Sprint 198) continua por cima de qualquer visualização. Fora da tela cheia o mapa
+> segue com a cor de sempre (situação ou ocupação).
+> (b) **Sprint 200** — o botão **Dashboard**, ao lado de *Sair da tela cheia*, abre um painel
+> sobre o lado direito do mapa (`PainelAvaliacoesMapa.jsx`), no espírito do resumo da avaliação
+> online: a **barra** de avaliações feitas sobre a meta (projetos do turno × avaliações por projeto;
+> o que passa da meta num projeto não compensa a falta em outro), **projetos por quantidade de
+> avaliações recebidas** (0, 1, 2, 3+) no geral e **por área**, e quantos projetos de cada área já
+> foram avaliados pela **comissão especial** (avaliação presencial de avaliador marcado como
+> comissão). É calculado das mesmas linhas que pintam o mapa (`lib/mapaTelaCheia.js`), então se
+> atualiza junto, a cada 5 segundos, e nunca discorda do desenho. Só avaliações **presenciais**.
+> Back **1442/1442**, front **737/737**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprints 197–200):** nenhuma migration, nenhuma variável de `.env`, nenhuma
+> dependência. O mapa precisa de **estandes gerados** (Mapa do Evento → Estandes) para pintar
+> alguma coisa; a faixa da área usa a **sigla** de Parametrização → Áreas (área sem sigla ganha as
+> três primeiras letras do nome e a cor cinza "Outras" se não for uma das oito da feira). A rua da
+> borda nasce sem nome: batize-a em *Editar planta*.
+>
+> **Sprints 197–198 (mesma branch):**
+> (a) **Sprint 197** — a **rua da borda esquerda**: a varredura de corredores (`PlantaEvento::ruas()`)
+> só achava o vão **entre** duas fileiras, e a rua que passa ao lado da primeira coluna, entre ela e
+> a parede, não tem fileira do outro lado. Ela entra agora como uma rua a mais (`borda: true`), meia
+> célula à esquerda da primeira coluna (chave `v:-0.5` na prancha padrão) — e, como as outras, anda
+> junto se a coluna for movida. Nomeia-se em *Editar planta → Ruas do evento*; o desenho abre uma
+> célula a mais à esquerda para o nome caber.
+> (b) **Sprint 198** — em **tela cheia** cada estande ganha uma **faixa na cor da área** do projeto,
+> na base do quadrado, separada do preenchimento por um fio branco e com a **sigla escrita** (AGR,
+> BIO…). A cor é fixa por área (nunca pela posição na lista; área nova cai em cinza "Outras") e foi
+> escolhida pelo guia de cores, com validação por script: as oito passam lado a lado, mas num mapa em
+> que todas aparecem juntas algumas ficam próximas demais (vermelho × laranja) — por isso a sigla
+> escrita e a **legenda que destaca uma área** (clicar apaga as outras). O mapa em tela cheia se
+> atualiza **a cada 5 segundos** (fora dela, 30s) e o canto superior esquerdo diz isso — "Ao vivo ·
+> atualizado às 14:32:05" —, avisa quando a conexão cai (o mapa fica no último retrato) e quando o
+> dia escolhido já acabou. A linha do estande passou a trazer `area_id`, `area_sigla` e
+> `avaliacoes_comite` (este usado pelo painel da Sprint 200), e a planta traz a lista `areas`.
+>
+> **Sprint 196 (mesma branch):** o **Painel da premiação** — a base de Credenciais e Prêmios
+> lida de longe, para a mesa da deliberação. Abre por botão na **Premiação do comitê** (admin,
+> `/admin/comite/premiacao/painel`, `GET /admin/premiacao/painel`) e na aba **Comitê especial** da
+> comissão (`/avaliador/comite/painel`, `GET /avaliador/comite/painel`), só leitura, com **tela
+> cheia** e recarga a cada 30s. Traz: quantas **vagas faltam** (só onde há número de vagas — a
+> credencial sem limite conta o que deu e não entra na soma), preenchidas de quantas, esgotadas,
+> projetos premiados e recomendações **aprovadas aguardando o anexo**; um cartão por credencial
+> com a barra de vagas e quem já levou; e o **ranking por área do conhecimento** — em cada área, os
+> premiados do que mais recebeu para o que menos, mesma quantidade dividindo a posição, áreas da que
+> mais premiou para a que menos. Só credenciais **ativas**, as mesmas da lista em TXT.
+> `PainelPremiacaoService`. A comissão passa a enxergar quem recebeu o quê **neste painel** — a aba
+> de recomendação continua sem essa informação no formulário.
+> Back **1440/1440**, front **725/725**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprints 194–196):** nenhuma migration nova, nenhuma variável de `.env`,
+> nenhuma dependência. Vão no mesmo push das 187–193. Quem estiver com o portal aberto precisa
+> recarregar a página para ver os botões novos.
+>
+> **Sprints 194–195 (mesma branch):**
+> (a) **Sprint 194** — a seção **Recomendações do comitê** ganhou o recorte pelo **projeto**: busca
+> pelo título, **área** e **categoria** (FETECMS, FETEC Jr, FETECMS FUNDECT), no servidor
+> (`GET /admin/premiacao/recomendacoes?q=&area_id=&categoria=`). A contagem de cada situação
+> (Pendentes, Aprovadas, Rejeitadas) respeita o mesmo recorte — o número no botão é o que a lista
+> mostra ao clicar nele. Os seletores vêm na própria resposta (`opcoes`).
+> (b) **Sprint 195** — o **cartão de cada credencial** mostra as recomendações **aprovadas** para
+> ela, uma linha por projeto com quem recomendou, e um botão **Premiar** que faz a atribuição de
+> sempre (mesmas vagas; desabilitado com a credencial esgotada). A aprovação continua **só
+> marcando** — o clique é que premia. Projeto que já recebeu a credencial aparece como *Premiado*.
+> Vale nas duas telas do cartão (Comitê → Premiação e Avaliação presencial → Credenciais e Prêmios),
+> e as duas metades conversam: decidir uma recomendação recarrega os cartões, e premiar pelo
+> cartão recarrega o "já recebeu" da lista. `CredenciaisService::listar()` traz `aprovadas` e
+> `aprovadas_pendentes` por credencial.
+> Back **1434/1434**, front **717/717**, Pint limpo.
+>
+> **Sprint 193 (mesma branch):** o avaliador marcado como **comissão especial** ganhou a aba
+> **Comitê especial** (`/avaliador/comite`, `AvaliadorComiteController`): para cada credencial ou
+> prêmio **ativo** — com as informações adicionais da Sprint 192 — ele **recomenda** finalistas da
+> lista vigente, com justificativa opcional, e vê a situação de cada recomendação (aguardando,
+> aprovada, rejeitada); enquanto ninguém decidiu, pode retirá-la. **Sem teto** por avaliador nem por
+> credencial — o único limite é não repetir a mesma (mesma pessoa, projeto e credencial). Quem não
+> é da comissão não vê a aba e recebe 403. O que o projeto já recebeu não vai para ele.
+> A organização decide na seção **Recomendações do comitê**, que aparece em Comitê especial →
+> Premiação e em Avaliação presencial → Credenciais e Prêmios (`aba:comite,avaliacao_presencial`,
+> `/admin/premiacao/recomendacoes`): filtro por situação, quem recomendou e por quê, e **Aprovar** /
+> **Rejeitar** — trocáveis depois, com o nome de quem decidiu por último. **Aprovar só marca**: a
+> credencial continua sendo anexada no cartão dela, que é onde valem as vagas (duas aprovadas para
+> uma vaga não estouram nada). A linha avisa quando o projeto **já recebeu** aquela credencial.
+> `recomendacoes_premiacao`, `RecomendacaoPremiacaoService`, `App\Enums\StatusRecomendacao`.
+> Back **1432/1432**, front **712/712**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprints 191–193):** (1) as três sprints estão na mesma branch das
+> 187–190 (`feat/premiacao-comite-e-etiquetas`): um push só. **Três migrations novas**
+> (`avaliador_profiles.apenas_presencial`/`cadastrado_por`, `credenciais.informacoes` e a tabela
+> `recomendacoes_premiacao`), nenhuma variável de `.env` e nenhuma dependência nova. (2) A aba
+> **Comitê especial** do avaliador só aparece para quem está marcado como comissão especial em
+> Avaliadores Online (a estrela) — marque antes do evento, e quem já estiver logado precisa
+> recarregar a página. (3) Para o avaliador cadastrado pelo presencial entrar no comitê, marque-o
+> também lá: ele aparece em Avaliadores Online com o selo *Só presencial*. (4) A senha gerada no
+> cadastro presencial aparece **uma vez**; perdida, use *Gerar nova senha* na mesma tela.
+>
+> **Sprints 191–192 (mesma branch):**
+> (a) **Sprint 191** — **Avaliação presencial → Cadastro de avaliadores**
+> (`/admin/presencial/avaliadores`, `AvaliadorPresencialCadastroService`): a organização cria a conta
+> de quem avalia **só no dia da feira**, com os mesmos dados do cadastro público de avaliador menos
+> camiseta, idiomas, cidade e estado — e as mesmas validações, inclusive a exclusão mútua com
+> orientador e coorientador (`CadastrarAvaliadorPresencialRequest` estende o
+> `RegisterAvaliadorRequest`). Sem código de confirmação: a **senha é gerada**
+> (`App\Support\SenhaGerada`, a mesma das contas temporárias em lote) e mostrada **uma vez**;
+> perdida, gera-se outra na mesma tela (as sessões abertas caem). A conta nasce com o "sim" da aba
+> Presencial e com `avaliador_profiles.apenas_presencial`, que a tira da **avaliação online**:
+> distribuição em massa, `designarUm`, reposição da fila, sorteio, fila do login, opções e designação
+> manual (individual, por área, por subárea, comissão e em massa) — `User::scopeAvaliadorDaOnline()`.
+> Para essa pessoa o menu esconde *Avaliações*, a tela inicial abre a avaliação no estande e a
+> intenção presencial não pode virar "não". Em Avaliadores Online ela aparece com o selo
+> **Só presencial** (é lá que se marca a comissão especial).
+> (b) **Sprint 192** — **Informações adicionais** da credencial ou prêmio (`credenciais.informacoes`,
+> até 5.000 caracteres): critérios, regras do órgão, o que a vaga cobre. A `descricao` continua sendo
+> a linha curta. Entra no cadastro e é **editável no cartão** (Avaliação presencial); o comitê o lê
+> na Premiação e, na Sprint 193, ao recomendar. **Não vai** para a lista de premiação em TXT.
+> Back **1421/1421**, front **698/698**, Pint limpo.
+>
+> **Sprints 189–190 (mesma branch):**
+> (a) **Sprint 189** — a identificação dos participantes passou a sair em **ordem alfabética de
+> nome** (sem acento e sem caixa; empate pelo código), na tela e no PDF — a folha de etiquetas é
+> procurada pela pessoa, não pelo projeto. O ZIP de SVGs continua com uma pasta por equipe. A folha
+> aproveita mais a página: margem de ~5 mm, cabeçalho numa linha só e **2 colunas × 8 linhas = 16
+> etiquetas** (eram 10). Três colunas foram descartadas: o código de barras ficaria fino demais para
+> o leitor USB. A folga entre o QR e as barras subiu para 10 pt (zona de silêncio do leitor).
+> (b) **Sprint 190** — o **Comitê especial** ganhou a seção **Premiação** (`/admin/comite/premiacao`,
+> `ComitePremiacaoController`): quem tem o escopo do comitê anexa e retira as credenciais e prêmios
+> nos projetos premiados e baixa a **lista de premiação em TXT** — o mesmo arquivo, byte a byte, de
+> Avaliação presencial → Credenciais e Prêmios. A base é **a mesma** (`credencial_projeto`): o que o
+> comitê anexa vale no cerimonial e na lista da cerimônia, porque duas listas paralelas acabariam
+> discordando no palco. O comitê **não cadastra**: só aparecem as credenciais **ativas**
+> (`CredenciaisService::listar(soAtivas: true)`), e as regras de sempre continuam no servidor (só
+> finalista, teto de vagas, credencial desativada recusada). A tela traz também a visão inversa —
+> **Projetos premiados**, cada um com o que recebeu. O cartão da credencial virou componente
+> compartilhado (`CartaoCredencial.jsx`), com os botões de cadastro opcionais.
+> Back **1407/1407**, front **690/690**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprints 187–190):** (1) `git push origin feat/premiacao-comite-e-etiquetas`
+> + PR para a `main` (o ambiente do Claude não tem credencial do GitHub). Esta release **não tem
+> migration, variável nova de `.env` nem dependência nova**. (2) **Etiquetas**: o layout mudou de
+> novo (16 por folha, QR à esquerda) — imprima uma folha e teste no leitor USB e na câmera antes da
+> impressão grande. Turno e estande só aparecem depois de gerados em Mapa do Evento. (3) **Premiação
+> no comitê**: quem tem só o escopo do comitê passa a premiar projetos. O cadastro das credenciais
+> continua em Avaliação presencial. (4) **ZIP dos projetos de pesquisa**: com a lista inteira ele
+> pode passar de 1 GB; o download vai pelo navegador (blob), então vale testar com a lista real e,
+> se o proxy cortar por tempo, baixar por categoria.
+>
+> **Sprints 187–188 (branch `feat/premiacao-comite-e-etiquetas`, saída da `main` @ `6af22e2`):**
+> (a) **Sprint 187** — o detalhe de uma lista (preliminar ou final) ganhou a seção **Projetos de
+> pesquisa**: o arquivo do projeto de pesquisa (`TipoDocumento::PlanoPesquisa`) de cada projeto da
+> lista num ZIP, **de todos** ou **dos escolhidos** — projeto a projeto, ou de uma vez por
+> **categoria** (FETECMS, FETEC Jr, FETECMS FUNDECT) ou por **área**, marcações que se somam.
+> `POST /admin/avaliacao/listas-finais/{lista}/projetos-pesquisa` (sem `projeto_ids` = a lista
+> inteira; POST porque a seleção pode ter centenas de ids), `ExportacaoProjetosPesquisaService`. O
+> ZIP sai em pastas **categoria → área**, cada arquivo com o **código do projeto na lista** no nome
+> (`FETECMS/Ciências Agrárias/FET.AGR-001 - Título.pdf`). Os arquivos entram **por caminho e sem
+> recompressão** — `addFromString` seguraria centenas de PDFs na memória até o `close()`; storage
+> remoto é copiado para temporário. Projeto sem o arquivo não some calado: o ZIP leva
+> `_projetos-sem-arquivo.txt`; sem arquivo nenhum, é 422 em vez de ZIP vazio.
+> (b) **Sprint 188** — a etiqueta passou a ser **da pessoa**: o QR à esquerda na altura toda, o
+> nome com o **papel ao lado** ("Ana Paula - aluno(a)"), o **turno e o estande** (Mapa do Evento;
+> sem estande vale o turno de Turnos, sem nenhum a linha some) e o código de barras embaixo. Saíram
+> o título do projeto e a escola. Nome comprido reduz a fonte (11 → 10 → 9) antes de ser cortado, e
+> quando o papel não cabe na última linha a última palavra do nome desce com ele. De quebra, a
+> medição de texto do `EtiquetasPdf` estava errada para acento (o `Cpdf` fora do modo Unicode mede
+> byte a byte): agora mede pelo texto sem acento, que nas fontes padrão tem a mesma largura.
+> Back **1399/1399**, front **683/683**, Pint limpo.
+>
 > **Sprints 185–186 (mesma branch):** o código e o turno do projeto na comunicação.
 > (a) **Sprint 185** — a mala direta ganhou `{{codigo_projeto}}` (o código na lista final ativa) e
 > `{{turno}}` (o turno de Mapa do Evento → Turnos), marcadas "só finalistas" nos botões. Elas só

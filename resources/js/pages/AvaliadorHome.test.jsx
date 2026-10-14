@@ -1,10 +1,11 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { describe, it, expect, vi } from 'vitest';
 
+const mockPerfil = { area: 'Ciências Exatas e da Terra', subarea: null, apenas_presencial: false };
 vi.mock('../lib/auth.jsx', () => ({
     useAuth: () => ({
-        user: { name: 'Av Teste', role: 'avaliador', avaliador_profile: { area: 'Ciências Exatas e da Terra', subarea: null } },
+        user: { name: 'Av Teste', role: 'avaliador', avaliador_profile: mockPerfil },
         logout: vi.fn(),
         setUser: vi.fn(),
     }),
@@ -232,5 +233,25 @@ describe('AvaliadorHome', () => {
 
         expect(await screen.findByText('Projetos designados a você')).toBeInTheDocument();
         expect(screen.queryByText('Designados pela organização')).not.toBeInTheDocument();
+    });
+
+    // Sprint 191: a conta criada pela organização só para o presencial não
+    // tem avaliação online — a tela inicial é a do estande.
+    it('quem é só do presencial vai direto para a avaliação no estande', () => {
+        mockPerfil.apenas_presencial = true;
+        try {
+            render(
+                <MemoryRouter initialEntries={['/avaliador']}>
+                    <Routes>
+                        <Route path="/avaliador" element={<AvaliadorHome />} />
+                        <Route path="/avaliador/avaliacao-presencial" element={<p>Tela do estande</p>} />
+                    </Routes>
+                </MemoryRouter>,
+            );
+
+            expect(screen.getByText('Tela do estande')).toBeInTheDocument();
+        } finally {
+            mockPerfil.apenas_presencial = false;
+        }
     });
 });

@@ -154,7 +154,7 @@ final class PlantaEvento
      * estável enquanto o desenho não mudar, que é o que permite guardar o nome.
      *
      * @param  array<string, mixed>  $layout
-     * @return list<array{chave:string, orientacao:string, posicao:float, de:float, ate:float, nome:?string}>
+     * @return list<array{chave:string, orientacao:string, posicao:float, de:float, ate:float, nome:?string, borda?:bool}>
      */
     public static function ruas(array $layout): array
     {
@@ -204,6 +204,26 @@ final class PlantaEvento
                     'de' => round(min($extremos), 2),
                     'ate' => round(max($extremos) + 1, 2),
                     'nome' => $nomes[$chave] ?? null,
+                ];
+            }
+
+            // A rua da borda esquerda (Sprint 197): o corredor que passa ao
+            // lado da primeira coluna de estandes, entre ela e a parede. Não
+            // há fileira do outro lado para a varredura achá-lo, então ele é
+            // acrescentado aqui, meia célula à esquerda — e, como os outros,
+            // segue a coluna se ela for movida.
+            if ($orientacao === 'v' && $linhas !== []) {
+                $centro = round($linhas[0] - 0.5, 2);
+                $chave = 'v:'.$centro;
+
+                $ruas[] = [
+                    'chave' => $chave,
+                    'orientacao' => 'v',
+                    'posicao' => $centro,
+                    'de' => round(min($extremos), 2),
+                    'ate' => round(max($extremos) + 1, 2),
+                    'nome' => $nomes[$chave] ?? null,
+                    'borda' => true,
                 ];
             }
         }

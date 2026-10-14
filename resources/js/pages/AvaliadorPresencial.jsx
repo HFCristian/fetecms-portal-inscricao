@@ -89,9 +89,11 @@ export default function AvaliadorPresencial() {
                             {dados.evento_de_label
                                 ? `O evento acontece de ${dados.evento_de_label} a ${dados.evento_ate_label ?? '—'}.`
                                 : 'As datas do evento ainda não foram divulgadas.'}
-                            {dados.pode_alterar
-                                ? ' Você pode mudar a resposta até o início do evento.'
-                                : ' O evento já começou: para alterar, fale com a organização.'}
+                            {dados.apenas_presencial
+                                ? ' Sua conta foi criada pela organização para a avaliação presencial: a participação já está confirmada.'
+                                : dados.pode_alterar
+                                    ? ' Você pode mudar a resposta até o início do evento.'
+                                    : ' O evento já começou: para alterar, fale com a organização.'}
                         </p>
 
                         <div className="flex flex-wrap gap-2">

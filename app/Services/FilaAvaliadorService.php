@@ -65,6 +65,11 @@ class FilaAvaliadorService
      */
     public function repor(User $avaliador, array $ignorar = []): int
     {
+        // Cadastrado só para o evento presencial (Sprint 191): não tem fila online.
+        if ($avaliador->ehAvaliadorSoPresencial()) {
+            return 0;
+        }
+
         $criadas = $this->preencher($avaliador, $ignorar);
 
         return $criadas + $this->completarAtePiso($avaliador, $ignorar);
@@ -213,6 +218,10 @@ class FilaAvaliadorService
      */
     public function roletar(User $avaliador): array
     {
+        if ($avaliador->ehAvaliadorSoPresencial()) {
+            return ['trocados' => 0, 'recebidos' => 0];
+        }
+
         $devolvidos = Avaliacao::where('avaliador_id', $avaliador->id)
             ->devolvivel()
             ->get(['id', 'projeto_id']);
