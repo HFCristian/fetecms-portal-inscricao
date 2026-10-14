@@ -1,4 +1,5 @@
 import http from './http.js';
+import { paramsDoRecorte } from './recomendacoes.js';
 
 /**
  * Comitê especial → Transporte de comitê.
@@ -57,7 +58,8 @@ export const designarPeloComite = (projetoIds, avaliadorIds) =>
 // anexa e retira, mas não cadastra. Só vêm as credenciais ativas.
 
 /** As credenciais ativas (data) e os finalistas que podem recebê-las (meta.candidatos). */
-export const getPremiacaoComite = () => http.get('/admin/comite/premiacao').then((r) => r.data);
+export const getPremiacaoComite = (filtros = {}) =>
+    http.get('/admin/comite/premiacao', { params: paramsDoRecorte(filtros) }).then((r) => r.data);
 
 export const premiarProjeto = (credencialId, projetoId, observacao = null) =>
     http.post(`/admin/comite/premiacao/${credencialId}/projetos`, { projeto_id: projetoId, observacao })

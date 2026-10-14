@@ -165,17 +165,21 @@ class RecomendacaoPremiacaoTest extends TestCase
 
     // --- A organização ---------------------------------------------------
 
-    public function test_admin_lista_conta_e_aprova_sem_anexar_a_credencial(): void
+    /** Sprint 201 — os pedidos ficam no cartão da credencial, para decidir ali. */
+    public function test_pendentes_aparecem_no_cartao_e_aprovar_nao_anexa_a_credencial(): void
     {
         $ana = $this->avaliador();
         $this->recomendar($ana)->assertCreated();
         $this->recomendar($ana, $this->outroFinalista)->assertCreated();
         $admin = $this->adminDe('comite');
 
-        $dados = $this->getJson('/api/v1/admin/premiacao/recomendacoes')->assertOk()->json('data');
-        $this->assertSame(['pendente' => 2, 'aprovada' => 0, 'rejeitada' => 0], $dados['contagem']);
-        $this->assertSame($ana->name, $dados['recomendacoes'][0]['avaliador']);
-        $this->assertSame('MOSTRATEC 2027', $dados['recomendacoes'][0]['credencial']);
+        $resposta = $this->getJson('/api/v1/admin/comite/premiacao')->assertOk();
+        $cartao = $resposta->json('data.0');
+        $this->assertSame(2, $resposta->json('meta.recomendacoes.pendentes'));
+        $this->assertCount(2, $cartao['pendentes']);
+        $this->assertSame($ana->name, $cartao['pendentes'][0]['avaliador']);
+        $this->assertSame('Estande impecável.', $cartao['pendentes'][0]['justificativa']);
+        $this->assertSame([], $cartao['aprovadas']);
 
         $recomendacao = RecomendacaoPremiacao::where('projeto_id', $this->finalista->id)->firstOrFail();
         $this->postJson("/api/v1/admin/premiacao/recomendacoes/{$recomendacao->id}/decisao", ['status' => 'aprovada'])
@@ -188,13 +192,17 @@ class RecomendacaoPremiacaoTest extends TestCase
         // Aprovar só marca: a credencial continua sem projeto.
         $this->assertSame(0, $this->credencial->projetos()->count());
 
-        $this->getJson('/api/v1/admin/premiacao/recomendacoes?status=aprovada')
-            ->assertJsonCount(1, 'data.recomendacoes')
-            ->assertJsonPath('data.contagem.aprovada', 1);
+        $cartao = $this->getJson('/api/v1/admin/comite/premiacao')->json('data.0');
+        $this->assertCount(1, $cartao['pendentes']);
+        $this->assertSame('Bioplástico de mandioca', $cartao['aprovadas'][0]['projeto']);
+        $this->assertSame([$recomendacao->id], $cartao['aprovadas'][0]['recomendacao_ids']);
     }
 
-    /** Sprint 194 — filtrar as indicações pelo projeto: título, área e categoria. */
-    public function test_filtra_por_titulo_area_e_categoria_e_a_contagem_acompanha(): void
+    /**
+     * Sprints 194 e 201 — os filtros recortam as recomendações dentro dos
+     * cartões: título ou código do projeto, área e categoria.
+     */
+    public function test_filtra_as_recomendacoes_dos_cartoes_por_titulo_codigo_area_e_categoria(): void
     {
         $agrarias = Area::create(['nome' => 'Ciências Agrárias', 'sigla' => 'AGR']);
         $biologicas = Area::create(['nome' => 'Ciências Biológicas', 'sigla' => 'BIO']);
@@ -206,22 +214,25 @@ class RecomendacaoPremiacaoTest extends TestCase
         RecomendacaoPremiacao::where('projeto_id', $this->outroFinalista->id)->update(['status' => 'aprovada']);
         $this->adminDe('comite');
 
-        $titulos = fn (string $query) => array_column(
-            $this->getJson('/api/v1/admin/premiacao/recomendacoes'.$query)->assertOk()->json('data.recomendacoes'),
-            'projeto',
-        );
+        $projetos = function (string $query) {
+            $cartao = $this->getJson('/api/v1/admin/comite/premiacao'.$query)->assertOk()->json('data.0');
 
-        $this->assertSame(['Bioplástico de mandioca'], $titulos('?q=MANDIOCA'));
-        $this->assertSame(['Abelhas nativas'], $titulos('?area_id='.$biologicas->id));
-        $this->assertSame(['Bioplástico de mandioca'], $titulos('?categoria=fetecms'));
-        $this->assertSame([], $titulos('?categoria=fetecms_fundect'));
-        $this->assertSame(['Abelhas nativas'], $titulos('?categoria=fetec_jr&status=aprovada'));
+            return array_merge(array_column($cartao['pendentes'], 'projeto'), array_column($cartao['aprovadas'], 'projeto'));
+        };
 
-        $this->getJson('/api/v1/admin/premiacao/recomendacoes?area_id='.$agrarias->id)
-            ->assertJsonPath('data.contagem', ['pendente' => 1, 'aprovada' => 0, 'rejeitada' => 0])
-            ->assertJsonPath('data.opcoes.categorias.0.value', 'fetec_jr');
+        $this->assertSame(['Bioplástico de mandioca'], $projetos('?q=MANDIOCA'));
+        // O código da lista final: FET.AGR-001 para o bioplástico, JR.BIO-001 para as abelhas.
+        $this->assertSame(['Bioplástico de mandioca'], $projetos('?q=fet.agr'));
+        $this->assertSame(['Abelhas nativas'], $projetos('?q=JR.BIO-001'));
+        $this->assertSame(['Abelhas nativas'], $projetos('?area_id='.$biologicas->id));
+        $this->assertSame(['Bioplástico de mandioca'], $projetos('?categoria=fetecms'));
+        $this->assertSame([], $projetos('?categoria=fetecms_fundect'));
 
-        $this->getJson('/api/v1/admin/premiacao/recomendacoes?categoria=pictec')
+        $this->getJson('/api/v1/admin/comite/premiacao?area_id='.$agrarias->id)
+            ->assertJsonPath('meta.recomendacoes.pendentes', 1)
+            ->assertJsonPath('meta.recomendacoes.opcoes.categorias.0.value', 'fetec_jr');
+
+        $this->getJson('/api/v1/admin/comite/premiacao?categoria=pictec')
             ->assertStatus(422)->assertJsonValidationErrors('categoria');
     }
 
@@ -277,11 +288,49 @@ class RecomendacaoPremiacaoTest extends TestCase
     public function test_aponta_quando_o_projeto_ja_levou_a_credencial(): void
     {
         $this->recomendar($this->avaliador())->assertCreated();
+        RecomendacaoPremiacao::firstOrFail()->update(['status' => 'aprovada']);
         $this->credencial->projetos()->attach($this->finalista->id, ['atribuida_em' => now()]);
         $this->adminDe('comite');
 
-        $this->getJson('/api/v1/admin/premiacao/recomendacoes')
-            ->assertJsonPath('data.recomendacoes.0.ja_premiado', true);
+        $this->getJson('/api/v1/admin/comite/premiacao')
+            ->assertJsonPath('data.0.aprovadas.0.ja_premiado', true);
+    }
+
+    /**
+     * Sprint 202 — cancelar a premiação de uma aprovada é tirar a credencial
+     * do projeto: a vaga volta e a recomendação continua aprovada.
+     */
+    public function test_cancelar_a_premiacao_tira_a_credencial_e_a_recomendacao_continua_aprovada(): void
+    {
+        $this->recomendar($this->avaliador())->assertCreated();
+        $recomendacao = RecomendacaoPremiacao::firstOrFail();
+        $recomendacao->update(['status' => 'aprovada']);
+        $this->adminDe('comite');
+        $this->postJson("/api/v1/admin/comite/premiacao/{$this->credencial->id}/projetos", ['projeto_id' => $this->finalista->id])
+            ->assertOk()->assertJsonPath('data.0.disponiveis', 0);
+
+        $this->deleteJson("/api/v1/admin/comite/premiacao/{$this->credencial->id}/projetos/{$this->finalista->id}")
+            ->assertOk()
+            ->assertJsonPath('data.0.disponiveis', 1)
+            ->assertJsonPath('data.0.aprovadas.0.ja_premiado', false);
+
+        $this->assertSame(StatusRecomendacao::Aprovada, $recomendacao->refresh()->status);
+        $this->assertSame(0, $this->credencial->projetos()->count());
+    }
+
+    /** Sprint 201 — a rejeitada vai para o próprio grupo do cartão e pode ser reconsiderada. */
+    public function test_rejeitada_fica_no_proprio_grupo_do_cartao(): void
+    {
+        $this->recomendar($this->avaliador())->assertCreated();
+        $recomendacao = RecomendacaoPremiacao::firstOrFail();
+        $this->adminDe('avaliacao_presencial');
+
+        $this->postJson("/api/v1/admin/premiacao/recomendacoes/{$recomendacao->id}/decisao", ['status' => 'rejeitada'])->assertOk();
+
+        $cartao = $this->getJson('/api/v1/admin/presencial/credenciais')->assertOk()->json('data.0');
+        $this->assertSame([], $cartao['pendentes']);
+        $this->assertSame($recomendacao->id, $cartao['rejeitadas'][0]['id']);
+        $this->assertNotNull($cartao['rejeitadas'][0]['decidida_por']);
     }
 
     public function test_avaliador_ve_a_decisao_na_propria_aba(): void
@@ -302,7 +351,7 @@ class RecomendacaoPremiacaoTest extends TestCase
         $recomendacao = RecomendacaoPremiacao::firstOrFail();
         $this->adminDe('projetos');
 
-        $this->getJson('/api/v1/admin/premiacao/recomendacoes')->assertForbidden();
+        $this->getJson('/api/v1/admin/comite/premiacao')->assertForbidden();
         $this->postJson("/api/v1/admin/premiacao/recomendacoes/{$recomendacao->id}/decisao", ['status' => 'aprovada'])
             ->assertForbidden();
     }

@@ -2,18 +2,14 @@
 
 namespace App\Services;
 
-use App\Enums\Categoria;
 use App\Enums\Role;
 use App\Enums\StatusRecomendacao;
-use App\Models\Area;
 use App\Models\Credencial;
 use App\Models\Edicao;
 use App\Models\Projeto;
 use App\Models\RecomendacaoPremiacao;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -126,66 +122,6 @@ class RecomendacaoPremiacaoService
     }
 
     /**
-     * As recomendações das credenciais da edição, para a organização decidir.
-     *
-     * Os filtros (Sprint 194) recortam pelo **projeto**: título, área e
-     * categoria. A contagem por situação respeita o mesmo recorte — o número
-     * no botão "Pendentes" é o que a lista vai mostrar ao clicar nele.
-     *
-     * @param  array{q?: ?string, area_id?: ?int, categoria?: ?string}  $filtros
-     * @return array{recomendacoes: list<array<string, mixed>>, contagem: array<string, int>, opcoes: array<string, mixed>}
-     */
-    public function listar(?StatusRecomendacao $status = null, array $filtros = []): array
-    {
-        $busca = Str::lower(trim((string) ($filtros['q'] ?? '')));
-        $areaId = $filtros['area_id'] ?? null;
-        $categoria = $filtros['categoria'] ?? null;
-
-        $base = RecomendacaoPremiacao::query()
-            ->whereIn('credencial_id', $this->credenciaisDaEdicao()->select('id'))
-            ->when($busca !== '' || $areaId || $categoria, fn ($q) => $q->whereHas('projeto', fn ($p) => $p
-                ->when($busca !== '', fn ($sub) => $sub->whereRaw('LOWER(titulo) LIKE ?', ['%'.$busca.'%']))
-                ->when($areaId, fn ($sub) => $sub->where('area_id', $areaId))
-                ->when($categoria, fn ($sub) => $sub->where('categoria', $categoria))));
-
-        $contagem = (clone $base)->select('status', DB::raw('count(*) as total'))
-            ->groupBy('status')
-            ->pluck('total', 'status')
-            ->map(fn ($n) => (int) $n);
-
-        $premiados = DB::table('credencial_projeto')->get(['credencial_id', 'projeto_id'])
-            ->mapWithKeys(fn ($l) => [$l->credencial_id.'|'.$l->projeto_id => true]);
-
-        $recomendacoes = $base
-            ->when($status !== null, fn ($q) => $q->where('status', $status->value))
-            ->with([
-                'credencial:id,nome,tipo,orgao,vagas',
-                'projeto:id,titulo,categoria,area_id', 'projeto.area:id,nome',
-                'avaliador:id,name',
-                'decididaPor:id,name',
-            ])
-            ->orderByRaw("CASE status WHEN 'pendente' THEN 0 ELSE 1 END")
-            ->latest('id')
-            ->get()
-            ->map(fn (RecomendacaoPremiacao $r) => $this->linhaDoAdmin($r, isset($premiados[$r->credencial_id.'|'.$r->projeto_id])))
-            ->all();
-
-        return [
-            'recomendacoes' => $recomendacoes,
-            // O que os seletores oferecem: as áreas do catálogo e as categorias.
-            'opcoes' => [
-                'areas' => Area::orderBy('nome')->get(['id', 'nome'])->toArray(),
-                'categorias' => Categoria::opcoes(),
-            ],
-            'contagem' => [
-                'pendente' => $contagem[StatusRecomendacao::Pendente->value] ?? 0,
-                'aprovada' => $contagem[StatusRecomendacao::Aprovada->value] ?? 0,
-                'rejeitada' => $contagem[StatusRecomendacao::Rejeitada->value] ?? 0,
-            ],
-        ];
-    }
-
-    /**
      * Aprova ou rejeita. A decisão pode ser trocada depois (a organização
      * reconsidera); fica sempre o nome de quem decidiu por último.
      */
@@ -232,22 +168,6 @@ class RecomendacaoPremiacaoService
             'status' => $r->status->value,
             'status_label' => $r->status->label(),
             'criada_em' => $r->created_at?->toIso8601String(),
-        ];
-    }
-
-    /** @return array<string, mixed> */
-    private function linhaDoAdmin(RecomendacaoPremiacao $r, bool $jaPremiado): array
-    {
-        return $this->linhaDoAvaliador($r) + [
-            'credencial' => $r->credencial?->nome,
-            'credencial_tipo' => $r->credencial?->tipo?->value,
-            'credencial_tipo_label' => $r->credencial?->tipo?->label(),
-            'avaliador' => $r->avaliador?->name,
-            'decidida_por' => $r->decididaPor?->name,
-            'decidida_em' => $r->decidida_em?->toIso8601String(),
-            // O projeto já levou esta credencial (anexada à parte): a
-            // aprovação vira só registro de que a recomendação foi atendida.
-            'ja_premiado' => $jaPremiado,
         ];
     }
 }

@@ -23,8 +23,8 @@ const MOSTRATEC = {
     descricao: null, informacoes: 'Só projetos do ensino médio.', vagas: 1,
 };
 const CANDIDATOS = [
-    { id: 7, titulo: 'Bioplástico de mandioca', categoria: 'FETECMS', area: 'Ciências Agrárias', escola: 'EE Alfa' },
-    { id: 8, titulo: 'Abelhas nativas', categoria: 'FETEC Jr', area: 'Ciências Biológicas', escola: 'EE Beta' },
+    { id: 7, codigo: 'FET.AGR-001', titulo: 'Bioplástico de mandioca', categoria: 'FETECMS', area: 'Ciências Agrárias', escola: 'EE Alfa' },
+    { id: 8, codigo: 'JR.BIO-001', titulo: 'Abelhas nativas', categoria: 'FETEC Jr', area: 'Ciências Biológicas', escola: 'EE Beta' },
 ];
 const MINHA = {
     id: 3, credencial_id: 1, projeto_id: 8, projeto: 'Abelhas nativas', categoria: 'FETEC Jr', area: 'Ciências Biológicas',

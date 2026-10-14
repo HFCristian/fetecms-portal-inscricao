@@ -1,4 +1,5 @@
 import http from './http.js';
+import { paramsDoRecorte } from './recomendacoes.js';
 
 /**
  * Aba "Avaliação presencial" do admin: a checagem dos estandes no dia da feira,
@@ -47,8 +48,9 @@ export const novaSenhaAvaliadorPresencial = (id) =>
 
 // --- Credenciais e prêmios (o que a feira tem para dar) ---------------------
 
-export const getCredenciais = () =>
-    http.get('/admin/presencial/credenciais').then((r) => r.data);
+/** `filtros` (Sprint 201): o recorte das recomendações do comitê nos cartões. */
+export const getCredenciais = (filtros = {}) =>
+    http.get('/admin/presencial/credenciais', { params: paramsDoRecorte(filtros) }).then((r) => r.data);
 
 export const criarCredencial = (dados) =>
     http.post('/admin/presencial/credenciais', dados).then((r) => r.data.data);

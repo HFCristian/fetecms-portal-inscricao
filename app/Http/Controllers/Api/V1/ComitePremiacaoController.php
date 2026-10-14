@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\FiltroRecomendacoesRequest;
 use App\Models\Credencial;
 use App\Models\Projeto;
 use App\Services\CredenciaisService;
@@ -26,12 +27,20 @@ class ComitePremiacaoController extends Controller
 {
     public function __construct(private readonly CredenciaisService $credenciais) {}
 
-    /** As credenciais ativas, com quem já as recebeu, e os finalistas candidatos. */
-    public function index(): JsonResponse
+    /**
+     * As credenciais ativas, com quem já as recebeu e as recomendações do
+     * comitê para cada uma (no recorte dos filtros), e os finalistas.
+     */
+    public function index(FiltroRecomendacoesRequest $request): JsonResponse
     {
+        $cartoes = $this->credenciais->listar(soAtivas: true, filtros: $request->filtros());
+
         return response()->json([
-            'data' => $this->credenciais->listar(soAtivas: true),
-            'meta' => ['candidatos' => $this->credenciais->candidatos()],
+            'data' => $cartoes,
+            'meta' => [
+                'candidatos' => $this->credenciais->candidatos(),
+                'recomendacoes' => $this->credenciais->resumoDasRecomendacoes($cartoes),
+            ],
         ]);
     }
 

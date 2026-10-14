@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
-import { Alert, Button } from '../components/ui.jsx';
-import RecomendacoesPremiacao from '../components/RecomendacoesPremiacao.jsx';
+import { Alert, Button, useConfirm } from '../components/ui.jsx';
+import FiltroRecomendacoes, { SEM_RECORTE } from '../components/FiltroRecomendacoes.jsx';
 import CartaoCredencial, { PilulaTipo } from '../components/CartaoCredencial.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import {
     getPremiacaoComite, premiarProjeto, retirarPremiacao, baixarPremiacaoComite,
 } from '../lib/comite.js';
+import { decidirRecomendacao } from '../lib/recomendacoes.js';
 
 /** Os projetos premiados, cada um com o que recebeu — a mesma base vista pelo outro lado. */
 function porProjeto(credenciais) {
@@ -36,17 +37,20 @@ export default function ComitePremiacao() {
     const [credenciais, setCredenciais] = useState(null);
     const [candidatos, setCandidatos] = useState([]);
     const [ocupado, setOcupado] = useState(false);
-    // Sobe a cada mudança nos cartões: a seção de recomendações recarrega o "já recebeu".
-    const [versao, setVersao] = useState(0);
+    // O recorte das recomendações do comitê dentro dos cartões (Sprint 201).
+    const [recorte, setRecorte] = useState(SEM_RECORTE);
+    const [resumoRecomendacoes, setResumoRecomendacoes] = useState(null);
+    const [confirmar, dialogoConfirmacao] = useConfirm();
     const [alerta, setAlerta] = useState('');
     const [sucesso, setSucesso] = useState('');
 
-    const carregar = useCallback(() => getPremiacaoComite()
+    const carregar = useCallback(() => getPremiacaoComite(recorte)
         .then((r) => {
             setCredenciais(r.data);
             setCandidatos(r.meta?.candidatos ?? []);
+            setResumoRecomendacoes(r.meta?.recomendacoes ?? null);
         })
-        .catch(() => { setCredenciais([]); setAlerta('Não foi possível carregar as credenciais e prêmios.'); }), []);
+        .catch(() => { setCredenciais([]); setAlerta('Não foi possível carregar as credenciais e prêmios.'); }), [recorte]);
 
     useEffect(() => { carregar(); }, [carregar]);
 
@@ -55,7 +59,6 @@ export default function ComitePremiacao() {
         try {
             await fn();
             await carregar();
-            setVersao((v) => v + 1);
             setSucesso(mensagem);
         } catch (e) {
             const { message, fields } = extractErrors(e);
@@ -107,7 +110,12 @@ export default function ComitePremiacao() {
             {alerta && <div className="mb-4 max-w-3xl"><Alert>{alerta}</Alert></div>}
             {sucesso && <div className="mb-4 max-w-3xl"><Alert type="info">{sucesso}</Alert></div>}
 
-            <RecomendacoesPremiacao atualizacao={versao} onDecidido={carregar} />
+            <FiltroRecomendacoes
+                valor={recorte}
+                onChange={setRecorte}
+                opcoes={resumoRecomendacoes?.opcoes}
+                pendentes={resumoRecomendacoes?.pendentes ?? 0}
+            />
 
             {credenciais === null ? (
                 <div className="text-center py-10 text-on-surface-variant">
@@ -148,6 +156,22 @@ export default function ComitePremiacao() {
                                     () => retirarPremiacao(cred.id, projeto.id),
                                     `${cred.nome} retirado de ${projeto.titulo}.`,
                                 )}
+                                onDecidir={(ids, status, r) => acao(
+                                    () => Promise.all(ids.map((id) => decidirRecomendacao(id, status))),
+                                    `Recomendação de ${r.projeto} ${status === 'aprovada' ? 'aprovada' : 'rejeitada'}.`,
+                                )}
+                                onCancelarPremiacao={async (cred, projeto) => {
+                                    const ok = await confirmar({
+                                        title: 'Cancelar premiação',
+                                        message: `${cred.nome} sai de ${projeto.titulo} e a vaga volta. A recomendação continua aprovada.`,
+                                        confirmLabel: 'Cancelar premiação',
+                                        cancelLabel: 'Voltar',
+                                        danger: true,
+                                    });
+                                    if (ok) {
+                                        acao(() => retirarPremiacao(cred.id, projeto.id), `Premiação de ${projeto.titulo} cancelada.`);
+                                    }
+                                }}
                             />
                         ))}
                     </ul>
@@ -177,6 +201,7 @@ export default function ComitePremiacao() {
                     )}
                 </>
             )}
+            {dialogoConfirmacao}
         </AppShell>
     );
 }

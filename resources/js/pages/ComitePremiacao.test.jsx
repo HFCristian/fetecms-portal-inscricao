@@ -2,8 +2,8 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../components/AppShell.jsx', () => ({ default: ({ children }) => <div>{children}</div> }));
-// A seção de recomendações tem teste próprio (RecomendacoesPremiacao.test.jsx).
-vi.mock('../components/RecomendacoesPremiacao.jsx', () => ({ default: () => <div data-testid="recomendacoes" /> }));
+const decidirRecomendacao = vi.fn();
+vi.mock('../lib/recomendacoes.js', () => ({ decidirRecomendacao: (...a) => decidirRecomendacao(...a) }));
 vi.mock('react-router-dom', () => ({ Link: ({ children, to }) => <a href={to}>{children}</a> }));
 vi.mock('../lib/auth.jsx', () => ({
     extractErrors: (e) => ({ message: e?.message ?? 'Erro.', fields: e?.fields ?? {} }),
@@ -177,5 +177,96 @@ describe('ComitePremiacao', () => {
         await screen.findByText('MOSTRATEC 2027');
 
         expect(screen.getByRole('link', { name: /Painel da premiação/ })).toHaveAttribute('href', '/admin/comite/premiacao/painel');
+    });
+
+    // --- Sprints 201–203 ---------------------------------------------------
+
+    const PEDIDO = {
+        id: 31, projeto_id: 8, codigo: 'JR.BIO-001', projeto: 'Abelhas nativas', categoria: 'FETEC Jr', area: 'Biológicas',
+        avaliador: 'Ana Comissão', justificativa: 'Estande impecável.', criada_em: '2026-10-13T10:00:00-04:00',
+        decidida_por: null, decidida_em: null,
+    };
+
+    function comPedidos(over = {}) {
+        getPremiacaoComite.mockResolvedValue({
+            data: [{ ...MOSTRATEC, pendentes: [PEDIDO], aprovadas: [], rejeitadas: [], ...over }],
+            meta: {
+                candidatos: CANDIDATOS.map((c, i) => ({ ...c, codigo: i === 0 ? 'FET.AGR-001' : 'JR.BIO-001' })),
+                recomendacoes: { pendentes: 1, opcoes: { areas: [{ id: 3, nome: 'Agrárias' }], categorias: [{ value: 'fetecms', label: 'FETECMS' }] } },
+            },
+        });
+    }
+
+    it('os pedidos de aprovação aparecem no cartão e se decidem ali', async () => {
+        decidirRecomendacao.mockReset().mockResolvedValue({});
+        comPedidos();
+        render(<ComitePremiacao />);
+
+        const pedidos = await screen.findByLabelText('Pedidos de aprovação');
+        expect(within(pedidos).getByText('JR.BIO-001')).toBeInTheDocument();
+        expect(within(pedidos).getByText(/recomendado por Ana Comissão/)).toBeInTheDocument();
+        expect(within(pedidos).getByText('Estande impecável.')).toBeInTheDocument();
+        expect(screen.getByText('1 pedido(s) de aprovação')).toBeInTheDocument();
+
+        fireEvent.click(within(pedidos).getByRole('button', { name: 'Aprovar' }));
+        await waitFor(() => expect(decidirRecomendacao).toHaveBeenCalledWith(31, 'aprovada'));
+        expect(await screen.findByText('Recomendação de Abelhas nativas aprovada.')).toBeInTheDocument();
+    });
+
+    it('a rejeitada fica recolhida e pode ser reconsiderada', async () => {
+        decidirRecomendacao.mockReset().mockResolvedValue({});
+        comPedidos({ pendentes: [], rejeitadas: [{ ...PEDIDO, decidida_por: 'Admin' }] });
+        render(<ComitePremiacao />);
+
+        fireEvent.click(await screen.findByRole('button', { name: /Ver rejeitadas \(1\)/ }));
+        expect(screen.getByText(/rejeitada por Admin/)).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Reconsiderar e aprovar' }));
+        await waitFor(() => expect(decidirRecomendacao).toHaveBeenCalledWith(31, 'aprovada'));
+    });
+
+    it('cancela a premiação de uma aprovada, depois de confirmar', async () => {
+        comPedidos({
+            pendentes: [], usadas: 1, disponiveis: 1,
+            aprovadas: [{ projeto_id: 8, codigo: 'JR.BIO-001', projeto: 'Abelhas nativas', categoria: 'FETEC Jr', area: 'Biológicas', avaliadores: ['Ana'], recomendacao_ids: [31], ja_premiado: true }],
+        });
+        render(<ComitePremiacao />);
+
+        const aprovadas = await screen.findByLabelText('Aprovadas pelo comitê');
+        fireEvent.click(within(aprovadas).getByRole('button', { name: 'Cancelar premiação' }));
+
+        const dialogo = await screen.findByRole('dialog');
+        expect(dialogo).toHaveTextContent('A recomendação continua aprovada.');
+        fireEvent.click(within(dialogo).getByRole('button', { name: 'Cancelar premiação' }));
+
+        await waitFor(() => expect(retirarPremiacao).toHaveBeenCalledWith(1, 8));
+        expect(await screen.findByText('Premiação de Abelhas nativas cancelada.')).toBeInTheDocument();
+    });
+
+    it('voltar no diálogo não cancela nada', async () => {
+        comPedidos({
+            pendentes: [],
+            aprovadas: [{ projeto_id: 8, codigo: null, projeto: 'Abelhas nativas', categoria: null, area: null, avaliadores: [], recomendacao_ids: [31], ja_premiado: true }],
+        });
+        render(<ComitePremiacao />);
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Cancelar premiação' }));
+        fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Voltar' }));
+
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+        expect(retirarPremiacao).not.toHaveBeenCalled();
+    });
+
+    it('os filtros recarregam os cartões com o recorte', async () => {
+        comPedidos();
+        render(<ComitePremiacao />);
+        await screen.findByText('MOSTRATEC 2027');
+
+        fireEvent.change(screen.getByLabelText('Área do conhecimento'), { target: { value: '3' } });
+        await waitFor(() => expect(getPremiacaoComite).toHaveBeenLastCalledWith({ q: '', area_id: '3', categoria: '' }));
+
+        fireEvent.change(screen.getByLabelText('Buscar pelo título ou código do projeto'), { target: { value: ' FET.AGR ' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Buscar' }));
+        await waitFor(() => expect(getPremiacaoComite).toHaveBeenLastCalledWith({ q: 'FET.AGR', area_id: '3', categoria: '' }));
     });
 });

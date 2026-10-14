@@ -559,7 +559,6 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::middleware('aba:comite,avaliacao_presencial')->prefix('premiacao')->group(function () {
                 // Painel da premiação (Sprint 196): o que falta e o ranking por área.
                 Route::get('/painel', PainelPremiacaoController::class);
-                Route::get('/recomendacoes', [RecomendacaoPremiacaoController::class, 'index']);
                 Route::post('/recomendacoes/{recomendacao}/decisao', [RecomendacaoPremiacaoController::class, 'decidir']);
             });
 

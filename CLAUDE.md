@@ -899,7 +899,26 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 198 | Mapa em tela cheia: **faixa da área** em cada estande (cor + sigla, legenda que destaca) e atualização a cada **5 s** com aviso no canto | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 199 | Mapa em tela cheia: **visualizações** Credenciamento, Checagem e Avaliação (cor por nº de avaliações), no canto inferior esquerdo | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 200 | Mapa em tela cheia: **dashboard** das avaliações (por nº recebido, geral e por área; comissão especial por área; barra de progresso) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 201 | Premiação: os **pedidos de aprovação** do comitê dentro do **cartão da credencial** (aprovar/rejeitar ali); a seção separada sai e os filtros recortam os cartões | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 202 | Premiação: **cancelar a premiação** de uma recomendação aprovada (tira a credencial, a recomendação continua aprovada) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprints 201–202 (mesma branch):**
+> (a) **Sprint 201** — as recomendações do comitê saíram da seção separada e foram para **dentro do
+> cartão de cada credencial**, nas duas telas que o usam (Comitê → Premiação e Avaliação presencial →
+> Credenciais e Prêmios): os **pedidos de aprovação**, com quem recomendou, quando e a justificativa,
+> e os botões **Aprovar**/**Rejeitar**; as **aprovadas**, com **Premiar** (e um *Rejeitar* para
+> desaprovar); e as **rejeitadas**, recolhidas em "ver rejeitadas", com *Reconsiderar e aprovar*. No
+> lugar da seção ficou a **barra de filtros** no topo — busca pelo **título ou código** do projeto
+> (FET.AGR-001), área e categoria —, que recorta só as recomendações dos cartões (o cartão e quem já
+> recebeu a credencial aparecem sempre) e mostra quantos pedidos há no recorte. No servidor,
+> `CredenciaisService::listar()` passou a trazer `pendentes`, `aprovadas` e `rejeitadas` por
+> credencial, aceita os filtros (`FiltroRecomendacoesRequest`) e casa o código pela lista final
+> vigente (`codigos()`); o `GET /admin/premiacao/recomendacoes` e o componente da seção saíram — só
+> a decisão (`POST .../recomendacoes/{id}/decisao`) continua.
+> (b) **Sprint 202** — a aprovada **já premiada** ganha **Cancelar premiação**: depois de uma
+> confirmação, a credencial sai do projeto (a vaga volta) e a recomendação **continua aprovada**,
+> com o *Premiar* de volta. É a retirada de sempre, sem justificativa — para desaprovar, *Rejeitar*.
+>
 > **Sprints 199–200 (mesma branch):**
 > (a) **Sprint 199** — no **canto inferior esquerdo** da tela cheia, três **visualizações**:
 > *Credenciamento* e *Checagem* (verde para quem já passou, branco para quem falta) e *Avaliação*,

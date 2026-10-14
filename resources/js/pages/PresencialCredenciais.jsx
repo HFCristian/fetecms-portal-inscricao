@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
-import { Alert, Button, Field, Input } from '../components/ui.jsx';
-import RecomendacoesPremiacao from '../components/RecomendacoesPremiacao.jsx';
+import { Alert, Button, Field, Input, useConfirm } from '../components/ui.jsx';
+import FiltroRecomendacoes, { SEM_RECORTE } from '../components/FiltroRecomendacoes.jsx';
 import CartaoCredencial from '../components/CartaoCredencial.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import {
     getCredenciais, criarCredencial, atualizarCredencial, excluirCredencial,
     atribuirCredencial, retirarCredencial, baixarPremiacao,
 } from '../lib/presencial.js';
+import { decidirRecomendacao } from '../lib/recomendacoes.js';
 
 const VAZIA = { tipo: 'credencial', nome: '', orgao: '', vagas: '', descricao: '', informacoes: '' };
 
@@ -32,19 +33,22 @@ export default function PresencialCredenciais() {
     const [form, setForm] = useState(VAZIA);
     const [criando, setCriando] = useState(false);
     const [ocupado, setOcupado] = useState(false);
-    // Sobe a cada mudança nos cartões: a seção de recomendações recarrega o "já recebeu".
-    const [versao, setVersao] = useState(0);
+    // O recorte das recomendações do comitê dentro dos cartões (Sprint 201).
+    const [recorte, setRecorte] = useState(SEM_RECORTE);
+    const [resumoRecomendacoes, setResumoRecomendacoes] = useState(null);
+    const [confirmar, dialogoConfirmacao] = useConfirm();
     const [errors, setErrors] = useState({});
     const [alerta, setAlerta] = useState('');
     const [sucesso, setSucesso] = useState('');
 
-    const carregar = useCallback(() => getCredenciais()
+    const carregar = useCallback(() => getCredenciais(recorte)
         .then((r) => {
             setCredenciais(r.data);
             setCandidatos(r.meta?.candidatos ?? []);
+            setResumoRecomendacoes(r.meta?.recomendacoes ?? null);
             if (r.meta?.tipos?.length) setTipos(r.meta.tipos);
         })
-        .catch(() => { setCredenciais([]); setAlerta('Não foi possível carregar as credenciais e prêmios.'); }), []);
+        .catch(() => { setCredenciais([]); setAlerta('Não foi possível carregar as credenciais e prêmios.'); }), [recorte]);
 
     useEffect(() => { carregar(); }, [carregar]);
 
@@ -53,7 +57,6 @@ export default function PresencialCredenciais() {
         try {
             await fn();
             await carregar();
-            setVersao((v) => v + 1);
             if (mensagem) setSucesso(mensagem);
         } catch (e) {
             const { message, fields } = extractErrors(e);
@@ -173,7 +176,12 @@ export default function PresencialCredenciais() {
                 </div>
             )}
 
-            <RecomendacoesPremiacao atualizacao={versao} onDecidido={carregar} />
+            <FiltroRecomendacoes
+                valor={recorte}
+                onChange={setRecorte}
+                opcoes={resumoRecomendacoes?.opcoes}
+                pendentes={resumoRecomendacoes?.pendentes ?? 0}
+            />
 
             {credenciais === null ? (
                 <div className="text-center py-10 text-on-surface-variant">
@@ -200,6 +208,20 @@ export default function PresencialCredenciais() {
                                 'Retirado do projeto.',
                             )}
                             onAlternar={(cred) => acao(() => atualizarCredencial(cred.id, { ativa: !cred.ativa }))}
+                            onDecidir={(ids, status, r) => acao(
+                                () => Promise.all(ids.map((id) => decidirRecomendacao(id, status))),
+                                `Recomendação de ${r.projeto} ${status === 'aprovada' ? 'aprovada' : 'rejeitada'}.`,
+                            )}
+                            onCancelarPremiacao={async (cred, projeto) => {
+                                const ok = await confirmar({
+                                    title: 'Cancelar premiação',
+                                    message: `${cred.nome} sai de ${projeto.titulo} e a vaga volta. A recomendação continua aprovada.`,
+                                    confirmLabel: 'Cancelar premiação',
+                                    cancelLabel: 'Voltar',
+                                    danger: true,
+                                });
+                                if (ok) acao(() => retirarCredencial(cred.id, projeto.id), 'Premiação cancelada.');
+                            }}
                             onSalvarInformacoes={(cred, texto) => acao(
                                 () => atualizarCredencial(cred.id, { informacoes: texto.trim() || null }),
                                 'Informações adicionais salvas.',
@@ -209,6 +231,7 @@ export default function PresencialCredenciais() {
                     ))}
                 </ul>
             )}
+            {dialogoConfirmacao}
         </AppShell>
     );
 }

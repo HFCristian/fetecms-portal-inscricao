@@ -2,45 +2,23 @@
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Enums\Categoria;
 use App\Enums\StatusRecomendacao;
 use App\Http\Controllers\Controller;
 use App\Models\RecomendacaoPremiacao;
+use App\Services\CredenciaisService;
 use App\Services\RecomendacaoPremiacaoService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
 /**
- * As recomendações do comitê especial, para a organização aprovar ou
- * rejeitar (Sprint 193). Abrem nas duas abas que mexem na premiação: Comitê
- * especial e Avaliação presencial.
+ * A decisão da organização sobre uma recomendação do comitê especial
+ * (Sprint 193): aprovar ou rejeitar. Desde a Sprint 201 as recomendações são
+ * listadas dentro do cartão de cada credencial ({@see CredenciaisService::listar()}).
  */
 class RecomendacaoPremiacaoController extends Controller
 {
     public function __construct(private readonly RecomendacaoPremiacaoService $recomendacoes) {}
-
-    public function index(Request $request): JsonResponse
-    {
-        $filtros = $request->validate([
-            'status' => ['nullable', Rule::enum(StatusRecomendacao::class)],
-            // Recorte pelo projeto (Sprint 194).
-            'q' => ['nullable', 'string', 'max:120'],
-            'area_id' => ['nullable', 'integer', 'exists:areas,id'],
-            'categoria' => ['nullable', Rule::enum(Categoria::class)],
-        ]);
-
-        return response()->json([
-            'data' => $this->recomendacoes->listar(
-                StatusRecomendacao::tryFrom((string) ($filtros['status'] ?? '')),
-                [
-                    'q' => $filtros['q'] ?? null,
-                    'area_id' => isset($filtros['area_id']) ? (int) $filtros['area_id'] : null,
-                    'categoria' => $filtros['categoria'] ?? null,
-                ],
-            ),
-        ]);
-    }
 
     public function decidir(Request $request, RecomendacaoPremiacao $recomendacao): JsonResponse
     {

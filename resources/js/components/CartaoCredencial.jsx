@@ -105,55 +105,166 @@ export function InformacoesAdicionais({ credencial, ocupado = false, onSalvar = 
     );
 }
 
+const quando = (iso) => (iso ? new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '');
+
+function LinhaProjeto({ codigo, titulo, categoria, area, children }) {
+    return (
+        <div className="min-w-0 flex-1">
+            <p className="text-sm text-on-surface">
+                {codigo && <code className="text-xs text-primary-container mr-1">{codigo}</code>}
+                {titulo}
+            </p>
+            <p className="text-xs text-on-surface-variant">
+                {[categoria, area].filter(Boolean).join(' · ')}
+                {children}
+            </p>
+        </div>
+    );
+}
+
 /**
- * As recomendações do comitê **aprovadas** para esta credencial (Sprint 195).
- * Aprovar só marca; aqui o admin anexa com um clique — a mesma atribuição do
- * campo de busca, com as mesmas vagas.
+ * As **recomendações do comitê** para esta credencial, dentro do próprio
+ * cartão (Sprint 201): os pedidos de aprovação, com Aprovar e Rejeitar; as
+ * aprovadas, com Premiar — e, já premiadas, **Cancelar premiação** (Sprint
+ * 202), que tira a credencial e deixa a recomendação aprovada; e as
+ * rejeitadas, recolhidas, para reconsiderar.
+ *
+ * Aprovar só marca. Quem premia é o clique em Premiar, que faz a atribuição
+ * de sempre, com as mesmas vagas.
  */
-function AprovadasDoComite({ credencial, ocupado, rotulo, onAtribuir }) {
+function RecomendacoesDoCartao({ credencial, ocupado, rotulo, onAtribuir, onDecidir, onCancelarPremiacao }) {
+    const [verRejeitadas, setVerRejeitadas] = useState(false);
+    const pendentes = credencial.pendentes ?? [];
     const aprovadas = credencial.aprovadas ?? [];
-    if (aprovadas.length === 0) return null;
+    const rejeitadas = credencial.rejeitadas ?? [];
+
+    if (pendentes.length + aprovadas.length + rejeitadas.length === 0) return null;
 
     const esgotada = credencial.disponiveis === 0;
 
     return (
-        <div className="mt-3 rounded-lg border border-secondary/30 bg-secondary-container/20 px-3 py-2">
-            <p className="text-xs font-semibold text-on-surface">
-                Aprovadas pelo comitê
-                {credencial.aprovadas_pendentes > 0 && (
-                    <span className="font-normal text-on-surface-variant"> · {credencial.aprovadas_pendentes} ainda sem a credencial</span>
-                )}
-            </p>
-            <ul className="mt-1 divide-y divide-outline-variant/30">
-                {aprovadas.map((a) => (
-                    <li key={a.projeto_id} className="py-1.5 flex flex-wrap items-center gap-2">
-                        <div className="min-w-0 flex-1">
-                            <p className="text-sm text-on-surface">{a.projeto}</p>
-                            <p className="text-xs text-on-surface-variant">
-                                {[a.categoria, a.area].filter(Boolean).join(' · ')}
-                                {a.avaliadores.length > 0 && ` · recomendado por ${a.avaliadores.join(', ')}`}
-                            </p>
-                        </div>
-                        {a.ja_premiado ? (
-                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-secondary">
-                                <span className="material-symbols-outlined text-[16px]">check_circle</span>
-                                Premiado
-                            </span>
-                        ) : (
-                            <Button
-                                type="button"
-                                variant="success"
-                                disabled={ocupado || esgotada || !credencial.ativa}
-                                title={esgotada ? 'As vagas desta credencial já foram distribuídas.' : undefined}
-                                onClick={() => onAtribuir(credencial, { id: a.projeto_id, nome: a.projeto })}
-                            >
-                                <span className="material-symbols-outlined text-[20px]">workspace_premium</span>
-                                {rotulo}
-                            </Button>
+        <div className="mt-3 space-y-3">
+            {pendentes.length > 0 && (
+                <div className="rounded-lg border border-yellow-300 bg-yellow-50 px-3 py-2" aria-label="Pedidos de aprovação">
+                    <p className="text-xs font-semibold text-yellow-900">
+                        Pedidos de aprovação do comitê ({pendentes.length})
+                    </p>
+                    <ul className="mt-1 divide-y divide-yellow-200">
+                        {pendentes.map((r) => (
+                            <li key={r.id} className="py-2 flex flex-wrap items-start gap-2">
+                                <LinhaProjeto codigo={r.codigo} titulo={r.projeto} categoria={r.categoria} area={r.area}>
+                                    {` · recomendado por ${r.avaliador} em ${quando(r.criada_em)}`}
+                                </LinhaProjeto>
+                                <div className="flex gap-2 shrink-0">
+                                    <Button type="button" variant="success" disabled={ocupado} onClick={() => onDecidir([r.id], 'aprovada', r)}>
+                                        Aprovar
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        className="text-error border-error/40 hover:bg-error-container/40"
+                                        disabled={ocupado}
+                                        onClick={() => onDecidir([r.id], 'rejeitada', r)}
+                                    >
+                                        Rejeitar
+                                    </Button>
+                                </div>
+                                {r.justificativa && (
+                                    <p className="basis-full text-sm text-on-surface-variant whitespace-pre-line border-l-2 border-yellow-300 pl-2">
+                                        {r.justificativa}
+                                    </p>
+                                )}
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+
+            {aprovadas.length > 0 && (
+                <div className="rounded-lg border border-secondary/30 bg-secondary-container/20 px-3 py-2" aria-label="Aprovadas pelo comitê">
+                    <p className="text-xs font-semibold text-on-surface">
+                        Aprovadas pelo comitê
+                        {credencial.aprovadas_pendentes > 0 && (
+                            <span className="font-normal text-on-surface-variant"> · {credencial.aprovadas_pendentes} ainda sem a credencial</span>
                         )}
-                    </li>
-                ))}
-            </ul>
+                    </p>
+                    <ul className="mt-1 divide-y divide-outline-variant/30">
+                        {aprovadas.map((a) => (
+                            <li key={a.projeto_id} className="py-1.5 flex flex-wrap items-center gap-2">
+                                <LinhaProjeto codigo={a.codigo} titulo={a.projeto} categoria={a.categoria} area={a.area}>
+                                    {a.avaliadores.length > 0 && ` · recomendado por ${a.avaliadores.join(', ')}`}
+                                </LinhaProjeto>
+                                {a.ja_premiado ? (
+                                    <div className="flex items-center gap-2 shrink-0">
+                                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-secondary">
+                                            <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                                            Premiado
+                                        </span>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            disabled={ocupado}
+                                            onClick={() => onCancelarPremiacao(credencial, { id: a.projeto_id, titulo: a.projeto })}
+                                        >
+                                            Cancelar premiação
+                                        </Button>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center gap-2 shrink-0">
+                                        <Button
+                                            type="button"
+                                            variant="success"
+                                            disabled={ocupado || esgotada || !credencial.ativa}
+                                            title={esgotada ? 'As vagas desta credencial já foram distribuídas.' : undefined}
+                                            onClick={() => onAtribuir(credencial, { id: a.projeto_id, nome: a.projeto })}
+                                        >
+                                            <span className="material-symbols-outlined text-[20px]">workspace_premium</span>
+                                            {rotulo}
+                                        </Button>
+                                        <button
+                                            type="button"
+                                            className="text-xs text-error hover:underline disabled:opacity-50"
+                                            disabled={ocupado}
+                                            onClick={() => onDecidir(a.recomendacao_ids, 'rejeitada', a)}
+                                        >
+                                            Rejeitar
+                                        </button>
+                                    </div>
+                                )}
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+
+            {rejeitadas.length > 0 && (
+                <div>
+                    <button
+                        type="button"
+                        className="text-xs text-on-surface-variant hover:text-primary inline-flex items-center gap-1"
+                        aria-expanded={verRejeitadas}
+                        onClick={() => setVerRejeitadas((v) => !v)}
+                    >
+                        <span className="material-symbols-outlined text-[16px]">{verRejeitadas ? 'expand_less' : 'expand_more'}</span>
+                        {verRejeitadas ? 'Ocultar' : 'Ver'} rejeitadas ({rejeitadas.length})
+                    </button>
+                    {verRejeitadas && (
+                        <ul className="mt-1 divide-y divide-outline-variant/30">
+                            {rejeitadas.map((r) => (
+                                <li key={r.id} className="py-1.5 flex flex-wrap items-center gap-2">
+                                    <LinhaProjeto codigo={r.codigo} titulo={r.projeto} categoria={r.categoria} area={r.area}>
+                                        {` · recomendado por ${r.avaliador}`}
+                                        {r.decidida_por && ` · rejeitada por ${r.decidida_por}`}
+                                    </LinhaProjeto>
+                                    <Button type="button" variant="outline" disabled={ocupado} onClick={() => onDecidir([r.id], 'aprovada', r)}>
+                                        Reconsiderar e aprovar
+                                    </Button>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </div>
+            )}
         </div>
     );
 }
@@ -168,7 +279,7 @@ function AprovadasDoComite({ credencial, ocupado, rotulo, onAtribuir }) {
  */
 export default function CartaoCredencial({
     credencial, candidatos, ocupado, onAtribuir, onRetirar, onAlternar = null, onExcluir = null,
-    onSalvarInformacoes = null, rotuloAnexar = 'Anexar',
+    onSalvarInformacoes = null, onDecidir = null, onCancelarPremiacao = null, rotuloAnexar = 'Anexar',
 }) {
     const [projeto, setProjeto] = useState(null);
 
@@ -219,7 +330,16 @@ export default function CartaoCredencial({
 
             <InformacoesAdicionais credencial={credencial} ocupado={ocupado} onSalvar={onSalvarInformacoes} />
 
-            <AprovadasDoComite credencial={credencial} ocupado={ocupado} rotulo={rotuloAnexar} onAtribuir={onAtribuir} />
+            {onDecidir && (
+                <RecomendacoesDoCartao
+                    credencial={credencial}
+                    ocupado={ocupado}
+                    rotulo={rotuloAnexar}
+                    onAtribuir={onAtribuir}
+                    onDecidir={onDecidir}
+                    onCancelarPremiacao={onCancelarPremiacao ?? ((cred, projeto) => onRetirar(cred, projeto))}
+                />
+            )}
 
             {credencial.projetos.length > 0 && (
                 <ul className="mt-3 divide-y divide-outline-variant/30">

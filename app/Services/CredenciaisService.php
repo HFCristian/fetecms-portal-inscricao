@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use App\Enums\Categoria;
 use App\Enums\StatusRecomendacao;
 use App\Enums\TipoCredencial;
+use App\Models\Area;
 use App\Models\Credencial;
 use App\Models\Edicao;
 use App\Models\ListaFinal;
@@ -41,14 +43,26 @@ use Illuminate\Validation\ValidationException;
  */
 class CredenciaisService
 {
+    /** @var array<int, string>|null os códigos da lista final vigente, por projeto */
+    private ?array $codigos = null;
+
+    public function __construct(private readonly ListaFinalService $listas) {}
+
     /**
      * As credenciais da edição, com quem já as recebeu. `$soAtivas` é o recorte
      * do comitê (Sprint 190), que atribui mas não cadastra: a desativada não
      * pode mais ser dada, então só atrapalharia a tela dele.
      *
+     * Cada cartão traz também as **recomendações do comitê** para ela
+     * (Sprint 201): as pendentes para decidir, as aprovadas para premiar e as
+     * rejeitadas para reconsiderar. Os `$filtros` (título ou código do
+     * projeto, área, categoria) recortam só as recomendações — o cartão e quem
+     * já recebeu a credencial aparecem sempre.
+     *
+     * @param  array{q?: ?string, area_id?: ?int, categoria?: ?string}  $filtros
      * @return list<array<string, mixed>>
      */
-    public function listar(bool $soAtivas = false): array
+    public function listar(bool $soAtivas = false, array $filtros = []): array
     {
         $edicao = Edicao::atual();
 
@@ -63,11 +77,45 @@ class CredenciaisService
             ->orderBy('nome')
             ->get();
 
-        $aprovadas = $this->aprovadasPorCredencial($credenciais->pluck('id')->all());
+        $recomendacoes = $this->recomendacoesPorCredencial($credenciais->pluck('id')->all(), $filtros);
 
         return $credenciais
-            ->map(fn (Credencial $c) => $this->resumo($c, $aprovadas->get($c->id, collect())))
+            ->map(fn (Credencial $c) => $this->resumo($c, $recomendacoes->get($c->id, collect())))
             ->all();
+    }
+
+    /**
+     * O que os filtros das recomendações oferecem e quantas pendentes há no
+     * recorte — a barra no topo da tela.
+     *
+     * @param  list<array<string, mixed>>  $cartoes  o que {@see self::listar()} devolveu
+     * @return array<string, mixed>
+     */
+    public function resumoDasRecomendacoes(array $cartoes): array
+    {
+        return [
+            'pendentes' => array_sum(array_map(fn (array $c) => count($c['pendentes']), $cartoes)),
+            'opcoes' => [
+                'areas' => Area::orderBy('nome')->get(['id', 'nome'])->toArray(),
+                'categorias' => Categoria::opcoes(),
+            ],
+        ];
+    }
+
+    /**
+     * O código do projeto na lista final vigente (FET.AGR-001), por id. Lido
+     * uma vez por requisição: monta a lista inteira para numerar.
+     *
+     * @return array<int, string>
+     */
+    public function codigos(): array
+    {
+        if ($this->codigos === null) {
+            $lista = ListaFinal::vigente();
+            $this->codigos = $lista === null ? [] : $this->listas->codigosDaLista($lista);
+        }
+
+        return $this->codigos;
     }
 
     /**
@@ -312,39 +360,73 @@ class CredenciaisService
     }
 
     /**
-     * As recomendações **aprovadas** do comitê (Sprint 195), por credencial e
-     * uma entrada por projeto — dois avaliadores que recomendaram o mesmo
-     * projeto viram uma linha com os dois nomes.
+     * As recomendações do comitê por credencial, no recorte dos filtros.
      *
      * @param  list<int>  $credencialIds
+     * @param  array{q?: ?string, area_id?: ?int, categoria?: ?string}  $filtros
      * @return Collection<int, Collection<int, RecomendacaoPremiacao>>
      */
-    private function aprovadasPorCredencial(array $credencialIds): Collection
+    private function recomendacoesPorCredencial(array $credencialIds, array $filtros): Collection
     {
         if ($credencialIds === []) {
             return collect();
         }
 
+        $busca = Str::lower(trim((string) ($filtros['q'] ?? '')));
+        $areaId = $filtros['area_id'] ?? null;
+        $categoria = $filtros['categoria'] ?? null;
+
+        // O código não é coluna do projeto: os ids cujo código casa com a
+        // busca entram pelo `orWhereIn`, ao lado do título.
+        $porCodigo = $busca === '' ? [] : array_keys(array_filter(
+            $this->codigos(),
+            fn (string $codigo) => str_contains(Str::lower($codigo), $busca),
+        ));
+
         return RecomendacaoPremiacao::whereIn('credencial_id', $credencialIds)
-            ->where('status', StatusRecomendacao::Aprovada->value)
-            ->with(['avaliador:id,name', 'projeto:id,titulo,categoria,area_id', 'projeto.area:id,nome'])
+            ->when($busca !== '' || $areaId || $categoria, fn ($q) => $q->whereHas('projeto', fn ($p) => $p
+                ->when($busca !== '', fn ($sub) => $sub->where(fn ($w) => $w
+                    ->whereRaw('LOWER(titulo) LIKE ?', ['%'.$busca.'%'])
+                    ->orWhereIn('id', $porCodigo)))
+                ->when($areaId, fn ($sub) => $sub->where('area_id', $areaId))
+                ->when($categoria, fn ($sub) => $sub->where('categoria', $categoria))))
+            ->with(['avaliador:id,name', 'decididaPor:id,name', 'projeto:id,titulo,categoria,area_id', 'projeto.area:id,nome'])
             ->orderBy('id')
             ->get()
             ->groupBy('credencial_id');
     }
 
+    /** @return array<string, mixed> */
+    private function linhaDaRecomendacao(RecomendacaoPremiacao $r): array
+    {
+        return [
+            'id' => $r->id,
+            'projeto_id' => $r->projeto_id,
+            'projeto' => $r->projeto?->titulo,
+            'categoria' => $r->projeto?->categoria?->label(),
+            'area' => $r->projeto?->area?->nome,
+            'avaliador' => $r->avaliador?->name,
+            'justificativa' => $r->justificativa,
+            'criada_em' => $r->created_at?->toIso8601String(),
+            'decidida_por' => $r->decididaPor?->name,
+            'decidida_em' => $r->decidida_em?->toIso8601String(),
+        ];
+    }
+
     /**
-     * @param  Collection<int, RecomendacaoPremiacao>  $aprovadas
+     * @param  Collection<int, RecomendacaoPremiacao>  $recomendacoes
      * @return array<string, mixed>
      */
-    private function resumo(Credencial $credencial, ?Collection $aprovadas = null): array
+    private function resumo(Credencial $credencial, ?Collection $recomendacoes = null): array
     {
         $usadas = $credencial->projetos->count();
         $premiados = $credencial->projetos->pluck('id')->flip();
+        $porSituacao = ($recomendacoes ?? collect())->groupBy(fn (RecomendacaoPremiacao $r) => $r->status->value);
 
         // Aprovar só marca: o cartão mostra as aprovadas para o admin anexar
-        // com um clique, e diz quais já foram anexadas.
-        $linhasAprovadas = ($aprovadas ?? collect())
+        // com um clique, e diz quais já foram anexadas — uma linha por
+        // projeto, com todos que o recomendaram.
+        $linhasAprovadas = $porSituacao->get(StatusRecomendacao::Aprovada->value, collect())
             ->groupBy('projeto_id')
             ->map(fn (Collection $doProjeto) => [
                 'projeto_id' => $doProjeto->first()->projeto_id,
@@ -352,6 +434,7 @@ class CredenciaisService
                 'categoria' => $doProjeto->first()->projeto?->categoria?->label(),
                 'area' => $doProjeto->first()->projeto?->area?->nome,
                 'avaliadores' => $doProjeto->map(fn (RecomendacaoPremiacao $r) => $r->avaliador?->name)->filter()->values()->all(),
+                'recomendacao_ids' => $doProjeto->pluck('id')->values()->all(),
                 'ja_premiado' => $premiados->has($doProjeto->first()->projeto_id),
             ])
             ->values();
@@ -371,8 +454,13 @@ class CredenciaisService
             'disponiveis' => $credencial->vagas === null ? null : max(0, $credencial->vagas - $usadas),
             'ativa' => $credencial->ativa,
             'ordem' => $credencial->ordem,
+            // As recomendações do comitê (Sprints 195 e 201).
+            'pendentes' => $porSituacao->get(StatusRecomendacao::Pendente->value, collect())
+                ->map(fn (RecomendacaoPremiacao $r) => $this->linhaDaRecomendacao($r))->values()->all(),
             'aprovadas' => $linhasAprovadas->all(),
             'aprovadas_pendentes' => $linhasAprovadas->where('ja_premiado', false)->count(),
+            'rejeitadas' => $porSituacao->get(StatusRecomendacao::Rejeitada->value, collect())
+                ->map(fn (RecomendacaoPremiacao $r) => $this->linhaDaRecomendacao($r))->values()->all(),
             'projetos' => $credencial->projetos->map(fn (Projeto $p) => [
                 'id' => $p->id,
                 'titulo' => $p->titulo,
