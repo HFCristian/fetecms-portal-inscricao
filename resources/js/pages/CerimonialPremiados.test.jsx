@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../components/AppShell.jsx', () => ({ default: ({ children }) => <div>{children}</div> }));
@@ -12,10 +12,12 @@ vi.mock('../lib/auth.jsx', () => ({
 }));
 
 const getPremiados = vi.fn();
+const getEventosCerimonia = vi.fn();
 // A tela reaproveita o ícone da ficha, que importa do mesmo módulo: o mock
 // precisa responder pelas funções dela também.
 vi.mock('../lib/cerimonial.js', () => ({
     getPremiados: (...a) => getPremiados(...a),
+    getEventosCerimonia: (...a) => getEventosCerimonia(...a),
     getFichaCerimonial: vi.fn(),
     registrarCheckin: vi.fn(),
     desfazerCheckin: vi.fn(),
@@ -47,6 +49,11 @@ const INCOMPLETO = {
 
 describe('CerimonialPremiados', () => {
     beforeEach(() => {
+        localStorage.clear();
+        getEventosCerimonia.mockResolvedValue([
+            { id: 1, nome: 'Premiação FETECMS', categorias: ['fetecms'], publico: 'FETECMS', checkins: 0 },
+            { id: 2, nome: 'Premiação Jr', categorias: ['fetec_jr'], publico: 'FETEC Jr', checkins: 0 },
+        ]);
         vi.clearAllMocks();
         getPremiados.mockResolvedValue([COMPLETO, INCOMPLETO]);
     });
@@ -86,5 +93,19 @@ describe('CerimonialPremiados', () => {
         render(<CerimonialPremiados />);
 
         expect(await screen.findByText(/Credenciais e Prêmios/)).toBeInTheDocument();
+    });
+
+    it('abre em "Todos" e troca de cerimônia pelo seletor, que fica lembrado', async () => {
+        getPremiados.mockResolvedValue([COMPLETO]);
+        render(<CerimonialPremiados />);
+
+        await waitFor(() => expect(getPremiados).toHaveBeenCalledWith(false, 'todos'));
+        expect(screen.getByRole('link', { name: /Abrir a ficha/ })).toHaveAttribute('href', '/admin/cerimonial/projetos/7');
+
+        fireEvent.click(await screen.findByRole('radio', { name: /Premiação Jr/ }));
+
+        await waitFor(() => expect(getPremiados).toHaveBeenCalledWith(false, 2));
+        expect(localStorage.getItem('fetec:cerimonial:evento:painel')).toBe('2');
+        expect(await screen.findByRole('link', { name: /Abrir a ficha/ })).toHaveAttribute('href', '/admin/cerimonial/projetos/7?evento=2');
     });
 });

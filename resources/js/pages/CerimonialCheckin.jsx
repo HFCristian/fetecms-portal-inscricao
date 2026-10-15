@@ -2,22 +2,26 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import LeitorCerimonial from '../components/LeitorCerimonial.jsx';
+import SeletorEvento from '../components/SeletorEvento.jsx';
 import { Alert, Button } from '../components/ui.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import { buscarParticipantes, getCerimonialConfig } from '../lib/cerimonial.js';
+import { useEventoCerimonial } from '../lib/eventoCerimonial.js';
 import { useModoTeste } from '../lib/modoTeste.js';
 
 /**
  * Cerimonial → **Check-in**.
  *
- * Dois caminhos para a mesma ficha, porque a fila da cerimônia tem os dois
- * casos: quem chega com o crachá na mão (leitor ou câmera) e quem chega sem
- * ele — o crachá ficou no estande, a etiqueta rasgou. Para esse segundo caso a
- * busca aceita **nome ou CPF**.
+ * Dois caminhos, porque a fila da cerimônia tem os dois casos:
  *
- * Os dois caminhos terminam na **ficha do projeto**, e não num check-in
- * imediato: a equipe chega junta, e marcar a pessoa encontrada e mais três
- * colegas de uma vez é o que faz a fila andar.
+ * - quem chega **com o crachá** (leitor ou câmera) entra na hora: a leitura já
+ *   registra a presença daquela pessoa e mostra o nome num card de 2 segundos;
+ * - quem chega **sem ele** — o crachá ficou no estande, a etiqueta rasgou — é
+ *   procurado por **nome ou CPF**, e a busca abre a **ficha do projeto**, onde
+ *   marcar a pessoa e os colegas que vieram junto de uma vez faz a fila andar.
+ *
+ * Tudo acontece num **evento de cerimônia**, escolhido no topo e lembrado
+ * neste aparelho: a leitura e a busca só alcançam o público dele.
  */
 export default function CerimonialCheckin() {
     const [teste] = useModoTeste();
@@ -28,6 +32,8 @@ export default function CerimonialCheckin() {
     const [buscando, setBuscando] = useState(false);
     const [erro, setErro] = useState('');
     const debounce = useRef(null);
+    const [evento, setEvento] = useEventoCerimonial(config?.eventos, 'porta');
+    const eventoAtual = config?.eventos?.find((e) => e.id === evento) ?? null;
 
     useEffect(() => {
         getCerimonialConfig(teste).then(setConfig).catch(() => setConfig(null));
@@ -38,7 +44,7 @@ export default function CerimonialCheckin() {
     useEffect(() => {
         if (debounce.current) clearTimeout(debounce.current);
 
-        if (termo.trim().length < 2) {
+        if (termo.trim().length < 2 || !evento) {
             setResultados(null);
             return undefined;
         }
@@ -46,7 +52,7 @@ export default function CerimonialCheckin() {
         debounce.current = setTimeout(() => {
             setBuscando(true);
             setErro('');
-            buscarParticipantes(termo.trim(), teste)
+            buscarParticipantes(termo.trim(), teste, evento)
                 .then(setResultados)
                 .catch((e) => {
                     const { message } = extractErrors(e);
@@ -57,20 +63,29 @@ export default function CerimonialCheckin() {
         }, 350);
 
         return () => clearTimeout(debounce.current);
-    }, [termo, teste]);
+    }, [termo, teste, evento]);
 
-    const abrir = (projetoId) => navigate(`/admin/cerimonial/projetos/${projetoId}`);
+    const abrir = (projetoId) => navigate(`/admin/cerimonial/projetos/${projetoId}?evento=${evento}`);
+
+    // Quem acabou de entrar pelo crachá e está na busca aberta deixa de
+    // aparecer como pendente, sem refazer a consulta.
+    const marcarPresente = (d) => setResultados((atual) => atual?.map((p) => (
+        p.projeto_id === d.projeto_id && p.chave === d.participante.chave ? { ...p, presente: true } : p
+    )) ?? atual);
 
     return (
         <AppShell>
             <Link to="/admin/cerimonial" className="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary mb-3">
                 <span className="material-symbols-outlined text-[18px]">arrow_back</span> Cerimonial
             </Link>
-            <h1 className="font-display text-2xl font-semibold text-primary mb-1">Check-in</h1>
+            <h1 className="font-display text-2xl font-semibold text-primary mb-1">
+                Check-in{eventoAtual ? ` · ${eventoAtual.nome}` : ''}
+            </h1>
             <p className="text-on-surface-variant mb-6 max-w-3xl">
-                Leia o crachá do participante ou procure pelo <strong>nome ou CPF</strong>. Em
-                qualquer dos casos abre a <strong>ficha do projeto</strong>, onde você marca de uma
-                vez todo mundo que chegou junto.
+                Leia o crachá do participante: a <strong>entrada já fica registrada</strong> e o nome
+                aparece na tela. Quem chegou sem crachá é procurado pelo <strong>nome ou CPF</strong>,
+                que abre a <strong>ficha do projeto</strong> — ali você marca de uma vez todo mundo que
+                chegou junto.
             </p>
 
             {config?.lista?.demo && (
@@ -94,6 +109,29 @@ export default function CerimonialCheckin() {
                 </div>
             )}
 
+            {config && config.lista && config.eventos?.length === 0 && (
+                <div className="max-w-3xl">
+                    <Alert>
+                        Nenhum evento de cerimônia foi cadastrado nesta edição — sem ele não há onde
+                        registrar a entrada.{' '}
+                        {config.pode_gerir
+                            ? <Link to="/admin/cerimonial/eventos" className="font-semibold underline">Cadastrar os eventos</Link>
+                            : 'Peça à organização para cadastrar.'}
+                    </Alert>
+                </div>
+            )}
+
+            {config && config.lista && (
+                <div className="max-w-3xl">
+                    <SeletorEvento
+                        eventos={config.eventos}
+                        valor={evento}
+                        onEscolher={(id) => { setEvento(id); setTermo(''); }}
+                        rotulo="Em que cerimônia você está?"
+                    />
+                </div>
+            )}
+
             {config && !config.lista ? (
                 <div className="max-w-3xl">
                     <Alert>
@@ -101,9 +139,15 @@ export default function CerimonialCheckin() {
                         vigente nesta edição — sem ela não há finalistas para receber.
                     </Alert>
                 </div>
+            ) : !config ? null : !evento ? (
+                config.eventos?.length > 0 && (
+                    <div className="max-w-3xl">
+                        <Alert type="info">Escolha acima o evento em que você está fazendo o check-in.</Alert>
+                    </div>
+                )
             ) : (
                 <div className="max-w-3xl">
-                    <LeitorCerimonial teste={teste} onAbrir={(d) => abrir(d.projeto_id)} />
+                    <LeitorCerimonial key={evento} teste={teste} evento={evento} onRegistrado={marcarPresente} />
 
                     <section className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-4">
                         <label className="text-sm font-semibold text-on-surface" htmlFor="cerimonial-busca">

@@ -48,6 +48,7 @@ import AdminSuporte from './pages/AdminSuporte.jsx';
 import CredenciamentoHome from './pages/CredenciamentoHome.jsx';
 import CerimonialHome from './pages/CerimonialHome.jsx';
 import CerimonialCheckin from './pages/CerimonialCheckin.jsx';
+import CerimonialEventos from './pages/CerimonialEventos.jsx';
 import CerimonialFicha from './pages/CerimonialFicha.jsx';
 import CerimonialVisaoGeral from './pages/CerimonialVisaoGeral.jsx';
 import CerimonialPremiados from './pages/CerimonialPremiados.jsx';
@@ -234,6 +235,7 @@ export default function Root() {
                                 outras duas telas o servidor recusa. */}
                             <Route path="/admin/cerimonial" element={<CerimonialHome />} />
                             <Route path="/admin/cerimonial/checkin" element={<CerimonialCheckin />} />
+                            <Route path="/admin/cerimonial/eventos" element={<CerimonialEventos />} />
                             <Route path="/admin/cerimonial/projetos/:id" element={<CerimonialFicha />} />
                             <Route path="/admin/cerimonial/visao-geral" element={<CerimonialVisaoGeral />} />
                             <Route path="/admin/cerimonial/premiados" element={<CerimonialPremiados />} />

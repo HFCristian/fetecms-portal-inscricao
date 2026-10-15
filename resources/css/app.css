@@ -138,3 +138,19 @@
 .fetec-scroll:hover::-webkit-scrollbar-thumb {
     background-color: color-mix(in srgb, var(--color-primary-container, #43157a) 55%, transparent);
 }
+
+/*
+| Barra que preenche um botão no tempo do `animation-duration` dado no elemento
+| (card do check-in do cerimonial: o card some quando ela enche).
+*/
+@keyframes fetec-preencher {
+    from { width: 0%; }
+    to { width: 100%; }
+}
+
+.fetec-preencher {
+    width: 0%;
+    animation-name: fetec-preencher;
+    animation-timing-function: linear;
+    animation-fill-mode: forwards;
+}

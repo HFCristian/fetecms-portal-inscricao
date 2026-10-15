@@ -152,6 +152,66 @@ class ContaTemporariaLoteTest extends TestCase
             ->assertJsonPath('data.linhas.0.erros', []);
     }
 
+    /**
+     * Relato de produção: a prévia respondia **500** quando o "Início do
+     * acesso" não vinha exatamente como dd/mm/aaaa hh:mm. O Carbon lança
+     * exceção (não devolve false) quando a data não bate com o formato, e só a
+     * ValidationException era capturada.
+     */
+    public function test_inicio_do_acesso_escrito_de_varios_jeitos_nao_derruba_a_previa(): void
+    {
+        $this->travelTo(now()->setDate(2026, 9, 1));
+
+        $arquivo = $this->xlsx(
+            ['Nome completo', 'E-mail', 'CPF', 'Curso', 'Início do acesso', 'Horas de acesso'],
+            [
+                ['Ana Lima', 'ana@balcao.test', $this->cpf(123456789), 'Biologia', '04/10/2026', '5'],
+                ['Bruno Dias', 'bruno@balcao.test', $this->cpf(223456789), 'Química', '4/10/2026 8:00', '5'],
+                ['Carla Souza', 'carla@balcao.test', $this->cpf(323456789), 'Física', '04/10/2026 08:00:00', '5'],
+                ['Davi Rocha', 'davi@balcao.test', $this->cpf(423456789), 'Letras', ' 04/10/2026  08:00 ', '5'],
+                ['Eva Melo', 'eva@balcao.test', $this->cpf(523456789), 'Artes', 'amanhã cedo', '5'],
+                ['Fábio Reis', 'fabio@balcao.test', $this->cpf(623456789), 'Direito', '31/02/2026 08:00', '5'],
+            ],
+        );
+
+        $resposta = $this->post('/api/v1/admin/credenciamento/contas/lote/previa', ['arquivo' => $arquivo])
+            ->assertOk()
+            ->assertJsonPath('data.validas', 4)
+            ->assertJsonPath('data.invalidas', 2);
+
+        $linhas = collect($resposta->json('data.linhas'))->keyBy('linha');
+        $this->assertSame('2026-10-04 00:00', $linhas[2]['valido_de']);
+        $this->assertSame('2026-10-04 08:00', $linhas[3]['valido_de']);
+        $this->assertSame('2026-10-04 08:00', $linhas[4]['valido_de']);
+        $this->assertSame('2026-10-04 08:00', $linhas[5]['valido_de']);
+        $this->assertStringContainsString('formato', implode(' ', $linhas[6]['erros']));
+        // 31 de fevereiro não "vira" 3 de março em silêncio.
+        $this->assertStringContainsString('formato', implode(' ', $linhas[7]['erros']));
+    }
+
+    public function test_turno_com_hora_impossivel_vira_erro_da_linha(): void
+    {
+        $arquivo = $this->xlsx(
+            ['Nome completo', 'E-mail', 'CPF', 'Curso', 'Turnos'],
+            [['Vera Voluntária', 'vera@balcao.test', $this->cpf(123456789), 'Pedagogia', '04/10/2026 08:99-12:00']],
+        );
+
+        $this->post('/api/v1/admin/presencial/contas/lote/previa', ['arquivo' => $arquivo])
+            ->assertOk()
+            ->assertJsonPath('data.invalidas', 1);
+    }
+
+    public function test_turno_adulterado_na_confirmacao_e_recusado_sem_erro_interno(): void
+    {
+        $this->post('/api/v1/admin/presencial/contas/lote', [
+            'linhas' => [[
+                'linha' => 2, 'name' => 'Vera Voluntária', 'email' => 'vera@balcao.test',
+                'cpf' => $this->cpf(123456789), 'curso' => 'Pedagogia',
+                'turnos' => [['inicio' => 'xx', 'fim' => 'yy']],
+            ]],
+        ])->assertStatus(422);
+    }
+
     public function test_lote_cria_as_validas_e_devolve_a_planilha_de_acesso(): void
     {
         $linhas = [

@@ -354,11 +354,16 @@ class RegistroAtividadeService
         string $pessoa,
         string $papel,
         bool $demo = false,
+        ?string $evento = null,
+        ?string $junto = null,
     ): RegistroAtividade {
         return $this->registrarNoProjeto(TipoRegistro::CerimonialCheckin, $projeto, $admin, [
             'pessoa' => $pessoa,
             'papel' => $papel,
             'quando' => now()->format('d/m/Y H:i'),
+            'evento' => $evento,
+            // A mesma pessoa marcada por outro vínculo dela (o crachá de outro projeto).
+            'junto_de' => $junto,
             'demo' => $demo,
         ]);
     }
@@ -377,11 +382,15 @@ class RegistroAtividadeService
         string $papel,
         string $justificativa,
         bool $demo = false,
+        ?string $evento = null,
+        ?string $junto = null,
     ): RegistroAtividade {
         return $this->registrarNoProjeto(TipoRegistro::CerimonialCheckinDesfeito, $projeto, $admin, [
             'pessoa' => $pessoa,
             'papel' => $papel,
             'justificativa' => $justificativa,
+            'evento' => $evento,
+            'junto_de' => $junto,
             'demo' => $demo,
         ]);
     }
@@ -873,19 +882,23 @@ class RegistroAtividadeService
         // por quê deixou de constar.
         if ($registro->tipo === TipoRegistro::CerimonialCheckin) {
             return sprintf(
-                '%s (%s) fez check-in%s%s',
+                '%s (%s) fez check-in%s%s%s%s',
                 $detalhes['pessoa'] ?? 'alguém',
                 $detalhes['papel'] ?? 'participante',
+                empty($detalhes['evento']) ? '' : ' em '.$detalhes['evento'],
                 empty($detalhes['quando']) ? '' : ' · '.$detalhes['quando'],
+                empty($detalhes['junto_de']) ? '' : ' · marcado junto com o vínculo de '.$detalhes['junto_de'],
                 ($detalhes['demo'] ?? false) ? ' · modo de teste' : '',
             );
         }
 
         if ($registro->tipo === TipoRegistro::CerimonialCheckinDesfeito) {
             return sprintf(
-                'check-in de %s (%s) desfeito · %s%s',
+                'check-in de %s (%s)%s desfeito%s · %s%s',
                 $detalhes['pessoa'] ?? 'alguém',
                 $detalhes['papel'] ?? 'participante',
+                empty($detalhes['evento']) ? '' : ' em '.$detalhes['evento'],
+                empty($detalhes['junto_de']) ? '' : ' junto com o vínculo de '.$detalhes['junto_de'],
                 $detalhes['justificativa'] ?? 'sem justificativa',
                 ($detalhes['demo'] ?? false) ? ' · modo de teste' : '',
             );

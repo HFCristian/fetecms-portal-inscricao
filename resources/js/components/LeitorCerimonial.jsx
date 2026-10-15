@@ -1,110 +1,100 @@
-import { useEffect, useRef, useState } from 'react';
-import { Alert, Button } from './ui.jsx';
+import { useRef, useState } from 'react';
+import { Button } from './ui.jsx';
+import CardCheckin from './CardCheckin.jsx';
+import LeitorCamera from './LeitorCamera.jsx';
 import { extractErrors } from '../lib/auth.jsx';
-import { lerCodigoCerimonial } from '../lib/cerimonial.js';
+import { checkinPorCodigo } from '../lib/cerimonial.js';
+import { suporteCamera } from '../lib/leitorCamera.js';
 
 /**
- * O leitor de crachá da porta da cerimônia.
+ * O leitor de crachá da porta da cerimônia: **leu, entrou**.
  *
  * São os dois equipamentos de sempre, pelas mesmas razões do balcão de
  * credenciamento:
  *
  * - **leitor USB**: comporta-se como teclado — digita e dá Enter. Por isso o
- *   campo é um input comum com foco automático: aponta, bipa, abre a ficha.
- *   Digitar à mão também funciona, que é o que salva a etiqueta amassada;
- * - **câmera**: usa a `BarcodeDetector` do navegador, sem biblioteca. Onde ela
- *   não existe (Safari, por exemplo) o botão **não aparece** e a tela diz o que
- *   fazer — melhor do que um botão que falha na hora do aperto.
+ *   campo é um input comum com foco automático, que nunca o perde: o atendente
+ *   só aponta e bipa. Digitar à mão também funciona, que é o que salva a
+ *   etiqueta amassada;
+ * - **câmera**: {@link LeitorCamera} — a `BarcodeDetector` do navegador onde
+ *   ela lê os dois formatos do crachá e o ZXing em WebAssembly no resto (iPhone
+ *   incluído). Ela **fica aberta** entre uma pessoa e outra. Onde não pode
+ *   abrir, o botão não aparece e a tela diz por quê.
  *
- * Quem valida é o servidor: formato, se o projeto está na lista que vale e se a
- * pessoa é mesmo daquela equipe. Lido o crachá, quem abre é a **ficha do
- * projeto** — na cerimônia a equipe chega junta, e marcar um a um obrigaria a
- * quatro leituras.
+ * Lido o crachá, a entrada **daquela pessoa** já fica registrada no evento
+ * de cerimônia escolhido (`evento`) e o
+ * {@link CardCheckin} mostra o nome por 2 segundos. Não há ficha a abrir: a
+ * equipe passa crachá a crachá. Quem chega sem crachá segue pela busca por
+ * nome, que abre a ficha do projeto.
+ *
+ * As leituras entram numa **fila**: o leitor USB bipa a pessoa seguinte antes
+ * de o servidor responder sobre a anterior, e nenhuma das duas pode se perder.
+ * Quem valida é o servidor — formato, lista que vale e se a pessoa é mesmo
+ * daquela equipe.
  */
-export default function LeitorCerimonial({ teste = false, onAbrir }) {
+export default function LeitorCerimonial({ teste = false, evento = null, onRegistrado }) {
     const [codigo, setCodigo] = useState('');
-    const [lendo, setLendo] = useState(false);
-    const [erro, setErro] = useState('');
+    const [pendentes, setPendentes] = useState(0);
     const [camera, setCamera] = useState(false);
+    const [leitura, setLeitura] = useState(null);
     const campo = useRef(null);
-    const video = useRef(null);
-    const stream = useRef(null);
+    const fila = useRef(Promise.resolve());
+    const sequencia = useRef(0);
 
-    const temCamera = typeof window !== 'undefined' && 'BarcodeDetector' in window;
+    const suporte = suporteCamera();
 
-    useEffect(() => () => pararCamera(), []);
-
-    function pararCamera() {
-        stream.current?.getTracks?.().forEach((t) => t.stop());
-        stream.current = null;
-        setCamera(false);
+    function mostrar(dados) {
+        sequencia.current += 1;
+        setLeitura({ id: sequencia.current, ...dados });
     }
 
-    async function enviar(valor) {
-        const limpo = (valor ?? '').trim();
-        if (!limpo || lendo) return;
-
-        setLendo(true);
-        setErro('');
+    async function registrar(limpo) {
         try {
-            const dados = await lerCodigoCerimonial(limpo, teste);
-            setCodigo('');
-            pararCamera();
-            onAbrir?.(dados);
+            const dados = await checkinPorCodigo(limpo, teste, evento);
+            mostrar({
+                tipo: dados.ja_presente ? 'repetido' : 'novo',
+                nome: dados.participante.nome,
+                papel_label: dados.participante.papel_label,
+                projeto_titulo: dados.projeto_titulo,
+                checkin_em: dados.checkin_em,
+                vinculos: dados.vinculos ?? [],
+            });
+            onRegistrado?.(dados);
         } catch (e) {
             const { message, fields } = extractErrors(e);
-            setErro(fields?.codigo || message || 'Não foi possível ler o código.');
-            // O foco volta para o campo: o atendente bipa de novo sem clicar.
-            campo.current?.focus();
-            campo.current?.select();
-        } finally {
-            setLendo(false);
-        }
-    }
-
-    async function abrirCamera() {
-        setErro('');
-        try {
-            const midia = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: 'environment' },
+            mostrar({
+                tipo: 'erro',
+                mensagem: fields?.codigo || message || 'Não foi possível ler o código.',
             });
-            stream.current = midia;
-            setCamera(true);
-
-            // O elemento de vídeo só existe depois do render.
-            setTimeout(() => {
-                if (video.current) {
-                    video.current.srcObject = midia;
-                    video.current.play?.();
-                    procurar();
-                }
-            }, 0);
-        } catch {
-            setErro('Não foi possível abrir a câmera. Use o leitor ou digite o código.');
         }
     }
 
-    async function procurar() {
-        // eslint-disable-next-line no-undef
-        const detector = new window.BarcodeDetector({ formats: ['qr_code', 'code_128'] });
+    /** Põe a leitura na fila; a promessa resolve quando ela foi atendida. */
+    function enviar(valor) {
+        const limpo = (valor ?? '').trim();
+        if (!limpo) return Promise.resolve();
 
-        const tentar = async () => {
-            if (!stream.current || !video.current) return;
+        setPendentes((n) => n + 1);
+        fila.current = fila.current
+            .then(() => registrar(limpo))
+            .finally(() => setPendentes((n) => n - 1));
 
-            try {
-                const codigos = await detector.detect(video.current);
-                if (codigos.length > 0) {
-                    await enviar(codigos[0].rawValue);
-                    return;
-                }
-            } catch {
-                // Quadro ruim (foco, luz): tenta o próximo, sem alarmar ninguém.
-            }
+        return fila.current;
+    }
 
-            setTimeout(tentar, 400);
-        };
+    function enviarCampo() {
+        const valor = codigo;
+        // O campo esvazia na hora: a próxima bipada não pode se juntar a esta.
+        setCodigo('');
+        campo.current?.focus();
+        enviar(valor);
+    }
 
-        tentar();
+    function fecharCard() {
+        setLeitura(null);
+        // Sem câmera, o foco volta ao campo do leitor USB. Com ela aberta, não:
+        // no celular isso abriria o teclado por cima do vídeo.
+        if (!camera) campo.current?.focus();
     }
 
     return (
@@ -120,44 +110,39 @@ export default function LeitorCerimonial({ teste = false, onAbrir }) {
                         autoFocus
                         value={codigo}
                         onChange={(e) => setCodigo(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); enviar(codigo); } }}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); enviarCampo(); } }}
                         placeholder="Bipe o código de barras ou digite (2026-31-123-A45)"
                         aria-label="Código do crachá"
                         className="w-full mt-1 bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 outline-none"
                     />
                 </div>
 
-                <Button type="button" loading={lendo} onClick={() => enviar(codigo)}>Abrir ficha</Button>
+                <Button type="button" loading={pendentes > 0} onClick={enviarCampo}>Registrar entrada</Button>
 
-                {temCamera && !camera && (
-                    <Button type="button" variant="outline" onClick={abrirCamera}>
+                {suporte.ok && !camera && (
+                    <Button type="button" variant="outline" onClick={() => setCamera(true)}>
                         <span className="material-symbols-outlined text-[20px]">photo_camera</span>
                         Ler com a câmera
                     </Button>
                 )}
                 {camera && (
-                    <Button type="button" variant="outline" onClick={pararCamera}>Fechar a câmera</Button>
+                    <Button type="button" variant="outline" onClick={() => setCamera(false)}>Fechar a câmera</Button>
                 )}
             </div>
 
-            {!temCamera && (
-                <p className="text-xs text-on-surface-variant mt-2">
-                    Este navegador não lê QR pela câmera — use o leitor de código de barras, digite
-                    o código da etiqueta ou procure pelo nome abaixo.
-                </p>
-            )}
+            <p className="text-xs text-on-surface-variant mt-2">
+                Lido o crachá, a entrada já fica registrada — não há ficha a abrir.
+                {!suporte.ok && ` ${suporte.motivo} Use o leitor de código de barras, digite o código da etiqueta ou procure pelo nome abaixo.`}
+            </p>
 
             {camera && (
-                <video
-                    ref={video}
-                    muted
-                    playsInline
-                    aria-label="Câmera para ler o QR Code"
-                    className="mt-3 w-full max-w-sm rounded-lg border border-outline-variant"
+                <LeitorCamera
+                    onLer={enviar}
+                    onErro={(mensagem) => { mostrar({ tipo: 'erro', mensagem }); setCamera(false); }}
                 />
             )}
 
-            {erro && <div className="mt-3"><Alert>{erro}</Alert></div>}
+            {leitura && <CardCheckin leitura={leitura} onFechar={fecharCard} />}
         </section>
     );
 }

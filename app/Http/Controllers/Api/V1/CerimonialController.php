@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\Categoria;
 use App\Http\Controllers\Controller;
+use App\Models\CerimonialEvento;
+use App\Models\Edicao;
 use App\Models\Projeto;
 use App\Services\CerimonialService;
 use Illuminate\Http\JsonResponse;
@@ -17,6 +20,10 @@ use Illuminate\Validation\Rule;
  * atrás do middleware `admin.permanente`: a conta temporária do setor atende a
  * porta e não vê a mesa de medalhas. As de check-in, não — são exatamente o
  * trabalho dela.
+ *
+ * Tudo é **por evento de cerimônia** (`evento_id`, na query ou no corpo): o
+ * check-in, a busca e a ficha exigem um; a Visão Geral e os premiados aceitam
+ * nenhum, que é a soma de todos ("Todos").
  */
 class CerimonialController extends Controller
 {
@@ -29,17 +36,18 @@ class CerimonialController extends Controller
         ]);
     }
 
-    /** A leitura do crachá: o atalho para a ficha certa. */
-    public function lerCodigo(Request $request): JsonResponse
+    /** O crachá lido (leitor ou câmera): a entrada daquela pessoa já fica registrada. */
+    public function checkinCodigo(Request $request): JsonResponse
     {
         $dados = $request->validate([
             'codigo' => ['required', 'string', 'max:60'],
         ]);
 
         return response()->json([
-            'data' => $this->cerimonial->resolverCodigo(
+            'data' => $this->cerimonial->checkinPorCodigo(
                 $dados['codigo'],
                 $request->user(),
+                $this->evento($request),
                 $request->boolean('teste'),
             ),
         ]);
@@ -55,6 +63,7 @@ class CerimonialController extends Controller
         return response()->json([
             'data' => $this->cerimonial->buscar(
                 $dados['busca'],
+                $this->evento($request),
                 $request->user(),
                 $request->boolean('teste'),
             ),
@@ -65,7 +74,7 @@ class CerimonialController extends Controller
     public function show(Request $request, Projeto $projeto): JsonResponse
     {
         return response()->json([
-            'data' => $this->cerimonial->ficha($projeto, $request->user(), $request->boolean('teste')),
+            'data' => $this->cerimonial->ficha($projeto, $this->evento($request), $request->user(), $request->boolean('teste')),
             'meta' => ['config' => $this->cerimonial->config($request->user(), $request->boolean('teste'))],
         ]);
     }
@@ -84,6 +93,7 @@ class CerimonialController extends Controller
                 $projeto,
                 array_values(array_unique($dados['participantes'])),
                 $request->user(),
+                $this->evento($request),
                 $request->boolean('teste'),
             ),
         ]);
@@ -103,6 +113,7 @@ class CerimonialController extends Controller
                 $dados['participante'],
                 $dados['justificativa'],
                 $request->user(),
+                $this->evento($request),
                 $request->boolean('teste'),
             ),
         ]);
@@ -112,7 +123,7 @@ class CerimonialController extends Controller
     public function visaoGeral(Request $request): JsonResponse
     {
         return response()->json([
-            'data' => $this->cerimonial->visaoGeral($request->user(), $request->boolean('teste')),
+            'data' => $this->cerimonial->visaoGeral($request->user(), $request->boolean('teste'), $this->evento($request, false)),
             'meta' => ['config' => $this->cerimonial->config($request->user(), $request->boolean('teste'))],
         ]);
     }
@@ -125,7 +136,7 @@ class CerimonialController extends Controller
         ]);
 
         return response()->json([
-            'data' => $this->cerimonial->detalhe($dados['card'], $request->user(), $request->boolean('teste')),
+            'data' => $this->cerimonial->detalhe($dados['card'], $request->user(), $request->boolean('teste'), $this->evento($request, false)),
         ]);
     }
 
@@ -133,7 +144,7 @@ class CerimonialController extends Controller
     public function premiados(Request $request): JsonResponse
     {
         return response()->json([
-            'data' => $this->cerimonial->premiados($request->user(), $request->boolean('teste')),
+            'data' => $this->cerimonial->premiados($request->user(), $request->boolean('teste'), $this->evento($request, false)),
         ]);
     }
 
@@ -149,5 +160,72 @@ class CerimonialController extends Controller
         return response()->json([
             'data' => ['atualizacao_segundos' => $this->cerimonial->definirAtualizacao($dados['segundos'] ?? null)],
         ]);
+    }
+
+    /** Os eventos de cerimônia da edição — a porta também precisa, para escolher o seu. */
+    public function eventos(): JsonResponse
+    {
+        return response()->json(['data' => $this->cerimonial->eventos()]);
+    }
+
+    public function criarEvento(Request $request): JsonResponse
+    {
+        $dados = $this->validarEvento($request);
+
+        return response()->json([
+            'data' => $this->cerimonial->salvarEvento(null, $dados['nome'], $dados['categorias']),
+        ], 201);
+    }
+
+    public function atualizarEvento(Request $request, CerimonialEvento $evento): JsonResponse
+    {
+        $evento = $this->cerimonial->evento($evento->id);
+        $dados = $this->validarEvento($request, $evento);
+
+        return response()->json([
+            'data' => $this->cerimonial->salvarEvento($evento, $dados['nome'], $dados['categorias']),
+        ]);
+    }
+
+    public function excluirEvento(CerimonialEvento $evento): JsonResponse
+    {
+        $this->cerimonial->excluirEvento($this->cerimonial->evento($evento->id));
+
+        return response()->json(['data' => $this->cerimonial->eventos()]);
+    }
+
+    /** @return array{nome: string, categorias: list<string>} */
+    private function validarEvento(Request $request, ?CerimonialEvento $evento = null): array
+    {
+        return $request->validate([
+            'nome' => [
+                'required', 'string', 'min:3', 'max:120',
+                // Dois eventos com o mesmo nome deixariam a porta sem saber qual escolher.
+                Rule::unique('cerimonial_eventos', 'nome')
+                    ->where('edicao_id', Edicao::atual()?->id)
+                    ->ignore($evento?->id),
+            ],
+            'categorias' => ['required', 'array', 'min:1'],
+            'categorias.*' => ['required', 'distinct', Rule::enum(Categoria::class)],
+        ], [
+            'nome.unique' => 'Já existe um evento de cerimônia com este nome nesta edição.',
+            'categorias.required' => 'Escolha ao menos uma categoria para o público do evento.',
+            'categorias.min' => 'Escolha ao menos uma categoria para o público do evento.',
+        ], ['nome' => 'nome do evento', 'categorias' => 'público']);
+    }
+
+    /**
+     * O evento da requisição (`evento_id`), sempre da edição em uso. Sem ele,
+     * `null` — o "Todos" de quem aceita — ou 422 para quem precisa de um.
+     */
+    private function evento(Request $request, bool $obrigatorio = true): ?CerimonialEvento
+    {
+        $dados = $request->validate([
+            'evento_id' => [$obrigatorio ? 'required' : 'nullable', 'integer'],
+        ], [
+            'evento_id.required' => 'Escolha o evento de cerimônia.',
+        ]);
+
+        return isset($dados['evento_id']) ? $this->cerimonial->evento((int) $dados['evento_id']) : null;
     }
 }

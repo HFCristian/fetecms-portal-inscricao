@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { Alert, Button } from '../components/ui.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import { desfazerCheckin, getFichaCerimonial, registrarCheckin } from '../lib/cerimonial.js';
+import { eventoDaPorta } from '../lib/eventoCerimonial.js';
 import { useModoTeste } from '../lib/modoTeste.js';
 
 /** O busto genérico: verde para quem entrou, cinza para quem ainda não. */
@@ -20,6 +21,18 @@ export function IconePessoa({ presente, tamanho = 40 }) {
 }
 
 /**
+ * Os outros papéis da mesma pessoa que o servidor marcou (ou desfez) junto —
+ * o professor que orienta este projeto e coorienta outro.
+ */
+export function descreverVinculos(vinculos, verbo) {
+    if (!vinculos?.length) return '';
+
+    return ' ' + vinculos
+        .map((v) => `${verbo}: ${v.nome} como ${v.papel_label} de “${v.projeto_titulo}”.`)
+        .join(' ');
+}
+
+/**
  * Cerimonial → ficha de um projeto.
  *
  * A equipe chega junta, então a unidade da tela é o **projeto** e o ato é
@@ -32,9 +45,14 @@ export function IconePessoa({ presente, tamanho = 40 }) {
  *
  * O credenciamento aparece como **informação**: a cerimônia é outro momento, e
  * quem não passou pelo balcão entra do mesmo jeito.
+ *
+ * A ficha é **de um evento de cerimônia**: o do link (`?evento=`), que é o que
+ * a porta escolheu, ou, sem ele, o último escolhido neste aparelho.
  */
 export default function CerimonialFicha() {
     const { id } = useParams();
+    const [params] = useSearchParams();
+    const evento = Number(params.get('evento')) || eventoDaPorta();
     const [teste] = useModoTeste();
     const [ficha, setFicha] = useState(null);
     const [config, setConfig] = useState(null);
@@ -45,13 +63,21 @@ export default function CerimonialFicha() {
     const [desfazendo, setDesfazendo] = useState(null);
     const [justificativa, setJustificativa] = useState('');
 
-    const carregar = useCallback(() => getFichaCerimonial(id, teste)
-        .then((r) => { setFicha(r.data); setConfig(r.meta?.config ?? null); })
-        .catch((e) => {
-            const { message } = extractErrors(e);
-            setErro(message || 'Não foi possível abrir este projeto.');
+    const carregar = useCallback(() => {
+        if (!evento) {
+            setErro('Escolha o evento de cerimônia no Check-in antes de abrir a ficha.');
             setFicha(false);
-        }), [id, teste]);
+            return Promise.resolve();
+        }
+
+        return getFichaCerimonial(id, teste, evento)
+            .then((r) => { setFicha(r.data); setConfig(r.meta?.config ?? null); })
+            .catch((e) => {
+                const { message } = extractErrors(e);
+                setErro(message || 'Não foi possível abrir este projeto.');
+                setFicha(false);
+            });
+    }, [id, teste, evento]);
 
     useEffect(() => { carregar(); }, [carregar]);
 
@@ -66,12 +92,13 @@ export default function CerimonialFicha() {
         if (marcadas.length === 0) return;
         setOcupado(true); setErro(''); setSucesso('');
         try {
-            const atualizada = await registrarCheckin(id, marcadas, teste);
+            const atualizada = await registrarCheckin(id, marcadas, teste, evento);
             setFicha(atualizada);
             setSucesso(
-                marcadas.length === 1
+                (marcadas.length === 1
                     ? 'Check-in registrado.'
-                    : `${marcadas.length} check-ins registrados.`,
+                    : `${marcadas.length} check-ins registrados.`)
+                + descreverVinculos(atualizada.vinculados, 'Também marcado'),
             );
             setMarcadas([]);
         } catch (e) {
@@ -85,9 +112,9 @@ export default function CerimonialFicha() {
     async function confirmarDesfazer() {
         setOcupado(true); setErro(''); setSucesso('');
         try {
-            const atualizada = await desfazerCheckin(id, desfazendo.chave, justificativa, teste);
+            const atualizada = await desfazerCheckin(id, desfazendo.chave, justificativa, teste, evento);
             setFicha(atualizada);
-            setSucesso(`Check-in de ${desfazendo.nome} desfeito.`);
+            setSucesso(`Check-in de ${desfazendo.nome} desfeito.${descreverVinculos(atualizada.desfeitos_juntos, 'Também desfeito')}`);
             setDesfazendo(null);
             setJustificativa('');
         } catch (e) {
@@ -125,6 +152,12 @@ export default function CerimonialFicha() {
                 <span className="material-symbols-outlined text-[18px]">arrow_back</span> Check-in
             </Link>
 
+            {ficha.evento && (
+                <p className="inline-flex items-center gap-1 rounded-full bg-primary-container text-on-primary px-3 py-1 text-xs font-semibold mb-2">
+                    <span className="material-symbols-outlined text-[16px]" aria-hidden="true">event</span>
+                    {ficha.evento.nome}
+                </p>
+            )}
             <h1 className="font-display text-2xl font-semibold text-primary mb-1">{ficha.projeto.titulo}</h1>
             <p className="text-on-surface-variant mb-1">
                 {[ficha.projeto.categoria, ficha.projeto.area].filter(Boolean).join(' · ')}
@@ -243,9 +276,10 @@ export default function CerimonialFicha() {
                     <div className="bg-surface-container-lowest rounded-2xl fetec-card-shadow w-full max-w-md p-6 space-y-4">
                         <h3 className="font-display text-lg font-semibold text-on-surface">Desfazer o check-in</h3>
                         <p className="text-sm text-on-surface-variant">
-                            <strong>{desfazendo.nome}</strong> deixa de constar como presente. Isso muda a
-                            contagem de medalhas e de credenciais a separar, então a justificativa entra em
-                            Registros → Cerimonial.
+                            <strong>{desfazendo.nome}</strong> deixa de constar como presente — também nos
+                            outros papéis que tiver neste evento (orientador de um projeto e coorientador de
+                            outro, por exemplo). Isso muda a contagem de medalhas e de credenciais a
+                            separar, então a justificativa entra em Registros → Cerimonial.
                         </p>
                         <label className="block">
                             <span className="text-sm font-semibold text-on-surface">Justificativa</span>

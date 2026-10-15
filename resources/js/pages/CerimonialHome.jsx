@@ -49,9 +49,10 @@ export default function CerimonialHome() {
         <AppShell>
             <h1 className="font-display text-2xl font-semibold text-primary mb-1">Cerimonial</h1>
             <p className="text-on-surface-variant mb-6 max-w-3xl">
-                A porta da <strong>cerimônia de premiação</strong>. Os finalistas fazem check-in ao
-                entrar — pelo crachá ou pelo nome — e o painel diz, a qualquer momento, quem já
-                chegou, quantas medalhas e quantas credenciais separar.
+                A porta das <strong>cerimônias de premiação</strong>. Cada evento recebe o seu
+                público; os finalistas fazem check-in ao entrar — pelo crachá ou pelo nome — e o
+                painel diz, a qualquer momento, quem já chegou, quantas medalhas e quantas
+                credenciais separar.
             </p>
 
             {config && !config.lista && (
@@ -86,6 +87,16 @@ export default function CerimonialHome() {
                 </div>
             )}
 
+            {config && config.eventos?.length === 0 && (
+                <div className="mb-4 max-w-3xl">
+                    <Alert>
+                        Nenhum evento de cerimônia foi cadastrado nesta edição — sem ele a porta não
+                        registra check-in.{' '}
+                        {podeGerir ? 'Cadastre em Eventos de cerimônia, abaixo.' : 'Peça à organização para cadastrar.'}
+                    </Alert>
+                </div>
+            )}
+
             {config?.pode_testar && (
                 <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-4 mb-6 max-w-3xl">
                     <Toggle
@@ -106,6 +117,12 @@ export default function CerimonialHome() {
                 />
                 {podeGerir && (
                     <>
+                        <CardSecao
+                            to="/admin/cerimonial/eventos"
+                            icon="event"
+                            titulo="Eventos de cerimônia"
+                            descricao="Cada premiação com o seu público — as categorias dos finalistas que ela recebe."
+                        />
                         <CardSecao
                             to="/admin/cerimonial/visao-geral"
                             icon="monitoring"

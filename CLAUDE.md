@@ -457,12 +457,26 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     entram **em lote** (modelo Excel → prévia → senhas geradas numa planilha de acesso) e podem ser
     **removidas** — apagadas se nunca atenderam ninguém, arquivadas se já deixaram rastro
     (Sprint 155). `ContaTemporariaService`.
-  - **Cerimonial** (`/admin/cerimonial`): a porta da **cerimônia de premiação** — outro momento
+  - **Cerimonial** (`/admin/cerimonial`): a porta das **cerimônias de premiação** — outro momento
     do evento que não o credenciamento, e por isso o check-in **não depende** dele: a ficha diz se
-    o projeto passou pelo balcão e não trava quem não passou. Três seções. **Check-in** atende
-    pelos dois caminhos da fila: o **crachá** da lista final (leitor USB ou câmera, mesmas três
-    conferências do balcão) e a **busca por nome ou CPF**; os dois abrem a **ficha do projeto**,
-    onde se marca de uma vez a equipe que chegou junta — o check-in é **por pessoa**. **Visão
+    o projeto passou pelo balcão e não trava quem não passou. A feira faz **mais de uma
+    premiação** com o mesmo funcionamento: cada **evento de cerimônia** (`cerimonial_eventos`,
+    `/admin/cerimonial/eventos`, só admin permanente) tem um nome e um **público** — as
+    categorias dos finalistas que recebe; uma categoria pode estar em mais de um evento. Tudo é
+    **por evento**: o check-in (`cerimonial_checkins.evento_id`; quem vai às duas cerimônias entra
+    nas duas), a busca, a ficha e o painel. A porta **escolhe o evento** no topo do Check-in
+    (lembrado no aparelho; com um só cadastrado ele já vem escolhido), e o crachá de outro público
+    é recusado dizendo de quem é. Visão Geral e Premiados têm o mesmo seletor e a opção **Todos**,
+    que soma o público de todos os eventos contando cada pessoa uma vez. A **mesma pessoa em mais
+    de um papel** (orienta um projeto e coorienta outro) é reconhecida pelo **CPF** — ou pelo e-mail
+    com o mesmo nome, quando falta CPF —, e marcar um vínculo dela marca **todos** no evento;
+    desfazer também leva todos. Na Visão Geral, a lista de quem falta tem **Marcar chegada**
+    (com a cerimônia escolhida e o período aberto). **Check-in** atende
+    pelos dois caminhos da fila: o **crachá** da lista final (leitor USB ou câmera — inclusive no
+    iPhone —, mesmas três conferências do balcão) **já registra a entrada** daquela pessoa e mostra
+    o nome num card de 2 segundos (`POST /admin/cerimonial/checkin-codigo`, `CardCheckin.jsx`); a
+    **busca por nome ou CPF**, de quem chega sem crachá, abre a **ficha do projeto**, onde se marca
+    de uma vez a equipe que chegou junta — o check-in é **por pessoa**. **Visão
     Geral** traz cinco cards, todos abrindo a lista **nominal** de quem chegou e de quem falta:
     pessoas, projetos (com **parcial** e **completo** separados), premiados, **medalhas** e
     **credenciais**; *Premiados* tem tela própria (`/admin/cerimonial/premiados`), um cartão por
@@ -885,24 +899,166 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 184 | O que chegou antes já vem marcado no balcão e na checagem, para qualquer item (o bloco fixo do termo saiu) | ✅ sim | ✅ sim (Pedro, PR #107 → v1.30) | 0 |
 | 185 | Mala direta: variáveis `{{codigo_projeto}}` e `{{turno}}`, só com destino 100% finalista (aviso na tela e recusa no servidor) | ✅ sim | ✅ sim (Pedro, PR #107 → v1.30) | 0 |
 | 186 | As mesmas variáveis no modelo "Código do projeto" e nos avisos (resolvidas para quem lê) | ✅ sim | ✅ sim (Pedro, PR #107 → v1.30) | 0 |
-| 187 | Lista final: baixar os **projetos de pesquisa** num ZIP (todos ou por seleção individual, de categoria ou de área) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 188 | Etiquetas de identificação: **turno e estande**, papel ao lado do nome, sem projeto nem escola | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 189 | Identificação dos participantes em **ordem alfabética** de nome + **16 etiquetas por folha** (margem ~5 mm, cabeçalho de uma linha) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 190 | Comitê especial → **Premiação**: credenciais e prêmios nos projetos premiados (mesma base) + lista de premiação em TXT | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 191 | Avaliação presencial → **Cadastro de avaliadores** só do evento (senha gerada, fora da avaliação online) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 192 | Credenciais e Prêmios: campo **Informações adicionais** (cadastro, edição no cartão, visível ao comitê) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 193 | Avaliador da comissão especial: aba **Comitê especial** recomenda finalistas para credenciais/prêmios; admins aprovam ou rejeitam | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 194 | Recomendações do comitê: filtro por **título do projeto, área e categoria** (contagem presa ao recorte) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 195 | Cartão da credencial mostra as **aprovadas pelo comitê**, com botão **Premiar** (Premiação e Credenciais e Prêmios) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 196 | **Painel da premiação**: vagas que faltam por credencial + ranking dos premiados por área (admin e comissão, tela cheia) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 197 | Mapa do Evento: **rua da borda esquerda**, ao lado da primeira coluna de estandes (nomeável na configuração) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 198 | Mapa em tela cheia: **faixa da área** em cada estande (cor + sigla, legenda que destaca) e atualização a cada **5 s** com aviso no canto | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 199 | Mapa em tela cheia: **visualizações** Credenciamento, Checagem e Avaliação (cor por nº de avaliações), no canto inferior esquerdo | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 200 | Mapa em tela cheia: **dashboard** das avaliações (por nº recebido, geral e por área; comissão especial por área; barra de progresso) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 201 | Premiação: os **pedidos de aprovação** do comitê dentro do **cartão da credencial** (aprovar/rejeitar ali); a seção separada sai e os filtros recortam os cartões | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 202 | Premiação: **cancelar a premiação** de uma recomendação aprovada (tira a credencial, a recomendação continua aprovada) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 203 | Premiação: buscar o finalista pelo **código da lista final** (FET.AGR-001) no cartão da credencial e na aba do comitê | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 187 | Lista final: baixar os **projetos de pesquisa** num ZIP (todos ou por seleção individual, de categoria ou de área) | ✅ sim | ✅ sim (Pedro, PR #108 → v1.31) | 0 |
+| 188 | Etiquetas de identificação: **turno e estande**, papel ao lado do nome, sem projeto nem escola | ✅ sim | ✅ sim (Pedro, PR #108 → v1.31) | 0 |
+| 189 | Identificação dos participantes em **ordem alfabética** de nome + **16 etiquetas por folha** (margem ~5 mm, cabeçalho de uma linha) | ✅ sim | ✅ sim (Pedro, PR #108 → v1.31) | 0 |
+| 190 | Comitê especial → **Premiação**: credenciais e prêmios nos projetos premiados (mesma base) + lista de premiação em TXT | ✅ sim | ✅ sim (Pedro, PR #108 → v1.31) | 0 |
+| 191 | Avaliação presencial → **Cadastro de avaliadores** só do evento (senha gerada, fora da avaliação online) | ✅ sim | ✅ sim (Pedro, PR #108 → v1.31) | 0 |
+| 192 | Credenciais e Prêmios: campo **Informações adicionais** (cadastro, edição no cartão, visível ao comitê) | ✅ sim | ✅ sim (Pedro, PR #108 → v1.31) | 0 |
+| 193 | Avaliador da comissão especial: aba **Comitê especial** recomenda finalistas para credenciais/prêmios; admins aprovam ou rejeitam | ✅ sim | ✅ sim (Pedro, PR #108 → v1.31) | 0 |
+| 194 | Recomendações do comitê: filtro por **título do projeto, área e categoria** (contagem presa ao recorte) | ✅ sim | ✅ sim (Pedro, PR #108 → v1.31) | 0 |
+| 195 | Cartão da credencial mostra as **aprovadas pelo comitê**, com botão **Premiar** (Premiação e Credenciais e Prêmios) | ✅ sim | ✅ sim (Pedro, PR #108 → v1.31) | 0 |
+| 196 | **Painel da premiação**: vagas que faltam por credencial + ranking dos premiados por área (admin e comissão, tela cheia) | ✅ sim | ✅ sim (Pedro, PR #108 → v1.31) | 0 |
+| 197 | Mapa do Evento: **rua da borda esquerda**, ao lado da primeira coluna de estandes (nomeável na configuração) | ✅ sim | ✅ sim (Pedro, PR #108 → v1.31) | 0 |
+| 198 | Mapa em tela cheia: **faixa da área** em cada estande (cor + sigla, legenda que destaca) e atualização a cada **5 s** com aviso no canto | ✅ sim | ✅ sim (Pedro, PR #108 → v1.31) | 0 |
+| 199 | Mapa em tela cheia: **visualizações** Credenciamento, Checagem e Avaliação (cor por nº de avaliações), no canto inferior esquerdo | ✅ sim | ✅ sim (Pedro, PR #108 → v1.31) | 0 |
+| 200 | Mapa em tela cheia: **dashboard** das avaliações (por nº recebido, geral e por área; comissão especial por área; barra de progresso) | ✅ sim | ✅ sim (Pedro, PR #108 → v1.31) | 0 |
+| 201 | Premiação: os **pedidos de aprovação** do comitê dentro do **cartão da credencial** (aprovar/rejeitar ali); a seção separada sai e os filtros recortam os cartões | ✅ sim | ✅ sim (Pedro, PR #108 → v1.31) | 0 |
+| 202 | Premiação: **cancelar a premiação** de uma recomendação aprovada (tira a credencial, a recomendação continua aprovada) | ✅ sim | ✅ sim (Pedro, PR #108 → v1.31) | 0 |
+| 203 | Premiação: buscar o finalista pelo **código da lista final** (FET.AGR-001) no cartão da credencial e na aba do comitê | ✅ sim | ✅ sim (Pedro, PR #108 → v1.31) | 0 |
+| 204 | Câmera do check-in: o vídeo liga no elemento já desenhado (fim do quadro em branco), com aviso de abertura e motivo do erro | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 205 | Câmera no **iPhone** (e Chrome no Windows/Linux): ZXing em WebAssembly servido pelo portal quando não há `BarcodeDetector` | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 206 | Cerimonial: ler o crachá **já registra a entrada**, com o nome num card de 2s (barra no botão Ok) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 207 | Cerimonial → **Eventos de cerimônia**: nome + público (categorias), check-in e painel por evento | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 208 | Cerimonial: a porta **escolhe o evento** no check-in; Visão Geral e Premiados por evento ou **Todos** | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 209 | Fix: cadastro **em lote** de contas temporárias respondia **500** com o "Início do acesso" fora de dd/mm/aaaa hh:mm | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 210 | Cerimonial: a **mesma pessoa em vários papéis** (CPF, ou e-mail + nome) entra e sai de todos de uma vez | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 211 | Cerimonial → Visão Geral: **Marcar chegada** na lista de quem falta | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprints 210–211 (mesma branch):** o professor que **orienta um projeto e coorienta outro** tem um
+> crachá por vínculo (o código é projeto + papel + id), e ler um marcava só aquele: na Visão Geral
+> ele aparecia faltando como coorientador. Reimprimir as etiquetas não era opção.
+> (a) **Sprint 210** — o portal passou a reconhecer a **mesma pessoa** entre os finalistas do público
+> do evento (`CerimonialService::mesmaPessoa()`): com CPF dos dois lados, só o **CPF** decide; sem
+> ele (o cadastro manual deixa em branco), vale o **e-mail com o mesmo nome** — o e-mail sozinho não
+> basta, porque estudante sem e-mail próprio às vezes é cadastrado com o do professor. Ler o crachá
+> de qualquer vínculo, ou marcar na ficha, marca **todos** os vínculos dela no evento — inclusive o
+> orientador de dois projetos —, e o card da porta lista o que entrou junto ("Entrada também
+> registrada como Coorientador(a) de “Robô seguidor de linha”."). **Desfazer** um leva todos, com a
+> mesma justificativa e um registro por vínculo. A ligação **não atravessa eventos**: quem entrou na
+> premiação da FETECMS não fica presente na da FETEC Jr. A busca vai direto às três tabelas de
+> pessoas pelo CPF e pelo e-mail (`outrosVinculos()`), porque roda a cada crachá lido. Registros →
+> Cerimonial diz quando um check-in foi "marcado junto com o vínculo de …".
+> (b) **Sprint 211** — na **Visão Geral**, a lista nominal de **quem falta** (cards de pessoas e de
+> medalhas) ganhou **Marcar chegada** em cada linha, para qualquer um que entrou sem ser registrado
+> na porta. Precisa da cerimônia escolhida (no "Todos" não se sabe em que sala a pessoa entrou) e do
+> período do evento aberto; marca pelo mesmo caminho da ficha, então os outros papéis da pessoa vêm
+> junto, e o painel se recarrega.
+> Back **1469/1469**, front **789/789**, Pint limpo, build OK.
+>
+> **Sprint 209 (mesma branch):** relato de produção: depois de subir o Excel no cadastro **em lote**
+> de contas temporárias, a tela dizia "Erro interno no servidor". A prévia lê o "Início do acesso"
+> de cada linha por uma lista de formatos, e o `CarbonImmutable::createFromFormat` **lança
+> exceção** quando o texto não bate com o formato — o código esperava `false` e só capturava a
+> `ValidationException`. Bastava uma linha com `04/10/2026` (sem hora), `4/10/2026 8:00` (sem o
+> zero) ou `04/10/2026 08:00:00` (com segundos, como o LibreOffice e algumas versões do Excel
+> gravam) para a prévia inteira cair com 500, em vez de apontar a linha. A leitura de data da
+> planilha passou para o `DateTimeImmutable::createFromFormat` nativo, que devolve `false` e conta
+> os avisos (`ContaTemporariaService::lerData()`): nada ali lança mais, os três jeitos acima são
+> aceitos (a data sem hora é meia-noite), o que não é data vira erro **da linha** e o **31/02**
+> continua recusado em vez de virar 03/03 calado. Os turnos usam o mesmo leitor. De quebra, os
+> turnos que voltam da prévia na confirmação passaram a ser validados como data — um payload
+> adulterado também dava 500. Reproduzido em teste antes da correção.
+> Back **1462/1462**, front **784/784**, Pint limpo, build OK.
+>
+> **Sprints 207–208 (mesma branch):** a feira faz **duas premiações** — FETECMS numa, FETEC Jr e
+> FETECMS FUNDECT na outra —, com o mesmo funcionamento e públicos diferentes.
+> (a) **Sprint 207** — **eventos de cerimônia** (`cerimonial_eventos`: nome + `categorias`, JSON),
+> cadastrados em Cerimonial → **Eventos de cerimônia** (`/admin/cerimonial/eventos`,
+> `POST|PUT|DELETE /admin/cerimonial/eventos`, só admin permanente; `GET` também para a conta da
+> porta). O público é a lista de **categorias**, e a mesma categoria pode estar em mais de um evento
+> (uma cerimônia geral ao lado das duas, por exemplo). Nome repetido na edição é recusado — é ele
+> que a porta escolhe. Evento que já recebeu check-in de verdade **não é excluído** (é a memória de
+> quem esteve na sala); para mudar quem ele recebe, edita-se o público. O check-in ganhou
+> `cerimonial_checkins.evento_id` e a unicidade passou a ser por evento: quem vai às duas
+> cerimônias entra nas duas. A migration cria o evento "Cerimônia de premiação", com as três
+> categorias, para cada edição que já tinha check-in, e os pendura nele. No servidor, tudo passou a
+> receber o evento (`evento_id`, na query): check-in pelo crachá, check-in na ficha, desfazer,
+> busca e ficha **exigem** um (422 "Escolha o evento de cerimônia."; evento de outra edição é 404) e
+> recusam o projeto fora do público — o crachá diz de quem é: "Ana Paula é de um projeto da FETEC
+> Jr, que não está no público de Premiação FETECMS.". Registros → Cerimonial passou a dizer em que
+> evento foi cada check-in.
+> (b) **Sprint 208** — as telas. O **Check-in** pergunta "Em que cerimônia você está?" no topo, com
+> um botão por evento e o público embaixo, e o título mostra o evento escolhido. A escolha fica
+> **neste aparelho** (`localStorage`, `useEventoCerimonial`): o tablet da porta da FETECMS passa a
+> tarde inteira na FETECMS. Com um evento só ele já vem escolhido; com mais de um, ninguém escolhe
+> pelo atendente — a leitura e a busca só aparecem depois da escolha. A ficha abre no evento do
+> link (`?evento=`). **Visão Geral** e **Premiados** ganharam o mesmo seletor com **Todos**, o
+> padrão, que soma o público de todos os eventos contando cada pessoa **uma vez** (presente se
+> entrou em qualquer um). De quebra, um defeito que a separação expôs: o card de premiados e o de
+> credenciais contavam **todos** os projetos premiados da edição, mesmo os de fora do público —
+> agora só os do evento.
+> Back **1462/1462**, front **784/784**, Pint limpo, build OK.
+>
+> **Sprint 206 (mesma branch):** na porta da cerimônia, **leu, entrou**. Ler o crachá (leitor USB,
+> código digitado + Enter ou câmera) deixou de abrir a ficha do projeto: a entrada **daquela
+> pessoa** é registrada na hora (`POST /admin/cerimonial/checkin-codigo`,
+> `CerimonialService::checkinPorCodigo()`, com as mesmas três conferências do crachá) e um card
+> mostra o nome em letra grande, o papel e o projeto. O card **some em 2 segundos**, e o tempo que
+> falta é uma barra que vai **preenchendo o botão Ok** (`CardCheckin.jsx`, animação
+> `.fetec-preencher`); clicar em Ok fecha antes. Quem **já tinha entrado** recebe um card âmbar com
+> a hora da entrada, e nada é gravado de novo. Crachá **recusado** vira um card vermelho com o
+> motivo que **não some sozinho** — alguém precisa olhar para aquela pessoa. O card não rouba o
+> foco do campo: a próxima bipada cai no lugar certo, e as leituras entram numa **fila** (o leitor
+> bipa a pessoa seguinte antes de o servidor responder sobre a anterior, e nenhuma se perde). A
+> câmera **fica aberta** entre uma pessoa e outra. A ficha continua sendo o caminho de quem chega
+> **sem** crachá, pela busca por nome ou CPF — e a busca aberta passa a mostrar como presente quem
+> acabou de entrar pelo crachá. Com o evento fechado, a leitura diz isso em vez de "código não
+> reconhecido". O `POST /admin/cerimonial/codigo` (o crachá que só abria a ficha) **saiu**; o
+> leitor do Credenciamento continua abrindo a ficha, como antes.
+> Back **1450/1450**, front **766/766**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprints 204–211):** (1) `git push origin feat/cerimonial-camera-e-leitura-direta`
+> + PR para a `main` (o ambiente do Claude não tem credencial do GitHub). **Uma migration**
+> (`cerimonial_eventos` + `cerimonial_checkins.evento_id`), **nenhuma variável de `.env`** e
+> **uma dependência nova de npm** (`barcode-detector`, que traz o `zxing-wasm`): rode
+> `composer install`, `php artisan migrate`, `npm ci && npm run build` no deploy. (1b) **Antes da
+> cerimônia, cadastre os eventos** em Cerimonial → Eventos de cerimônia ("Premiação FETECMS" com a
+> FETECMS; "Premiação FETEC Jr e FUNDECT" com as duas): sem evento, a porta não registra check-in.
+> Se já houver check-in na edição, a migration criou "Cerimônia de premiação" com as três
+> categorias — renomeie-o e ajuste o público em vez de criar um terceiro. Cada tablet da porta
+> escolhe o seu evento uma vez. (1c) O lote de contas temporárias volta a funcionar com o deploy;
+> quem já tentou só precisa subir a planilha de novo. (1d) A ligação da mesma pessoa depende do
+> **CPF** igual nos dois cadastros (o do perfil do orientador e o do coorientador): se um deles
+> estiver sem CPF, vale o e-mail com o mesmo nome; sem nenhum dos dois, use **Marcar chegada** na
+> Visão Geral. (2) A câmera **exige https** — no
+> iPhone, sem https o navegador nem oferece a câmera, e a tela agora diz isso. (3) O servidor deve
+> entregar o `.wasm` com o tipo `application/wasm` (o nginx atual já faz; sem isso ele carrega mais
+> devagar, mas carrega). (4) **No iPhone**, na primeira vez o Safari pergunta se libera a câmera;
+> negada, a tela explica o caminho (Ajustes › Safari › Câmera). Vale testar no iPhone XR antes do
+> evento — aqui a leitura foi conferida no Chromium sem a API nativa (o mesmo caminho do iPhone),
+> mas não num iPhone de verdade. (5) **Na porta, a leitura agora registra direto**: quem bipar um
+> crachá para "só conferir" registra a entrada. Para desfazer, abra a ficha pela busca e use
+> *Desfazer* (pede justificativa).
+>
+> **Sprints 204–205 (branch `feat/cerimonial-camera-e-leitura-direta`, saída da `origin/main` @ `c4aa1e8`):**
+> a câmera dos dois balcões que leem crachá (Credenciamento e Cerimonial).
+> (a) **Sprint 204** — relato: no check-in do cerimonial, "Ler com a câmera" abria um **quadro em
+> branco**. O stream era ligado ao `<video>` num `setTimeout(0)` logo depois do `setCamera(true)`, e
+> esse timeout podia correr antes de o React desenhar o elemento: `video.current` vinha nulo, a
+> câmera ficava ligada e nada aparecia. A câmera virou um componente próprio, `LeitorCamera.jsx`,
+> que existe montado **só enquanto está aberta** e faz tudo no efeito de montagem (quando o vídeo já
+> está na página); desmontar desliga o aparelho. No caminho: `muted` escrito na **propriedade** (o
+> React não o põe no elemento, e o iPhone só toca vídeo sem toque se ele estiver mudo),
+> `playsInline`/`autoPlay`, `facingMode` como *ideal* (o notebook sem câmera traseira não falha),
+> "Abrindo a câmera…" enquanto acorda, uma mira quando está pronta e o **motivo** quando não abre
+> (permissão negada — com o caminho no iPhone —, nenhuma câmera, câmera em uso). O mesmo crachá
+> parado na frente conta **uma vez** (`REPETICAO_MS`, 4s sem vê-lo para contar de novo), e enquanto
+> a leitura está no servidor nenhum quadro novo é examinado. `LeitorCodigo` (balcão) e
+> `LeitorCerimonial` passaram a usá-lo.
+> (b) **Sprint 205** — no iPhone (Safari) a tela dizia que o navegador não lia QR. **Nenhum
+> navegador do iPhone tem a `BarcodeDetector`** (todos são WebKit), e o Chrome no Windows e no Linux
+> a expõe sem motor por trás — provavelmente o quadro em branco de quem testou no computador. O
+> detector agora sai de `lib/leitorCamera.js`: o do navegador quando ele lê **QR e Code 128**, e no
+> resto o **`barcode-detector`** (dependência nova de npm), a mesma API sobre o ZXing em
+> WebAssembly. O `.wasm` (~1 MB, 460 KB com gzip) entra no build como asset e é **servido pelo
+> portal**, não pelo CDN padrão da biblioteca; ele e o JS (~44 KB) são baixados **só** quando alguém
+> abre a câmera num navegador que precisa deles. O botão da câmera passou a depender só de a câmera
+> poder abrir (`getUserMedia` em **contexto seguro**); fora de https a tela diz isso, em vez de
+> culpar o aparelho. Conferido no Chromium sem a API nativa, com o crachá gerado pelo
+> `IdentificacaoService`: QR e Code 128 lidos, inclusive reduzidos, girados e borrados.
+> Back **1445/1445**, front **750/750**, build OK.
+>
 > **Sprint 203 (mesma branch):** o campo de busca de cada cartão de credencial (Premiação e
 > Credenciais e Prêmios) e o da aba **Comitê especial** do avaliador passaram a mostrar e achar o
 > finalista pelo **código da lista final vigente** — "FET.AGR-001 — Título"; digitar "agr-001" ou
