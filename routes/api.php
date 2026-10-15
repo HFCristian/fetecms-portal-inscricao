@@ -520,7 +520,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::middleware('aba:cerimonial')->prefix('cerimonial')->group(function () {
                 // O balcão: é o que a conta temporária do setor faz, e só isso.
                 Route::get('/config', [CerimonialController::class, 'config']);
-                Route::post('/codigo', [CerimonialController::class, 'lerCodigo']);
+                Route::post('/checkin-codigo', [CerimonialController::class, 'checkinCodigo']);
                 Route::get('/busca', [CerimonialController::class, 'buscar']);
                 Route::get('/projetos/{projeto}', [CerimonialController::class, 'show']);
                 Route::post('/projetos/{projeto}/checkin', [CerimonialController::class, 'checkin']);

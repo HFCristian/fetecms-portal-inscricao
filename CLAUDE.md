@@ -460,9 +460,11 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
   - **Cerimonial** (`/admin/cerimonial`): a porta da **cerimônia de premiação** — outro momento
     do evento que não o credenciamento, e por isso o check-in **não depende** dele: a ficha diz se
     o projeto passou pelo balcão e não trava quem não passou. Três seções. **Check-in** atende
-    pelos dois caminhos da fila: o **crachá** da lista final (leitor USB ou câmera, mesmas três
-    conferências do balcão) e a **busca por nome ou CPF**; os dois abrem a **ficha do projeto**,
-    onde se marca de uma vez a equipe que chegou junta — o check-in é **por pessoa**. **Visão
+    pelos dois caminhos da fila: o **crachá** da lista final (leitor USB ou câmera — inclusive no
+    iPhone —, mesmas três conferências do balcão) **já registra a entrada** daquela pessoa e mostra
+    o nome num card de 2 segundos (`POST /admin/cerimonial/checkin-codigo`, `CardCheckin.jsx`); a
+    **busca por nome ou CPF**, de quem chega sem crachá, abre a **ficha do projeto**, onde se marca
+    de uma vez a equipe que chegou junta — o check-in é **por pessoa**. **Visão
     Geral** traz cinco cards, todos abrindo a lista **nominal** de quem chegou e de quem falta:
     pessoas, projetos (com **parcial** e **completo** separados), premiados, **medalhas** e
     **credenciais**; *Premiados* tem tela própria (`/admin/cerimonial/premiados`), um cartão por
@@ -904,7 +906,39 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 203 | Premiação: buscar o finalista pelo **código da lista final** (FET.AGR-001) no cartão da credencial e na aba do comitê | ✅ sim | ✅ sim (Pedro, PR #108 → v1.31) | 0 |
 | 204 | Câmera do check-in: o vídeo liga no elemento já desenhado (fim do quadro em branco), com aviso de abertura e motivo do erro | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 205 | Câmera no **iPhone** (e Chrome no Windows/Linux): ZXing em WebAssembly servido pelo portal quando não há `BarcodeDetector` | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 206 | Cerimonial: ler o crachá **já registra a entrada**, com o nome num card de 2s (barra no botão Ok) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprint 206 (mesma branch):** na porta da cerimônia, **leu, entrou**. Ler o crachá (leitor USB,
+> código digitado + Enter ou câmera) deixou de abrir a ficha do projeto: a entrada **daquela
+> pessoa** é registrada na hora (`POST /admin/cerimonial/checkin-codigo`,
+> `CerimonialService::checkinPorCodigo()`, com as mesmas três conferências do crachá) e um card
+> mostra o nome em letra grande, o papel e o projeto. O card **some em 2 segundos**, e o tempo que
+> falta é uma barra que vai **preenchendo o botão Ok** (`CardCheckin.jsx`, animação
+> `.fetec-preencher`); clicar em Ok fecha antes. Quem **já tinha entrado** recebe um card âmbar com
+> a hora da entrada, e nada é gravado de novo. Crachá **recusado** vira um card vermelho com o
+> motivo que **não some sozinho** — alguém precisa olhar para aquela pessoa. O card não rouba o
+> foco do campo: a próxima bipada cai no lugar certo, e as leituras entram numa **fila** (o leitor
+> bipa a pessoa seguinte antes de o servidor responder sobre a anterior, e nenhuma se perde). A
+> câmera **fica aberta** entre uma pessoa e outra. A ficha continua sendo o caminho de quem chega
+> **sem** crachá, pela busca por nome ou CPF — e a busca aberta passa a mostrar como presente quem
+> acabou de entrar pelo crachá. Com o evento fechado, a leitura diz isso em vez de "código não
+> reconhecido". O `POST /admin/cerimonial/codigo` (o crachá que só abria a ficha) **saiu**; o
+> leitor do Credenciamento continua abrindo a ficha, como antes.
+> Back **1450/1450**, front **766/766**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprints 204–206):** (1) `git push origin feat/cerimonial-camera-e-leitura-direta`
+> + PR para a `main` (o ambiente do Claude não tem credencial do GitHub). **Sem migration e sem
+> variável de `.env`**; **uma dependência nova de npm** (`barcode-detector`, que traz o
+> `zxing-wasm`): rode `npm ci && npm run build` no deploy. (2) A câmera **exige https** — no
+> iPhone, sem https o navegador nem oferece a câmera, e a tela agora diz isso. (3) O servidor deve
+> entregar o `.wasm` com o tipo `application/wasm` (o nginx atual já faz; sem isso ele carrega mais
+> devagar, mas carrega). (4) **No iPhone**, na primeira vez o Safari pergunta se libera a câmera;
+> negada, a tela explica o caminho (Ajustes › Safari › Câmera). Vale testar no iPhone XR antes do
+> evento — aqui a leitura foi conferida no Chromium sem a API nativa (o mesmo caminho do iPhone),
+> mas não num iPhone de verdade. (5) **Na porta, a leitura agora registra direto**: quem bipar um
+> crachá para "só conferir" registra a entrada. Para desfazer, abra a ficha pela busca e use
+> *Desfazer* (pede justificativa).
+>
 > **Sprints 204–205 (branch `feat/cerimonial-camera-e-leitura-direta`, saída da `origin/main` @ `c4aa1e8`):**
 > a câmera dos dois balcões que leem crachá (Credenciamento e Cerimonial).
 > (a) **Sprint 204** — relato: no check-in do cerimonial, "Ler com a câmera" abria um **quadro em
@@ -931,6 +965,7 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > poder abrir (`getUserMedia` em **contexto seguro**); fora de https a tela diz isso, em vez de
 > culpar o aparelho. Conferido no Chromium sem a API nativa, com o crachá gerado pelo
 > `IdentificacaoService`: QR e Code 128 lidos, inclusive reduzidos, girados e borrados.
+> Back **1445/1445**, front **750/750**, build OK.
 >
 > **Sprint 203 (mesma branch):** o campo de busca de cada cartão de credencial (Premiação e
 > Credenciais e Prêmios) e o da aba **Comitê especial** do avaliador passaram a mostrar e achar o

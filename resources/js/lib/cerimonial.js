@@ -12,9 +12,12 @@ const comTeste = (params = {}, teste = false) => (teste ? { ...params, teste: 1 
 export const getCerimonialConfig = (teste = false) =>
     http.get('/admin/cerimonial/config', { params: comTeste({}, teste) }).then((r) => r.data.data);
 
-/** O crachá lido no balcão: devolve de quem é e que projeto abrir. */
-export const lerCodigoCerimonial = (codigo, teste = false) =>
-    http.post('/admin/cerimonial/codigo', comTeste({ codigo }, teste)).then((r) => r.data.data);
+/**
+ * O crachá lido na porta: registra a entrada daquela pessoa e devolve quem é
+ * (`ja_presente` quando ela já tinha entrado, com a hora em `checkin_em`).
+ */
+export const checkinPorCodigo = (codigo, teste = false) =>
+    http.post('/admin/cerimonial/checkin-codigo', comTeste({ codigo }, teste)).then((r) => r.data.data);
 
 /** Busca por nome ou CPF entre os participantes dos projetos finalistas. */
 export const buscarParticipantes = (busca, teste = false) =>

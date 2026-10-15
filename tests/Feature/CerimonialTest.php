@@ -251,21 +251,54 @@ class CerimonialTest extends TestCase
     // Leitura do crachá e busca                                           //
     // ------------------------------------------------------------------ //
 
-    public function test_cracha_lido_devolve_o_projeto_a_abrir(): void
+    /** O código impresso no crachá de um aluno do projeto. */
+    private function codigoDoAluno(Projeto $projeto, string $nome, ?string $cpf = null): string
+    {
+        $aluno = $projeto->alunos->firstWhere('nome', $nome);
+
+        return CodigoParticipante::montar(
+            2026, $projeto->id, $cpf ?? $aluno->cpf, CodigoParticipante::PAPEL_ALUNO, $aluno->id,
+        );
+    }
+
+    public function test_cracha_lido_ja_registra_a_entrada_da_pessoa(): void
     {
         $projeto = $this->projeto();
         $this->publicar([$projeto]);
         $this->comoAdmin();
 
-        $aluno = $projeto->alunos->firstWhere('nome', 'Ana Paula');
-        $codigo = CodigoParticipante::montar(
-            2026, $projeto->id, $aluno->cpf, CodigoParticipante::PAPEL_ALUNO, $aluno->id,
-        );
-
-        $resposta = $this->postJson('/api/v1/admin/cerimonial/codigo', ['codigo' => $codigo])->assertOk();
+        $resposta = $this->postJson('/api/v1/admin/cerimonial/checkin-codigo', [
+            'codigo' => $this->codigoDoAluno($projeto, 'Ana Paula'),
+        ])->assertOk();
 
         $this->assertSame($projeto->id, $resposta->json('data.projeto_id'));
         $this->assertSame('Ana Paula', $resposta->json('data.participante.nome'));
+        $this->assertFalse($resposta->json('data.ja_presente'));
+        $this->assertSame(now()->format('H:i'), $resposta->json('data.checkin_em'));
+
+        // Só ela: a leitura do crachá não marca a equipe.
+        $this->assertSame(1, CerimonialCheckin::count());
+        $this->assertSame('Ana Paula', CerimonialCheckin::first()->nome);
+        $this->assertSame(1, RegistroAtividade::where('tipo', TipoRegistro::CerimonialCheckin)->count());
+    }
+
+    public function test_cracha_de_quem_ja_entrou_avisa_sem_gravar_de_novo(): void
+    {
+        $projeto = $this->projeto();
+        $this->publicar([$projeto]);
+        $this->comoAdmin();
+        $codigo = $this->codigoDoAluno($projeto, 'Ana Paula');
+
+        $this->postJson('/api/v1/admin/cerimonial/checkin-codigo', ['codigo' => $codigo])->assertOk();
+        $this->travel(20)->minutes();
+
+        $resposta = $this->postJson('/api/v1/admin/cerimonial/checkin-codigo', ['codigo' => $codigo])->assertOk();
+
+        $this->assertTrue($resposta->json('data.ja_presente'));
+        // A hora é a da primeira entrada, não a desta leitura.
+        $this->assertSame(now()->subMinutes(20)->format('H:i'), $resposta->json('data.checkin_em'));
+        $this->assertSame(1, CerimonialCheckin::count());
+        $this->assertSame(1, RegistroAtividade::where('tipo', TipoRegistro::CerimonialCheckin)->count());
     }
 
     public function test_cracha_de_cpf_trocado_e_recusado(): void
@@ -274,15 +307,74 @@ class CerimonialTest extends TestCase
         $this->publicar([$projeto]);
         $this->comoAdmin();
 
-        $aluno = $projeto->alunos->firstWhere('nome', 'Ana Paula');
         // Mesmo id, CPF de outra pessoa: é o crachá trocado entre colegas.
-        $codigo = CodigoParticipante::montar(
-            2026, $projeto->id, '99988877766', CodigoParticipante::PAPEL_ALUNO, $aluno->id,
-        );
+        $this->postJson('/api/v1/admin/cerimonial/checkin-codigo', [
+            'codigo' => $this->codigoDoAluno($projeto, 'Ana Paula', '99988877766'),
+        ])->assertStatus(422)->assertJsonValidationErrors('codigo');
 
-        $this->postJson('/api/v1/admin/cerimonial/codigo', ['codigo' => $codigo])
-            ->assertStatus(422)
-            ->assertJsonValidationErrors('codigo');
+        $this->assertSame(0, CerimonialCheckin::count());
+    }
+
+    public function test_cracha_de_projeto_fora_da_lista_e_recusado(): void
+    {
+        $finalista = $this->projeto();
+        $fora = $this->projeto('Fora da lista');
+        $this->publicar([$finalista]);
+        $this->comoAdmin();
+
+        $this->postJson('/api/v1/admin/cerimonial/checkin-codigo', [
+            'codigo' => $this->codigoDoAluno($fora, 'Ana Paula'),
+        ])->assertStatus(422)->assertJsonValidationErrors('codigo');
+
+        $this->assertSame(0, CerimonialCheckin::count());
+    }
+
+    public function test_cracha_fora_do_periodo_do_evento_diz_o_motivo(): void
+    {
+        $this->edicao->update(['evento_de' => now()->subDays(3), 'evento_ate' => now()->subDay()]);
+        $projeto = $this->projeto();
+        $this->publicar([$projeto]);
+        $this->comoAdmin();
+
+        $this->postJson('/api/v1/admin/cerimonial/checkin-codigo', [
+            'codigo' => $this->codigoDoAluno($projeto, 'Ana Paula'),
+        ])->assertStatus(422)->assertJsonPath('errors.codigo.0', 'O check-in do cerimonial só acontece durante o período do evento.');
+
+        $this->assertSame(0, CerimonialCheckin::count());
+    }
+
+    public function test_conta_temporaria_da_porta_registra_pelo_cracha(): void
+    {
+        $projeto = $this->projeto();
+        $this->publicar([$projeto]);
+        $conta = $this->contaTemporaria();
+        Sanctum::actingAs($conta->user);
+
+        $this->postJson('/api/v1/admin/cerimonial/checkin-codigo', [
+            'codigo' => $this->codigoDoAluno($projeto, 'Bruno Lima'),
+        ])->assertOk();
+
+        $this->assertSame($conta->user_id, CerimonialCheckin::first()->registrado_por);
+    }
+
+    public function test_modo_de_teste_registra_so_no_ensaio(): void
+    {
+        $oficial = $this->projeto();
+        $ensaio = $this->projeto('Projeto de ensaio');
+        $this->publicar([$oficial]);
+        $this->publicar([$ensaio], demo: true);
+        $this->comoAdmin(['is_demo' => true]);
+
+        // Finalista de verdade não é alcançado pelo ensaio.
+        $this->postJson('/api/v1/admin/cerimonial/checkin-codigo?teste=1', [
+            'codigo' => $this->codigoDoAluno($oficial, 'Ana Paula'),
+        ])->assertStatus(422);
+
+        $this->postJson('/api/v1/admin/cerimonial/checkin-codigo?teste=1', [
+            'codigo' => $this->codigoDoAluno($ensaio, 'Ana Paula'),
+        ])->assertOk();
+
+        $this->assertTrue(CerimonialCheckin::sole()->demo);
     }
 
     public function test_busca_por_nome_e_por_cpf(): void

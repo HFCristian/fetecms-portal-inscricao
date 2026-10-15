@@ -13,8 +13,13 @@ vi.mock('../lib/auth.jsx', () => ({
 }));
 // O leitor tem teste próprio; aqui interessa o caminho da busca.
 vi.mock('../components/LeitorCerimonial.jsx', () => ({
-    default: ({ onAbrir }) => (
-        <button type="button" onClick={() => onAbrir({ projeto_id: 7 })}>leitor-falso</button>
+    default: ({ onRegistrado }) => (
+        <button
+            type="button"
+            onClick={() => onRegistrado({ projeto_id: 7, participante: { chave: 'A1' }, ja_presente: false })}
+        >
+            leitor-falso
+        </button>
     ),
 }));
 
@@ -81,11 +86,19 @@ describe('CerimonialCheckin', () => {
         expect(await screen.findByText('Já fez check-in')).toBeInTheDocument();
     });
 
-    it('o crachá lido leva à mesma ficha', async () => {
+    it('o crachá lido registra sem abrir a ficha, e a busca aberta já mostra a pessoa como presente', async () => {
         render(<CerimonialCheckin />);
 
-        fireEvent.click(await screen.findByRole('button', { name: 'leitor-falso' }));
-        expect(navigate).toHaveBeenCalledWith('/admin/cerimonial/projetos/7');
+        fireEvent.change(await screen.findByLabelText('Procurar por nome ou CPF'), {
+            target: { value: 'ana' },
+        });
+        await screen.findByText('Ana Paula');
+        expect(screen.queryByText('Já fez check-in')).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'leitor-falso' }));
+
+        expect(await screen.findByText('Já fez check-in')).toBeInTheDocument();
+        expect(navigate).not.toHaveBeenCalled();
     });
 
     it('sem lista final vigente não há quem receber', async () => {

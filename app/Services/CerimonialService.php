@@ -133,18 +133,17 @@ class CerimonialService
     // -----------------------------------------------------------------
 
     /**
-     * Resolve o crachá lido (QR ou código de barras) e diz de quem ele é.
+     * Resolve o crachá lido (QR ou código de barras): o projeto e a pessoa.
      *
      * A conferência é a mesma do credenciamento, pelas mesmas três razões:
      * **formato** (etiqueta amassada, QR de outro evento), **finalista** (o
      * projeto não está na lista que vale para esta pessoa) e **pessoa** (papel,
      * id e os três dígitos do CPF — é o que pega o crachá trocado entre
-     * colegas). A ficha do projeto é que abre em seguida: na cerimônia a equipe
-     * costuma chegar junta, e marcar um a um seria obrigar quatro leituras.
+     * colegas).
      *
-     * @return array<string, mixed>
+     * @return array{0: Projeto, 1: array<string, mixed>}
      */
-    public function resolverCodigo(string $codigo, ?User $user = null, bool $teste = false): array
+    private function lerCracha(string $codigo, User $user, bool $teste): array
     {
         $lido = CodigoParticipante::ler($codigo);
 
@@ -180,16 +179,7 @@ class CerimonialService
             ]);
         }
 
-        return [
-            'projeto_id' => $projeto->id,
-            'projeto_titulo' => $projeto->titulo,
-            'participante' => [
-                'chave' => $pessoa['chave'],
-                'nome' => $pessoa['nome'],
-                'papel' => $pessoa['papel'],
-                'papel_label' => $pessoa['papel_label'],
-            ],
-        ];
+        return [$projeto, $pessoa];
     }
 
     /**
@@ -328,7 +318,6 @@ class CerimonialService
             abort(404, 'Este projeto não está na lista final vigente.');
         }
 
-        $edicao = Edicao::atual();
         $pessoas = collect($this->participantesDo($projeto))->keyBy('chave');
         $desconhecidas = array_values(array_diff($chaves, $pessoas->keys()->all()));
 
@@ -338,12 +327,77 @@ class CerimonialService
             ]);
         }
 
-        $novos = DB::transaction(function () use ($chaves, $pessoas, $projeto, $admin, $edicao, $emTeste) {
+        $this->gravar($projeto, array_map(fn (string $chave) => $pessoas->get($chave), $chaves), $admin, $emTeste);
+
+        return $this->ficha($projeto, $admin, $teste);
+    }
+
+    /**
+     * Lê o crachá e já registra a entrada **daquela pessoa** — a porta da
+     * cerimônia com leitor ou câmera.
+     *
+     * Na leitura o atendente não abre ficha nem marca caixa: bipou, entrou. A
+     * equipe que chega junta passa crachá a crachá; a ficha continua sendo o
+     * caminho de quem chega **sem** crachá (busca por nome ou CPF), onde marcar
+     * quatro de uma vez faz a fila andar.
+     *
+     * Ler o crachá de quem **já entrou** não grava nada nem dá erro — volta
+     * `ja_presente` com a hora da entrada, porque é o que o atendente precisa
+     * saber diante de alguém que diz que saiu e voltou (ou que emprestou o
+     * crachá). As conferências do código são as de {@see lerCracha()}.
+     *
+     * @return array<string, mixed>
+     */
+    public function checkinPorCodigo(string $codigo, User $admin, bool $teste = false): array
+    {
+        // A janela vem antes do código: com o evento fechado, "código não
+        // reconhecido" mandaria o atendente bipar de novo à toa.
+        if (! $this->podeRegistrar($admin, $teste)) {
+            throw ValidationException::withMessages([
+                'codigo' => 'O check-in do cerimonial só acontece durante o período do evento.',
+            ]);
+        }
+
+        [$projeto, $pessoa] = $this->lerCracha($codigo, $admin, $teste);
+        $emTeste = $this->emTeste($admin, $teste);
+
+        $novos = $this->gravar($projeto, [$pessoa], $admin, $emTeste);
+
+        $checkin = CerimonialCheckin::where('projeto_id', $projeto->id)
+            ->where('papel', $pessoa['papel'])
+            ->where('participante_id', $pessoa['participante_id'])
+            ->where('demo', $emTeste)
+            ->first();
+
+        return [
+            'projeto_id' => $projeto->id,
+            'projeto_titulo' => $projeto->titulo,
+            'participante' => [
+                'chave' => $pessoa['chave'],
+                'nome' => $pessoa['nome'],
+                'papel' => $pessoa['papel'],
+                'papel_label' => $pessoa['papel_label'],
+            ],
+            'ja_presente' => $novos === [],
+            'checkin_em' => $checkin?->checkin_em?->format('H:i'),
+        ];
+    }
+
+    /**
+     * Grava a entrada das pessoas dadas. Quem já entrou é **ignorado em
+     * silêncio** — a equipe chega em levas, e marcar de novo não é erro.
+     *
+     * @param  list<array<string, mixed>>  $pessoas  linhas de {@see participantesDo()}
+     * @return list<array<string, mixed>> só as que entraram agora
+     */
+    private function gravar(Projeto $projeto, array $pessoas, User $admin, bool $emTeste): array
+    {
+        $edicao = Edicao::atual();
+
+        $novos = DB::transaction(function () use ($pessoas, $projeto, $admin, $edicao, $emTeste) {
             $criados = [];
 
-            foreach ($chaves as $chave) {
-                $pessoa = $pessoas->get($chave);
-
+            foreach ($pessoas as $pessoa) {
                 $checkin = CerimonialCheckin::firstOrCreate(
                     [
                         'projeto_id' => $projeto->id,
@@ -379,7 +433,7 @@ class CerimonialService
             );
         }
 
-        return $this->ficha($projeto, $admin, $teste);
+        return $novos;
     }
 
     /**

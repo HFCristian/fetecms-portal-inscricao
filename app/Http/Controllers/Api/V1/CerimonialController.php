@@ -29,15 +29,15 @@ class CerimonialController extends Controller
         ]);
     }
 
-    /** A leitura do crachá: o atalho para a ficha certa. */
-    public function lerCodigo(Request $request): JsonResponse
+    /** O crachá lido (leitor ou câmera): a entrada daquela pessoa já fica registrada. */
+    public function checkinCodigo(Request $request): JsonResponse
     {
         $dados = $request->validate([
             'codigo' => ['required', 'string', 'max:60'],
         ]);
 
         return response()->json([
-            'data' => $this->cerimonial->resolverCodigo(
+            'data' => $this->cerimonial->checkinPorCodigo(
                 $dados['codigo'],
                 $request->user(),
                 $request->boolean('teste'),
