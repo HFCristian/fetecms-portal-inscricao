@@ -609,7 +609,8 @@ class ContaTemporariaService
     }
 
     /**
-     * "04/10/2026 08:00", "2026-10-04 08:00" ou o número serial que o Excel
+     * "04/10/2026 08:00", "4/10/2026 8:00", "04/10/2026" (meia-noite),
+     * "2026-10-04 08:00", com ou sem segundos, ou o número serial que o Excel
      * grava quando a célula virou data. Devolve "Y-m-d H:i".
      */
     private function dataDaPlanilha(string $valor): string
@@ -618,15 +619,45 @@ class ContaTemporariaService
             return $serial;
         }
 
-        foreach (['d/m/Y H:i', 'd/m/Y H:i:s', 'd/m/Y', 'Y-m-d H:i', 'Y-m-d\TH:i', 'Y-m-d H:i:s', 'Y-m-d'] as $formato) {
-            $data = CarbonImmutable::createFromFormat('!'.$formato, $valor, config('app.timezone'));
+        $data = $this->lerData($valor, [
+            'd/m/Y H:i', 'd/m/Y H:i:s', 'd/m/Y', 'd/m/y H:i', 'd/m/y',
+            'Y-m-d H:i', 'Y-m-d\TH:i', 'Y-m-d H:i:s', 'Y-m-d\TH:i:s', 'Y-m-d',
+        ]);
 
-            if ($data !== false && $data->format($formato) === $valor) {
-                return $data->format('Y-m-d H:i');
+        if ($data === null) {
+            throw ValidationException::withMessages(['valido_de' => 'Data inválida.']);
+        }
+
+        return $data->format('Y-m-d H:i');
+    }
+
+    /**
+     * A primeira leitura de `$valor` que casa **inteira** com um dos formatos,
+     * ou null.
+     *
+     * O texto vem de uma planilha preenchida à mão, então nada aqui pode lançar
+     * exceção: o `createFromFormat` do Carbon lança quando o texto não bate com
+     * o formato (e uma data "04/10/2026" sem hora derrubava a prévia inteira
+     * com 500). O do PHP devolve false e conta os avisos — é o aviso que pega o
+     * 31/02, que senão viraria 03/03 em silêncio.
+     *
+     * @param  list<string>  $formatos
+     */
+    private function lerData(string $valor, array $formatos): ?CarbonImmutable
+    {
+        $valor = (string) preg_replace('/\s+/u', ' ', trim($valor));
+        $fuso = new \DateTimeZone(config('app.timezone'));
+
+        foreach ($formatos as $formato) {
+            $data = \DateTimeImmutable::createFromFormat('!'.$formato, $valor, $fuso);
+            $problemas = \DateTimeImmutable::getLastErrors();
+
+            if ($data !== false && ($problemas === false || $problemas['warning_count'] + $problemas['error_count'] === 0)) {
+                return CarbonImmutable::instance($data);
             }
         }
 
-        throw ValidationException::withMessages(['valido_de' => 'Data inválida.']);
+        return null;
     }
 
     /**
@@ -652,10 +683,10 @@ class ContaTemporariaService
                 ]);
             }
 
-            $inicio = CarbonImmutable::createFromFormat('!d/m/Y H:i', "{$m[1]} {$m[2]}", config('app.timezone'));
-            $fim = CarbonImmutable::createFromFormat('!d/m/Y H:i', (($m[3] ?? '') !== '' ? $m[3] : $m[1])." {$m[4]}", config('app.timezone'));
+            $inicio = $this->lerData("{$m[1]} {$m[2]}", ['d/m/Y H:i']);
+            $fim = $this->lerData((($m[3] ?? '') !== '' ? $m[3] : $m[1])." {$m[4]}", ['d/m/Y H:i']);
 
-            if ($inicio === false || $fim === false) {
+            if ($inicio === null || $fim === null) {
                 throw ValidationException::withMessages(['turnos' => "Turno \"{$pedaco}\" com data inválida."]);
             }
 

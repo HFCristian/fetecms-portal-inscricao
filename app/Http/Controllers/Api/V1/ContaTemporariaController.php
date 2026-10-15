@@ -199,8 +199,9 @@ class ContaTemporariaController extends Controller
             'linhas.*.valido_de' => ['nullable', 'string', 'max:30'],
             'linhas.*.horas' => ['nullable', 'integer', 'min:1', 'max:'.ContaTemporariaService::HORAS_MAX],
             'linhas.*.turnos' => ['nullable', 'array', 'max:20'],
-            'linhas.*.turnos.*.inicio' => ['required', 'string', 'max:30'],
-            'linhas.*.turnos.*.fim' => ['required', 'string', 'max:30'],
+            // Voltam da prévia como "Y-m-d H:i"; o que não for data é adulteração.
+            'linhas.*.turnos.*.inicio' => ['required', 'date'],
+            'linhas.*.turnos.*.fim' => ['required', 'date'],
             ...$this->regrasPadroes(),
         ]);
 

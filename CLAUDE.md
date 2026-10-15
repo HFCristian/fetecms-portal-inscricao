@@ -917,7 +917,23 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 206 | Cerimonial: ler o crachá **já registra a entrada**, com o nome num card de 2s (barra no botão Ok) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 207 | Cerimonial → **Eventos de cerimônia**: nome + público (categorias), check-in e painel por evento | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 208 | Cerimonial: a porta **escolhe o evento** no check-in; Visão Geral e Premiados por evento ou **Todos** | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 209 | Fix: cadastro **em lote** de contas temporárias respondia **500** com o "Início do acesso" fora de dd/mm/aaaa hh:mm | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprint 209 (mesma branch):** relato de produção: depois de subir o Excel no cadastro **em lote**
+> de contas temporárias, a tela dizia "Erro interno no servidor". A prévia lê o "Início do acesso"
+> de cada linha por uma lista de formatos, e o `CarbonImmutable::createFromFormat` **lança
+> exceção** quando o texto não bate com o formato — o código esperava `false` e só capturava a
+> `ValidationException`. Bastava uma linha com `04/10/2026` (sem hora), `4/10/2026 8:00` (sem o
+> zero) ou `04/10/2026 08:00:00` (com segundos, como o LibreOffice e algumas versões do Excel
+> gravam) para a prévia inteira cair com 500, em vez de apontar a linha. A leitura de data da
+> planilha passou para o `DateTimeImmutable::createFromFormat` nativo, que devolve `false` e conta
+> os avisos (`ContaTemporariaService::lerData()`): nada ali lança mais, os três jeitos acima são
+> aceitos (a data sem hora é meia-noite), o que não é data vira erro **da linha** e o **31/02**
+> continua recusado em vez de virar 03/03 calado. Os turnos usam o mesmo leitor. De quebra, os
+> turnos que voltam da prévia na confirmação passaram a ser validados como data — um payload
+> adulterado também dava 500. Reproduzido em teste antes da correção.
+> Back **1462/1462**, front **784/784**, Pint limpo, build OK.
+>
 > **Sprints 207–208 (mesma branch):** a feira faz **duas premiações** — FETECMS numa, FETEC Jr e
 > FETECMS FUNDECT na outra —, com o mesmo funcionamento e públicos diferentes.
 > (a) **Sprint 207** — **eventos de cerimônia** (`cerimonial_eventos`: nome + `categorias`, JSON),
@@ -945,7 +961,7 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > entrou em qualquer um). De quebra, um defeito que a separação expôs: o card de premiados e o de
 > credenciais contavam **todos** os projetos premiados da edição, mesmo os de fora do público —
 > agora só os do evento.
-> Back **1459/1459**, front **784/784**, Pint limpo, build OK.
+> Back **1462/1462**, front **784/784**, Pint limpo, build OK.
 >
 > **Sprint 206 (mesma branch):** na porta da cerimônia, **leu, entrou**. Ler o crachá (leitor USB,
 > código digitado + Enter ou câmera) deixou de abrir a ficha do projeto: a entrada **daquela
@@ -965,7 +981,7 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > leitor do Credenciamento continua abrindo a ficha, como antes.
 > Back **1450/1450**, front **766/766**, Pint limpo, build OK.
 >
-> **Pendências do Pedro (Sprints 204–208):** (1) `git push origin feat/cerimonial-camera-e-leitura-direta`
+> **Pendências do Pedro (Sprints 204–209):** (1) `git push origin feat/cerimonial-camera-e-leitura-direta`
 > + PR para a `main` (o ambiente do Claude não tem credencial do GitHub). **Uma migration**
 > (`cerimonial_eventos` + `cerimonial_checkins.evento_id`), **nenhuma variável de `.env`** e
 > **uma dependência nova de npm** (`barcode-detector`, que traz o `zxing-wasm`): rode
@@ -974,7 +990,8 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > FETECMS; "Premiação FETEC Jr e FUNDECT" com as duas): sem evento, a porta não registra check-in.
 > Se já houver check-in na edição, a migration criou "Cerimônia de premiação" com as três
 > categorias — renomeie-o e ajuste o público em vez de criar um terceiro. Cada tablet da porta
-> escolhe o seu evento uma vez. (2) A câmera **exige https** — no
+> escolhe o seu evento uma vez. (1c) O lote de contas temporárias volta a funcionar com o deploy;
+> quem já tentou só precisa subir a planilha de novo. (2) A câmera **exige https** — no
 > iPhone, sem https o navegador nem oferece a câmera, e a tela agora diz isso. (3) O servidor deve
 > entregar o `.wasm` com o tipo `application/wasm` (o nginx atual já faz; sem isso ele carrega mais
 > devagar, mas carrega). (4) **No iPhone**, na primeira vez o Safari pergunta se libera a câmera;
