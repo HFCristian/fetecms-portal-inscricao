@@ -15,6 +15,15 @@ vi.mock('../lib/credenciamento.js', () => ({
     lerCodigoCredenciamento: (...a) => lerCodigoCredenciamento(...a),
 }));
 
+const suporteCamera = vi.fn();
+vi.mock('../lib/leitorCamera.js', () => ({ suporteCamera: () => suporteCamera() }));
+// A câmera tem teste próprio; aqui ela é só um botão que "lê" um código.
+vi.mock('./LeitorCamera.jsx', () => ({
+    default: ({ onLer }) => (
+        <button type="button" onClick={() => onLer('2026-31-111-A45')}>camera-falsa</button>
+    ),
+}));
+
 import LeitorCodigo from './LeitorCodigo.jsx';
 
 const achado = {
@@ -27,7 +36,7 @@ const achado = {
 describe('LeitorCodigo', () => {
     beforeEach(() => {
         lerCodigoCredenciamento.mockReset().mockResolvedValue(achado);
-        delete window.BarcodeDetector;
+        suporteCamera.mockReset().mockReturnValue({ ok: true });
     });
 
     it('o leitor USB bipa e dá Enter: abre a ficha sem tocar no mouse', async () => {
@@ -89,19 +98,24 @@ describe('LeitorCodigo', () => {
         expect(lerCodigoCredenciamento).not.toHaveBeenCalled();
     });
 
-    it('sem suporte a câmera, o botão some e a tela explica', () => {
+    it('sem suporte a câmera, o botão some e a tela diz por quê', () => {
+        suporteCamera.mockReturnValue({ ok: false, motivo: 'A câmera só abre com o portal em conexão segura (endereço com https).' });
         render(<LeitorCodigo />);
 
         expect(screen.queryByRole('button', { name: 'Ler com a câmera' })).not.toBeInTheDocument();
-        expect(screen.getByText(/não lê QR pela câmera/)).toBeInTheDocument();
+        expect(screen.getByText(/conexão segura/)).toBeInTheDocument();
     });
 
-    it('com suporte a câmera, o botão aparece', () => {
-        window.BarcodeDetector = class { detect() { return Promise.resolve([]); } };
+    it('a câmera lê, abre a ficha e se fecha', async () => {
+        const onAbrir = vi.fn();
+        render(<LeitorCodigo onAbrir={onAbrir} />);
 
-        render(<LeitorCodigo />);
+        fireEvent.click(screen.getByRole('button', { name: 'Ler com a câmera' }));
+        fireEvent.click(screen.getByRole('button', { name: 'camera-falsa' }));
 
+        await waitFor(() => expect(onAbrir).toHaveBeenCalledWith(achado));
+        expect(lerCodigoCredenciamento).toHaveBeenCalledWith('2026-31-111-A45', false);
+        expect(screen.queryByRole('button', { name: 'camera-falsa' })).not.toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Ler com a câmera' })).toBeInTheDocument();
-        expect(screen.queryByText(/não lê QR pela câmera/)).not.toBeInTheDocument();
     });
 });

@@ -885,24 +885,53 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 184 | O que chegou antes já vem marcado no balcão e na checagem, para qualquer item (o bloco fixo do termo saiu) | ✅ sim | ✅ sim (Pedro, PR #107 → v1.30) | 0 |
 | 185 | Mala direta: variáveis `{{codigo_projeto}}` e `{{turno}}`, só com destino 100% finalista (aviso na tela e recusa no servidor) | ✅ sim | ✅ sim (Pedro, PR #107 → v1.30) | 0 |
 | 186 | As mesmas variáveis no modelo "Código do projeto" e nos avisos (resolvidas para quem lê) | ✅ sim | ✅ sim (Pedro, PR #107 → v1.30) | 0 |
-| 187 | Lista final: baixar os **projetos de pesquisa** num ZIP (todos ou por seleção individual, de categoria ou de área) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 188 | Etiquetas de identificação: **turno e estande**, papel ao lado do nome, sem projeto nem escola | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 189 | Identificação dos participantes em **ordem alfabética** de nome + **16 etiquetas por folha** (margem ~5 mm, cabeçalho de uma linha) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 190 | Comitê especial → **Premiação**: credenciais e prêmios nos projetos premiados (mesma base) + lista de premiação em TXT | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 191 | Avaliação presencial → **Cadastro de avaliadores** só do evento (senha gerada, fora da avaliação online) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 192 | Credenciais e Prêmios: campo **Informações adicionais** (cadastro, edição no cartão, visível ao comitê) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 193 | Avaliador da comissão especial: aba **Comitê especial** recomenda finalistas para credenciais/prêmios; admins aprovam ou rejeitam | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 194 | Recomendações do comitê: filtro por **título do projeto, área e categoria** (contagem presa ao recorte) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 195 | Cartão da credencial mostra as **aprovadas pelo comitê**, com botão **Premiar** (Premiação e Credenciais e Prêmios) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 196 | **Painel da premiação**: vagas que faltam por credencial + ranking dos premiados por área (admin e comissão, tela cheia) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 197 | Mapa do Evento: **rua da borda esquerda**, ao lado da primeira coluna de estandes (nomeável na configuração) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 198 | Mapa em tela cheia: **faixa da área** em cada estande (cor + sigla, legenda que destaca) e atualização a cada **5 s** com aviso no canto | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 199 | Mapa em tela cheia: **visualizações** Credenciamento, Checagem e Avaliação (cor por nº de avaliações), no canto inferior esquerdo | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 200 | Mapa em tela cheia: **dashboard** das avaliações (por nº recebido, geral e por área; comissão especial por área; barra de progresso) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 201 | Premiação: os **pedidos de aprovação** do comitê dentro do **cartão da credencial** (aprovar/rejeitar ali); a seção separada sai e os filtros recortam os cartões | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 202 | Premiação: **cancelar a premiação** de uma recomendação aprovada (tira a credencial, a recomendação continua aprovada) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 203 | Premiação: buscar o finalista pelo **código da lista final** (FET.AGR-001) no cartão da credencial e na aba do comitê | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 187 | Lista final: baixar os **projetos de pesquisa** num ZIP (todos ou por seleção individual, de categoria ou de área) | ✅ sim | ✅ sim (Pedro, PR #108 → v1.31) | 0 |
+| 188 | Etiquetas de identificação: **turno e estande**, papel ao lado do nome, sem projeto nem escola | ✅ sim | ✅ sim (Pedro, PR #108 → v1.31) | 0 |
+| 189 | Identificação dos participantes em **ordem alfabética** de nome + **16 etiquetas por folha** (margem ~5 mm, cabeçalho de uma linha) | ✅ sim | ✅ sim (Pedro, PR #108 → v1.31) | 0 |
+| 190 | Comitê especial → **Premiação**: credenciais e prêmios nos projetos premiados (mesma base) + lista de premiação em TXT | ✅ sim | ✅ sim (Pedro, PR #108 → v1.31) | 0 |
+| 191 | Avaliação presencial → **Cadastro de avaliadores** só do evento (senha gerada, fora da avaliação online) | ✅ sim | ✅ sim (Pedro, PR #108 → v1.31) | 0 |
+| 192 | Credenciais e Prêmios: campo **Informações adicionais** (cadastro, edição no cartão, visível ao comitê) | ✅ sim | ✅ sim (Pedro, PR #108 → v1.31) | 0 |
+| 193 | Avaliador da comissão especial: aba **Comitê especial** recomenda finalistas para credenciais/prêmios; admins aprovam ou rejeitam | ✅ sim | ✅ sim (Pedro, PR #108 → v1.31) | 0 |
+| 194 | Recomendações do comitê: filtro por **título do projeto, área e categoria** (contagem presa ao recorte) | ✅ sim | ✅ sim (Pedro, PR #108 → v1.31) | 0 |
+| 195 | Cartão da credencial mostra as **aprovadas pelo comitê**, com botão **Premiar** (Premiação e Credenciais e Prêmios) | ✅ sim | ✅ sim (Pedro, PR #108 → v1.31) | 0 |
+| 196 | **Painel da premiação**: vagas que faltam por credencial + ranking dos premiados por área (admin e comissão, tela cheia) | ✅ sim | ✅ sim (Pedro, PR #108 → v1.31) | 0 |
+| 197 | Mapa do Evento: **rua da borda esquerda**, ao lado da primeira coluna de estandes (nomeável na configuração) | ✅ sim | ✅ sim (Pedro, PR #108 → v1.31) | 0 |
+| 198 | Mapa em tela cheia: **faixa da área** em cada estande (cor + sigla, legenda que destaca) e atualização a cada **5 s** com aviso no canto | ✅ sim | ✅ sim (Pedro, PR #108 → v1.31) | 0 |
+| 199 | Mapa em tela cheia: **visualizações** Credenciamento, Checagem e Avaliação (cor por nº de avaliações), no canto inferior esquerdo | ✅ sim | ✅ sim (Pedro, PR #108 → v1.31) | 0 |
+| 200 | Mapa em tela cheia: **dashboard** das avaliações (por nº recebido, geral e por área; comissão especial por área; barra de progresso) | ✅ sim | ✅ sim (Pedro, PR #108 → v1.31) | 0 |
+| 201 | Premiação: os **pedidos de aprovação** do comitê dentro do **cartão da credencial** (aprovar/rejeitar ali); a seção separada sai e os filtros recortam os cartões | ✅ sim | ✅ sim (Pedro, PR #108 → v1.31) | 0 |
+| 202 | Premiação: **cancelar a premiação** de uma recomendação aprovada (tira a credencial, a recomendação continua aprovada) | ✅ sim | ✅ sim (Pedro, PR #108 → v1.31) | 0 |
+| 203 | Premiação: buscar o finalista pelo **código da lista final** (FET.AGR-001) no cartão da credencial e na aba do comitê | ✅ sim | ✅ sim (Pedro, PR #108 → v1.31) | 0 |
+| 204 | Câmera do check-in: o vídeo liga no elemento já desenhado (fim do quadro em branco), com aviso de abertura e motivo do erro | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 205 | Câmera no **iPhone** (e Chrome no Windows/Linux): ZXing em WebAssembly servido pelo portal quando não há `BarcodeDetector` | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprints 204–205 (branch `feat/cerimonial-camera-e-leitura-direta`, saída da `origin/main` @ `c4aa1e8`):**
+> a câmera dos dois balcões que leem crachá (Credenciamento e Cerimonial).
+> (a) **Sprint 204** — relato: no check-in do cerimonial, "Ler com a câmera" abria um **quadro em
+> branco**. O stream era ligado ao `<video>` num `setTimeout(0)` logo depois do `setCamera(true)`, e
+> esse timeout podia correr antes de o React desenhar o elemento: `video.current` vinha nulo, a
+> câmera ficava ligada e nada aparecia. A câmera virou um componente próprio, `LeitorCamera.jsx`,
+> que existe montado **só enquanto está aberta** e faz tudo no efeito de montagem (quando o vídeo já
+> está na página); desmontar desliga o aparelho. No caminho: `muted` escrito na **propriedade** (o
+> React não o põe no elemento, e o iPhone só toca vídeo sem toque se ele estiver mudo),
+> `playsInline`/`autoPlay`, `facingMode` como *ideal* (o notebook sem câmera traseira não falha),
+> "Abrindo a câmera…" enquanto acorda, uma mira quando está pronta e o **motivo** quando não abre
+> (permissão negada — com o caminho no iPhone —, nenhuma câmera, câmera em uso). O mesmo crachá
+> parado na frente conta **uma vez** (`REPETICAO_MS`, 4s sem vê-lo para contar de novo), e enquanto
+> a leitura está no servidor nenhum quadro novo é examinado. `LeitorCodigo` (balcão) e
+> `LeitorCerimonial` passaram a usá-lo.
+> (b) **Sprint 205** — no iPhone (Safari) a tela dizia que o navegador não lia QR. **Nenhum
+> navegador do iPhone tem a `BarcodeDetector`** (todos são WebKit), e o Chrome no Windows e no Linux
+> a expõe sem motor por trás — provavelmente o quadro em branco de quem testou no computador. O
+> detector agora sai de `lib/leitorCamera.js`: o do navegador quando ele lê **QR e Code 128**, e no
+> resto o **`barcode-detector`** (dependência nova de npm), a mesma API sobre o ZXing em
+> WebAssembly. O `.wasm` (~1 MB, 460 KB com gzip) entra no build como asset e é **servido pelo
+> portal**, não pelo CDN padrão da biblioteca; ele e o JS (~44 KB) são baixados **só** quando alguém
+> abre a câmera num navegador que precisa deles. O botão da câmera passou a depender só de a câmera
+> poder abrir (`getUserMedia` em **contexto seguro**); fora de https a tela diz isso, em vez de
+> culpar o aparelho. Conferido no Chromium sem a API nativa, com o crachá gerado pelo
+> `IdentificacaoService`: QR e Code 128 lidos, inclusive reduzidos, girados e borrados.
+>
 > **Sprint 203 (mesma branch):** o campo de busca de cada cartão de credencial (Premiação e
 > Credenciais e Prêmios) e o da aba **Comitê especial** do avaliador passaram a mostrar e achar o
 > finalista pelo **código da lista final vigente** — "FET.AGR-001 — Título"; digitar "agr-001" ou
