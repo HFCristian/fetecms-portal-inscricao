@@ -457,9 +457,17 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     entram **em lote** (modelo Excel → prévia → senhas geradas numa planilha de acesso) e podem ser
     **removidas** — apagadas se nunca atenderam ninguém, arquivadas se já deixaram rastro
     (Sprint 155). `ContaTemporariaService`.
-  - **Cerimonial** (`/admin/cerimonial`): a porta da **cerimônia de premiação** — outro momento
+  - **Cerimonial** (`/admin/cerimonial`): a porta das **cerimônias de premiação** — outro momento
     do evento que não o credenciamento, e por isso o check-in **não depende** dele: a ficha diz se
-    o projeto passou pelo balcão e não trava quem não passou. Três seções. **Check-in** atende
+    o projeto passou pelo balcão e não trava quem não passou. A feira faz **mais de uma
+    premiação** com o mesmo funcionamento: cada **evento de cerimônia** (`cerimonial_eventos`,
+    `/admin/cerimonial/eventos`, só admin permanente) tem um nome e um **público** — as
+    categorias dos finalistas que recebe; uma categoria pode estar em mais de um evento. Tudo é
+    **por evento**: o check-in (`cerimonial_checkins.evento_id`; quem vai às duas cerimônias entra
+    nas duas), a busca, a ficha e o painel. A porta **escolhe o evento** no topo do Check-in
+    (lembrado no aparelho; com um só cadastrado ele já vem escolhido), e o crachá de outro público
+    é recusado dizendo de quem é. Visão Geral e Premiados têm o mesmo seletor e a opção **Todos**,
+    que soma o público de todos os eventos contando cada pessoa uma vez. **Check-in** atende
     pelos dois caminhos da fila: o **crachá** da lista final (leitor USB ou câmera — inclusive no
     iPhone —, mesmas três conferências do balcão) **já registra a entrada** daquela pessoa e mostra
     o nome num card de 2 segundos (`POST /admin/cerimonial/checkin-codigo`, `CardCheckin.jsx`); a
@@ -907,7 +915,38 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 204 | Câmera do check-in: o vídeo liga no elemento já desenhado (fim do quadro em branco), com aviso de abertura e motivo do erro | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 205 | Câmera no **iPhone** (e Chrome no Windows/Linux): ZXing em WebAssembly servido pelo portal quando não há `BarcodeDetector` | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 206 | Cerimonial: ler o crachá **já registra a entrada**, com o nome num card de 2s (barra no botão Ok) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 207 | Cerimonial → **Eventos de cerimônia**: nome + público (categorias), check-in e painel por evento | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 208 | Cerimonial: a porta **escolhe o evento** no check-in; Visão Geral e Premiados por evento ou **Todos** | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprints 207–208 (mesma branch):** a feira faz **duas premiações** — FETECMS numa, FETEC Jr e
+> FETECMS FUNDECT na outra —, com o mesmo funcionamento e públicos diferentes.
+> (a) **Sprint 207** — **eventos de cerimônia** (`cerimonial_eventos`: nome + `categorias`, JSON),
+> cadastrados em Cerimonial → **Eventos de cerimônia** (`/admin/cerimonial/eventos`,
+> `POST|PUT|DELETE /admin/cerimonial/eventos`, só admin permanente; `GET` também para a conta da
+> porta). O público é a lista de **categorias**, e a mesma categoria pode estar em mais de um evento
+> (uma cerimônia geral ao lado das duas, por exemplo). Nome repetido na edição é recusado — é ele
+> que a porta escolhe. Evento que já recebeu check-in de verdade **não é excluído** (é a memória de
+> quem esteve na sala); para mudar quem ele recebe, edita-se o público. O check-in ganhou
+> `cerimonial_checkins.evento_id` e a unicidade passou a ser por evento: quem vai às duas
+> cerimônias entra nas duas. A migration cria o evento "Cerimônia de premiação", com as três
+> categorias, para cada edição que já tinha check-in, e os pendura nele. No servidor, tudo passou a
+> receber o evento (`evento_id`, na query): check-in pelo crachá, check-in na ficha, desfazer,
+> busca e ficha **exigem** um (422 "Escolha o evento de cerimônia."; evento de outra edição é 404) e
+> recusam o projeto fora do público — o crachá diz de quem é: "Ana Paula é de um projeto da FETEC
+> Jr, que não está no público de Premiação FETECMS.". Registros → Cerimonial passou a dizer em que
+> evento foi cada check-in.
+> (b) **Sprint 208** — as telas. O **Check-in** pergunta "Em que cerimônia você está?" no topo, com
+> um botão por evento e o público embaixo, e o título mostra o evento escolhido. A escolha fica
+> **neste aparelho** (`localStorage`, `useEventoCerimonial`): o tablet da porta da FETECMS passa a
+> tarde inteira na FETECMS. Com um evento só ele já vem escolhido; com mais de um, ninguém escolhe
+> pelo atendente — a leitura e a busca só aparecem depois da escolha. A ficha abre no evento do
+> link (`?evento=`). **Visão Geral** e **Premiados** ganharam o mesmo seletor com **Todos**, o
+> padrão, que soma o público de todos os eventos contando cada pessoa **uma vez** (presente se
+> entrou em qualquer um). De quebra, um defeito que a separação expôs: o card de premiados e o de
+> credenciais contavam **todos** os projetos premiados da edição, mesmo os de fora do público —
+> agora só os do evento.
+> Back **1459/1459**, front **784/784**, Pint limpo, build OK.
+>
 > **Sprint 206 (mesma branch):** na porta da cerimônia, **leu, entrou**. Ler o crachá (leitor USB,
 > código digitado + Enter ou câmera) deixou de abrir a ficha do projeto: a entrada **daquela
 > pessoa** é registrada na hora (`POST /admin/cerimonial/checkin-codigo`,
@@ -926,10 +965,16 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > leitor do Credenciamento continua abrindo a ficha, como antes.
 > Back **1450/1450**, front **766/766**, Pint limpo, build OK.
 >
-> **Pendências do Pedro (Sprints 204–206):** (1) `git push origin feat/cerimonial-camera-e-leitura-direta`
-> + PR para a `main` (o ambiente do Claude não tem credencial do GitHub). **Sem migration e sem
-> variável de `.env`**; **uma dependência nova de npm** (`barcode-detector`, que traz o
-> `zxing-wasm`): rode `npm ci && npm run build` no deploy. (2) A câmera **exige https** — no
+> **Pendências do Pedro (Sprints 204–208):** (1) `git push origin feat/cerimonial-camera-e-leitura-direta`
+> + PR para a `main` (o ambiente do Claude não tem credencial do GitHub). **Uma migration**
+> (`cerimonial_eventos` + `cerimonial_checkins.evento_id`), **nenhuma variável de `.env`** e
+> **uma dependência nova de npm** (`barcode-detector`, que traz o `zxing-wasm`): rode
+> `composer install`, `php artisan migrate`, `npm ci && npm run build` no deploy. (1b) **Antes da
+> cerimônia, cadastre os eventos** em Cerimonial → Eventos de cerimônia ("Premiação FETECMS" com a
+> FETECMS; "Premiação FETEC Jr e FUNDECT" com as duas): sem evento, a porta não registra check-in.
+> Se já houver check-in na edição, a migration criou "Cerimônia de premiação" com as três
+> categorias — renomeie-o e ajuste o público em vez de criar um terceiro. Cada tablet da porta
+> escolhe o seu evento uma vez. (2) A câmera **exige https** — no
 > iPhone, sem https o navegador nem oferece a câmera, e a tela agora diz isso. (3) O servidor deve
 > entregar o `.wasm` com o tipo `application/wasm` (o nginx atual já faz; sem isso ele carrega mais
 > devagar, mas carrega). (4) **No iPhone**, na primeira vez o Safari pergunta se libera a câmera;

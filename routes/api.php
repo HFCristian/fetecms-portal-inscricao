@@ -520,6 +520,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::middleware('aba:cerimonial')->prefix('cerimonial')->group(function () {
                 // O balcão: é o que a conta temporária do setor faz, e só isso.
                 Route::get('/config', [CerimonialController::class, 'config']);
+                Route::get('/eventos', [CerimonialController::class, 'eventos']);
                 Route::post('/checkin-codigo', [CerimonialController::class, 'checkinCodigo']);
                 Route::get('/busca', [CerimonialController::class, 'buscar']);
                 Route::get('/projetos/{projeto}', [CerimonialController::class, 'show']);
@@ -534,6 +535,10 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                     Route::get('/visao-geral/detalhe', [CerimonialController::class, 'detalhe']);
                     Route::get('/premiados', [CerimonialController::class, 'premiados']);
                     Route::patch('/atualizacao', [CerimonialController::class, 'definirAtualizacao']);
+                    // Os eventos de cerimônia e o público de cada um (Sprint 207).
+                    Route::post('/eventos', [CerimonialController::class, 'criarEvento']);
+                    Route::put('/eventos/{evento}', [CerimonialController::class, 'atualizarEvento']);
+                    Route::delete('/eventos/{evento}', [CerimonialController::class, 'excluirEvento']);
 
                     Route::contasTemporarias('cerimonial');
                 });

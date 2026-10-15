@@ -2,14 +2,17 @@
 
 namespace App\Services;
 
+use App\Enums\Categoria;
 use App\Enums\TipoCredencial;
 use App\Models\CerimonialCheckin;
+use App\Models\CerimonialEvento;
 use App\Models\Credencial;
 use App\Models\Edicao;
 use App\Models\ListaFinal;
 use App\Models\Projeto;
 use App\Models\User;
 use App\Support\CodigoParticipante;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -39,6 +42,14 @@ use Illuminate\Validation\ValidationException;
  * tipos pesa num lugar só: a **medalha** segue a pessoa premiada que chegou, e
  * a **credencial a separar** segue o projeto premiado presente — contando só o
  * que tem objeto na mesa, isto é, `tipo = credencial`.
+ *
+ * **Eventos de cerimônia** (Sprint 207): a feira faz mais de uma premiação —
+ * uma para a FETECMS, outra para a FETEC Jr e a FETECMS FUNDECT —, com o mesmo
+ * funcionamento e públicos diferentes. Cada {@see CerimonialEvento} diz quais
+ * **categorias** recebe, e tudo aqui é por evento: o check-in, a busca, a
+ * ficha, a Visão Geral e os premiados. Sem evento ("Todos"), a Visão Geral e
+ * os premiados somam o público de todos os eventos da edição, contando cada
+ * pessoa uma vez — presente se entrou em qualquer um deles.
  *
  * **Quem opera**: a conta temporária do setor `cerimonial` atende o check-in e
  * nada mais. A Visão Geral e as contas ficam para a organização — quem está na
@@ -104,6 +115,7 @@ class CerimonialService
             'pode_gerir' => ! (bool) $user?->ehContaTemporaria(),
             // Nulo = sem atualização automática, só o botão de atualizar.
             'atualizacao_segundos' => $edicao?->cerimonial_atualizacao_segundos,
+            'eventos' => $this->eventos(),
             'lista' => $vigente === null ? null : [
                 'id' => $vigente->id,
                 'nome' => $vigente->nome,
@@ -126,6 +138,116 @@ class CerimonialService
         $edicao->save();
 
         return $segundos;
+    }
+
+    // -----------------------------------------------------------------
+    // Eventos de cerimônia
+    // -----------------------------------------------------------------
+
+    /**
+     * Os eventos da edição em uso, na ordem em que foram criados, com o
+     * público e quantas pessoas já entraram em cada um (fora do ensaio).
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function eventos(): array
+    {
+        $edicao = Edicao::atual();
+
+        if ($edicao === null) {
+            return [];
+        }
+
+        return CerimonialEvento::where('edicao_id', $edicao->id)
+            ->withCount(['checkins' => fn ($q) => $q->where('demo', false)])
+            ->orderBy('id')
+            ->get()
+            ->map(fn (CerimonialEvento $e) => $this->resumoEvento($e))
+            ->all();
+    }
+
+    /** O evento pelo id — só os da edição em uso. */
+    public function evento(int $id): CerimonialEvento
+    {
+        $evento = CerimonialEvento::where('edicao_id', Edicao::atual()?->id)->find($id);
+
+        if ($evento === null) {
+            abort(404, 'Evento de cerimônia não encontrado nesta edição.');
+        }
+
+        return $evento;
+    }
+
+    /**
+     * Cria (sem `$evento`) ou altera um evento: o nome e as categorias do
+     * público. Tirar uma categoria de um evento que já recebeu gente não apaga
+     * check-in nenhum — eles só deixam de contar ali.
+     *
+     * @param  list<string>  $categorias  valores de {@see Categoria}
+     * @return array<string, mixed>
+     */
+    public function salvarEvento(?CerimonialEvento $evento, string $nome, array $categorias): array
+    {
+        $edicao = Edicao::atual();
+
+        if ($edicao === null) {
+            throw ValidationException::withMessages(['nome' => 'Não há edição em uso para receber o evento.']);
+        }
+
+        $evento ??= new CerimonialEvento(['edicao_id' => $edicao->id]);
+        $evento->fill([
+            'nome' => trim($nome),
+            'categorias' => array_values(array_unique($categorias)),
+        ])->save();
+
+        return $this->resumoEvento($evento->loadCount(['checkins' => fn ($q) => $q->where('demo', false)]));
+    }
+
+    /**
+     * Exclui um evento que ainda não recebeu ninguém. Depois do primeiro
+     * check-in de verdade ele é a memória de quem esteve na sala, e some só
+     * com a edição. Os check-ins do ensaio vão junto.
+     */
+    public function excluirEvento(CerimonialEvento $evento): void
+    {
+        if ($evento->checkins()->where('demo', false)->exists()) {
+            throw ValidationException::withMessages([
+                'evento' => 'Este evento já tem check-ins e não pode ser excluído. Para mudar quem ele recebe, edite o público.',
+            ]);
+        }
+
+        $evento->delete();
+    }
+
+    /** @return array<string, mixed> */
+    private function resumoEvento(CerimonialEvento $evento): array
+    {
+        return [
+            'id' => $evento->id,
+            'nome' => $evento->nome,
+            'categorias' => array_values(array_map(
+                fn (Categoria $c) => $c->value,
+                array_filter(Categoria::ordemDaLista(), fn (Categoria $c) => $evento->recebe($c)),
+            )),
+            'publico' => $evento->publicoLabel(),
+            'checkins' => (int) ($evento->checkins_count ?? 0),
+        ];
+    }
+
+    /** O projeto é do público do evento? Diz por quê não, quando não é. */
+    private function garantirPublico(Projeto $projeto, CerimonialEvento $evento, string $campo, ?string $pessoa = null): void
+    {
+        if ($evento->recebe($projeto->categoria)) {
+            return;
+        }
+
+        $categoria = $projeto->categoria?->label() ?? 'sem categoria';
+
+        throw ValidationException::withMessages([
+            $campo => $pessoa !== null
+                ? "{$pessoa} é de um projeto da {$categoria}, que não está no público de {$evento->nome}."
+                : "Este projeto é da {$categoria}, que não está no público de {$evento->nome}.",
+        ]);
     }
 
     // -----------------------------------------------------------------
@@ -193,7 +315,7 @@ class CerimonialService
      *
      * @return list<array<string, mixed>>
      */
-    public function buscar(string $termo, ?User $user = null, bool $teste = false, int $limite = 25): array
+    public function buscar(string $termo, CerimonialEvento $evento, ?User $user = null, bool $teste = false, int $limite = 25): array
     {
         $termo = trim($termo);
 
@@ -203,9 +325,9 @@ class CerimonialService
 
         $digitos = preg_replace('/\D/', '', $termo);
         $alvo = $this->normalizar($termo);
-        $presentes = $this->checkinsPorChave($user, $teste);
+        $presentes = $this->checkinsPorChave($user, $teste, $evento);
 
-        return $this->participantes($user, $teste)
+        return $this->participantes($user, $teste, $evento)
             ->filter(function (array $p) use ($alvo, $digitos) {
                 if (str_contains($this->normalizar($p['nome']), $alvo)) {
                     return true;
@@ -243,10 +365,14 @@ class CerimonialService
      *
      * @return array<string, mixed>
      */
-    public function ficha(Projeto $projeto, ?User $user = null, bool $teste = false): array
+    public function ficha(Projeto $projeto, CerimonialEvento $evento, ?User $user = null, bool $teste = false): array
     {
         if (! $this->ehFinalista($projeto, $user, $teste)) {
             abort(404, 'Este projeto não está na lista final vigente.');
+        }
+
+        if (! $evento->recebe($projeto->categoria)) {
+            abort(404, "Este projeto não está no público de {$evento->nome}.");
         }
 
         $projeto->loadMissing([
@@ -254,6 +380,7 @@ class CerimonialService
         ]);
 
         $checkins = CerimonialCheckin::where('projeto_id', $projeto->id)
+            ->where('evento_id', $evento->id)
             ->where('demo', $this->emTeste($user, $teste))
             ->with('autor:id,name')
             ->get()
@@ -276,6 +403,7 @@ class CerimonialService
         $presentes = count(array_filter($pessoas, fn (array $p) => $p['presente']));
 
         return [
+            'evento' => ['id' => $evento->id, 'nome' => $evento->nome],
             'projeto' => [
                 'id' => $projeto->id,
                 'titulo' => $projeto->titulo,
@@ -304,7 +432,7 @@ class CerimonialService
      * @param  list<string>  $chaves  papel + id de cada pessoa ("A45", "O12")
      * @return array<string, mixed>
      */
-    public function registrar(Projeto $projeto, array $chaves, User $admin, bool $teste = false): array
+    public function registrar(Projeto $projeto, array $chaves, User $admin, CerimonialEvento $evento, bool $teste = false): array
     {
         $emTeste = $this->emTeste($admin, $teste);
 
@@ -318,6 +446,8 @@ class CerimonialService
             abort(404, 'Este projeto não está na lista final vigente.');
         }
 
+        $this->garantirPublico($projeto, $evento, 'participantes');
+
         $pessoas = collect($this->participantesDo($projeto))->keyBy('chave');
         $desconhecidas = array_values(array_diff($chaves, $pessoas->keys()->all()));
 
@@ -327,9 +457,9 @@ class CerimonialService
             ]);
         }
 
-        $this->gravar($projeto, array_map(fn (string $chave) => $pessoas->get($chave), $chaves), $admin, $emTeste);
+        $this->gravar($projeto, array_map(fn (string $chave) => $pessoas->get($chave), $chaves), $admin, $evento, $emTeste);
 
-        return $this->ficha($projeto, $admin, $teste);
+        return $this->ficha($projeto, $evento, $admin, $teste);
     }
 
     /**
@@ -348,7 +478,7 @@ class CerimonialService
      *
      * @return array<string, mixed>
      */
-    public function checkinPorCodigo(string $codigo, User $admin, bool $teste = false): array
+    public function checkinPorCodigo(string $codigo, User $admin, CerimonialEvento $evento, bool $teste = false): array
     {
         // A janela vem antes do código: com o evento fechado, "código não
         // reconhecido" mandaria o atendente bipar de novo à toa.
@@ -361,9 +491,14 @@ class CerimonialService
         [$projeto, $pessoa] = $this->lerCracha($codigo, $admin, $teste);
         $emTeste = $this->emTeste($admin, $teste);
 
-        $novos = $this->gravar($projeto, [$pessoa], $admin, $emTeste);
+        // O crachá certo na porta errada: diz de quem é, para o atendente
+        // mandar a pessoa para a cerimônia dela.
+        $this->garantirPublico($projeto, $evento, 'codigo', $pessoa['nome']);
+
+        $novos = $this->gravar($projeto, [$pessoa], $admin, $evento, $emTeste);
 
         $checkin = CerimonialCheckin::where('projeto_id', $projeto->id)
+            ->where('evento_id', $evento->id)
             ->where('papel', $pessoa['papel'])
             ->where('participante_id', $pessoa['participante_id'])
             ->where('demo', $emTeste)
@@ -390,16 +525,17 @@ class CerimonialService
      * @param  list<array<string, mixed>>  $pessoas  linhas de {@see participantesDo()}
      * @return list<array<string, mixed>> só as que entraram agora
      */
-    private function gravar(Projeto $projeto, array $pessoas, User $admin, bool $emTeste): array
+    private function gravar(Projeto $projeto, array $pessoas, User $admin, CerimonialEvento $evento, bool $emTeste): array
     {
         $edicao = Edicao::atual();
 
-        $novos = DB::transaction(function () use ($pessoas, $projeto, $admin, $edicao, $emTeste) {
+        $novos = DB::transaction(function () use ($pessoas, $projeto, $admin, $edicao, $evento, $emTeste) {
             $criados = [];
 
             foreach ($pessoas as $pessoa) {
                 $checkin = CerimonialCheckin::firstOrCreate(
                     [
+                        'evento_id' => $evento->id,
                         'projeto_id' => $projeto->id,
                         'papel' => $pessoa['papel'],
                         'participante_id' => $pessoa['participante_id'],
@@ -430,6 +566,7 @@ class CerimonialService
                 $pessoa['nome'],
                 $pessoa['papel_label'],
                 $emTeste,
+                $evento->nome,
             );
         }
 
@@ -446,7 +583,7 @@ class CerimonialService
      *
      * @return array<string, mixed>
      */
-    public function desfazer(Projeto $projeto, string $chave, string $justificativa, User $admin, bool $teste = false): array
+    public function desfazer(Projeto $projeto, string $chave, string $justificativa, User $admin, CerimonialEvento $evento, bool $teste = false): array
     {
         $emTeste = $this->emTeste($admin, $teste);
 
@@ -460,6 +597,7 @@ class CerimonialService
         $participanteId = (int) substr($chave, 1);
 
         $checkin = CerimonialCheckin::where('projeto_id', $projeto->id)
+            ->where('evento_id', $evento->id)
             ->where('papel', $papel)
             ->where('participante_id', $participanteId)
             ->where('demo', $emTeste)
@@ -478,11 +616,12 @@ class CerimonialService
             $checkin->papelLabel(),
             trim($justificativa),
             $emTeste,
+            $evento->nome,
         );
 
         $checkin->delete();
 
-        return $this->ficha($projeto, $admin, $teste);
+        return $this->ficha($projeto, $evento, $admin, $teste);
     }
 
     // -----------------------------------------------------------------
@@ -499,9 +638,9 @@ class CerimonialService
      *
      * @return array<string, mixed>
      */
-    public function visaoGeral(?User $user = null, bool $teste = false): array
+    public function visaoGeral(?User $user = null, bool $teste = false, ?CerimonialEvento $evento = null): array
     {
-        $contexto = $this->contexto($user, $teste);
+        $contexto = $this->contexto($user, $teste, $evento);
 
         return [
             'pessoas' => $contexto['pessoas'],
@@ -518,10 +657,10 @@ class CerimonialService
      *
      * @return array<string, mixed>
      */
-    public function detalhe(string $card, ?User $user = null, bool $teste = false): array
+    public function detalhe(string $card, ?User $user = null, bool $teste = false, ?CerimonialEvento $evento = null): array
     {
-        $participantes = $this->participantes($user, $teste);
-        $presentes = $this->checkinsPorChave($user, $teste);
+        $participantes = $this->participantes($user, $teste, $evento);
+        $presentes = $this->checkinsPorChave($user, $teste, $evento);
         $premiados = $this->projetosPremiados();
 
         $daPessoa = fn (array $p) => [
@@ -589,12 +728,12 @@ class CerimonialService
      *
      * @return list<array<string, mixed>>
      */
-    public function premiados(?User $user = null, bool $teste = false): array
+    public function premiados(?User $user = null, bool $teste = false, ?CerimonialEvento $evento = null): array
     {
-        $presentes = $this->checkinsPorChave($user, $teste);
+        $presentes = $this->checkinsPorChave($user, $teste, $evento);
         $premiados = $this->projetosPremiados();
 
-        return $this->participantes($user, $teste)
+        return $this->participantes($user, $teste, $evento)
             ->filter(fn (array $p) => isset($premiados[$p['projeto_id']]))
             ->groupBy('projeto_id')
             ->map(function (Collection $pessoas, int $projetoId) use ($presentes, $premiados) {
@@ -644,11 +783,15 @@ class CerimonialService
      *
      * @return array<string, mixed>
      */
-    private function contexto(?User $user, bool $teste): array
+    private function contexto(?User $user, bool $teste, ?CerimonialEvento $evento): array
     {
-        $participantes = $this->participantes($user, $teste);
-        $presentes = $this->checkinsPorChave($user, $teste);
-        $premiados = $this->projetosPremiados();
+        $participantes = $this->participantes($user, $teste, $evento);
+        $presentes = $this->checkinsPorChave($user, $teste, $evento);
+        // Só os premiados do público: a outra cerimônia separa as medalhas dela.
+        $premiados = array_intersect_key(
+            $this->projetosPremiados(),
+            $participantes->pluck('projeto_id')->flip()->all(),
+        );
 
         $chegou = fn (array $p) => isset($presentes[$p['projeto_id'].':'.$p['chave']]);
 
@@ -713,19 +856,22 @@ class CerimonialService
     }
 
     /**
-     * Os participantes de todos os projetos finalistas, uma linha por pessoa.
+     * Os participantes dos projetos finalistas do público do evento (ou de
+     * todos os eventos), uma linha por pessoa.
      *
      * @return Collection<int, array<string, mixed>>
      */
-    private function participantes(?User $user, bool $teste): Collection
+    private function participantes(?User $user, bool $teste, ?CerimonialEvento $evento): Collection
     {
         $lista = $this->listaFinal($user, $teste);
+        $categorias = $this->categoriasDoPublico($evento);
 
-        if ($lista === null) {
+        if ($lista === null || $categorias === []) {
             return collect();
         }
 
         return Projeto::whereIn('id', $lista->projetos()->select('projetos.id'))
+            ->whereIn('categoria', $categorias)
             ->with(['alunos', 'coorientador', 'user.orientadorProfile', 'area:id,nome', 'instituicao.cidade.estado'])
             ->orderBy('titulo')
             ->get()
@@ -736,6 +882,31 @@ class CerimonialService
                 'area' => $projeto->area?->nome,
                 'escola' => $this->escola($projeto),
             ], $this->participantesDo($projeto)));
+    }
+
+    /**
+     * As categorias do público: as do evento, ou a soma das de todos os
+     * eventos da edição ("Todos").
+     *
+     * @return list<string>
+     */
+    private function categoriasDoPublico(?CerimonialEvento $evento): array
+    {
+        if ($evento !== null) {
+            return $evento->categorias ?? [];
+        }
+
+        return $this->eventosDaEdicao()->get(['categorias'])
+            ->flatMap(fn (CerimonialEvento $e) => $e->categorias ?? [])
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /** @return Builder<CerimonialEvento> */
+    private function eventosDaEdicao(): Builder
+    {
+        return CerimonialEvento::where('edicao_id', Edicao::atual()?->id);
     }
 
     /**
@@ -792,7 +963,7 @@ class CerimonialService
      *
      * @return array<string, string> valor = a hora do check-in, para a lista nominal
      */
-    private function checkinsPorChave(?User $user, bool $teste): array
+    private function checkinsPorChave(?User $user, bool $teste, ?CerimonialEvento $evento): array
     {
         $lista = $this->listaFinal($user, $teste);
 
@@ -802,6 +973,14 @@ class CerimonialService
 
         return CerimonialCheckin::whereIn('projeto_id', $lista->projetos()->select('projetos.id'))
             ->where('demo', $this->emTeste($user, $teste))
+            ->when(
+                $evento !== null,
+                fn ($q) => $q->where('evento_id', $evento->id),
+                fn ($q) => $q->whereIn('evento_id', $this->eventosDaEdicao()->select('id')),
+            )
+            // Em "Todos", quem entrou nas duas cerimônias vale pela primeira
+            // entrada: a mais recente vem antes e é sobrescrita.
+            ->orderByDesc('checkin_em')
             ->get()
             ->mapWithKeys(fn (CerimonialCheckin $c) => [
                 $c->projeto_id.':'.$c->chave() => $c->checkin_em?->format('d/m/Y H:i'),

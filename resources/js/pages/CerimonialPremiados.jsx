@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
+import SeletorEvento from '../components/SeletorEvento.jsx';
 import { Alert, Button } from '../components/ui.jsx';
 import { IconePessoa } from './CerimonialFicha.jsx';
 import { extractErrors } from '../lib/auth.jsx';
-import { getPremiados } from '../lib/cerimonial.js';
+import { getEventosCerimonia, getPremiados } from '../lib/cerimonial.js';
+import { TODOS, useEventoCerimonial } from '../lib/eventoCerimonial.js';
 import { useModoTeste } from '../lib/modoTeste.js';
 
 /**
@@ -14,7 +16,7 @@ import { useModoTeste } from '../lib/modoTeste.js';
  * instantânea — "esta equipe está inteira?" —, e uma tabela de nomes obrigaria
  * a ler linha por linha enquanto o locutor espera.
  */
-function CartaoProjeto({ projeto }) {
+function CartaoProjeto({ projeto, evento }) {
     return (
         <li className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-5">
             <div className="flex flex-wrap items-start justify-between gap-2">
@@ -71,7 +73,7 @@ function CartaoProjeto({ projeto }) {
             </ul>
 
             <Link
-                to={`/admin/cerimonial/projetos/${projeto.id}`}
+                to={`/admin/cerimonial/projetos/${projeto.id}${evento === TODOS ? '' : `?evento=${evento}`}`}
                 className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline mt-3"
             >
                 <span className="material-symbols-outlined text-[18px]">how_to_reg</span>
@@ -95,14 +97,20 @@ export default function CerimonialPremiados() {
     const [erro, setErro] = useState('');
     const [busca, setBusca] = useState('');
     const [soIncompletos, setSoIncompletos] = useState(false);
+    const [eventos, setEventos] = useState(null);
+    const [evento, setEvento] = useEventoCerimonial(eventos, 'painel');
 
-    const carregar = useCallback(() => getPremiados(teste)
+    useEffect(() => {
+        getEventosCerimonia().then(setEventos).catch(() => setEventos([]));
+    }, []);
+
+    const carregar = useCallback(() => getPremiados(teste, evento)
         .then((dados) => { setProjetos(dados); setErro(''); })
         .catch((e) => {
             const { message } = extractErrors(e);
             setErro(message || 'Não foi possível carregar os premiados.');
             setProjetos([]);
-        }), [teste]);
+        }), [teste, evento]);
 
     useEffect(() => { carregar(); }, [carregar]);
 
@@ -130,6 +138,8 @@ export default function CerimonialPremiados() {
                 fica <span className="text-green-700 font-semibold">verde</span> quando a pessoa já
                 fez check-in — é o jeito de ver, antes de chamar ao palco, se a equipe está inteira.
             </p>
+
+            <SeletorEvento eventos={eventos} valor={evento} onEscolher={setEvento} permitirTodos rotulo="Cerimônia" />
 
             {erro && <div className="mb-4 max-w-3xl"><Alert>{erro}</Alert></div>}
 
@@ -164,7 +174,7 @@ export default function CerimonialPremiados() {
                 </div>
             ) : (
                 <ul className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    {lista.map((p) => <CartaoProjeto key={p.id} projeto={p} />)}
+                    {lista.map((p) => <CartaoProjeto key={p.id} projeto={p} evento={evento} />)}
                 </ul>
             )}
         </AppShell>

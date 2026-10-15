@@ -50,13 +50,13 @@ describe('LeitorCerimonial', () => {
 
     it('o leitor bipa e a entrada já fica registrada, com o nome na tela', async () => {
         const onRegistrado = vi.fn();
-        render(<LeitorCerimonial onRegistrado={onRegistrado} />);
+        render(<LeitorCerimonial evento={3} onRegistrado={onRegistrado} />);
 
         const campo = screen.getByLabelText('Código do crachá');
         expect(campo).toHaveFocus();
         bipar('2026-31-123-A45');
 
-        await waitFor(() => expect(checkinPorCodigo).toHaveBeenCalledWith('2026-31-123-A45', false));
+        await waitFor(() => expect(checkinPorCodigo).toHaveBeenCalledWith('2026-31-123-A45', false, 3));
         expect(await screen.findByText('Ana Paula')).toBeInTheDocument();
         expect(screen.getByText('Check-in feito')).toBeInTheDocument();
         expect(onRegistrado).toHaveBeenCalledWith(resposta());
@@ -68,7 +68,7 @@ describe('LeitorCerimonial', () => {
     it('o card some em 2 segundos', async () => {
         vi.useFakeTimers({ shouldAdvanceTime: true });
         try {
-            render(<LeitorCerimonial />);
+            render(<LeitorCerimonial evento={3} />);
             bipar('2026-31-123-A45');
 
             expect(await screen.findByText('Ana Paula')).toBeInTheDocument();
@@ -83,7 +83,7 @@ describe('LeitorCerimonial', () => {
 
     it('quem já tinha entrado aparece com a hora da entrada', async () => {
         checkinPorCodigo.mockResolvedValue(resposta({ ja_presente: true }));
-        render(<LeitorCerimonial />);
+        render(<LeitorCerimonial evento={3} />);
 
         bipar('2026-31-123-A45');
 
@@ -98,7 +98,7 @@ describe('LeitorCerimonial', () => {
             .mockResolvedValueOnce(resposta({
                 participante: { chave: 'A46', nome: 'Bruno Lima', papel: 'A', papel_label: 'Aluno(a)' },
             }));
-        render(<LeitorCerimonial />);
+        render(<LeitorCerimonial evento={3} />);
 
         bipar('2026-31-123-A45');
         bipar('2026-31-123-A46');
@@ -110,7 +110,7 @@ describe('LeitorCerimonial', () => {
         await act(async () => primeira(resposta()));
 
         await waitFor(() => expect(checkinPorCodigo).toHaveBeenCalledTimes(2));
-        expect(checkinPorCodigo).toHaveBeenNthCalledWith(2, '2026-31-123-A46', false);
+        expect(checkinPorCodigo).toHaveBeenNthCalledWith(2, '2026-31-123-A46', false, 3);
         expect(await screen.findByText('Bruno Lima')).toBeInTheDocument();
     });
 
@@ -119,7 +119,7 @@ describe('LeitorCerimonial', () => {
             response: { data: { errors: { codigo: ['Este código não é de um projeto da lista final vigente.'] } } },
         });
         const onRegistrado = vi.fn();
-        render(<LeitorCerimonial onRegistrado={onRegistrado} />);
+        render(<LeitorCerimonial evento={3} onRegistrado={onRegistrado} />);
 
         bipar('2026-99-111-A1');
 
@@ -132,34 +132,34 @@ describe('LeitorCerimonial', () => {
     });
 
     it('leva o modo de teste junto', async () => {
-        render(<LeitorCerimonial teste />);
+        render(<LeitorCerimonial teste evento={3} />);
 
         bipar('2026-31-123-A45');
 
-        await waitFor(() => expect(checkinPorCodigo).toHaveBeenCalledWith('2026-31-123-A45', true));
+        await waitFor(() => expect(checkinPorCodigo).toHaveBeenCalledWith('2026-31-123-A45', true, 3));
     });
 
     it('campo vazio não chama o servidor', () => {
-        render(<LeitorCerimonial />);
+        render(<LeitorCerimonial evento={3} />);
 
         fireEvent.click(screen.getByRole('button', { name: 'Registrar entrada' }));
         expect(checkinPorCodigo).not.toHaveBeenCalled();
     });
 
     it('a câmera registra e continua aberta para a próxima pessoa', async () => {
-        render(<LeitorCerimonial />);
+        render(<LeitorCerimonial evento={3} />);
 
         fireEvent.click(screen.getByRole('button', { name: /Ler com a câmera/ }));
         fireEvent.click(screen.getByRole('button', { name: 'camera-falsa' }));
 
-        await waitFor(() => expect(checkinPorCodigo).toHaveBeenCalledWith('2026-31-123-A46', false));
+        await waitFor(() => expect(checkinPorCodigo).toHaveBeenCalledWith('2026-31-123-A46', false, 3));
         expect(await screen.findByText('Ana Paula')).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'camera-falsa' })).toBeInTheDocument();
     });
 
     it('sem câmera possível, o botão some e a tela diz por quê', () => {
         suporteCamera.mockReturnValue({ ok: false, motivo: 'A câmera só abre com o portal em conexão segura (endereço com https).' });
-        render(<LeitorCerimonial />);
+        render(<LeitorCerimonial evento={3} />);
 
         expect(screen.queryByRole('button', { name: /Ler com a câmera/ })).not.toBeInTheDocument();
         expect(screen.getByText(/conexão segura/)).toBeInTheDocument();

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { Alert, Button } from '../components/ui.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import { desfazerCheckin, getFichaCerimonial, registrarCheckin } from '../lib/cerimonial.js';
+import { eventoDaPorta } from '../lib/eventoCerimonial.js';
 import { useModoTeste } from '../lib/modoTeste.js';
 
 /** O busto genérico: verde para quem entrou, cinza para quem ainda não. */
@@ -32,9 +33,14 @@ export function IconePessoa({ presente, tamanho = 40 }) {
  *
  * O credenciamento aparece como **informação**: a cerimônia é outro momento, e
  * quem não passou pelo balcão entra do mesmo jeito.
+ *
+ * A ficha é **de um evento de cerimônia**: o do link (`?evento=`), que é o que
+ * a porta escolheu, ou, sem ele, o último escolhido neste aparelho.
  */
 export default function CerimonialFicha() {
     const { id } = useParams();
+    const [params] = useSearchParams();
+    const evento = Number(params.get('evento')) || eventoDaPorta();
     const [teste] = useModoTeste();
     const [ficha, setFicha] = useState(null);
     const [config, setConfig] = useState(null);
@@ -45,13 +51,21 @@ export default function CerimonialFicha() {
     const [desfazendo, setDesfazendo] = useState(null);
     const [justificativa, setJustificativa] = useState('');
 
-    const carregar = useCallback(() => getFichaCerimonial(id, teste)
-        .then((r) => { setFicha(r.data); setConfig(r.meta?.config ?? null); })
-        .catch((e) => {
-            const { message } = extractErrors(e);
-            setErro(message || 'Não foi possível abrir este projeto.');
+    const carregar = useCallback(() => {
+        if (!evento) {
+            setErro('Escolha o evento de cerimônia no Check-in antes de abrir a ficha.');
             setFicha(false);
-        }), [id, teste]);
+            return Promise.resolve();
+        }
+
+        return getFichaCerimonial(id, teste, evento)
+            .then((r) => { setFicha(r.data); setConfig(r.meta?.config ?? null); })
+            .catch((e) => {
+                const { message } = extractErrors(e);
+                setErro(message || 'Não foi possível abrir este projeto.');
+                setFicha(false);
+            });
+    }, [id, teste, evento]);
 
     useEffect(() => { carregar(); }, [carregar]);
 
@@ -66,7 +80,7 @@ export default function CerimonialFicha() {
         if (marcadas.length === 0) return;
         setOcupado(true); setErro(''); setSucesso('');
         try {
-            const atualizada = await registrarCheckin(id, marcadas, teste);
+            const atualizada = await registrarCheckin(id, marcadas, teste, evento);
             setFicha(atualizada);
             setSucesso(
                 marcadas.length === 1
@@ -85,7 +99,7 @@ export default function CerimonialFicha() {
     async function confirmarDesfazer() {
         setOcupado(true); setErro(''); setSucesso('');
         try {
-            const atualizada = await desfazerCheckin(id, desfazendo.chave, justificativa, teste);
+            const atualizada = await desfazerCheckin(id, desfazendo.chave, justificativa, teste, evento);
             setFicha(atualizada);
             setSucesso(`Check-in de ${desfazendo.nome} desfeito.`);
             setDesfazendo(null);
@@ -125,6 +139,12 @@ export default function CerimonialFicha() {
                 <span className="material-symbols-outlined text-[18px]">arrow_back</span> Check-in
             </Link>
 
+            {ficha.evento && (
+                <p className="inline-flex items-center gap-1 rounded-full bg-primary-container text-on-primary px-3 py-1 text-xs font-semibold mb-2">
+                    <span className="material-symbols-outlined text-[16px]" aria-hidden="true">event</span>
+                    {ficha.evento.nome}
+                </p>
+            )}
             <h1 className="font-display text-2xl font-semibold text-primary mb-1">{ficha.projeto.titulo}</h1>
             <p className="text-on-surface-variant mb-1">
                 {[ficha.projeto.categoria, ficha.projeto.area].filter(Boolean).join(' · ')}

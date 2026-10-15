@@ -10,7 +10,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * Um check-in da cerimônia: **uma pessoa** que entrou na sala.
  *
  * A identidade é o trio do crachá — projeto + papel (A/O/C) + id do
- * participante —, o mesmo que o QR Code e o código de barras carregam. O
+ * participante —, o mesmo que o QR Code e o código de barras carregam, **em um
+ * evento de cerimônia**: quem vai às duas premiações entra nas duas. O
  * `nome` vem desnormalizado porque as listas nominais e a trilha de auditoria
  * precisam continuar legíveis depois de a equipe mudar.
  */
@@ -19,7 +20,7 @@ class CerimonialCheckin extends Model
     protected $table = 'cerimonial_checkins';
 
     protected $fillable = [
-        'edicao_id', 'projeto_id', 'papel', 'participante_id',
+        'edicao_id', 'evento_id', 'projeto_id', 'papel', 'participante_id',
         'nome', 'checkin_em', 'registrado_por', 'demo',
     ];
 
@@ -34,6 +35,11 @@ class CerimonialCheckin extends Model
     public function projeto(): BelongsTo
     {
         return $this->belongsTo(Projeto::class);
+    }
+
+    public function evento(): BelongsTo
+    {
+        return $this->belongsTo(CerimonialEvento::class, 'evento_id');
     }
 
     public function autor(): BelongsTo

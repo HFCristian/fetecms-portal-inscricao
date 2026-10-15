@@ -21,7 +21,8 @@ import { suporteCamera } from '../lib/leitorCamera.js';
  *   incluído). Ela **fica aberta** entre uma pessoa e outra. Onde não pode
  *   abrir, o botão não aparece e a tela diz por quê.
  *
- * Lido o crachá, a entrada **daquela pessoa** já fica registrada e o
+ * Lido o crachá, a entrada **daquela pessoa** já fica registrada no evento
+ * de cerimônia escolhido (`evento`) e o
  * {@link CardCheckin} mostra o nome por 2 segundos. Não há ficha a abrir: a
  * equipe passa crachá a crachá. Quem chega sem crachá segue pela busca por
  * nome, que abre a ficha do projeto.
@@ -31,7 +32,7 @@ import { suporteCamera } from '../lib/leitorCamera.js';
  * Quem valida é o servidor — formato, lista que vale e se a pessoa é mesmo
  * daquela equipe.
  */
-export default function LeitorCerimonial({ teste = false, onRegistrado }) {
+export default function LeitorCerimonial({ teste = false, evento = null, onRegistrado }) {
     const [codigo, setCodigo] = useState('');
     const [pendentes, setPendentes] = useState(0);
     const [camera, setCamera] = useState(false);
@@ -49,7 +50,7 @@ export default function LeitorCerimonial({ teste = false, onRegistrado }) {
 
     async function registrar(limpo) {
         try {
-            const dados = await checkinPorCodigo(limpo, teste);
+            const dados = await checkinPorCodigo(limpo, teste, evento);
             mostrar({
                 tipo: dados.ja_presente ? 'repetido' : 'novo',
                 nome: dados.participante.nome,

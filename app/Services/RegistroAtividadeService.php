@@ -354,11 +354,13 @@ class RegistroAtividadeService
         string $pessoa,
         string $papel,
         bool $demo = false,
+        ?string $evento = null,
     ): RegistroAtividade {
         return $this->registrarNoProjeto(TipoRegistro::CerimonialCheckin, $projeto, $admin, [
             'pessoa' => $pessoa,
             'papel' => $papel,
             'quando' => now()->format('d/m/Y H:i'),
+            'evento' => $evento,
             'demo' => $demo,
         ]);
     }
@@ -377,11 +379,13 @@ class RegistroAtividadeService
         string $papel,
         string $justificativa,
         bool $demo = false,
+        ?string $evento = null,
     ): RegistroAtividade {
         return $this->registrarNoProjeto(TipoRegistro::CerimonialCheckinDesfeito, $projeto, $admin, [
             'pessoa' => $pessoa,
             'papel' => $papel,
             'justificativa' => $justificativa,
+            'evento' => $evento,
             'demo' => $demo,
         ]);
     }
@@ -873,9 +877,10 @@ class RegistroAtividadeService
         // por quê deixou de constar.
         if ($registro->tipo === TipoRegistro::CerimonialCheckin) {
             return sprintf(
-                '%s (%s) fez check-in%s%s',
+                '%s (%s) fez check-in%s%s%s',
                 $detalhes['pessoa'] ?? 'alguém',
                 $detalhes['papel'] ?? 'participante',
+                empty($detalhes['evento']) ? '' : ' em '.$detalhes['evento'],
                 empty($detalhes['quando']) ? '' : ' · '.$detalhes['quando'],
                 ($detalhes['demo'] ?? false) ? ' · modo de teste' : '',
             );
@@ -883,9 +888,10 @@ class RegistroAtividadeService
 
         if ($registro->tipo === TipoRegistro::CerimonialCheckinDesfeito) {
             return sprintf(
-                'check-in de %s (%s) desfeito · %s%s',
+                'check-in de %s (%s)%s desfeito · %s%s',
                 $detalhes['pessoa'] ?? 'alguém',
                 $detalhes['papel'] ?? 'participante',
+                empty($detalhes['evento']) ? '' : ' em '.$detalhes['evento'],
                 $detalhes['justificativa'] ?? 'sem justificativa',
                 ($detalhes['demo'] ?? false) ? ' · modo de teste' : '',
             );

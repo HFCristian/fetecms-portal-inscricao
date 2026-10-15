@@ -36,10 +36,15 @@ const DADOS = {
     atualizado_em: '19:32:10',
 };
 
-const META = { config: { aberto: true, lista: { demo: false }, atualizacao_segundos: null } };
+const EVENTOS = [
+    { id: 1, nome: 'Premiação FETECMS', categorias: ['fetecms'], publico: 'FETECMS', checkins: 0 },
+    { id: 2, nome: 'Premiação Jr', categorias: ['fetec_jr', 'fetecms_fundect'], publico: 'FETEC Jr e FETECMS FUNDECT', checkins: 0 },
+];
+const META = { config: { aberto: true, lista: { demo: false }, atualizacao_segundos: null, eventos: EVENTOS } };
 
 describe('CerimonialVisaoGeral', () => {
     beforeEach(() => {
+        localStorage.clear();
         vi.clearAllMocks();
         getVisaoGeral.mockResolvedValue({ data: DADOS, meta: META });
         getDetalheCard.mockResolvedValue({ presentes: [], faltantes: [] });
@@ -71,7 +76,7 @@ describe('CerimonialVisaoGeral', () => {
         expect(botoes).toHaveLength(5);
 
         fireEvent.click(botoes[0]);
-        await waitFor(() => expect(getDetalheCard).toHaveBeenCalledWith('pessoas', false));
+        await waitFor(() => expect(getDetalheCard).toHaveBeenCalledWith('pessoas', false, 'todos'));
         // A aba que abre é a de quem falta: é a pergunta do dia.
         expect(await screen.findByText('Bruno Lima')).toBeInTheDocument();
 
@@ -102,5 +107,18 @@ describe('CerimonialVisaoGeral', () => {
         render(<CerimonialVisaoGeral />);
 
         expect(await screen.findByText(/Nenhuma lista final oficial está\s+vigente/)).toBeInTheDocument();
+    });
+
+    it('mostra cada cerimônia ou todas somadas', async () => {
+        render(<CerimonialVisaoGeral />);
+
+        await waitFor(() => expect(getVisaoGeral).toHaveBeenCalledWith(false, 'todos'));
+        expect(await screen.findByRole('radio', { name: /Todos os eventos/ })).toHaveAttribute('aria-checked', 'true');
+
+        fireEvent.click(screen.getByRole('radio', { name: /Premiação FETECMS/ }));
+
+        await waitFor(() => expect(getVisaoGeral).toHaveBeenCalledWith(false, 1));
+        fireEvent.click(screen.getAllByRole('button', { name: /Ver quem chegou e quem falta/ })[0]);
+        await waitFor(() => expect(getDetalheCard).toHaveBeenCalledWith('pessoas', false, 1));
     });
 });

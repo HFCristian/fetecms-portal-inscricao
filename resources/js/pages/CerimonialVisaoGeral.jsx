@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
+import SeletorEvento from '../components/SeletorEvento.jsx';
 import { Alert, Button } from '../components/ui.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import {
     definirAtualizacao, getDetalheCard, getVisaoGeral,
 } from '../lib/cerimonial.js';
+import { useEventoCerimonial } from '../lib/eventoCerimonial.js';
 import { useModoTeste } from '../lib/modoTeste.js';
 
 /** As opções do seletor de atualização automática. `null` desliga. */
@@ -60,7 +62,7 @@ function Card({ icon, titulo, numero, de, rodape, detalhe, onAbrir, acao }) {
 }
 
 /** A lista nominal de um card: duas abas, quem chegou e quem falta. */
-function DialogoDetalhe({ card, titulo, teste, onFechar }) {
+function DialogoDetalhe({ card, titulo, teste, evento, onFechar }) {
     const [aba, setAba] = useState('faltantes');
     const [dados, setDados] = useState(null);
     const [erro, setErro] = useState('');
@@ -68,14 +70,14 @@ function DialogoDetalhe({ card, titulo, teste, onFechar }) {
 
     useEffect(() => {
         setDados(null);
-        getDetalheCard(card, teste)
+        getDetalheCard(card, teste, evento)
             .then(setDados)
             .catch((e) => {
                 const { message } = extractErrors(e);
                 setErro(message || 'Não foi possível carregar a lista.');
                 setDados({ presentes: [], faltantes: [] });
             });
-    }, [card, teste]);
+    }, [card, teste, evento]);
 
     const porPessoa = card === 'pessoas' || card === 'medalhas';
     const lista = (dados?.[aba] ?? []).filter((item) => {
@@ -198,8 +200,9 @@ export default function CerimonialVisaoGeral() {
     const [intervalo, setIntervalo] = useState(null);
     const [salvandoIntervalo, setSalvandoIntervalo] = useState(false);
     const primeira = useRef(true);
+    const [evento, setEvento] = useEventoCerimonial(config?.eventos, 'painel');
 
-    const carregar = useCallback(() => getVisaoGeral(teste)
+    const carregar = useCallback(() => getVisaoGeral(teste, evento)
         .then((r) => {
             setDados(r.data);
             setConfig(r.meta?.config ?? null);
@@ -213,7 +216,7 @@ export default function CerimonialVisaoGeral() {
         .catch((e) => {
             const { message } = extractErrors(e);
             setErro(message || 'Não foi possível carregar o painel.');
-        }), [teste]);
+        }), [teste, evento]);
 
     useEffect(() => { carregar(); }, [carregar]);
 
@@ -274,6 +277,24 @@ export default function CerimonialVisaoGeral() {
                     <span className="block text-xs mt-1">Atualizado às {dados.atualizado_em}.</span>
                 )}
             </p>
+
+            <SeletorEvento
+                eventos={config?.eventos}
+                valor={evento}
+                onEscolher={setEvento}
+                permitirTodos
+                rotulo="Cerimônia"
+            />
+
+            {config && config.eventos?.length === 0 && (
+                <div className="mb-4 max-w-3xl">
+                    <Alert>
+                        Nenhum evento de cerimônia foi cadastrado nesta edição — os números contam o
+                        público dos eventos.{' '}
+                        <Link to="/admin/cerimonial/eventos" className="font-semibold underline">Cadastrar os eventos</Link>
+                    </Alert>
+                </div>
+            )}
 
             {config?.lista?.demo && (
                 <div className="mb-4 max-w-3xl">
@@ -358,6 +379,7 @@ export default function CerimonialVisaoGeral() {
                     card={detalhe.card}
                     titulo={detalhe.titulo}
                     teste={teste}
+                    evento={evento}
                     onFechar={() => setDetalhe(null)}
                 />
             )}
