@@ -136,4 +136,15 @@ describe('CerimonialFicha', () => {
         expect(await screen.findByText(/Escolha o evento de cerimônia no Check-in/)).toBeInTheDocument();
         expect(getFichaCerimonial).not.toHaveBeenCalled();
     });
+
+    it('avisa quando a mesma pessoa foi marcada ou desfeita em outro papel', async () => {
+        const vinculo = { projeto_id: 9, projeto_titulo: 'Robô seguidor de linha', chave: 'C4', nome: 'Marta Orientadora', papel_label: 'Coorientador(a)', ja_presente: false };
+        registrarCheckin.mockResolvedValue({ ...FICHA, vinculados: [vinculo] });
+        render(<CerimonialFicha />);
+
+        fireEvent.click(await screen.findByLabelText('Marcar check-in de Marta Orientadora'));
+        fireEvent.click(screen.getByRole('button', { name: /Registrar check-in/ }));
+
+        expect(await screen.findByText('Check-in registrado. Também marcado: Marta Orientadora como Coorientador(a) de “Robô seguidor de linha”.')).toBeInTheDocument();
+    });
 });

@@ -57,6 +57,7 @@ export default function LeitorCerimonial({ teste = false, evento = null, onRegis
                 papel_label: dados.participante.papel_label,
                 projeto_titulo: dados.projeto_titulo,
                 checkin_em: dados.checkin_em,
+                vinculos: dados.vinculos ?? [],
             });
             onRegistrado?.(dados);
         } catch (e) {

@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../components/AppShell.jsx', () => ({ default: ({ children }) => <div>{children}</div> }));
@@ -15,7 +15,9 @@ vi.mock('../lib/auth.jsx', () => ({
 const getVisaoGeral = vi.fn();
 const getDetalheCard = vi.fn();
 const definirAtualizacao = vi.fn();
+const registrarCheckin = vi.fn();
 vi.mock('../lib/cerimonial.js', () => ({
+    registrarCheckin: (...a) => registrarCheckin(...a),
     getVisaoGeral: (...a) => getVisaoGeral(...a),
     getDetalheCard: (...a) => getDetalheCard(...a),
     definirAtualizacao: (...a) => definirAtualizacao(...a),
@@ -120,5 +122,60 @@ describe('CerimonialVisaoGeral', () => {
         await waitFor(() => expect(getVisaoGeral).toHaveBeenCalledWith(false, 1));
         fireEvent.click(screen.getAllByRole('button', { name: /Ver quem chegou e quem falta/ })[0]);
         await waitFor(() => expect(getDetalheCard).toHaveBeenCalledWith('pessoas', false, 1));
+    });
+
+    it('na lista de quem falta, o admin marca a chegada — e os outros papéis da pessoa vêm junto', async () => {
+        const MARTA = {
+            chave: 'O3', nome: 'Marta Orientadora', papel: 'O', papel_label: 'Orientador(a)',
+            projeto_id: 7, projeto_titulo: 'Bioplástico de mandioca', categoria: 'FETECMS', checkin_em: null,
+        };
+        getDetalheCard
+            .mockResolvedValueOnce({ presentes: [], faltantes: [MARTA] })
+            .mockResolvedValue({ presentes: [{ ...MARTA, checkin_em: '19:40' }], faltantes: [] });
+        registrarCheckin.mockResolvedValue({
+            vinculados: [{ projeto_id: 9, projeto_titulo: 'Robô seguidor de linha', chave: 'C4', nome: 'Marta Orientadora', papel_label: 'Coorientador(a)', ja_presente: false }],
+        });
+        localStorage.setItem('fetec:cerimonial:evento:painel', '1');
+        render(<CerimonialVisaoGeral />);
+
+        await waitFor(() => expect(getVisaoGeral).toHaveBeenCalledWith(false, 1));
+        fireEvent.click(screen.getAllByRole('button', { name: /Ver quem chegou e quem falta/ })[0]);
+        const dialogo = await screen.findByRole('dialog');
+        fireEvent.click(await within(dialogo).findByRole('button', { name: 'Marcar chegada de Marta Orientadora como Orientador(a)' }));
+
+        await waitFor(() => expect(registrarCheckin).toHaveBeenCalledWith(7, ['O3'], false, 1));
+        expect(await within(dialogo).findByText(/Chegada de Marta Orientadora registrada\. Também marcado: Marta Orientadora como Coorientador\(a\) de “Robô seguidor de linha”/)).toBeInTheDocument();
+        // O painel também recarrega: os números mudaram.
+        await waitFor(() => expect(getVisaoGeral.mock.calls.length).toBeGreaterThan(1));
+    });
+
+    it('em "Todos" a lista não marca chegada — não se sabe em que sala', async () => {
+        getDetalheCard.mockResolvedValue({
+            presentes: [],
+            faltantes: [{ chave: 'O3', nome: 'Marta Orientadora', papel: 'O', papel_label: 'Orientador(a)', projeto_id: 7, projeto_titulo: 'Bioplástico', checkin_em: null }],
+        });
+        render(<CerimonialVisaoGeral />);
+
+        fireEvent.click((await screen.findAllByRole('button', { name: /Ver quem chegou e quem falta/ }))[0]);
+        const dialogo = await screen.findByRole('dialog');
+
+        expect(await within(dialogo).findByText(/escolha antes a cerimônia/)).toBeInTheDocument();
+        expect(within(dialogo).queryByRole('button', { name: /Marcar chegada/ })).not.toBeInTheDocument();
+    });
+
+    it('fora do período do evento a lista não marca chegada', async () => {
+        getVisaoGeral.mockResolvedValue({ data: DADOS, meta: { config: { ...META.config, aberto: false } } });
+        getDetalheCard.mockResolvedValue({
+            presentes: [],
+            faltantes: [{ chave: 'O3', nome: 'Marta Orientadora', papel: 'O', papel_label: 'Orientador(a)', projeto_id: 7, projeto_titulo: 'Bioplástico', checkin_em: null }],
+        });
+        localStorage.setItem('fetec:cerimonial:evento:painel', '1');
+        render(<CerimonialVisaoGeral />);
+
+        fireEvent.click((await screen.findAllByRole('button', { name: /Ver quem chegou e quem falta/ }))[0]);
+        const dialogo = await screen.findByRole('dialog');
+
+        await within(dialogo).findByText('Marta Orientadora', { exact: false });
+        expect(within(dialogo).queryByRole('button', { name: /Marcar chegada/ })).not.toBeInTheDocument();
     });
 });

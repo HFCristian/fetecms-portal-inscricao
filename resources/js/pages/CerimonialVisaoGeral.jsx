@@ -5,9 +5,10 @@ import SeletorEvento from '../components/SeletorEvento.jsx';
 import { Alert, Button } from '../components/ui.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import {
-    definirAtualizacao, getDetalheCard, getVisaoGeral,
+    definirAtualizacao, getDetalheCard, getVisaoGeral, registrarCheckin,
 } from '../lib/cerimonial.js';
-import { useEventoCerimonial } from '../lib/eventoCerimonial.js';
+import { TODOS, useEventoCerimonial } from '../lib/eventoCerimonial.js';
+import { descreverVinculos } from './CerimonialFicha.jsx';
 import { useModoTeste } from '../lib/modoTeste.js';
 
 /** As opções do seletor de atualização automática. `null` desliga. */
@@ -61,25 +62,54 @@ function Card({ icon, titulo, numero, de, rodape, detalhe, onAbrir, acao }) {
     );
 }
 
-/** A lista nominal de um card: duas abas, quem chegou e quem falta. */
-function DialogoDetalhe({ card, titulo, teste, evento, onFechar }) {
+/**
+ * A lista nominal de um card: duas abas, quem chegou e quem falta.
+ *
+ * Nas listas de pessoas, quem falta pode ter a chegada **marcada daqui**, sem
+ * passar pela porta — o caso que motivou foi o professor que orienta um projeto
+ * e coorienta outro, mas vale para qualquer um que entrou sem ser registrado.
+ * Marcar precisa de um evento (no "Todos" não se sabe em qual sala ele entrou)
+ * e do período do evento aberto.
+ */
+function DialogoDetalhe({ card, titulo, teste, evento, aberto, onFechar, onAlterado }) {
     const [aba, setAba] = useState('faltantes');
     const [dados, setDados] = useState(null);
     const [erro, setErro] = useState('');
+    const [aviso, setAviso] = useState('');
     const [busca, setBusca] = useState('');
+    const [marcando, setMarcando] = useState(null);
+
+    const carregar = useCallback(() => getDetalheCard(card, teste, evento)
+        .then(setDados)
+        .catch((e) => {
+            const { message } = extractErrors(e);
+            setErro(message || 'Não foi possível carregar a lista.');
+            setDados({ presentes: [], faltantes: [] });
+        }), [card, teste, evento]);
 
     useEffect(() => {
         setDados(null);
-        getDetalheCard(card, teste, evento)
-            .then(setDados)
-            .catch((e) => {
-                const { message } = extractErrors(e);
-                setErro(message || 'Não foi possível carregar a lista.');
-                setDados({ presentes: [], faltantes: [] });
-            });
-    }, [card, teste, evento]);
+        carregar();
+    }, [carregar]);
 
     const porPessoa = card === 'pessoas' || card === 'medalhas';
+    const podeMarcar = porPessoa && aba === 'faltantes' && evento !== TODOS && aberto;
+
+    async function marcar(item) {
+        const chave = `${item.projeto_id}-${item.chave}`;
+        setMarcando(chave); setErro(''); setAviso('');
+        try {
+            const ficha = await registrarCheckin(item.projeto_id, [item.chave], teste, evento);
+            setAviso(`Chegada de ${item.nome} registrada.${descreverVinculos(ficha.vinculados, 'Também marcado')}`);
+            await carregar();
+            onAlterado?.();
+        } catch (e) {
+            const { message, fields } = extractErrors(e);
+            setErro(Object.values(fields ?? {})[0] || message || 'Não foi possível registrar a chegada.');
+        } finally {
+            setMarcando(null);
+        }
+    }
     const lista = (dados?.[aba] ?? []).filter((item) => {
         const alvo = porPessoa
             ? `${item.nome} ${item.projeto_titulo ?? ''}`
@@ -125,6 +155,12 @@ function DialogoDetalhe({ card, titulo, teste, evento, onFechar }) {
 
                 <div className="p-5 pt-3 overflow-y-auto fetec-scroll">
                     {erro && <Alert>{erro}</Alert>}
+                    {aviso && <Alert type="info">{aviso}</Alert>}
+                    {porPessoa && aba === 'faltantes' && evento === TODOS && (
+                        <p className="text-xs text-on-surface-variant mb-2">
+                            Para marcar uma chegada daqui, escolha antes a cerimônia no topo do painel.
+                        </p>
+                    )}
                     {dados === null && (
                         <p className="text-sm text-on-surface-variant text-center py-6">Carregando…</p>
                     )}
@@ -137,16 +173,31 @@ function DialogoDetalhe({ card, titulo, teste, evento, onFechar }) {
                         {lista.map((item) => (
                             <li key={porPessoa ? `${item.projeto_id}-${item.nome}-${item.papel}` : item.id} className="py-2">
                                 {porPessoa ? (
-                                    <>
-                                        <p className="text-sm text-on-surface">
-                                            {item.nome}{' '}
-                                            <span className="text-on-surface-variant">· {item.papel_label}</span>
-                                        </p>
-                                        <p className="text-xs text-on-surface-variant truncate">
-                                            {item.projeto_titulo}
-                                            {item.checkin_em ? ` · chegou em ${item.checkin_em}` : ''}
-                                        </p>
-                                    </>
+                                    <div className="flex items-center gap-3">
+                                        <div className="min-w-0 flex-1">
+                                            <p className="text-sm text-on-surface">
+                                                {item.nome}{' '}
+                                                <span className="text-on-surface-variant">· {item.papel_label}</span>
+                                            </p>
+                                            <p className="text-xs text-on-surface-variant truncate">
+                                                {item.projeto_titulo}
+                                                {item.checkin_em ? ` · chegou em ${item.checkin_em}` : ''}
+                                            </p>
+                                        </div>
+                                        {podeMarcar && (
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                className="!px-3 !py-1.5 text-sm shrink-0"
+                                                loading={marcando === `${item.projeto_id}-${item.chave}`}
+                                                disabled={marcando !== null}
+                                                onClick={() => marcar(item)}
+                                                aria-label={`Marcar chegada de ${item.nome} como ${item.papel_label}`}
+                                            >
+                                                Marcar chegada
+                                            </Button>
+                                        )}
+                                    </div>
                                 ) : (
                                     <>
                                         <p className="text-sm text-on-surface">{item.titulo}</p>
@@ -272,7 +323,8 @@ export default function CerimonialVisaoGeral() {
             </div>
             <p className="text-on-surface-variant mb-4 max-w-3xl">
                 Quem já entrou na cerimônia e o que a mesa precisa separar. Todo card abre a lista
-                nominal de quem chegou e de quem falta.
+                nominal de quem chegou e de quem falta — e, escolhida a cerimônia, quem entrou sem
+                ser registrado na porta pode ter a chegada marcada ali.
                 {dados?.atualizado_em && (
                     <span className="block text-xs mt-1">Atualizado às {dados.atualizado_em}.</span>
                 )}
@@ -380,7 +432,9 @@ export default function CerimonialVisaoGeral() {
                     titulo={detalhe.titulo}
                     teste={teste}
                     evento={evento}
+                    aberto={config?.aberto !== false}
                     onFechar={() => setDetalhe(null)}
+                    onAlterado={carregar}
                 />
             )}
         </AppShell>

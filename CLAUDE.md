@@ -467,7 +467,11 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     nas duas), a busca, a ficha e o painel. A porta **escolhe o evento** no topo do Check-in
     (lembrado no aparelho; com um só cadastrado ele já vem escolhido), e o crachá de outro público
     é recusado dizendo de quem é. Visão Geral e Premiados têm o mesmo seletor e a opção **Todos**,
-    que soma o público de todos os eventos contando cada pessoa uma vez. **Check-in** atende
+    que soma o público de todos os eventos contando cada pessoa uma vez. A **mesma pessoa em mais
+    de um papel** (orienta um projeto e coorienta outro) é reconhecida pelo **CPF** — ou pelo e-mail
+    com o mesmo nome, quando falta CPF —, e marcar um vínculo dela marca **todos** no evento;
+    desfazer também leva todos. Na Visão Geral, a lista de quem falta tem **Marcar chegada**
+    (com a cerimônia escolhida e o período aberto). **Check-in** atende
     pelos dois caminhos da fila: o **crachá** da lista final (leitor USB ou câmera — inclusive no
     iPhone —, mesmas três conferências do balcão) **já registra a entrada** daquela pessoa e mostra
     o nome num card de 2 segundos (`POST /admin/cerimonial/checkin-codigo`, `CardCheckin.jsx`); a
@@ -918,7 +922,30 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 207 | Cerimonial → **Eventos de cerimônia**: nome + público (categorias), check-in e painel por evento | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 208 | Cerimonial: a porta **escolhe o evento** no check-in; Visão Geral e Premiados por evento ou **Todos** | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 209 | Fix: cadastro **em lote** de contas temporárias respondia **500** com o "Início do acesso" fora de dd/mm/aaaa hh:mm | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 210 | Cerimonial: a **mesma pessoa em vários papéis** (CPF, ou e-mail + nome) entra e sai de todos de uma vez | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 211 | Cerimonial → Visão Geral: **Marcar chegada** na lista de quem falta | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprints 210–211 (mesma branch):** o professor que **orienta um projeto e coorienta outro** tem um
+> crachá por vínculo (o código é projeto + papel + id), e ler um marcava só aquele: na Visão Geral
+> ele aparecia faltando como coorientador. Reimprimir as etiquetas não era opção.
+> (a) **Sprint 210** — o portal passou a reconhecer a **mesma pessoa** entre os finalistas do público
+> do evento (`CerimonialService::mesmaPessoa()`): com CPF dos dois lados, só o **CPF** decide; sem
+> ele (o cadastro manual deixa em branco), vale o **e-mail com o mesmo nome** — o e-mail sozinho não
+> basta, porque estudante sem e-mail próprio às vezes é cadastrado com o do professor. Ler o crachá
+> de qualquer vínculo, ou marcar na ficha, marca **todos** os vínculos dela no evento — inclusive o
+> orientador de dois projetos —, e o card da porta lista o que entrou junto ("Entrada também
+> registrada como Coorientador(a) de “Robô seguidor de linha”."). **Desfazer** um leva todos, com a
+> mesma justificativa e um registro por vínculo. A ligação **não atravessa eventos**: quem entrou na
+> premiação da FETECMS não fica presente na da FETEC Jr. A busca vai direto às três tabelas de
+> pessoas pelo CPF e pelo e-mail (`outrosVinculos()`), porque roda a cada crachá lido. Registros →
+> Cerimonial diz quando um check-in foi "marcado junto com o vínculo de …".
+> (b) **Sprint 211** — na **Visão Geral**, a lista nominal de **quem falta** (cards de pessoas e de
+> medalhas) ganhou **Marcar chegada** em cada linha, para qualquer um que entrou sem ser registrado
+> na porta. Precisa da cerimônia escolhida (no "Todos" não se sabe em que sala a pessoa entrou) e do
+> período do evento aberto; marca pelo mesmo caminho da ficha, então os outros papéis da pessoa vêm
+> junto, e o painel se recarrega.
+> Back **1469/1469**, front **789/789**, Pint limpo, build OK.
+>
 > **Sprint 209 (mesma branch):** relato de produção: depois de subir o Excel no cadastro **em lote**
 > de contas temporárias, a tela dizia "Erro interno no servidor". A prévia lê o "Início do acesso"
 > de cada linha por uma lista de formatos, e o `CarbonImmutable::createFromFormat` **lança
@@ -981,7 +1008,7 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > leitor do Credenciamento continua abrindo a ficha, como antes.
 > Back **1450/1450**, front **766/766**, Pint limpo, build OK.
 >
-> **Pendências do Pedro (Sprints 204–209):** (1) `git push origin feat/cerimonial-camera-e-leitura-direta`
+> **Pendências do Pedro (Sprints 204–211):** (1) `git push origin feat/cerimonial-camera-e-leitura-direta`
 > + PR para a `main` (o ambiente do Claude não tem credencial do GitHub). **Uma migration**
 > (`cerimonial_eventos` + `cerimonial_checkins.evento_id`), **nenhuma variável de `.env`** e
 > **uma dependência nova de npm** (`barcode-detector`, que traz o `zxing-wasm`): rode
@@ -991,7 +1018,10 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > Se já houver check-in na edição, a migration criou "Cerimônia de premiação" com as três
 > categorias — renomeie-o e ajuste o público em vez de criar um terceiro. Cada tablet da porta
 > escolhe o seu evento uma vez. (1c) O lote de contas temporárias volta a funcionar com o deploy;
-> quem já tentou só precisa subir a planilha de novo. (2) A câmera **exige https** — no
+> quem já tentou só precisa subir a planilha de novo. (1d) A ligação da mesma pessoa depende do
+> **CPF** igual nos dois cadastros (o do perfil do orientador e o do coorientador): se um deles
+> estiver sem CPF, vale o e-mail com o mesmo nome; sem nenhum dos dois, use **Marcar chegada** na
+> Visão Geral. (2) A câmera **exige https** — no
 > iPhone, sem https o navegador nem oferece a câmera, e a tela agora diz isso. (3) O servidor deve
 > entregar o `.wasm` com o tipo `application/wasm` (o nginx atual já faz; sem isso ele carrega mais
 > devagar, mas carrega). (4) **No iPhone**, na primeira vez o Safari pergunta se libera a câmera;

@@ -884,4 +884,155 @@ class CerimonialTest extends TestCase
         $this->assertSame(0, $this->getJson('/api/v1/admin/cerimonial/visao-geral')->json('data.pessoas.total'));
         $this->assertSame([], $this->getJson('/api/v1/admin/cerimonial/config')->json('data.eventos'));
     }
+
+    // ------------------------------------------------------------------ //
+    // A mesma pessoa em mais de um papel (Sprint 210)                      //
+    // ------------------------------------------------------------------ //
+
+    /** O código do crachá do orientador do projeto. */
+    private function codigoDoOrientador(Projeto $projeto): string
+    {
+        return CodigoParticipante::montar(
+            2026, $projeto->id, $projeto->user->orientadorProfile->cpf, CodigoParticipante::PAPEL_ORIENTADOR, $projeto->user_id,
+        );
+    }
+
+    /** A professora orienta o primeiro projeto e coorienta o segundo (mesmo CPF). */
+    private function professoraEmDoisPapeis(Categoria $categoriaDoSegundo = Categoria::Fetecms): array
+    {
+        $orientado = $this->projeto('Bioplástico de mandioca');
+        $coorientado = $this->projeto('Robô seguidor de linha', $categoriaDoSegundo);
+        $orientado->user->update(['name' => 'Marta Orientadora']);
+        $coorientado->coorientador->update([
+            'nome' => 'Marta Orientadora',
+            'cpf' => $orientado->user->orientadorProfile->cpf,
+        ]);
+
+        return [$orientado->fresh(), $coorientado->fresh()];
+    }
+
+    public function test_cracha_de_um_papel_marca_a_mesma_pessoa_nos_outros_papeis(): void
+    {
+        [$orientado, $coorientado] = $this->professoraEmDoisPapeis();
+        $this->publicar([$orientado, $coorientado]);
+        $this->comoAdmin();
+
+        $resposta = $this->postJson($this->comEvento('/api/v1/admin/cerimonial/checkin-codigo'), [
+            'codigo' => $this->codigoDoOrientador($orientado),
+        ])->assertOk();
+
+        $this->assertSame([[
+            'projeto_id' => $coorientado->id,
+            'projeto_titulo' => 'Robô seguidor de linha',
+            'chave' => 'C'.$coorientado->coorientador->id,
+            'nome' => 'Marta Orientadora',
+            'papel_label' => CodigoParticipante::papelLabel('C'),
+            'ja_presente' => false,
+        ]], $resposta->json('data.vinculos'));
+
+        $this->assertSame(2, CerimonialCheckin::count());
+        $this->assertTrue(CerimonialCheckin::where('projeto_id', $coorientado->id)->where('papel', 'C')->exists());
+
+        $junto = RegistroAtividade::where('tipo', TipoRegistro::CerimonialCheckin)->where('projeto_id', $coorientado->id)->firstOrFail();
+        $this->assertStringContainsString('Bioplástico de mandioca', $junto->detalhes['junto_de']);
+
+        // A segunda leitura não duplica nada: os dois já constam.
+        $this->postJson($this->comEvento('/api/v1/admin/cerimonial/checkin-codigo'), [
+            'codigo' => $this->codigoDoOrientador($orientado),
+        ])->assertOk()->assertJsonPath('data.ja_presente', true)->assertJsonPath('data.vinculos.0.ja_presente', true);
+        $this->assertSame(2, CerimonialCheckin::count());
+    }
+
+    public function test_orientador_de_dois_projetos_entra_nos_dois_pela_ficha(): void
+    {
+        $primeiro = $this->projeto('Bioplástico de mandioca');
+        $segundo = $this->projeto('Robô seguidor de linha');
+        $segundo->update(['user_id' => $primeiro->user_id]);
+        $this->publicar([$primeiro, $segundo->fresh()]);
+        $this->comoAdmin();
+
+        $resposta = $this->postJson($this->comEvento("/api/v1/admin/cerimonial/projetos/{$primeiro->id}/checkin"), [
+            'participantes' => ['O'.$primeiro->user_id],
+        ])->assertOk();
+
+        $this->assertSame([$segundo->id], array_column($resposta->json('data.vinculados'), 'projeto_id'));
+        $this->assertSame(2, CerimonialCheckin::where('papel', 'O')->count());
+    }
+
+    public function test_o_vinculo_so_e_marcado_dentro_do_publico_do_evento(): void
+    {
+        [$fetecms] = $this->duasCerimonias();
+        [$orientado, $coorientado] = $this->professoraEmDoisPapeis(Categoria::FetecJr);
+        $this->publicar([$orientado, $coorientado]);
+        $this->comoAdmin();
+
+        $this->postJson($this->comEvento('/api/v1/admin/cerimonial/checkin-codigo', $fetecms), [
+            'codigo' => $this->codigoDoOrientador($orientado),
+        ])->assertOk()->assertJsonPath('data.vinculos', []);
+
+        // Na cerimônia da FETEC Jr ela ainda não entrou.
+        $this->assertSame(1, CerimonialCheckin::count());
+    }
+
+    public function test_sem_cpf_vale_o_mesmo_email_com_o_mesmo_nome(): void
+    {
+        [$orientado, $coorientado] = $this->professoraEmDoisPapeis();
+        $coorientado->coorientador->update(['cpf' => null, 'email' => strtoupper($orientado->user->email)]);
+        $outro = $this->projeto('Horta vertical');
+        // Mesmo e-mail, outro nome: é o estudante cadastrado com o e-mail da professora.
+        $outro->alunos->first()->update(['cpf' => null, 'email' => $orientado->user->email, 'nome' => 'Pedro Aluno']);
+        $this->publicar([$orientado, $coorientado->fresh(), $outro->fresh()]);
+        $this->comoAdmin();
+
+        $resposta = $this->postJson($this->comEvento('/api/v1/admin/cerimonial/checkin-codigo'), [
+            'codigo' => $this->codigoDoOrientador($orientado),
+        ])->assertOk();
+
+        $this->assertSame([$coorientado->id], array_column($resposta->json('data.vinculos'), 'projeto_id'));
+    }
+
+    public function test_cpf_diferente_nao_liga_mesmo_com_o_mesmo_nome(): void
+    {
+        $um = $this->projeto('Bioplástico de mandioca');
+        $dois = $this->projeto('Robô seguidor de linha');
+        // Os dois orientadores se chamam "Marta Orientadora", com CPFs diferentes.
+        $this->publicar([$um, $dois]);
+        $this->comoAdmin();
+
+        $this->postJson($this->comEvento('/api/v1/admin/cerimonial/checkin-codigo'), [
+            'codigo' => $this->codigoDoOrientador($um),
+        ])->assertOk()->assertJsonPath('data.vinculos', []);
+    }
+
+    public function test_desfazer_um_papel_desfaz_os_outros_da_mesma_pessoa(): void
+    {
+        [$orientado, $coorientado] = $this->professoraEmDoisPapeis();
+        $this->publicar([$orientado, $coorientado]);
+        $this->comoAdmin();
+
+        $this->postJson($this->comEvento('/api/v1/admin/cerimonial/checkin-codigo'), [
+            'codigo' => $this->codigoDoOrientador($orientado),
+        ])->assertOk();
+        $this->assertSame(2, CerimonialCheckin::count());
+
+        $resposta = $this->postJson($this->comEvento("/api/v1/admin/cerimonial/projetos/{$coorientado->id}/desfazer"), [
+            'participante' => 'C'.$coorientado->coorientador->id,
+            'justificativa' => 'Saiu antes da cerimônia.',
+        ])->assertOk();
+
+        $this->assertSame(0, CerimonialCheckin::count());
+        $this->assertSame([$orientado->id], array_column($resposta->json('data.desfeitos_juntos'), 'projeto_id'));
+        $this->assertSame(2, RegistroAtividade::where('tipo', TipoRegistro::CerimonialCheckinDesfeito)->count());
+    }
+
+    public function test_detalhe_das_pessoas_traz_a_chave_para_marcar_a_chegada(): void
+    {
+        $projeto = $this->projeto();
+        $this->publicar([$projeto]);
+        $this->comoAdmin();
+
+        $faltantes = $this->getJson($this->comEvento('/api/v1/admin/cerimonial/visao-geral/detalhe?card=pessoas'))->json('data.faltantes');
+
+        $this->assertContains('O'.$projeto->user_id, array_column($faltantes, 'chave'));
+    }
 }

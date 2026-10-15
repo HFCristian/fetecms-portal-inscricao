@@ -88,4 +88,22 @@ describe('CardCheckin', () => {
         act(() => vi.advanceTimersByTime(10000));
         expect(onFechar).not.toHaveBeenCalled();
     });
+
+    it('lista os outros papéis da mesma pessoa marcados junto', () => {
+        render(
+            <CardCheckin
+                leitura={{
+                    ...NOVO,
+                    vinculos: [
+                        { projeto_id: 9, chave: 'C4', projeto_titulo: 'Robô seguidor de linha', papel_label: 'Coorientador(a)', ja_presente: false },
+                        { projeto_id: 11, chave: 'O2', projeto_titulo: 'Horta vertical', papel_label: 'Orientador(a)', ja_presente: true },
+                    ],
+                }}
+                onFechar={vi.fn()}
+            />,
+        );
+
+        expect(screen.getByText('Entrada também registrada como Coorientador(a) de “Robô seguidor de linha”.')).toBeInTheDocument();
+        expect(screen.getByText('Já constava também como Orientador(a) de “Horta vertical”.')).toBeInTheDocument();
+    });
 });

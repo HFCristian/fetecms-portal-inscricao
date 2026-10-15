@@ -21,6 +21,18 @@ export function IconePessoa({ presente, tamanho = 40 }) {
 }
 
 /**
+ * Os outros papéis da mesma pessoa que o servidor marcou (ou desfez) junto —
+ * o professor que orienta este projeto e coorienta outro.
+ */
+export function descreverVinculos(vinculos, verbo) {
+    if (!vinculos?.length) return '';
+
+    return ' ' + vinculos
+        .map((v) => `${verbo}: ${v.nome} como ${v.papel_label} de “${v.projeto_titulo}”.`)
+        .join(' ');
+}
+
+/**
  * Cerimonial → ficha de um projeto.
  *
  * A equipe chega junta, então a unidade da tela é o **projeto** e o ato é
@@ -83,9 +95,10 @@ export default function CerimonialFicha() {
             const atualizada = await registrarCheckin(id, marcadas, teste, evento);
             setFicha(atualizada);
             setSucesso(
-                marcadas.length === 1
+                (marcadas.length === 1
                     ? 'Check-in registrado.'
-                    : `${marcadas.length} check-ins registrados.`,
+                    : `${marcadas.length} check-ins registrados.`)
+                + descreverVinculos(atualizada.vinculados, 'Também marcado'),
             );
             setMarcadas([]);
         } catch (e) {
@@ -101,7 +114,7 @@ export default function CerimonialFicha() {
         try {
             const atualizada = await desfazerCheckin(id, desfazendo.chave, justificativa, teste, evento);
             setFicha(atualizada);
-            setSucesso(`Check-in de ${desfazendo.nome} desfeito.`);
+            setSucesso(`Check-in de ${desfazendo.nome} desfeito.${descreverVinculos(atualizada.desfeitos_juntos, 'Também desfeito')}`);
             setDesfazendo(null);
             setJustificativa('');
         } catch (e) {
@@ -263,9 +276,10 @@ export default function CerimonialFicha() {
                     <div className="bg-surface-container-lowest rounded-2xl fetec-card-shadow w-full max-w-md p-6 space-y-4">
                         <h3 className="font-display text-lg font-semibold text-on-surface">Desfazer o check-in</h3>
                         <p className="text-sm text-on-surface-variant">
-                            <strong>{desfazendo.nome}</strong> deixa de constar como presente. Isso muda a
-                            contagem de medalhas e de credenciais a separar, então a justificativa entra em
-                            Registros → Cerimonial.
+                            <strong>{desfazendo.nome}</strong> deixa de constar como presente — também nos
+                            outros papéis que tiver neste evento (orientador de um projeto e coorientador de
+                            outro, por exemplo). Isso muda a contagem de medalhas e de credenciais a
+                            separar, então a justificativa entra em Registros → Cerimonial.
                         </p>
                         <label className="block">
                             <span className="text-sm font-semibold text-on-surface">Justificativa</span>

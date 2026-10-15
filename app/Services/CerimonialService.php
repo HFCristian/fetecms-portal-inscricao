@@ -51,6 +51,13 @@ use Illuminate\Validation\ValidationException;
  * os premiados somam o público de todos os eventos da edição, contando cada
  * pessoa uma vez — presente se entrou em qualquer um deles.
  *
+ * **A mesma pessoa em mais de um papel** (Sprint 210): o professor que orienta
+ * um projeto e coorienta outro tem um crachá por vínculo, e cada crachá marca o
+ * seu. Como não dá para reimprimir as etiquetas, o portal reconhece a pessoa —
+ * pelo **CPF**, ou pelo e-mail com o mesmo nome quando falta CPF — e marcar um
+ * vínculo dela (crachá ou ficha) marca **todos** os vínculos dela no mesmo
+ * evento; desfazer também leva todos. Ver {@see mesmaPessoa()}.
+ *
  * **Quem opera**: a conta temporária do setor `cerimonial` atende o check-in e
  * nada mais. A Visão Geral e as contas ficam para a organização — quem está na
  * porta não precisa saber quantas medalhas há na mesa. O corte é do middleware
@@ -457,9 +464,11 @@ class CerimonialService
             ]);
         }
 
-        $this->gravar($projeto, array_map(fn (string $chave) => $pessoas->get($chave), $chaves), $admin, $evento, $emTeste);
+        $marcadas = array_map(fn (string $chave) => $pessoas->get($chave), $chaves);
+        $this->gravar($projeto, $marcadas, $admin, $evento, $emTeste);
+        $vinculados = $this->marcarVinculos($projeto, $marcadas, $admin, $evento, $teste);
 
-        return $this->ficha($projeto, $evento, $admin, $teste);
+        return $this->ficha($projeto, $evento, $admin, $teste) + ['vinculados' => $vinculados];
     }
 
     /**
@@ -496,6 +505,7 @@ class CerimonialService
         $this->garantirPublico($projeto, $evento, 'codigo', $pessoa['nome']);
 
         $novos = $this->gravar($projeto, [$pessoa], $admin, $evento, $emTeste);
+        $vinculados = $this->marcarVinculos($projeto, [$pessoa], $admin, $evento, $teste);
 
         $checkin = CerimonialCheckin::where('projeto_id', $projeto->id)
             ->where('evento_id', $evento->id)
@@ -515,6 +525,8 @@ class CerimonialService
             ],
             'ja_presente' => $novos === [],
             'checkin_em' => $checkin?->checkin_em?->format('H:i'),
+            // Os outros papéis da mesma pessoa, marcados junto.
+            'vinculos' => $vinculados,
         ];
     }
 
@@ -525,7 +537,7 @@ class CerimonialService
      * @param  list<array<string, mixed>>  $pessoas  linhas de {@see participantesDo()}
      * @return list<array<string, mixed>> só as que entraram agora
      */
-    private function gravar(Projeto $projeto, array $pessoas, User $admin, CerimonialEvento $evento, bool $emTeste): array
+    private function gravar(Projeto $projeto, array $pessoas, User $admin, CerimonialEvento $evento, bool $emTeste, ?string $junto = null): array
     {
         $edicao = Edicao::atual();
 
@@ -567,6 +579,7 @@ class CerimonialService
                 $pessoa['papel_label'],
                 $emTeste,
                 $evento->nome,
+                $junto,
             );
         }
 
@@ -621,7 +634,39 @@ class CerimonialService
 
         $checkin->delete();
 
-        return $this->ficha($projeto, $evento, $admin, $teste);
+        // A mesma pessoa nos outros papéis sai junto, com a mesma justificativa:
+        // quem saiu da sala (ou foi marcado por engano) saiu em todos eles.
+        $pessoa = collect($this->participantesDo($projeto))->firstWhere('chave', $chave);
+        $desfeitos = [];
+
+        foreach ($pessoa === null ? [] : $this->outrosVinculos($projeto, [$pessoa], $evento, $admin, $teste) as [$outro, $vinculo]) {
+            $linha = CerimonialCheckin::where('projeto_id', $outro->id)
+                ->where('evento_id', $evento->id)
+                ->where('papel', $vinculo['papel'])
+                ->where('participante_id', $vinculo['participante_id'])
+                ->where('demo', $emTeste)
+                ->first();
+
+            if ($linha === null) {
+                continue;
+            }
+
+            $this->registros->cerimonialCheckinDesfeito(
+                $outro,
+                $admin,
+                $linha->nome,
+                $linha->papelLabel(),
+                trim($justificativa),
+                $emTeste,
+                $evento->nome,
+                $pessoa['papel_label'].' de "'.$projeto->titulo.'"',
+            );
+            $linha->delete();
+
+            $desfeitos[] = $this->resumoVinculo($outro, $vinculo, true);
+        }
+
+        return $this->ficha($projeto, $evento, $admin, $teste) + ['desfeitos_juntos' => $desfeitos];
     }
 
     // -----------------------------------------------------------------
@@ -664,6 +709,7 @@ class CerimonialService
         $premiados = $this->projetosPremiados();
 
         $daPessoa = fn (array $p) => [
+            'chave' => $p['chave'],
             'nome' => $p['nome'],
             'papel' => $p['papel'],
             'papel_label' => $p['papel_label'],
@@ -885,6 +931,161 @@ class CerimonialService
     }
 
     /**
+     * Marca a entrada da mesma pessoa nos **outros** vínculos dela dentro do
+     * evento — o professor que orienta um projeto e coorienta outro entrou na
+     * sala uma vez, com um crachá só.
+     *
+     * @param  list<array<string, mixed>>  $pessoas  as que acabaram de ser marcadas em `$origem`
+     * @return list<array<string, mixed>> cada vínculo alcançado, e se já constava
+     */
+    private function marcarVinculos(Projeto $origem, array $pessoas, User $admin, CerimonialEvento $evento, bool $teste): array
+    {
+        $emTeste = $this->emTeste($admin, $teste);
+        $resultado = [];
+
+        foreach ($pessoas as $pessoa) {
+            foreach ($this->outrosVinculos($origem, [$pessoa], $evento, $admin, $teste) as [$projeto, $vinculo]) {
+                $novos = $this->gravar(
+                    $projeto,
+                    [$vinculo],
+                    $admin,
+                    $evento,
+                    $emTeste,
+                    $pessoa['papel_label'].' de "'.$origem->titulo.'"',
+                );
+
+                $resultado[] = $this->resumoVinculo($projeto, $vinculo, $novos === []);
+            }
+        }
+
+        return $resultado;
+    }
+
+    /**
+     * Os outros vínculos das pessoas dadas — mesmo CPF (ou mesmo e-mail e nome)
+     * em outro projeto, ou noutro papel do mesmo projeto — entre os finalistas
+     * do público do evento. Fica fora o próprio vínculo de onde se partiu.
+     *
+     * A busca vai direto às três tabelas de pessoas pelo CPF e pelo e-mail, em
+     * vez de montar a lista inteira de finalistas: ela roda a cada crachá lido
+     * na porta.
+     *
+     * @param  list<array<string, mixed>>  $pessoas
+     * @return list<array{0: Projeto, 1: array<string, mixed>}>
+     */
+    private function outrosVinculos(Projeto $origem, array $pessoas, CerimonialEvento $evento, User $user, bool $teste): array
+    {
+        $lista = $this->listaFinal($user, $teste);
+        $cpfs = array_values(array_filter(array_map(fn (array $p) => $this->cpfDaPessoa($p['cpf'] ?? null), $pessoas)));
+        $emails = array_values(array_filter(array_map(fn (array $p) => $this->emailDaPessoa($p['email'] ?? null), $pessoas)));
+
+        if ($lista === null || ($cpfs === [] && $emails === [])) {
+            return [];
+        }
+
+        $casa = function ($q) use ($cpfs, $emails) {
+            $q->where(function ($w) use ($cpfs, $emails) {
+                if ($cpfs !== []) {
+                    $w->orWhereIn('cpf', $cpfs);
+                }
+                if ($emails !== []) {
+                    $w->orWhereIn(DB::raw('lower(email)'), $emails);
+                }
+            });
+        };
+
+        $projetos = Projeto::whereIn('id', $lista->projetos()->select('projetos.id'))
+            ->whereIn('categoria', $evento->categorias ?? [])
+            ->where(function ($q) use ($casa, $cpfs, $emails) {
+                $q->whereHas('alunos', $casa)
+                    ->orWhereHas('coorientador', $casa)
+                    ->orWhereHas('user', function ($u) use ($cpfs, $emails) {
+                        $u->where(function ($w) use ($cpfs, $emails) {
+                            if ($emails !== []) {
+                                $w->orWhereIn(DB::raw('lower(email)'), $emails);
+                            }
+                            if ($cpfs !== []) {
+                                $w->orWhereHas('orientadorProfile', fn ($p) => $p->whereIn('cpf', $cpfs));
+                            }
+                        });
+                    });
+            })
+            ->with(['alunos', 'coorientador', 'user.orientadorProfile'])
+            ->get();
+
+        $partida = array_map(fn (array $p) => $origem->id.':'.$p['chave'], $pessoas);
+        $achados = [];
+
+        foreach ($projetos as $projeto) {
+            foreach ($this->participantesDo($projeto) as $candidato) {
+                if (in_array($projeto->id.':'.$candidato['chave'], $partida, true)) {
+                    continue;
+                }
+
+                foreach ($pessoas as $pessoa) {
+                    if ($this->mesmaPessoa($pessoa, $candidato)) {
+                        $achados[$projeto->id.':'.$candidato['chave']] = [$projeto, $candidato];
+                    }
+                }
+            }
+        }
+
+        return array_values($achados);
+    }
+
+    /**
+     * Duas linhas de participante são a mesma pessoa?
+     *
+     * Com CPF dos dois lados, só o CPF decide — é o documento. Sem ele (o
+     * cadastro manual deixa o CPF em branco), vale o e-mail **e** o nome: o
+     * e-mail sozinho não basta, porque estudante sem e-mail próprio às vezes
+     * é cadastrado com o do professor.
+     */
+    private function mesmaPessoa(array $a, array $b): bool
+    {
+        $cpfA = $this->cpfDaPessoa($a['cpf'] ?? null);
+        $cpfB = $this->cpfDaPessoa($b['cpf'] ?? null);
+
+        if ($cpfA !== null && $cpfB !== null) {
+            return $cpfA === $cpfB;
+        }
+
+        $emailA = $this->emailDaPessoa($a['email'] ?? null);
+
+        return $emailA !== null
+            && $emailA === $this->emailDaPessoa($b['email'] ?? null)
+            && $this->normalizar($a['nome']) === $this->normalizar($b['nome']);
+    }
+
+    /** O CPF que identifica alguém: onze dígitos que não sejam todos iguais. */
+    private function cpfDaPessoa(?string $cpf): ?string
+    {
+        $digitos = preg_replace('/\D/', '', (string) $cpf) ?? '';
+
+        return strlen($digitos) === 11 && ! preg_match('/^(\d)\1{10}$/', $digitos) ? $digitos : null;
+    }
+
+    private function emailDaPessoa(?string $email): ?string
+    {
+        $email = mb_strtolower(trim((string) $email));
+
+        return $email === '' ? null : $email;
+    }
+
+    /** @return array<string, mixed> */
+    private function resumoVinculo(Projeto $projeto, array $pessoa, bool $jaConstava): array
+    {
+        return [
+            'projeto_id' => $projeto->id,
+            'projeto_titulo' => $projeto->titulo,
+            'chave' => $pessoa['chave'],
+            'nome' => $pessoa['nome'],
+            'papel_label' => $pessoa['papel_label'],
+            'ja_presente' => $jaConstava,
+        ];
+    }
+
+    /**
      * As categorias do público: as do evento, ou a soma das de todos os
      * eventos da edição ("Todos").
      *
@@ -920,7 +1121,7 @@ class CerimonialService
         $pessoas = [];
 
         foreach ($projeto->alunos as $aluno) {
-            $pessoas[] = $this->pessoa(CodigoParticipante::PAPEL_ALUNO, $aluno->id, $aluno->nome, $aluno->cpf);
+            $pessoas[] = $this->pessoa(CodigoParticipante::PAPEL_ALUNO, $aluno->id, $aluno->nome, $aluno->cpf, $aluno->email);
         }
 
         if ($projeto->user !== null) {
@@ -929,6 +1130,7 @@ class CerimonialService
                 $projeto->user->id,
                 $projeto->user->name,
                 $projeto->user->orientadorProfile?->cpf,
+                $projeto->user->email,
             );
         }
 
@@ -938,6 +1140,7 @@ class CerimonialService
                 $projeto->coorientador->id,
                 $projeto->coorientador->nome,
                 $projeto->coorientador->cpf,
+                $projeto->coorientador->email,
             );
         }
 
@@ -945,7 +1148,7 @@ class CerimonialService
     }
 
     /** @return array<string, mixed> */
-    private function pessoa(string $papel, int $id, string $nome, ?string $cpf): array
+    private function pessoa(string $papel, int $id, string $nome, ?string $cpf, ?string $email = null): array
     {
         return [
             'chave' => $papel.$id,
@@ -954,6 +1157,7 @@ class CerimonialService
             'participante_id' => $id,
             'nome' => $nome,
             'cpf' => $cpf,
+            'email' => $email,
         ];
     }
 

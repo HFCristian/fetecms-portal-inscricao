@@ -37,6 +37,9 @@ const ESTILOS = {
  * antes. O crachá recusado **não some**: alguém precisa olhar para aquela
  * pessoa antes de ela entrar.
  *
+ * Quando a pessoa tem outros papéis no evento (orienta um projeto e coorienta
+ * outro), o card lista os vínculos que foram marcados junto.
+ *
  * O card não rouba o foco do campo de leitura: o leitor USB "digita" no campo
  * que está com o foco, e a próxima bipada precisa cair lá.
  */
@@ -78,6 +81,15 @@ export default function CardCheckin({ leitura, onFechar }) {
                                 </p>
                                 {leitura.tipo === 'repetido' && leitura.checkin_em && (
                                     <p className="text-sm font-semibold mt-1">Entrou às {leitura.checkin_em}.</p>
+                                )}
+                                {leitura.vinculos?.length > 0 && (
+                                    <ul className="text-xs mt-2 space-y-0.5">
+                                        {leitura.vinculos.map((v) => (
+                                            <li key={`${v.projeto_id}-${v.chave}`}>
+                                                {v.ja_presente ? 'Já constava também' : 'Entrada também registrada'} como {v.papel_label} de “{v.projeto_titulo}”.
+                                            </li>
+                                        ))}
+                                    </ul>
                                 )}
                             </>
                         ) : (
