@@ -960,7 +960,21 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 213 | Planta: **Alocar projeto** no estande vazio e **Trocar** (destino clicando no mapa, no turno ou no outro) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 214 | Avaliação presencial → **Intérpretes**: cadastro (nome + CPF), vínculos a projeto/participante, pedidos de suporte, crachá `I` e exportação | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 215 | Intérpretes: **mapa de designação** (segue o projeto), **check-in** por dia × turno e **acompanhamento** | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 216 | Fix (segurança): `symfony/http-foundation` 7.4.18 → 7.4.21 (CVE-2026-108082) + teste da planta sem corrida | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprint 216 (mesma branch):** o CI do PR quebrou em dois jobs.
+> (a) **security** — `composer audit` acusou CVE-2026-108082 (ReDoS no `HeaderUtils::split()`,
+> alcançável pelo header `Cache-Control` da requisição) em `symfony/http-foundation` < 7.4.19.
+> Dependência transitiva do `laravel/framework`, então a correção é só o lock:
+> `composer update symfony/http-foundation --with-dependencies` subiu para **7.4.21**, levando
+> `symfony/polyfill-mbstring` e `symfony/polyfill-php83` para 1.43. `composer.json` não mudou;
+> `composer audit` e `npm audit` limpos.
+> (b) **vitest** — `MapaPlanta.test.jsx` procurava o estande pelo nome exato "Estande 042", mas o
+> rótulo vira "Estande 042 · Ciências Agrárias" quando a situação do dia chega. O teste só passava
+> se ela ainda não tivesse chegado — uma corrida que o CI perdeu (a carga extra do remanejamento,
+> Sprint 213, mudou o tempo). As buscas passaram a usar `estande('042')`, que aceita os dois rótulos.
+> Back **1509/1509**, front **813/813**.
+>
 > **Sprints 214–215 (mesma branch):** a aba Avaliação presencial ganhou a seção **Intérpretes**.
 > (a) **Sprint 214** — o cadastro (`interpretes`, por edição): nome e CPF obrigatórios, data de
 > nascimento e tipos opcionais (`TipoInterprete`, línguas e PCD, vários por pessoa; "outros" pede
