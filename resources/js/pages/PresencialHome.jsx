@@ -41,6 +41,12 @@ const SECOES = [
         descricao: 'As vagas e os reconhecimentos da feira, o projeto de cada um e a lista da cerimônia.',
     },
     {
+        to: '/admin/presencial/interpretes',
+        icon: 'translate',
+        titulo: 'Intérpretes',
+        descricao: 'Cadastro, a quem cada um atende, o mapa de designação, o check-in por turno e as etiquetas.',
+    },
+    {
         to: '/admin/presencial/espelho',
         icon: 'table_view',
         titulo: 'Espelho da checagem',

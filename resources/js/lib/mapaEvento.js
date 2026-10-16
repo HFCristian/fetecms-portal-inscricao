@@ -21,10 +21,6 @@ export const salvarConfigTurnos = (config) =>
 /** Gera — ou regera — a divisão. Só a última lista vale. */
 export const gerarTurnos = (config) => http.post('/admin/mapa/turnos/gerar', config).then((r) => r.data);
 
-/** Move um projeto de turno à mão: sem justificativa, com registro. */
-export const moverProjetoTurno = (projetoId, turno) =>
-    http.patch('/admin/mapa/turnos/mover', { projeto_id: projetoId, turno }).then((r) => r.data);
-
 /** Baixa a lista em txt, csv ou pdf pelo mesmo endpoint. */
 export async function exportarTurnos(formato) {
     const resp = await http.get(`/admin/mapa/turnos/exportar/${formato}`, { responseType: 'blob' });
@@ -101,3 +97,28 @@ export async function baixarListaSituacao(formato, params = {}) {
     link.remove();
     URL.revokeObjectURL(url);
 }
+
+// --- Remanejar sem refazer (Sprints 212–213) -------------------------------
+
+/**
+ * O que está fora do lugar (finalista sem turno, sem estande, fora da lista) e
+ * o que o diálogo de destino precisa: números da planta, ocupação e capacidade.
+ */
+export const getRemanejamento = () => http.get('/admin/mapa/remanejamento').then((r) => r.data.data);
+
+/**
+ * Põe um projeto num lugar (turno + estande). Com o estande ocupado, `modo`
+ * diz o que acontece com o ocupante: `trocar`, `empurrar` ou `final`. Devolve
+ * `{ data: { turnos, remanejamento, movimentos, avisos }, meta: { message } }`.
+ */
+export const alocarNoMapa = ({ projetoId, turno, numero = null, modo = null }) =>
+    http.post('/admin/mapa/remanejamento/alocar', {
+        projeto_id: projetoId,
+        turno,
+        ...(numero ? { numero: Number(numero) } : {}),
+        ...(modo ? { modo } : {}),
+    }).then((r) => r.data);
+
+/** Tira o projeto do mapa (turno e estande) — quem saiu da lista final. */
+export const retirarDoMapa = (projetoId) =>
+    http.post('/admin/mapa/remanejamento/retirar', { projeto_id: projetoId }).then((r) => r.data);

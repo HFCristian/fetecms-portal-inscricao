@@ -400,6 +400,17 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     livres e avisa; o mesmo estande em duas categorias é recusado. Mandar um projeto
     para um número ocupado **troca os dois de lugar** (`EstandesProjetosService`,
     `App\Support\FaixaEstandes`).
+    Geradas as duas listas, elas se **remanejam sem refazer** (`RemanejamentoMapaService`,
+    `/admin/mapa/remanejamento`): o finalista que entrou na lista final depois aparece
+    em "Fora do lugar" (Turnos) e no estande vazio da planta (**Alocar projeto**); quem
+    saiu da lista sai do mapa. Com os estandes distribuídos, mover de turno **pede o
+    estande** — senão o projeto ficaria com o número do turno antigo. Estande ocupado
+    oferece três saídas: **trocar** os dois de lugar (estande e turno, só para quem já
+    tem lugar), **empurrar** a fila um estande até o primeiro vazio, ou mandar o atual
+    para o **fim** (próximo livre depois do último ocupado). "Ao lado" e "fim" andam nos
+    números da **planta em vigor**. Na planta, cada projeto do estande tem **Trocar**:
+    o destino é escolhido clicando noutro estande, no mesmo turno ou no outro. O
+    diálogo é o mesmo nas duas telas (`DialogoDestinoMapa.jsx`).
     **Mapa do Evento** (`/admin/mapa/planta`) é a planta do ginásio em SVG: clicar
     num estande mostra quem apresenta nele nos dois turnos. Ela nasce com a prancha
     da montadora (`App\Support\PlantaEvento`) e é **editável e versionada por
@@ -489,6 +500,27 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     check-in exige **justificativa** e entra em Registros → Cerimonial. Janela do **evento**, com
     o mesmo modo demo do balcão; o painel se atualiza por polling no intervalo da edição
     (`edicoes.cerimonial_atualizacao_segundos`, padrão 30s). `CerimonialService`.
+  - **Avaliação presencial → Intérpretes** (`/admin/presencial/interpretes`, `InterpretesService`,
+    `InterpreteCheckinService`): o cadastro de quem interpreta no evento — só **nome e CPF**
+    obrigatórios (CPF único na edição); opcionais a data de nascimento e os **tipos**
+    (`App\Enums\TipoInterprete`: línguas — Espanhol, Inglês, Francês, Alemão, Italiano, outra — e
+    atendimento a PCD — Libras, Libras tátil, guia-intérprete, audiodescrição, ledor/transcritor,
+    oralização, outro; "outros" pede o texto). O **vínculo** (`interprete_vinculos`) é ao **projeto
+    inteiro** ou a um **participante** (estudante, orientador, coorientador), em quantos projetos
+    for preciso, e pode ser feito depois. Todo vínculo guarda o projeto, e é por ele que o intérprete
+    chega ao estande e ao turno: o **Mapa de designação** (escolhe o intérprete e o turno, clica nos
+    estandes) cria o vínculo ao projeto que está ali (`origem = mapa`), então a designação **segue o
+    projeto** quando ele muda de lugar; tirar no mapa desfaz só o que o mapa criou. Os **pedidos de
+    intérprete** aprovados na aba Suporte no evento aparecem enquanto o projeto não tem intérprete,
+    com atalho para vincular. O **crachá** segue o padrão dos participantes, com papel `I` e projeto
+    `0` (`2026-0-529-I7`); a lista sai em Excel/CSV com o código e as **etiquetas** no mesmo PDF dos
+    participantes. A **chegada** é por **dia × turno** (as ocorrências da agenda presencial; sem
+    horário dos turnos, os dias do evento com A e B): crachá (leitor USB/câmera, `LeitorCracha.jsx`)
+    ou busca por nome/CPF. O **Acompanhamento** mostra, no turno, quem devia estar (os intérpretes dos
+    projetos que apresentam nele), quem chegou, quem falta e quem chegou sem designação; desfazer
+    pede justificativa e vai para Registros → Credenciamento. O voluntário da aba (conta temporária)
+    só registra chegada — cadastro, mapa, exportação e acompanhamento são `admin.permanente`. O
+    crachá de intérprete lido no credenciamento ou na cerimônia é recusado dizendo onde registrar.
   - **Almoxarifado** (`/admin/almoxarifado`): o balcão de guarda da feira. A equipe chega com
     maquete, ferramenta e mochila e precisa de onde deixar isso enquanto circula pelo evento.
     A aba é uma **aba do RBAC** como as outras (escopo *Almoxarifado*), só abre dentro do
@@ -924,7 +956,89 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 209 | Fix: cadastro **em lote** de contas temporárias respondia **500** com o "Início do acesso" fora de dd/mm/aaaa hh:mm | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 210 | Cerimonial: a **mesma pessoa em vários papéis** (CPF, ou e-mail + nome) entra e sai de todos de uma vez | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 211 | Cerimonial → Visão Geral: **Marcar chegada** na lista de quem falta | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 212 | Turnos: **remanejar sem refazer** — finalista sem turno/estande, fora da lista, mover pede o estande | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 213 | Planta: **Alocar projeto** no estande vazio e **Trocar** (destino clicando no mapa, no turno ou no outro) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 214 | Avaliação presencial → **Intérpretes**: cadastro (nome + CPF), vínculos a projeto/participante, pedidos de suporte, crachá `I` e exportação | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 215 | Intérpretes: **mapa de designação** (segue o projeto), **check-in** por dia × turno e **acompanhamento** | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 216 | Fix (segurança): `symfony/http-foundation` 7.4.18 → 7.4.21 (CVE-2026-108082), `npm audit fix` (dev) + teste da planta sem corrida | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprint 216 (mesma branch):** o CI do PR quebrou em dois jobs.
+> (a) **security** — `composer audit` acusou CVE-2026-108082 (ReDoS no `HeaderUtils::split()`,
+> alcançável pelo header `Cache-Control` da requisição) em `symfony/http-foundation` < 7.4.19.
+> Dependência transitiva do `laravel/framework`, então a correção é só o lock:
+> `composer update symfony/http-foundation --with-dependencies` subiu para **7.4.21**, levando
+> `symfony/polyfill-mbstring` e `symfony/polyfill-php83` para 1.43. `composer.json` não mudou.
+> De carona, o `npm audit` completo (o CI só barra produção, `--omit=dev --audit-level=high`, que
+> já passava) acusava três avisos em dependências de **desenvolvimento**: `shell-quote` (crítico,
+> via `concurrently`) e `source-map-js` (alto). `npm audit fix`, só no lock: `concurrently`
+> 10.0.6, `shell-quote` 1.12.0, `source-map-js` 1.2.2. `composer audit` e `npm audit` limpos.
+> (b) **vitest** — `MapaPlanta.test.jsx` procurava o estande pelo nome exato "Estande 042", mas o
+> rótulo vira "Estande 042 · Ciências Agrárias" quando a situação do dia chega. O teste só passava
+> se ela ainda não tivesse chegado — uma corrida que o CI perdeu (a carga extra do remanejamento,
+> Sprint 213, mudou o tempo). As buscas passaram a usar `estande('042')`, que aceita os dois rótulos.
+> Back **1509/1509**, front **813/813**.
+>
+> **Sprints 214–215 (mesma branch):** a aba Avaliação presencial ganhou a seção **Intérpretes**.
+> (a) **Sprint 214** — o cadastro (`interpretes`, por edição): nome e CPF obrigatórios, data de
+> nascimento e tipos opcionais (`TipoInterprete`, línguas e PCD, vários por pessoa; "outros" pede
+> o texto). Os **vínculos** (`interprete_vinculos`) são ao projeto inteiro ou a um participante,
+> sempre com o projeto preenchido; a edição recebe a lista inteira e **preserva a origem** do que
+> fica (o vínculo do mapa continua do mapa). Vínculo novo só a finalista da lista vigente, e a pessoa
+> tem de ser da equipe. Os pedidos de intérprete aprovados na aba Suporte no evento sem intérprete
+> no projeto (ou no estudante do pedido) aparecem na tela, com **Vincular** e **Cadastrar novo**
+> (`origem = pedido`). O crachá ganhou o papel **`I`** (`CodigoParticipante::PAPEL_INTERPRETE`,
+> projeto `0`); o credenciamento e a cerimônia recusam esse crachá dizendo onde registrar. A lista
+> exporta em Excel e CSV com o código, e as **etiquetas** saem pelo `EtiquetasPdf` dos participantes
+> (todas ou uma). Cadastrar, alterar e excluir entram em Registros → Credenciamento, junto do
+> suporte.
+> (b) **Sprint 215** — o **Mapa de designação**: escolhe-se o intérprete e o turno; clicar no estande
+> cria (ou tira) o vínculo ao projeto que apresenta ali (`PUT .../{interprete}/estandes`). Por ser
+> vínculo ao projeto, a designação **segue o projeto** quando ele é remanejado (Sprints 212–213);
+> estande vazio é recusado, e o vínculo feito no cadastro aparece em verde e não se desfaz pelo mapa.
+> Sem intérprete escolhido, cada estande mostra quantos intérpretes tem. O **Check-in**
+> (`interprete_checkins`, um por dia × turno) lê o crachá pelo `LeitorCracha.jsx` — o leitor do
+> cerimonial virou genérico — ou acha por nome/CPF; a ocorrência vem escolhida (a em andamento, senão
+> a próxima) e o voluntário da aba atende. O **Acompanhamento** mostra esperados, chegaram, faltando
+> e quem chegou sem designação no turno, com *Marcar chegada* e *Desfazer* (justificativa), e se
+> atualiza a cada 30s.
+> Back **1509/1509**, front **813/813**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprints 212–215):** (1) `git push origin feat/mapa-edicao-e-interpretes` +
+> PR para a `main`. **Uma migration** (`interpretes`, `interprete_vinculos`, `interprete_checkins`),
+> **nenhuma variável de `.env`** e **nenhuma dependência nova**. (2) A seção Intérpretes mora na aba
+> Avaliação presencial: quem tem escopo com essa aba já a vê. (3) Antes do evento, imprima uma folha
+> de etiquetas de intérprete e teste no leitor USB e na câmera. (4) O check-in depende do **período
+> do evento** (Parametrização → Datas e períodos); com o horário dos turnos configurado em
+> Distribuição presencial, as ocorrências trazem o horário. (5) No mapa, mover um projeto de turno
+> com os estandes já distribuídos agora **pede o estande** — inclusive pela seta da tela de Turnos.
+>
+> **Sprints 212–213 (branch `feat/mapa-edicao-e-interpretes`, saída da `main` @ `e61ceff`):** as
+> listas do Mapa do Evento passaram a ser **editadas sem regerar**. Gerar de novo substitui tudo,
+> inclusive o que já foi impresso e enviado às equipes, e a lista final continua ganhando projeto
+> depois (cadastro manual, inclusão com justificativa).
+> (a) **Sprint 212** — `RemanejamentoMapaService` é o único caminho de mudança de lugar, nas duas
+> telas: `GET /admin/mapa/remanejamento` (o que está fora do lugar — finalista sem turno, com turno
+> e sem estande, e no mapa mas fora da lista — mais os números da planta, a ocupação e a
+> capacidade), `POST .../alocar` (`projeto_id`, `turno`, `numero`, `modo`) e `POST .../retirar`.
+> Com o estande ocupado o `modo` é obrigatório: **trocar** (os dois trocam estande **e** turno;
+> recusado para quem não tem lugar), **empurrar** (cada ocupante anda um número da planta, de trás
+> para frente, até o primeiro vazio; sem vazio até o fim, 422) ou **final** (o ocupante vai para o
+> próximo livre depois do último ocupado do turno; com o último ocupado no fim da planta, o
+> primeiro livre). A capacidade do turno continua teto (só conta quando o projeto **entra** no
+> turno — trocar mantém as duas ocupações). Antes de os estandes existirem, escolhe-se só o turno.
+> A resposta avisa o projeto empurrado para fora da faixa da categoria e a avaliação presencial
+> entregue no turno antigo. Registros → Mapa do evento ganhou "Projeto incluído no mapa" e
+> "Projeto retirado do mapa"; os movimentos usam os tipos que já existiam, um por projeto que se
+> mexeu. O `PATCH /turnos/mover` antigo passou pelo mesmo serviço: com os estandes distribuídos ele
+> agora pede o estande (antes deixava o projeto com o número do turno antigo, em silêncio). A tela
+> de Turnos ganhou o bloco **Fora do lugar** e o estande de cada projeto na lista; a seta de mover
+> abre o diálogo de destino.
+> (b) **Sprint 213** — na planta, cada projeto do estande tem **Trocar**: o mapa entra em "clique no
+> estande de destino" (ou "Digitar o número") e o diálogo abre com o número clicado e o turno do
+> projeto, trocável. O turno vazio de um estande tem **Alocar projeto**, com a busca entre os
+> finalistas sem lugar. Um aviso no topo diz quantos ainda faltam. Tudo devolve a ocupação nova, e
+> o desenho, o painel e a cor do dia se atualizam juntos.
+>
 > **Sprints 210–211 (mesma branch):** o professor que **orienta um projeto e coorienta outro** tem um
 > crachá por vínculo (o código é projeto + papel + id), e ler um marcava só aquele: na Visão Geral
 > ele aparecia faltando como coorientador. Reimprimir as etiquetas não era opção.

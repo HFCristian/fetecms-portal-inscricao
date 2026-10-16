@@ -18,6 +18,8 @@ const restaurarPlanta = vi.fn();
 const getSituacaoPlanta = vi.fn();
 const getListaSituacao = vi.fn();
 const baixarListaSituacao = vi.fn();
+const getRemanejamento = vi.fn();
+const alocarNoMapa = vi.fn();
 vi.mock('../lib/mapaEvento.js', () => ({
     getPlanta: (...a) => getPlanta(...a),
     salvarPlanta: (...a) => salvarPlanta(...a),
@@ -25,9 +27,18 @@ vi.mock('../lib/mapaEvento.js', () => ({
     getSituacaoPlanta: (...a) => getSituacaoPlanta(...a),
     getListaSituacao: (...a) => getListaSituacao(...a),
     baixarListaSituacao: (...a) => baixarListaSituacao(...a),
+    getRemanejamento: (...a) => getRemanejamento(...a),
+    alocarNoMapa: (...a) => alocarNoMapa(...a),
 }));
 
 import MapaPlanta from './MapaPlanta.jsx';
+
+/**
+ * O nome acessível do estande. Quando a situação do dia chega, o rótulo ganha
+ * a área ("Estande 042 · Ciências Agrárias"); a busca não pode depender de ela
+ * ter chegado ou não — era uma corrida que o CI às vezes perdia.
+ */
+const estande = (numero) => new RegExp(`^Estande ${numero}( · .+)?$`);
 
 const projeto = (titulo) => ({
     projeto_id: 1, numero: 42, estande: '042', titulo, categoria: 'FETECMS',
@@ -133,6 +144,24 @@ const SITUACAO = {
 
 const resposta = (over = {}) => ({ data: painel(over), meta: { filtros: FILTROS } });
 
+/** O painel de remanejamento: ocupação com ids distintos por projeto. */
+const remanejamento = (over = {}) => ({
+    tem_lista: true,
+    turnos_gerados: true,
+    estandes_gerados: true,
+    capacidade: { A: 230, B: 230 },
+    ocupacao_turnos: { A: 2, B: 1 },
+    numeros: [1, 2, 42],
+    ocupacao: {
+        42: { numero: 42, A: { projeto_id: 1, titulo: 'Bioplástico de mandioca' }, B: { projeto_id: 2, titulo: 'Sensor de nível' } },
+        1: { numero: 1, A: { projeto_id: 3, titulo: 'Horta na escola' }, B: null },
+    },
+    sem_turno: [],
+    sem_estande: [],
+    fora_da_lista: [],
+    ...over,
+});
+
 describe('MapaPlanta', () => {
     beforeEach(() => {
         getPlanta.mockReset().mockResolvedValue(resposta());
@@ -141,13 +170,74 @@ describe('MapaPlanta', () => {
         getSituacaoPlanta.mockReset().mockResolvedValue(SITUACAO);
         getListaSituacao.mockReset();
         baixarListaSituacao.mockReset().mockResolvedValue(undefined);
+        getRemanejamento.mockReset().mockResolvedValue(remanejamento());
+        alocarNoMapa.mockReset().mockResolvedValue({
+            data: { remanejamento: remanejamento(), turnos: {}, movimentos: [], avisos: [] },
+            meta: { message: 'Projeto remanejado.' },
+        });
+    });
+
+    describe('remanejar sem refazer', () => {
+        it('trocar: escolhe o destino clicando noutro estande e decide o que acontece com o ocupante', async () => {
+            render(<MapaPlanta />);
+            await waitFor(() => expect(getRemanejamento).toHaveBeenCalled());
+
+            fireEvent.click(await screen.findByRole('button', { name: estande('042') }));
+            fireEvent.click(await screen.findByRole('button', { name: 'Trocar Bioplástico de mandioca de lugar' }));
+            expect(screen.getByText(/Clique no estande de destino/)).toBeInTheDocument();
+
+            fireEvent.click(screen.getByRole('button', { name: estande('001') }));
+
+            const dialogo = await screen.findByRole('dialog', { name: 'Trocar de lugar' });
+            expect(within(dialogo).getByLabelText('Número do estande')).toHaveValue(1);
+            expect(within(dialogo).getByText(/já é de/)).toBeInTheDocument();
+
+            fireEvent.click(within(dialogo).getByLabelText(/Empurrar a fila/));
+            fireEvent.click(within(dialogo).getByRole('button', { name: 'Confirmar' }));
+
+            await waitFor(() => expect(alocarNoMapa).toHaveBeenCalledWith({
+                projetoId: 1, turno: 'A', numero: 1, modo: 'empurrar',
+            }));
+            expect(await screen.findByText('Projeto remanejado.')).toBeInTheDocument();
+        });
+
+        it('estande vazio aloca um finalista que ainda não tem lugar', async () => {
+            getRemanejamento.mockResolvedValue(remanejamento({
+                sem_turno: [{ projeto_id: 9, titulo: 'Chegou depois', codigo: 'FET.AGR-009', turno: null, numero: null }],
+            }));
+
+            render(<MapaPlanta />);
+
+            expect(await screen.findByText(/1 finalista\(s\) ainda sem lugar no mapa/)).toBeInTheDocument();
+
+            fireEvent.click(await screen.findByRole('button', { name: estande('002') }));
+            fireEvent.click(await screen.findByRole('button', { name: 'Alocar projeto no estande 2 turno B' }));
+
+            const dialogo = await screen.findByRole('dialog', { name: 'Alocar projeto no estande' });
+            expect(within(dialogo).getByText('FET.AGR-009 · Chegou depois')).toBeInTheDocument();
+            fireEvent.click(within(dialogo).getByRole('button', { name: 'Alocar' }));
+
+            await waitFor(() => expect(alocarNoMapa).toHaveBeenCalledWith({ projetoId: 9, turno: 'B', numero: 2 }));
+        });
+
+        it('sem estandes distribuídos não oferece trocar nem alocar', async () => {
+            getRemanejamento.mockResolvedValue(remanejamento({ estandes_gerados: false, ocupacao: {} }));
+
+            render(<MapaPlanta />);
+            await waitFor(() => expect(getRemanejamento).toHaveBeenCalled());
+
+            fireEvent.click(await screen.findByRole('button', { name: estande('042') }));
+            await screen.findByText('Sensor de nível');
+
+            expect(screen.queryByRole('button', { name: /Trocar/ })).not.toBeInTheDocument();
+        });
     });
 
     it('desenha um estande por número, com a entrada marcada', async () => {
         render(<MapaPlanta />);
 
-        expect(await screen.findByRole('button', { name: 'Estande 001' })).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: 'Estande 042' })).toBeInTheDocument();
+        expect(await screen.findByRole('button', { name: estande('001') })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: estande('042') })).toBeInTheDocument();
         expect(screen.getByText('Entrada')).toBeInTheDocument();
         expect(screen.getByText(/3 estande\(s\) no desenho · 2 com projeto · versão 3 em vigor/)).toBeInTheDocument();
     });
@@ -155,7 +245,7 @@ describe('MapaPlanta', () => {
     it('clicar num estande mostra quem apresenta nos dois turnos', async () => {
         render(<MapaPlanta />);
 
-        fireEvent.click(await screen.findByRole('button', { name: 'Estande 042' }));
+        fireEvent.click(await screen.findByRole('button', { name: estande('042') }));
 
         expect(await screen.findByText('Estande 042')).toBeInTheDocument();
         // O rótulo do turno aparece duas vezes: no seletor do mapa e no cabeçalho
@@ -169,7 +259,7 @@ describe('MapaPlanta', () => {
     it('estande com um turno só diz que o outro está vazio', async () => {
         render(<MapaPlanta />);
 
-        fireEvent.click(await screen.findByRole('button', { name: 'Estande 001' }));
+        fireEvent.click(await screen.findByRole('button', { name: estande('001') }));
 
         expect(await screen.findByText('Horta na escola')).toBeInTheDocument();
         expect(screen.getByText('Sem projeto neste turno.')).toBeInTheDocument();
@@ -178,7 +268,7 @@ describe('MapaPlanta', () => {
     it('estande sem projeto nenhum abre o painel vazio, sem quebrar', async () => {
         render(<MapaPlanta />);
 
-        fireEvent.click(await screen.findByRole('button', { name: 'Estande 002' }));
+        fireEvent.click(await screen.findByRole('button', { name: estande('002') }));
 
         expect(await screen.findByText('Estande 002')).toBeInTheDocument();
         expect(screen.getAllByText('Sem projeto neste turno.')).toHaveLength(2);
@@ -203,7 +293,7 @@ describe('MapaPlanta', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Adicionar estande' }));
 
-        expect(await screen.findByRole('button', { name: 'Estande 043' })).toBeInTheDocument();
+        expect(await screen.findByRole('button', { name: estande('043') })).toBeInTheDocument();
 
         const salvar = screen.getByRole('button', { name: 'Salvar como nova versão' });
         expect(salvar).toBeEnabled();
@@ -219,19 +309,19 @@ describe('MapaPlanta', () => {
         fireEvent.click(await screen.findByRole('button', { name: 'Editar planta' }));
         fireEvent.click(screen.getByRole('button', { name: 'Adicionar estande' }));
 
-        expect(await screen.findByRole('button', { name: 'Estande 043' })).toBeInTheDocument();
+        expect(await screen.findByRole('button', { name: estande('043') })).toBeInTheDocument();
 
         fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
 
         await waitFor(() =>
-            expect(screen.queryByRole('button', { name: 'Estande 043' })).not.toBeInTheDocument());
+            expect(screen.queryByRole('button', { name: estande('043') })).not.toBeInTheDocument());
         expect(salvarPlanta).not.toHaveBeenCalled();
     });
 
     it('recusa renumerar para um número que já existe', async () => {
         render(<MapaPlanta />);
         fireEvent.click(await screen.findByRole('button', { name: 'Editar planta' }));
-        fireEvent.click(screen.getByRole('button', { name: 'Estande 001' }));
+        fireEvent.click(screen.getByRole('button', { name: estande('001') }));
 
         fireEvent.change(await screen.findByLabelText('Número do estande'), { target: { value: '42' } });
         fireEvent.click(screen.getByRole('button', { name: 'Renumerar' }));
@@ -277,7 +367,7 @@ describe('MapaPlanta', () => {
     it('a ficha do estande conta por onde o projeto já passou', async () => {
         render(<MapaPlanta />);
 
-        fireEvent.click(await screen.findByRole('button', { name: 'Estande 042' }));
+        fireEvent.click(await screen.findByRole('button', { name: estande('042') }));
 
         expect(await screen.findByText('Pronto para avaliação')).toBeInTheDocument();
         expect(screen.getByText('Credenciado em 02/10/2026 09:10')).toBeInTheDocument();

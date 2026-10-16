@@ -42,6 +42,12 @@ final class CodigoParticipante
      */
     public const PAPEL_ACOMPANHANTE = 'S';
 
+    /**
+     * Intérprete do evento (Sprint 214). Não pertence a projeto nenhum, então o
+     * pedaço do projeto vai como `0`; o id é o do cadastro de intérprete.
+     */
+    public const PAPEL_INTERPRETE = 'I';
+
     /** Monta o código de um participante. */
     public static function montar(int $ano, int $projetoId, ?string $cpf, string $papel, int $participanteId): string
     {
@@ -63,7 +69,7 @@ final class CodigoParticipante
     {
         $codigo = strtoupper(trim($codigo));
 
-        if (! preg_match('/^(\d{4})-(\d+)-(\d{3})-([AOCS])(\d+)$/', $codigo, $m)) {
+        if (! preg_match('/^(\d{4})-(\d+)-(\d{3})-([AOCSI])(\d+)$/', $codigo, $m)) {
             return null;
         }
 
@@ -76,6 +82,12 @@ final class CodigoParticipante
         ];
     }
 
+    /** O crachá é de um intérprete (e não de alguém da equipe de um projeto)? */
+    public static function ehInterprete(array $lido): bool
+    {
+        return $lido['papel'] === self::PAPEL_INTERPRETE;
+    }
+
     /** Rótulo do papel, para a etiqueta e para a tela. */
     public static function papelLabel(string $papel): string
     {
@@ -84,6 +96,7 @@ final class CodigoParticipante
             self::PAPEL_ORIENTADOR => 'Orientador(a)',
             self::PAPEL_COORIENTADOR => 'Coorientador(a)',
             self::PAPEL_ACOMPANHANTE => 'Acompanhante',
+            self::PAPEL_INTERPRETE => 'Intérprete',
             default => 'Participante',
         };
     }

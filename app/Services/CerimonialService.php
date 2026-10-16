@@ -282,6 +282,12 @@ class CerimonialService
             ]);
         }
 
+        if (CodigoParticipante::ehInterprete($lido)) {
+            throw ValidationException::withMessages([
+                'codigo' => 'Este crachá é de intérprete. A chegada dele é registrada em Avaliação presencial → Intérpretes.',
+            ]);
+        }
+
         $projeto = Projeto::with(['alunos', 'coorientador', 'user.orientadorProfile'])
             ->find($lido['projeto_id']);
 

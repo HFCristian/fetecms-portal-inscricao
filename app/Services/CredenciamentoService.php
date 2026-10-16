@@ -756,6 +756,12 @@ class CredenciamentoService
             ]);
         }
 
+        if (CodigoParticipante::ehInterprete($lido)) {
+            throw ValidationException::withMessages([
+                'codigo' => 'Este crachá é de intérprete. A chegada dele é registrada em Avaliação presencial → Intérpretes.',
+            ]);
+        }
+
         $projeto = Projeto::with(['alunos', 'coorientador', 'user.orientadorProfile', 'instituicao'])
             ->find($lido['projeto_id']);
 

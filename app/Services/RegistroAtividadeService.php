@@ -642,6 +642,47 @@ class RegistroAtividadeService
     }
 
     /**
+     * Mapa do evento: um finalista que não tinha lugar ganhou turno (e estande)
+     * sem regerar as listas — o projeto que entrou na lista final depois.
+     */
+    public function mapaProjetoIncluido(Projeto $projeto, User $admin, string $lugar): RegistroAtividade
+    {
+        return $this->registrarNoProjeto(TipoRegistro::MapaProjetoIncluido, $projeto, $admin, [
+            'de' => 'Sem turno',
+            'para' => $lugar,
+        ]);
+    }
+
+    /** Mapa do evento: o projeto saiu do mapa (turno e estande). */
+    public function mapaProjetoRetirado(Projeto $projeto, User $admin, string $lugar): RegistroAtividade
+    {
+        return $this->registrarNoProjeto(TipoRegistro::MapaProjetoRetirado, $projeto, $admin, [
+            'de' => $lugar,
+            'para' => 'Fora do mapa',
+        ]);
+    }
+
+    /**
+     * Intérpretes (Sprints 214–215): cadastro, alteração, exclusão e check-in
+     * desfeito. Não há projeto no registro — o intérprete não pertence a um —,
+     * então o que aconteceu vai escrito no `resumo`.
+     */
+    public function interprete(TipoRegistro $tipo, User $admin, string $resumo, ?string $justificativa = null): RegistroAtividade
+    {
+        return RegistroAtividade::create([
+            'tipo' => $tipo,
+            'user_id' => $admin->id,
+            'autor_email' => $admin->email,
+            'autor_nome' => $admin->name,
+            'autor_role' => $admin->role?->value,
+            'detalhes' => array_filter([
+                'resumo' => $resumo,
+                'justificativa' => $justificativa,
+            ], fn ($v) => $v !== null),
+        ]);
+    }
+
+    /**
      * Mapa do evento: os estandes foram distribuídos (ou redistribuídos).
      *
      * @param  array<string, mixed>  $resumo

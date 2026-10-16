@@ -8,9 +8,12 @@ import {
     buscarFinalistas,
     salvarConfigTurnos,
     gerarTurnos,
-    moverProjetoTurno,
     exportarTurnos,
+    getRemanejamento,
+    alocarNoMapa,
+    retirarDoMapa,
 } from '../lib/mapaEvento.js';
+import DialogoDestinoMapa from '../components/DialogoDestinoMapa.jsx';
 
 /**
  * Mapa do Evento → **Turnos de Apresentação**.
@@ -19,6 +22,11 @@ import {
  * turno tem e as cinco regras, na ordem de prioridade — a primeira que alcança
  * um projeto decide o turno dele. Embaixo, a **lista gerada**, lado a lado, com
  * a troca manual de turno.
+ *
+ * A lista em vigor também se **remaneja sem refazer** (Sprint 212): o finalista
+ * que entrou na lista final depois da geração aparece em "Fora do lugar" e
+ * ganha turno (e estande) ali mesmo; quem saiu da lista sai do mapa; e mover de
+ * turno, com os estandes já distribuídos, pede o estande de destino.
  *
  * As regras ficam uma abaixo da outra e são ligadas por interruptor porque é
  * assim que a organização pensa nelas: "este ano vamos usar só o vestibular e a
@@ -120,6 +128,70 @@ function Escolhidos({ projetos, nomes, onRemover }) {
     );
 }
 
+/**
+ * O que está fora do lugar depois da geração: finalista sem turno (entrou na
+ * lista final depois), finalista sem estande e quem está no mapa mas saiu da
+ * lista. Some quando não há nada.
+ */
+function ForaDoLugar({ rem, ocupado, onIncluir, onEstande, onRetirar }) {
+    const grupos = [
+        {
+            chave: 'sem_turno',
+            titulo: 'Finalistas sem turno',
+            texto: 'Entraram na lista final depois da geração. Escolha o turno (e o estande) de cada um — nada é regerado.',
+            acao: 'Incluir',
+            onAcao: onIncluir,
+        },
+        {
+            chave: 'sem_estande',
+            titulo: 'Com turno, sem estande',
+            texto: 'Têm turno mas ficaram sem número de estande.',
+            acao: 'Escolher estande',
+            onAcao: onEstande,
+        },
+        {
+            chave: 'fora_da_lista',
+            titulo: 'No mapa, fora da lista final',
+            texto: 'Saíram da lista final vigente e ainda ocupam lugar.',
+            acao: 'Retirar do mapa',
+            onAcao: onRetirar,
+        },
+    ].filter((g) => (rem[g.chave] ?? []).length > 0);
+
+    if (grupos.length === 0) return null;
+
+    return (
+        <section className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-5 mb-4 border-l-4 border-primary-container">
+            <h2 className="font-display text-lg font-semibold text-on-surface mb-3">Fora do lugar</h2>
+            <div className="space-y-4">
+                {grupos.map((g) => (
+                    <div key={g.chave}>
+                        <h3 className="text-sm font-semibold text-primary">{g.titulo} ({rem[g.chave].length})</h3>
+                        <p className="text-xs text-on-surface-variant mb-2">{g.texto}</p>
+                        <ul className="divide-y divide-outline-variant/30">
+                            {rem[g.chave].map((p) => (
+                                <li key={p.projeto_id} className="py-2 flex items-center gap-3">
+                                    <span className="min-w-0 flex-1">
+                                        <span className="text-sm font-medium text-on-surface block">
+                                            {p.codigo ? `${p.codigo} · ` : ''}{p.titulo}
+                                        </span>
+                                        <span className="text-xs text-on-surface-variant block">
+                                            {[p.turno ? `Turno ${p.turno}` : null, p.numero ? `Estande ${String(p.numero).padStart(3, '0')}` : null, p.categoria, p.area].filter(Boolean).join(' · ')}
+                                        </span>
+                                    </span>
+                                    <Button variant="outline" disabled={ocupado} onClick={() => g.onAcao(p)}>
+                                        {g.acao}
+                                    </Button>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                ))}
+            </div>
+        </section>
+    );
+}
+
 export default function MapaTurnos() {
     const [dados, setDados] = useState(null);
     const [config, setConfig] = useState(null);
@@ -130,6 +202,13 @@ export default function MapaTurnos() {
     const [alerta, setAlerta] = useState('');
     const [sucesso, setSucesso] = useState('');
     const [confirm, confirmDialog] = useConfirm();
+    const [rem, setRem] = useState(null);          // painel de remanejamento
+    const [dialogo, setDialogo] = useState(null);  // { projeto, turnoInicial, titulo }
+    const [avisos, setAvisos] = useState([]);
+
+    const recarregarRemanejamento = () => getRemanejamento().then(setRem).catch(() => setRem(null));
+
+    useEffect(() => { recarregarRemanejamento(); }, []);
 
     useEffect(() => {
         getTurnos()
@@ -207,16 +286,49 @@ export default function MapaTurnos() {
             const mapa = {};
             Object.values(r.data.turnos).forEach((t) => t.projetos.forEach((p) => { mapa[p.projeto_id] = p.titulo; }));
             setNomes((n) => ({ ...n, ...mapa }));
+            recarregarRemanejamento();
         } catch (e) { falhar(e); } finally { setOcupado(false); }
     }
 
+    /** O que toda mudança de lugar devolve: as duas listas e o que se mexeu. */
+    function aplicar(resp) {
+        setLista(resp.data.turnos);
+        setRem(resp.data.remanejamento);
+        setAvisos(resp.data.avisos ?? []);
+        setSucesso(resp.meta?.message ?? 'Projeto remanejado.');
+        setAlerta('');
+        setDialogo(null);
+    }
+
+    /**
+     * Mover de turno. Com os estandes já distribuídos o projeto precisa de um
+     * estande no turno novo — senão ficaria com o número do turno antigo —,
+     * então abre o diálogo; antes deles, é só o turno.
+     */
     async function mover(projeto, destino) {
+        if (rem?.estandes_gerados) {
+            setDialogo({ projeto, turnoInicial: destino, titulo: 'Mover de turno' });
+            return;
+        }
+
         setOcupado(true);
         try {
-            const r = await moverProjetoTurno(projeto.projeto_id, destino);
-            setLista(r.data);
-            setSucesso(`"${projeto.titulo}" foi para o ${destino === 'A' ? 'turno A' : 'turno B'}.`);
-            setAlerta('');
+            aplicar(await alocarNoMapa({ projetoId: projeto.projeto_id, turno: destino }));
+        } catch (e) { falhar(e); } finally { setOcupado(false); }
+    }
+
+    async function retirar(projeto) {
+        const ok = await confirm({
+            title: 'Retirar do mapa',
+            message: `"${projeto.titulo}" sai do turno${projeto.numero ? ' e do estande' : ''}. Ele não está mais na lista final vigente.`,
+            confirmLabel: 'Retirar',
+            danger: true,
+        });
+        if (!ok) return;
+
+        setOcupado(true);
+        try {
+            aplicar(await retirarDoMapa(projeto.projeto_id));
         } catch (e) { falhar(e); } finally { setOcupado(false); }
     }
 
@@ -455,6 +567,26 @@ export default function MapaTurnos() {
                 </div>
             )}
 
+            {avisos.length > 0 && (
+                <div className="mb-4">
+                    <Alert type="warning">
+                        <ul className="list-disc pl-5 text-sm">
+                            {avisos.map((a, i) => <li key={i}>{a}</li>)}
+                        </ul>
+                    </Alert>
+                </div>
+            )}
+
+            {lista?.gerada && rem && (
+                <ForaDoLugar
+                    rem={rem}
+                    ocupado={ocupado}
+                    onIncluir={(p) => setDialogo({ projeto: p, turnoInicial: p.turno ?? 'A', titulo: 'Incluir no mapa' })}
+                    onEstande={(p) => setDialogo({ projeto: p, turnoInicial: p.turno, titulo: 'Escolher o estande' })}
+                    onRetirar={retirar}
+                />
+            )}
+
             {lista?.gerada && (
                 <>
                     <div className="flex flex-wrap items-center gap-3 mb-3">
@@ -487,7 +619,7 @@ export default function MapaTurnos() {
                                                 <span className="min-w-0 flex-1">
                                                     <span className="text-sm font-medium text-on-surface block">{p.titulo}</span>
                                                     <span className="text-xs text-on-surface-variant block">
-                                                        {[p.categoria, p.area, p.escola].filter(Boolean).join(' · ')}
+                                                        {[p.numero ? `Estande ${String(p.numero).padStart(3, '0')}` : null, p.categoria, p.area, p.escola].filter(Boolean).join(' · ')}
                                                     </span>
                                                     <span className="text-xs text-primary-container block">{p.regra_label}</span>
                                                 </span>
@@ -511,6 +643,17 @@ export default function MapaTurnos() {
                         ))}
                     </div>
                 </>
+            )}
+
+            {dialogo && (
+                <DialogoDestinoMapa
+                    projeto={dialogo.projeto}
+                    dados={rem}
+                    turnoInicial={dialogo.turnoInicial}
+                    titulo={dialogo.titulo}
+                    onConcluido={aplicar}
+                    onFechar={() => setDialogo(null)}
+                />
             )}
 
             {confirmDialog}

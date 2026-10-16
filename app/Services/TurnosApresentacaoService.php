@@ -6,6 +6,7 @@ use App\Enums\Categoria;
 use App\Enums\Turno;
 use App\Models\Cidade;
 use App\Models\Edicao;
+use App\Models\EstandeProjeto;
 use App\Models\ListaFinal;
 use App\Models\Projeto;
 use App\Models\TurnoApresentacao;
@@ -247,6 +248,9 @@ class TurnosApresentacaoService
         }
 
         $ordenadas = $this->ordenar($alocacoes);
+        // O estande de cada um, para a tela dizer onde ele está e o diálogo de
+        // remanejamento partir do lugar atual.
+        $estandes = EstandeProjeto::where('edicao_id', $edicao->id)->pluck('numero', 'projeto_id')->all();
 
         $porTurno = [];
 
@@ -257,7 +261,7 @@ class TurnosApresentacaoService
                 'turno' => $turno->value,
                 'label' => $turno->label(),
                 'total' => $doTurno->count(),
-                'projetos' => $doTurno->map(fn (TurnoApresentacao $t) => $this->linha($t))->values()->all(),
+                'projetos' => $doTurno->map(fn (TurnoApresentacao $t) => $this->linha($t, $estandes))->values()->all(),
             ];
         }
 
@@ -266,61 +270,6 @@ class TurnosApresentacaoService
             'total' => $ordenadas->count(),
             'turnos' => $porTurno,
         ];
-    }
-
-    /**
-     * O admin move um projeto de turno à mão. Sem justificativa (é rearranjo de
-     * logística), mas com registro.
-     *
-     * @return array<string, mixed>
-     */
-    public function mover(int $projetoId, Turno $destino, User $admin): array
-    {
-        $edicao = $this->edicaoOuFalha();
-
-        $alocacao = TurnoApresentacao::where('edicao_id', $edicao->id)
-            ->where('projeto_id', $projetoId)
-            ->first();
-
-        if ($alocacao === null) {
-            throw ValidationException::withMessages([
-                'projeto_id' => 'Este projeto não está na lista de turnos em vigor.',
-            ]);
-        }
-
-        if ($alocacao->turno === $destino) {
-            return $this->listar();
-        }
-
-        $regras = RegrasTurnos::deArray($edicao->turnos_config);
-        $ocupacao = TurnoApresentacao::where('edicao_id', $edicao->id)
-            ->where('turno', $destino->value)
-            ->count();
-
-        if ($ocupacao >= $regras->capacidadeDe($destino)) {
-            throw ValidationException::withMessages([
-                'turno' => sprintf(
-                    'O %s já está com os %d estandes ocupados. Tire outro projeto de lá antes.',
-                    $destino->label(),
-                    $regras->capacidadeDe($destino),
-                ),
-            ]);
-        }
-
-        $origem = $alocacao->turno;
-
-        DB::transaction(function () use ($alocacao, $destino, $origem, $admin) {
-            $alocacao->update(['turno' => $destino->value, 'manual' => true]);
-
-            $this->registros->turnoProjetoMovido(
-                $alocacao->projeto,
-                $admin,
-                $origem->label(),
-                $destino->label(),
-            );
-        });
-
-        return $this->listar();
     }
 
     // --- Exportação ------------------------------------------------------
@@ -601,8 +550,11 @@ class TurnosApresentacaoService
         return $alocacoes->sortBy(fn (TurnoApresentacao $t) => $posicao[$t->projeto_id] ?? PHP_INT_MAX)->values();
     }
 
-    /** @return array<string, mixed> */
-    private function linha(TurnoApresentacao $t): array
+    /**
+     * @param  array<int, int>  $estandes  número do estande por projeto
+     * @return array<string, mixed>
+     */
+    private function linha(TurnoApresentacao $t, array $estandes = []): array
     {
         $projeto = $t->projeto;
         $rotulos = collect(RegrasTurnos::catalogo())->keyBy('value');
@@ -619,8 +571,9 @@ class TurnosApresentacaoService
             'orientador' => $projeto->user?->name,
             'turno' => $t->turno->value,
             'regra' => $t->regra,
+            'numero' => $estandes[$projeto->id] ?? null,
             'regra_label' => $t->manual
-                ? 'Movido à mão'
+                ? ($t->regra === 'manual' ? 'Incluído à mão' : 'Movido à mão')
                 : ($t->regra === 'equilibrio'
                     ? 'Equilíbrio entre os turnos'
                     : ($rotulos[$t->regra]['label'] ?? '—').($t->origem ? ' · '.$t->origem : '')),
