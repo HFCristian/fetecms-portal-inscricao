@@ -46,6 +46,8 @@ use App\Http\Controllers\Api\V1\IdentificacaoController;
 use App\Http\Controllers\Api\V1\InscricoesController;
 use App\Http\Controllers\Api\V1\InstituicaoAdminController;
 use App\Http\Controllers\Api\V1\IntegranteController;
+use App\Http\Controllers\Api\V1\InterpreteCheckinController;
+use App\Http\Controllers\Api\V1\InterpretesController;
 use App\Http\Controllers\Api\V1\ItensConferenciaController;
 use App\Http\Controllers\Api\V1\MapaEstandesController;
 use App\Http\Controllers\Api\V1\MapaPlantaController;
@@ -362,6 +364,29 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::delete('/credenciais/{credencial}', [AvaliacaoPresencialAdminController::class, 'excluirCredencial']);
                 Route::post('/credenciais/{credencial}/projetos', [AvaliacaoPresencialAdminController::class, 'atribuirCredencial']);
                 Route::delete('/credenciais/{credencial}/projetos/{projeto}', [AvaliacaoPresencialAdminController::class, 'retirarCredencial']);
+                // Intérpretes (Sprints 214–215). A porta registra a chegada —
+                // a conta temporária da aba também; o cadastro (dado pessoal),
+                // o mapa, a exportação e o acompanhamento são da organização.
+                Route::get('/interpretes/checkin', [InterpreteCheckinController::class, 'config']);
+                Route::post('/interpretes/checkin/codigo', [InterpreteCheckinController::class, 'codigo'])
+                    ->middleware('throttle:120,1');
+                Route::get('/interpretes/checkin/busca', [InterpreteCheckinController::class, 'buscar']);
+                Route::post('/interpretes/{interprete}/checkin', [InterpreteCheckinController::class, 'registrar']);
+                Route::middleware('admin.permanente')->group(function () {
+                    Route::get('/interpretes', [InterpretesController::class, 'index']);
+                    Route::get('/interpretes/finalistas', [InterpretesController::class, 'finalistas']);
+                    Route::get('/interpretes/mapa', [InterpretesController::class, 'mapa']);
+                    Route::get('/interpretes/exportar/{formato}', [InterpretesController::class, 'exportar'])
+                        ->where('formato', 'xlsx|csv');
+                    Route::get('/interpretes/etiquetas', [InterpretesController::class, 'etiquetas']);
+                    Route::get('/interpretes/acompanhamento', [InterpreteCheckinController::class, 'acompanhamento']);
+                    Route::post('/interpretes', [InterpretesController::class, 'store']);
+                    Route::put('/interpretes/{interprete}', [InterpretesController::class, 'update']);
+                    Route::delete('/interpretes/{interprete}', [InterpretesController::class, 'destroy']);
+                    Route::put('/interpretes/{interprete}/estandes', [InterpretesController::class, 'designar']);
+                    Route::post('/interpretes/{interprete}/pedidos/{suporte}', [InterpretesController::class, 'atenderPedido']);
+                    Route::post('/interpretes/{interprete}/checkin/desfazer', [InterpreteCheckinController::class, 'desfazer']);
+                });
                 // Voluntários: contas temporárias próprias desta aba, com
                 // vários turnos de trabalho definidos de uma vez.
                 Route::contasTemporarias('avaliacao_presencial');

@@ -56,6 +56,10 @@ import PresencialHome from './pages/PresencialHome.jsx';
 import PresencialChecagem from './pages/PresencialChecagem.jsx';
 import PresencialEspelho from './pages/PresencialEspelho.jsx';
 import PresencialCredenciais from './pages/PresencialCredenciais.jsx';
+import PresencialInterpretes from './pages/PresencialInterpretes.jsx';
+import PresencialInterpretesMapa from './pages/PresencialInterpretesMapa.jsx';
+import PresencialInterpretesCheckin from './pages/PresencialInterpretesCheckin.jsx';
+import PresencialInterpretesAcompanhamento from './pages/PresencialInterpretesAcompanhamento.jsx';
 import PresencialAvaliadores from './pages/PresencialAvaliadores.jsx';
 import PresencialDistribuicao from './pages/PresencialDistribuicao.jsx';
 import ComiteHome from './pages/ComiteHome.jsx';
@@ -253,6 +257,12 @@ export default function Root() {
                             <Route path="/admin/presencial/espelho" element={<PresencialEspelho />} />
                             <Route path="/admin/presencial/voluntarios" element={<CredenciamentoContas setor="avaliacao_presencial" />} />
                             <Route path="/admin/presencial/credenciais" element={<PresencialCredenciais />} />
+                            {/* Intérpretes (Sprints 214–215): o voluntário da aba
+                                abre só o check-in — o resto o servidor recusa. */}
+                            <Route path="/admin/presencial/interpretes" element={<PresencialInterpretes />} />
+                            <Route path="/admin/presencial/interpretes/mapa" element={<PresencialInterpretesMapa />} />
+                            <Route path="/admin/presencial/interpretes/checkin" element={<PresencialInterpretesCheckin />} />
+                            <Route path="/admin/presencial/interpretes/acompanhamento" element={<PresencialInterpretesAcompanhamento />} />
                             <Route path="/admin/presencial/avaliadores" element={<PresencialAvaliadores />} />
                             <Route path="/admin/presencial/distribuicao" element={<PresencialDistribuicao />} />
                             <Route path="/admin/comite" element={<ComiteHome />} />
