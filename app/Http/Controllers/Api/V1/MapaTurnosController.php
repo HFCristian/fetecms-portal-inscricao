@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Enums\Turno;
 use App\Http\Controllers\Controller;
+use App\Services\RemanejamentoMapaService;
 use App\Services\TurnosApresentacaoService;
 use App\Support\RegrasTurnos;
 use Illuminate\Http\JsonResponse;
@@ -19,7 +20,10 @@ use Illuminate\Validation\Rule;
  */
 class MapaTurnosController extends Controller
 {
-    public function __construct(private readonly TurnosApresentacaoService $turnos) {}
+    public function __construct(
+        private readonly TurnosApresentacaoService $turnos,
+        private readonly RemanejamentoMapaService $remanejamento,
+    ) {}
 
     public function index(): JsonResponse
     {
@@ -73,12 +77,19 @@ class MapaTurnosController extends Controller
             'turno' => ['required', Rule::in(Turno::valores())],
         ]);
 
+        // Mesmo caminho do remanejamento: com os estandes já distribuídos, ele
+        // pede o estande do turno novo em vez de deixar o projeto com o número
+        // do turno antigo.
+        $resultado = $this->remanejamento->alocar(
+            (int) $dados['projeto_id'],
+            Turno::from($dados['turno']),
+            null,
+            null,
+            $request->user(),
+        );
+
         return response()->json([
-            'data' => $this->turnos->mover(
-                (int) $dados['projeto_id'],
-                Turno::from($dados['turno']),
-                $request->user(),
-            ),
+            'data' => $resultado['turnos'],
             'meta' => ['message' => 'Projeto movido de turno.'],
         ]);
     }

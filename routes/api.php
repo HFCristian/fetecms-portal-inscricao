@@ -49,6 +49,7 @@ use App\Http\Controllers\Api\V1\IntegranteController;
 use App\Http\Controllers\Api\V1\ItensConferenciaController;
 use App\Http\Controllers\Api\V1\MapaEstandesController;
 use App\Http\Controllers\Api\V1\MapaPlantaController;
+use App\Http\Controllers\Api\V1\MapaRemanejamentoController;
 use App\Http\Controllers\Api\V1\MapaTurnosController;
 use App\Http\Controllers\Api\V1\OrientadorAjusteController;
 use App\Http\Controllers\Api\V1\OrientadorController;
@@ -619,6 +620,12 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                     ->where('formato', 'txt|csv|pdf');
                 Route::post('/planta', [MapaPlantaController::class, 'salvar']);
                 Route::post('/planta/{layout}/restaurar', [MapaPlantaController::class, 'restaurar']);
+
+                // Remanejar sem refazer (Sprints 212–213): incluir o finalista
+                // que chegou depois, mover, trocar e tirar do mapa.
+                Route::get('/remanejamento', [MapaRemanejamentoController::class, 'index']);
+                Route::post('/remanejamento/alocar', [MapaRemanejamentoController::class, 'alocar']);
+                Route::post('/remanejamento/retirar', [MapaRemanejamentoController::class, 'retirar']);
             });
 
             // --- Parametrização (as datas do período de avaliação moram nas

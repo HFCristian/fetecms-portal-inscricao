@@ -118,6 +118,12 @@ enum TipoRegistro: string
     case TurnosProjetoMovido = 'turnos_projeto_movido';
     case EstandesGerados = 'estandes_gerados';
     case EstandeProjetoMovido = 'estande_projeto_movido';
+    case MapaProjetoIncluido = 'mapa_projeto_incluido';
+    case MapaProjetoRetirado = 'mapa_projeto_retirado';
+    case InterpreteCadastrado = 'interprete_cadastrado';
+    case InterpreteAlterado = 'interprete_alterado';
+    case InterpreteExcluido = 'interprete_excluido';
+    case InterpreteCheckinDesfeito = 'interprete_checkin_desfeito';
     case NotasVisualizadas = 'notas_visualizadas';
     case NotaDesconsiderada = 'nota_desconsiderada';
     case NotaReconsiderada = 'nota_reconsiderada';
@@ -208,6 +214,12 @@ enum TipoRegistro: string
             self::TurnosProjetoMovido => 'Projeto movido de turno',
             self::EstandesGerados => 'Estandes gerados',
             self::EstandeProjetoMovido => 'Projeto movido de estande',
+            self::MapaProjetoIncluido => 'Projeto incluído no mapa',
+            self::MapaProjetoRetirado => 'Projeto retirado do mapa',
+            self::InterpreteCadastrado => 'Intérprete cadastrado',
+            self::InterpreteAlterado => 'Intérprete alterado',
+            self::InterpreteExcluido => 'Intérprete excluído',
+            self::InterpreteCheckinDesfeito => 'Check-in de intérprete desfeito',
             self::NotasVisualizadas => 'Notas consultadas',
             self::NotaDesconsiderada => 'Nota desconsiderada',
             self::NotaReconsiderada => 'Nota reconsiderada',
@@ -234,11 +246,14 @@ enum TipoRegistro: string
             self::CredenciamentoKitRetirado,
             self::CredenciamentoRascunhoAssumido,
             self::CredenciamentoForaPrazo, self::CredenciamentoForaPrazoRemovido,
-            self::SuportePedido, self::SuporteDecidido, self::SuporteRemovido => self::SECAO_CREDENCIAMENTO,
+            self::SuportePedido, self::SuporteDecidido, self::SuporteRemovido,
+            self::InterpreteCadastrado, self::InterpreteAlterado,
+            self::InterpreteExcluido, self::InterpreteCheckinDesfeito => self::SECAO_CREDENCIAMENTO,
             self::AlmoxarifadoGuarda, self::AlmoxarifadoRetirada,
             self::AlmoxarifadoEdicao, self::AlmoxarifadoExclusao => self::SECAO_ALMOXARIFADO,
             self::TurnosGerados, self::TurnosProjetoMovido,
-            self::EstandesGerados, self::EstandeProjetoMovido => self::SECAO_MAPA,
+            self::EstandesGerados, self::EstandeProjetoMovido,
+            self::MapaProjetoIncluido, self::MapaProjetoRetirado => self::SECAO_MAPA,
             self::NotasVisualizadas,
             self::NotaDesconsiderada,
             self::NotaReconsiderada => self::SECAO_NOTAS,

@@ -16,15 +16,19 @@ const getTurnos = vi.fn();
 const buscarFinalistas = vi.fn();
 const salvarConfigTurnos = vi.fn();
 const gerarTurnos = vi.fn();
-const moverProjetoTurno = vi.fn();
 const exportarTurnos = vi.fn();
+const getRemanejamento = vi.fn();
+const alocarNoMapa = vi.fn();
+const retirarDoMapa = vi.fn();
 vi.mock('../lib/mapaEvento.js', () => ({
     getTurnos: (...a) => getTurnos(...a),
     buscarFinalistas: (...a) => buscarFinalistas(...a),
     salvarConfigTurnos: (...a) => salvarConfigTurnos(...a),
     gerarTurnos: (...a) => gerarTurnos(...a),
-    moverProjetoTurno: (...a) => moverProjetoTurno(...a),
     exportarTurnos: (...a) => exportarTurnos(...a),
+    getRemanejamento: (...a) => getRemanejamento(...a),
+    alocarNoMapa: (...a) => alocarNoMapa(...a),
+    retirarDoMapa: (...a) => retirarDoMapa(...a),
 }));
 
 import MapaTurnos from './MapaTurnos.jsx';
@@ -98,14 +102,35 @@ const painel = (over = {}) => ({
     ...over,
 });
 
+const remanejamento = (over = {}) => ({
+    tem_lista: true,
+    turnos_gerados: true,
+    estandes_gerados: false,
+    capacidade: { A: 230, B: 230 },
+    ocupacao_turnos: { A: 1, B: 1 },
+    numeros: [1, 2, 3, 4],
+    ocupacao: {},
+    sem_turno: [],
+    sem_estande: [],
+    fora_da_lista: [],
+    ...over,
+});
+
+const respostaAlocar = () => ({
+    data: { turnos: listaGerada(), remanejamento: remanejamento(), movimentos: [], avisos: [] },
+    meta: { message: '"Bioplástico de mandioca" foi para Turno B (vespertino).' },
+});
+
 describe('MapaTurnos', () => {
     beforeEach(() => {
         getTurnos.mockReset().mockResolvedValue(painel());
         buscarFinalistas.mockReset().mockResolvedValue([]);
         salvarConfigTurnos.mockReset();
         gerarTurnos.mockReset();
-        moverProjetoTurno.mockReset();
         exportarTurnos.mockReset();
+        getRemanejamento.mockReset().mockResolvedValue(remanejamento());
+        alocarNoMapa.mockReset();
+        retirarDoMapa.mockReset();
     });
 
     it('mostra as cinco regras na ordem de prioridade, numeradas', async () => {
@@ -213,17 +238,87 @@ describe('MapaTurnos', () => {
         await waitFor(() => expect(gerarTurnos).toHaveBeenCalled());
     });
 
-    it('move um projeto para o outro turno direto da lista', async () => {
+    it('sem estandes distribuídos, move de turno direto da lista', async () => {
         getTurnos.mockResolvedValue(painel({ lista: listaGerada() }));
-        moverProjetoTurno.mockResolvedValue({ data: listaGerada(), meta: { message: 'Projeto movido de turno.' } });
+        alocarNoMapa.mockResolvedValue(respostaAlocar());
 
         render(<MapaTurnos />);
+        await waitFor(() => expect(getRemanejamento).toHaveBeenCalled());
 
         fireEvent.click(await screen.findByRole('button', {
             name: 'Mover Bioplástico de mandioca para o turno B',
         }));
 
-        await waitFor(() => expect(moverProjetoTurno).toHaveBeenCalledWith(1, 'B'));
+        await waitFor(() => expect(alocarNoMapa).toHaveBeenCalledWith({ projetoId: 1, turno: 'B' }));
+    });
+
+    it('com estandes distribuídos, mover de turno pede o estande de destino', async () => {
+        const lista = listaGerada();
+        lista.turnos.A.projetos[0].numero = 1;
+        lista.turnos.B.projetos[0].numero = 2;
+        getTurnos.mockResolvedValue(painel({ lista }));
+        getRemanejamento.mockResolvedValue(remanejamento({
+            estandes_gerados: true,
+            ocupacao: {
+                1: { numero: 1, A: { projeto_id: 1, titulo: 'Bioplástico de mandioca' }, B: null },
+                2: { numero: 2, A: null, B: { projeto_id: 2, titulo: 'Sensor de nível' } },
+            },
+        }));
+        alocarNoMapa.mockResolvedValue(respostaAlocar());
+
+        render(<MapaTurnos />);
+        await waitFor(() => expect(getRemanejamento).toHaveBeenCalled());
+
+        fireEvent.click(await screen.findByRole('button', {
+            name: 'Mover Bioplástico de mandioca para o turno B',
+        }));
+
+        // O diálogo abre no turno B; o 002 é de outro projeto e pede o que fazer.
+        const campo = await screen.findByLabelText('Número do estande');
+        fireEvent.change(campo, { target: { value: '2' } });
+        expect(screen.getByText(/já é de/)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Confirmar' })).toBeDisabled();
+
+        fireEvent.click(screen.getByLabelText(/Trocar os dois de lugar/));
+        fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
+
+        await waitFor(() => expect(alocarNoMapa).toHaveBeenCalledWith({
+            projetoId: 1, turno: 'B', numero: 2, modo: 'trocar',
+        }));
+    });
+
+    it('lista o finalista sem turno e o inclui pelo diálogo', async () => {
+        getTurnos.mockResolvedValue(painel({ lista: listaGerada() }));
+        getRemanejamento.mockResolvedValue(remanejamento({
+            sem_turno: [{ projeto_id: 9, titulo: 'Chegou depois', codigo: 'FET.AGR-009', turno: null, numero: null }],
+        }));
+        alocarNoMapa.mockResolvedValue(respostaAlocar());
+
+        render(<MapaTurnos />);
+
+        expect(await screen.findByText('Finalistas sem turno (1)')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Incluir' }));
+        fireEvent.click(await screen.findByRole('radio', { name: /Turno B/ }));
+        fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
+
+        await waitFor(() => expect(alocarNoMapa).toHaveBeenCalledWith({
+            projetoId: 9, turno: 'B', numero: null, modo: null,
+        }));
+    });
+
+    it('retira do mapa quem saiu da lista final, depois de confirmar', async () => {
+        getTurnos.mockResolvedValue(painel({ lista: listaGerada() }));
+        getRemanejamento.mockResolvedValue(remanejamento({
+            fora_da_lista: [{ projeto_id: 7, titulo: 'Desistiu', turno: 'A', numero: 3 }],
+        }));
+        retirarDoMapa.mockResolvedValue(respostaAlocar());
+
+        render(<MapaTurnos />);
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Retirar do mapa' }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Retirar' }));
+
+        await waitFor(() => expect(retirarDoMapa).toHaveBeenCalledWith(7));
     });
 
     it('lista os projetos que não couberam no turno pedido pela regra', async () => {

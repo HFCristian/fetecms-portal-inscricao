@@ -6,7 +6,9 @@ import { extractErrors } from '../lib/auth.jsx';
 import {
     getPlanta, salvarPlanta, restaurarPlanta,
     getSituacaoPlanta, getListaSituacao, baixarListaSituacao,
+    getRemanejamento, alocarNoMapa,
 } from '../lib/mapaEvento.js';
+import DialogoDestinoMapa from '../components/DialogoDestinoMapa.jsx';
 import SinalizacoesProjeto from '../components/SinalizacoesProjeto.jsx';
 import PainelAvaliacoesMapa from '../components/PainelAvaliacoesMapa.jsx';
 import { ESCOPOS, corDaArea, textoSobreArea, corNoEscopo, legendaDoEscopo } from '../lib/mapaTelaCheia.js';
@@ -28,6 +30,12 @@ import { ESCOPOS, corDaArea, textoSobreArea, corNoEscopo, legendaDoEscopo } from
  * conferido, as avaliações chegam — e o ginásio inteiro conta isso de longe. O
  * seletor de **dia e turno** volta o mapa para como ele estava, e o mesmo
  * recorte sai em lista filtrável e exportável.
+ *
+ * A ocupação também se **remaneja daqui** (Sprint 213), sem regerar as listas:
+ * o estande vazio aceita um finalista que ainda não tem lugar (o que entrou na
+ * lista final depois), e cada projeto do estande tem **Trocar** — escolhe-se o
+ * destino clicando noutro estande, no mesmo turno ou no outro. A lista de
+ * turnos acompanha sozinha: é a mesma alocação.
  */
 
 /** Tamanho de uma célula da grade, em unidades do viewBox. */
@@ -156,6 +164,98 @@ function TermoImagemEstande({ linha }) {
     );
 }
 
+/**
+ * O estande vazio de um turno recebe um finalista que ainda não tem lugar: sem
+ * turno (entrou na lista final depois) ou com turno e sem estande.
+ */
+function DialogoAlocarEstande({ numero, turno, candidatos, onAlocado, onFechar }) {
+    const [termo, setTermo] = useState('');
+    const [enviando, setEnviando] = useState(null);
+    const [erro, setErro] = useState('');
+
+    const chave = (t) => (t ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const filtrados = candidatos.filter((c) =>
+        chave(`${c.titulo} ${c.codigo ?? ''} ${c.escola ?? ''} ${c.orientador ?? ''}`).includes(chave(termo.trim())));
+
+    async function alocar(c) {
+        setEnviando(c.projeto_id);
+        setErro('');
+        try {
+            onAlocado(await alocarNoMapa({ projetoId: c.projeto_id, turno, numero }));
+        } catch (e) {
+            const { message, fields } = extractErrors(e);
+            setErro(Object.values(fields ?? {})[0] || message || 'Não foi possível alocar.');
+        } finally {
+            setEnviando(null);
+        }
+    }
+
+    const rotuloTurno = turno === 'A' ? 'Turno A (matutino)' : 'Turno B (vespertino)';
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-label="Alocar projeto no estande">
+            <div className="bg-surface-container-lowest rounded-2xl fetec-card-shadow w-full max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+                <div>
+                    <h3 className="font-display text-xl font-semibold text-on-surface">
+                        Estande {String(numero).padStart(3, '0')} · {rotuloTurno}
+                    </h3>
+                    <p className="text-sm text-on-surface-variant mt-1">
+                        Escolha um finalista que ainda não tem lugar no mapa. A lista de turnos é
+                        atualizada junto.
+                    </p>
+                </div>
+
+                {erro && <Alert>{erro}</Alert>}
+
+                {candidatos.length === 0 ? (
+                    <p className="text-sm text-on-surface-variant">
+                        Todos os finalistas já têm lugar. Para mudar um projeto de estande, abra o
+                        estande dele e use <strong>Trocar</strong>.
+                    </p>
+                ) : (
+                    <>
+                        <Input
+                            value={termo}
+                            onChange={(e) => setTermo(e.target.value)}
+                            placeholder="Buscar por título, código, escola ou orientador…"
+                            aria-label="Buscar finalista sem lugar"
+                        />
+                        <ul className="divide-y divide-outline-variant/30 border border-outline-variant/50 rounded-lg max-h-72 overflow-y-auto">
+                            {filtrados.map((c) => (
+                                <li key={c.projeto_id} className="flex items-center gap-3 px-3 py-2">
+                                    <span className="min-w-0 flex-1">
+                                        <span className="text-sm font-medium text-on-surface block">
+                                            {c.codigo ? `${c.codigo} · ` : ''}{c.titulo}
+                                        </span>
+                                        <span className="text-xs text-on-surface-variant block">
+                                            {[c.turno ? `Hoje no turno ${c.turno}, sem estande` : 'Sem turno', c.categoria, c.area].filter(Boolean).join(' · ')}
+                                        </span>
+                                    </span>
+                                    <Button
+                                        variant="outline"
+                                        loading={enviando === c.projeto_id}
+                                        disabled={enviando !== null}
+                                        onClick={() => alocar(c)}
+                                    >
+                                        Alocar
+                                    </Button>
+                                </li>
+                            ))}
+                            {filtrados.length === 0 && (
+                                <li className="px-3 py-2 text-sm text-on-surface-variant">Nenhum finalista encontrado.</li>
+                            )}
+                        </ul>
+                    </>
+                )}
+
+                <div className="flex justify-end">
+                    <Button type="button" variant="outline" onClick={onFechar}>Fechar</Button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export default function MapaPlanta() {
     const [dados, setDados] = useState(null);
     const [filtros, setFiltros] = useState(null);      // opções vindas do servidor
@@ -191,6 +291,15 @@ export default function MapaPlanta() {
     const [valor, setValor] = useState('sim');
     const [lista, setLista] = useState(null);
     const [carregandoLista, setCarregandoLista] = useState(false);
+
+    // --- Remanejar sem refazer (Sprint 213) -----------------------------
+    const [rem, setRem] = useState(null);
+    const [trocando, setTrocando] = useState(null);     // projeto que procura destino
+    const [destino, setDestino] = useState(null);       // { projeto, numero } → diálogo
+    const [alocando, setAlocando] = useState(null);     // { numero, turno } vazio → escolher
+    const [avisosRem, setAvisosRem] = useState([]);
+
+    useEffect(() => { getRemanejamento().then(setRem).catch(() => setRem(null)); }, []);
 
     useEffect(() => {
         getPlanta()
@@ -293,6 +402,33 @@ export default function MapaPlanta() {
         const { message, fields } = extractErrors(e);
         setAlerta(Object.values(fields ?? {})[0] || message || 'Não foi possível concluir.');
         setSucesso('');
+    }
+
+    /**
+     * Clique num estande. Procurando o destino de uma troca, o clique é o
+     * destino; senão, seleciona o estande para ver quem está nele.
+     */
+    function clicarEstande(numero) {
+        if (trocando && !editando) {
+            setDestino({ projeto: trocando, numero });
+            setTrocando(null);
+            return;
+        }
+
+        setSelecionado(numero);
+    }
+
+    /** Toda mudança de lugar devolve a ocupação nova: o desenho e o painel seguem juntos. */
+    function aplicarRemanejamento(resp) {
+        const novo = resp.data.remanejamento;
+        setRem(novo);
+        setDados((d) => (d ? { ...d, ocupacao: novo.ocupacao, ocupados: Object.keys(novo.ocupacao ?? {}).length } : d));
+        setAvisosRem(resp.data.avisos ?? []);
+        setSucesso(resp.meta?.message ?? 'Projeto remanejado.');
+        setAlerta('');
+        setDestino(null);
+        setAlocando(null);
+        carregarSituacao();
     }
 
     function moverPara(x, y) {
@@ -431,6 +567,36 @@ export default function MapaPlanta() {
 
             {alerta && <div className="mb-4"><Alert>{alerta}</Alert></div>}
             {sucesso && <div className="mb-4"><Alert type="info">{sucesso}</Alert></div>}
+            {avisosRem.length > 0 && (
+                <div className="mb-4">
+                    <Alert type="warning">
+                        <ul className="list-disc pl-5">{avisosRem.map((a, i) => <li key={i}>{a}</li>)}</ul>
+                    </Alert>
+                </div>
+            )}
+
+            {trocando && (
+                <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border-2 border-primary-container bg-primary-fixed/50 p-3" role="status">
+                    <span className="material-symbols-outlined text-primary-container">touch_app</span>
+                    <span className="text-sm text-on-surface flex-1 min-w-[12rem]">
+                        Clique no estande de destino de <strong>“{trocando.titulo}”</strong> — no mesmo turno
+                        ou no outro; o turno se escolhe em seguida.
+                    </span>
+                    <Button variant="outline" onClick={() => { setDestino({ projeto: trocando, numero: null }); setTrocando(null); }}>
+                        Digitar o número
+                    </Button>
+                    <Button variant="outline" onClick={() => setTrocando(null)}>Cancelar</Button>
+                </div>
+            )}
+
+            {rem?.estandes_gerados && !editando && (rem.sem_turno.length + rem.sem_estande.length) > 0 && (
+                <div className="mb-4">
+                    <Alert type="warning">
+                        {rem.sem_turno.length + rem.sem_estande.length} finalista(s) ainda sem lugar no mapa.
+                        Clique num estande vazio e use <strong>Alocar projeto</strong> no turno desejado.
+                    </Alert>
+                </div>
+            )}
 
             <div className="flex flex-wrap items-center gap-3 mb-4">
                 <span className="text-sm text-on-surface-variant mr-auto">
@@ -661,8 +827,8 @@ export default function MapaPlanta() {
                                     aria-label={`Estande ${String(e.numero).padStart(3, '0')}${linha?.area ? ` · ${linha.area}` : ''}`}
                                     style={{ cursor: 'pointer' }}
                                     opacity={apagado ? 0.18 : 1}
-                                    onClick={() => setSelecionado(e.numero)}
-                                    onKeyDown={(ev) => { if (ev.key === 'Enter') setSelecionado(e.numero); }}
+                                    onClick={() => clicarEstande(e.numero)}
+                                    onKeyDown={(ev) => { if (ev.key === 'Enter') clicarEstande(e.numero); }}
                                 >
                                     <rect
                                         x={x0}
@@ -868,9 +1034,38 @@ export default function MapaPlanta() {
                                                     <p className="text-xs text-on-surface-variant">
                                                         Orientador(a): {projeto.orientador}
                                                     </p>
+                                                    {!editando && rem?.estandes_gerados && (
+                                                        <Button
+                                                            variant="outline"
+                                                            className="mt-2 !px-3 !py-1.5 text-sm"
+                                                            aria-label={`Trocar ${projeto.titulo} de lugar`}
+                                                            onClick={() => setTrocando({
+                                                                projeto_id: projeto.projeto_id,
+                                                                titulo: projeto.titulo,
+                                                                turno: t,
+                                                                numero: detalhe.numero,
+                                                            })}
+                                                        >
+                                                            <span className="material-symbols-outlined text-[18px]">swap_horiz</span>
+                                                            Trocar
+                                                        </Button>
+                                                    )}
                                                 </div>
                                             ) : (
-                                                <p className="text-sm text-on-surface-variant">Sem projeto neste turno.</p>
+                                                <>
+                                                    <p className="text-sm text-on-surface-variant">Sem projeto neste turno.</p>
+                                                    {!editando && rem?.estandes_gerados && (
+                                                        <Button
+                                                            variant="outline"
+                                                            className="mt-2 !px-3 !py-1.5 text-sm"
+                                                            aria-label={`Alocar projeto no estande ${detalhe.numero} turno ${t}`}
+                                                            onClick={() => setAlocando({ numero: detalhe.numero, turno: t })}
+                                                        >
+                                                            <span className="material-symbols-outlined text-[18px]">add</span>
+                                                            Alocar projeto
+                                                        </Button>
+                                                    )}
+                                                </>
                                             )}
                                         </div>
                                     );
@@ -1016,6 +1211,28 @@ export default function MapaPlanta() {
                     )}
                 </div>
             </div>
+
+            {destino && (
+                <DialogoDestinoMapa
+                    projeto={destino.projeto}
+                    dados={rem}
+                    turnoInicial={destino.projeto.turno}
+                    numeroInicial={destino.numero}
+                    titulo="Trocar de lugar"
+                    onConcluido={aplicarRemanejamento}
+                    onFechar={() => setDestino(null)}
+                />
+            )}
+
+            {alocando && (
+                <DialogoAlocarEstande
+                    numero={alocando.numero}
+                    turno={alocando.turno}
+                    candidatos={[...(rem?.sem_turno ?? []), ...(rem?.sem_estande ?? [])]}
+                    onAlocado={aplicarRemanejamento}
+                    onFechar={() => setAlocando(null)}
+                />
+            )}
 
             {confirmDialog}
         </AppShell>

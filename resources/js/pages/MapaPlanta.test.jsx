@@ -18,6 +18,8 @@ const restaurarPlanta = vi.fn();
 const getSituacaoPlanta = vi.fn();
 const getListaSituacao = vi.fn();
 const baixarListaSituacao = vi.fn();
+const getRemanejamento = vi.fn();
+const alocarNoMapa = vi.fn();
 vi.mock('../lib/mapaEvento.js', () => ({
     getPlanta: (...a) => getPlanta(...a),
     salvarPlanta: (...a) => salvarPlanta(...a),
@@ -25,6 +27,8 @@ vi.mock('../lib/mapaEvento.js', () => ({
     getSituacaoPlanta: (...a) => getSituacaoPlanta(...a),
     getListaSituacao: (...a) => getListaSituacao(...a),
     baixarListaSituacao: (...a) => baixarListaSituacao(...a),
+    getRemanejamento: (...a) => getRemanejamento(...a),
+    alocarNoMapa: (...a) => alocarNoMapa(...a),
 }));
 
 import MapaPlanta from './MapaPlanta.jsx';
@@ -133,6 +137,24 @@ const SITUACAO = {
 
 const resposta = (over = {}) => ({ data: painel(over), meta: { filtros: FILTROS } });
 
+/** O painel de remanejamento: ocupação com ids distintos por projeto. */
+const remanejamento = (over = {}) => ({
+    tem_lista: true,
+    turnos_gerados: true,
+    estandes_gerados: true,
+    capacidade: { A: 230, B: 230 },
+    ocupacao_turnos: { A: 2, B: 1 },
+    numeros: [1, 2, 42],
+    ocupacao: {
+        42: { numero: 42, A: { projeto_id: 1, titulo: 'Bioplástico de mandioca' }, B: { projeto_id: 2, titulo: 'Sensor de nível' } },
+        1: { numero: 1, A: { projeto_id: 3, titulo: 'Horta na escola' }, B: null },
+    },
+    sem_turno: [],
+    sem_estande: [],
+    fora_da_lista: [],
+    ...over,
+});
+
 describe('MapaPlanta', () => {
     beforeEach(() => {
         getPlanta.mockReset().mockResolvedValue(resposta());
@@ -141,6 +163,67 @@ describe('MapaPlanta', () => {
         getSituacaoPlanta.mockReset().mockResolvedValue(SITUACAO);
         getListaSituacao.mockReset();
         baixarListaSituacao.mockReset().mockResolvedValue(undefined);
+        getRemanejamento.mockReset().mockResolvedValue(remanejamento());
+        alocarNoMapa.mockReset().mockResolvedValue({
+            data: { remanejamento: remanejamento(), turnos: {}, movimentos: [], avisos: [] },
+            meta: { message: 'Projeto remanejado.' },
+        });
+    });
+
+    describe('remanejar sem refazer', () => {
+        it('trocar: escolhe o destino clicando noutro estande e decide o que acontece com o ocupante', async () => {
+            render(<MapaPlanta />);
+            await waitFor(() => expect(getRemanejamento).toHaveBeenCalled());
+
+            fireEvent.click(await screen.findByRole('button', { name: 'Estande 042' }));
+            fireEvent.click(await screen.findByRole('button', { name: 'Trocar Bioplástico de mandioca de lugar' }));
+            expect(screen.getByText(/Clique no estande de destino/)).toBeInTheDocument();
+
+            fireEvent.click(screen.getByRole('button', { name: 'Estande 001' }));
+
+            const dialogo = await screen.findByRole('dialog', { name: 'Trocar de lugar' });
+            expect(within(dialogo).getByLabelText('Número do estande')).toHaveValue(1);
+            expect(within(dialogo).getByText(/já é de/)).toBeInTheDocument();
+
+            fireEvent.click(within(dialogo).getByLabelText(/Empurrar a fila/));
+            fireEvent.click(within(dialogo).getByRole('button', { name: 'Confirmar' }));
+
+            await waitFor(() => expect(alocarNoMapa).toHaveBeenCalledWith({
+                projetoId: 1, turno: 'A', numero: 1, modo: 'empurrar',
+            }));
+            expect(await screen.findByText('Projeto remanejado.')).toBeInTheDocument();
+        });
+
+        it('estande vazio aloca um finalista que ainda não tem lugar', async () => {
+            getRemanejamento.mockResolvedValue(remanejamento({
+                sem_turno: [{ projeto_id: 9, titulo: 'Chegou depois', codigo: 'FET.AGR-009', turno: null, numero: null }],
+            }));
+
+            render(<MapaPlanta />);
+
+            expect(await screen.findByText(/1 finalista\(s\) ainda sem lugar no mapa/)).toBeInTheDocument();
+
+            fireEvent.click(await screen.findByRole('button', { name: 'Estande 002' }));
+            fireEvent.click(await screen.findByRole('button', { name: 'Alocar projeto no estande 2 turno B' }));
+
+            const dialogo = await screen.findByRole('dialog', { name: 'Alocar projeto no estande' });
+            expect(within(dialogo).getByText('FET.AGR-009 · Chegou depois')).toBeInTheDocument();
+            fireEvent.click(within(dialogo).getByRole('button', { name: 'Alocar' }));
+
+            await waitFor(() => expect(alocarNoMapa).toHaveBeenCalledWith({ projetoId: 9, turno: 'B', numero: 2 }));
+        });
+
+        it('sem estandes distribuídos não oferece trocar nem alocar', async () => {
+            getRemanejamento.mockResolvedValue(remanejamento({ estandes_gerados: false, ocupacao: {} }));
+
+            render(<MapaPlanta />);
+            await waitFor(() => expect(getRemanejamento).toHaveBeenCalled());
+
+            fireEvent.click(await screen.findByRole('button', { name: 'Estande 042' }));
+            await screen.findByText('Sensor de nível');
+
+            expect(screen.queryByRole('button', { name: /Trocar/ })).not.toBeInTheDocument();
+        });
     });
 
     it('desenha um estande por número, com a entrada marcada', async () => {

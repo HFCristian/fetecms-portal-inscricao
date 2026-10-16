@@ -400,6 +400,17 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     livres e avisa; o mesmo estande em duas categorias é recusado. Mandar um projeto
     para um número ocupado **troca os dois de lugar** (`EstandesProjetosService`,
     `App\Support\FaixaEstandes`).
+    Geradas as duas listas, elas se **remanejam sem refazer** (`RemanejamentoMapaService`,
+    `/admin/mapa/remanejamento`): o finalista que entrou na lista final depois aparece
+    em "Fora do lugar" (Turnos) e no estande vazio da planta (**Alocar projeto**); quem
+    saiu da lista sai do mapa. Com os estandes distribuídos, mover de turno **pede o
+    estande** — senão o projeto ficaria com o número do turno antigo. Estande ocupado
+    oferece três saídas: **trocar** os dois de lugar (estande e turno, só para quem já
+    tem lugar), **empurrar** a fila um estande até o primeiro vazio, ou mandar o atual
+    para o **fim** (próximo livre depois do último ocupado). "Ao lado" e "fim" andam nos
+    números da **planta em vigor**. Na planta, cada projeto do estande tem **Trocar**:
+    o destino é escolhido clicando noutro estande, no mesmo turno ou no outro. O
+    diálogo é o mesmo nas duas telas (`DialogoDestinoMapa.jsx`).
     **Mapa do Evento** (`/admin/mapa/planta`) é a planta do ginásio em SVG: clicar
     num estande mostra quem apresenta nele nos dois turnos. Ela nasce com a prancha
     da montadora (`App\Support\PlantaEvento`) e é **editável e versionada por
@@ -924,7 +935,36 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 209 | Fix: cadastro **em lote** de contas temporárias respondia **500** com o "Início do acesso" fora de dd/mm/aaaa hh:mm | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 210 | Cerimonial: a **mesma pessoa em vários papéis** (CPF, ou e-mail + nome) entra e sai de todos de uma vez | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 211 | Cerimonial → Visão Geral: **Marcar chegada** na lista de quem falta | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 212 | Turnos: **remanejar sem refazer** — finalista sem turno/estande, fora da lista, mover pede o estande | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 213 | Planta: **Alocar projeto** no estande vazio e **Trocar** (destino clicando no mapa, no turno ou no outro) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprints 212–213 (branch `feat/mapa-edicao-e-interpretes`, saída da `main` @ `e61ceff`):** as
+> listas do Mapa do Evento passaram a ser **editadas sem regerar**. Gerar de novo substitui tudo,
+> inclusive o que já foi impresso e enviado às equipes, e a lista final continua ganhando projeto
+> depois (cadastro manual, inclusão com justificativa).
+> (a) **Sprint 212** — `RemanejamentoMapaService` é o único caminho de mudança de lugar, nas duas
+> telas: `GET /admin/mapa/remanejamento` (o que está fora do lugar — finalista sem turno, com turno
+> e sem estande, e no mapa mas fora da lista — mais os números da planta, a ocupação e a
+> capacidade), `POST .../alocar` (`projeto_id`, `turno`, `numero`, `modo`) e `POST .../retirar`.
+> Com o estande ocupado o `modo` é obrigatório: **trocar** (os dois trocam estande **e** turno;
+> recusado para quem não tem lugar), **empurrar** (cada ocupante anda um número da planta, de trás
+> para frente, até o primeiro vazio; sem vazio até o fim, 422) ou **final** (o ocupante vai para o
+> próximo livre depois do último ocupado do turno; com o último ocupado no fim da planta, o
+> primeiro livre). A capacidade do turno continua teto (só conta quando o projeto **entra** no
+> turno — trocar mantém as duas ocupações). Antes de os estandes existirem, escolhe-se só o turno.
+> A resposta avisa o projeto empurrado para fora da faixa da categoria e a avaliação presencial
+> entregue no turno antigo. Registros → Mapa do evento ganhou "Projeto incluído no mapa" e
+> "Projeto retirado do mapa"; os movimentos usam os tipos que já existiam, um por projeto que se
+> mexeu. O `PATCH /turnos/mover` antigo passou pelo mesmo serviço: com os estandes distribuídos ele
+> agora pede o estande (antes deixava o projeto com o número do turno antigo, em silêncio). A tela
+> de Turnos ganhou o bloco **Fora do lugar** e o estande de cada projeto na lista; a seta de mover
+> abre o diálogo de destino.
+> (b) **Sprint 213** — na planta, cada projeto do estande tem **Trocar**: o mapa entra em "clique no
+> estande de destino" (ou "Digitar o número") e o diálogo abre com o número clicado e o turno do
+> projeto, trocável. O turno vazio de um estande tem **Alocar projeto**, com a busca entre os
+> finalistas sem lugar. Um aviso no topo diz quantos ainda faltam. Tudo devolve a ocupação nova, e
+> o desenho, o painel e a cor do dia se atualizam juntos.
+>
 > **Sprints 210–211 (mesma branch):** o professor que **orienta um projeto e coorienta outro** tem um
 > crachá por vínculo (o código é projeto + papel + id), e ler um marcava só aquele: na Visão Geral
 > ele aparecia faltando como coorientador. Reimprimir as etiquetas não era opção.

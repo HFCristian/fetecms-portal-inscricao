@@ -642,6 +642,27 @@ class RegistroAtividadeService
     }
 
     /**
+     * Mapa do evento: um finalista que não tinha lugar ganhou turno (e estande)
+     * sem regerar as listas — o projeto que entrou na lista final depois.
+     */
+    public function mapaProjetoIncluido(Projeto $projeto, User $admin, string $lugar): RegistroAtividade
+    {
+        return $this->registrarNoProjeto(TipoRegistro::MapaProjetoIncluido, $projeto, $admin, [
+            'de' => 'Sem turno',
+            'para' => $lugar,
+        ]);
+    }
+
+    /** Mapa do evento: o projeto saiu do mapa (turno e estande). */
+    public function mapaProjetoRetirado(Projeto $projeto, User $admin, string $lugar): RegistroAtividade
+    {
+        return $this->registrarNoProjeto(TipoRegistro::MapaProjetoRetirado, $projeto, $admin, [
+            'de' => $lugar,
+            'para' => 'Fora do mapa',
+        ]);
+    }
+
+    /**
      * Mapa do evento: os estandes foram distribuídos (ou redistribuídos).
      *
      * @param  array<string, mixed>  $resumo
