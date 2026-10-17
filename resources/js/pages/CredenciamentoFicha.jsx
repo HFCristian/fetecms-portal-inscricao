@@ -14,6 +14,7 @@ import {
     removerForaPrazo,
 } from '../lib/credenciamento.js';
 import SinalizacoesProjeto from '../components/SinalizacoesProjeto.jsx';
+import LocalProjeto from '../components/LocalProjeto.jsx';
 import { useModoTeste } from '../lib/modoTeste.js';
 
 const dataHora = (iso) => (iso ? new Date(iso).toLocaleString('pt-BR') : '—');
@@ -189,6 +190,41 @@ export default function CredenciamentoFicha() {
         setPresencas((p) => ({ ...p, [chavePessoa(pessoa)]: presente }));
     }
 
+    /**
+     * "Tudo presente" de uma pessoa (Sprint 217): ela compareceu e todos os
+     * documentos dela estão presentes. Passa por cima do que já estava
+     * marcado — quem clica está dizendo que conferiu tudo.
+     */
+    function marcarPessoaPresente(pessoa) {
+        definirPresenca(pessoa, true);
+        setMarcacoes((m) => ({
+            ...m,
+            ...Object.fromEntries(pessoa.documentos.map((doc) => [chave(doc.id, pessoa.tipo, pessoa.id), 'presente'])),
+        }));
+    }
+
+    /** O mesmo, para a equipe inteira e os itens do projeto, de uma vez. */
+    function marcarTodosPresentes() {
+        setPresencas(Object.fromEntries(dados.pessoas.map((p) => [chavePessoa(p), true])));
+        setMarcacoes((m) => ({
+            ...m,
+            ...Object.fromEntries(dados.pessoas.flatMap((p) => p.documentos.map((doc) => [chave(doc.id, p.tipo, p.id), 'presente']))),
+            ...Object.fromEntries((dados.itens_projeto ?? []).map((doc) => [chave(doc.id, doc.pessoa_tipo, doc.pessoa_id), 'presente'])),
+        }));
+    }
+
+    /**
+     * Os kits que ainda podem ser retirados — quem já levou o seu fica de fora.
+     * O kit de quem faltou entra: um colega pode levá-lo.
+     */
+    const kitsPendentes = (dados?.pessoas ?? []).filter((p) => !p.kit?.retirado).map(chavePessoa);
+    const todosKitsSelecionados = kitsPendentes.length > 0 && kitsPendentes.every((k) => kitsSelecionados.includes(k));
+
+    /** Seleciona (ou desmarca) de uma vez todos os kits pendentes. */
+    function alternarTodosKits() {
+        setKitsSelecionados(todosKitsSelecionados ? [] : kitsPendentes);
+    }
+
     function alternarKit(pessoa) {
         const k = chavePessoa(pessoa);
         setKitsSelecionados((atual) => (atual.includes(k) ? atual.filter((i) => i !== k) : [...atual, k]));
@@ -357,10 +393,13 @@ export default function CredenciamentoFicha() {
                 <span className="material-symbols-outlined text-[18px]">arrow_back</span> Credenciar
             </Link>
 
-            <h1 className="font-display text-2xl font-semibold text-primary mb-1">{projeto.titulo}</h1>
-            <p className="text-sm text-on-surface-variant mb-6">
-                {[projeto.categoria, projeto.area, projeto.escola].filter(Boolean).join(' · ') || '—'}
-            </p>
+            <header className="mb-6">
+                <h1 className="font-display text-2xl font-semibold text-primary mb-1">{projeto.titulo}</h1>
+                <p className="text-sm text-on-surface-variant">
+                    {[projeto.categoria, projeto.area, projeto.escola].filter(Boolean).join(' · ') || '—'}
+                </p>
+                <LocalProjeto projeto={projeto} className="mt-2" />
+            </header>
 
             {erro && <div className="mb-4"><Alert>{erro}</Alert></div>}
 
@@ -475,6 +514,21 @@ export default function CredenciamentoFicha() {
             )}
 
             <div className="space-y-4 max-w-3xl">
+                {/* A equipe inteira chegou com tudo (Sprint 217): um clique no lugar de
+                    marcar item por item. O que foi marcado continua corrigível. */}
+                {pessoas.length > 0 && (
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-outline-variant/60 p-4">
+                        <p className="text-sm text-on-surface-variant flex-1 min-w-[14rem]">
+                            Equipe completa e com tudo em mãos? Marque todos como “Compareceu” e
+                            todos os itens como “Presente” — depois é só corrigir o que faltar.
+                        </p>
+                        <Button type="button" variant="outline" disabled={!aberto} onClick={marcarTodosPresentes}>
+                            <span className="material-symbols-outlined text-[20px]">done_all</span>
+                            Todos compareceram
+                        </Button>
+                    </div>
+                )}
+
                 {/* Itens do projeto (Sprint 182): conferidos uma vez, não por pessoa. */}
                 {itensProjeto.length > 0 && (
                     <section className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-5">
@@ -502,32 +556,46 @@ export default function CredenciamentoFicha() {
                                 <span className="text-xs text-on-surface-variant">{pessoa.tipo_label}</span>
                             </div>
                             {/* Presença antes de tudo: quem não veio não tem documento a conferir. */}
-                            <div className="flex gap-1" role="group" aria-label={`Presença de ${pessoa.nome}`}>
-                                {/* "Compareceu/Faltou" e não "Presente/Ausente": estes últimos já
-                                    são os rótulos de cada documento, logo abaixo, e a mesma palavra
-                                    querendo dizer duas coisas no mesmo cartão confunde no balcão. */}
-                                {[
-                                    { valor: true, rotulo: 'Compareceu' },
-                                    { valor: false, rotulo: 'Faltou' },
-                                ].map((opcao) => {
-                                    const ativo = (presencas[chavePessoa(pessoa)] !== false) === opcao.valor;
-                                    return (
-                                        <button
-                                            key={opcao.rotulo}
-                                            type="button"
-                                            disabled={!aberto}
-                                            aria-pressed={ativo}
-                                            onClick={() => definirPresenca(pessoa, opcao.valor)}
-                                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors disabled:opacity-50 ${ativo
-                                                ? (opcao.valor
-                                                    ? 'bg-primary-container text-on-primary border-primary-container'
-                                                    : 'bg-error-container text-on-error-container border-error-container')
-                                                : 'border-outline-variant text-on-surface-variant hover:bg-surface-variant'}`}
-                                        >
-                                            {opcao.rotulo}
-                                        </button>
-                                    );
-                                })}
+                            <div className="flex flex-wrap gap-1 items-center">
+                                {/* Compareceu e trouxe tudo (Sprint 217): os documentos dela de uma vez. */}
+                                <button
+                                    type="button"
+                                    disabled={!aberto}
+                                    onClick={() => marcarPessoaPresente(pessoa)}
+                                    aria-label={`Marcar ${pessoa.nome} como presente em todos os itens`}
+                                    title="Compareceu, com todos os itens presentes"
+                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold border border-outline-variant text-primary-container hover:bg-surface-variant transition-colors disabled:opacity-50"
+                                >
+                                    <span className="material-symbols-outlined text-[16px]" aria-hidden="true">done_all</span>
+                                    Tudo presente
+                                </button>
+                                <div className="flex gap-1" role="group" aria-label={`Presença de ${pessoa.nome}`}>
+                                    {/* "Compareceu/Faltou" e não "Presente/Ausente": estes últimos já
+                                        são os rótulos de cada documento, logo abaixo, e a mesma palavra
+                                        querendo dizer duas coisas no mesmo cartão confunde no balcão. */}
+                                    {[
+                                        { valor: true, rotulo: 'Compareceu' },
+                                        { valor: false, rotulo: 'Faltou' },
+                                    ].map((opcao) => {
+                                        const ativo = (presencas[chavePessoa(pessoa)] !== false) === opcao.valor;
+                                        return (
+                                            <button
+                                                key={opcao.rotulo}
+                                                type="button"
+                                                disabled={!aberto}
+                                                aria-pressed={ativo}
+                                                onClick={() => definirPresenca(pessoa, opcao.valor)}
+                                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors disabled:opacity-50 ${ativo
+                                                    ? (opcao.valor
+                                                        ? 'bg-primary-container text-on-primary border-primary-container'
+                                                        : 'bg-error-container text-on-error-container border-error-container')
+                                                    : 'border-outline-variant text-on-surface-variant hover:bg-surface-variant'}`}
+                                            >
+                                                {opcao.rotulo}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
                             </div>
                         </div>
 
@@ -562,10 +630,26 @@ export default function CredenciamentoFicha() {
                 {/* Kits: um por pessoa, retirados no nome de quem veio ao balcão. */}
                 <section className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-5">
                     <h2 className="font-display text-primary font-semibold mb-1">Retirada dos kits</h2>
-                    <p className="text-sm text-on-surface-variant mb-3">
-                        Marque de quem os kits estão sendo retirados agora e quem está levando. Quem
-                        ficar de fora pode retirar o seu depois, com outro responsável e outro horário.
-                    </p>
+                    <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
+                        <p className="text-sm text-on-surface-variant flex-1 min-w-[14rem]">
+                            Marque de quem os kits estão sendo retirados agora e quem está levando. Quem
+                            ficar de fora pode retirar o seu depois, com outro responsável e outro horário.
+                        </p>
+                        {/* Todos os pendentes de uma vez (Sprint 217). Ainda pede o responsável. */}
+                        {kitsPendentes.length > 0 && (
+                            <button
+                                type="button"
+                                disabled={!janelaAberta}
+                                onClick={alternarTodosKits}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold border border-outline-variant text-primary-container hover:bg-surface-variant transition-colors disabled:opacity-50"
+                            >
+                                <span className="material-symbols-outlined text-[16px]" aria-hidden="true">
+                                    {todosKitsSelecionados ? 'remove_done' : 'done_all'}
+                                </span>
+                                {todosKitsSelecionados ? 'Desmarcar todos' : 'Todos os kits'}
+                            </button>
+                        )}
+                    </div>
 
                     <ul className="space-y-2 mb-4">
                         {pessoas.map((pessoa) => {

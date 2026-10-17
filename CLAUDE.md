@@ -948,20 +948,36 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 201 | Premiação: os **pedidos de aprovação** do comitê dentro do **cartão da credencial** (aprovar/rejeitar ali); a seção separada sai e os filtros recortam os cartões | ✅ sim | ✅ sim (Pedro, PR #108 → v1.31) | 0 |
 | 202 | Premiação: **cancelar a premiação** de uma recomendação aprovada (tira a credencial, a recomendação continua aprovada) | ✅ sim | ✅ sim (Pedro, PR #108 → v1.31) | 0 |
 | 203 | Premiação: buscar o finalista pelo **código da lista final** (FET.AGR-001) no cartão da credencial e na aba do comitê | ✅ sim | ✅ sim (Pedro, PR #108 → v1.31) | 0 |
-| 204 | Câmera do check-in: o vídeo liga no elemento já desenhado (fim do quadro em branco), com aviso de abertura e motivo do erro | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 205 | Câmera no **iPhone** (e Chrome no Windows/Linux): ZXing em WebAssembly servido pelo portal quando não há `BarcodeDetector` | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 206 | Cerimonial: ler o crachá **já registra a entrada**, com o nome num card de 2s (barra no botão Ok) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 207 | Cerimonial → **Eventos de cerimônia**: nome + público (categorias), check-in e painel por evento | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 208 | Cerimonial: a porta **escolhe o evento** no check-in; Visão Geral e Premiados por evento ou **Todos** | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 209 | Fix: cadastro **em lote** de contas temporárias respondia **500** com o "Início do acesso" fora de dd/mm/aaaa hh:mm | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 210 | Cerimonial: a **mesma pessoa em vários papéis** (CPF, ou e-mail + nome) entra e sai de todos de uma vez | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 211 | Cerimonial → Visão Geral: **Marcar chegada** na lista de quem falta | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 212 | Turnos: **remanejar sem refazer** — finalista sem turno/estande, fora da lista, mover pede o estande | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 213 | Planta: **Alocar projeto** no estande vazio e **Trocar** (destino clicando no mapa, no turno ou no outro) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 214 | Avaliação presencial → **Intérpretes**: cadastro (nome + CPF), vínculos a projeto/participante, pedidos de suporte, crachá `I` e exportação | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 215 | Intérpretes: **mapa de designação** (segue o projeto), **check-in** por dia × turno e **acompanhamento** | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 216 | Fix (segurança): `symfony/http-foundation` 7.4.18 → 7.4.21 (CVE-2026-108082), `npm audit fix` (dev) + teste da planta sem corrida | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 204 | Câmera do check-in: o vídeo liga no elemento já desenhado (fim do quadro em branco), com aviso de abertura e motivo do erro | ✅ sim | ✅ sim (Pedro, PR #110 → v1.32) | 0 |
+| 205 | Câmera no **iPhone** (e Chrome no Windows/Linux): ZXing em WebAssembly servido pelo portal quando não há `BarcodeDetector` | ✅ sim | ✅ sim (Pedro, PR #110 → v1.32) | 0 |
+| 206 | Cerimonial: ler o crachá **já registra a entrada**, com o nome num card de 2s (barra no botão Ok) | ✅ sim | ✅ sim (Pedro, PR #110 → v1.32) | 0 |
+| 207 | Cerimonial → **Eventos de cerimônia**: nome + público (categorias), check-in e painel por evento | ✅ sim | ✅ sim (Pedro, PR #110 → v1.32) | 0 |
+| 208 | Cerimonial: a porta **escolhe o evento** no check-in; Visão Geral e Premiados por evento ou **Todos** | ✅ sim | ✅ sim (Pedro, PR #110 → v1.32) | 0 |
+| 209 | Fix: cadastro **em lote** de contas temporárias respondia **500** com o "Início do acesso" fora de dd/mm/aaaa hh:mm | ✅ sim | ✅ sim (Pedro, PR #110 → v1.32) | 0 |
+| 210 | Cerimonial: a **mesma pessoa em vários papéis** (CPF, ou e-mail + nome) entra e sai de todos de uma vez | ✅ sim | ✅ sim (Pedro, PR #110 → v1.32) | 0 |
+| 211 | Cerimonial → Visão Geral: **Marcar chegada** na lista de quem falta | ✅ sim | ✅ sim (Pedro, PR #110 → v1.32) | 0 |
+| 212 | Turnos: **remanejar sem refazer** — finalista sem turno/estande, fora da lista, mover pede o estande | ✅ sim | ✅ sim (Pedro, PR #111 → v1.33) | 0 |
+| 213 | Planta: **Alocar projeto** no estande vazio e **Trocar** (destino clicando no mapa, no turno ou no outro) | ✅ sim | ✅ sim (Pedro, PR #111 → v1.33) | 0 |
+| 214 | Avaliação presencial → **Intérpretes**: cadastro (nome + CPF), vínculos a projeto/participante, pedidos de suporte, crachá `I` e exportação | ✅ sim | ✅ sim (Pedro, PR #111 → v1.33) | 0 |
+| 215 | Intérpretes: **mapa de designação** (segue o projeto), **check-in** por dia × turno e **acompanhamento** | ✅ sim | ✅ sim (Pedro, PR #111 → v1.33) | 0 |
+| 216 | Fix (segurança): `symfony/http-foundation` 7.4.18 → 7.4.21 (CVE-2026-108082), `npm audit fix` (dev) + teste da planta sem corrida | ✅ sim | ✅ sim (Pedro, PR #111 → v1.33) | 0 |
+| 217 | Credenciamento: **código, turno e estande** nas listas e na ficha + "Tudo presente", "Todos compareceram" e "Todos os kits" | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprint 217 (branch `feat/etiquetas-avulsas-credenciamento`, saída da `main` @ `56830ed`):** o
+> balcão do credenciamento ficou mais rápido de operar.
+> (a) **Código, turno e estande** aparecem em selos logo abaixo de categoria · área · escola, nas
+> listas *Credenciar* e *Credenciados* e no cabeçalho da ficha (`LocalProjeto.jsx`). O código é o
+> da lista final que vale para o projeto (a demo, no ensaio); o turno é o do estande e, sem estande
+> gerado, o de Mapa do Evento → Turnos — a mesma regra das etiquetas. O que ainda não existe some.
+> No servidor, `CredenciamentoService::locais()` monta os três de uma vez para a página inteira e a
+> ficha acha a lista do projeto sozinha (`listaDoProjeto()`), porque não sabe do modo de teste.
+> (b) Na ficha, três atalhos — todos só na tela, sem endpoint novo, e corrigíveis antes de salvar:
+> **Tudo presente** em cada pessoa (compareceu + todos os documentos dela como Presente, passando
+> por cima do que estava marcado), **Todos compareceram** acima dos cartões (a equipe inteira e os
+> itens do projeto) e **Todos os kits** na retirada, que seleciona os kits pendentes — inclusive o
+> de quem faltou, que um colega pode levar — e vira *Desmarcar todos*. A retirada continua pedindo
+> **quem está levando** e a confirmação de sempre.
+>
 > **Sprint 216 (mesma branch):** o CI do PR quebrou em dois jobs.
 > (a) **security** — `composer audit` acusou CVE-2026-108082 (ReDoS no `HeaderUtils::split()`,
 > alcançável pelo header `Cache-Control` da requisição) em `symfony/http-foundation` < 7.4.19.
