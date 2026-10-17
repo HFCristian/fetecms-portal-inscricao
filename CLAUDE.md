@@ -974,7 +974,27 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 217 | Credenciamento: **código, turno e estande** nas listas e na ficha + "Tudo presente", "Todos compareceram" e "Todos os kits" | ✅ sim | ✅ sim (Pedro, PR #112 → v1.34) | 0 |
 | 218 | Credenciamento → **Etiquetas avulsas**: lista final, avaliadores (`V`), intérpretes, voluntários (`T`) e personalizada, a partir da posição da folha | ✅ sim | ✅ sim (Pedro, PR #112 → v1.34) | 0 |
 | 219 | Avaliação presencial: **rubrica do documento de 2026** (14 seções, Sim/Não e escala, condicionais, sem valor, nota com 4 casas) + sinal de ética ao admin | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 220 | `demo:avaliacao-presencial`: **documentos em PDF** (projeto, diário, pasta, banner, TCLE/TALE) e três cenários da rubrica | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprint 220 (mesma branch):** o ensaio da avaliação presencial ganhou o que o avaliador lê. O
+> `demo:avaliacao-presencial` gera, para os três projetos da lista final demo, os **documentos** que
+> a rubrica de 2026 pergunta — projeto de pesquisa, diário de bordo, pasta de referências, banner
+> (A3) e o **TCLE/TALE** no projeto com estudantes —, em PDF (`PdfService`, views em
+> `resources/views/pdf/demo/`) com a faixa "DOCUMENTO FICTÍCIO", anexados ao projeto no disco privado
+> (`projeto_documentos`, tipos de inscrição: o avaliador os vê na leitura do wizard). O conteúdo
+> saiu do comando para `database/data/demo/projetos-presenciais.php`, e cada projeto é um
+> **cenário** da rubrica: 901 completo (4.3 "não se aplica" por QR Code, sem ética, sem IA); 902 com
+> pesquisa com estudantes e IA declarada; 903 sem diário, banner sem a discussão e IA não declarada
+> — a tabela está em [docs/DEMO_AVALIACAO_PRESENCIAL.md](docs/DEMO_AVALIACAO_PRESENCIAL.md). Rodar
+> de novo regrava os PDFs em vez de duplicar. De quebra, **apagar um projeto demo** (Parametrização →
+> Dados de demonstração) passou a apagar também os **arquivos** dos anexos, que ficavam órfãos no
+> disco.
+> Back **1538/1538**, front **827/827** (sem mudança), Pint limpo.
+>
+> **Pendências do Pedro (Sprint 220):** nenhuma migration nova, `.env` ou dependência. Rode
+> `php artisan demo:avaliacao-presencial` depois do deploy. O `storage/app/private` precisa ser
+> gravável pelo usuário que roda o artisan (o mesmo cuidado dos uploads).
+>
 > **Sprint 219 (branch `feat/rubrica-presencial-2026`, saída da `main` @ `bae13f4`):** a tela de
 > avaliação presencial passou a ser o documento **"Perguntas de Avaliação FETECMS 2026 · Etapa
 > Presencial"**. `App\Support\RubricaPresencial` foi reescrita: **14 seções** na ordem do documento

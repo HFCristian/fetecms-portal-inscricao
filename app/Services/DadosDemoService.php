@@ -16,6 +16,7 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -220,6 +221,12 @@ class DadosDemoService
     private function apagarProjeto(Projeto $projeto): void
     {
         RegistroAtividade::where('projeto_id', $projeto->id)->delete();
+
+        // A linha do anexo desce pela chave estrangeira; o arquivo, não. Os
+        // PDFs do `demo:avaliacao-presencial` ficariam órfãos no disco.
+        foreach ($projeto->documentos()->get() as $documento) {
+            Storage::disk($documento->disk)->delete($documento->path);
+        }
 
         $projeto->forceDelete();
     }
