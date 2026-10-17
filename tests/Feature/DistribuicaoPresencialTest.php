@@ -340,6 +340,23 @@ class DistribuicaoPresencialTest extends TestCase
         $this->assertSame(0, AvaliacaoPresencial::count());
     }
 
+    public function test_avaliacao_enviada_sem_o_documento_de_etica_e_sinalizada_a_organizacao(): void
+    {
+        $this->ativar($this->avaliador('Ana'));
+        $this->finalista('Abelhas');
+        $this->distribuir()->assertOk();
+
+        // 1.2 = Não: não muda a nota, mas a rubrica manda sinalizar.
+        AvaliacaoPresencial::sole()->update([
+            'status' => StatusAvaliacao::Concluida, 'nota' => 9,
+            'respostas' => ['etica_necessaria' => 'sim', 'etica_documento' => 'nao'],
+        ]);
+
+        $this->getJson('/api/v1/admin/presencial/distribuicao')
+            ->assertOk()
+            ->assertJsonPath('data.designacoes.0.alertas', ['Ética: TCE/TCLE/TALE exigido e não apresentado']);
+    }
+
     public function test_modo_de_teste_usa_a_lista_e_os_avaliadores_demo(): void
     {
         $demoAdmin = User::factory()->admin()->create(['is_demo' => true]);

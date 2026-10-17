@@ -392,7 +392,14 @@ export default function PresencialDistribuicao() {
                                                             {d.avaliador}
                                                             {d.designacao_manual && <span className="ml-1 text-xs text-on-surface-variant">(à mão)</span>}
                                                         </td>
-                                                        <td className="py-2 pr-2">{d.status_label}</td>
+                                                        <td className="py-2 pr-2">
+                                                            {d.status_label}
+                                                            {(d.alertas ?? []).map((a) => (
+                                                                <span key={a} className="flex items-center gap-1 text-xs font-semibold text-error">
+                                                                    <span className="material-symbols-outlined text-[16px]">report</span>{a}
+                                                                </span>
+                                                            ))}
+                                                        </td>
                                                         <td className="py-2 text-right">
                                                             {d.status !== 'concluida' && (
                                                                 <button type="button" className="text-error text-xs font-semibold hover:underline"

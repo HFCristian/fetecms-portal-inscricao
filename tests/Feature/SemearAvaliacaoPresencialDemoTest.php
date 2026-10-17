@@ -86,13 +86,14 @@ class SemearAvaliacaoPresencialDemoTest extends TestCase
             ->assertOk()
             ->json('data.id');
 
+        // "Bom" na escala e Sim no resto: 80% dos 8,500 mais os 1,500 dos documentos.
         $respostas = collect($painel['rubrica']['secoes'])->flatMap(fn ($s) => $s['perguntas'])
-            ->mapWithKeys(fn ($p) => [$p['chave'] => 8])->all();
+            ->mapWithKeys(fn ($p) => [$p['chave'] => $p['tipo'] === 'escala' ? 8 : 'sim'])->all();
         $itens = collect($painel['itens'])->mapWithKeys(fn ($i) => [$i['id'] => 'presente'])->all();
 
         $this->postJson("/api/v1/avaliador/presencial/avaliacoes/{$id}/concluir", [
             'respostas' => $respostas, 'itens' => $itens, 'teste' => 1,
-        ])->assertOk()->assertJsonPath('data.nota', 8);
+        ])->assertOk()->assertJsonPath('data.nota', 8.3);
 
         $this->assertSame(1, AvaliacaoPresencial::where('status', 'concluida')->count());
     }

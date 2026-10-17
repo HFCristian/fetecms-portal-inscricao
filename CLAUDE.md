@@ -131,7 +131,10 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     Recebe projetos pela **distribuição presencial por turno** (admin, Avaliação presencial →
     Distribuição presencial: só projeto credenciado e com estande checado) e pode escolher no
     corredor entre os do turno; avalia num **wizard** como o da online, com o **checklist dos itens
-    da checagem** (sem nota). Ensaio: `php artisan demo:avaliacao-presencial`
+    da checagem** (sem nota). A rubrica é a do documento **"Perguntas de Avaliação FETECMS 2026 ·
+    Etapa Presencial"** (`App\Support\RubricaPresencial`): 14 seções, **8,500** em escala e **1,500**
+    em Sim/Não, perguntas **condicionais** e **sem valor**, nota guardada com quatro casas; a 1.2 = Não
+    (documento de ética ausente) é sinalizada ao admin na Distribuição presencial. Ensaio: `php artisan demo:avaliacao-presencial`
     ([docs/DEMO_AVALIACAO_PRESENCIAL.md](docs/DEMO_AVALIACAO_PRESENCIAL.md)).
   - Ao **iniciar** uma avaliação o sistema confere se o projeto ainda cabe mais uma: contando as
     **concluídas + em andamento**, se ele já atingiu o **máximo de avaliações da categoria**, o
@@ -968,9 +971,39 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 214 | Avaliação presencial → **Intérpretes**: cadastro (nome + CPF), vínculos a projeto/participante, pedidos de suporte, crachá `I` e exportação | ✅ sim | ✅ sim (Pedro, PR #111 → v1.33) | 0 |
 | 215 | Intérpretes: **mapa de designação** (segue o projeto), **check-in** por dia × turno e **acompanhamento** | ✅ sim | ✅ sim (Pedro, PR #111 → v1.33) | 0 |
 | 216 | Fix (segurança): `symfony/http-foundation` 7.4.18 → 7.4.21 (CVE-2026-108082), `npm audit fix` (dev) + teste da planta sem corrida | ✅ sim | ✅ sim (Pedro, PR #111 → v1.33) | 0 |
-| 217 | Credenciamento: **código, turno e estande** nas listas e na ficha + "Tudo presente", "Todos compareceram" e "Todos os kits" | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 218 | Credenciamento → **Etiquetas avulsas**: lista final, avaliadores (`V`), intérpretes, voluntários (`T`) e personalizada, a partir da posição da folha | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 217 | Credenciamento: **código, turno e estande** nas listas e na ficha + "Tudo presente", "Todos compareceram" e "Todos os kits" | ✅ sim | ✅ sim (Pedro, PR #112 → v1.34) | 0 |
+| 218 | Credenciamento → **Etiquetas avulsas**: lista final, avaliadores (`V`), intérpretes, voluntários (`T`) e personalizada, a partir da posição da folha | ✅ sim | ✅ sim (Pedro, PR #112 → v1.34) | 0 |
+| 219 | Avaliação presencial: **rubrica do documento de 2026** (14 seções, Sim/Não e escala, condicionais, sem valor, nota com 4 casas) + sinal de ética ao admin | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprint 219 (branch `feat/rubrica-presencial-2026`, saída da `main` @ `bae13f4`):** a tela de
+> avaliação presencial passou a ser o documento **"Perguntas de Avaliação FETECMS 2026 · Etapa
+> Presencial"**. `App\Support\RubricaPresencial` foi reescrita: **14 seções** na ordem do documento
+> (Documentos, Projeto de Pesquisa, Diário de Bordo, Pasta de Referência, Banner, Apresentação, Domínio
+> do Tema, Pergunta/Problema, Objetivos, Metodologia, Resultados, Discussão, Conclusão, Uso de IA),
+> cada pergunta com o **número** do documento, a orientação no balão "?" e as **próprias opções** —
+> o zero da escala muda de rótulo ("Não demonstra", "Não apresentou", "Não possui"). A nota é
+> **8,500 de avaliação** (escala, 20% do peso por ponto) + **1,500 de documentos e uso de IA**
+> (Sim/Não). Três regras que não cabem numa soma: as **condicionais** (3.2, 4.2, 4.3 e 1.2 só depois
+> do "Sim"; sem ele valem 0 — a 14.2 vale **como Sim** quando a equipe não usou IA), o **"Não se
+> aplica (QR Code)"** da 4.3, que vale como Sim, e as perguntas **sem valor** (1.1, 1.2 e 14.1),
+> obrigatórias como registro. A resposta de uma condicional que deixou de valer é descartada
+> (`normalizar()`), e o envio cobra só o que se aplica (`pendentes()`). Os pesos têm três casas para
+> reduzir empate, então a nota passou a ser guardada com **quatro** (`avaliacoes_presenciais.nota`
+> decimal(6,4); 20% de 1,137 já é 0,2274) e aparece com três na tela. A 1.2 = Não é **sinalizada à
+> organização** (`RubricaPresencial::alertas()`) na lista de designações da Distribuição presencial.
+> A avaliação enviada com a rubrica antiga mantém a nota e a tela diz que as respostas são da rubrica
+> anterior (`rubrica_anterior`). O checklist dos itens da checagem e o parecer continuam.
+> Back **1536/1536**, front **827/827**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprint 219):** (1) `git push origin feat/rubrica-presencial-2026` + PR para a
+> `main`. **Uma migration** (`avaliacoes_presenciais.nota` → decimal(6,4)), nenhuma variável de `.env`
+> e nenhuma dependência nova. (2) Se alguma avaliação presencial já foi **enviada** com a rubrica antiga,
+> a nota dela continua (era de 0 a 10 também), mas foi dada com outra régua — vale decidir se ela entra
+> na premiação. (3) O checklist do avaliador (itens da checagem do projeto) repete parte do que a
+> rubrica agora pergunta (banner, diário de bordo): se a organização quiser só a rubrica, desmarque
+> "na checagem" desses itens em Parametrização → Itens do credenciamento e da checagem — mas isso
+> também os tira da checagem de estandes.
+>
 > **Sprint 218 (mesma branch):** a seção **Etiquetas avulsas** do Credenciamento
 > (`/admin/credenciamento/etiquetas`, `EtiquetasAvulsasService`): reimprimir a etiqueta de quem
 > perdeu, molhou ou esqueceu o crachá, sem gerar a folha inteira. Quatro origens, buscadas por nome,
@@ -992,7 +1025,8 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > (`CodigoParticipante::recusaForaDaEquipe()`), em vez de "código não reconhecido".
 > Back **1524/1524**, front **823/823**, Pint limpo, build OK.
 >
-> **Pendências do Pedro (Sprints 217–218):** (1) `git push origin feat/etiquetas-avulsas-credenciamento`
+> **Pendências do Pedro (Sprints 217–218):** ~~push + PR~~ — **entrou na `main` pelo PR #112** (v1.34).
+> As observações de uso continuam valendo: (1) `git push origin feat/etiquetas-avulsas-credenciamento`
 > + PR para a `main`. **Nenhuma migration, nenhuma variável de `.env` e nenhuma dependência nova.**
 > (2) Antes do evento, imprima uma folha com uma etiqueta de avaliador e uma de voluntário e passe no
 > leitor USB e na câmera do balcão: elas devem ser **recusadas com o nome do papel** — é o sinal de
