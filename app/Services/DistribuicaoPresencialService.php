@@ -16,6 +16,7 @@ use App\Models\Projeto;
 use App\Models\TurnoApresentacao;
 use App\Models\User;
 use App\Support\JanelaTurnos;
+use App\Support\RubricaPresencial;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -382,6 +383,8 @@ class DistribuicaoPresencialService
                 'expirada' => $a->expirada($janela),
                 'designacao_manual' => $a->designacao_manual,
                 'nota' => $a->nota,
+                // A rubrica manda sinalizar à organização (ética sem documento).
+                'alertas' => $a->concluida() ? RubricaPresencial::alertas($a->respostas ?? []) : [],
             ])->values()->all(),
         ];
     }

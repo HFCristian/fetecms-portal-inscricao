@@ -3,14 +3,19 @@
 namespace Tests\Feature;
 
 use App\Enums\Role;
+use App\Enums\TipoDocumento;
 use App\Models\AvaliacaoPresencial;
 use App\Models\AvaliadorTurnoPresencial;
 use App\Models\Edicao;
 use App\Models\ItemConferencia;
 use App\Models\ListaFinal;
+use App\Models\Projeto;
+use App\Models\ProjetoDocumento;
 use App\Models\User;
+use App\Services\DadosDemoService;
 use Database\Seeders\CatalogoSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -28,6 +33,7 @@ class SemearAvaliacaoPresencialDemoTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        Storage::fake('local');
         $this->seed(CatalogoSeeder::class);
         $this->travelTo(now()->setDateTime(2026, 10, 20, 9, 0));
 
@@ -58,6 +64,49 @@ class SemearAvaliacaoPresencialDemoTest extends TestCase
         $this->assertNull(ListaFinal::vigente($this->edicao));
     }
 
+    public function test_cada_projeto_leva_os_documentos_do_seu_cenario(): void
+    {
+        $this->artisan('demo:avaliacao-presencial')->assertSuccessful();
+
+        $nomes = fn (string $titulo) => ProjetoDocumento::whereHas('projeto', fn ($q) => $q->where('titulo', $titulo))
+            ->orderBy('id')->pluck('nome_original')->all();
+
+        // Completo, sem ética.
+        $this->assertSame(
+            ['Projeto de Pesquisa.pdf', 'Diário de Bordo.pdf', 'Pasta de Referências.pdf', 'Banner.pdf'],
+            $nomes('Horta vertical irrigada por gotejamento solar'),
+        );
+        // Pesquisa com estudantes: o TCLE/TALE vai como termo de ética.
+        $this->assertContains('TCLE e TALE.pdf', $nomes('Jogo de tabuleiro para ensinar frações'));
+        $this->assertSame(1, ProjetoDocumento::where('tipo', TipoDocumento::TermoEtica)->count());
+        // Sem diário de bordo, de propósito.
+        $this->assertNotContains('Diário de Bordo.pdf', $nomes('Filtro de água com carvão de casca de coco'));
+
+        // São PDFs de verdade, no disco privado dos anexos.
+        foreach (ProjetoDocumento::all() as $documento) {
+            $this->assertSame('local', $documento->disk);
+            $this->assertStringStartsWith('%PDF', Storage::disk('local')->get($documento->path));
+            $this->assertSame(strlen(Storage::disk('local')->get($documento->path)), $documento->tamanho_bytes);
+        }
+
+        // Rodar de novo regrava, não duplica.
+        $this->artisan('demo:avaliacao-presencial')->assertSuccessful();
+        $this->assertSame(12, ProjetoDocumento::count());
+    }
+
+    public function test_apagar_o_orientador_demo_leva_os_arquivos_junto(): void
+    {
+        $this->artisan('demo:avaliacao-presencial')->assertSuccessful();
+        $caminhos = ProjetoDocumento::pluck('path')->all();
+
+        app(DadosDemoService::class)->excluirConta(User::where('email', 'orientador.presencial@fetecms.test')->sole());
+
+        $this->assertSame(0, Projeto::withoutGlobalScopes()->count());
+        foreach ($caminhos as $caminho) {
+            Storage::disk('local')->assertMissing($caminho);
+        }
+    }
+
     public function test_rodar_de_novo_nao_duplica(): void
     {
         $this->artisan('demo:avaliacao-presencial')->assertSuccessful();
@@ -82,17 +131,21 @@ class SemearAvaliacaoPresencialDemoTest extends TestCase
             ->json('data');
 
         $projetoId = $painel['disponiveis'][0]['id'];
+        // A leitura do wizard traz os documentos do estande (o primeiro é a horta, estande 901).
         $id = $this->postJson("/api/v1/avaliador/presencial/avaliacoes/projetos/{$projetoId}", ['teste' => 1])
             ->assertOk()
+            ->assertJsonCount(4, 'data.projeto.documentos')
+            ->assertJsonPath('data.projeto.documentos.0.nome_original', 'Projeto de Pesquisa.pdf')
             ->json('data.id');
 
+        // "Bom" na escala e Sim no resto: 80% dos 8,500 mais os 1,500 dos documentos.
         $respostas = collect($painel['rubrica']['secoes'])->flatMap(fn ($s) => $s['perguntas'])
-            ->mapWithKeys(fn ($p) => [$p['chave'] => 8])->all();
+            ->mapWithKeys(fn ($p) => [$p['chave'] => $p['tipo'] === 'escala' ? 8 : 'sim'])->all();
         $itens = collect($painel['itens'])->mapWithKeys(fn ($i) => [$i['id'] => 'presente'])->all();
 
         $this->postJson("/api/v1/avaliador/presencial/avaliacoes/{$id}/concluir", [
             'respostas' => $respostas, 'itens' => $itens, 'teste' => 1,
-        ])->assertOk()->assertJsonPath('data.nota', 8);
+        ])->assertOk()->assertJsonPath('data.nota', 8.3);
 
         $this->assertSame(1, AvaliacaoPresencial::where('status', 'concluida')->count());
     }

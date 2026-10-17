@@ -8,8 +8,9 @@ import {
     getPainelPresencial, getAvaliacaoPresencial, iniciarAvaliacaoPresencial,
 } from '../lib/avaliacaoPresencial.js';
 
+// Três casas, como a rubrica presencial: os pesos foram escolhidos para desempatar.
 const nota = (valor) =>
-    valor === null || valor === undefined ? '—' : Number(valor).toFixed(2).replace('.', ',');
+    valor === null || valor === undefined ? '—' : Number(valor).toFixed(3).replace('.', ',');
 
 const local = (l) =>
     !l || (!l.estande && !l.turno_label)

@@ -92,6 +92,26 @@ describe('PresencialDistribuicao', () => {
         expect(await screen.findByText('Nenhuma designação neste turno.')).toBeInTheDocument();
     });
 
+    it('sinaliza a avaliação enviada sem o documento de ética', async () => {
+        // A tela carrega de novo ao escolher o turno em foco: a resposta vale para todas.
+        getDistribuicaoPresencial.mockImplementation(() => Promise.resolve({
+            ...PAINEL,
+            designacoes: [{
+                ...PAINEL.designacoes[0], status: 'concluida', status_label: 'Concluída',
+                alertas: ['Ética: TCE/TCLE/TALE exigido e não apresentado'],
+            }],
+        }));
+        try {
+            render(<PresencialDistribuicao />);
+
+            expect(await screen.findByText('Ética: TCE/TCLE/TALE exigido e não apresentado')).toBeInTheDocument();
+            // Enviada não se retira.
+            expect(screen.queryByRole('button', { name: 'Retirar Abelhas de Bruno' })).not.toBeInTheDocument();
+        } finally {
+            getDistribuicaoPresencial.mockImplementation(() => Promise.resolve(PAINEL));
+        }
+    });
+
     it('salva os horários dos turnos', async () => {
         render(<PresencialDistribuicao />);
 

@@ -230,7 +230,8 @@ class AvaliacaoPresencialFluxoService
         $respostas = $this->limparRespostas($dados['respostas'] ?? []);
         $itens = $this->limparItens($dados['itens'] ?? []);
 
-        if (array_diff(RubricaPresencial::chaves(), array_keys($respostas)) !== []) {
+        // Só as perguntas que se aplicam: sem diário manuscrito, a 3.2 some.
+        if (RubricaPresencial::pendentes($respostas) !== []) {
             throw ValidationException::withMessages([
                 'respostas' => 'Responda todas as perguntas antes de enviar.',
             ]);
@@ -284,7 +285,10 @@ class AvaliacaoPresencialFluxoService
             'id' => $avaliacao->id,
             'status' => $avaliacao->status?->value,
             'status_label' => $avaliacao->expirada($janela) ? 'Prazo encerrado' : $avaliacao->status?->label(),
-            'respostas' => $avaliacao->respostas ?? [],
+            'respostas' => (object) ($avaliacao->respostas ?? []),
+            // Enviada com a rubrica antes do documento de 2026: a nota vale, as
+            // respostas não casam com as perguntas de agora.
+            'rubrica_anterior' => RubricaPresencial::deOutraRubrica($avaliacao->respostas),
             'itens' => (object) ($avaliacao->itens_conferidos ?? []),
             'comentario' => $avaliacao->comentario,
             'nota' => $avaliacao->nota,
@@ -575,24 +579,15 @@ class AvaliacaoPresencialFluxoService
     }
 
     /**
-     * Só o que a rubrica conhece, e só valores da escala.
+     * Só o que a rubrica conhece, só valores que cada pergunta aceita e nada
+     * nas condicionais que deixaram de se aplicar.
      *
      * @param  array<string, mixed>  $respostas
-     * @return array<string, int>
+     * @return array<string, int|string>
      */
     private function limparRespostas(array $respostas): array
     {
-        $validas = RubricaPresencial::chaves();
-        $escala = array_keys(RubricaPresencial::ESCALA);
-        $limpas = [];
-
-        foreach ($respostas as $chave => $valor) {
-            if (in_array($chave, $validas, true) && in_array((int) $valor, $escala, true)) {
-                $limpas[$chave] = (int) $valor;
-            }
-        }
-
-        return $limpas;
+        return RubricaPresencial::normalizar($respostas);
     }
 
     /**

@@ -2,9 +2,9 @@
 
 namespace App\Console\Commands;
 
-use App\Enums\Categoria;
 use App\Enums\ProjetoStatus;
 use App\Enums\Role;
+use App\Enums\TipoDocumento;
 use App\Enums\Turno;
 use App\Models\Aluno;
 use App\Models\Area;
@@ -17,12 +17,15 @@ use App\Models\Instituicao;
 use App\Models\ItemConferencia;
 use App\Models\ListaFinal;
 use App\Models\Projeto;
+use App\Models\ProjetoDocumento;
 use App\Models\Subarea;
 use App\Models\TurnoApresentacao;
 use App\Models\User;
+use App\Services\PdfService;
 use App\Support\JanelaTurnos;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Monta o **ensaio da avaliação presencial** (Sprint 172) para a conta
@@ -36,6 +39,11 @@ use Illuminate\Support\Facades\DB;
  *   mesma do `demo:credenciamento`, que corre em paralelo à oficial), já
  *   **credenciados** e com o estande **checado** — as duas condições para um
  *   projeto ser distribuído —, no turno que a agenda tem em foco;
+ * - cada projeto leva os **documentos** que a rubrica presencial pergunta —
+ *   projeto de pesquisa, diário de bordo, pasta de referências, banner e, quando
+ *   há pesquisa com pessoas, o TCLE/TALE —, em PDF fictício gerado na hora. Os
+ *   três projetos passam por caminhos diferentes da rubrica (ver
+ *   `database/data/demo/projetos-presenciais.php`);
  * - o avaliador fica **ativado** em todos os turnos que ainda não terminaram,
  *   para a distribuição do admin (também em modo de teste) alcançá-lo;
  * - o catálogo de itens da checagem ganha três itens, **só se estiver vazio**.
@@ -52,12 +60,11 @@ class SemearAvaliacaoPresencialDemo extends Command
 
     protected $description = 'Prepara o avaliador demo e projetos prontos para ensaiar a avaliação presencial';
 
-    /** Os projetos-exemplo: título e categoria. */
-    private const EXEMPLOS = [
-        ['Horta vertical irrigada por gotejamento solar', Categoria::Fetecms],
-        ['Jogo de tabuleiro para ensinar frações', Categoria::FetecJr],
-        ['Filtro de água com carvão de casca de coco', Categoria::FetecmsFundect],
-    ];
+    /** Onde mora o conteúdo dos projetos-exemplo e dos documentos deles. */
+    private const EXEMPLOS = 'data/demo/projetos-presenciais.php';
+
+    /** O disco dos anexos de projeto — o mesmo do upload (privado). */
+    private const DISCO = 'local';
 
     /** Itens padrão da checagem, quando o catálogo está vazio. */
     private const ITENS = [
@@ -66,7 +73,7 @@ class SemearAvaliacaoPresencialDemo extends Command
         ['Protótipo ou experimento', 'O que o projeto construiu ou testou está à vista.'],
     ];
 
-    public function handle(): int
+    public function handle(PdfService $pdf): int
     {
         $edicao = Edicao::padrao() ?? Edicao::first();
 
@@ -88,16 +95,17 @@ class SemearAvaliacaoPresencialDemo extends Command
         $foco = $janela->emFoco();
         $turno = $foco === null ? Turno::A : Turno::from($foco['turno']);
 
-        [$avaliador, $lista, $projetos, $ativados, $itens] = DB::transaction(function () use ($edicao, $janela, $turno) {
+        $exemplos = require database_path(self::EXEMPLOS);
+
+        [$avaliador, $lista, $projetos, $ativados, $itens] = DB::transaction(function () use ($edicao, $janela, $turno, $exemplos) {
             $itens = $this->semearItens();
             $avaliador = $this->avaliadorDemo();
             $orientador = $this->orientadorDemo();
             $lista = $this->listaDemo($edicao);
             $projetos = [];
 
-            foreach (self::EXEMPLOS as $i => [$titulo, $categoria]) {
-                $projeto = $this->projetoPronto($orientador, $edicao, $lista, $titulo, $categoria, $turno, $i);
-                $projetos[] = $projeto;
+            foreach ($exemplos as $i => $exemplo) {
+                $projetos[] = $this->projetoPronto($orientador, $edicao, $lista, $exemplo, $turno, $i);
             }
 
             return [$avaliador, $lista, $projetos, $this->ativar($avaliador, $edicao, $janela), $itens];
@@ -106,8 +114,13 @@ class SemearAvaliacaoPresencialDemo extends Command
         $this->components->info("Avaliador demo: {$avaliador->email} (aceitou o presencial, modo de teste liberado)");
         $this->components->info("Lista de demonstração: #{$lista->id} — {$lista->nome}");
 
-        foreach ($projetos as $projeto) {
-            $this->components->twoColumnDetail($projeto->titulo, "{$turno->label()} · credenciado e checado");
+        // Os PDFs saem depois da transação: o motor leva alguns segundos, e
+        // segurar o banco por isso não protege nada — o arquivo é regravado
+        // inteiro a cada execução.
+        foreach ($projetos as $i => $projeto) {
+            $documentos = $this->documentos($pdf, $projeto, $exemplos[$i]);
+            $this->components->twoColumnDetail($projeto->titulo, "{$turno->label()} · credenciado e checado · {$documentos} documento(s)");
+            $this->line("  <fg=gray>Cenário: {$exemplos[$i]['cenario']}</>");
         }
 
         $this->components->twoColumnDetail(
@@ -197,19 +210,22 @@ class SemearAvaliacaoPresencialDemo extends Command
      * Um projeto pronto para receber avaliador: submetido, na lista demo, com
      * turno, credenciado no balcão e com o estande checado.
      */
-    private function projetoPronto(User $orientador, Edicao $edicao, ListaFinal $lista, string $titulo, Categoria $categoria, Turno $turno, int $indice): Projeto
+    /**
+     * @param  array<string, mixed>  $exemplo
+     */
+    private function projetoPronto(User $orientador, Edicao $edicao, ListaFinal $lista, array $exemplo, Turno $turno, int $indice): Projeto
     {
         $area = Area::orderBy('id')->skip($indice)->first() ?? Area::orderBy('id')->first();
 
-        $projeto = Projeto::withoutGlobalScopes()->firstOrNew(['user_id' => $orientador->id, 'titulo' => $titulo]);
+        $projeto = Projeto::withoutGlobalScopes()->firstOrNew(['user_id' => $orientador->id, 'titulo' => $exemplo['titulo']]);
         $projeto->fill([
             'edicao_id' => $edicao->id,
-            'categoria' => $categoria,
+            'categoria' => $exemplo['categoria'],
             'area_id' => $area?->id,
             'subarea_id' => $area === null ? null : Subarea::where('area_id', $area->id)->value('id'),
             'instituicao_id' => Instituicao::orderBy('id')->value('id'),
-            'resumo' => 'Projeto fictício, criado para ensaiar a avaliação presencial no estande.',
-            'palavras_chave' => ['ensaio', 'avaliação presencial'],
+            'resumo' => $exemplo['resumo'],
+            'palavras_chave' => $exemplo['palavras_chave'],
             'status' => ProjetoStatus::Submetido,
             'submitted_at' => $projeto->submitted_at ?? now(),
         ]);
@@ -218,7 +234,7 @@ class SemearAvaliacaoPresencialDemo extends Command
         Aluno::firstOrCreate(
             ['projeto_id' => $projeto->id, 'cpf' => sprintf('000000009%02d', $indice)],
             [
-                'nome' => ['Elisa Moraes', 'Felipe Antunes', 'Giovana Prado'][$indice] ?? 'Estudante Demo',
+                'nome' => $exemplo['aluno'],
                 'email' => "estudante.presencial.{$projeto->id}@demo.fetecms.test",
                 'data_nascimento' => now()->subYears(16)->toDateString(),
                 'modalidade' => 'medio',
@@ -249,6 +265,53 @@ class SemearAvaliacaoPresencialDemo extends Command
         ])->save();
 
         return $projeto;
+    }
+
+    /**
+     * Os documentos que a equipe levaria impressos, em PDF fictício anexado ao
+     * projeto — é o que o avaliador abre na leitura do wizard. O que o cenário
+     * não tem (o diário do projeto 3, o termo de ética dos que não pesquisam
+     * com pessoas) fica de fora de propósito, e um documento que já existia e
+     * saiu do cenário é apagado.
+     *
+     * @param  array<string, mixed>  $exemplo
+     */
+    private function documentos(PdfService $pdf, Projeto $projeto, array $exemplo): int
+    {
+        $dados = ['projeto' => [...$exemplo, 'categoria' => $exemplo['categoria']->label()]];
+        $documentos = [
+            ['pdf.demo.projeto-pesquisa', 'Projeto de Pesquisa.pdf', TipoDocumento::PlanoPesquisa, 'a4', true],
+            ['pdf.demo.diario-bordo', 'Diário de Bordo.pdf', TipoDocumento::Anexo, 'a4', $exemplo['diario'] !== null],
+            ['pdf.demo.pasta-referencias', 'Pasta de Referências.pdf', TipoDocumento::Anexo, 'a4', true],
+            ['pdf.demo.banner', 'Banner.pdf', TipoDocumento::Anexo, 'a3', true],
+            ['pdf.demo.termo-etica', $exemplo['etica']['nome'] ?? 'TCLE e TALE.pdf', TipoDocumento::TermoEtica, 'a4', $exemplo['etica'] !== null],
+        ];
+        $gerados = 0;
+
+        foreach ($documentos as [$view, $nome, $tipo, $papel, $existe]) {
+            $caminho = "projetos/{$projeto->id}/demo-".str($nome)->beforeLast('.')->slug().'.pdf';
+
+            if (! $existe) {
+                ProjetoDocumento::where('projeto_id', $projeto->id)->where('path', $caminho)->delete();
+                Storage::disk(self::DISCO)->delete($caminho);
+
+                continue;
+            }
+
+            $bytes = $pdf->render($view, $dados, $papel);
+            Storage::disk(self::DISCO)->put($caminho, $bytes);
+
+            ProjetoDocumento::updateOrCreate(
+                ['projeto_id' => $projeto->id, 'path' => $caminho],
+                [
+                    'tipo' => $tipo, 'disk' => self::DISCO, 'nome_original' => $nome,
+                    'mime' => 'application/pdf', 'tamanho_bytes' => strlen($bytes),
+                ],
+            );
+            $gerados++;
+        }
+
+        return $gerados;
     }
 
     /**

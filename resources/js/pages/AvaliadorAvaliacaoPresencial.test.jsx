@@ -20,17 +20,43 @@ vi.mock('../lib/avaliacaoPresencial.js', () => ({
     concluirAvaliacaoPresencial: (...a) => concluirAvaliacaoPresencial(...a),
 }));
 
+const SIM_NAO = [
+    { valor: 'sim', rotulo: 'Sim', fracao: 1 },
+    { valor: 'nao', rotulo: 'Não', fracao: 0 },
+];
+
 const RUBRICA = {
     nota_maxima: 10,
-    escala: [
-        { valor: 0, rotulo: 'Não possui' },
-        { valor: 8, rotulo: 'Bom' },
-        { valor: 10, rotulo: 'Muito bom' },
+    blocos: [
+        { chave: 'avaliacao', titulo: 'Avaliação', maximo: 8.5 },
+        { chave: 'documentos', titulo: 'Documentos e uso de IA', maximo: 1.5 },
     ],
     secoes: [
         {
-            chave: 'apresentacao', titulo: 'Apresentação', icone: 'mic', ajuda: 'Clareza.', maximo: 10,
-            perguntas: [{ chave: 'clareza', texto: 'A equipe apresentou com clareza?', ajuda: 'Considere a ordem.', peso: 10 }],
+            chave: 'diario_bordo', titulo: 'Diário de Bordo', icone: 'edit_note', maximo: 1.5,
+            perguntas: [
+                {
+                    chave: 'diario_manuscrito', numero: '3.1', texto: 'A equipe detém o Diário de Bordo manuscrito?',
+                    ajuda: 'Diário digitado = NÃO.', tipo: 'sim_nao', peso: 1.5, bloco: 'documentos', opcoes: SIM_NAO,
+                },
+                {
+                    chave: 'diario_registro', numero: '3.2', texto: 'De que modo o Diário de Bordo demonstra organização?',
+                    ajuda: null, tipo: 'escala', peso: 8.5, bloco: 'avaliacao',
+                    condicao: { pergunta: 'diario_manuscrito', valor: 'sim', fracao_senao: 0 },
+                    opcoes: [
+                        { valor: 0, rotulo: 'Não demonstra', fracao: 0 },
+                        { valor: 8, rotulo: 'Bom', fracao: 0.8 },
+                        { valor: 10, rotulo: 'Muito bom', fracao: 1 },
+                    ],
+                },
+            ],
+        },
+        {
+            chave: 'documentos', titulo: 'Documentos', icone: 'gavel', maximo: 0,
+            perguntas: [{
+                chave: 'etica_necessaria', numero: '1.1', texto: 'O projeto necessita de TCE?', ajuda: null,
+                tipo: 'sim_nao', peso: 0, bloco: null, sem_valor: 'Define se a 1.2 se aplica.', opcoes: SIM_NAO,
+            }],
         },
         { chave: 'final', titulo: 'Parecer', icone: 'rate_review', ajuda: '', componente: 'comentarios', perguntas: [] },
     ],
@@ -99,13 +125,19 @@ describe('AvaliadorAvaliacaoPresencial', () => {
         await abrirDisponivel();
 
         await waitFor(() => expect(iniciarAvaliacaoPresencial).toHaveBeenCalledWith(7, false));
-        expect(await screen.findByText('A equipe apresentou com clareza?', { selector: 'p' })).toBeInTheDocument();
-        expect(screen.getByText('Passo 1 de 3')).toBeInTheDocument();
+        expect(await screen.findByText('A equipe detém o Diário de Bordo manuscrito?', { exact: false })).toBeInTheDocument();
+        expect(screen.getByText('Passo 1 de 4')).toBeInTheDocument();
         // A leitura do projeto vem junto, com o documento para baixar.
         fireEvent.click(screen.getByRole('button', { name: /Mostrar/ }));
         expect(screen.getByRole('link', { name: /plano.pdf/ })).toHaveAttribute('href', '/api/v1/documentos/1/download');
 
-        fireEvent.click(screen.getByLabelText('Muito bom (10)'));
+        // A 3.2 só aparece depois do "Sim" na 3.1.
+        expect(screen.queryByText(/demonstra organização/)).not.toBeInTheDocument();
+        fireEvent.click(screen.getByLabelText('Sim'));
+        fireEvent.click(await screen.findByLabelText('Muito bom (10)'));
+        fireEvent.click(screen.getByRole('button', { name: 'Avançar' }));
+        expect(await screen.findByText('Não entra na nota. Define se a 1.2 se aplica.')).toBeInTheDocument();
+        fireEvent.click(screen.getByLabelText('Não'));
         fireEvent.click(screen.getByRole('button', { name: 'Avançar' }));
         expect(await screen.findByRole('heading', { name: 'Itens do estande' })).toBeInTheDocument();
 
@@ -121,7 +153,7 @@ describe('AvaliadorAvaliacaoPresencial', () => {
         fireEvent.click(await screen.findByRole('button', { name: 'Enviar' }));
 
         await waitFor(() => expect(concluirAvaliacaoPresencial).toHaveBeenCalledWith(
-            5, { respostas: { clareza: 10 }, itens: { 3: 'presente' }, comentario: null }, false,
+            5, { respostas: { diario_manuscrito: 'sim', diario_registro: 10, etica_necessaria: 'nao' }, itens: { 3: 'presente' }, comentario: null }, false,
         ));
         expect(await screen.findByText(/Avaliação concluída — nota/)).toBeInTheDocument();
     });
@@ -130,12 +162,68 @@ describe('AvaliadorAvaliacaoPresencial', () => {
         render(<AvaliadorAvaliacaoPresencial />);
         await abrirDisponivel();
 
+        fireEvent.click(await screen.findByLabelText('Sim'));
         fireEvent.click(await screen.findByLabelText('Bom (8)'));
         fireEvent.click(screen.getByRole('button', { name: /Salvar rascunho/ }));
 
         await waitFor(() => expect(salvarRascunhoPresencial).toHaveBeenCalledWith(
-            5, { respostas: { clareza: 8 }, itens: {}, comentario: null }, false,
+            5, { respostas: { diario_manuscrito: 'sim', diario_registro: 8 }, itens: {}, comentario: null }, false,
         ));
+    });
+
+    it('sem diário manuscrito a 3.2 some, vale 0 e a resposta dela não vai junto', async () => {
+        render(<AvaliadorAvaliacaoPresencial />);
+        await abrirDisponivel();
+
+        fireEvent.click(await screen.findByLabelText('Sim'));
+        fireEvent.click(await screen.findByLabelText('Muito bom (10)'));
+        expect(screen.getByText(/Nota parcial/)).toHaveTextContent('Nota parcial 10,000');
+
+        fireEvent.click(screen.getByLabelText('Não'));
+        expect(await screen.findByText(/não se aplica/)).toHaveTextContent('3.2 não se aplica — vale 0.');
+        expect(screen.queryByLabelText('Muito bom (10)')).not.toBeInTheDocument();
+        expect(screen.getByText(/Nota parcial/)).toHaveTextContent('Nota parcial 0,000');
+
+        fireEvent.click(screen.getByRole('button', { name: /Salvar rascunho/ }));
+        await waitFor(() => expect(salvarRascunhoPresencial).toHaveBeenCalledWith(
+            5, { respostas: { diario_manuscrito: 'nao' }, itens: {}, comentario: null }, false,
+        ));
+    });
+
+    it('enviada: mostra a nota por bloco e as respostas de cada pergunta', async () => {
+        getPainelPresencial.mockResolvedValue({
+            ...PAINEL,
+            minhas: [{ id: 5, projeto_id: 7, titulo: 'Bioplástico', status: 'concluida', status_label: 'Concluída', pode_escrever: false, nota: 9.2, local: {} }],
+        });
+        getAvaliacaoPresencial.mockResolvedValue({
+            ...AVALIACAO, status: 'concluida', status_label: 'Concluída', pode_escrever: false, nota: 9.2,
+            respostas: { diario_manuscrito: 'sim', diario_registro: 8, etica_necessaria: 'nao' },
+        });
+        render(<AvaliadorAvaliacaoPresencial />);
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Ver Bioplástico' }));
+
+        expect(await screen.findByText('Avaliação enviada')).toBeInTheDocument();
+        expect(screen.getByText('Avaliação').nextSibling).toHaveTextContent('6,800 de 8,500');
+        expect(screen.getByText(/3.2 De que modo/)).toHaveTextContent('Bom');
+        expect(screen.getByText(/Avaliação concluída — nota/)).toHaveTextContent('9,200 de 10,000');
+    });
+
+    it('enviada com a rubrica anterior: avisa em vez de mostrar respostas vazias', async () => {
+        getPainelPresencial.mockResolvedValue({
+            ...PAINEL,
+            minhas: [{ id: 5, projeto_id: 7, titulo: 'Bioplástico', status: 'concluida', status_label: 'Concluída', pode_escrever: false, nota: 8, local: {} }],
+        });
+        getAvaliacaoPresencial.mockResolvedValue({
+            ...AVALIACAO, status: 'concluida', status_label: 'Concluída', pode_escrever: false, nota: 8,
+            respostas: { clareza: 8 }, rubrica_anterior: true,
+        });
+        render(<AvaliadorAvaliacaoPresencial />);
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Ver Bioplástico' }));
+
+        expect(await screen.findByText(/enviada com a rubrica anterior/)).toBeInTheDocument();
+        expect(screen.queryByText(/3.2 De que modo/)).not.toBeInTheDocument();
     });
 
     it('designada pela distribuição: abre para ler e pede para iniciar', async () => {

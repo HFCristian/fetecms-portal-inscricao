@@ -104,10 +104,21 @@ class AvaliacaoPresencialFluxoTest extends TestCase
         return $projeto;
     }
 
-    /** @return array<string, int> */
+    /**
+     * Todas as perguntas respondidas: a escala no ponto pedido e Sim no resto,
+     * o que também abre todas as condicionais.
+     *
+     * @return array<string, int|string>
+     */
     private function respostasCheias(int $ponto = 10): array
     {
-        return array_fill_keys(RubricaPresencial::chaves(), $ponto);
+        $respostas = [];
+
+        foreach (RubricaPresencial::perguntas() as $p) {
+            $respostas[$p['chave']] = $p['tipo'] === RubricaPresencial::TIPO_ESCALA ? $ponto : RubricaPresencial::SIM;
+        }
+
+        return $respostas;
     }
 
     /** @return array<string, mixed> */
@@ -237,7 +248,7 @@ class AvaliacaoPresencialFluxoTest extends TestCase
             ->assertJsonPath('data.minhas.0.status_label', 'Prazo encerrado')
             ->assertJsonPath('data.minhas.0.pode_escrever', false);
 
-        $this->postJson("/api/v1/avaliador/presencial/avaliacoes/{$id}/rascunho", ['respostas' => ['clareza' => 8]])
+        $this->postJson("/api/v1/avaliador/presencial/avaliacoes/{$id}/rascunho", ['respostas' => ['apresentacao' => 8]])
             ->assertStatus(422)
             ->assertJsonPath('errors.periodo.0', 'O prazo desta avaliação acabou com o turno (e os 30 minutos de margem).');
     }
@@ -258,13 +269,44 @@ class AvaliacaoPresencialFluxoTest extends TestCase
             ->assertJsonPath('data.nota', 10)
             ->assertJsonPath('data.itens.'.$this->banner->id, 'presente');
 
-        // Metade da escala rende metade da nota; o checklist não muda nada.
+        // "Regular" (60%) nos 8,500 da escala e Sim nos 1,500 dos documentos;
+        // o checklist não muda nada.
         $outro = $this->finalista('Compostagem');
         $id2 = $this->abrir($outro);
 
         $this->postJson("/api/v1/avaliador/presencial/avaliacoes/{$id2}/concluir", [
             'respostas' => $this->respostasCheias(6), 'itens' => [$this->banner->id => 'ausente'],
-        ])->assertOk()->assertJsonPath('data.nota', 6);
+        ])->assertOk()->assertJsonPath('data.nota', 6.6);
+    }
+
+    public function test_condicionais_que_nao_se_aplicam_nao_sao_cobradas_no_envio(): void
+    {
+        Sanctum::actingAs($this->avaliador);
+        $id = $this->abrir($this->projeto);
+
+        // Sem diário manuscrito e sem IA: a 3.2 e a 14.2 não aparecem. A 3.2
+        // enviada mesmo assim é descartada, e a 14.2 vale como Sim.
+        $respostas = [...$this->respostasCheias(), 'diario_manuscrito' => 'nao', 'uso_ia' => 'nao'];
+        unset($respostas['uso_ia_declarado']);
+
+        $this->postJson("/api/v1/avaliador/presencial/avaliacoes/{$id}/concluir", [
+            'respostas' => $respostas, 'itens' => [$this->banner->id => 'presente'],
+        ])->assertOk()->assertJsonPath('data.nota', 9.436);
+
+        $this->assertArrayNotHasKey('diario_registro', AvaliacaoPresencial::find($id)->respostas);
+    }
+
+    public function test_a_nota_guarda_as_quatro_casas_do_documento(): void
+    {
+        Sanctum::actingAs($this->avaliador);
+        $id = $this->abrir($this->projeto);
+
+        // A 6.1 em "Muito ruim" rende 0,2274: duas casas apagariam o desempate.
+        $this->postJson("/api/v1/avaliador/presencial/avaliacoes/{$id}/concluir", [
+            'respostas' => [...$this->respostasCheias(), 'apresentacao' => 2], 'itens' => [$this->banner->id => 'presente'],
+        ])->assertOk()->assertJsonPath('data.nota', 9.0904);
+
+        $this->assertSame(9.0904, AvaliacaoPresencial::find($id)->nota);
     }
 
     public function test_envio_sem_todas_as_perguntas_ou_sem_o_checklist_e_recusado(): void
@@ -273,7 +315,7 @@ class AvaliacaoPresencialFluxoTest extends TestCase
         $id = $this->abrir($this->projeto);
 
         $this->postJson("/api/v1/avaliador/presencial/avaliacoes/{$id}/concluir", [
-            'respostas' => ['clareza' => 10], 'itens' => [$this->banner->id => 'presente'],
+            'respostas' => ['apresentacao' => 10], 'itens' => [$this->banner->id => 'presente'],
         ])->assertStatus(422)->assertJsonValidationErrors('respostas');
 
         $this->postJson("/api/v1/avaliador/presencial/avaliacoes/{$id}/concluir", [
@@ -287,10 +329,12 @@ class AvaliacaoPresencialFluxoTest extends TestCase
         $id = $this->abrir($this->projeto);
 
         $this->postJson("/api/v1/avaliador/presencial/avaliacoes/{$id}/rascunho", [
-            'respostas' => ['clareza' => 8, 'inexistente' => 10],
+            'respostas' => ['apresentacao' => 8, 'projeto_impresso' => 'sim', 'inexistente' => 10],
             'itens' => [$this->banner->id => 'presente', 9999 => 'presente'],
             'comentario' => 'voltar depois',
-        ])->assertOk()->assertJsonPath('data.respostas.clareza', 8);
+        ])->assertOk()
+            ->assertJsonPath('data.respostas.apresentacao', 8)
+            ->assertJsonPath('data.respostas.projeto_impresso', 'sim');
 
         // O que está fora da rubrica ou do catálogo é descartado.
         $avaliacao = AvaliacaoPresencial::find($id);
