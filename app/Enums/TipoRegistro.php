@@ -107,6 +107,8 @@ enum TipoRegistro: string
     case CredenciamentoRascunhoAssumido = 'credenciamento_rascunho_assumido';
     case CredenciamentoForaPrazo = 'credenciamento_fora_prazo';
     case CredenciamentoForaPrazoRemovido = 'credenciamento_fora_prazo_removido';
+
+    case CredenciamentoEtiquetasAvulsas = 'credenciamento_etiquetas_avulsas';
     case SuportePedido = 'suporte_pedido';
     case SuporteDecidido = 'suporte_decidido';
     case SuporteRemovido = 'suporte_removido';
@@ -203,6 +205,7 @@ enum TipoRegistro: string
             self::CredenciamentoRascunhoAssumido => 'Rascunho assumido',
             self::CredenciamentoForaPrazo => 'Credenciamento fora do prazo aprovado',
             self::CredenciamentoForaPrazoRemovido => 'Credenciamento fora do prazo retirado',
+            self::CredenciamentoEtiquetasAvulsas => 'Etiquetas avulsas geradas',
             self::SuportePedido => 'Pedido de suporte',
             self::SuporteDecidido => 'Pedido de suporte decidido',
             self::SuporteRemovido => 'Pedido de suporte excluído',
@@ -246,6 +249,7 @@ enum TipoRegistro: string
             self::CredenciamentoKitRetirado,
             self::CredenciamentoRascunhoAssumido,
             self::CredenciamentoForaPrazo, self::CredenciamentoForaPrazoRemovido,
+            self::CredenciamentoEtiquetasAvulsas,
             self::SuportePedido, self::SuporteDecidido, self::SuporteRemovido,
             self::InterpreteCadastrado, self::InterpreteAlterado,
             self::InterpreteExcluido, self::InterpreteCheckinDesfeito => self::SECAO_CREDENCIAMENTO,

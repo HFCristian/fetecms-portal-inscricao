@@ -453,7 +453,14 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     (`CredenciamentoService::MINUTOS_ATENDIMENTO`); intocado, o fim é o instante da conclusão. Ao
     concluir, a tela **lembra os itens a entregar** ao finalista. Só credencia dentro da **janela do
     evento**; fora dela a aba abre em leitura. O **admin demo** tem um *modo de teste* que ignora as
-    datas. `CredenciamentoService`.
+    datas. `CredenciamentoService`. As listas e a ficha mostram o **código, o turno e o estande** do
+    projeto, e a ficha tem os atalhos **Tudo presente** (por pessoa), **Todos compareceram** e
+    **Todos os kits** (Sprint 217).
+  - **Credenciamento → Etiquetas avulsas** (`/admin/credenciamento/etiquetas`): reimprime a etiqueta
+    de alguém da lista final, de um avaliador (crachá `V`), de um intérprete, de um voluntário (crachá
+    `T`) ou uma **personalizada** (nome, papel, turno, estande e código opcional), na mesma folha A4
+    de 16 a partir da **posição escolhida**. Conta temporária do balcão também gera; cada geração fica
+    em Registros → Credenciamento. `EtiquetasAvulsasService`.
   - **Credenciamento → Contas temporárias** (`/admin/credenciamento/contas`): acesso de prazo curto
     para quem atende o balcão sem ser da organização. O cadastro é o mesmo do admin (nome, e-mail,
     senha) mais **CPF**, **nome do curso** e a **janela de acesso**: **quando começa** (em branco,
@@ -962,7 +969,36 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 215 | Intérpretes: **mapa de designação** (segue o projeto), **check-in** por dia × turno e **acompanhamento** | ✅ sim | ✅ sim (Pedro, PR #111 → v1.33) | 0 |
 | 216 | Fix (segurança): `symfony/http-foundation` 7.4.18 → 7.4.21 (CVE-2026-108082), `npm audit fix` (dev) + teste da planta sem corrida | ✅ sim | ✅ sim (Pedro, PR #111 → v1.33) | 0 |
 | 217 | Credenciamento: **código, turno e estande** nas listas e na ficha + "Tudo presente", "Todos compareceram" e "Todos os kits" | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 218 | Credenciamento → **Etiquetas avulsas**: lista final, avaliadores (`V`), intérpretes, voluntários (`T`) e personalizada, a partir da posição da folha | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprint 218 (mesma branch):** a seção **Etiquetas avulsas** do Credenciamento
+> (`/admin/credenciamento/etiquetas`, `EtiquetasAvulsasService`): reimprimir a etiqueta de quem
+> perdeu, molhou ou esqueceu o crachá, sem gerar a folha inteira. Quatro origens, buscadas por nome,
+> código ou projeto/e-mail/CPF (`GET /admin/credenciamento/etiquetas/busca?grupo=`): a **equipe da
+> lista final** que vale (a demo, no modo de teste), com o mesmo código, turno e estande da folha
+> original; os **avaliadores** ativos e os **voluntários** (contas temporárias não removidas, de
+> qualquer setor), que até aqui não tinham crachá e ganharam os papéis **`V`** e **`T`** do
+> `CodigoParticipante` (projeto `0`, id da conta, três dígitos do CPF do perfil/da conta); e os
+> **intérpretes**, com o código `I` de sempre (`InterpretesService::etiquetas()`, extraído do PDF
+> deles). E a **personalizada**: nome, papel, turno, estande e código — os campos da etiqueta normal —,
+> com o código livre e opcional (ASCII, até 40; em branco, a etiqueta sai sem QR e sem barras). O
+> cliente só diz de quem é; quem monta o conteúdo é o servidor, então a reimpressão sai igual.
+> O PDF (`POST /admin/credenciamento/etiquetas`, até 64 por vez) é a mesma folha A4 de 16, e o
+> balcão escolhe a **posição da primeira etiqueta** (`EtiquetasPdf::gerar(..., $inicio)`): as
+> anteriores ficam em branco, para a folha já usada voltar à impressora. Todo mundo da aba gera —
+> inclusive a conta temporária, que é quem está no balcão —, e cada geração entra em Registros →
+> Credenciamento (`credenciamento_etiquetas_avulsas`: quem, de quem e a posição). Os leitores do
+> credenciamento e da cerimônia **reconhecem** os crachás `V` e `T` e recusam dizendo de quem são
+> (`CodigoParticipante::recusaForaDaEquipe()`), em vez de "código não reconhecido".
+> Back **1524/1524**, front **823/823**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprints 217–218):** (1) `git push origin feat/etiquetas-avulsas-credenciamento`
+> + PR para a `main`. **Nenhuma migration, nenhuma variável de `.env` e nenhuma dependência nova.**
+> (2) Antes do evento, imprima uma folha com uma etiqueta de avaliador e uma de voluntário e passe no
+> leitor USB e na câmera do balcão: elas devem ser **recusadas com o nome do papel** — é o sinal de
+> que foram lidas. (3) O crachá de avaliador e o de voluntário **não fazem check-in em lugar
+> nenhum**: são identificação. Se a organização quiser registrar a chegada deles, é outra mudança.
+>
 > **Sprint 217 (branch `feat/etiquetas-avulsas-credenciamento`, saída da `main` @ `56830ed`):** o
 > balcão do credenciamento ficou mais rápido de operar.
 > (a) **Código, turno e estande** aparecem em selos logo abaixo de categoria · área · escola, nas

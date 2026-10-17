@@ -282,10 +282,10 @@ class CerimonialService
             ]);
         }
 
-        if (CodigoParticipante::ehInterprete($lido)) {
-            throw ValidationException::withMessages([
-                'codigo' => 'Este crachá é de intérprete. A chegada dele é registrada em Avaliação presencial → Intérpretes.',
-            ]);
+        // Intérprete, avaliador e voluntário têm crachá, mas não estão na
+        // equipe de um projeto: diz de quem é, em vez de "não reconhecido".
+        if (($recusa = CodigoParticipante::recusaForaDaEquipe($lido)) !== null) {
+            throw ValidationException::withMessages(['codigo' => $recusa]);
         }
 
         $projeto = Projeto::with(['alunos', 'coorientador', 'user.orientadorProfile'])

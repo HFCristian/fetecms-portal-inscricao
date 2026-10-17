@@ -51,12 +51,20 @@ final class EtiquetasPdf
 
     private ?string $fonteAtual = null;
 
+    /** Quantas etiquetas cabem numa folha. */
+    public const POR_FOLHA = self::COLUNAS * self::LINHAS;
+
     /**
-     * @param  list<array{papel_label: string, nome: string, codigo: string, turno?: ?string, estande?: ?int}>  $etiquetas
+     * `$inicio` é a posição da primeira etiqueta na primeira folha, de 1 a 16,
+     * contada da esquerda para a direita e de cima para baixo (Sprint 218): a
+     * etiqueta avulsa sai numa folha já usada, e as posições antes dela ficam em
+     * branco. Código vazio desenha a etiqueta só com o texto, sem QR e sem barras.
+     *
+     * @param  list<array{papel_label: string, nome: string, codigo: ?string, turno?: ?string, estande?: ?int}>  $etiquetas
      */
-    public static function gerar(string $titulo, string $subtitulo, array $etiquetas): string
+    public static function gerar(string $titulo, string $subtitulo, array $etiquetas, int $inicio = 1): string
     {
-        return (new self)->desenhar($titulo, $subtitulo, $etiquetas);
+        return (new self)->desenhar($titulo, $subtitulo, $etiquetas, $inicio);
     }
 
     private function __construct()
@@ -66,14 +74,16 @@ final class EtiquetasPdf
     }
 
     /** @param  list<array<string, mixed>>  $etiquetas */
-    private function desenhar(string $titulo, string $subtitulo, array $etiquetas): string
+    private function desenhar(string $titulo, string $subtitulo, array $etiquetas, int $inicio): string
     {
         $largura = (self::PAGINA_L - 2 * self::MARGEM - (self::COLUNAS - 1) * self::ESPACO) / self::COLUNAS;
         $topo = self::PAGINA_A - self::MARGEM - 14;
         $altura = ($topo - self::MARGEM - (self::LINHAS - 1) * self::ESPACO) / self::LINHAS;
-        $porPagina = self::COLUNAS * self::LINHAS;
+        $porPagina = self::POR_FOLHA;
 
-        $paginas = max(1, (int) ceil(count($etiquetas) / $porPagina));
+        // As posições já usadas da primeira folha ficam vazias.
+        $pulo = max(0, min($porPagina - 1, $inicio - 1));
+        $paginas = max(1, (int) ceil((count($etiquetas) + $pulo) / $porPagina));
 
         for ($p = 0; $p < $paginas; $p++) {
             if ($p > 0) {
@@ -86,7 +96,13 @@ final class EtiquetasPdf
                 $this->texto('Helvetica', 10, self::MARGEM, $topo - 14, 'A lista final não tem participantes.', [0.29, 0.27, 0.31]);
             }
 
-            foreach (array_slice($etiquetas, $p * $porPagina, $porPagina) as $i => $etiqueta) {
+            for ($i = 0; $i < $porPagina; $i++) {
+                $etiqueta = $etiquetas[$p * $porPagina + $i - $pulo] ?? null;
+
+                if ($etiqueta === null || $p * $porPagina + $i < $pulo) {
+                    continue;
+                }
+
                 $x = self::MARGEM + ($i % self::COLUNAS) * ($largura + self::ESPACO);
                 $y = $topo - intdiv($i, self::COLUNAS) * ($altura + self::ESPACO) - $altura;
 
@@ -127,16 +143,19 @@ final class EtiquetasPdf
         $this->pdf->setLineStyle(1, '', '', []);
 
         $pad = 7.0;
-        $codigo = (string) $e['codigo'];
+        $codigo = trim((string) ($e['codigo'] ?? ''));
 
         // O QR na altura toda: é o que a câmera do balcão lê, e quanto maior,
-        // de mais longe ela lê.
-        $ladoQr = min(76.0, $a - 2 * $pad, ($l - 2 * $pad) * 0.3);
-        $this->qr($codigo, $x + $pad, $y + ($a - $ladoQr) / 2, $ladoQr);
+        // de mais longe ela lê. Sem código (etiqueta personalizada, Sprint
+        // 218), o texto ocupa a largura inteira.
+        if ($codigo !== '') {
+            $ladoQr = min(76.0, $a - 2 * $pad, ($l - 2 * $pad) * 0.3);
+            $this->qr($codigo, $x + $pad, $y + ($a - $ladoQr) / 2, $ladoQr);
+        }
 
         // Folga de 10 pt: a zona de silêncio que o leitor precisa antes da
         // primeira barra.
-        $tx = $x + $pad + $ladoQr + 10;
+        $tx = $codigo === '' ? $x + $pad : $x + $pad + $ladoQr + 10;
         $tl = $x + $l - $pad - $tx;
         $cursor = $y + $a - $pad - 11;
 
@@ -168,6 +187,10 @@ final class EtiquetasPdf
             $this->texto('Helvetica-Bold', 8, $tx, $cursor, $this->cortar($local, $tl, 8), [0.26, 0.08, 0.48]);
         }
 
+        if ($codigo === '') {
+            return;
+        }
+
         // O código de barras na base, com o texto do código por último.
         $baseBarras = $y + $pad + 11;
         $alturaBarras = min(44.0, $cursor - 6 - $baseBarras);
@@ -176,7 +199,8 @@ final class EtiquetasPdf
             $this->barras($codigo, $tx, $baseBarras, $tl, $alturaBarras);
         }
 
-        $this->texto('Courier', 8.5, $tx, $y + $pad + 1, $codigo, [0.11, 0.11, 0.12]);
+        $this->fonte('Courier');
+        $this->texto('Courier', 8.5, $tx, $y + $pad + 1, $this->cortar($codigo, $tl, 8.5), [0.11, 0.11, 0.12]);
     }
 
     /** "Turno A (matutino) · Estande 42" — o que houver dos dois. */

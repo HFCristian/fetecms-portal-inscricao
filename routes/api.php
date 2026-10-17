@@ -40,6 +40,7 @@ use App\Http\Controllers\Api\V1\DocumentoController;
 use App\Http\Controllers\Api\V1\DocumentoPresencialController;
 use App\Http\Controllers\Api\V1\EdicaoController;
 use App\Http\Controllers\Api\V1\EscopoAdminController;
+use App\Http\Controllers\Api\V1\EtiquetasAvulsasController;
 use App\Http\Controllers\Api\V1\ExportacaoListaFinalController;
 use App\Http\Controllers\Api\V1\FeedbackController;
 use App\Http\Controllers\Api\V1\IdentificacaoController;
@@ -529,6 +530,10 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::post('/projetos/{projeto}/assumir', [CredenciamentoController::class, 'assumir']);
                 Route::post('/projetos/{projeto}/kits', [CredenciamentoController::class, 'kits']);
                 Route::post('/projetos/{projeto}/cancelar', [CredenciamentoController::class, 'cancelar']);
+                // Etiquetas avulsas (Sprint 218): a reimpressão é do balcão,
+                // então a conta temporária também gera — e fica registrado.
+                Route::get('/etiquetas/busca', [EtiquetasAvulsasController::class, 'buscar']);
+                Route::post('/etiquetas', [EtiquetasAvulsasController::class, 'pdf'])->middleware('throttle:30,1');
                 // Fora do prazo aprovado (Sprint 161) e suporte (Sprint 162):
                 // exceção e aprovação são da organização.
                 Route::middleware('admin.permanente')->group(function () {
