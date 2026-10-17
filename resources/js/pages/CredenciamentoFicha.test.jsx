@@ -341,6 +341,124 @@ describe('CredenciamentoFicha', () => {
         expect(credenciarProjeto).not.toHaveBeenCalled();
     });
 
+    it('mostra código, turno e estande no cabeçalho (Sprint 217)', async () => {
+        getFichaCredenciamento.mockResolvedValue({
+            ...FICHA,
+            projeto: { ...FICHA.projeto, codigo: 'FET.AGR-001', turno: 'A', turno_label: 'Turno A (matutino)', estande: 42 },
+        });
+        render(<CredenciamentoFicha />);
+
+        expect(await screen.findByText('FET.AGR-001')).toBeInTheDocument();
+        expect(screen.getByText('Turno A (matutino)')).toBeInTheDocument();
+        expect(screen.getByText('Estande 42')).toBeInTheDocument();
+    });
+
+    it('"Tudo presente" marca a pessoa como compareceu e todos os documentos dela (Sprint 217)', async () => {
+        render(<CredenciamentoFicha />);
+        await screen.findAllByText('Ana Aluna');
+
+        // Mesmo depois de marcada como ausente, o atalho a traz de volta.
+        fireEvent.click(within(screen.getByRole('group', { name: 'Presença de Ana Aluna' }))
+            .getByRole('button', { name: 'Faltou' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Marcar Ana Aluna como presente em todos os itens' }));
+
+        const rg = screen.getByRole('group', { name: 'RG de Ana Aluna' });
+        expect(within(rg).getByRole('button', { name: 'Presente' })).toHaveAttribute('aria-pressed', 'true');
+        // O orientador não é tocado.
+        const foto = screen.getByRole('group', { name: 'Documento com foto de Marta Orientadora' });
+        expect(within(foto).getByRole('button', { name: 'Presente' })).toHaveAttribute('aria-pressed', 'false');
+
+        fireEvent.click(screen.getByRole('button', { name: /Concluir credenciamento/ }));
+        await waitFor(() => expect(credenciarProjeto).toHaveBeenCalled());
+        const [, payload] = credenciarProjeto.mock.calls[0];
+        expect(payload.pessoas[0]).toEqual({ pessoa_tipo: 'aluno', pessoa_id: 30, presente: true });
+        expect(payload.marcacoes).toEqual(expect.arrayContaining([
+            { documento_id: 1, pessoa_tipo: 'aluno', pessoa_id: 30, situacao: 'presente' },
+            { documento_id: 2, pessoa_tipo: 'aluno', pessoa_id: 30, situacao: 'presente' },
+        ]));
+        expect(payload.marcacoes).not.toEqual(expect.arrayContaining([
+            expect.objectContaining({ documento_id: 3 }),
+        ]));
+    });
+
+    it('"Todos compareceram" marca a equipe inteira e os itens do projeto (Sprint 217)', async () => {
+        getFichaCredenciamento.mockResolvedValue({
+            ...FICHA,
+            itens_projeto: [{
+                id: 40, nome: 'Relatório impresso', pessoa_tipo: 'projeto', pessoa_id: 7,
+                situacao: null, pre_marcado: false, online: [],
+            }],
+        });
+        render(<CredenciamentoFicha />);
+        await screen.findAllByText('Ana Aluna');
+
+        fireEvent.click(within(screen.getByRole('group', { name: 'Presença de Marta Orientadora' }))
+            .getByRole('button', { name: 'Faltou' }));
+        fireEvent.click(screen.getByRole('button', { name: /Todos compareceram/ }));
+        fireEvent.click(screen.getByRole('button', { name: /Concluir credenciamento/ }));
+
+        await waitFor(() => expect(credenciarProjeto).toHaveBeenCalled());
+        const [, payload] = credenciarProjeto.mock.calls[0];
+        expect(payload.pessoas).toEqual([
+            { pessoa_tipo: 'aluno', pessoa_id: 30, presente: true },
+            { pessoa_tipo: 'orientador', pessoa_id: 5, presente: true },
+        ]);
+        expect(payload.marcacoes).toHaveLength(4);
+        expect(payload.marcacoes.every((m) => m.situacao === 'presente')).toBe(true);
+        expect(payload.marcacoes).toEqual(expect.arrayContaining([
+            { documento_id: 40, pessoa_tipo: 'projeto', pessoa_id: 7, situacao: 'presente' },
+            { documento_id: 3, pessoa_tipo: 'orientador', pessoa_id: 5, situacao: 'presente' },
+        ]));
+    });
+
+    it('"Todos os kits" seleciona os pendentes de uma vez, e o responsável ainda é pedido (Sprint 217)', async () => {
+        getFichaCredenciamento.mockResolvedValue({
+            ...credenciado(),
+            pessoas: [
+                {
+                    ...FICHA.pessoas[0],
+                    kit: { retirado: true, em: '2026-09-01T12:00:00-04:00', por_nome: 'Ana Aluna' },
+                },
+                FICHA.pessoas[1],
+                { tipo: 'coorientador', tipo_label: 'Coorientador', id: 8, nome: 'Caio Coorientador', documentos: [] },
+            ],
+        });
+        render(<CredenciamentoFicha />);
+        await screen.findAllByText('Ana Aluna');
+
+        fireEvent.click(screen.getByRole('button', { name: /Todos os kits/ }));
+        expect(screen.getByLabelText('Kit de Marta Orientadora')).toBeChecked();
+        expect(screen.getByLabelText('Kit de Caio Coorientador')).toBeChecked();
+        // Sem responsável, nada é gravado.
+        expect(screen.getByRole('button', { name: /Registrar retirada/ })).toBeDisabled();
+
+        fireEvent.change(screen.getByLabelText('Quem está retirando os kits'), {
+            target: { value: 'orientador:5' },
+        });
+        fireEvent.click(screen.getByRole('button', { name: /Registrar retirada/ }));
+
+        await waitFor(() => expect(registrarRetiradaKit).toHaveBeenCalledWith('7', {
+            responsavel_tipo: 'orientador',
+            responsavel_id: 5,
+            pessoas: [
+                { pessoa_tipo: 'orientador', pessoa_id: 5 },
+                { pessoa_tipo: 'coorientador', pessoa_id: 8 },
+            ],
+        }, false));
+    });
+
+    it('"Desmarcar todos" desfaz a seleção dos kits (Sprint 217)', async () => {
+        render(<CredenciamentoFicha />);
+        await screen.findAllByText('Ana Aluna');
+
+        fireEvent.click(screen.getByRole('button', { name: /Todos os kits/ }));
+        expect(screen.getByLabelText('Kit de Ana Aluna')).toBeChecked();
+
+        fireEvent.click(screen.getByRole('button', { name: /Desmarcar todos/ }));
+        expect(screen.getByLabelText('Kit de Ana Aluna')).not.toBeChecked();
+        expect(screen.getByLabelText('Kit de Marta Orientadora')).not.toBeChecked();
+    });
+
     it('salva o atendimento como rascunho, com a conferência já feita', async () => {
         render(<CredenciamentoFicha />);
         await screen.findAllByText('Ana Aluna');

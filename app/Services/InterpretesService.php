@@ -344,17 +344,41 @@ class InterpretesService
      */
     public function etiquetasPdf(?array $ids = null): string
     {
-        $contexto = $this->contexto();
-        $interpretes = $this->doEdicao()
-            ->when($ids !== null, fn (Collection $c) => $c->whereIn('id', $ids));
+        $etiquetas = $this->etiquetas($ids);
 
-        if ($interpretes->isEmpty()) {
+        if ($etiquetas === []) {
             throw ValidationException::withMessages([
                 'interpretes' => 'Não há intérprete cadastrado para gerar etiquetas.',
             ]);
         }
 
-        $etiquetas = $interpretes->map(function (Interprete $i) use ($contexto) {
+        return EtiquetasPdf::gerar(
+            'Identificação dos intérpretes',
+            (Edicao::atual()?->nome ?? 'FETECMS').' · '.count($etiquetas).' etiqueta(s)',
+            $etiquetas,
+        );
+    }
+
+    /**
+     * O conteúdo da etiqueta de cada intérprete da edição — também usado pela
+     * etiqueta avulsa do credenciamento (Sprint 218), para a reimpressão sair
+     * igual à da folha original.
+     *
+     * @param  list<int>|null  $ids  só estes (null = todos)
+     * @return list<array{papel_label: string, nome: string, codigo: string, turno: string, estande: null, interprete_id: int}>
+     */
+    public function etiquetas(?array $ids = null): array
+    {
+        $interpretes = $this->doEdicao()
+            ->when($ids !== null, fn (Collection $c) => $c->whereIn('id', $ids));
+
+        if ($interpretes->isEmpty()) {
+            return [];
+        }
+
+        $contexto = $this->contexto();
+
+        return $interpretes->map(function (Interprete $i) use ($contexto) {
             $linha = $this->linha($i, $contexto);
             $tipos = implode(', ', $linha['tipos_labels']);
 
@@ -364,14 +388,9 @@ class InterpretesService
                 'codigo' => $linha['codigo'],
                 'turno' => implode(' · ', array_filter([$tipos, $linha['locais_label']])),
                 'estande' => null,
+                'interprete_id' => $i->id,
             ];
         })->values()->all();
-
-        return EtiquetasPdf::gerar(
-            'Identificação dos intérpretes',
-            (Edicao::atual()?->nome ?? 'FETECMS').' · '.count($etiquetas).' etiqueta(s)',
-            $etiquetas,
-        );
     }
 
     // --- A linha de um intérprete -----------------------------------------

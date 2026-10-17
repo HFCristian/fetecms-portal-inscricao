@@ -10,9 +10,11 @@ use App\Models\Credenciamento;
 use App\Models\CredenciamentoDocumento;
 use App\Models\CredenciamentoPessoa;
 use App\Models\Edicao;
+use App\Models\EstandeProjeto;
 use App\Models\ItemConferencia;
 use App\Models\ListaFinal;
 use App\Models\Projeto;
+use App\Models\TurnoApresentacao;
 use App\Models\User;
 use App\Support\CodigoParticipante;
 use Carbon\Carbon;
@@ -167,9 +169,12 @@ class CredenciamentoService
         // Quem da equipe já mandou o termo de imagem online (Sprint 175): o
         // balcão vê antes de abrir a ficha o que ainda vai conferir em papel.
         $termos = app(TermosImagemService::class)->cobertura($pagina->getCollection()->pluck('id'));
+        // Código, turno e estande (Sprint 217): o que o balcão diz à equipe
+        // depois de conferir os documentos.
+        $locais = $this->locais($this->listaFinal($user, $teste), $pagina->getCollection()->pluck('id')->all());
 
         $pagina->getCollection()->transform(
-            fn (Projeto $p) => $this->linha($p) + [
+            fn (Projeto $p) => $this->linha($p) + $locais[$p->id] + [
                 'sinalizacoes' => $sinais[$p->id] ?? null,
                 'termo_imagem' => isset($termos[$p->id]) ? [
                     'situacao' => $termos[$p->id]['situacao'],
@@ -254,7 +259,7 @@ class CredenciamentoService
                 'categoria' => $projeto->categoria?->label(),
                 'area' => $projeto->area?->nome,
                 'escola' => $projeto->instituicao?->nome,
-            ],
+            ] + $this->locais($this->listaDoProjeto($projeto), [$projeto->id])[$projeto->id],
             'pessoas' => $pessoas,
             // Itens do projeto, e não de alguém (Sprint 182): conferidos uma vez,
             // marcados com o próprio projeto no lugar da pessoa.
@@ -726,6 +731,58 @@ class CredenciamentoService
     }
 
     /**
+     * A lista vigente em que o projeto está — a oficial ou, para o projeto de
+     * ensaio, a demo. A ficha não sabe do modo de teste de quem a abriu, e um
+     * projeto nunca está nas duas.
+     */
+    private function listaDoProjeto(Projeto $projeto): ?ListaFinal
+    {
+        foreach ([false, true] as $demo) {
+            $lista = ListaFinal::vigente(null, $demo);
+
+            if ($lista !== null && $lista->projetos()->whereKey($projeto->id)->exists()) {
+                return $lista;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * O código do projeto na lista (FET.AGR-001), o turno e o estande de cada
+     * projeto (Sprint 217): é o que a equipe pergunta no balcão logo depois de
+     * conferir os documentos, e o que está impresso no crachá dela.
+     *
+     * O turno é o do estande; sem estande gerado, o de Mapa do Evento → Turnos —
+     * a mesma regra das etiquetas ({@see IdentificacaoService::participantes()}).
+     *
+     * @param  list<int>  $ids
+     * @return array<int, array{codigo: ?string, turno: ?string, turno_label: ?string, estande: ?int}>
+     */
+    private function locais(?ListaFinal $lista, array $ids): array
+    {
+        $codigos = $lista === null || $ids === [] ? [] : app(ListaFinalService::class)->codigosDaLista($lista);
+        $estandes = EstandeProjeto::whereIn('projeto_id', $ids)->get()->keyBy('projeto_id');
+        $turnos = TurnoApresentacao::whereIn('projeto_id', $ids)->get()->keyBy('projeto_id');
+
+        $locais = [];
+
+        foreach ($ids as $id) {
+            $estande = $estandes->get($id);
+            $turno = $estande?->turno ?? $turnos->get($id)?->turno;
+
+            $locais[$id] = [
+                'codigo' => $codigos[$id] ?? null,
+                'turno' => $turno?->value,
+                'turno_label' => $turno?->label(),
+                'estande' => $estande?->numero,
+            ];
+        }
+
+        return $locais;
+    }
+
+    /**
      * Resolve o **código lido no balcão** (QR ou código de barras) e devolve a
      * quem ele pertence — é o atalho que evita procurar o projeto pelo nome numa
      * fila de 230 equipes.
@@ -756,10 +813,10 @@ class CredenciamentoService
             ]);
         }
 
-        if (CodigoParticipante::ehInterprete($lido)) {
-            throw ValidationException::withMessages([
-                'codigo' => 'Este crachá é de intérprete. A chegada dele é registrada em Avaliação presencial → Intérpretes.',
-            ]);
+        // Intérprete, avaliador e voluntário têm crachá, mas não estão na
+        // equipe de um projeto: diz de quem é, em vez de "não reconhecido".
+        if (($recusa = CodigoParticipante::recusaForaDaEquipe($lido)) !== null) {
+            throw ValidationException::withMessages(['codigo' => $recusa]);
         }
 
         $projeto = Projeto::with(['alunos', 'coorientador', 'user.orientadorProfile', 'instituicao'])

@@ -6,6 +6,7 @@ import { getFinalistas } from '../lib/credenciamento.js';
 import LeitorCodigo from '../components/LeitorCodigo.jsx';
 import { useModoTeste } from '../lib/modoTeste.js';
 import SinalizacoesProjeto from '../components/SinalizacoesProjeto.jsx';
+import LocalProjeto from '../components/LocalProjeto.jsx';
 
 const dataHora = (iso) => (iso ? new Date(iso).toLocaleString('pt-BR') : '—');
 
@@ -128,6 +129,7 @@ export default function CredenciamentoLista({ situacao = 'pendentes' }) {
                                     <p className="text-xs text-on-surface-variant truncate">
                                         {[p.categoria_label, p.area, p.escola].filter(Boolean).join(' · ') || '—'}
                                     </p>
+                                    <LocalProjeto projeto={p} className="my-1" />
                                     <p className="text-xs text-on-surface-variant truncate">
                                         {p.orientador ? `Orientador: ${p.orientador}` : ''}
                                         {p.credenciado && (

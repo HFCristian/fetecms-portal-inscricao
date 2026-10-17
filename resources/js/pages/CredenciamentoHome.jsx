@@ -126,6 +126,14 @@ export default function CredenciamentoHome() {
                     numero={resumo.credenciados}
                     rotulo={resumo.credenciados === 1 ? 'credenciado' : 'credenciados'}
                 />
+                {/* Reimpressão (Sprint 218): é o balcão que está na frente de quem
+                    perdeu o crachá, então a conta temporária também vê. */}
+                <CardSecao
+                    to="/admin/credenciamento/etiquetas"
+                    icon="print"
+                    titulo="Etiquetas avulsas"
+                    descricao="Reimprima a etiqueta de um participante, avaliador, intérprete ou voluntário — ou monte uma personalizada."
+                />
                 {/* Contas de prazo curto para quem atende o balcão sem ser da
                     organização. Não depende da janela do evento — as contas são
                     criadas antes dele. Quem É uma conta temporária não as gere:

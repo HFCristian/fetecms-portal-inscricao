@@ -72,7 +72,9 @@ class InterpreteCheckinService
 
         if (! CodigoParticipante::ehInterprete($lido)) {
             throw ValidationException::withMessages([
-                'codigo' => 'Este crachá é de um participante, não de intérprete.',
+                'codigo' => CodigoParticipante::recusaForaDaEquipe($lido) === null
+                    ? 'Este crachá é de um participante, não de intérprete.'
+                    : 'Este crachá é de '.mb_strtolower(CodigoParticipante::papelLabel($lido['papel'])).', não de intérprete.',
             ]);
         }
 

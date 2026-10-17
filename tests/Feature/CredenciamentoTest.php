@@ -15,10 +15,12 @@ use App\Models\Coorientador;
 use App\Models\Credenciamento;
 use App\Models\Edicao;
 use App\Models\EscopoAdmin;
+use App\Models\EstandeProjeto;
 use App\Models\ItemConferencia;
 use App\Models\ListaFinal;
 use App\Models\Projeto;
 use App\Models\RegistroAtividade;
+use App\Models\TurnoApresentacao;
 use App\Models\User;
 use App\Services\ContaTemporariaService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -271,6 +273,55 @@ class CredenciamentoTest extends TestCase
         $this->assertSame([$dentro->id], array_column($resposta->json('data'), 'id'));
         $this->assertSame(1, $resposta->json('meta.resumo.finalistas'));
         $this->assertSame(0, $resposta->json('meta.resumo.credenciados'));
+    }
+
+    public function test_lista_e_ficha_trazem_codigo_turno_e_estande(): void
+    {
+        $area = Area::create(['nome' => 'Ciências Agrárias', 'sigla' => 'AGR']);
+        $comEstande = $this->finalista('Bioplástico', $area);
+        $soTurno = $this->finalista('Compostagem', $area);
+        $semNada = $this->finalista('Drone');
+
+        EstandeProjeto::create(['edicao_id' => $this->edicao->id, 'projeto_id' => $comEstande->id, 'turno' => 'B', 'numero' => 42]);
+        // O estande manda no turno; sem estande, vale o de Mapa do Evento → Turnos.
+        TurnoApresentacao::create(['edicao_id' => $this->edicao->id, 'projeto_id' => $comEstande->id, 'turno' => 'A']);
+        TurnoApresentacao::create(['edicao_id' => $this->edicao->id, 'projeto_id' => $soTurno->id, 'turno' => 'A']);
+
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $linhas = collect($this->getJson('/api/v1/admin/credenciamento/finalistas')->assertOk()->json('data'))
+            ->keyBy('id');
+
+        $this->assertSame('FET.AGR-001', $linhas[$comEstande->id]['codigo']);
+        $this->assertSame('B', $linhas[$comEstande->id]['turno']);
+        $this->assertSame('Turno B (vespertino)', $linhas[$comEstande->id]['turno_label']);
+        $this->assertSame(42, $linhas[$comEstande->id]['estande']);
+
+        $this->assertSame('FET.AGR-002', $linhas[$soTurno->id]['codigo']);
+        $this->assertSame('A', $linhas[$soTurno->id]['turno']);
+        $this->assertNull($linhas[$soTurno->id]['estande']);
+
+        $this->assertNull($linhas[$semNada->id]['turno']);
+        $this->assertNull($linhas[$semNada->id]['estande']);
+
+        $this->getJson("/api/v1/admin/credenciamento/projetos/{$comEstande->id}")
+            ->assertOk()
+            ->assertJsonPath('data.projeto.codigo', 'FET.AGR-001')
+            ->assertJsonPath('data.projeto.turno_label', 'Turno B (vespertino)')
+            ->assertJsonPath('data.projeto.estande', 42);
+    }
+
+    public function test_ficha_do_projeto_de_ensaio_traz_o_codigo_da_lista_demo(): void
+    {
+        $projeto = $this->finalistaDemo();
+        Sanctum::actingAs(User::factory()->admin()->create(['is_demo' => true]));
+
+        $codigo = $this->getJson("/api/v1/admin/credenciamento/projetos/{$projeto->id}?teste=1")
+            ->assertOk()
+            ->json('data.projeto.codigo');
+
+        $this->assertNotNull($codigo);
+        $this->assertStringStartsWith('FET.', $codigo);
     }
 
     public function test_sem_lista_oficial_nao_ha_finalistas(): void

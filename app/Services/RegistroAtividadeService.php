@@ -683,6 +683,32 @@ class RegistroAtividadeService
     }
 
     /**
+     * Credenciamento: etiquetas avulsas geradas (Sprint 218). Não há projeto nem
+     * "de → para": é quem imprimiu, de quem eram e em que posição da folha —
+     * um crachá a mais em circulação é o que a organização precisa conseguir
+     * rastrear depois.
+     *
+     * @param  list<string>  $pessoas  "Nome (papel)", na ordem da folha
+     */
+    public function etiquetasAvulsas(User $admin, array $pessoas, int $inicio, bool $demo = false): RegistroAtividade
+    {
+        return RegistroAtividade::create([
+            'tipo' => TipoRegistro::CredenciamentoEtiquetasAvulsas,
+            'user_id' => $admin->id,
+            'autor_email' => $admin->email,
+            'autor_nome' => $admin->name,
+            'autor_role' => $admin->role?->value,
+            'detalhes' => array_filter([
+                'resumo' => sprintf('%d etiqueta(s) a partir da posição %d: %s', count($pessoas), $inicio, implode('; ', $pessoas))
+                    .($demo ? ' · modo de teste' : ''),
+                'pessoas' => $pessoas,
+                'inicio' => $inicio,
+                'demo' => $demo ?: null,
+            ], fn ($v) => $v !== null),
+        ]);
+    }
+
+    /**
      * Mapa do evento: os estandes foram distribuídos (ou redistribuídos).
      *
      * @param  array<string, mixed>  $resumo

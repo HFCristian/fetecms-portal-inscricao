@@ -104,3 +104,54 @@ export const decidirSuporte = (suporteId, aprovar, motivo = null) =>
 
 export const excluirSuporteAdmin = (suporteId) =>
     http.delete(`/admin/credenciamento/suporte/${suporteId}`).then((r) => r.data);
+
+// --- Etiquetas avulsas (Sprint 218) ---------------------------------------------
+
+/**
+ * Quem pode receber etiqueta num grupo (`participantes`, `avaliadores`,
+ * `interpretes`, `voluntarios`), com o que vai impresso. Devolve `{ data, meta }`
+ * — o `meta` traz os turnos, as posições da folha e o teto por geração.
+ */
+export const buscarEtiquetasAvulsas = (grupo, q = '', teste = false) =>
+    http.get('/admin/credenciamento/etiquetas/busca', { params: comTeste({ grupo, q }, teste) })
+        .then((r) => r.data);
+
+/**
+ * Gera e baixa o PDF. `payload`: { inicio, itens: [{ grupo, id } | { grupo: 'personalizada', nome, papel, turno, estande, codigo }] }.
+ *
+ * Com responseType blob o erro também chega como blob: é lido para a tela
+ * mostrar o motivo, e `indice` diz qual etiqueta foi recusada.
+ */
+export async function baixarEtiquetasAvulsas(payload, teste = false) {
+    let r;
+    try {
+        r = await http.post('/admin/credenciamento/etiquetas', payload, {
+            params: comTeste({}, teste),
+            responseType: 'blob',
+        });
+    } catch (e) {
+        const corpo = e?.response?.data;
+        const erro = new Error('Não foi possível gerar as etiquetas.');
+        if (corpo instanceof Blob) {
+            try {
+                const json = JSON.parse(await corpo.text());
+                const [campo, mensagens] = Object.entries(json.errors ?? {})[0] ?? [];
+                erro.message = mensagens?.[0] || json.message || erro.message;
+                const indice = /^itens\.(\d+)\./.exec(campo ?? '')?.[1];
+                if (indice !== undefined) erro.indice = Number(indice);
+            } catch {
+                // corpo que não é JSON: fica a mensagem genérica
+            }
+        }
+        throw erro;
+    }
+
+    const url = URL.createObjectURL(r.data);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'etiquetas-avulsas.pdf';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+}
