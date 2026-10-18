@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Enums\Categoria;
 use App\Enums\SituacaoDocumento;
 use App\Enums\TipoPessoaCredenciamento;
+use App\Enums\Turno;
 use App\Http\Controllers\Controller;
 use App\Models\Area;
 use App\Models\ItemConferencia;
@@ -65,8 +66,17 @@ class CredenciamentoController extends Controller
             'area_id' => ['nullable', 'integer', 'exists:areas,id'],
             'categoria' => ['nullable', Rule::in(array_column(Categoria::cases(), 'value'))],
             'situacao' => ['nullable', Rule::in(['credenciados', 'pendentes'])],
+            // O local (Sprint 239): parte do código, o número do estande e o turno.
+            'codigo' => ['nullable', 'string', 'max:40'],
+            // Dígitos, com o zero da frente que a planta usa ("042").
+            'estande' => ['nullable', 'regex:/^\d{1,4}$/'],
+            'turno' => ['nullable', Rule::enum(Turno::class)],
             'por_pagina' => ['nullable', 'integer', 'min:5', 'max:100'],
         ]);
+
+        if (isset($filtros['estande'])) {
+            $filtros['estande'] = (int) $filtros['estande'];
+        }
 
         $pagina = $this->credenciamento->finalistas(
             $filtros,
@@ -84,6 +94,7 @@ class CredenciamentoController extends Controller
                 'resumo' => $this->credenciamento->resumo($filtros, $request->user(), $request->boolean('teste')),
                 'areas' => Area::query()->orderBy('nome')->get(['id', 'nome']),
                 'categorias' => Categoria::opcoes(),
+                'turnos' => Turno::opcoes(),
                 'config' => $this->credenciamento->config($request->user(), $request->boolean('teste')),
             ],
         ]);

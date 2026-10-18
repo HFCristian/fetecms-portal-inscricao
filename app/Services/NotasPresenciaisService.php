@@ -151,12 +151,24 @@ class NotasPresenciaisService
             ]);
         }
 
-        $avaliacao->loadMissing('avaliador:id,name');
+        $this->apagar($avaliacao, $admin, $justificativa);
+
+        return $this->doProjeto($projeto, $admin, $demo, registrar: false);
+    }
+
+    /**
+     * Apaga a avaliação (enviada ou em andamento) com o registro do que ela
+     * era. Também é o caminho do acompanhamento do comitê (Sprint 238).
+     */
+    public function apagar(AvaliacaoPresencial $avaliacao, User $admin, string $justificativa): void
+    {
+        $avaliacao->loadMissing(['avaliador:id,name', 'projeto']);
+        abort_if($avaliacao->projeto === null, 404);
 
         // O registro primeiro: ele precisa do que a linha tem, e a linha some.
-        DB::transaction(function () use ($avaliacao, $projeto, $admin, $justificativa) {
+        DB::transaction(function () use ($avaliacao, $admin, $justificativa) {
             $this->registros->avaliacaoPresencialExcluida(
-                $projeto,
+                $avaliacao->projeto,
                 $admin,
                 $avaliacao->avaliador?->name ?? 'Avaliador #'.$avaliacao->avaliador_id,
                 $avaliacao->concluida() ? $avaliacao->nota : null,
@@ -167,8 +179,6 @@ class NotasPresenciaisService
 
             $avaliacao->delete();
         });
-
-        return $this->doProjeto($projeto, $admin, $demo, registrar: false);
     }
 
     /** As seções que valem ponto, na ordem do documento. */

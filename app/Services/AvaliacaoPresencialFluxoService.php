@@ -54,6 +54,13 @@ use Illuminate\Validation\ValidationException;
  * Com a regra "avaliar apenas projetos designados" ligada (Sprint 234), o
  * avaliador da **comissão especial** só escolhe o que é dele; fora disso, pede
  * permissão ({@see PermissaoComiteService}).
+ *
+ * O comitê também tem outro relógio (Sprint 238): ele vai ao estande com um
+ * caderno e lança depois. Quem é da comissão **abre e salva rascunho a
+ * qualquer hora do evento**, em qualquer projeto credenciado e checado com vaga
+ * — não só no do turno em andamento —, e o rascunho dele não vence. **Enviar**
+ * continua preso ao relógio: num horário de avaliação de turno ou no
+ * **lançamento noturno** da edição ({@see JanelaTurnos::envioComiteAberto()}).
  */
 class AvaliacaoPresencialFluxoService
 {
@@ -68,11 +75,12 @@ class AvaliacaoPresencialFluxoService
     public function podeAvaliar(User $avaliador, bool $teste = false): bool
     {
         $modoTeste = $this->modoTeste($avaliador, $teste);
+        $janela = JanelaTurnos::daEdicao();
 
         return $this->intencao->aceitou($avaliador)
             && ($modoTeste || $this->liberacao->liberado($avaliador))
             && ListaFinal::vigente(Edicao::atual(), $modoTeste) !== null
-            && ($modoTeste || JanelaTurnos::daEdicao()->abertas() !== []);
+            && ($modoTeste || $janela->abertas() !== [] || (self::doComite($avaliador) && $janela->comiteAberto()));
     }
 
     /** Motivo de a aba estar fechada, em palavras. */
@@ -98,6 +106,11 @@ class AvaliacaoPresencialFluxoService
             return 'A organização ainda não definiu os dias e os horários dos turnos da avaliação presencial.';
         }
 
+        // O comitê trabalha durante o evento inteiro (Sprint 238).
+        if (self::doComite($avaliador) && $edicao?->evento_de !== null && now()->lessThan($edicao->evento_de)) {
+            return 'A avaliação presencial do comitê abre com o evento, em '.$edicao->evento_de->format('d/m \à\s H:i').'.';
+        }
+
         $proxima = $janela->proxima();
 
         return $proxima !== null
@@ -117,6 +130,7 @@ class AvaliacaoPresencialFluxoService
         $janela = JanelaTurnos::daEdicao();
         $pode = $this->podeAvaliar($avaliador, $teste);
         $turno = $pode ? $this->ocorrenciaDeTrabalho($modoTeste) : null;
+        $comite = self::doComite($avaliador);
 
         $minhas = AvaliacaoPresencial::where('avaliador_id', $avaliador->id)
             ->with(['projeto.area:id,nome', 'projeto.instituicao:id,nome'])
@@ -142,7 +156,14 @@ class AvaliacaoPresencialFluxoService
                 'comite' => $janela->comitePorProjeto(),
                 'peso_comite' => $janela->pesoComite(),
             ],
-            'comissao' => DistribuicaoPresencialService::daComissao($avaliador),
+            'comissao' => $comite,
+            // O relógio do comitê (Sprint 238): rascunho a qualquer hora do
+            // evento, envio no horário de avaliação ou no lançamento noturno.
+            'comite' => $comite ? [
+                'envio_aberto' => $modoTeste || $janela->envioComiteAberto(),
+                'proximo_envio_label' => $janela->proximoEnvioComite()?->format('d/m \à\s H:i'),
+                'noite_label' => $janela->noiteRotulo(),
+            ] : null,
             // A regra do comitê (Sprint 234): só o designado, o resto por pedido.
             'so_designados' => $this->permissoes->seAplica($avaliador),
             'pedidos' => $this->permissoes->pedidosDe($avaliador)
@@ -163,13 +184,46 @@ class AvaliacaoPresencialFluxoService
             // não viraram avaliação no estande (Sprint 235): a seção "Designados
             // a você" mostra os dois caminhos juntos.
             'designados_comite' => $this->designadosDoComite($avaliador, $modoTeste, $minhas),
-            'disponiveis' => $turno !== null || ($pode && $modoTeste)
-                ? $this->disponiveis($avaliador, $turno, $modoTeste, $janela)
+            // O comitê escolhe em qualquer turno (Sprint 238): a lista vem inteira.
+            'disponiveis' => $turno !== null || ($pode && ($modoTeste || $comite))
+                ? $this->disponiveis($avaliador, $comite ? null : $turno, $modoTeste, $janela)
                 : [],
             'mapa' => $this->intencao->aceitou($avaliador)
                 ? $this->mapa($avaliador, $turno, $pode, $modoTeste, $janela, $minhas)
                 : null,
         ];
+    }
+
+    /**
+     * Os projetos designados a ele e ainda não enviados — a seção "Designados
+     * a você": as avaliações no estande que vieram da distribuição ou da
+     * organização e os finalistas que o comitê designou online. É a lista da
+     * planilha em lote (Sprint 239).
+     *
+     * @return Collection<int, array{projeto: Projeto, avaliacao: ?AvaliacaoPresencial}> por id do projeto
+     */
+    public function designados(User $avaliador, bool $teste = false): Collection
+    {
+        $modoTeste = $this->modoTeste($avaliador, $teste);
+        $minhas = AvaliacaoPresencial::where('avaliador_id', $avaliador->id)->get();
+        $doComite = $this->idsDesignadosPeloComite($avaliador, $modoTeste);
+        $enviados = $minhas->filter(fn (AvaliacaoPresencial $a) => $a->concluida())->map(fn ($a) => (int) $a->projeto_id)->all();
+        // O designado pelo comitê que ele já abriu no estande vira escolha livre,
+        // mas continua sendo designado: entra com a avaliação aberta.
+        $noEstande = $minhas
+            ->filter(fn (AvaliacaoPresencial $a) => ! $a->concluida() && (! $a->escolha_livre || in_array($a->projeto_id, $doComite, true)))
+            ->keyBy('projeto_id');
+        $ids = $noEstande->keys()
+            ->merge($doComite)
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->reject(fn (int $id) => in_array($id, $enviados, true))
+            ->values();
+        $projetos = Projeto::whereIn('id', $ids)->get()->keyBy('id');
+
+        return $ids
+            ->filter(fn (int $id) => $projetos->has($id))
+            ->mapWithKeys(fn (int $id) => [$id => ['projeto' => $projetos[$id], 'avaliacao' => $noEstande->get($id)]]);
     }
 
     /**
@@ -206,6 +260,8 @@ class AvaliacaoPresencialFluxoService
             $avaliacao->status = StatusAvaliacao::EmAndamento;
         }
         $avaliacao->iniciada_em ??= now();
+        // Aberta pelo comitê, o rascunho não vence (Sprint 238).
+        $avaliacao->aberta_pelo_comite = $avaliacao->aberta_pelo_comite || self::doComite($avaliador);
         $avaliacao->save();
 
         return $this->detalhe($avaliacao->fresh(), $avaliador, $teste);
@@ -257,6 +313,8 @@ class AvaliacaoPresencialFluxoService
             'iniciada_em' => $avaliacao->iniciada_em ?? now(),
             'respostas' => $this->limparRespostas($dados['respostas'] ?? []),
             'comentario' => $dados['comentario'] ?? null,
+            // O rascunho que o comitê salvou no prazo passa a não vencer.
+            'aberta_pelo_comite' => $avaliacao->aberta_pelo_comite || self::doComite($avaliador),
         ])->save();
 
         return $this->detalhe($avaliacao->fresh(), $avaliador, $teste);
@@ -281,7 +339,7 @@ class AvaliacaoPresencialFluxoService
             ]);
         }
 
-        $this->garantirEscrita($avaliacao, $avaliador, $modoTeste, JanelaTurnos::daEdicao());
+        $this->garantirEnvio($avaliacao, $avaliador, $modoTeste, JanelaTurnos::daEdicao());
 
         $respostas = $this->limparRespostas($dados['respostas'] ?? []);
 
@@ -347,7 +405,12 @@ class AvaliacaoPresencialFluxoService
             'nota_maxima' => RubricaPresencial::NOTA_MAXIMA,
             'concluida_em' => $avaliacao->concluida_em?->toIso8601String(),
             'prazo_label' => $this->prazoLabel($avaliacao, $janela),
+            'sem_prazo' => $avaliacao->semPrazo(),
             'pode_escrever' => ! $avaliacao->concluida() && $this->podeEscrever($avaliacao, $avaliador, $modoTeste, $janela),
+            // Salvar e enviar se separam no comitê (Sprint 238): fora do
+            // horário, só o rascunho.
+            'pode_enviar' => ! $avaliacao->concluida() && $this->podeEnviar($avaliacao, $avaliador, $modoTeste, $janela),
+            'envio_fechado' => $this->envioFechado($avaliacao, $avaliador, $modoTeste, $janela),
             'projeto' => [
                 ...$leitura,
                 'escola' => $leitura['instituicao'],
@@ -409,6 +472,11 @@ class AvaliacaoPresencialFluxoService
             return false;
         }
 
+        // O comitê salva a qualquer hora do evento (Sprint 238).
+        if ($this->rascunhoLivre($avaliacao, $avaliador, $janela)) {
+            return $janela->comiteAberto();
+        }
+
         if ($avaliacao->dia !== null && $avaliacao->turno !== null) {
             return $janela->aberta($avaliacao->dia->toDateString(), $avaliacao->turno);
         }
@@ -428,13 +496,73 @@ class AvaliacaoPresencialFluxoService
     {
         if (! $this->podeEscrever($avaliacao, $avaliador, $modoTeste, $janela)) {
             throw ValidationException::withMessages([
-                'periodo' => $avaliacao->expirada($janela)
-                    ? 'O prazo desta avaliação acabou: o horário de avaliação do turno terminou.'
-                    : ($modoTeste || $this->liberacao->liberado($avaliador)
-                ? 'Esta avaliação é de um turno que ainda não começou.'
-                : 'Sua participação na avaliação presencial não está liberada.'),
+                'periodo' => match (true) {
+                    ! $modoTeste && ! $this->liberacao->liberado($avaliador) => 'Sua participação na avaliação presencial não está liberada.',
+                    $this->rascunhoLivre($avaliacao, $avaliador, $janela) => 'A avaliação do comitê vale durante o período do evento, e ele não está acontecendo.',
+                    $avaliacao->expirada($janela) => 'O prazo desta avaliação acabou: o horário de avaliação do turno terminou.',
+                    default => 'Esta avaliação é de um turno que ainda não começou.',
+                },
             ]);
         }
+    }
+
+    /**
+     * Ele pode **enviar** agora? Para todos, é o mesmo que escrever; para o
+     * comitê (Sprint 238), escrever vale o evento inteiro e enviar só no
+     * horário de avaliação de um turno ou no lançamento noturno.
+     */
+    private function podeEnviar(AvaliacaoPresencial $avaliacao, User $avaliador, bool $modoTeste, JanelaTurnos $janela): bool
+    {
+        if (! $this->podeEscrever($avaliacao, $avaliador, $modoTeste, $janela)) {
+            return false;
+        }
+
+        return $modoTeste || ! $this->rascunhoLivre($avaliacao, $avaliador, $janela) || $janela->envioComiteAberto();
+    }
+
+    /** Por que o comitê não envia agora, e quando volta a poder — ou nulo. */
+    private function envioFechado(AvaliacaoPresencial $avaliacao, User $avaliador, bool $modoTeste, JanelaTurnos $janela): ?string
+    {
+        if ($avaliacao->concluida()
+            || ! $this->podeEscrever($avaliacao, $avaliador, $modoTeste, $janela)
+            || $this->podeEnviar($avaliacao, $avaliador, $modoTeste, $janela)) {
+            return null;
+        }
+
+        $proximo = $janela->proximoEnvioComite();
+        $noite = $janela->noiteRotulo();
+
+        return 'Fora do horário de envio: salve como rascunho.'
+            .($proximo !== null ? ' O envio abre em '.$proximo->format('d/m \à\s H:i').'.' : ' Não há outro horário de envio marcado — fale com a organização.')
+            .($noite !== null ? " O lançamento noturno do comitê é das {$noite}." : '');
+    }
+
+    private function garantirEnvio(AvaliacaoPresencial $avaliacao, User $avaliador, bool $modoTeste, JanelaTurnos $janela): void
+    {
+        $this->garantirEscrita($avaliacao, $avaliador, $modoTeste, $janela);
+
+        if (! $this->podeEnviar($avaliacao, $avaliador, $modoTeste, $janela)) {
+            throw ValidationException::withMessages([
+                'periodo' => $this->envioFechado($avaliacao, $avaliador, $modoTeste, $janela),
+            ]);
+        }
+    }
+
+    /** Quem é da comissão especial agora. */
+    private static function doComite(User $avaliador): bool
+    {
+        return DistribuicaoPresencialService::daComissao($avaliador);
+    }
+
+    /**
+     * A avaliação segue o relógio do comitê? A que ele abriu (marcada) e, para
+     * quem é da comissão, a que ainda está no prazo. A que venceu antes de ser
+     * marcada volta pelo corredor, que confere a vaga de novo.
+     */
+    private function rascunhoLivre(AvaliacaoPresencial $avaliacao, User $avaliador, JanelaTurnos $janela): bool
+    {
+        return $avaliacao->aberta_pelo_comite
+            || (self::doComite($avaliador) && ! $avaliacao->expirada($janela));
     }
 
     /**
@@ -447,14 +575,21 @@ class AvaliacaoPresencialFluxoService
         $this->permissoes->garantir($avaliador, $projeto);
 
         $ocorrencia = $this->ocorrenciaDeTrabalho($modoTeste);
+        $turnoDoProjeto = $this->distribuicao->turnosDe([$projeto->id])[$projeto->id] ?? null;
 
-        if ($ocorrencia === null && ! $modoTeste) {
+        // O comitê (Sprint 238) escolhe a qualquer hora do evento, em qualquer
+        // turno: o turno em andamento só serve para gravar a ocorrência, quando
+        // for a do projeto.
+        if (self::doComite($avaliador) && ! $modoTeste) {
+            if ($ocorrencia !== null && $ocorrencia['turno'] !== $turnoDoProjeto?->value) {
+                $ocorrencia = null;
+            }
+            $ocorrencia ??= $turnoDoProjeto === null ? null : ['dia' => $this->diaDoEvento($janela), 'turno' => $turnoDoProjeto->value];
+        } elseif ($ocorrencia === null && ! $modoTeste) {
             throw ValidationException::withMessages([
                 'periodo' => 'Novas avaliações só começam no horário de avaliação do turno — depois do fim do turno, termine as que já abriu.',
             ]);
         }
-
-        $turnoDoProjeto = $this->distribuicao->turnosDe([$projeto->id])[$projeto->id] ?? null;
 
         if ($ocorrencia !== null && $turnoDoProjeto?->value !== $ocorrencia['turno']) {
             throw ValidationException::withMessages([
@@ -494,8 +629,10 @@ class AvaliacaoPresencialFluxoService
         $avaliacao->forceFill([
             'dia' => $ocorrencia['dia'] ?? null,
             'turno' => $ocorrencia['turno'] ?? null,
-            'designacao_manual' => false,
-            'escolha_livre' => true,
+            // A designação vencida que ele reabre continua sendo designação
+            // (Sprint 239): só a escolha no corredor é escolha livre.
+            'designacao_manual' => (bool) $vencida?->designacao_manual,
+            'escolha_livre' => $vencida === null || $vencida->escolha_livre,
             'vaga' => $vaga,
         ]);
 
@@ -552,7 +689,8 @@ class AvaliacaoPresencialFluxoService
         $minhasPorProjeto = $minhas->keyBy('projeto_id');
         // No ensaio sem agenda, qualquer turno vale (como na escolha livre).
         $trabalho = $turno['turno'] ?? null;
-        $qualquerTurno = $modoTeste && $trabalho === null;
+        // O comitê escolhe em qualquer turno (Sprint 238).
+        $qualquerTurno = ($modoTeste && $trabalho === null) || ($comissao && $pode);
         $liberado = $modoTeste || $this->liberacao->liberado($avaliador);
         // A regra do comitê (Sprint 234): fora das designações, pede permissão.
         $soDesignados = $this->permissoes->seAplica($avaliador);
@@ -690,6 +828,7 @@ class AvaliacaoPresencialFluxoService
             'status_label' => $expirada ? 'Prazo encerrado' : $avaliacao->status?->label(),
             'expirada' => $expirada,
             'prazo_label' => $this->prazoLabel($avaliacao, $janela),
+            'sem_prazo' => $avaliacao->semPrazo(),
             'pode_escrever' => ! $avaliacao->concluida() && $this->podeEscrever($avaliacao, $avaliador, $modoTeste, $janela),
             'designacao_manual' => $avaliacao->designacao_manual,
             // Escolhida no corredor (mapa ou lista) — o resto foi designado.
@@ -712,22 +851,11 @@ class AvaliacaoPresencialFluxoService
      */
     private function designadosDoComite(User $avaliador, bool $modoTeste, Collection $minhas): array
     {
-        $lista = ListaFinal::vigente(Edicao::atual(), $modoTeste);
-
-        if ($lista === null) {
-            return [];
-        }
-
         $noEstande = $minhas->pluck('projeto_id')->flip();
-        $designados = Avaliacao::where('avaliador_id', $avaliador->id)
-            ->where('designada_pelo_comite', true)
-            ->whereHas('projeto')
-            ->pluck('projeto_id')
-            ->reject(fn ($id) => $noEstande->has($id))
-            ->unique()
-            ->values();
-
-        $ids = $designados->isEmpty() ? [] : $lista->projetos()->whereIn('projetos.id', $designados)->pluck('projetos.id')->all();
+        $ids = array_values(array_filter(
+            $this->idsDesignadosPeloComite($avaliador, $modoTeste),
+            fn (int $id) => ! $noEstande->has($id),
+        ));
 
         if ($ids === []) {
             return [];
@@ -752,9 +880,49 @@ class AvaliacaoPresencialFluxoService
             ->all();
     }
 
+    /**
+     * Os finalistas da lista que vale designados a ele em Comitê → Designações.
+     *
+     * @return list<int>
+     */
+    private function idsDesignadosPeloComite(User $avaliador, bool $modoTeste): array
+    {
+        $lista = ListaFinal::vigente(Edicao::atual(), $modoTeste);
+
+        if ($lista === null) {
+            return [];
+        }
+
+        $designados = Avaliacao::where('avaliador_id', $avaliador->id)
+            ->where('designada_pelo_comite', true)
+            ->whereHas('projeto')
+            ->pluck('projeto_id')
+            ->unique()
+            ->values();
+
+        return $designados->isEmpty()
+            ? []
+            : $lista->projetos()->whereIn('projetos.id', $designados)->pluck('projetos.id')->map(fn ($id) => (int) $id)->all();
+    }
+
     private function prazoLabel(AvaliacaoPresencial $avaliacao, JanelaTurnos $janela): ?string
     {
-        return $avaliacao->prazo($janela)?->format('d/m H:i');
+        // O rascunho do comitê não vence: não há prazo a mostrar.
+        return $avaliacao->semPrazo() ? null : $avaliacao->prazo($janela)?->format('d/m H:i');
+    }
+
+    /** O dia do evento de hoje, ou nulo fora dele (o lançamento noturno da madrugada fica no dia anterior). */
+    private function diaDoEvento(JanelaTurnos $janela): ?string
+    {
+        $noite = $janela->noiteAberta();
+
+        if ($noite !== null) {
+            return $noite['dia'];
+        }
+
+        $hoje = now()->toDateString();
+
+        return in_array($hoje, $janela->dias(), true) ? $hoje : null;
     }
 
     /** @return array<string, mixed> */

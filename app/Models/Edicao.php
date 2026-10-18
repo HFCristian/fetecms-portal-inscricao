@@ -47,6 +47,7 @@ class Edicao extends Model
         'agenda_presencial', 'presencial_fila_avaliador',
         'presencial_comuns_por_projeto', 'presencial_comite_por_projeto', 'presencial_peso_comite',
         'presencial_comite_so_designados',
+        'presencial_comite_noite_inicio', 'presencial_comite_noite_fim',
     ];
 
     protected function casts(): array

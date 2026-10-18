@@ -585,7 +585,12 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     designados** (`edicoes.presencial_comite_so_designados`). Ligada, o avaliador da comissão só inicia no
     estande o que é dele — designação no estande, designação de Comitê → Designações ou **pedido de
     permissão aprovado**; o resto ele pede pelo mapa ou pela lista, e a organização decide em Comitê
-    especial → Designações, logo abaixo da designação (`pedidos_avaliacao_comite`).
+    especial → Designações, logo abaixo da designação (`pedidos_avaliacao_comite`). Ali fica também o
+    **lançamento noturno** (Sprint 238, `edicoes.presencial_comite_noite_inicio`/`_fim`): o comitê abre e
+    salva avaliação como **rascunho a qualquer hora do evento**, em projeto de qualquer turno, e o rascunho
+    dele **não vence** (`avaliacoes_presenciais.aberta_pelo_comite`); **enviar** só no horário de avaliação
+    de um turno ou nesse horário noturno, que vale em cada dia do evento e pode passar da meia-noite
+    (`JanelaTurnos::comiteAberto()`/`envioComiteAberto()`).
   - **Parametrização → Credenciamento** (`/admin/parametrizacao/credenciamento`): os **itens
     entregues** aos finalistas (`edicoes.itens_credenciamento`). O **período do evento**
     (`edicoes.evento_de`/`evento_ate`, **fechado enquanto não for definido** — credenciar é ato
@@ -606,7 +611,9 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     premiação em TXT; `ComitePremiacaoController` — e o **Acompanhamento das avaliações**
     (`/admin/comite/acompanhamento`, `AcompanhamentoComiteService`): cada avaliador da comissão com o
     que está avaliando no estande e o que recebeu em Designações do comitê
-    (`avaliacoes.designada_pelo_comite`), e o mapa do evento só com o trabalho do comitê, com dashboard). **Transporte de comitê** lista quem está com o localizador ligado e o que cada um
+    (`avaliacoes.designada_pelo_comite`), e o mapa do evento só com o trabalho do comitê, com dashboard; no
+    **Ver detalhes** a coordenação remove designação, avaliação em andamento e avaliação já feita — estas
+    duas com justificativa; a nota online é desconsiderada, a do estande é excluída (Sprint 238)). **Transporte de comitê** lista quem está com o localizador ligado e o que cada um
     configurou, e traz o botão **Habilitar localização** — um assistente de **seis passos**:
     quantas pessoas estão junto → os **nomes** (opcionais, com a área de cada uma) → o **meio de
     transporte** → o **ponto de partida** → o **destino** (autocomplete do Google Places) e por
@@ -1024,9 +1031,78 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 234 | Parametrização → **Avaliação presencial** → Comitê especial: avaliar **apenas projetos designados** + pedidos de permissão em Designações | ✅ sim | ✅ sim (Pedro, PR #119 → v1.40) | 0 |
 | 235 | Avaliador: seção **Designados a você** e busca por projeto ou estande na avaliação presencial | ✅ sim | ✅ sim (Pedro, PR #119 → v1.40) | 0 |
 | 236 | Avaliador: aba **Avaliação online** (`/avaliador/avaliacao-online`) e, no evento, a tela inicial é a **avaliação presencial** | ✅ sim | ✅ sim (Pedro, PR #119 → v1.40) | 0 |
-| 237 | Avaliação presencial sem os **itens do estande** + seção verde/amarela no wizard; Ranking presencial → **Ver avaliações** e exclusão com justificativa | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 237 | Avaliação presencial sem os **itens do estande** + seção verde/amarela no wizard; Ranking presencial → **Ver avaliações** e exclusão com justificativa | ✅ sim | ✅ sim (Pedro, PR #120 → v1.41) | 0 |
+| 238 | Comitê: **rascunho fora do horário** + **lançamento noturno** parametrizado; Ver detalhes remove também **em andamento e avaliadas** | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 239 | Avaliação presencial **em lote pela planilha** (xlsx dos designados → prévia com erros por extenso → envio) + Credenciar busca e filtra por **código, estande e turno** | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
-> **Sprint 237 (branch `feat/presencial-ranking-avaliacoes`, saída da `main` @ `ea4751c`, v1.40):**
+> **Sprint 239 (mesma branch):**
+> (a) Na aba **Avaliação presencial**, a seção **Designados a você** ganhou **Baixar planilha** e
+> **Enviar planilha preenchida** (`LoteAvaliacaoPresencial.jsx`, `LotePresencialService`, `GET
+> /avaliador/presencial/lote/modelo`, `POST .../lote/previa`, `POST .../lote`). O modelo, no molde do
+> documento do comitê, traz uma linha por projeto designado (os do estande e os do comitê online, inclusive
+> o que ele já abriu — `AvaliacaoPresencialFluxoService::designados()`) com **Turno, Stand, Código e
+> Projeto**, uma coluna por pergunta da rubrica presencial com o tipo no título ("(S/N)", "(0-2-10)",
+> "(S/N/NA)" na 4.3) — **inclusive as condicionais**, marcadas "[só se 2.1 = S]" — e o parecer; o
+> rascunho já salvo vem preenchido. A **prévia** não grava nada: o cabeçalho é conferido primeiro (coluna
+> não reconhecida, faltando ou repetida recusa o arquivo dizendo qual e em que letra; o cabeçalho é achado
+> pela coluna "Stand" nas cinco primeiras linhas) e depois cada linha, com o motivo de cada erro — valor
+> fora de 0/2/4/6/8/10, S/N escrito de outro jeito (aceita S, Sim, N, Não; NA na 4.3), condicional
+> preenchida sem a origem em S, pergunta em branco ("Faltam respostas: 7.1, 8.1."), estande que não é
+> dele, projeto repetido; linha em branco é ignorada. O turno aceita "A", "Turno B", "manhã", "tarde". O
+> **envio** passa pelo fluxo do wizard, linha a linha: abre (se preciso), salva o rascunho e envia quando
+> o horário deixa; o comitê fora do horário de envio fica com **rascunho** e sobe a mesma planilha depois.
+> Uma linha que falha não derruba as outras, e a resposta diz o que aconteceu com cada uma. De quebra, a
+> **designação vencida que o avaliador reabre continua designação** (antes virava escolha livre e saía de
+> "Designados a você").
+> (b) Em **Credenciamento → Credenciar** (e Credenciados), a busca acha também o **código** ("agr-001"), o
+> **número do estande** ("42", "042", "estande 42") e o **turno** ("vespertino"), e entram três filtros —
+> código, estande e turno — que se somam entre si e com os de área e categoria, e recortam também os
+> números do topo. O local sai do `LocaisFinalistasService` (o da Sprint 227), que passou a aceitar a lista
+> — no modo de teste, o código é o da lista demo. `GET /admin/credenciamento/finalistas` aceita `codigo`,
+> `estande` (dígitos) e `turno`, e devolve `turnos`.
+> Back **1623/1623**, front **919/919**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprints 238–239):** `git push origin feat/comite-noite-lote-credenciar` + PR para
+> a `main`. **Uma migration** (`edicoes.presencial_comite_noite_inicio`/`_fim` e
+> `avaliacoes_presenciais.aberta_pelo_comite`), sem `.env` ou dependência nova. (1) O **lançamento
+> noturno nasce desligado**: defina o horário em Parametrização → Avaliação presencial → Comitê especial.
+> Sem ele, o comitê só envia no horário de avaliação dos turnos (mas já salva rascunho a qualquer hora do
+> evento). (2) **O rascunho do comitê não vence e segura a vaga**: um avaliador da comissão que abre e
+> esquece prende o projeto até alguém removê-lo em Acompanhamento → Ver detalhes. (3) Antes do evento,
+> baixe uma planilha de um avaliador de teste, preencha no Excel e suba: aqui o arquivo foi conferido pelo
+> leitor do portal e pelos testes, não pelo Excel. (4) Remover avaliação **realizada no estande** pelo Ver
+> detalhes também a tira do certificado do avaliador, como no Ranking presencial.
+>
+> **Sprint 238 (branch `feat/comite-noite-lote-credenciar`, saída da `main` @ `a33510c`, v1.41):**
+> (a) O avaliador da **comissão especial** ganhou outro relógio na avaliação presencial: ele vai ao
+> estande com um caderno e lança depois. Quem é da comissão **abre e salva rascunho a qualquer hora do
+> evento** (de `evento_de` a `evento_ate`), em projeto **de qualquer turno** credenciado, checado e com
+> vaga — no mapa e na lista —, e o rascunho aberto por ele **não vence** com o fim do turno
+> (`avaliacoes_presenciais.aberta_pelo_comite`, gravado ao abrir ou salvar; `AvaliacaoPresencial::semPrazo()`),
+> então segura a vaga até o envio. **Enviar** continua preso ao relógio: no horário de avaliação de
+> qualquer turno ou no **lançamento noturno**, um par de horas em Parametrização → Avaliação presencial →
+> Comitê especial (`edicoes.presencial_comite_noite_inicio`/`_fim`, herdado por edição nova; `PUT
+> /admin/parametrizacao/presencial/lancamento-noturno`) que vale em **cada dia do evento** e pode passar da
+> meia-noite (22:00–01:00 é do dia 20 até 01:00 do dia 21). Os dois em branco desligam; um só ou os dois
+> iguais é recusado; mudar entra em Registros → Avaliação Online
+> (`presencial_comite_lancamento_noturno`). O detalhe da avaliação separa **`pode_escrever`** de
+> **`pode_enviar`** e traz `envio_fechado` (quando o envio abre); o painel traz `comite` (envio aberto, o
+> próximo envio, o horário noturno). Na tela, o comitê vê o aviso "Fora do horário de envio: abra e salve
+> como rascunho", a linha mostra "rascunho sem prazo" e o wizard trava o Enviar dizendo por quê. O
+> avaliador comum não muda. A lógica do horário está em `JanelaTurnos` (`noites()`, `comiteAberto()`,
+> `envioComiteAberto()`, `proximoEnvioComite()`).
+> (b) No **Ver detalhes** do Acompanhamento do comitê, as três colunas ganharam caixas de marcação (com
+> **Marcar todos** em cada uma) e um botão só, **Remover selecionados**, com a confirmação dentro do
+> diálogo dizendo o efeito de cada tipo: **designado** sai como antes, sem justificativa; **em avaliação**
+> descarta o rascunho (online, retirada sem reposição; no estande, a avaliação é apagada e a vaga reabre);
+> **avaliado** online tem a **nota desconsiderada** (`NotasAvaliacaoService::apenasDesconsiderar()` — fica
+> riscada e sai do ranking e da lista final) e, no estande, a avaliação é **excluída**
+> (`NotasPresenciaisService::apagar()`, o mesmo do Ranking presencial). Os dois últimos pedem
+> **justificativa** (mín. 5), que vai para o registro de cada uma — a retirada online passou a guardar a
+> justificativa também (`DesignacaoService::retirar(justificativa:)`). A resposta conta designações, em
+> andamento, avaliadas e ignoradas.
+>
+> **Sprint 237 (branch `feat/presencial-ranking-avaliacoes`, já na `main` pelo PR #120 → v1.41):**
 > (a) O formulário de **avaliação presencial** perdeu o passo **Itens do estande**: o que o estande tem
 > é conferido na checagem, pela organização. O painel e o detalhe não mandam mais `itens`, o envio não
 > cobra o checklist e o rascunho/envio não gravam `avaliacoes_presenciais.itens_conferidos` (a coluna
@@ -1047,8 +1123,7 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > voluntário de conta temporária continua vendo o ranking sem nomes, sem o botão.
 > Back **1607/1607**, front **907/907**, Pint limpo, build OK.
 >
-> **Pendências do Pedro (Sprint 237):** `git push origin feat/presencial-ranking-avaliacoes` + PR para a
-> `main`. Sem migration, `.env` ou dependência nova. **Excluir uma avaliação presencial tira ela também da contagem do
+> **Pendências do Pedro (Sprint 237):** ~~push + PR~~ — **entrou na `main` pelo PR #120** (v1.41). **Excluir uma avaliação presencial tira ela também da contagem do
 > certificado do avaliador** (Certificados conta as presenciais concluídas) — é a diferença para a nota
 > online desconsiderada, que continua contando para a pessoa.
 >

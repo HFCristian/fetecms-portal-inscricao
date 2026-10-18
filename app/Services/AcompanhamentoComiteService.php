@@ -49,6 +49,8 @@ class AcompanhamentoComiteService
         private readonly LocaisFinalistasService $locais,
         private readonly DesignacaoService $designacoes,
         private readonly DistribuicaoPresencialService $presencial,
+        private readonly NotasPresenciaisService $notasPresenciais,
+        private readonly NotasAvaliacaoService $notasOnline,
     ) {}
 
     /**
@@ -114,26 +116,31 @@ class AcompanhamentoComiteService
     }
 
     /**
-     * Tira de um avaliador da comissão as designações que ele **ainda não
-     * abriu** — o "Ver detalhes" do acompanhamento.
+     * Tira de um avaliador da comissão o que está com ele — o "Ver detalhes" do
+     * acompanhamento. Desde a Sprint 238 sai também o que ele **abriu** e o que
+     * ele **já enviou**, e cada um sai pelo caminho que a sua tela tem:
      *
-     * Só sai o que o comitê pode desfazer sem atropelar ninguém:
+     * - **designada** (ainda não aberta): online, só a designação feita em
+     *   Comitê → Designações, pela retirada de lá, **sem reposição** (o comitê
+     *   escolheu quem avalia; sortear outro desfaria a escolha); no estande, a
+     *   retirada da Distribuição presencial;
+     * - **em avaliação**: online, a mesma retirada, que descarta o rascunho; no
+     *   estande, a avaliação é apagada e a vaga volta a abrir;
+     * - **avaliada**: online, a nota é **desconsiderada** (fica riscada, com o
+     *   motivo, e sai do ranking e da lista final — apagar destruiria a prova);
+     *   no estande, a avaliação é apagada, como em Ranking presencial → Ver
+     *   avaliações.
      *
-     * - **online**, só a designação feita em Comitê → Designações; o resto da
-     *   fila do avaliador é da Avaliação online, que tem a sua tela. Sai pelo
-     *   mesmo caminho da retirada de lá, **sem reposição** (o comitê escolheu
-     *   quem avalia; sortear outro desfaria a escolha) e com o registro;
-     * - **no estande**, a designação da edição em escopo.
-     *
-     * Aberta (em avaliação) ou enviada não sai: a primeira é alguém com o
-     * projeto na mão, a segunda já é nota. O que vier fora disso é ignorado e
-     * contado, em vez de derrubar o pedido inteiro.
+     * Designação sai sem cerimônia; o resto pede **justificativa**, que vai para
+     * o registro de cada uma. Online, só o que o comitê designou — a fila online
+     * comum é da Avaliação online. O que vier fora disso é ignorado e contado,
+     * em vez de derrubar o pedido inteiro.
      *
      * @param  list<int>  $onlineIds
      * @param  list<int>  $estandeIds
-     * @return array{retiradas:int, online:int, estande:int, ignoradas:int}
+     * @return array{retiradas:int, designacoes:int, em_andamento:int, avaliadas:int, ignoradas:int}
      */
-    public function retirar(User $avaliador, array $onlineIds, array $estandeIds, User $admin): array
+    public function retirar(User $avaliador, array $onlineIds, array $estandeIds, User $admin, ?string $justificativa = null): array
     {
         if (! $this->membros()->has($avaliador->id)) {
             throw ValidationException::withMessages([
@@ -144,38 +151,63 @@ class AcompanhamentoComiteService
         $online = $onlineIds === [] ? collect() : Avaliacao::whereIn('id', $onlineIds)
             ->where('avaliador_id', $avaliador->id)
             ->where('designada_pelo_comite', true)
-            ->where('status', StatusAvaliacao::Designada->value)
             ->whereHas('projeto')
-            ->pluck('id');
+            ->get()
+            // A nota já desconsiderada não tem mais o que tirar.
+            ->reject(fn (Avaliacao $a) => $a->status === StatusAvaliacao::Concluida && $a->foiDesconsiderada());
 
         $estande = $estandeIds === [] ? collect() : AvaliacaoPresencial::whereIn('id', $estandeIds)
             ->where('avaliador_id', $avaliador->id)
             ->where('edicao_id', Edicao::atual()?->id)
-            ->where('status', StatusAvaliacao::Designada->value)
             ->get();
 
+        $designada = fn ($a) => $a->status === StatusAvaliacao::Designada;
+        $avaliada = fn ($a) => $a->status === StatusAvaliacao::Concluida;
         $retiradas = $online->count() + $estande->count();
 
         if ($retiradas === 0) {
             throw ValidationException::withMessages([
-                'designacoes' => 'Nenhuma designação a retirar: só sai o que o avaliador ainda não abriu.',
+                'designacoes' => 'Nada a remover: os projetos escolhidos não estão mais com este avaliador.',
             ]);
         }
 
-        DB::transaction(function () use ($online, $estande, $admin) {
-            if ($online->isNotEmpty()) {
-                $this->designacoes->retirar($online->all(), $admin, redesignar: false);
+        $justificativa = trim((string) $justificativa);
+        $precisaMotivo = $online->contains(fn ($a) => ! $designada($a)) || $estande->contains(fn ($a) => ! $designada($a));
+
+        if ($precisaMotivo && mb_strlen($justificativa) < 5) {
+            throw ValidationException::withMessages([
+                'justificativa' => 'Para remover avaliação em andamento ou já realizada, escreva a justificativa (ao menos 5 caracteres).',
+            ]);
+        }
+
+        $motivo = $justificativa === '' ? null : $justificativa;
+
+        DB::transaction(function () use ($online, $estande, $admin, $motivo, $designada, $avaliada) {
+            $retiraveis = $online->reject($avaliada);
+            if ($retiraveis->isNotEmpty()) {
+                $this->designacoes->retirar($retiraveis->pluck('id')->all(), $admin, redesignar: false, justificativa: $motivo);
+            }
+
+            foreach ($online->filter($avaliada) as $avaliacao) {
+                $this->notasOnline->apenasDesconsiderar($avaliacao, $admin, (string) $motivo);
             }
 
             foreach ($estande as $avaliacao) {
-                $this->presencial->retirar($avaliacao);
+                $designada($avaliacao)
+                    ? $this->presencial->retirar($avaliacao)
+                    : $this->notasPresenciais->apagar($avaliacao, $admin, (string) $motivo);
             }
         });
 
+        $todas = $online->concat($estande);
+        $designacoes = $todas->filter($designada)->count();
+        $avaliadas = $todas->filter($avaliada)->count();
+
         return [
             'retiradas' => $retiradas,
-            'online' => $online->count(),
-            'estande' => $estande->count(),
+            'designacoes' => $designacoes,
+            'em_andamento' => $retiradas - $designacoes - $avaliadas,
+            'avaliadas' => $avaliadas,
             'ignoradas' => count($onlineIds) + count($estandeIds) - $retiradas,
         ];
     }

@@ -543,6 +543,37 @@ class CredenciamentoTest extends TestCase
             ->assertOk()->assertJsonCount(2, 'data');
     }
 
+    public function test_busca_pelo_estande_e_filtros_de_codigo_estande_e_turno(): void
+    {
+        $area = Area::create(['nome' => 'Ciências Agrárias', 'sigla' => 'AGR']);
+        $manha = $this->finalista('Bioplástico', $area);
+        $tarde = $this->finalista('Compostagem', $area);
+        $semEstande = $this->finalista('Drone 42');
+        EstandeProjeto::create(['edicao_id' => $this->edicao->id, 'projeto_id' => $manha->id, 'turno' => 'A', 'numero' => 42]);
+        EstandeProjeto::create(['edicao_id' => $this->edicao->id, 'projeto_id' => $tarde->id, 'turno' => 'B', 'numero' => 7]);
+        Sanctum::actingAs(User::factory()->admin()->create());
+        $ids = fn (string $query) => collect($this->getJson('/api/v1/admin/credenciamento/finalistas?'.$query)->assertOk()->json('data'))
+            ->pluck('id')->sort()->values()->all();
+
+        // A busca acha o estande ("42", "042", "estande 42"), e o título com 42 continua valendo.
+        $this->assertSame([$manha->id, $semEstande->id], $ids('busca=42'));
+        $this->assertSame([$manha->id], $ids('busca=042'));
+        $this->assertSame([$manha->id], $ids('busca=estande%2042'));
+        $this->assertSame([$tarde->id], $ids('busca=vespertino'));
+        $this->assertSame([$manha->id], $ids('busca=agr-001'));
+
+        // Os filtros se somam entre si e com o resto.
+        $this->assertSame([$manha->id], $ids('estande=042'));
+        $this->assertSame([$tarde->id], $ids('turno=B'));
+        $this->assertSame([], $ids('turno=B&estande=42'));
+        $this->assertSame([$manha->id, $tarde->id], $ids('codigo=AGR'));
+        $this->getJson('/api/v1/admin/credenciamento/finalistas?estande=42')
+            ->assertJsonPath('meta.resumo.finalistas', 1)
+            ->assertJsonPath('meta.turnos.0.value', 'A');
+
+        $this->getJson('/api/v1/admin/credenciamento/finalistas?estande=x')->assertStatus(422);
+    }
+
     public function test_admin_sem_a_aba_credenciamento_no_escopo_e_barrado(): void
     {
         User::factory()->admin()->create(); // guardião do acesso total

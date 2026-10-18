@@ -17,4 +17,14 @@ describe('retirarDesignacoesComite', () => {
         });
         expect(r.meta.message).toBe('ok');
     });
+
+    it('manda a justificativa quando há uma', async () => {
+        await retirarDesignacoesComite(5, ['estande-3'], 'Avaliou o estande trocado.');
+
+        expect(post).toHaveBeenCalledWith('/admin/comite/acompanhamento/avaliadores/5/retirar', {
+            online_ids: [],
+            estande_ids: [3],
+            justificativa: 'Avaliou o estande trocado.',
+        });
+    });
 });

@@ -85,6 +85,7 @@ enum TipoRegistro: string
     case AvaliacaoAjustesInicio = 'avaliacao_ajustes_inicio';
     case AvaliacaoAjustesFim = 'avaliacao_ajustes_fim';
     case PresencialComiteSoDesignados = 'presencial_comite_so_designados';
+    case PresencialComiteLancamentoNoturno = 'presencial_comite_lancamento_noturno';
     case ProjetoCategoria = 'projeto_categoria';
     case ProjetoArea = 'projeto_area';
     case ProjetoSubarea = 'projeto_subarea';
@@ -185,6 +186,7 @@ enum TipoRegistro: string
             self::AvaliacaoAjustesInicio => 'Início dos ajustes',
             self::AvaliacaoAjustesFim => 'Fim dos ajustes',
             self::PresencialComiteSoDesignados => 'Comitê avalia só o designado',
+            self::PresencialComiteLancamentoNoturno => 'Lançamento noturno do comitê',
             self::ProjetoCategoria => 'Categoria do projeto',
             self::ProjetoArea => 'Área do projeto',
             self::ProjetoSubarea => 'Subárea do projeto',

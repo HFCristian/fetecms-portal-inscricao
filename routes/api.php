@@ -304,6 +304,12 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             Route::get('/presencial/avaliacoes/{avaliacao}', [AvaliadorPresencialAvaliacaoController::class, 'show']);
             Route::post('/presencial/avaliacoes/{avaliacao}/rascunho', [AvaliadorPresencialAvaliacaoController::class, 'rascunho']);
             Route::post('/presencial/avaliacoes/{avaliacao}/concluir', [AvaliadorPresencialAvaliacaoController::class, 'concluir']);
+            // Em lote, pela planilha (Sprint 239): modelo → prévia → envio.
+            Route::get('/presencial/lote/modelo', [AvaliadorPresencialAvaliacaoController::class, 'modeloLote']);
+            Route::post('/presencial/lote/previa', [AvaliadorPresencialAvaliacaoController::class, 'previaLote'])
+                ->middleware('throttle:30,1');
+            Route::post('/presencial/lote', [AvaliadorPresencialAvaliacaoController::class, 'enviarLote'])
+                ->middleware('throttle:30,1');
         });
 
         // Chat de suporte — orientador/avaliador falam com o suporte (admin)
@@ -735,6 +741,8 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 // comitê especial de avaliar só o que foi designado.
                 Route::get('/parametrizacao/presencial', [ParametrizacaoPresencialController::class, 'show']);
                 Route::put('/parametrizacao/presencial', [ParametrizacaoPresencialController::class, 'definir']);
+                // O lançamento noturno do comitê (Sprint 238).
+                Route::put('/parametrizacao/presencial/lancamento-noturno', [ParametrizacaoPresencialController::class, 'definirNoite']);
 
                 // Parametrização → Itens do credenciamento e da checagem (Sprint
                 // 181): a lista única que os dois balcões conferem.

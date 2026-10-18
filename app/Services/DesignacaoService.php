@@ -295,7 +295,7 @@ class DesignacaoService
      * @param  list<int>  $ids
      * @return array{retiradas:int, redesignadas:int, sem_avaliador: list<string>, redesignar:bool}
      */
-    public function retirar(array $ids, User $admin, bool $redesignar = true): array
+    public function retirar(array $ids, User $admin, bool $redesignar = true, ?string $justificativa = null): array
     {
         $avaliacoes = Avaliacao::query()
             ->whereIn('id', $ids)
@@ -312,7 +312,7 @@ class DesignacaoService
         $redesignadas = 0;
         $semAvaliador = [];
 
-        DB::transaction(function () use ($avaliacoes, $admin, $redesignar, &$redesignadas, &$semAvaliador) {
+        DB::transaction(function () use ($avaliacoes, $admin, $redesignar, $justificativa, &$redesignadas, &$semAvaliador) {
             foreach ($avaliacoes as $avaliacao) {
                 $projeto = $avaliacao->projeto;
                 $anterior = $avaliacao->avaliador;
@@ -350,6 +350,7 @@ class DesignacaoService
                     $anterior?->name ?? '(avaliador removido)',
                     $redesignar ? $novo?->name : self::SEM_REPOSICAO,
                     $situacao,
+                    $justificativa,
                 );
             }
         });

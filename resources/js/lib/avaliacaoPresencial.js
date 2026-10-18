@@ -38,3 +38,32 @@ export const salvarRascunhoPresencial = (id, dados, teste = false) =>
 export const concluirAvaliacaoPresencial = (id, dados, teste = false) =>
     http.post(`/avaliador/presencial/avaliacoes/${id}/concluir`, { ...dados, teste: teste ? 1 : 0 })
         .then((r) => r.data);
+
+// --- Em lote, pela planilha (Sprint 239) -------------------------------------
+// Modelo (os designados dele) → prévia linha a linha (nada é gravado) → envio
+// das linhas válidas, que passam pelo mesmo fluxo do wizard.
+
+/** Baixa a planilha com os projetos designados a ele. */
+export async function baixarPlanilhaLote(teste = false) {
+    const r = await http.get('/avaliador/presencial/lote/modelo', { ...params(teste), responseType: 'blob' });
+    const url = URL.createObjectURL(r.data);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'avaliacoes-presenciais.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+}
+
+export const previaLotePresencial = (arquivo, teste = false) => {
+    const form = new FormData();
+    form.append('arquivo', arquivo);
+    if (teste) form.append('teste', '1');
+
+    return http.post('/avaliador/presencial/lote/previa', form).then((r) => r.data.data);
+};
+
+/** `linhas` são as válidas da prévia: { linha, projeto_id, respostas, comentario }. */
+export const enviarLotePresencial = (linhas, teste = false) =>
+    http.post('/avaliador/presencial/lote', { linhas, teste: teste ? 1 : 0 }).then((r) => r.data);

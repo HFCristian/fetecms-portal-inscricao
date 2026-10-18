@@ -1,15 +1,80 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
-import { Alert, Toggle } from '../components/ui.jsx';
+import { Alert, Button, Input, Toggle } from '../components/ui.jsx';
 import { extractErrors } from '../lib/auth.jsx';
-import { getParametrizacaoPresencial, salvarParametrizacaoPresencial } from '../lib/presencial.js';
+import { getParametrizacaoPresencial, salvarLancamentoNoturno, salvarParametrizacaoPresencial } from '../lib/presencial.js';
+
+/**
+ * O **lançamento noturno** do comitê (Sprint 238): um horário que vale em cada
+ * dia do evento, em que quem é da comissão envia as avaliações que anotou no
+ * caderno durante o dia. Fim antes do início passa da meia-noite.
+ */
+function LancamentoNoturno({ noite, onSalvo, onErro }) {
+    const [inicio, setInicio] = useState(noite?.inicio ?? '');
+    const [fim, setFim] = useState(noite?.fim ?? '');
+    const [erros, setErros] = useState({});
+    const [salvando, setSalvando] = useState(false);
+
+    async function salvar(i, f) {
+        setSalvando(true);
+        setErros({});
+        try {
+            const r = await salvarLancamentoNoturno(i, f);
+            setInicio(r.data.comite_noite?.inicio ?? '');
+            setFim(r.data.comite_noite?.fim ?? '');
+            onSalvo(r);
+        } catch (e) {
+            const { message, fields } = extractErrors(e);
+            setErros(fields ?? {});
+            onErro(Object.values(fields ?? {})[0] || message || 'Não foi possível salvar.');
+        } finally {
+            setSalvando(false);
+        }
+    }
+
+    return (
+        <div className="mt-6 pt-5 border-t border-outline-variant/40">
+            <h3 className="text-sm font-semibold text-on-surface">Lançamento noturno</h3>
+            <p className="text-sm text-on-surface-variant mt-1 mb-3">
+                Quem é da comissão especial abre e salva avaliações como rascunho a qualquer hora do evento, e
+                envia no horário de avaliação de um turno ou neste horário, que vale em cada dia do evento. Fim
+                antes do início passa da meia-noite (22:00–01:00). Os dois em branco desligam.
+            </p>
+            {noite?.sem_evento && (
+                <p className="text-xs text-on-surface-variant mb-3">
+                    O período do evento ainda não foi definido em Datas e períodos: sem ele, o horário não vale.
+                </p>
+            )}
+            <div className="flex flex-wrap items-end gap-3">
+                <label className="text-xs text-on-surface-variant">
+                    Início
+                    <Input type="time" aria-label="Início do lançamento noturno" value={inicio}
+                        error={erros.inicio} onChange={(e) => setInicio(e.target.value)} />
+                </label>
+                <label className="text-xs text-on-surface-variant">
+                    Fim
+                    <Input type="time" aria-label="Fim do lançamento noturno" value={fim}
+                        error={erros.fim} onChange={(e) => setFim(e.target.value)} />
+                </label>
+                <Button type="button" loading={salvando} onClick={() => salvar(inicio, fim)}>Salvar horário</Button>
+                {(noite?.inicio || noite?.fim) && (
+                    <Button type="button" variant="outline" disabled={salvando} onClick={() => salvar('', '')}>Desligar</Button>
+                )}
+            </div>
+            <p className="text-xs text-on-surface-variant mt-2">
+                {noite?.rotulo ? <>Em vigor: <strong className="text-on-surface">{noite.rotulo}</strong>.</> : 'Desligado: o comitê envia só no horário de avaliação dos turnos.'}
+            </p>
+        </div>
+    );
+}
 
 /**
  * Parametrização → **Avaliação presencial** (Sprint 234). Por ora, uma
  * subseção: o **comitê especial**, com a regra de avaliar apenas os projetos
- * designados. Os números da avaliação no estande continuam em Avaliação
- * presencial → Distribuição presencial, e os horários em Datas e períodos.
+ * designados e o lançamento noturno (Sprint 238). Os números da avaliação no
+ * estande continuam em Avaliação presencial → Distribuição presencial, e os
+ * horários dos turnos em Datas e períodos.
  */
 export default function ParametrizacaoPresencial() {
     const [dados, setDados] = useState(null);
@@ -78,6 +143,11 @@ export default function ParametrizacaoPresencial() {
                                 <Link to="/admin/comite/designacoes" className="underline">Ver os pedidos</Link>
                             </p>
                         )}
+                        <LancamentoNoturno
+                            noite={dados.comite_noite}
+                            onSalvo={(r) => { setAlerta(''); setDados(r.data); setSucesso(r.meta?.message ?? 'Salvo.'); }}
+                            onErro={(m) => { setSucesso(''); setAlerta(m); }}
+                        />
                     </>
                 )}
             </section>

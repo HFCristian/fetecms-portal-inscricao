@@ -65,12 +65,14 @@ export const getAcompanhamentoComite = (turno) =>
  * Os ids da tela dizem a origem ("online-12", "estande-5"); o servidor recebe
  * as duas listas separadas.
  */
-export function retirarDesignacoesComite(avaliadorId, ids) {
+export function retirarDesignacoesComite(avaliadorId, ids, justificativa = null) {
     const da = (origem) => ids.filter((id) => String(id).startsWith(`${origem}-`)).map((id) => Number(String(id).slice(origem.length + 1)));
 
     return http.post(`/admin/comite/acompanhamento/avaliadores/${avaliadorId}/retirar`, {
         online_ids: da('online'),
         estande_ids: da('estande'),
+        // Obrigatória para tirar avaliação aberta ou enviada (Sprint 238).
+        ...(justificativa ? { justificativa } : {}),
     }).then((r) => r.data);
 }
 
