@@ -37,7 +37,7 @@ class RubricaPresencialTest extends TestCase
         $this->assertSame(1.5, RubricaPresencial::maximoDoBloco('documentos'));
         $this->assertSame(1.82, RubricaPresencial::maximoDaSecao('metodologia'));
         $this->assertSame(0.418, RubricaPresencial::maximoDaSecao('pasta_referencia'));
-        $this->assertSame(0.0, RubricaPresencial::maximoDaSecao('documentos'));
+        $this->assertSame(0.41, RubricaPresencial::maximoDaSecao('projeto_pesquisa'));
         $this->assertSame(10.0, RubricaPresencial::nota($this->cheias()));
     }
 
@@ -91,17 +91,25 @@ class RubricaPresencialTest extends TestCase
         $this->assertArrayNotHasKey('projeto_impresso', $limpas);
     }
 
-    public function test_documentos_de_etica_nao_entram_na_nota_mas_sao_sinalizados(): void
+    public function test_sem_o_projeto_impresso_a_2_2_nao_aparece_e_vale_zero(): void
     {
-        $ausente = $this->cheias(troca: ['etica_documento' => 'nao']);
+        // Sprint 221: sem o projeto impresso não há o que conferir na ABNT —
+        // perde 0,283 da 2.1 e os 0,127 da 2.2.
+        $respostas = $this->cheias(troca: ['projeto_impresso' => 'nao']);
 
-        $this->assertSame(10.0, RubricaPresencial::nota($ausente));
-        $this->assertSame(['Ética: TCE/TCLE/TALE exigido e não apresentado'], RubricaPresencial::alertas($ausente));
-        $this->assertSame([], RubricaPresencial::alertas($this->cheias()));
+        $this->assertSame(9.59, RubricaPresencial::nota($respostas));
+        $this->assertArrayNotHasKey('projeto_abnt', RubricaPresencial::normalizar($respostas));
+        $this->assertSame([], RubricaPresencial::pendentes($respostas));
+        $this->assertContains('projeto_abnt', RubricaPresencial::pendentes(['projeto_impresso' => 'sim']));
+    }
 
-        // Sem necessidade de documento, a 1.2 não se aplica e não alerta.
-        $semNecessidade = $this->cheias(troca: ['etica_necessaria' => 'nao', 'etica_documento' => 'nao']);
-        $this->assertSame([], RubricaPresencial::alertas($semNecessidade));
+    public function test_a_secao_de_documentos_de_etica_saiu_da_rubrica(): void
+    {
+        // Sprint 221: TCE e TCLE/TALE (1.1 e 1.2) não aparecem mais; a resposta
+        // antiga é descartada e a rubrica começa no projeto de pesquisa.
+        $this->assertSame('projeto_pesquisa', RubricaPresencial::SECOES[0]['chave']);
+        $this->assertNotContains('etica_necessaria', RubricaPresencial::chaves());
+        $this->assertArrayNotHasKey('etica_documento', RubricaPresencial::normalizar(['etica_documento' => 'nao']));
     }
 
     public function test_pendentes_cobra_so_o_que_se_aplica(): void
@@ -109,7 +117,8 @@ class RubricaPresencialTest extends TestCase
         $pendentes = RubricaPresencial::pendentes([]);
 
         // Sem resposta de origem, as condicionais ainda não aparecem.
-        $this->assertContains('etica_necessaria', $pendentes);
+        $this->assertContains('projeto_impresso', $pendentes);
+        $this->assertNotContains('projeto_abnt', $pendentes);
         $this->assertContains('uso_ia', $pendentes);
         $this->assertNotContains('diario_registro', $pendentes);
         $this->assertNotContains('uso_ia_declarado', $pendentes);

@@ -126,15 +126,30 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     mala direta, nos avisos e no feedback. Quem se cadastrou antes do campo fica com a lista vazia:
     a tela cobra o preenchimento e os públicos por idioma não o alcançam.
   - **Avaliação presencial** (aba própria, `/avaliador/avaliacao-presencial`, só para quem aceitou
-    o presencial): abre **apenas no turno do evento em que a organização o ativou na cabine**, até o
-    fim do turno + 30 minutos (`App\Support\JanelaTurnos`); fora disso aparece fechada, com o motivo.
-    Recebe projetos pela **distribuição presencial por turno** (admin, Avaliação presencial →
-    Distribuição presencial: só projeto credenciado e com estande checado) e pode escolher no
-    corredor entre os do turno; avalia num **wizard** como o da online, com o **checklist dos itens
-    da checagem** (sem nota). A rubrica é a do documento **"Perguntas de Avaliação FETECMS 2026 ·
-    Etapa Presencial"** (`App\Support\RubricaPresencial`): 14 seções, **8,500** em escala e **1,500**
-    em Sim/Não, perguntas **condicionais** e **sem valor**, nota guardada com quatro casas; a 1.2 = Não
-    (documento de ética ausente) é sinalizada ao admin na Distribuição presencial. Ensaio: `php artisan demo:avaliacao-presencial`
+    o presencial): abre no **horário de avaliação** de cada turno de cada dia, definido em
+    Parametrização → Datas e períodos (`edicoes.agenda_presencial`, `App\Support\JanelaTurnos`):
+    começa-se uma avaliação do início da avaliação até o fim dela ou do turno, o que vier antes, e
+    escreve-se até o fim da avaliação; fora disso a aba aparece fechada, com o motivo. Antes, a organização
+    precisa **liberar** o avaliador em Avaliação presencial → **Validação de avaliadores**
+    (`/admin/presencial/validacao`, `LiberacaoPresencialService`, `avaliador_liberacoes_presenciais`):
+    vale para todo avaliador do presencial — o online que disse "sim" e a conta criada em Cadastro de
+    avaliadores —, uma vez para o **evento inteiro** da edição; sem liberação ele não avalia nem entra
+    na distribuição, e revogar devolve o que estava só designado. **Não há cabine por turno** (saiu
+    na Sprint 221) e a **designação é opcional**: a organização pode
+    distribuir (Avaliação presencial → Distribuição presencial, só projeto credenciado e com estande
+    checado, entre todos que confirmaram o presencial), mas sem designação o avaliador abre o
+    **mapa** do evento, escolhe o turno, clica no estande e inicia (`escolha_livre`; a mesma escolha
+    existe em lista). Só começa avaliação no **turno em andamento**, em projeto credenciado e checado,
+    com vaga. As **vagas** são por projeto e da edição (Distribuição presencial): **2 comuns + 1 da
+    comissão especial** por padrão, e a avaliação da comissão **pesa 2** na média do **Ranking
+    presencial** (`RankingPresencialService`, `/admin/presencial/ranking`); o avaliador da comissão
+    que encontra a vaga dela tomada entra numa comum, com peso 1 (`avaliacoes_presenciais.vaga`,
+    `App\Enums\VagaPresencial`, `JanelaTurnos::vagaPara()`). Avalia num **wizard** como o da online, com o **checklist dos itens da checagem** (sem
+    nota) como **primeiro passo**. A rubrica é a do documento **"Perguntas de Avaliação FETECMS 2026 ·
+    Etapa Presencial"** (`App\Support\RubricaPresencial`) **sem a seção 1** (ética: TCE e TCLE/TALE,
+    tirada a pedido da organização): 13 seções, **8,500** em escala e **1,500** em Sim/Não, perguntas
+    **condicionais** (a 2.2 só depois do "Sim" na 2.1; "Não" na 2.1 = 2.2 vale 0) e **sem valor** (a
+    14.1), nota guardada com quatro casas. Ensaio: `php artisan demo:avaliacao-presencial`
     ([docs/DEMO_AVALIACAO_PRESENCIAL.md](docs/DEMO_AVALIACAO_PRESENCIAL.md)).
   - Ao **iniciar** uma avaliação o sistema confere se o projeto ainda cabe mais uma: contando as
     **concluídas + em andamento**, se ele já atingiu o **máximo de avaliações da categoria**, o
@@ -200,8 +215,11 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     linha: um admin pode receber **vários escopos em cada edição** e abre a **união** das abas de
     todos. `EscopoAdminService`, `PUT /admin/admins/{admin}/escopos`.
   - **Parametrização → Datas e períodos** (`/admin/parametrizacao/datas`): **todas** as janelas da
-    edição, na ordem em que a feira acontece — inscrições, avaliação online, ajustes do orientador e
-    evento (credenciamento). Cada ponta continua tendo o seu endpoint; a tela só reúne os campos, que
+    edição, na ordem em que a feira acontece — inscrições, avaliação online, ajustes do orientador,
+    evento (credenciamento) e os **turnos da avaliação presencial**: cada dia do evento × turno com o
+    horário do turno e o da avaliação (`GET|PUT /admin/agenda-presencial`; turno em branco não
+    acontece naquele dia, avaliação em branco vai do início do turno até 30 min depois do fim).
+    Cada ponta continua tendo o seu endpoint; a tela só reúne os campos, que
     antes estavam espalhados por três telas. Em regra, **campo em branco deixa aquela ponta aberta**;
     as exceções são os **ajustes** e o **credenciamento**, que ficam fechados sem data de início.
     A **janela de inscrição** é a **abertura** (`edicoes.submissoes_de`) e o **prazo de submissão**
@@ -973,9 +991,117 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 216 | Fix (segurança): `symfony/http-foundation` 7.4.18 → 7.4.21 (CVE-2026-108082), `npm audit fix` (dev) + teste da planta sem corrida | ✅ sim | ✅ sim (Pedro, PR #111 → v1.33) | 0 |
 | 217 | Credenciamento: **código, turno e estande** nas listas e na ficha + "Tudo presente", "Todos compareceram" e "Todos os kits" | ✅ sim | ✅ sim (Pedro, PR #112 → v1.34) | 0 |
 | 218 | Credenciamento → **Etiquetas avulsas**: lista final, avaliadores (`V`), intérpretes, voluntários (`T`) e personalizada, a partir da posição da folha | ✅ sim | ✅ sim (Pedro, PR #112 → v1.34) | 0 |
-| 219 | Avaliação presencial: **rubrica do documento de 2026** (14 seções, Sim/Não e escala, condicionais, sem valor, nota com 4 casas) + sinal de ética ao admin | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 220 | `demo:avaliacao-presencial`: **documentos em PDF** (projeto, diário, pasta, banner, TCLE/TALE) e três cenários da rubrica | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 219 | Avaliação presencial: **rubrica do documento de 2026** (14 seções, Sim/Não e escala, condicionais, sem valor, nota com 4 casas) + sinal de ética ao admin | ✅ sim | ✅ sim (Pedro, PR #113 → v1.35) | 0 |
+| 220 | `demo:avaliacao-presencial`: **documentos em PDF** (projeto, diário, pasta, banner, TCLE/TALE) e três cenários da rubrica | ✅ sim | ✅ sim (Pedro, PR #113 → v1.35) | 0 |
+| 221 | Avaliação presencial **sem cabine e sem designação obrigatória** (mapa: turno → estande → iniciar) + rubrica sem a seção de ética, 2.2 condicional e checklist como 1º passo | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 222 | Vagas presenciais por projeto: **2 comuns + 1 da comissão** (configuráveis), **peso 2** da comissão e o **Ranking presencial** | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 223 | Avaliação presencial → **Validação de avaliadores**: liberar (em lote) para o evento inteiro, obrigatório para avaliar e ser distribuído | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 224 | Datas e períodos → **turnos da avaliação presencial**: horário de cada turno e da avaliação, dia a dia | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprint 224 (mesma branch):** o horário da avaliação presencial passou a ser parametrizado **por
+> dia × turno**, com uma **janela própria de avaliação**. `edicoes.horarios_turnos` (um horário por
+> turno, igual todo dia, avaliação até o fim + 30 min fixos) deu lugar a `edicoes.agenda_presencial`:
+> cada dia do evento, cada turno com o horário **do turno** (a equipe no estande) e o **da
+> avaliação**. A edição saiu do card da Distribuição presencial (que ficou com os números) e foi para
+> **Parametrização → Datas e períodos → Turnos da avaliação presencial** (`GET|PUT
+> /admin/agenda-presencial`, `ParametrizacaoAgendaPresencialController`), com um bloco por dia, quatro
+> horas por turno, **Copiar o primeiro dia para os demais** e **Sem este turno no dia** — turno em
+> branco não acontece naquele dia. Avaliação em branco vai do início do turno até 30 minutos depois
+> do fim, a regra de antes. As regras (`JanelaTurnos`): **começar** vale do início da avaliação até o
+> fim dela ou do turno, o que vier antes (sem a equipe no estande não há o que avaliar); **escrever**
+> vale até o fim da avaliação, que é o prazo — o que passa do fim do turno é a margem, só para
+> terminar. A validação recusa turno que termina antes de começar, avaliação com uma ponta só ou fora
+> do turno e dia fora do período do evento, dizendo o dia e o turno. A migration copia o horário que
+> existia para cada dia do evento, com a avaliação que valia, então nada muda para quem já tinha
+> configurado (e o `down` volta o horário do primeiro dia). A agenda é datada, então **não é herdada**
+> por uma edição nova. Mudar o período do evento recarrega os dias da seção.
+> Back **1567/1567**, front **848/848**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprint 224):** mais **uma migration** (`edicoes.agenda_presencial`, que
+> converte e apaga `horarios_turnos`), no mesmo push das 221–223. Depois do deploy, confira os
+> horários em Parametrização → Datas e períodos: cada dia nasce com o horário de antes e a avaliação
+> até 30 minutos depois do fim do turno.
+>
+> **Sprint 223 (mesma branch):** volta a **validação** do avaliador presencial, sem a cabine por turno.
+> Cadastrar a conta (ou o avaliador online dizer "sim") não basta: a organização **libera** cada um
+> na seção nova **Validação de avaliadores** (`/admin/presencial/validacao`,
+> `ValidacaoPresencialController`, `LiberacaoPresencialService`). A liberação é uma linha em
+> `avaliador_liberacoes_presenciais` (edição × avaliador, com quem liberou e quando) e vale para o
+> **evento inteiro** da edição — no ano seguinte, libera-se de novo. Vale para **todos** do
+> presencial. Sem ela: a aba do avaliador fica fechada com o motivo ("ainda não foi liberada pela
+> organização"), o mapa marca os estandes como `nao_liberado`, a distribuição não o alcança e a
+> designação manual o recusa dizendo por quê. A tela abre em "Aguardando liberação", com os números
+> do topo, busca, **liberação em lote** (marcar todos os que aguardam) e **Revogar** com confirmação —
+> revogar devolve ao bolo o que estava só designado; o que ele já abriu fica em leitura. Cadastro de
+> avaliadores mostra o selo "Aguardando liberação"/"Liberado" e avisa, ao entregar a senha, que a
+> conta ainda precisa ser liberada; a Distribuição presencial mostra quem aguarda e só oferece os
+> liberados na designação manual. O modo de teste do avaliador demo ignora a liberação, como ignora
+> o relógio; o `demo:avaliacao-presencial` já libera a conta do ensaio. A seção abre para quem abre a
+> aba Avaliação presencial (inclusive o voluntário de conta temporária, como a cabine antiga).
+> Back **1562/1562**, front **844/844**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprint 223):** mais **uma migration** (`avaliador_liberacoes_presenciais`),
+> no mesmo push das 221–222. **Antes do primeiro turno, libere quem vai avaliar** — sem isso ninguém
+> avalia nem recebe designação. Se só a organização (e não o voluntário de conta temporária) puder
+> liberar, é uma linha: pôr as rotas da validação sob `admin.permanente`.
+>
+> **Sprint 222 (mesma branch):** das avaliações presenciais de cada projeto, uma parte é de avaliadores
+> comuns e outra da **comissão especial**, e a da comissão pesa mais.
+> (a) **Vagas.** O teto único (`edicoes.presencial_por_projeto`, 3) virou dois números e um peso, na
+> Distribuição presencial: **avaliações comuns** (`presencial_comuns_por_projeto`, padrão 2), **da
+> comissão** (`presencial_comite_por_projeto`, padrão 1) e o **peso da comissão** na média
+> (`presencial_peso_comite`, padrão 2). Em branco vale o padrão; zero num tipo é resposta, nos dois
+> é recusado. Cada avaliação grava a vaga que ocupa (`avaliacoes_presenciais.vaga`, enum
+> `VagaPresencial`), e quem decide é um lugar só (`JanelaTurnos::vagaPara()`): o da comissão fica
+> com a vaga dela e, tomada, com uma comum (peso 1); o comum, só com uma comum. Gravada, a vaga não
+> muda se o avaliador sair da comissão depois. Valem a escolha pelo mapa e pela lista (o estande sem
+> vaga para ele aparece "Sem vaga para você"), a distribuição (o comum não ocupa a vaga da comissão)
+> e a designação manual, que passa do teto com a vaga do tipo do avaliador. O total continua sendo o
+> teto que o Mapa do Evento usa. A migration marca como `comite` a primeira avaliação de cada projeto
+> feita por alguém da comissão.
+> (b) **Ranking presencial** (`/admin/presencial/ranking`, `GET /admin/presencial/ranking`,
+> `RankingPresencialService`): os finalistas da lista que vale (a demo no modo de teste) com ao menos
+> uma avaliação presencial enviada, pela média **Σ(nota × peso) / Σ peso**, com código, estande, as
+> notas que formaram a média (sem quem avaliou; a da comissão em destaque) e a marca **parcial** de
+> quem ainda não teve todas as vagas preenchidas. Filtro por área e categoria; empate divide a
+> posição. A tela do avaliador da comissão explica a vaga e o peso.
+> Back **1552/1552**, front **837/837**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprints 221–222):** (1) `git push origin feat/presencial-mapa-e-vagas` + PR
+> para a `main`. **Duas migrations** (a que apaga `avaliador_turnos_presenciais` — as ativações já
+> feitas somem — e a das vagas, que troca `edicoes.presencial_por_projeto` pelos três campos),
+> **nenhuma variável de `.env`** e **nenhuma dependência nova**. (2) Depois do deploy, confira as
+> vagas em Avaliação presencial → Distribuição presencial: quem tinha mudado o teto de 3 volta ao
+> padrão 2 + 1. (3) **Marque a comissão especial** em Avaliadores Online antes do evento: é a marca
+> que dá a vaga e o peso da comissão. (4) **Avise os avaliadores** de que não há mais cabine: no
+> turno, eles abrem a aba Avaliação presencial e escolhem o estande no mapa. A distribuição continua
+> disponível e designa para quem foi **liberado** (Sprint 223), então use-a só se quiser. (5) A seção de ética (1.1 e 1.2) saiu da rubrica; o TCLE/TALE anexado
+> continua aparecendo nos documentos do projeto.
+>
+> **Sprint 221 (branch `feat/presencial-mapa-e-vagas`, saída da `main` @ `1c17de4`):** a avaliação
+> presencial deixou de depender da organização para começar.
+> (a) **Sem cabine.** A ativação do avaliador por turno (`avaliador_turnos_presenciais`,
+> `PUT /admin/presencial/avaliadores/{avaliador}/turnos`) saiu, com a tabela. Quem confirmou o
+> presencial avalia no **turno em andamento** (a margem de 30 minutos continua só para terminar), e a
+> distribuição do turno alcança **todos que confirmaram** — a tela de Distribuição presencial lista
+> esses avaliadores (com o selo da comissão especial) em vez dos botões de ativar.
+> (b) **Designação opcional, pelo mapa.** O painel do avaliador traz `mapa`: a planta vigente (ou a
+> padrão) e, para cada estande × turno da lista final que vale, o projeto e o que ele pode fazer ali
+> (`disponivel`, `comigo`, `avaliado`, `completo`, `nao_pronto`, `fora_do_turno`), calculado no
+> servidor. A tela (`MapaAvaliacaoPresencial.jsx`) tem o seletor de turno; clicar no estande livre
+> inicia (com a confirmação de sempre), no que é dele abre a avaliação, e nos outros diz o motivo.
+> Estande fora da planta (o ensaio usa 901–903) aparece embaixo do mapa. A lista "Estandes
+> disponíveis" continua. As travas são as de antes: turno em andamento, credenciado + checado e teto.
+> A avaliação escolhida assim fica marcada (`avaliacoes_presenciais.escolha_livre`) e o envio dela
+> **não repõe fila** — só o que veio da distribuição repõe; sem isso, cada envio num turno que a
+> organização não distribuiu criaria designações que ninguém pediu.
+> (c) **Rubrica.** A seção 1 do documento (1.1 e 1.2, ética: TCE e TCLE/TALE) saiu da tela, e com
+> ela o alerta de ética na Distribuição presencial — não valia ponto, então a nota máxima segue
+> 10,000. Os números das outras perguntas continuam os do documento. A **2.2** passou a ser
+> condicional à 2.1: sem o projeto impresso ela não aparece e vale 0. No wizard, o **checklist dos
+> itens do estande** virou o **primeiro passo** (era o 15º).
+> Back **1542/1542**, front **832/832**, Pint limpo.
+>
 > **Sprint 220 (mesma branch):** o ensaio da avaliação presencial ganhou o que o avaliador lê. O
 > `demo:avaliacao-presencial` gera, para os três projetos da lista final demo, os **documentos** que
 > a rubrica de 2026 pergunta — projeto de pesquisa, diário de bordo, pasta de referências, banner

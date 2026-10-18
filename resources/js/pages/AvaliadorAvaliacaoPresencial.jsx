@@ -4,6 +4,7 @@ import { Alert, Button, Toggle, useConfirm } from '../components/ui.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import AvaliacaoPresencialModal from '../components/AvaliacaoPresencialModal.jsx';
 import SinalizacoesProjeto from '../components/SinalizacoesProjeto.jsx';
+import MapaAvaliacaoPresencial from '../components/MapaAvaliacaoPresencial.jsx';
 import {
     getPainelPresencial, getAvaliacaoPresencial, iniciarAvaliacaoPresencial,
 } from '../lib/avaliacaoPresencial.js';
@@ -20,16 +21,17 @@ const local = (l) =>
 const cartao = 'bg-surface-container-lowest rounded-xl fetec-card-shadow p-4';
 
 /**
- * Aba **Avaliação presencial** do avaliador (Sprint 171).
+ * Aba **Avaliação presencial** do avaliador (Sprints 171 e 221).
  *
  * Só existe para quem aceitou avaliar no dia da feira, e só abre **durante um
- * turno em que a organização o ativou** na cabine da avaliação. Fora disso a
- * aba aparece fechada, dizendo por quê e quando é o próximo turno — o que ele
- * já avaliou continua legível.
+ * turno** do evento — a ativação na cabine saiu na Sprint 221. Fora disso a aba
+ * aparece fechada, dizendo por quê e quando é o próximo turno — o que ele já
+ * avaliou continua legível, e o mapa fica para consulta.
  *
- * Aberta, ela mostra o que a distribuição do turno entregou a ele e os
- * estandes que ele ainda pode pegar no corredor (do turno, credenciados e
- * checados). A avaliação em si é o wizard da rubrica presencial.
+ * Aberta, ela mostra o que a organização designou a ele (se designou) e o
+ * **mapa**: ele escolhe o turno, clica no estande e inicia. Embaixo, a mesma
+ * escolha em lista (do turno, credenciados e checados). A avaliação em si é o
+ * wizard da rubrica presencial.
  */
 export default function AvaliadorAvaliacaoPresencial() {
     const [painel, setPainel] = useState(null);
@@ -80,8 +82,9 @@ export default function AvaliadorAvaliacaoPresencial() {
         <AppShell>
             <h1 className="font-display text-2xl font-semibold text-primary mb-1">Avaliação presencial</h1>
             <p className="text-on-surface-variant mb-4 max-w-3xl">
-                Avalie os estandes dos finalistas durante o seu turno. Cada avaliação vale até o fim do
-                turno mais {painel?.margem_minutos ?? 30} minutos.
+                Avalie os estandes dos finalistas no horário de avaliação do turno: escolha o estande no
+                mapa — com ou sem designação — e inicie. Cada avaliação vale até o fim do horário de
+                avaliação do turno em que foi aberta.
             </p>
 
             {painel?.is_demo && (
@@ -90,12 +93,12 @@ export default function AvaliadorAvaliacaoPresencial() {
                         checked={modoTeste}
                         onChange={setModoTeste}
                         label="Modo de teste"
-                        description="Conta demo: avalia a lista de demonstração sem esperar o turno nem a ativação na cabine."
+                        description="Conta demo: avalia a lista de demonstração sem esperar o turno."
                     />
                 </div>
             )}
 
-            <div className="max-w-3xl space-y-3 mb-4">
+            <div className="max-w-5xl space-y-3 mb-4">
                 <Alert>{alert}</Alert>
                 {painel && !painel.aberto && painel.motivo_fechado && <Alert type="info">{painel.motivo_fechado}</Alert>}
             </div>
@@ -105,8 +108,8 @@ export default function AvaliadorAvaliacaoPresencial() {
                     <span className="inline-block w-8 h-8 rounded-full border-4 border-on-surface-variant/25 border-t-primary animate-spin align-[-0.2em]" role="status" aria-label="Carregando" />
                 </div>
             ) : (
-                <div className="max-w-3xl space-y-4">
-                    {(turno || painel.meus_turnos?.length > 0) && (
+                <div className="max-w-5xl space-y-4">
+                    {(turno || painel.comissao) && (
                         <section className={cartao}>
                             {turno && (
                                 <p className="text-sm text-on-surface">
@@ -114,9 +117,13 @@ export default function AvaliadorAvaliacaoPresencial() {
                                     <strong>{turno.rotulo}</strong> — avaliações aceitas até as {turno.prazo_label}.
                                 </p>
                             )}
-                            {painel.meus_turnos?.length > 0 && (
+                            {painel.comissao && painel.vagas && (
                                 <p className="text-xs text-on-surface-variant mt-1">
-                                    Seus turnos ativados: {painel.meus_turnos.map((o) => o.rotulo).join('; ')}.
+                                    <span className="material-symbols-outlined text-[16px] align-[-0.2em] text-secondary mr-1">star</span>
+                                    Você é da <strong>comissão especial</strong>: cada projeto guarda{' '}
+                                    {painel.vagas.comite} vaga(s) para a comissão, e a sua avaliação nela pesa{' '}
+                                    {String(painel.vagas.peso_comite).replace('.', ',')} na média. Com a vaga da comissão
+                                    tomada, você entra numa vaga comum, com peso 1.
                                 </p>
                             )}
                         </section>
@@ -126,7 +133,7 @@ export default function AvaliadorAvaliacaoPresencial() {
                         <h2 className="font-display text-base font-semibold text-on-surface mb-1">Para avaliar</h2>
                         {pendentes.length === 0 ? (
                             <p className="text-sm text-on-surface-variant">
-                                Nada com você agora.{painel.aberto ? ' Escolha um estande livre na lista abaixo.' : ''}
+                                Nada com você agora.{painel.aberto ? ' Escolha um estande no mapa abaixo.' : ''}
                             </p>
                         ) : (
                             <ul className="divide-y divide-outline-variant/30">
@@ -137,6 +144,7 @@ export default function AvaliadorAvaliacaoPresencial() {
                                             <p className="text-xs text-on-surface-variant">
                                                 {local(a.local)}{a.area ? ` · ${a.area}` : ''}
                                                 {a.designacao_manual ? ' · designado pela organização' : ''}
+                                                {a.vaga === 'comite' ? ' · vaga da comissão' : ''}
                                                 {a.prazo_label ? ` · até ${a.prazo_label}` : ''}
                                             </p>
                                             <SinalizacoesProjeto sinalizacoes={a.sinalizacoes} compacto />
@@ -155,12 +163,28 @@ export default function AvaliadorAvaliacaoPresencial() {
                         )}
                     </section>
 
+                    {painel.mapa && (
+                        <section className={cartao}>
+                            <h2 className="font-display text-base font-semibold text-on-surface mb-1">Mapa do evento</h2>
+                            <p className="text-xs text-on-surface-variant mb-3">
+                                Escolha o turno e clique no estande: o verde claro está livre para você iniciar; o roxo
+                                já está com você.
+                            </p>
+                            <MapaAvaliacaoPresencial
+                                mapa={painel.mapa}
+                                onIniciar={escolher}
+                                onAbrir={abrir}
+                            />
+                        </section>
+                    )}
+
                     {painel.aberto && (
                         <section className={cartao}>
                             <h2 className="font-display text-base font-semibold text-on-surface mb-1">Estandes disponíveis</h2>
                             <p className="text-xs text-on-surface-variant mb-2">
-                                Projetos do seu turno, credenciados e com o estande checado, que ainda não receberam as{' '}
-                                {painel.max_por_projeto} avaliações presenciais. Escolha o que estiver livre no corredor.
+                                Projetos do seu turno, credenciados e com o estande checado, que ainda têm vaga para você
+                                ({painel.max_por_projeto} avaliações presenciais por projeto). Escolha o que estiver livre no
+                                corredor.
                             </p>
                             {painel.disponiveis.length === 0 ? (
                                 <p className="text-sm text-on-surface-variant">Nenhum estande disponível agora.</p>
@@ -194,7 +218,9 @@ export default function AvaliadorAvaliacaoPresencial() {
                                     <li key={a.id} className="py-3 flex flex-wrap items-center gap-3">
                                         <div className="min-w-0 flex-1">
                                             <p className="text-sm text-on-surface truncate">{a.titulo}</p>
-                                            <p className="text-xs text-on-surface-variant">{local(a.local)}</p>
+                                            <p className="text-xs text-on-surface-variant">
+                                                {local(a.local)}{a.vaga === 'comite' ? ' · vaga da comissão' : ''}
+                                            </p>
                                         </div>
                                         <span className="text-sm font-bold text-secondary">{nota(a.nota)}</span>
                                         <Button type="button" variant="outline" onClick={() => abrir(a.id)} aria-label={`Ver ${a.titulo}`}>

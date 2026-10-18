@@ -46,6 +46,21 @@ export const cadastrarAvaliadorPresencial = (dados) =>
 export const novaSenhaAvaliadorPresencial = (id) =>
     http.post(`/admin/presencial/avaliadores-cadastrados/${id}/senha`).then((r) => r.data);
 
+// --- Validação de avaliadores (Sprint 223) -----------------------------------
+// Liberar vale para o evento inteiro; `filtros` ({ busca, situacao }) volta na
+// resposta já aplicado, para a tela não piscar.
+
+export const getValidacaoPresencial = (filtros = {}, teste = false) =>
+    http.get('/admin/presencial/validacao', com(filtros, teste)).then((r) => r.data.data);
+
+export const liberarAvaliadoresPresencial = (avaliadorIds, filtros = {}, teste = false) =>
+    http.post('/admin/presencial/validacao/liberar', {
+        ...limpar(filtros), avaliador_ids: avaliadorIds, teste: teste ? 1 : 0,
+    }).then((r) => r.data);
+
+export const revogarLiberacaoPresencial = (avaliadorId, filtros = {}, teste = false) =>
+    http.delete(`/admin/presencial/validacao/${avaliadorId}`, com(filtros, teste)).then((r) => r.data);
+
 // --- Credenciais e prêmios (o que a feira tem para dar) ---------------------
 
 /** `filtros` (Sprint 201): o recorte das recomendações do comitê nos cartões. */
@@ -95,10 +110,6 @@ export const getDistribuicaoPresencial = (filtros = {}, teste = false) =>
 export const salvarDistribuicaoPresencial = (dados, ocorrencia = {}, teste = false) =>
     http.patch('/admin/presencial/distribuicao', corpo({ ...dados, ...ocorrencia }, teste)).then((r) => r.data);
 
-export const definirTurnosAvaliador = (avaliadorId, turnos, ocorrencia = {}, teste = false) =>
-    http.put(`/admin/presencial/avaliadores/${avaliadorId}/turnos`, corpo({ turnos, ...ocorrencia }, teste))
-        .then((r) => r.data);
-
 export const distribuirPresencial = (ocorrencia, teste = false) =>
     http.post('/admin/presencial/distribuicao/distribuir', corpo(ocorrencia, teste)).then((r) => r.data);
 
@@ -112,3 +123,21 @@ export const designarPresencial = (ocorrencia, projetoIds, avaliadorIds, teste =
 
 export const retirarDesignacaoPresencial = (id, ocorrencia = {}, teste = false) =>
     http.delete(`/admin/presencial/avaliacoes/${id}`, com(ocorrencia, teste)).then((r) => r.data);
+
+// --- Ranking presencial (Sprint 222) -----------------------------------------
+// `filtros` é { area_id, categoria }; a média vem pronta do servidor, com o
+// peso da comissão especial.
+
+export const getRankingPresencial = (filtros = {}, teste = false) =>
+    http.get('/admin/presencial/ranking', com(filtros, teste)).then((r) => r.data.data);
+
+// --- Agenda da avaliação presencial (Sprint 224) -----------------------------
+// Parametrização → Datas e períodos: o horário de cada turno e o da avaliação,
+// dia a dia. `agenda` é { "Y-m-d": { A: {inicio, fim, avaliacao_inicio,
+// avaliacao_fim} | null, B: … } } e substitui a gravada.
+
+export const getAgendaPresencial = () =>
+    http.get('/admin/agenda-presencial').then((r) => r.data.data);
+
+export const salvarAgendaPresencial = (agenda) =>
+    http.put('/admin/agenda-presencial', { agenda }).then((r) => r.data);

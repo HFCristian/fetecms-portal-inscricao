@@ -58,6 +58,7 @@ use App\Http\Controllers\Api\V1\OrientadorAjusteController;
 use App\Http\Controllers\Api\V1\OrientadorController;
 use App\Http\Controllers\Api\V1\PainelPremiacaoController;
 use App\Http\Controllers\Api\V1\ParametrizacaoAbasController;
+use App\Http\Controllers\Api\V1\ParametrizacaoAgendaPresencialController;
 use App\Http\Controllers\Api\V1\ParametrizacaoCredenciamentoController;
 use App\Http\Controllers\Api\V1\PerfilController;
 use App\Http\Controllers\Api\V1\PresencaContaTemporariaController;
@@ -67,6 +68,7 @@ use App\Http\Controllers\Api\V1\ProjetoSubmissaoController;
 use App\Http\Controllers\Api\V1\RecomendacaoPremiacaoController;
 use App\Http\Controllers\Api\V1\SuporteAdminController;
 use App\Http\Controllers\Api\V1\SuporteOrientadorController;
+use App\Http\Controllers\Api\V1\ValidacaoPresencialController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -340,14 +342,19 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::get('/checagem/{projeto}', [AvaliacaoPresencialAdminController::class, 'show']);
                 Route::post('/checagem/{projeto}', [AvaliacaoPresencialAdminController::class, 'store']);
                 // Avaliações presenciais: designar estandes e acompanhar.
-                // Distribuição presencial por turno (Sprints 169–170): horários,
-                // ativação dos avaliadores na cabine e as designações.
+                // Distribuição presencial por turno (Sprints 169–170): horários
+                // e as designações (a cabine saiu na Sprint 221).
                 Route::get('/distribuicao', [AvaliacaoPresencialAdminController::class, 'distribuicao']);
                 Route::patch('/distribuicao', [AvaliacaoPresencialAdminController::class, 'salvarDistribuicao']);
-                Route::put('/avaliadores/{avaliador}/turnos', [AvaliacaoPresencialAdminController::class, 'turnosDoAvaliador']);
                 Route::post('/distribuicao/distribuir', [AvaliacaoPresencialAdminController::class, 'distribuir']);
                 Route::post('/distribuicao/redistribuir', [AvaliacaoPresencialAdminController::class, 'redistribuir']);
                 Route::post('/avaliacoes/designar', [AvaliacaoPresencialAdminController::class, 'designarAvaliacoes']);
+                // Ranking presencial (Sprint 222): média com o peso da comissão especial.
+                Route::get('/ranking', [AvaliacaoPresencialAdminController::class, 'ranking']);
+                // Validação de avaliadores (Sprint 223): liberar para o evento inteiro.
+                Route::get('/validacao', [ValidacaoPresencialController::class, 'index']);
+                Route::post('/validacao/liberar', [ValidacaoPresencialController::class, 'liberar']);
+                Route::delete('/validacao/{avaliador}', [ValidacaoPresencialController::class, 'revogar']);
                 Route::delete('/avaliacoes/{avaliacao}', [AvaliacaoPresencialAdminController::class, 'retirarAvaliacao']);
                 // Cadastro de avaliadores só do evento presencial (Sprint 191):
                 // a organização cria a conta e entrega a senha gerada.
@@ -699,6 +706,11 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::get('/credenciamento', [ParametrizacaoCredenciamentoController::class, 'show']);
                 Route::patch('/credenciamento/janela', [ParametrizacaoCredenciamentoController::class, 'definirJanela']);
                 Route::patch('/credenciamento/itens', [ParametrizacaoCredenciamentoController::class, 'definirItens']);
+
+                // Parametrização → Datas e períodos → turnos da avaliação presencial
+                // (Sprint 224): o horário de cada turno e da avaliação, dia a dia.
+                Route::get('/agenda-presencial', [ParametrizacaoAgendaPresencialController::class, 'show']);
+                Route::put('/agenda-presencial', [ParametrizacaoAgendaPresencialController::class, 'definir']);
 
                 // Parametrização → Itens do credenciamento e da checagem (Sprint
                 // 181): a lista única que os dois balcões conferem.

@@ -4,9 +4,9 @@ namespace App\Services;
 
 use App\Enums\StatusAvaliacao;
 use App\Enums\Turno;
+use App\Enums\VagaPresencial;
 use App\Models\Area;
 use App\Models\AvaliacaoPresencial;
-use App\Models\AvaliadorTurnoPresencial;
 use App\Models\ChecagemEstande;
 use App\Models\Credenciamento;
 use App\Models\Edicao;
@@ -16,7 +16,6 @@ use App\Models\Projeto;
 use App\Models\TurnoApresentacao;
 use App\Models\User;
 use App\Support\JanelaTurnos;
-use App\Support\RubricaPresencial;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -28,24 +27,32 @@ use Illuminate\Validation\ValidationException;
  *
  * - **o turno**: cada projeto apresenta num turno (Mapa do Evento → Turnos), e
  *   só recebe avaliador naquele turno. A distribuição trabalha uma
- *   **ocorrência** por vez — dia × turno — e só alcança quem a organização
- *   **ativou** nela (passou na cabine);
+ *   **ocorrência** por vez — dia × turno — e alcança quem confirmou a
+ *   avaliação presencial e foi **liberado** pela organização (Sprint 223; a
+ *   ativação por turno na cabine saiu na Sprint 221);
  * - **o projeto pronto**: só entra quem já foi **credenciado** no balcão e
  *   teve o estande **checado**. Mandar avaliador a um estande que ninguém viu
  *   montado é mandá-lo esperar;
- * - **o prazo**: a avaliação entregue numa ocorrência vale até o fim do turno
- *   mais 30 minutos ({@see JanelaTurnos}). Passado isso ela não ocupa mais vaga
- *   no projeto, e outro avaliador pode recebê-lo.
+ * - **o prazo**: a avaliação entregue numa ocorrência vale até o fim do
+ *   horário de avaliação dela ({@see JanelaTurnos}). Passado isso ela não ocupa
+ *   mais vaga no projeto, e outro avaliador pode recebê-lo.
  *
  * Do online vêm a prioridade de área (subárea → área → área correlata → o que
  * sobrar), as **rodadas iguais** (ninguém recebe o k+1-ésimo projeto antes de
- * todos terem k) e o teto de avaliações por projeto. A designação manual passa
- * por cima do teto, como em todo o portal — mas não do credenciamento, da
- * checagem e da ativação, que são fatos, não regras.
+ * todos terem k) e as vagas por projeto — comuns e da comissão especial
+ * (Sprint 222, {@see JanelaTurnos::vagaPara()}). A designação manual passa
+ * por cima do teto, como em todo o portal — mas não do credenciamento e da
+ * checagem, que são fatos, não regras.
+ *
+ * A designação é **opcional**: sem ela, o avaliador escolhe o estande no mapa
+ * ({@see AvaliacaoPresencialFluxoService}).
  */
 class DistribuicaoPresencialService
 {
-    public function __construct(private readonly TurnosPresenciaisService $turnos) {}
+    public function __construct(
+        private readonly TurnosPresenciaisService $turnos,
+        private readonly LiberacaoPresencialService $liberacao,
+    ) {}
 
     /**
      * Tudo que a tela da distribuição mostra para uma ocorrência.
@@ -66,7 +73,7 @@ class DistribuicaoPresencialService
     }
 
     /**
-     * Distribui os projetos prontos do turno entre os avaliadores ativados,
+     * Distribui os projetos prontos do turno entre os avaliadores liberados,
      * até cada um ter a fila cheia ou não sobrar projeto com vaga.
      *
      * @return array<string, mixed>
@@ -74,11 +81,11 @@ class DistribuicaoPresencialService
     public function distribuir(string $dia, Turno $turno, bool $demo): array
     {
         $janela = $this->janelaValida($dia, $turno);
-        $avaliadores = $this->avaliadoresAtivos($dia, $turno, $demo);
+        $avaliadores = $this->avaliadoresLiberados($demo);
 
         if ($avaliadores->isEmpty()) {
             throw ValidationException::withMessages([
-                'avaliadores' => 'Nenhum avaliador ativado neste turno. Ative quem passou pela cabine antes de distribuir.',
+                'avaliadores' => 'Nenhum avaliador liberado para a avaliação presencial. Libere quem vai avaliar em Validação de avaliadores.',
             ]);
         }
 
@@ -98,7 +105,7 @@ class DistribuicaoPresencialService
             'designadas' => $criadas,
             'avaliadores' => $avaliadores->count(),
             'prontos' => $prontos->count(),
-            'resumo' => "{$criadas} designação(ões) criada(s) para {$avaliadores->count()} avaliador(es) ativado(s)."
+            'resumo' => "{$criadas} designação(ões) criada(s) para {$avaliadores->count()} avaliador(es)."
                 .($avisos === [] ? '' : ' Ficaram de fora: '.implode('; ', $avisos).'.'),
         ];
     }
@@ -133,8 +140,8 @@ class DistribuicaoPresencialService
 
     /**
      * Repõe a fila de **um** avaliador na ocorrência — o que acontece quando ele
-     * envia uma avaliação, como na reposição da fila online. Fora do turno, ou
-     * sem ativação, não faz nada.
+     * envia uma avaliação que veio da distribuição, como na reposição da fila
+     * online. Fora do turno, ou sem ter confirmado o presencial, não faz nada.
      */
     public function completarFila(User $avaliador, string $dia, Turno $turno, bool $teste = false): int
     {
@@ -143,7 +150,8 @@ class DistribuicaoPresencialService
 
         if (! $janela->existe($dia, $turno)
             || (! $demo && ! $janela->emAndamento($dia, $turno))
-            || ! $this->turnos->ativado($avaliador, $dia, $turno)) {
+            || $avaliador->avaliadorProfile()->first()?->presencial !== true
+            || ! $this->liberacao->liberado($avaliador)) {
             return 0;
         }
 
@@ -157,7 +165,8 @@ class DistribuicaoPresencialService
     /**
      * Designação manual: N projetos × N avaliadores na ocorrência. Passa por
      * cima do teto por projeto; não passa por cima do credenciamento, da
-     * checagem, do turno do projeto e da ativação do avaliador.
+     * checagem, do turno do projeto, da confirmação do presencial e da
+     * liberação do avaliador.
      *
      * @param  list<int>  $projetoIds
      * @param  list<int>  $avaliadorIds
@@ -169,13 +178,14 @@ class DistribuicaoPresencialService
         $projetos = $this->projetosDoTurno($turno, $demo, comTodos: true);
         $todos = $projetos['todos']->keyBy('id');
         $prontos = $projetos['prontos']->keyBy('id');
-        $ativos = $this->avaliadoresAtivos($dia, $turno, $demo)->keyBy('id');
         $confirmados = $this->avaliadoresConfirmados($demo)->keyBy('id');
+        $liberados = array_flip($this->liberacao->idsLiberados());
+        $ocupadas = $this->ocupacaoPorVaga($prontos->keys()->all(), $janela);
 
         $criadas = 0;
         $ignoradas = [];
 
-        DB::transaction(function () use ($projetoIds, $avaliadorIds, $todos, $prontos, $ativos, $confirmados, $dia, $turno, $janela, &$criadas, &$ignoradas) {
+        DB::transaction(function () use ($projetoIds, $avaliadorIds, $todos, $prontos, $confirmados, $liberados, $dia, $turno, $janela, &$ocupadas, &$criadas, &$ignoradas) {
             foreach (array_unique($projetoIds) as $projetoId) {
                 $projeto = $todos[$projetoId] ?? null;
 
@@ -192,11 +202,17 @@ class DistribuicaoPresencialService
                 }
 
                 foreach (array_unique($avaliadorIds) as $avaliadorId) {
-                    $avaliador = $ativos[$avaliadorId] ?? null;
+                    $avaliador = $confirmados[$avaliadorId] ?? null;
 
                     if ($avaliador === null) {
-                        $nome = $confirmados[$avaliadorId]->name ?? "Avaliador {$avaliadorId}";
-                        $ignoradas[] = "{$nome}: não está ativado neste turno.";
+                        $nome = User::find($avaliadorId)?->name ?? "Avaliador {$avaliadorId}";
+                        $ignoradas[] = "{$nome}: não confirmou a avaliação presencial.";
+
+                        continue;
+                    }
+
+                    if (! isset($liberados[$avaliadorId])) {
+                        $ignoradas[] = "{$avaliador->name}: ainda não foi liberado para avaliar (Validação de avaliadores).";
 
                         continue;
                     }
@@ -209,7 +225,10 @@ class DistribuicaoPresencialService
                         continue;
                     }
 
-                    $this->entregar($projetoId, $avaliador, $dia, $turno, manual: true, existente: $existente);
+                    $vaga = $janela->vagaForcada(self::daComissao($avaliador), $ocupadas[$projetoId] ?? []);
+                    $this->entregar($projetoId, $avaliador, $dia, $turno, $vaga, manual: true, existente: $existente);
+                    $ocupadas[$projetoId] ??= ['comum' => 0, 'comite' => 0];
+                    $ocupadas[$projetoId][$vaga->value]++;
                     $criadas++;
                 }
             }
@@ -322,6 +341,34 @@ class DistribuicaoPresencialService
         return $contagem;
     }
 
+    /**
+     * As vagas ocupadas em cada projeto, separadas em comuns e da comissão
+     * especial (Sprint 222) — a mesma conta de {@see ocupacao()}.
+     *
+     * @param  list<int>  $ids
+     * @return array<int, array{comum: int, comite: int}>
+     */
+    public function ocupacaoPorVaga(array $ids, ?JanelaTurnos $janela = null): array
+    {
+        $janela ??= JanelaTurnos::daEdicao();
+        $contagem = [];
+
+        foreach (AvaliacaoPresencial::whereIn('projeto_id', $ids)->get() as $a) {
+            if ($a->ocupaVaga($janela)) {
+                $contagem[$a->projeto_id] ??= ['comum' => 0, 'comite' => 0];
+                $contagem[$a->projeto_id][($a->vaga ?? VagaPresencial::Comum)->value]++;
+            }
+        }
+
+        return $contagem;
+    }
+
+    /** O avaliador é da comissão especial? É o que decide a vaga que ele ocupa. */
+    public static function daComissao(User $avaliador): bool
+    {
+        return (bool) $avaliador->avaliadorProfile?->comissao_especial;
+    }
+
     // --- Internos ----------------------------------------------------------
 
     /**
@@ -338,6 +385,7 @@ class DistribuicaoPresencialService
         $todos = $projetos['todos'];
         $ids = $todos->pluck('id')->all();
         $ocupacao = $this->ocupacao($ids, $janela);
+        $porVaga = $this->ocupacaoPorVaga($ids, $janela);
         $estandes = EstandeProjeto::where('edicao_id', Edicao::atual()?->id)->whereIn('projeto_id', $ids)->pluck('numero', 'projeto_id');
         $teto = $janela->porProjeto();
 
@@ -370,6 +418,8 @@ class DistribuicaoPresencialService
                 'checado' => isset($projetos['checados'][$p->id]),
                 'pronto' => isset($projetos['credenciados'][$p->id], $projetos['checados'][$p->id]),
                 'avaliacoes' => (int) ($ocupacao[$p->id] ?? 0),
+                'comuns' => (int) ($porVaga[$p->id]['comum'] ?? 0),
+                'comite' => (int) ($porVaga[$p->id]['comite'] ?? 0),
             ])->values()->all(),
             'designacoes' => $designacoes->map(fn (AvaliacaoPresencial $a) => [
                 'id' => $a->id,
@@ -382,9 +432,9 @@ class DistribuicaoPresencialService
                 'status_label' => $a->expirada($janela) ? 'Prazo encerrado' : $a->status?->label(),
                 'expirada' => $a->expirada($janela),
                 'designacao_manual' => $a->designacao_manual,
+                'vaga' => $a->vaga?->value,
+                'vaga_label' => $a->vaga?->label(),
                 'nota' => $a->nota,
-                // A rubrica manda sinalizar à organização (ética sem documento).
-                'alertas' => $a->concluida() ? RubricaPresencial::alertas($a->respostas ?? []) : [],
             ])->values()->all(),
         ];
     }
@@ -403,9 +453,8 @@ class DistribuicaoPresencialService
         }
 
         $fila = $janela->fila();
-        $teto = $janela->porProjeto();
         $ids = $prontos->pluck('id')->all();
-        $ocupacao = $this->ocupacao($ids, $janela);
+        $ocupacao = $this->ocupacaoPorVaga($ids, $janela);
         $estandes = EstandeProjeto::where('edicao_id', Edicao::atual()?->id)->whereIn('projeto_id', $ids)->pluck('numero', 'projeto_id');
 
         // O que cada avaliador já tem: não recebe de novo o que avaliou ou está
@@ -444,15 +493,17 @@ class DistribuicaoPresencialService
                     continue;
                 }
 
-                $escolhido = $this->escolher($u, $prontos, $ocupacao, $teto, $bloqueados[$u->id] ?? [], $estandes, $correlatas);
+                $escolhido = $this->escolher($u, $prontos, $ocupacao, $janela, $bloqueados[$u->id] ?? [], $estandes, $correlatas);
 
                 if ($escolhido === null) {
                     continue;
                 }
 
-                $this->entregar($escolhido->id, $u, $dia, $turno, manual: false, existente: $vencidas[$u->id][$escolhido->id] ?? null);
+                $vaga = $janela->vagaPara(self::daComissao($u), $ocupacao[$escolhido->id] ?? []);
+                $this->entregar($escolhido->id, $u, $dia, $turno, $vaga, manual: false, existente: $vencidas[$u->id][$escolhido->id] ?? null);
                 $carga[$u->id]++;
-                $ocupacao[$escolhido->id] = ($ocupacao[$escolhido->id] ?? 0) + 1;
+                $ocupacao[$escolhido->id] ??= ['comum' => 0, 'comite' => 0];
+                $ocupacao[$escolhido->id][$vaga->value]++;
                 $bloqueados[$u->id][$escolhido->id] = true;
                 $criadas++;
             }
@@ -464,17 +515,21 @@ class DistribuicaoPresencialService
     /**
      * O melhor projeto para este avaliador: subárea → área → área correlata →
      * o que sobrar; dentro da faixa, o que tem menos avaliações e, depois, o
-     * menor número de estande (o corredor se percorre em ordem).
+     * menor número de estande (o corredor se percorre em ordem). Só entra
+     * projeto com vaga para ele (comum, ou da comissão para quem é dela).
      *
      * @param  Collection<int, Projeto>  $prontos
-     * @param  array<int, int>  $ocupacao
+     * @param  array<int, array{comum: int, comite: int}>  $ocupacao
      * @param  array<int, true>  $bloqueados
      * @param  Collection<int, int>  $estandes
      * @param  array<int, list<int>>  $correlatas
      */
-    private function escolher(User $u, Collection $prontos, array $ocupacao, int $teto, array $bloqueados, Collection $estandes, array $correlatas): ?Projeto
+    private function escolher(User $u, Collection $prontos, array $ocupacao, JanelaTurnos $janela, array $bloqueados, Collection $estandes, array $correlatas): ?Projeto
     {
-        $candidatos = $prontos->filter(fn (Projeto $p) => ($ocupacao[$p->id] ?? 0) < $teto && ! isset($bloqueados[$p->id]));
+        $comissao = self::daComissao($u);
+        $total = fn (int $id) => array_sum($ocupacao[$id] ?? []);
+        $candidatos = $prontos->filter(fn (Projeto $p) => ! isset($bloqueados[$p->id])
+            && $janela->vagaPara($comissao, $ocupacao[$p->id] ?? []) !== null);
 
         if ($candidatos->isEmpty()) {
             return null;
@@ -497,7 +552,7 @@ class DistribuicaoPresencialService
 
             if ($naFaixa->isNotEmpty()) {
                 return $naFaixa
-                    ->sortBy(fn (Projeto $p) => [$ocupacao[$p->id] ?? 0, $estandes[$p->id] ?? PHP_INT_MAX, $p->id])
+                    ->sortBy(fn (Projeto $p) => [$total($p->id), $estandes[$p->id] ?? PHP_INT_MAX, $p->id])
                     ->first();
             }
         }
@@ -506,7 +561,7 @@ class DistribuicaoPresencialService
     }
 
     /** Grava a entrega — nova, ou revivendo uma linha vencida (com o rascunho dela). */
-    private function entregar(int $projetoId, User $avaliador, string $dia, Turno $turno, bool $manual, ?AvaliacaoPresencial $existente): AvaliacaoPresencial
+    private function entregar(int $projetoId, User $avaliador, string $dia, Turno $turno, VagaPresencial $vaga, bool $manual, ?AvaliacaoPresencial $existente): AvaliacaoPresencial
     {
         $avaliacao = $existente ?? new AvaliacaoPresencial([
             'edicao_id' => Edicao::atual()?->id,
@@ -519,6 +574,8 @@ class DistribuicaoPresencialService
             'dia' => $dia,
             'turno' => $turno,
             'designacao_manual' => $manual,
+            'escolha_livre' => false,
+            'vaga' => $vaga,
         ])->save();
 
         return $avaliacao;
@@ -546,15 +603,10 @@ class DistribuicaoPresencialService
         return $janela;
     }
 
-    /** @return Collection<int, User> os ativados nesta ocorrência */
-    private function avaliadoresAtivos(string $dia, Turno $turno, bool $demo): Collection
+    /** @return Collection<int, User> quem confirmou o presencial e foi liberado (Sprint 223) */
+    private function avaliadoresLiberados(bool $demo): Collection
     {
-        $ativos = AvaliadorTurnoPresencial::where('edicao_id', Edicao::atual()?->id)
-            ->whereDate('dia', $dia)
-            ->where('turno', $turno->value)
-            ->pluck('user_id');
-
-        return $this->avaliadoresConfirmados($demo)->whereIn('id', $ativos)->values();
+        return $this->avaliadoresConfirmados($demo)->whereIn('id', $this->liberacao->idsLiberados())->values();
     }
 
     /** @return Collection<int, User> quem confirmou a avaliação presencial */

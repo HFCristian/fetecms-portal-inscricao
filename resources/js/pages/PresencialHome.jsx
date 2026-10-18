@@ -20,13 +20,25 @@ const SECOES = [
         to: '/admin/presencial/distribuicao',
         icon: 'shuffle',
         titulo: 'Distribuição presencial',
-        descricao: 'Horário dos turnos, avaliadores ativados na cabine e os projetos de cada um, turno a turno.',
+        descricao: 'Horário dos turnos, vagas por projeto e as designações (opcionais) de cada turno.',
+    },
+    {
+        to: '/admin/presencial/ranking',
+        icon: 'leaderboard',
+        titulo: 'Ranking presencial',
+        descricao: 'A média de cada finalista nas avaliações do estande, com o peso da comissão especial.',
     },
     {
         to: '/admin/presencial/avaliadores',
         icon: 'person_add',
         titulo: 'Cadastro de avaliadores',
         descricao: 'Contas de quem avalia só no dia da feira: já confirmadas para o presencial, com a senha gerada.',
+    },
+    {
+        to: '/admin/presencial/validacao',
+        icon: 'how_to_reg',
+        titulo: 'Validação de avaliadores',
+        descricao: 'Libere quem vai avaliar no estande: sem a liberação, o avaliador não avalia nem recebe designação.',
     },
     {
         to: '/admin/presencial/voluntarios',

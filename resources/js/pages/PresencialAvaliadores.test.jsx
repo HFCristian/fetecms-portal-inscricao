@@ -95,4 +95,17 @@ describe('PresencialAvaliadores', () => {
         await waitFor(() => expect(novaSenhaAvaliadorPresencial).toHaveBeenCalledWith(9));
         expect(await screen.findByTestId('senha-gerada')).toHaveTextContent('Zz7nM4tR8w');
     });
+
+    it('diz quem ainda aguarda a liberação e quem já foi liberado', async () => {
+        getAvaliadoresCadastrados.mockResolvedValue([
+            { ...ROSA, liberado: false },
+            { ...ROSA, id: 10, nome: 'Davi Liberado', email: 'davi@ufms.br', liberado: true },
+        ]);
+        render(<PresencialAvaliadores />);
+
+        expect(await screen.findByText('Rosa Pantaneira')).toBeInTheDocument();
+        expect(screen.getByText('Rosa Pantaneira').closest('li')).toHaveTextContent('Aguardando liberação');
+        expect(screen.getByText('Davi Liberado').closest('li')).toHaveTextContent('Liberado');
+        expect(screen.getByText('Davi Liberado').closest('li')).not.toHaveTextContent('Aguardando');
+    });
 });

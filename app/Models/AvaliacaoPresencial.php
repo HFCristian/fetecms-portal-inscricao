@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\StatusAvaliacao;
 use App\Enums\Turno;
+use App\Enums\VagaPresencial;
 use App\Support\JanelaTurnos;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
@@ -23,13 +24,14 @@ class AvaliacaoPresencial extends Model
      * Quantas avaliações presenciais um projeto recebe **sem configuração**. O
      * limite existe porque o tempo do evento é curto: acima disso, o avaliador
      * é mandado para um estande que ainda não foi visitado. Desde a Sprint 170
-     * o número é da edição ({@see JanelaTurnos::porProjeto()}).
+     * o número é da edição ({@see JanelaTurnos::porProjeto()}), e desde a 222
+     * ele é a soma das vagas comuns com as da comissão especial.
      */
     public const MAX_POR_PROJETO = JanelaTurnos::PADRAO_POR_PROJETO;
 
     protected $fillable = [
         'edicao_id', 'projeto_id', 'avaliador_id', 'dia', 'turno', 'status', 'respostas', 'nota',
-        'comentario', 'itens_conferidos', 'designacao_manual', 'iniciada_em', 'concluida_em',
+        'comentario', 'itens_conferidos', 'designacao_manual', 'escolha_livre', 'vaga', 'iniciada_em', 'concluida_em',
     ];
 
     protected function casts(): array
@@ -42,6 +44,8 @@ class AvaliacaoPresencial extends Model
             'itens_conferidos' => 'array',
             'nota' => 'float',
             'designacao_manual' => 'boolean',
+            'escolha_livre' => 'boolean',
+            'vaga' => VagaPresencial::class,
             'iniciada_em' => 'datetime',
             'concluida_em' => 'datetime',
         ];
@@ -64,7 +68,8 @@ class AvaliacaoPresencial extends Model
 
     /**
      * O último instante em que ela aceita escrita: o fim do turno em que foi
-     * entregue, mais a margem. Nulo na designação antiga, sem turno gravado.
+     * entregue — o fim do horário de avaliação dele. Nulo na designação
+     * antiga, sem turno gravado.
      */
     public function prazo(?JanelaTurnos $janela = null): ?CarbonImmutable
     {

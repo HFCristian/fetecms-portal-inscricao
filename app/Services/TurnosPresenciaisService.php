@@ -4,27 +4,24 @@ namespace App\Services;
 
 use App\Enums\Turno;
 use App\Models\AvaliacaoPresencial;
-use App\Models\AvaliadorTurnoPresencial;
 use App\Models\Edicao;
 use App\Models\ListaFinal;
 use App\Models\User;
 use App\Support\JanelaTurnos;
-use Illuminate\Support\Facades\DB;
+use Carbon\CarbonImmutable;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Avaliação presencial → **turnos e ativação** (Sprint 169).
+ * Avaliação presencial → **turnos** (Sprint 169).
  *
- * Duas coisas que a distribuição presencial precisa antes de existir:
+ * A agenda que a distribuição presencial precisa antes de existir: o horário de
+ * cada turno, que vale em todos os dias do evento ({@see JanelaTurnos}). É dela
+ * que sai o prazo de cada avaliação — o fim do turno mais 30 minutos —, e é
+ * nela que o avaliador avalia.
  *
- * - **a agenda**: o horário de cada turno, que vale em todos os dias do evento
- *   ({@see JanelaTurnos}). É dela que sai o prazo de cada avaliação — o fim do
- *   turno mais 30 minutos;
- * - **quem está de plantão**: o avaliador que disse "sim" no cadastro só avalia
- *   depois de passar na cabine da avaliação, onde a organização o **ativa**
- *   para o turno em curso — ou pré-ativa os seguintes que ele escolher. A
- *   promessa feita semanas antes não diz quem de fato veio, e distribuir para
- *   quem não veio deixa estande sem visita.
+ * Até a Sprint 221 o avaliador também precisava ser **ativado** num turno, na
+ * cabine da avaliação. A cabine saiu: quem confirmou o presencial avalia no
+ * turno em andamento, escolhendo o estande no mapa.
  *
  * O modo de teste (conta demo) separa os dois mundos como no resto do dia do
  * evento: a lista final de demonstração e só os avaliadores demo.
@@ -32,7 +29,8 @@ use Illuminate\Validation\ValidationException;
 class TurnosPresenciaisService
 {
     /**
-     * A configuração da tela: horários, números, agenda e a ocorrência em foco.
+     * A configuração da tela: números, agenda e a ocorrência em foco. Os
+     * horários se editam em Parametrização → Datas e períodos ({@see agenda()}).
      *
      * @return array<string, mixed>
      */
@@ -44,10 +42,11 @@ class TurnosPresenciaisService
         $foco = $this->ocorrenciaPedida($janela, $dia, $turno) ?? $janela->emFoco();
 
         return [
-            'horarios' => (object) $janela->horarios(),
             'fila_avaliador' => $janela->fila(),
             'por_projeto' => $janela->porProjeto(),
-            'margem_minutos' => JanelaTurnos::MARGEM_MINUTOS,
+            'comuns_por_projeto' => $janela->comunsPorProjeto(),
+            'comite_por_projeto' => $janela->comitePorProjeto(),
+            'peso_comite' => $janela->pesoComite(),
             'configurada' => $janela->configurada(),
             'evento_de_label' => $edicao?->evento_de?->format('d/m/Y'),
             'evento_ate_label' => $edicao?->evento_ate?->format('d/m/Y'),
@@ -61,7 +60,10 @@ class TurnosPresenciaisService
     }
 
     /**
-     * Grava os horários e os dois números da distribuição.
+     * Grava a fila de cada avaliador e as vagas por projeto —
+     * comuns, da comissão especial e o peso da comissão (Sprint 222). Campo em
+     * branco volta ao padrão; zero numa das vagas é resposta, mas o projeto
+     * precisa de ao menos uma.
      *
      * @param  array<string, mixed>  $dados
      */
@@ -70,26 +72,87 @@ class TurnosPresenciaisService
         $edicao = Edicao::atual();
 
         if ($edicao === null) {
-            throw ValidationException::withMessages(['horarios' => 'Nenhuma edição em vigor.']);
+            throw ValidationException::withMessages(['fila_avaliador' => 'Nenhuma edição em vigor.']);
+        }
+
+        $comuns = $dados['comuns_por_projeto'] ?? null;
+        $comite = $dados['comite_por_projeto'] ?? null;
+
+        if ((int) ($comuns ?? JanelaTurnos::PADRAO_COMUNS) + (int) ($comite ?? JanelaTurnos::PADRAO_COMITE) < 1) {
+            throw ValidationException::withMessages([
+                'comuns_por_projeto' => 'Cada projeto precisa de ao menos uma avaliação presencial.',
+            ]);
         }
 
         $edicao->update([
-            'horarios_turnos' => JanelaTurnos::validar($dados['horarios'] ?? []) ?: null,
             'presencial_fila_avaliador' => $dados['fila_avaliador'] ?? null,
-            'presencial_por_projeto' => $dados['por_projeto'] ?? null,
+            'presencial_comuns_por_projeto' => $comuns,
+            'presencial_comite_por_projeto' => $comite,
+            'presencial_peso_comite' => $dados['peso_comite'] ?? null,
         ]);
     }
 
     /**
-     * Quem confirmou que avalia presencialmente, com os turnos em que está
-     * ativado e o que já tem na ocorrência em foco.
+     * A agenda da avaliação presencial como Parametrização → Datas e períodos a
+     * edita (Sprint 224): cada dia do evento, cada turno com o horário dele e o
+     * da avaliação, e as ocorrências que isso forma.
+     *
+     * @return array<string, mixed>
+     */
+    public function agenda(): array
+    {
+        $edicao = Edicao::atual();
+        $janela = JanelaTurnos::daEdicao($edicao);
+
+        return [
+            'dias' => array_map(fn (string $dia) => [
+                'dia' => $dia,
+                'label' => CarbonImmutable::parse($dia)->locale('pt_BR')->translatedFormat('D, d/m'),
+            ], $janela->dias()),
+            'agenda' => (object) $janela->agenda(),
+            'turnos' => Turno::opcoes(),
+            'margem_padrao' => JanelaTurnos::MARGEM_MINUTOS,
+            'configurada' => $janela->configurada(),
+            'evento_de_label' => $edicao?->evento_de?->format('d/m/Y'),
+            'evento_ate_label' => $edicao?->evento_ate?->format('d/m/Y'),
+            'ocorrencias' => $janela->ocorrencias(),
+        ];
+    }
+
+    /**
+     * Grava a agenda inteira (substitui a anterior). Turno sem horário num dia
+     * não acontece naquele dia.
+     *
+     * @param  array<string, mixed>  $agenda
+     */
+    public function salvarAgenda(array $agenda): void
+    {
+        $edicao = Edicao::atual();
+
+        if ($edicao === null) {
+            throw ValidationException::withMessages(['agenda' => 'Nenhuma edição em vigor.']);
+        }
+
+        $janela = JanelaTurnos::daEdicao($edicao);
+
+        if ($janela->dias() === []) {
+            throw ValidationException::withMessages([
+                'agenda' => 'Defina o período do evento antes dos horários dos turnos.',
+            ]);
+        }
+
+        $edicao->update(['agenda_presencial' => JanelaTurnos::validar($agenda, $janela->dias()) ?: null]);
+    }
+
+    /**
+     * Quem confirmou que avalia presencialmente, com o que já tem na ocorrência
+     * em foco.
      *
      * @param  array<string, mixed>|null  $foco
      * @return list<array<string, mixed>>
      */
     public function avaliadores(?array $foco, bool $demo, ?string $busca = null): array
     {
-        $edicao = Edicao::atual();
         $busca = trim((string) $busca);
 
         $avaliadores = User::query()
@@ -104,10 +167,7 @@ class TurnosPresenciaisService
             ->get();
 
         $ids = $avaliadores->pluck('id');
-        $ativacoes = AvaliadorTurnoPresencial::where('edicao_id', $edicao?->id)
-            ->whereIn('user_id', $ids)
-            ->get()
-            ->groupBy('user_id');
+        $liberados = array_flip(app(LiberacaoPresencialService::class)->idsLiberados());
 
         $noFoco = $foco === null ? collect() : AvaliacaoPresencial::whereIn('avaliador_id', $ids)
             ->where('dia', $foco['dia'])
@@ -122,87 +182,17 @@ class TurnosPresenciaisService
             ->groupBy('avaliador_id')
             ->pluck('total', 'avaliador_id');
 
-        return $avaliadores->map(function (User $u) use ($ativacoes, $foco, $noFoco, $concluidas) {
-            $turnos = ($ativacoes[$u->id] ?? collect())->map(fn (AvaliadorTurnoPresencial $a) => $a->chave())->values()->all();
-
-            return [
-                'id' => $u->id,
-                'nome' => $u->name,
-                'email' => $u->email,
-                'area' => $u->avaliadorProfile?->area?->nome,
-                'subarea' => $u->avaliadorProfile?->subarea?->nome,
-                'turnos' => $turnos,
-                'ativo' => $foco !== null && in_array($foco['chave'], $turnos, true),
-                'no_turno' => (int) ($noFoco[$u->id] ?? 0),
-                'concluidas' => (int) ($concluidas[$u->id] ?? 0),
-            ];
-        })->all();
-    }
-
-    /**
-     * Substitui os turnos em que o avaliador está ativado.
-     *
-     * @param  list<string>  $chaves  "2026-10-20|A"
-     */
-    public function definirTurnos(User $avaliador, array $chaves, User $admin): void
-    {
-        if (! $avaliador->isAvaliador() || $avaliador->avaliadorProfile()->first()?->presencial !== true) {
-            throw ValidationException::withMessages([
-                'avaliador' => 'Só quem confirmou a avaliação presencial pode ser ativado num turno.',
-            ]);
-        }
-
-        $edicao = Edicao::atual();
-        $janela = JanelaTurnos::daEdicao($edicao);
-        $pedidas = [];
-
-        foreach (array_unique($chaves) as $chave) {
-            [$dia, $valor] = array_pad(explode('|', (string) $chave, 2), 2, null);
-            $turno = Turno::tryFrom((string) $valor);
-
-            if ($turno === null || ! $janela->existe((string) $dia, $turno)) {
-                throw ValidationException::withMessages([
-                    'turnos' => 'Turno fora da agenda do evento: confira as datas do evento e o horário dos turnos.',
-                ]);
-            }
-
-            $pedidas[$dia.'|'.$turno->value] = [$dia, $turno];
-        }
-
-        DB::transaction(function () use ($avaliador, $edicao, $pedidas, $admin) {
-            $atuais = AvaliadorTurnoPresencial::where('edicao_id', $edicao->id)
-                ->where('user_id', $avaliador->id)
-                ->get()
-                ->keyBy(fn (AvaliadorTurnoPresencial $a) => $a->chave());
-
-            foreach ($atuais as $chave => $ativacao) {
-                if (! isset($pedidas[$chave])) {
-                    $ativacao->delete();
-                }
-            }
-
-            foreach ($pedidas as $chave => [$dia, $turno]) {
-                if (! $atuais->has($chave)) {
-                    AvaliadorTurnoPresencial::create([
-                        'edicao_id' => $edicao->id,
-                        'user_id' => $avaliador->id,
-                        'dia' => $dia,
-                        'turno' => $turno,
-                        'ativado_por' => $admin->id,
-                    ]);
-                }
-            }
-        });
-    }
-
-    /** O avaliador está ativado nesta ocorrência? */
-    public function ativado(User $avaliador, string $dia, Turno $turno): bool
-    {
-        return AvaliadorTurnoPresencial::where('edicao_id', Edicao::atual()?->id)
-            ->where('user_id', $avaliador->id)
-            ->whereDate('dia', $dia)
-            ->where('turno', $turno->value)
-            ->exists();
+        return $avaliadores->map(fn (User $u) => [
+            'id' => $u->id,
+            'nome' => $u->name,
+            'email' => $u->email,
+            'area' => $u->avaliadorProfile?->area?->nome,
+            'subarea' => $u->avaliadorProfile?->subarea?->nome,
+            'comissao' => (bool) $u->avaliadorProfile?->comissao_especial,
+            'liberado' => isset($liberados[$u->id]),
+            'no_turno' => (int) ($noFoco[$u->id] ?? 0),
+            'concluidas' => (int) ($concluidas[$u->id] ?? 0),
+        ])->all();
     }
 
     /** Só a conta demo tem modo de teste. */

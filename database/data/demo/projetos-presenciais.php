@@ -10,7 +10,7 @@ use App\Enums\Categoria;
  * no cabeçalho. Cada projeto exercita um caminho diferente da rubrica de 2026,
  * para o ensaio passar pelas perguntas condicionais e pelas sem valor:
  *
- * 1. completo, sem ética e sem IA, demais referências por QR Code (a 4.3 não se aplica);
+ * 1. completo e sem IA, demais referências por QR Code (a 4.3 não se aplica);
  * 2. pesquisa com estudantes (TCLE/TALE anexado) e uso de IA declarado;
  * 3. sem diário de bordo, banner sem a discussão e IA usada sem declarar.
  */
@@ -20,7 +20,7 @@ return [
         'titulo' => 'Horta vertical irrigada por gotejamento solar',
         'categoria' => Categoria::Fetecms,
         'aluno' => 'Elisa Moraes',
-        'cenario' => 'completo · sem ética · sem IA · demais referências por QR Code (4.3 não se aplica)',
+        'cenario' => 'completo · sem IA · demais referências por QR Code (4.3 não se aplica)',
         'resumo' => 'A escola não tem área livre para horta e a rega manual falha nos fins de semana. A equipe montou uma horta vertical com garrafas PET e um sistema de gotejamento movido por uma bomba de 12 V ligada a um painel solar. Em oito semanas, os canteiros irrigados pelo sistema tiveram perda de mudas 40% menor que os regados à mão e consumiram 35% menos água.',
         'palavras_chave' => ['horta vertical', 'irrigação por gotejamento', 'energia solar'],
         'secoes' => [

@@ -4,7 +4,7 @@ import AppShell from '../components/AppShell.jsx';
 import { Alert, Button, Toggle, useConfirm } from '../components/ui.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import {
-    getDistribuicaoPresencial, salvarDistribuicaoPresencial, definirTurnosAvaliador,
+    getDistribuicaoPresencial, salvarDistribuicaoPresencial,
     distribuirPresencial, redistribuirPresencial, designarPresencial, retirarDesignacaoPresencial,
 } from '../lib/presencial.js';
 
@@ -16,7 +16,7 @@ const cartao = 'bg-surface-container-lowest rounded-xl fetec-card-shadow p-4';
 
 const SITUACAO = {
     em_andamento: ['Acontecendo agora', 'bg-secondary-container text-on-secondary-container'],
-    margem: ['Nos 30 minutos de margem', 'bg-tertiary-container text-on-tertiary-container'],
+    margem: ['Só para terminar (margem)', 'bg-primary-fixed text-primary-container'],
     futuro: ['Ainda não começou', 'bg-surface-variant text-on-surface-variant'],
     encerrado: ['Encerrado', 'bg-surface-variant text-on-surface-variant'],
 };
@@ -26,59 +26,61 @@ const separar = (chave) => {
     return dia && turno ? { dia, turno } : {};
 };
 
-/** Os horários e os dois números da distribuição. */
+/** A fila de cada avaliador e as vagas de cada projeto. Os horários moram em Datas e períodos. */
 function Configuracao({ dados, salvando, onSalvar }) {
-    const [horarios, setHorarios] = useState(() => ({
-        A: { inicio: dados.horarios?.A?.inicio ?? '', fim: dados.horarios?.A?.fim ?? '' },
-        B: { inicio: dados.horarios?.B?.inicio ?? '', fim: dados.horarios?.B?.fim ?? '' },
-    }));
     const [fila, setFila] = useState(String(dados.fila_avaliador ?? ''));
-    const [porProjeto, setPorProjeto] = useState(String(dados.por_projeto ?? ''));
-
-    const mudar = (turno, ponta, valor) => setHorarios((h) => ({ ...h, [turno]: { ...h[turno], [ponta]: valor } }));
+    const [comuns, setComuns] = useState(String(dados.comuns_por_projeto ?? ''));
+    const [comite, setComite] = useState(String(dados.comite_por_projeto ?? ''));
+    const [peso, setPeso] = useState(String(dados.peso_comite ?? ''));
+    const numero = (v) => (v === '' ? null : Number(v));
 
     return (
         <section className={cartao}>
-            <h2 className="font-display text-lg font-semibold text-on-surface mb-1">Turnos e números</h2>
+            <h2 className="font-display text-lg font-semibold text-on-surface mb-1">Números da distribuição</h2>
             <p className="text-sm text-on-surface-variant mb-3">
-                O horário de cada turno vale em todos os dias do evento
-                {dados.evento_de_label ? ` (${dados.evento_de_label} a ${dados.evento_ate_label ?? dados.evento_de_label})` : ''}.
-                Cada avaliação aceita escrita até o fim do turno mais {dados.margem_minutos} minutos.
+                O horário de cada turno e o da avaliação, dia a dia, ficam em{' '}
+                <Link to="/admin/parametrizacao/datas" className="underline">Parametrização → Datas e períodos</Link>.
             </p>
             <div className="grid gap-3 sm:grid-cols-2">
-                {(dados.turnos ?? []).map((t) => (
-                    <fieldset key={t.value} className="border border-outline-variant/40 rounded-lg p-3">
-                        <legend className="text-sm font-semibold text-on-surface px-1">{t.label}</legend>
-                        <div className="flex gap-2">
-                            <label className="flex-1 text-xs text-on-surface-variant">
-                                Início
-                                <input type="time" className={campoClass} aria-label={`Início do ${t.label}`}
-                                    value={horarios[t.value]?.inicio ?? ''} onChange={(e) => mudar(t.value, 'inicio', e.target.value)} />
-                            </label>
-                            <label className="flex-1 text-xs text-on-surface-variant">
-                                Fim
-                                <input type="time" className={campoClass} aria-label={`Fim do ${t.label}`}
-                                    value={horarios[t.value]?.fim ?? ''} onChange={(e) => mudar(t.value, 'fim', e.target.value)} />
-                            </label>
-                        </div>
-                    </fieldset>
-                ))}
                 <label className="text-sm text-on-surface">
                     Projetos por avaliador, por turno
                     <input type="number" min="1" max="50" className={campoClass} aria-label="Projetos por avaliador"
                         value={fila} onChange={(e) => setFila(e.target.value)} />
                 </label>
-                <label className="text-sm text-on-surface">
-                    Avaliações por projeto
-                    <input type="number" min="1" max="20" className={campoClass} aria-label="Avaliações por projeto"
-                        value={porProjeto} onChange={(e) => setPorProjeto(e.target.value)} />
-                </label>
             </div>
+
+            <fieldset className="border border-outline-variant/40 rounded-lg p-3 mt-3">
+                <legend className="text-sm font-semibold text-on-surface px-1">Vagas de cada projeto</legend>
+                <p className="text-xs text-on-surface-variant mb-2">
+                    Quantas avaliações o projeto recebe de avaliadores comuns e da comissão especial — hoje{' '}
+                    {dados.por_projeto} no total. A da comissão pesa mais na média do ranking presencial; o avaliador
+                    da comissão que encontrar a vaga dela tomada entra numa comum, com peso 1. Em branco vale o padrão
+                    (2 + 1, peso 2).
+                </p>
+                <div className="grid gap-3 sm:grid-cols-3">
+                    <label className="text-sm text-on-surface">
+                        Avaliações comuns
+                        <input type="number" min="0" max="20" className={campoClass} aria-label="Avaliações comuns por projeto"
+                            value={comuns} onChange={(e) => setComuns(e.target.value)} />
+                    </label>
+                    <label className="text-sm text-on-surface">
+                        Avaliações da comissão especial
+                        <input type="number" min="0" max="20" className={campoClass} aria-label="Avaliações da comissão por projeto"
+                            value={comite} onChange={(e) => setComite(e.target.value)} />
+                    </label>
+                    <label className="text-sm text-on-surface">
+                        Peso da comissão na média
+                        <input type="number" min="1" max="10" step="0.5" className={campoClass} aria-label="Peso da comissão na média"
+                            value={peso} onChange={(e) => setPeso(e.target.value)} />
+                    </label>
+                </div>
+            </fieldset>
             <div className="flex justify-end mt-3">
                 <Button type="button" loading={salvando} onClick={() => onSalvar({
-                    horarios,
-                    fila_avaliador: fila === '' ? null : Number(fila),
-                    por_projeto: porProjeto === '' ? null : Number(porProjeto),
+                    fila_avaliador: numero(fila),
+                    comuns_por_projeto: numero(comuns),
+                    comite_por_projeto: numero(comite),
+                    peso_comite: numero(peso),
                 })}>
                     Salvar
                 </Button>
@@ -87,51 +89,14 @@ function Configuracao({ dados, salvando, onSalvar }) {
     );
 }
 
-/** Pré-ativar: os turnos da agenda em que o avaliador vai trabalhar. */
-function DialogoTurnos({ avaliador, ocorrencias, salvando, onSalvar, onFechar }) {
-    const [marcados, setMarcados] = useState(() => new Set(avaliador.turnos));
-    const alternar = (chave) => setMarcados((m) => {
-        const novo = new Set(m);
-        if (novo.has(chave)) novo.delete(chave); else novo.add(chave);
-        return novo;
-    });
-
-    return (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
-            <div className="bg-surface-container-lowest rounded-2xl fetec-card-shadow w-full max-w-md p-6 space-y-4">
-                <div>
-                    <h3 className="font-display text-lg font-semibold text-on-surface">Turnos de {avaliador.nome}</h3>
-                    <p className="text-sm text-on-surface-variant">Marque os turnos em que ele vai avaliar.</p>
-                </div>
-                <ul className="space-y-2 max-h-72 overflow-y-auto">
-                    {ocorrencias.map((o) => (
-                        <li key={o.chave}>
-                            <label className="flex items-center gap-2 text-sm text-on-surface">
-                                <input type="checkbox" checked={marcados.has(o.chave)} onChange={() => alternar(o.chave)}
-                                    disabled={o.situacao === 'encerrado'} />
-                                {o.rotulo}
-                                {o.situacao === 'encerrado' && <span className="text-xs text-on-surface-variant">(encerrado)</span>}
-                            </label>
-                        </li>
-                    ))}
-                </ul>
-                <div className="flex justify-end gap-3">
-                    <Button type="button" variant="outline" onClick={onFechar} disabled={salvando}>Cancelar</Button>
-                    <Button type="button" loading={salvando} onClick={() => onSalvar([...marcados])}>Salvar turnos</Button>
-                </div>
-            </div>
-        </div>
-    );
-}
-
 /**
  * Avaliação presencial → **Distribuição** (Sprints 169–170).
  *
- * A tela trabalha um turno de um dia por vez. Primeiro a cabine: quem chegou é
- * ativado no turno (ou pré-ativado nos seguintes). Depois a distribuição, nos
- * moldes da online, só com os projetos do turno já credenciados e com o
- * estande checado. Por fim, as designações, com a retirada e a designação à
- * mão.
+ * A tela trabalha um turno de um dia por vez: a distribuição, nos moldes da
+ * online, só com os projetos do turno já credenciados e com o estande checado,
+ * entre todos que confirmaram o presencial; e as designações, com a retirada e
+ * a designação à mão. A designação é opcional — sem ela o avaliador escolhe o
+ * estande no mapa — e a ativação na cabine saiu na Sprint 221.
  */
 export default function PresencialDistribuicao() {
     const [dados, setDados] = useState(null);
@@ -142,7 +107,6 @@ export default function PresencialDistribuicao() {
     const [alert, setAlert] = useState('');
     const [sucesso, setSucesso] = useState('');
     const [avisos, setAvisos] = useState([]);
-    const [turnosDe, setTurnosDe] = useState(null);
     const [manual, setManual] = useState({ projeto: '', avaliador: '' });
     const [confirm, dialogoConfirmacao] = useConfirm();
 
@@ -180,14 +144,10 @@ export default function PresencialDistribuicao() {
         if (ok) executar('redistribuir', () => redistribuirPresencial(ocorrencia, modoTeste));
     }
 
-    function alternarAtivo(a) {
-        const turnos = a.ativo ? a.turnos.filter((t) => t !== chave) : [...a.turnos, chave];
-        executar(`ativar-${a.id}`, () => definirTurnosAvaliador(a.id, turnos, ocorrencia, modoTeste));
-    }
-
     const foco = dados?.ocorrencias?.find((o) => o.chave === chave) ?? dados?.foco;
     const resumo = dados?.resumo;
-    const ativos = (dados?.avaliadores ?? []).filter((a) => a.ativo);
+    const avaliadores = dados?.avaliadores ?? [];
+    const liberados = avaliadores.filter((a) => a.liberado);
     const prontos = (dados?.projetos ?? []).filter((p) => p.pronto);
 
     return (
@@ -197,9 +157,9 @@ export default function PresencialDistribuicao() {
             </Link>
             <h1 className="font-display text-2xl font-semibold text-primary mb-1">Distribuição presencial</h1>
             <p className="text-on-surface-variant mb-4 max-w-3xl">
-                Ative na cabine quem chegou para avaliar, distribua os projetos do turno e acompanhe as
-                designações. Só entram projetos <strong>credenciados</strong> e com o estande{' '}
-                <strong>checado</strong>.
+                Distribua os projetos do turno e acompanhe as designações. A designação é opcional: sem
+                ela, o avaliador escolhe o estande no mapa. Só entram projetos{' '}
+                <strong>credenciados</strong> e com o estande <strong>checado</strong>.
             </p>
 
             {dados?.is_demo && (
@@ -230,7 +190,7 @@ export default function PresencialDistribuicao() {
             ) : (
                 <div className="max-w-4xl space-y-4">
                     <Configuracao
-                        key={JSON.stringify([dados.horarios, dados.fila_avaliador, dados.por_projeto])}
+                        key={JSON.stringify([dados.fila_avaliador, dados.comuns_por_projeto, dados.comite_por_projeto, dados.peso_comite])}
                         dados={dados}
                         salvando={salvando === 'config'}
                         onSalvar={(c) => executar('config', () => salvarDistribuicaoPresencial(c, ocorrencia, modoTeste))}
@@ -238,8 +198,8 @@ export default function PresencialDistribuicao() {
 
                     {!dados.configurada ? (
                         <Alert type="info">
-                            Defina o período do evento (Parametrização → Datas e períodos) e o horário de ao menos um
-                            turno para montar a agenda.
+                            Defina o período do evento e o horário de ao menos um turno em Parametrização → Datas e
+                            períodos para montar a agenda.
                         </Alert>
                     ) : !dados.lista ? (
                         <Alert type="info">A lista final ainda não foi gerada: sem finalistas, não há o que distribuir.</Alert>
@@ -259,46 +219,36 @@ export default function PresencialDistribuicao() {
                                 </div>
                                 {foco?.prazo_label && (
                                     <p className="text-xs text-on-surface-variant mt-2">
-                                        As avaliações deste turno são aceitas até as {foco.prazo_label} ({foco.fim_label} + {dados.margem_minutos} min).
+                                        Turno das {foco.inicio_label} às {foco.fim_label}; avaliação das{' '}
+                                        {foco.avaliacao_inicio_label} às {foco.prazo_label}.
                                     </p>
                                 )}
                             </section>
 
                             <section className={cartao}>
                                 <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                                    <h2 className="font-display text-lg font-semibold text-on-surface">Avaliadores na cabine</h2>
-                                    <span className="text-sm text-on-surface-variant">{ativos.length} ativado(s) neste turno</span>
+                                    <h2 className="font-display text-lg font-semibold text-on-surface">Avaliadores do presencial</h2>
+                                    <span className="text-sm text-on-surface-variant">
+                                        {avaliadores.length} confirmado(s) · {liberados.length} liberado(s)
+                                    </span>
                                 </div>
                                 <input className={`${campoClass} mb-3`} placeholder="Buscar avaliador por nome ou e-mail…" aria-label="Buscar avaliador"
                                     value={busca} onChange={(e) => setBusca(e.target.value)} />
-                                {dados.avaliadores.length === 0 ? (
+                                {avaliadores.length === 0 ? (
                                     <p className="text-sm text-on-surface-variant">Ninguém confirmou a avaliação presencial{busca ? ' neste recorte' : ''}.</p>
                                 ) : (
-                                    <ul className="divide-y divide-outline-variant/30">
-                                        {dados.avaliadores.map((a) => (
-                                            <li key={a.id} className="py-2 flex flex-wrap items-center gap-3">
-                                                <div className="min-w-0 flex-1">
-                                                    <p className="text-sm font-semibold text-on-surface truncate">{a.nome}</p>
-                                                    <p className="text-xs text-on-surface-variant truncate">
-                                                        {[a.area, a.subarea].filter(Boolean).join(' · ') || 'Sem área'}
-                                                        {` · ${a.no_turno} neste turno · ${a.turnos.length} turno(s) ativado(s)`}
-                                                    </p>
-                                                </div>
-                                                <Button type="button" variant="outline" onClick={() => setTurnosDe(a)} aria-label={`Turnos de ${a.nome}`}>
-                                                    <span className="material-symbols-outlined text-[18px]">event_available</span>
-                                                    Turnos
-                                                </Button>
-                                                <Button
-                                                    type="button"
-                                                    variant={a.ativo ? 'primary' : 'outline'}
-                                                    loading={salvando === `ativar-${a.id}`}
-                                                    disabled={foco?.situacao === 'encerrado'}
-                                                    onClick={() => alternarAtivo(a)}
-                                                    aria-label={`${a.ativo ? 'Desativar' : 'Ativar'} ${a.nome} neste turno`}
-                                                >
-                                                    <span className="material-symbols-outlined text-[18px]">{a.ativo ? 'toggle_on' : 'toggle_off'}</span>
-                                                    {a.ativo ? 'Ativado' : 'Ativar'}
-                                                </Button>
+                                    <ul className="divide-y divide-outline-variant/30 max-h-80 overflow-y-auto">
+                                        {avaliadores.map((a) => (
+                                            <li key={a.id} className="py-2">
+                                                <p className="text-sm font-semibold text-on-surface truncate">
+                                                    {a.nome}
+                                                    {a.comissao && <span className="ml-2 text-xs font-semibold text-secondary">Comissão especial</span>}
+                                                    {!a.liberado && <span className="ml-2 text-xs font-semibold text-error">Aguardando liberação</span>}
+                                                </p>
+                                                <p className="text-xs text-on-surface-variant truncate">
+                                                    {[a.area, a.subarea].filter(Boolean).join(' · ') || 'Sem área'}
+                                                    {` · ${a.no_turno} neste turno · ${a.concluidas} enviada(s)`}
+                                                </p>
                                             </li>
                                         ))}
                                     </ul>
@@ -324,8 +274,9 @@ export default function PresencialDistribuicao() {
                                     </div>
                                 )}
                                 <p className="text-xs text-on-surface-variant mb-3">
-                                    Cada avaliador ativado recebe até {dados.fila_avaliador} projeto(s), em rodadas iguais, pela
-                                    prioridade subárea → área → área correlata. Ao enviar uma avaliação, a fila dele é reposta.
+                                    Cada avaliador liberado (Validação de avaliadores) recebe até {dados.fila_avaliador} projeto(s), em
+                                    rodadas iguais, pela prioridade subárea → área → área correlata. Ao enviar uma avaliação que
+                                    veio da distribuição, a fila dele é reposta.
                                 </p>
                                 <div className="flex flex-wrap gap-2">
                                     <Button type="button" loading={salvando === 'distribuir'} disabled={foco?.situacao === 'encerrado'}
@@ -349,14 +300,14 @@ export default function PresencialDistribuicao() {
                                         <option value="">Projeto pronto…</option>
                                         {prontos.map((p) => (
                                             <option key={p.id} value={p.id}>
-                                                {p.estande ? `${p.estande} · ` : ''}{p.titulo} ({p.avaliacoes})
+                                                {p.estande ? `${p.estande} · ` : ''}{p.titulo} ({p.comuns ?? 0} comum · {p.comite ?? 0} comissão)
                                             </option>
                                         ))}
                                     </select>
                                     <select className={campoClass} aria-label="Avaliador para designar" value={manual.avaliador}
                                         onChange={(e) => setManual((m) => ({ ...m, avaliador: e.target.value }))}>
-                                        <option value="">Avaliador ativado…</option>
-                                        {ativos.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
+                                        <option value="">Avaliador liberado…</option>
+                                        {liberados.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
                                     </select>
                                     <Button type="button" className="shrink-0" disabled={!manual.projeto || !manual.avaliador}
                                         loading={salvando === 'designar'}
@@ -391,15 +342,9 @@ export default function PresencialDistribuicao() {
                                                         <td className="py-2 pr-2">
                                                             {d.avaliador}
                                                             {d.designacao_manual && <span className="ml-1 text-xs text-on-surface-variant">(à mão)</span>}
+                                                            {d.vaga === 'comite' && <span className="ml-1 text-xs font-semibold text-secondary">· comissão</span>}
                                                         </td>
-                                                        <td className="py-2 pr-2">
-                                                            {d.status_label}
-                                                            {(d.alertas ?? []).map((a) => (
-                                                                <span key={a} className="flex items-center gap-1 text-xs font-semibold text-error">
-                                                                    <span className="material-symbols-outlined text-[16px]">report</span>{a}
-                                                                </span>
-                                                            ))}
-                                                        </td>
+                                                        <td className="py-2 pr-2">{d.status_label}</td>
                                                         <td className="py-2 text-right">
                                                             {d.status !== 'concluida' && (
                                                                 <button type="button" className="text-error text-xs font-semibold hover:underline"
@@ -421,19 +366,6 @@ export default function PresencialDistribuicao() {
                 </div>
             )}
 
-            {turnosDe && (
-                <DialogoTurnos
-                    avaliador={turnosDe}
-                    ocorrencias={dados?.ocorrencias ?? []}
-                    salvando={salvando === 'turnos'}
-                    onFechar={() => setTurnosDe(null)}
-                    onSalvar={async (turnos) => {
-                        if (await executar('turnos', () => definirTurnosAvaliador(turnosDe.id, turnos, ocorrencia, modoTeste))) {
-                            setTurnosDe(null);
-                        }
-                    }}
-                />
-            )}
             {dialogoConfirmacao}
         </AppShell>
     );

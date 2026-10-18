@@ -10,12 +10,14 @@ import {
     definirInicioAjustes, definirFimAjustes,
 } from '../lib/admin.js';
 import { getParametrizacaoCredenciamento, definirJanelaEvento } from '../lib/credenciamento.js';
+import { getAgendaPresencial, salvarAgendaPresencial } from '../lib/presencial.js';
 
 /**
  * Parametrização → **Datas e períodos**.
  *
  * Todas as janelas da edição num lugar só, na ordem em que a feira acontece:
- * inscrições → avaliação → ajustes do orientador → evento. Antes elas estavam
+ * inscrições → avaliação → ajustes do orientador → evento → turnos da avaliação
+ * presencial (Sprint 224), dia a dia. Antes elas estavam
  * espalhadas por três telas (Inscrições, Avaliação Online e Credenciamento), o
  * que obrigava a caçar em qual delas cada data morava.
  *
@@ -259,7 +261,7 @@ function SecoesAvaliacao() {
  * Período do evento (credenciamento). As duas pontas vão juntas num PATCH só,
  * então aqui é um formulário — e não dois `CampoDataCard`.
  */
-function SecaoEvento() {
+function SecaoEvento({ onSalvo }) {
     const [janela, setJanela] = useState(null);
     const [errors, setErrors] = useState({});
     const [alerta, setAlerta] = useState('');
@@ -279,6 +281,7 @@ function SecaoEvento() {
             const d = await definirJanelaEvento(janela.de, janela.ate);
             setJanela({ de: d.config?.inicio_input ?? '', ate: d.config?.fim_input ?? '' });
             setSucesso('Período do evento salvo.');
+            onSalvo?.();
         } catch (e2) {
             const { message, fields } = extractErrors(e2);
             setErrors(fields ?? {});
@@ -337,7 +340,158 @@ function SecaoEvento() {
     );
 }
 
+const CAMPOS_TURNO = [
+    ['inicio', 'Início do turno'],
+    ['fim', 'Fim do turno'],
+    ['avaliacao_inicio', 'Início da avaliação'],
+    ['avaliacao_fim', 'Fim da avaliação'],
+];
+
+const vazio = () => ({ inicio: '', fim: '', avaliacao_inicio: '', avaliacao_fim: '' });
+
+/** A agenda do servidor no formato do formulário: todo dia × turno, campos em texto. */
+function paraFormulario(dados) {
+    const agenda = {};
+    (dados.dias ?? []).forEach(({ dia }) => {
+        agenda[dia] = {};
+        (dados.turnos ?? []).forEach((t) => {
+            const campos = dados.agenda?.[dia]?.[t.value];
+            agenda[dia][t.value] = campos ? { ...vazio(), ...campos } : vazio();
+        });
+    });
+    return agenda;
+}
+
+/**
+ * Turnos da avaliação presencial (Sprint 224): cada dia do evento, cada turno
+ * com o horário dele (a equipe no estande) e o da avaliação (quando o
+ * avaliador avalia). Turno em branco num dia não acontece naquele dia;
+ * avaliação em branco vai do início do turno até 30 minutos depois do fim.
+ */
+function SecaoTurnosPresenciais() {
+    const [dados, setDados] = useState(null);
+    const [agenda, setAgenda] = useState({});
+    const [alerta, setAlerta] = useState('');
+    const [sucesso, setSucesso] = useState('');
+    const [salvando, setSalvando] = useState(false);
+
+    useEffect(() => {
+        getAgendaPresencial()
+            .then((d) => { setDados(d); setAgenda(paraFormulario(d)); })
+            .catch(() => setDados({ dias: [], turnos: [], agenda: {} }));
+    }, []);
+
+    const mudar = (dia, turno, campo, valor) => setAgenda((a) => ({
+        ...a, [dia]: { ...a[dia], [turno]: { ...a[dia][turno], [campo]: valor } },
+    }));
+
+    const limpar = (dia, turno) => setAgenda((a) => ({ ...a, [dia]: { ...a[dia], [turno]: vazio() } }));
+
+    function copiarPrimeiro() {
+        const [primeiro, ...demais] = dados.dias.map((d) => d.dia);
+        setAgenda((a) => {
+            const nova = { ...a };
+            demais.forEach((dia) => { nova[dia] = JSON.parse(JSON.stringify(a[primeiro])); });
+            return nova;
+        });
+        setSucesso('');
+    }
+
+    async function salvar() {
+        setSalvando(true); setAlerta(''); setSucesso('');
+        try {
+            const resp = await salvarAgendaPresencial(agenda);
+            setDados(resp.data);
+            setAgenda(paraFormulario(resp.data));
+            setSucesso(resp.meta?.message ?? 'Horários salvos.');
+        } catch (e) {
+            const { message, fields } = extractErrors(e);
+            const primeiro = Object.values(fields ?? {})[0];
+            setAlerta((Array.isArray(primeiro) ? primeiro[0] : primeiro) || message || 'Não foi possível salvar os horários.');
+        } finally {
+            setSalvando(false);
+        }
+    }
+
+    return (
+        <Secao
+            titulo="Turnos da avaliação presencial"
+            descricao={
+                <>
+                    O horário de cada turno em cada dia do evento — quando a equipe apresenta no estande — e o da
+                    <strong> avaliação</strong>, quando o avaliador avalia. Começar uma avaliação vale até o fim da
+                    avaliação ou do turno, o que vier antes; o que passa do fim do turno serve só para terminar o que
+                    se abriu. Turno em branco não acontece naquele dia; avaliação em branco vai do início do turno até{' '}
+                    {dados?.margem_padrao ?? 30} minutos depois do fim.
+                </>
+            }
+        >
+            {dados === null ? <Carregando /> : dados.dias.length === 0 ? (
+                <div className="max-w-3xl">
+                    <Alert type="info">Defina o período do evento (acima) para montar os dias dos turnos.</Alert>
+                </div>
+            ) : (
+                <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-6 max-w-4xl space-y-5">
+                    {alerta && <Alert>{alerta}</Alert>}
+                    {sucesso && <Alert type="info">{sucesso}</Alert>}
+
+                    {dados.dias.map(({ dia, label }) => (
+                        <div key={dia}>
+                            <h3 className="font-display font-semibold text-on-surface mb-2 capitalize">{label}</h3>
+                            <div className="grid gap-3 md:grid-cols-2">
+                                {dados.turnos.map((t) => {
+                                    const campos = agenda[dia]?.[t.value] ?? vazio();
+                                    return (
+                                        <fieldset key={t.value} className="border border-outline-variant/40 rounded-lg p-3">
+                                            <legend className="text-sm font-semibold text-on-surface px-1">{t.label}</legend>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                {CAMPOS_TURNO.map(([campo, rotulo]) => (
+                                                    <label key={campo} className="text-xs text-on-surface-variant">
+                                                        {rotulo}
+                                                        <Input
+                                                            type="time"
+                                                            aria-label={`${label} · ${t.label} · ${rotulo}`}
+                                                            value={campos[campo]}
+                                                            onChange={(e) => mudar(dia, t.value, campo, e.target.value)}
+                                                        />
+                                                    </label>
+                                                ))}
+                                            </div>
+                                            {Object.values(campos).some(Boolean) && (
+                                                <button type="button" className="mt-2 text-xs font-semibold text-error hover:underline"
+                                                    onClick={() => limpar(dia, t.value)} aria-label={`Limpar ${t.label} de ${label}`}>
+                                                    Sem este turno no dia
+                                                </button>
+                                            )}
+                                        </fieldset>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    ))}
+
+                    <div className="flex flex-wrap justify-end gap-3">
+                        {dados.dias.length > 1 && (
+                            <Button type="button" variant="outline" onClick={copiarPrimeiro}>
+                                <span className="material-symbols-outlined text-[20px]">content_copy</span>
+                                Copiar o primeiro dia para os demais
+                            </Button>
+                        )}
+                        <Button type="button" loading={salvando} onClick={salvar}>
+                            <span className="material-symbols-outlined text-[20px]">save</span>
+                            Salvar horários
+                        </Button>
+                    </div>
+                </div>
+            )}
+        </Secao>
+    );
+}
+
 export default function ParametrizacaoDatas() {
+    // Mudar o período do evento muda os dias da agenda dos turnos.
+    const [versaoEvento, setVersaoEvento] = useState(0);
+
     return (
         <AppShell>
             <Link to="/admin/parametrizacao" className="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary mb-3">
@@ -346,13 +500,15 @@ export default function ParametrizacaoDatas() {
             <h1 className="font-display text-2xl font-semibold text-primary mb-1">Datas e períodos</h1>
             <p className="text-on-surface-variant mb-8 max-w-3xl">
                 Todas as janelas da edição, na ordem em que a feira acontece. As horas são as de parede de
-                Campo Grande. Em regra, <strong>campo em branco deixa aquela ponta aberta</strong> — as duas
-                exceções (ajustes e credenciamento) estão avisadas na própria seção.
+                Campo Grande. Em regra, <strong>campo em branco deixa aquela ponta aberta</strong> — as
+                exceções (ajustes, credenciamento e os turnos da avaliação presencial) estão avisadas na
+                própria seção.
             </p>
 
             <SecaoInscricoes />
             <SecoesAvaliacao />
-            <SecaoEvento />
+            <SecaoEvento onSalvo={() => setVersaoEvento((v) => v + 1)} />
+            <SecaoTurnosPresenciais key={versaoEvento} />
         </AppShell>
     );
 }

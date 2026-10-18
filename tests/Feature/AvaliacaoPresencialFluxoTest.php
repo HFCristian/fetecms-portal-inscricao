@@ -7,8 +7,8 @@ use App\Enums\StatusAvaliacao;
 use App\Enums\TipoDocumento;
 use App\Models\Avaliacao;
 use App\Models\AvaliacaoPresencial;
+use App\Models\AvaliadorLiberacaoPresencial;
 use App\Models\AvaliadorProfile;
-use App\Models\AvaliadorTurnoPresencial;
 use App\Models\ChecagemEstande;
 use App\Models\Credenciamento;
 use App\Models\Edicao;
@@ -24,9 +24,10 @@ use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 /**
- * Avaliação presencial — lado do avaliador (Sprints 135 e 171): ele avalia no
- * estande durante um turno em que foi ativado na cabine, com a rubrica
- * presencial, o checklist dos itens da checagem e nota separada da online.
+ * Avaliação presencial — lado do avaliador (Sprints 135, 171 e 221): quem
+ * confirmou o presencial avalia no estande durante o turno em andamento — com
+ * ou sem designação, escolhendo pelo mapa —, com a rubrica presencial, o
+ * checklist dos itens da checagem e nota separada da online.
  */
 class AvaliacaoPresencialFluxoTest extends TestCase
 {
@@ -54,7 +55,7 @@ class AvaliacaoPresencialFluxoTest extends TestCase
         $this->edicao = Edicao::create([
             'nome' => 'XVI FETECMS', 'ano' => 2026, 'padrao' => true, 'inscricoes_abertas' => true,
             'evento_de' => '2026-10-20 07:00', 'evento_ate' => '2026-10-21 18:00',
-            'horarios_turnos' => ['A' => ['inicio' => '08:00', 'fim' => '12:00'], 'B' => ['inicio' => '13:30', 'fim' => '17:30']],
+            'agenda_presencial' => self::agendaPresencial(['A' => ['inicio' => '08:00', 'fim' => '12:00'], 'B' => ['inicio' => '13:30', 'fim' => '17:30']], '2026-10-20', '2026-10-21'),
             'presencial_fila_avaliador' => 3,
         ]);
         $this->lista = ListaFinal::create([
@@ -68,21 +69,16 @@ class AvaliacaoPresencialFluxoTest extends TestCase
         $this->projeto = $this->finalista('Bioplástico de mandioca');
     }
 
-    private function avaliadorPresencial(string $nome, bool $aceitou = true, bool $ativado = true): User
+    private function avaliadorPresencial(string $nome, bool $aceitou = true, bool $comissao = false, bool $liberado = true): User
     {
         $user = User::factory()->create(['role' => Role::Avaliador->value, 'name' => $nome]);
-        AvaliadorProfile::factory()->create(['user_id' => $user->id, 'presencial' => $aceitou]);
+        AvaliadorProfile::factory()->create(['user_id' => $user->id, 'presencial' => $aceitou, 'comissao_especial' => $comissao]);
 
-        if ($ativado && $aceitou) {
-            $this->ativar($user);
+        if ($aceitou && $liberado) {
+            AvaliadorLiberacaoPresencial::create(['edicao_id' => $this->edicao->id, 'user_id' => $user->id]);
         }
 
         return $user;
-    }
-
-    private function ativar(User $user, string $dia = self::DIA, string $turno = 'A'): void
-    {
-        AvaliadorTurnoPresencial::create(['edicao_id' => $this->edicao->id, 'user_id' => $user->id, 'dia' => $dia, 'turno' => $turno]);
     }
 
     private function finalista(string $titulo, string $turno = 'A', bool $pronto = true): Projeto
@@ -146,17 +142,52 @@ class AvaliacaoPresencialFluxoTest extends TestCase
             ->assertJsonCount(0, 'data.disponiveis');
     }
 
-    public function test_sem_ativacao_no_turno_a_aba_manda_procurar_a_cabine(): void
+    public function test_sem_cabine_quem_confirmou_ja_avalia_no_turno_em_andamento(): void
     {
-        Sanctum::actingAs($this->avaliadorPresencial('Bruno', ativado: false));
+        // Sprint 221: nenhuma ativação gravada, nenhuma designação.
+        Sanctum::actingAs($this->avaliadorPresencial('Bruno'));
+
+        $this->getJson('/api/v1/avaliador/presencial/avaliacoes')
+            ->assertOk()
+            ->assertJsonPath('data.aberto', true)
+            ->assertJsonPath('data.turno.chave', '2026-10-20|A')
+            ->assertJsonCount(0, 'data.minhas')
+            ->assertJsonCount(1, 'data.disponiveis');
+
+        $this->postJson("/api/v1/avaliador/presencial/avaliacoes/projetos/{$this->projeto->id}")
+            ->assertOk()->assertJsonPath('data.status', 'em_andamento');
+    }
+
+    public function test_sem_liberacao_da_organizacao_nao_avalia(): void
+    {
+        // Sprint 223: confirmou o presencial, mas a organização ainda não liberou.
+        Sanctum::actingAs($bruno = $this->avaliadorPresencial('Bruno', liberado: false));
 
         $this->getJson('/api/v1/avaliador/presencial/avaliacoes')
             ->assertOk()
             ->assertJsonPath('data.aberto', false)
-            ->assertJsonPath('data.motivo_fechado', 'O Turno A (matutino) está acontecendo: passe na cabine da avaliação para a organização ativar a sua participação neste turno.');
+            ->assertJsonPath('data.liberado', false)
+            ->assertJsonPath('data.motivo_fechado', 'Sua participação na avaliação presencial ainda não foi liberada pela organização: procure a equipe da avaliação presencial no evento.')
+            ->assertJsonPath('data.mapa.estandes.1.A.situacao', 'nao_liberado');
 
         $this->postJson("/api/v1/avaliador/presencial/avaliacoes/projetos/{$this->projeto->id}")
             ->assertStatus(422)->assertJsonValidationErrors('periodo');
+
+        // Liberado, avalia.
+        AvaliadorLiberacaoPresencial::create(['edicao_id' => $this->edicao->id, 'user_id' => $bruno->id]);
+        $this->postJson("/api/v1/avaliador/presencial/avaliacoes/projetos/{$this->projeto->id}")->assertOk();
+    }
+
+    public function test_revogada_a_liberacao_o_que_ele_abriu_vira_leitura(): void
+    {
+        Sanctum::actingAs($this->avaliador);
+        $id = $this->abrir($this->projeto);
+
+        AvaliadorLiberacaoPresencial::where('user_id', $this->avaliador->id)->delete();
+
+        $this->getJson("/api/v1/avaliador/presencial/avaliacoes/{$id}")->assertJsonPath('data.pode_escrever', false);
+        $this->postJson("/api/v1/avaliador/presencial/avaliacoes/{$id}/rascunho", ['respostas' => ['apresentacao' => 8]])
+            ->assertStatus(422);
     }
 
     public function test_fora_dos_turnos_a_aba_fica_fechada_com_o_proximo_turno(): void
@@ -172,7 +203,7 @@ class AvaliacaoPresencialFluxoTest extends TestCase
 
     public function test_sem_horario_dos_turnos_a_aba_explica(): void
     {
-        $this->edicao->update(['horarios_turnos' => null]);
+        $this->edicao->update(['agenda_presencial' => null]);
         Sanctum::actingAs($this->avaliador);
 
         $this->getJson('/api/v1/avaliador/presencial/avaliacoes')
@@ -205,6 +236,82 @@ class AvaliacaoPresencialFluxoTest extends TestCase
         $avaliacao = AvaliacaoPresencial::sole();
         $this->assertSame(self::DIA, $avaliacao->dia->toDateString());
         $this->assertFalse($avaliacao->designacao_manual);
+        $this->assertTrue($avaliacao->escolha_livre);
+    }
+
+    // --- O mapa --------------------------------------------------------------
+
+    public function test_o_mapa_mostra_cada_estande_e_o_que_o_avaliador_pode_fazer_nele(): void
+    {
+        $tarde = $this->finalista('Projeto da tarde', turno: 'B');      // estande 2
+        $montando = $this->finalista('Ainda montando', pronto: false);  // estande 3
+        Sanctum::actingAs($this->avaliador);
+
+        $mapa = $this->getJson('/api/v1/avaliador/presencial/avaliacoes')->assertOk()->json('data.mapa');
+
+        $this->assertSame('A', $mapa['turno_trabalho']);
+        $this->assertCount(230, $mapa['layout']);
+        $this->assertSame(['numero' => 1, 'x' => 0, 'y' => 0], $mapa['layout'][0]);
+        $this->assertSame('disponivel', $mapa['estandes']['1']['A']['situacao']);
+        $this->assertSame('Bioplástico de mandioca', $mapa['estandes']['1']['A']['titulo']);
+        $this->assertSame('fora_do_turno', $mapa['estandes']['2']['B']['situacao']);
+        $this->assertSame($tarde->id, $mapa['estandes']['2']['B']['projeto_id']);
+        $this->assertSame('nao_pronto', $mapa['estandes']['3']['A']['situacao']);
+        $this->assertSame($montando->id, $mapa['estandes']['3']['A']['projeto_id']);
+
+        // Clicou no estande e iniciou: o mapa passa a dizer "comigo".
+        $id = $this->abrir($this->projeto);
+        $this->getJson('/api/v1/avaliador/presencial/avaliacoes')
+            ->assertJsonPath('data.mapa.estandes.1.A.situacao', 'comigo')
+            ->assertJsonPath('data.mapa.estandes.1.A.avaliacao_id', $id);
+
+        $this->postJson("/api/v1/avaliador/presencial/avaliacoes/{$id}/concluir", $this->envio())->assertOk();
+        $this->getJson('/api/v1/avaliador/presencial/avaliacoes')
+            ->assertJsonPath('data.mapa.estandes.1.A.situacao', 'avaliado');
+    }
+
+    public function test_no_mapa_o_estande_com_o_maximo_aparece_completo_para_os_outros(): void
+    {
+        foreach (['Bruno' => false, 'Carla' => false, 'Diego' => true] as $nome => $comissao) {
+            Sanctum::actingAs($this->avaliadorPresencial($nome, comissao: $comissao));
+            $this->abrir($this->projeto);
+        }
+
+        Sanctum::actingAs($this->avaliador);
+
+        $this->getJson('/api/v1/avaliador/presencial/avaliacoes')
+            ->assertJsonPath('data.mapa.estandes.1.A.situacao', 'completo')
+            ->assertJsonPath('data.mapa.estandes.1.A.avaliacoes', 3);
+    }
+
+    public function test_estande_fora_da_planta_vem_a_parte(): void
+    {
+        $fora = $this->finalista('Estande do ensaio');
+        EstandeProjeto::where('projeto_id', $fora->id)->update(['numero' => 901]);
+        Sanctum::actingAs($this->avaliador);
+
+        $this->getJson('/api/v1/avaliador/presencial/avaliacoes')
+            ->assertJsonPath('data.mapa.fora_da_planta.0.numero', 901)
+            ->assertJsonPath('data.mapa.fora_da_planta.0.turno', 'A')
+            ->assertJsonPath('data.mapa.fora_da_planta.0.situacao', 'disponivel');
+    }
+
+    public function test_fora_do_turno_o_mapa_aparece_so_para_consulta(): void
+    {
+        $this->travelTo(now()->setDateTime(2026, 10, 20, 12, 45));
+        Sanctum::actingAs($this->avaliador);
+
+        $this->getJson('/api/v1/avaliador/presencial/avaliacoes')
+            ->assertJsonPath('data.aberto', false)
+            ->assertJsonPath('data.mapa.turno_trabalho', null)
+            ->assertJsonPath('data.mapa.estandes.1.A.situacao', 'fora_do_turno');
+    }
+
+    public function test_quem_nao_confirmou_o_presencial_nao_recebe_o_mapa(): void
+    {
+        Sanctum::actingAs($this->avaliadorPresencial('Bruno', aceitou: false));
+
+        $this->getJson('/api/v1/avaliador/presencial/avaliacoes')->assertJsonPath('data.mapa', null);
     }
 
     public function test_projeto_nao_checado_ou_de_outro_turno_nao_e_escolhido(): void
@@ -239,9 +346,8 @@ class AvaliacaoPresencialFluxoTest extends TestCase
         Sanctum::actingAs($this->avaliador);
         $id = $this->abrir($this->projeto);
 
-        // O turno A acabou e a margem também. Ativado à tarde, ele ainda não
-        // escreve no que era da manhã.
-        $this->ativar($this->avaliador, turno: 'B');
+        // O turno A acabou e a margem também. Com o turno B acontecendo, ele
+        // ainda não escreve no que era da manhã.
         $this->travelTo(now()->setDateTime(2026, 10, 20, 14, 0));
 
         $this->getJson('/api/v1/avaliador/presencial/avaliacoes')
@@ -250,7 +356,7 @@ class AvaliacaoPresencialFluxoTest extends TestCase
 
         $this->postJson("/api/v1/avaliador/presencial/avaliacoes/{$id}/rascunho", ['respostas' => ['apresentacao' => 8]])
             ->assertStatus(422)
-            ->assertJsonPath('errors.periodo.0', 'O prazo desta avaliação acabou com o turno (e os 30 minutos de margem).');
+            ->assertJsonPath('errors.periodo.0', 'O prazo desta avaliação acabou: o horário de avaliação do turno terminou.');
     }
 
     // --- A avaliação ---------------------------------------------------------
@@ -373,8 +479,8 @@ class AvaliacaoPresencialFluxoTest extends TestCase
 
     public function test_projeto_com_o_maximo_de_avaliacoes_sai_da_lista(): void
     {
-        foreach (['Bruno', 'Carla', 'Diego'] as $nome) {
-            Sanctum::actingAs($this->avaliadorPresencial($nome));
+        foreach (['Bruno' => false, 'Carla' => false, 'Diego' => true] as $nome => $comissao) {
+            Sanctum::actingAs($this->avaliadorPresencial($nome, comissao: $comissao));
             $this->abrir($this->projeto);
         }
 
@@ -384,6 +490,69 @@ class AvaliacaoPresencialFluxoTest extends TestCase
 
         $this->postJson("/api/v1/avaliador/presencial/avaliacoes/projetos/{$this->projeto->id}")
             ->assertStatus(422)->assertJsonValidationErrors('projeto');
+    }
+
+    public function test_escolha_livre_nao_repoe_fila_que_ninguem_distribuiu(): void
+    {
+        $this->finalista('Compostagem');
+        Sanctum::actingAs($this->avaliador);
+
+        $id = $this->abrir($this->projeto);
+        $this->postJson("/api/v1/avaliador/presencial/avaliacoes/{$id}/concluir", $this->envio())->assertOk();
+
+        // Escolheu no mapa e enviou: nenhuma designação nasce sozinha.
+        $this->assertSame(1, AvaliacaoPresencial::count());
+    }
+
+    // --- Vagas: comuns e da comissão especial (Sprint 222) --------------------
+
+    public function test_duas_vagas_comuns_e_uma_da_comissao(): void
+    {
+        foreach (['Bruno', 'Carla'] as $nome) {
+            Sanctum::actingAs($this->avaliadorPresencial($nome));
+            $this->abrir($this->projeto);
+        }
+
+        // As duas comuns tomadas: o terceiro comum fica de fora, mesmo com a
+        // vaga da comissão livre — e o mapa diz isso a ele.
+        Sanctum::actingAs($this->avaliador);
+        $this->getJson('/api/v1/avaliador/presencial/avaliacoes')
+            ->assertJsonCount(0, 'data.disponiveis')
+            ->assertJsonPath('data.mapa.estandes.1.A.situacao', 'completo');
+        $this->postJson("/api/v1/avaliador/presencial/avaliacoes/projetos/{$this->projeto->id}")
+            ->assertStatus(422)->assertJsonPath('errors.projeto.0', 'Este projeto já recebeu o número máximo de avaliações presenciais.');
+
+        // O da comissão ainda entra, na vaga dela.
+        Sanctum::actingAs($comissao = $this->avaliadorPresencial('Diana', comissao: true));
+        $this->getJson('/api/v1/avaliador/presencial/avaliacoes')
+            ->assertJsonPath('data.comissao', true)
+            ->assertJsonPath('data.vagas.peso_comite', 2)
+            ->assertJsonPath('data.mapa.estandes.1.A.situacao', 'disponivel');
+        $this->abrir($this->projeto);
+
+        $this->assertSame('comite', AvaliacaoPresencial::where('avaliador_id', $comissao->id)->sole()->vaga->value);
+        $this->assertSame(2, AvaliacaoPresencial::where('vaga', 'comum')->count());
+    }
+
+    public function test_da_comissao_com_a_vaga_dela_tomada_entra_numa_comum(): void
+    {
+        Sanctum::actingAs($this->avaliadorPresencial('Diana', comissao: true));
+        $this->abrir($this->projeto);
+
+        Sanctum::actingAs($segundo = $this->avaliadorPresencial('Edson', comissao: true));
+        $id = $this->abrir($this->projeto);
+
+        $this->getJson("/api/v1/avaliador/presencial/avaliacoes/{$id}")
+            ->assertJsonPath('data.vaga', 'comum')
+            ->assertJsonPath('data.vaga_label', 'Vaga comum');
+        $this->assertSame('comum', AvaliacaoPresencial::where('avaliador_id', $segundo->id)->sole()->vaga->value);
+
+        // Sobrou uma comum: um comum ainda entra; depois, mais ninguém.
+        Sanctum::actingAs($this->avaliadorPresencial('Bruno'));
+        $this->abrir($this->projeto);
+
+        Sanctum::actingAs($this->avaliadorPresencial('Fábio', comissao: true));
+        $this->postJson("/api/v1/avaliador/presencial/avaliacoes/projetos/{$this->projeto->id}")->assertStatus(422);
     }
 
     public function test_designada_pela_distribuicao_e_aberta_e_enviar_repoe_a_fila(): void
@@ -428,7 +597,7 @@ class AvaliacaoPresencialFluxoTest extends TestCase
 
     // --- Modo de teste -------------------------------------------------------
 
-    public function test_conta_demo_em_modo_de_teste_avalia_fora_do_turno_e_sem_ativacao(): void
+    public function test_conta_demo_em_modo_de_teste_avalia_fora_do_turno(): void
     {
         $this->travelTo(now()->setDateTime(2026, 10, 20, 6, 0)); // antes do primeiro turno
         $demo = User::factory()->create(['role' => Role::Avaliador->value, 'is_demo' => true]);

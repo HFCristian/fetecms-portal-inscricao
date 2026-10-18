@@ -8,7 +8,7 @@ use App\Enums\TipoDocumento;
 use App\Enums\Turno;
 use App\Models\Aluno;
 use App\Models\Area;
-use App\Models\AvaliadorTurnoPresencial;
+use App\Models\AvaliadorLiberacaoPresencial;
 use App\Models\ChecagemEstande;
 use App\Models\Credenciamento;
 use App\Models\Edicao;
@@ -32,9 +32,10 @@ use Illuminate\Support\Facades\Storage;
  * `avaliador@fetecms.test`: tudo que a aba "Avaliação presencial" e a
  * distribuição por turno precisam para serem testadas antes do evento.
  *
- * - o avaliador vira **conta demo** e **aceita** o presencial — é a marca demo
- *   que libera o "Modo de teste", que ignora o relógio do turno e a ativação
- *   na cabine;
+ * - o avaliador vira **conta demo**, **aceita** o presencial e fica **liberado**
+ *   para o evento — a marca demo libera o "Modo de teste", que ignora o relógio
+ *   do turno, e o aceite com a liberação o põem na distribuição do admin
+ *   (também em modo de teste);
  * - três projetos de mentira entram na **lista final de demonstração** (a
  *   mesma do `demo:credenciamento`, que corre em paralelo à oficial), já
  *   **credenciados** e com o estande **checado** — as duas condições para um
@@ -44,8 +45,6 @@ use Illuminate\Support\Facades\Storage;
  *   há pesquisa com pessoas, o TCLE/TALE —, em PDF fictício gerado na hora. Os
  *   três projetos passam por caminhos diferentes da rubrica (ver
  *   `database/data/demo/projetos-presenciais.php`);
- * - o avaliador fica **ativado** em todos os turnos que ainda não terminaram,
- *   para a distribuição do admin (também em modo de teste) alcançá-lo;
  * - o catálogo de itens da checagem ganha três itens, **só se estiver vazio**.
  *
  * Nada aqui toca em projeto, lista ou avaliador de verdade, e rodar duas vezes
@@ -97,9 +96,11 @@ class SemearAvaliacaoPresencialDemo extends Command
 
         $exemplos = require database_path(self::EXEMPLOS);
 
-        [$avaliador, $lista, $projetos, $ativados, $itens] = DB::transaction(function () use ($edicao, $janela, $turno, $exemplos) {
+        [$avaliador, $lista, $projetos, $itens] = DB::transaction(function () use ($edicao, $turno, $exemplos) {
             $itens = $this->semearItens();
             $avaliador = $this->avaliadorDemo();
+            // Liberado para o evento inteiro, como a organização faria (Sprint 223).
+            AvaliadorLiberacaoPresencial::firstOrCreate(['edicao_id' => $edicao->id, 'user_id' => $avaliador->id]);
             $orientador = $this->orientadorDemo();
             $lista = $this->listaDemo($edicao);
             $projetos = [];
@@ -108,10 +109,10 @@ class SemearAvaliacaoPresencialDemo extends Command
                 $projetos[] = $this->projetoPronto($orientador, $edicao, $lista, $exemplo, $turno, $i);
             }
 
-            return [$avaliador, $lista, $projetos, $this->ativar($avaliador, $edicao, $janela), $itens];
+            return [$avaliador, $lista, $projetos, $itens];
         });
 
-        $this->components->info("Avaliador demo: {$avaliador->email} (aceitou o presencial, modo de teste liberado)");
+        $this->components->info("Avaliador demo: {$avaliador->email} (aceitou o presencial, liberado para o evento, modo de teste liberado)");
         $this->components->info("Lista de demonstração: #{$lista->id} — {$lista->nome}");
 
         // Os PDFs saem depois da transação: o motor leva alguns segundos, e
@@ -123,10 +124,9 @@ class SemearAvaliacaoPresencialDemo extends Command
             $this->line("  <fg=gray>Cenário: {$exemplos[$i]['cenario']}</>");
         }
 
-        $this->components->twoColumnDetail(
-            'Turnos ativados',
-            $ativados > 0 ? "{$ativados} turno(s) da agenda" : 'nenhum — defina as datas do evento e o horário dos turnos',
-        );
+        if ($foco === null) {
+            $this->components->warn('Sem agenda de turnos: defina as datas do evento e o horário dos turnos para avaliar fora do modo de teste.');
+        }
 
         if ($itens > 0) {
             $this->components->info("Catálogo de itens da checagem vazio: {$itens} item(ns) padrão criados.");
@@ -134,7 +134,7 @@ class SemearAvaliacaoPresencialDemo extends Command
 
         $this->newLine();
         $this->line("Entre como <options=bold>{$avaliador->email}</>, abra <options=bold>Avaliação presencial</> e ligue o");
-        $this->line('<options=bold>Modo de teste</>: os três estandes aparecem para avaliar, sem esperar o turno.');
+        $this->line('<options=bold>Modo de teste</>: os três estandes aparecem no mapa e na lista, sem esperar o turno.');
         $this->line('Para ensaiar a distribuição, entre com um <options=bold>admin em modo demo</> e abra');
         $this->line('Avaliação presencial → <options=bold>Distribuição presencial</> com o Modo de teste ligado.');
 
@@ -332,34 +332,6 @@ class SemearAvaliacaoPresencialDemo extends Command
                 ['turno' => $turno, 'numero' => $numero, 'regra' => 'demo', 'manual' => true],
             );
         }
-    }
-
-    /** Ativa o avaliador em todos os turnos da agenda que ainda não terminaram. */
-    private function ativar(User $avaliador, Edicao $edicao, JanelaTurnos $janela): int
-    {
-        $ativados = 0;
-
-        foreach ($janela->ocorrencias() as $o) {
-            if ($o['situacao'] === 'encerrado') {
-                continue;
-            }
-
-            // A data é gravada com hora no SQLite: a busca precisa ser por dia.
-            $existe = AvaliadorTurnoPresencial::where('edicao_id', $edicao->id)
-                ->where('user_id', $avaliador->id)
-                ->whereDate('dia', $o['dia'])
-                ->where('turno', $o['turno'])
-                ->exists();
-
-            if (! $existe) {
-                AvaliadorTurnoPresencial::create([
-                    'edicao_id' => $edicao->id, 'user_id' => $avaliador->id, 'dia' => $o['dia'], 'turno' => $o['turno'],
-                ]);
-            }
-            $ativados++;
-        }
-
-        return $ativados;
     }
 
     /** O checklist do avaliador sai deste catálogo; sem ele, o passo some. */

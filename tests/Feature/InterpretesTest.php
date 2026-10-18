@@ -65,7 +65,7 @@ class InterpretesTest extends TestCase
             'nome' => 'XVI FETECMS', 'ano' => 2026, 'padrao' => true, 'inscricoes_abertas' => true,
             'evento_de' => '2026-10-20 07:00:00',
             'evento_ate' => '2026-10-21 19:00:00',
-            'horarios_turnos' => ['A' => ['inicio' => '08:00', 'fim' => '12:00'], 'B' => ['inicio' => '13:00', 'fim' => '17:00']],
+            'agenda_presencial' => self::agendaPresencial(['A' => ['inicio' => '08:00', 'fim' => '12:00'], 'B' => ['inicio' => '13:00', 'fim' => '17:00']], '2026-10-20', '2026-10-21'),
             'estandes_gerados_em' => now(),
         ]);
 
