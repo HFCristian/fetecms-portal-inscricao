@@ -8,7 +8,6 @@ use App\Models\Avaliacao;
 use App\Models\AvaliacaoPresencial;
 use App\Models\Edicao;
 use App\Models\EstandeProjeto;
-use App\Models\ItemConferencia;
 use App\Models\ListaFinal;
 use App\Models\MapaLayout;
 use App\Models\Projeto;
@@ -44,9 +43,10 @@ use Illuminate\Validation\ValidationException;
  * do turno é margem, para terminar o que se abriu — nada novo começa nela.
  *
  * A avaliação segue o modelo da online (Sprint 171): um passo por seção da
- * rubrica presencial, balão de orientação, leitura do projeto, rascunho a
- * qualquer momento — e um passo a mais, o **checklist dos itens da checagem**
- * (banner, diário de bordo…), marcado presente/ausente e **sem nota**.
+ * rubrica presencial, balão de orientação, leitura do projeto e rascunho a
+ * qualquer momento. O checklist dos itens do estande que abria o wizard saiu
+ * (Sprint 237): o que o estande tem é conferido na checagem, pela organização,
+ * e a coluna `itens_conferidos` fica só com o que foi marcado antes disso.
  *
  * A nota é **separada** da avaliação online: alimenta a premiação, não o
  * ranking que definiu a lista final.
@@ -134,7 +134,6 @@ class AvaliacaoPresencialFluxoService
             'is_demo' => (bool) $avaliador->is_demo,
             'turno' => $turno,
             'rubrica' => RubricaPresencial::paraApi(),
-            'itens' => $this->catalogo(),
             'max_por_projeto' => $janela->porProjeto(),
             // As vagas de cada projeto e o peso da comissão (Sprint 222): quem é
             // da comissão precisa saber que pesa mais — e quando não pesa.
@@ -257,7 +256,6 @@ class AvaliacaoPresencialFluxoService
             'status' => StatusAvaliacao::EmAndamento,
             'iniciada_em' => $avaliacao->iniciada_em ?? now(),
             'respostas' => $this->limparRespostas($dados['respostas'] ?? []),
-            'itens_conferidos' => $this->limparItens($dados['itens'] ?? []),
             'comentario' => $dados['comentario'] ?? null,
         ])->save();
 
@@ -286,7 +284,6 @@ class AvaliacaoPresencialFluxoService
         $this->garantirEscrita($avaliacao, $avaliador, $modoTeste, JanelaTurnos::daEdicao());
 
         $respostas = $this->limparRespostas($dados['respostas'] ?? []);
-        $itens = $this->limparItens($dados['itens'] ?? []);
 
         // Só as perguntas que se aplicam: sem diário manuscrito, a 3.2 some.
         if (RubricaPresencial::pendentes($respostas) !== []) {
@@ -295,16 +292,9 @@ class AvaliacaoPresencialFluxoService
             ]);
         }
 
-        if (array_diff(array_column($this->catalogo(), 'id'), array_keys($itens)) !== []) {
-            throw ValidationException::withMessages([
-                'itens' => 'Marque cada item do estande como presente ou ausente antes de enviar.',
-            ]);
-        }
-
-        DB::transaction(function () use ($avaliacao, $respostas, $itens, $dados) {
+        DB::transaction(function () use ($avaliacao, $respostas, $dados) {
             $avaliacao->forceFill([
                 'respostas' => $respostas,
-                'itens_conferidos' => $itens,
                 'comentario' => $dados['comentario'] ?? null,
                 // A nota é calculada no servidor: o front só desenha a rubrica.
                 'nota' => RubricaPresencial::nota($respostas),
@@ -326,7 +316,7 @@ class AvaliacaoPresencialFluxoService
 
     /**
      * Uma avaliação aberta para responder (ou reler): o projeto inteiro, a
-     * rubrica, o checklist e o prazo.
+     * rubrica e o prazo.
      *
      * @return array<string, mixed>
      */
@@ -350,7 +340,6 @@ class AvaliacaoPresencialFluxoService
             // Enviada com a rubrica antes do documento de 2026: a nota vale, as
             // respostas não casam com as perguntas de agora.
             'rubrica_anterior' => RubricaPresencial::deOutraRubrica($avaliacao->respostas),
-            'itens' => (object) ($avaliacao->itens_conferidos ?? []),
             'comentario' => $avaliacao->comentario,
             'vaga' => $avaliacao->vaga?->value,
             'vaga_label' => $avaliacao->vaga?->label(),
@@ -768,25 +757,6 @@ class AvaliacaoPresencialFluxoService
         return $avaliacao->prazo($janela)?->format('d/m H:i');
     }
 
-    /**
-     * O catálogo da checagem de estandes, ativo — o checklist do avaliador.
-     *
-     * @return list<array{id: int, nome: string, descricao: ?string}>
-     */
-    private function catalogo(): array
-    {
-        // Os itens da checagem que são do projeto (a lista única, Sprint 181):
-        // o avaliador no estande não confere documento de cada pessoa, nem o
-        // que o orientador manda antes pelo portal — isso é da organização.
-        return ItemConferencia::naChecagem()
-            ->where('abrangencia', ItemConferencia::PROJETO)
-            ->where('receber_antes', false)
-            ->get(['id', 'nome', 'descricao'])
-            ->map(fn (ItemConferencia $i) => ['id' => $i->id, 'nome' => $i->nome, 'descricao' => $i->descricao])
-            ->values()
-            ->all();
-    }
-
     /** @return array<string, mixed> */
     private function local(int $projetoId): array
     {
@@ -809,26 +779,6 @@ class AvaliacaoPresencialFluxoService
     private function limparRespostas(array $respostas): array
     {
         return RubricaPresencial::normalizar($respostas);
-    }
-
-    /**
-     * Só itens do catálogo ativo, e só presente/ausente.
-     *
-     * @param  array<int|string, mixed>  $itens
-     * @return array<int, string>
-     */
-    private function limparItens(array $itens): array
-    {
-        $validos = array_column($this->catalogo(), 'id');
-        $limpos = [];
-
-        foreach ($itens as $id => $situacao) {
-            if (in_array((int) $id, $validos, true) && in_array($situacao, ['presente', 'ausente'], true)) {
-                $limpos[(int) $id] = $situacao;
-            }
-        }
-
-        return $limpos;
     }
 
     private function garantirAberto(User $avaliador, bool $teste): void

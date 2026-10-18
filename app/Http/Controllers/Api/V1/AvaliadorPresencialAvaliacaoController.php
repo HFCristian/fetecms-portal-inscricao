@@ -80,8 +80,6 @@ class AvaliadorPresencialAvaliacaoController extends Controller
     {
         return $request->validate([
             'respostas' => ['nullable', 'array'],
-            // Checklist dos itens da checagem: { item_id: presente | ausente }.
-            'itens' => ['nullable', 'array'],
             'comentario' => ['nullable', 'string', 'max:2000'],
         ]);
     }

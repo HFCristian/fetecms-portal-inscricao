@@ -168,46 +168,27 @@ function LeituraDoProjeto({ projeto, prazo }) {
     );
 }
 
-/** Checklist dos itens da checagem: presente/ausente, sem nota. */
-function Itens({ itens, marcados, onMarcar, somenteLeitura }) {
-    return (
-        <ul className="space-y-2">
-            {itens.map((item) => (
-                <li key={item.id} className="rounded-xl border border-outline-variant/40 p-3">
-                    <p className="text-sm font-semibold text-on-surface">{item.nome} <span className="text-error">*</span></p>
-                    {item.descricao && <p className="text-xs text-on-surface-variant">{item.descricao}</p>}
-                    <div className="flex gap-3 mt-2" role="radiogroup" aria-label={item.nome}>
-                        {[['presente', 'Presente'], ['ausente', 'Ausente']].map(([valor, rotulo]) => (
-                            <label key={valor} className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm cursor-pointer ${
-                                marcados[item.id] === valor
-                                    ? 'border-primary-container bg-primary-fixed/60 text-primary-container'
-                                    : 'border-outline-variant text-on-surface-variant'
-                            }`}>
-                                <input
-                                    type="radio"
-                                    name={`item-${item.id}`}
-                                    checked={marcados[item.id] === valor}
-                                    disabled={somenteLeitura}
-                                    onChange={() => onMarcar(item.id, valor)}
-                                    aria-label={`${item.nome}: ${rotulo}`}
-                                />
-                                {rotulo}
-                            </label>
-                        ))}
-                    </div>
-                </li>
-            ))}
-        </ul>
-    );
-}
+/**
+ * Cor do atalho de uma seção no topo do wizard (Sprint 237). Só pinta a seção
+ * por onde o avaliador já passou: verde se está completa, amarela se ficou
+ * pergunta sem resposta. A que ele ainda não abriu fica neutra, e a aberta
+ * agora tem o destaque de sempre.
+ */
+const CORES_ATALHO = {
+    atual: 'border-primary-container bg-primary-fixed/60 text-primary-container',
+    completa: 'border-secondary/50 bg-secondary-container/60 text-on-secondary-container',
+    pendente: 'border-yellow-300 bg-yellow-100 text-yellow-900',
+    neutra: 'border-outline-variant text-on-surface-variant hover:bg-surface-variant/40',
+};
+
+const ROTULO_SITUACAO = { completa: ' (completa)', pendente: ' (falta responder)' };
 
 /**
  * A avaliação **presencial**, no molde da online (Sprint 171): o avaliador lê o
  * projeto, inicia e responde a rubrica do estande **um passo por seção**, com o
  * balão de orientação em cada pergunta, a nota parcial no rodapé e o rascunho a
- * qualquer momento. O passo a mais é o **checklist dos itens da checagem**
- * (banner, diário de bordo…): presente ou ausente, sem nota — e, desde a
- * Sprint 221, é o **primeiro** passo.
+ * qualquer momento. Os itens do estande (banner, diário de bordo…) não entram:
+ * desde a Sprint 237 eles ficam só na checagem, que é da organização.
  *
  * A rubrica é a do documento de 2026 (`RubricaPresencial`): perguntas em escala
  * e de Sim/Não, condicionais que só aparecem depois do "Sim" e perguntas sem
@@ -217,11 +198,10 @@ function Itens({ itens, marcados, onMarcar, somenteLeitura }) {
  * liberação da organização —, a avaliação abre só para leitura.
  */
 export default function AvaliacaoPresencialModal({
-    avaliacao: inicial, rubrica, itens = [], teste = false, onAtualizado, onFechar, api = API,
+    avaliacao: inicial, rubrica, teste = false, onAtualizado, onFechar, api = API,
 }) {
     const [av, setAv] = useState(inicial);
     const [respostas, setRespostas] = useState(inicial.respostas ?? {});
-    const [marcados, setMarcados] = useState(inicial.itens ?? {});
     const [comentario, setComentario] = useState(inicial.comentario ?? '');
     const [passo, setPasso] = useState(0);
     const [projetoAberto, setProjetoAberto] = useState(inicial.status !== 'em_andamento');
@@ -231,36 +211,40 @@ export default function AvaliacaoPresencialModal({
     const [confirm, dialogo] = useConfirm();
     const topo = useRef(null);
 
-    // O checklist (se houver catálogo) abre a visita — é o que se confere ao
-    // chegar no estande —, depois as seções pontuadas e o parecer no fim.
+    // As seções pontuadas, e o parecer no fim.
     const passos = useMemo(() => {
         const secoes = rubrica?.secoes ?? [];
-        const pontuadas = secoes.filter((s) => s.perguntas.length > 0);
-        const parecer = secoes.filter((s) => s.perguntas.length === 0);
-        const checklist = itens.length > 0
-            ? [{ chave: 'itens', titulo: 'Itens do estande', icone: 'checklist', componente: 'itens',
-                ajuda: 'O que a checagem pediu em cada estande. Marque o que você encontrou na visita — não vale nota.', perguntas: [] }]
-            : [];
-        return [...checklist, ...pontuadas, ...parecer];
-    }, [rubrica, itens]);
+        return [...secoes.filter((s) => s.perguntas.length > 0), ...secoes.filter((s) => s.perguntas.length === 0)];
+    }, [rubrica]);
+
+    // As seções por onde o avaliador já passou. Retomando um rascunho, conta
+    // como visitada a que já tem alguma resposta.
+    const [visitados, setVisitados] = useState(() => new Set(passos
+        .map((s, i) => (s.perguntas.some((p) => respondida(inicial.respostas?.[p.chave])) ? i : null))
+        .filter((i) => i !== null)));
 
     const perguntas = passos.flatMap((s) => s.perguntas);
     // Só as que se aplicam contam: sem diário manuscrito, a 3.2 não é cobrada.
     const ativas = perguntas.filter((p) => aplicavel(p, respostas));
     const respondidas = ativas.filter((p) => respondida(respostas[p.chave])).length;
-    const itensFeitos = itens.every((i) => marcados[i.id]);
-    const completa = respondidas === ativas.length && itensFeitos;
+    const completa = respondidas === ativas.length;
     const total = notaParcial(perguntas, respostas);
     const notaMaxima = rubrica?.nota_maxima ?? 10;
     const secao = passos[Math.min(passo, passos.length - 1)];
     const ultimo = passo >= passos.length - 1;
     const editavel = av.pode_escrever && av.status === 'em_andamento';
 
-    const feita = (s) => (s.componente === 'itens'
-        ? itensFeitos
-        : s.perguntas.filter((p) => aplicavel(p, respostas)).every((p) => respondida(respostas[p.chave])));
+    const feita = (s) => s.perguntas.filter((p) => aplicavel(p, respostas)).every((p) => respondida(respostas[p.chave]));
+
+    const situacao = (s, i) => {
+        if (i === passo) return 'atual';
+        if (!visitados.has(i)) return 'neutra';
+        return feita(s) ? 'completa' : 'pendente';
+    };
 
     function irPara(i) {
+        // Sair de uma seção é o que a marca como visitada.
+        setVisitados((v) => (v.has(passo) ? v : new Set(v).add(passo)));
         setPasso(i);
         topo.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
     }
@@ -269,7 +253,6 @@ export default function AvaliacaoPresencialModal({
     const payload = () => ({
         respostas: Object.fromEntries(Object.entries(respostas)
             .filter(([chave]) => ativas.some((p) => p.chave === chave))),
-        itens: marcados,
         comentario: comentario.trim() || null,
     });
 
@@ -340,20 +323,21 @@ export default function AvaliacaoPresencialModal({
                         <section className="pt-2 space-y-3" ref={topo}>
                             <h4 className="font-display text-primary font-semibold border-b border-surface-variant pb-2">Avaliação</h4>
                             <nav aria-label="Seções da avaliação" className="flex gap-1.5 overflow-x-auto pb-1">
-                                {passos.map((s, i) => (
-                                    <button key={s.chave} type="button" onClick={() => irPara(i)} aria-label={`Ir para ${s.titulo}`}
-                                        aria-current={i === passo ? 'step' : undefined}
-                                        className={`shrink-0 inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors ${
-                                            i === passo
-                                                ? 'border-primary-container bg-primary-fixed/60 text-primary-container'
-                                                : 'border-outline-variant text-on-surface-variant hover:bg-surface-variant/40'
-                                        }`}>
-                                        <span className="material-symbols-outlined text-[16px]">
-                                            {s.perguntas.length > 0 || s.componente === 'itens' ? (feita(s) ? 'check_circle' : s.icone) : s.icone}
-                                        </span>
-                                        {s.titulo}
-                                    </button>
-                                ))}
+                                {passos.map((s, i) => {
+                                    const cor = situacao(s, i);
+                                    return (
+                                        <button key={s.chave} type="button" onClick={() => irPara(i)}
+                                            aria-label={`Ir para ${s.titulo}${ROTULO_SITUACAO[cor] ?? ''}`}
+                                            aria-current={i === passo ? 'step' : undefined}
+                                            data-situacao={cor}
+                                            className={`shrink-0 inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors ${CORES_ATALHO[cor]}`}>
+                                            <span className="material-symbols-outlined text-[16px]">
+                                                {s.perguntas.length > 0 && feita(s) ? 'check_circle' : s.icone}
+                                            </span>
+                                            {s.titulo}
+                                        </button>
+                                    );
+                                })}
                             </nav>
 
                             <div className="flex items-start justify-between gap-2">
@@ -384,11 +368,6 @@ export default function AvaliacaoPresencialModal({
                                     // Ainda sem a resposta de origem, a condicional só fica escondida.
                                     return respondida(respostas[p.condicao.pergunta]) ? <NaoSeAplica key={p.chave} pergunta={p} /> : null;
                                 })}
-
-                                {secao.componente === 'itens' && (
-                                    <Itens itens={itens} marcados={marcados} somenteLeitura={!editavel}
-                                        onMarcar={(id, v) => { setAviso(''); setMarcados((m) => ({ ...m, [id]: v })); }} />
-                                )}
 
                                 {secao.componente === 'comentarios' && (
                                     <div className="rounded-xl border border-outline-variant/40 p-4">
@@ -441,16 +420,6 @@ export default function AvaliacaoPresencialModal({
                                     ))}
                                 </>
                             )}
-                            {itens.length > 0 && (
-                                <div className="rounded-xl border border-outline-variant/40 p-3 text-sm">
-                                    <p className="font-semibold text-on-surface">Itens do estande</p>
-                                    {itens.map((i) => (
-                                        <p key={i.id} className="text-on-surface-variant">
-                                            {i.nome} — <strong className="text-on-surface">{av.itens?.[i.id] === 'presente' ? 'Presente' : av.itens?.[i.id] === 'ausente' ? 'Ausente' : '—'}</strong>
-                                        </p>
-                                    ))}
-                                </div>
-                            )}
                             {av.comentario && (
                                 <div className="rounded-xl border border-outline-variant/40 p-3 text-sm">
                                     <p className="font-semibold text-on-surface">Parecer</p>
@@ -483,7 +452,7 @@ export default function AvaliacaoPresencialModal({
                                 <span className="text-on-surface-variant/70"> de {formatar(notaMaxima)}</span>
                                 <span className="block text-xs">
                                     {respondidas} de {perguntas.length} perguntas respondidas
-                                    {!completa && ' — responda todas e marque os itens para enviar'}
+                                    {!completa && ' — responda todas para enviar'}
                                 </span>
                             </p>
                             <div className="flex items-center gap-3 flex-wrap">

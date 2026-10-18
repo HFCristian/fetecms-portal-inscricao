@@ -432,7 +432,6 @@ export default function AvaliadorAvaliacaoPresencial() {
                     key={aberta.id}
                     avaliacao={aberta}
                     rubrica={painel.rubrica}
-                    itens={painel.itens}
                     teste={modoTeste}
                     onAtualizado={carregar}
                     onFechar={() => { setAberta(null); carregar(); }}

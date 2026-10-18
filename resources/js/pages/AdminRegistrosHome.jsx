@@ -82,7 +82,7 @@ export default function AdminRegistrosHome() {
                     to="/admin/registros/notas"
                     icon="scoreboard"
                     titulo="Notas"
-                    descricao="Quem abriu a nota que um avaliador deu a um projeto, quando e qual era o valor."
+                    descricao="Quem abriu a nota que um avaliador deu a um projeto, quando e qual era o valor — e as avaliações presenciais excluídas."
                 />
                 <CardSecao
                     to="/admin/registros/mapa"

@@ -131,6 +131,16 @@ export const retirarDesignacaoPresencial = (id, ocorrencia = {}, teste = false) 
 export const getRankingPresencial = (filtros = {}, teste = false) =>
     http.get('/admin/presencial/ranking', com(filtros, teste)).then((r) => r.data.data);
 
+// Ver avaliações (Sprint 237): POST porque abrir fica registrado em Registros →
+// Notas. Excluir pede a justificativa e devolve a tela do projeto sem ela.
+
+export const getAvaliacoesRankingPresencial = (projetoId, teste = false) =>
+    http.post(`/admin/presencial/ranking/projetos/${projetoId}/avaliacoes`, corpo({}, teste)).then((r) => r.data.data);
+
+export const excluirAvaliacaoPresencial = (avaliacaoId, justificativa, teste = false) =>
+    http.post(`/admin/presencial/ranking/avaliacoes/${avaliacaoId}/excluir`, corpo({ justificativa }, teste))
+        .then((r) => r.data);
+
 // --- Agenda da avaliação presencial (Sprint 224) -----------------------------
 // Parametrização → Datas e períodos: o horário de cada turno e o da avaliação,
 // dia a dia. `agenda` é { "Y-m-d": { A: {inicio, fim, avaliacao_inicio,
