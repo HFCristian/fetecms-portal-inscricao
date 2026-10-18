@@ -995,23 +995,24 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 218 | Credenciamento → **Etiquetas avulsas**: lista final, avaliadores (`V`), intérpretes, voluntários (`T`) e personalizada, a partir da posição da folha | ✅ sim | ✅ sim (Pedro, PR #112 → v1.34) | 0 |
 | 219 | Avaliação presencial: **rubrica do documento de 2026** (14 seções, Sim/Não e escala, condicionais, sem valor, nota com 4 casas) + sinal de ética ao admin | ✅ sim | ✅ sim (Pedro, PR #113 → v1.35) | 0 |
 | 220 | `demo:avaliacao-presencial`: **documentos em PDF** (projeto, diário, pasta, banner, TCLE/TALE) e três cenários da rubrica | ✅ sim | ✅ sim (Pedro, PR #113 → v1.35) | 0 |
-| 221 | Avaliação presencial **sem cabine e sem designação obrigatória** (mapa: turno → estande → iniciar) + rubrica sem a seção de ética, 2.2 condicional e checklist como 1º passo | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 222 | Vagas presenciais por projeto: **2 comuns + 1 da comissão** (configuráveis), **peso 2** da comissão e o **Ranking presencial** | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 223 | Avaliação presencial → **Validação de avaliadores**: liberar (em lote) para o evento inteiro, obrigatório para avaliar e ser distribuído | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 224 | Datas e períodos → **turnos da avaliação presencial**: horário de cada turno e da avaliação, dia a dia | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 225 | Aba Presencial do avaliador: marcar "quero ser presencial" **sem trava de data** (desistir devolve o designado) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 221 | Avaliação presencial **sem cabine e sem designação obrigatória** (mapa: turno → estande → iniciar) + rubrica sem a seção de ética, 2.2 condicional e checklist como 1º passo | ✅ sim | ✅ sim (Pedro, PR #114 → v1.36) | 0 |
+| 222 | Vagas presenciais por projeto: **2 comuns + 1 da comissão** (configuráveis), **peso 2** da comissão e o **Ranking presencial** | ✅ sim | ✅ sim (Pedro, PR #114 → v1.36) | 0 |
+| 223 | Avaliação presencial → **Validação de avaliadores**: liberar (em lote) para o evento inteiro, obrigatório para avaliar e ser distribuído | ✅ sim | ✅ sim (Pedro, PR #114 → v1.36) | 0 |
+| 224 | Datas e períodos → **turnos da avaliação presencial**: horário de cada turno e da avaliação, dia a dia | ✅ sim | ✅ sim (Pedro, PR #114 → v1.36) | 0 |
+| 225 | Aba Presencial do avaliador: marcar "quero ser presencial" **sem trava de data** (desistir devolve o designado) | ✅ sim | ✅ sim (Pedro, PR #115 → v1.37) | 0 |
 | 226 | Mapa em tela cheia → Checagem: estande **checado sem credenciamento** em amarelo | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
-> **Sprint 226 (mesma branch):** na visualização **Checagem** do mapa em tela cheia, o estande
+> **Sprint 226 (branch `feat/mapa-checagem-sem-credenciamento`, saída da `origin/main` @ `920a2b5`):** na visualização **Checagem** do mapa em tela cheia, o estande
 > checado **sem ter passado pelo credenciamento** deixou de ficar verde e passou a **amarelo**
 > (`lib/mapaTelaCheia.js`, texto escuro sobre ele), com um item próprio na legenda — "Checado sem
 > credenciamento" e quantos estandes estão assim. Verde ficou para checado **e** credenciado. As
 > visualizações Credenciamento e Avaliação, a cor de situação fora da tela cheia e o servidor não
 > mudaram. Front **850/850**, build OK.
 >
-> **Pendências do Pedro (Sprint 226):** vai no mesmo push da 225. Sem migration, `.env` ou dependência.
+> **Pendências do Pedro (Sprint 226):** `git push origin feat/mapa-checagem-sem-credenciamento` + PR
+> para a `main`. Sem migration, `.env` ou dependência nova.
 >
-> **Sprint 225 (mesma branch):** o avaliador online que decide avaliar presencialmente marca "sim" na
+> **Sprint 225 (branch `feat/presencial-sem-trava-de-data`, já na `main` pelo PR #115 → v1.37):** o avaliador online que decide avaliar presencialmente marca "sim" na
 > aba **Presencial** **a qualquer momento** — antes a resposta travava quando o evento começava
 > ("fale com a organização"). Como avaliar depende da **liberação** (Sprint 223), marcar "sim" no
 > meio do evento não dá acesso sozinho: põe o avaliador na Validação de avaliadores, e a resposta
@@ -1021,7 +1022,7 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > Presencial, que não tem mais data a ignorar. Sem migration.
 > Back **1568/1568**, front **849/849**, Pint limpo, build OK.
 >
-> **Sprint 224 (mesma branch):** o horário da avaliação presencial passou a ser parametrizado **por
+> **Sprint 224 (branch `feat/presencial-mapa-e-vagas`, já na `main` pelo PR #114):** o horário da avaliação presencial passou a ser parametrizado **por
 > dia × turno**, com uma **janela própria de avaliação**. `edicoes.horarios_turnos` (um horário por
 > turno, igual todo dia, avaliação até o fim + 30 min fixos) deu lugar a `edicoes.agenda_presencial`:
 > cada dia do evento, cada turno com o horário **do turno** (a equipe no estande) e o **da
@@ -1090,8 +1091,8 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > posição. A tela do avaliador da comissão explica a vaga e o peso.
 > Back **1552/1552**, front **837/837**, Pint limpo, build OK.
 >
-> **Pendências do Pedro (Sprints 221–222):** (1) `git push origin feat/presencial-mapa-e-vagas` + PR
-> para a `main`. **Duas migrations** (a que apaga `avaliador_turnos_presenciais` — as ativações já
+> **Pendências do Pedro (Sprints 221–222):** (1) ~~push + PR~~ — **entrou na `main` pelo PR #114**
+> (v1.36). **Duas migrations** (a que apaga `avaliador_turnos_presenciais` — as ativações já
 > feitas somem — e a das vagas, que troca `edicoes.presencial_por_projeto` pelos três campos),
 > **nenhuma variável de `.env`** e **nenhuma dependência nova**. (2) Depois do deploy, confira as
 > vagas em Avaliação presencial → Distribuição presencial: quem tinha mudado o teto de 3 volta ao
