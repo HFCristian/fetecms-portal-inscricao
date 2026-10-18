@@ -1000,7 +1000,17 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 223 | Avaliação presencial → **Validação de avaliadores**: liberar (em lote) para o evento inteiro, obrigatório para avaliar e ser distribuído | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 224 | Datas e períodos → **turnos da avaliação presencial**: horário de cada turno e da avaliação, dia a dia | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 225 | Aba Presencial do avaliador: marcar "quero ser presencial" **sem trava de data** (desistir devolve o designado) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 226 | Mapa em tela cheia → Checagem: estande **checado sem credenciamento** em amarelo | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprint 226 (mesma branch):** na visualização **Checagem** do mapa em tela cheia, o estande
+> checado **sem ter passado pelo credenciamento** deixou de ficar verde e passou a **amarelo**
+> (`lib/mapaTelaCheia.js`, texto escuro sobre ele), com um item próprio na legenda — "Checado sem
+> credenciamento" e quantos estandes estão assim. Verde ficou para checado **e** credenciado. As
+> visualizações Credenciamento e Avaliação, a cor de situação fora da tela cheia e o servidor não
+> mudaram. Front **850/850**, build OK.
+>
+> **Pendências do Pedro (Sprint 226):** vai no mesmo push da 225. Sem migration, `.env` ou dependência.
+>
 > **Sprint 225 (mesma branch):** o avaliador online que decide avaliar presencialmente marca "sim" na
 > aba **Presencial** **a qualquer momento** — antes a resposta travava quando o evento começava
 > ("fale com a organização"). Como avaliar depende da **liberação** (Sprint 223), marcar "sim" no
