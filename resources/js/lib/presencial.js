@@ -141,3 +141,12 @@ export const getAgendaPresencial = () =>
 
 export const salvarAgendaPresencial = (agenda) =>
     http.put('/admin/agenda-presencial', { agenda }).then((r) => r.data);
+
+// --- Parametrização → Avaliação presencial (Sprint 234) ---------------------
+// A regra do comitê especial: avaliar apenas os projetos designados.
+
+export const getParametrizacaoPresencial = () =>
+    http.get('/admin/parametrizacao/presencial').then((r) => r.data.data);
+
+export const salvarParametrizacaoPresencial = (comiteSoDesignados) =>
+    http.put('/admin/parametrizacao/presencial', { comite_so_designados: comiteSoDesignados }).then((r) => r.data);

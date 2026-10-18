@@ -74,6 +74,18 @@ export function retirarDesignacoesComite(avaliadorId, ids) {
     }).then((r) => r.data);
 }
 
+// --- Pedidos de permissão do comitê (Sprint 234) -----------------------------
+//
+// Com a regra "avaliar apenas projetos designados" ligada, o avaliador da
+// comissão pede para avaliar fora das designações; a organização decide aqui.
+
+/** `situacao`: 'pendente', 'decididos' ou vazio (todos). Devolve { data, meta }. */
+export const getPermissoesComite = (situacao) =>
+    http.get('/admin/comite/permissoes', { params: situacao ? { situacao } : {} }).then((r) => r.data);
+
+export const decidirPermissaoComite = (id, decisao, resposta = null) =>
+    http.post(`/admin/comite/permissoes/${id}/decisao`, { decisao, resposta }).then((r) => r.data);
+
 // --- Premiação (Sprint 190) --------------------------------------------------
 //
 // A mesma base de Avaliação presencial → Credenciais e Prêmios: o comitê

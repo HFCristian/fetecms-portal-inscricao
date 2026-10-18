@@ -119,7 +119,9 @@ export function designacoesPendentes(a) {
  *
  * - **avaliados**: enviados, do mais recente para o mais antigo;
  * - **em avaliação**: abertos no estande agora e iniciados online;
- * - **designados**: entregues e ainda não abertos.
+ * - **designados**: entregues e ainda não abertos — sem o projeto que ele já
+ *   tem em avaliação ou já avaliou por outro caminho (designado online e
+ *   avaliado no estande, por exemplo): aquela designação não é trabalho a fazer.
  *
  * A avaliação no estande que venceu sem envio não está em nenhuma: não é
  * trabalho feito nem em curso (o cartão conta quantas são).
@@ -129,11 +131,17 @@ export function colunasDoAvaliador(a) {
     const daSituacao = (s) => online.filter((p) => p.situacao === s);
     const porTitulo = (x, y) => x.titulo.localeCompare(y.titulo, 'pt-BR');
 
+    const avaliados = [...(a.concluidas ?? []), ...daSituacao('concluida')]
+        .sort((x, y) => String(y.concluida_em ?? '').localeCompare(String(x.concluida_em ?? '')) || porTitulo(x, y));
+    const emAvaliacao = [...(a.em_avaliacao ?? []), ...daSituacao('iniciada')].sort(porTitulo);
+    const ocupados = new Set([...avaliados, ...emAvaliacao].map((p) => p.projeto_id));
+
     return {
-        avaliados: [...(a.concluidas ?? []), ...daSituacao('concluida')]
-            .sort((x, y) => String(y.concluida_em ?? '').localeCompare(String(x.concluida_em ?? '')) || porTitulo(x, y)),
-        emAvaliacao: [...(a.em_avaliacao ?? []), ...daSituacao('iniciada')].sort(porTitulo),
-        designados: [...(a.designadas ?? []), ...daSituacao('designada')].sort(porTitulo),
+        avaliados,
+        emAvaliacao,
+        designados: [...(a.designadas ?? []), ...daSituacao('designada')]
+            .filter((p) => p.projeto_id == null || !ocupados.has(p.projeto_id))
+            .sort(porTitulo),
     };
 }
 

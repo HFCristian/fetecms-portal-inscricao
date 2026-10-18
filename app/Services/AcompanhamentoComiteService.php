@@ -311,6 +311,15 @@ class AcompanhamentoComiteService
                 ->concat($online->where('situacao', 'concluida')->sortByDesc('concluida_em'))
                 ->values();
 
+            // Projeto que ele já abriu ou já avaliou, por qualquer caminho, não
+            // é mais "designado": a designação que sobrou do outro caminho não
+            // conta como trabalho a fazer (nem na situação, nem na coluna).
+            $ocupados = $suas->whereIn('situacao', ['em_avaliacao', 'iniciada', 'concluida'])->pluck('projeto_id')->flip();
+            $designadas = $designadas->reject(fn (array $l) => $ocupados->has($l['projeto_id']))->values();
+            $aFazer = $designadas->isNotEmpty()
+                || $online->contains(fn (array $l) => $l['situacao'] === 'iniciada'
+                    || ($l['situacao'] === 'designada' && ! $ocupados->has($l['projeto_id'])));
+
             $ultima = $estande->concat($online)->where('situacao', 'concluida')->max('concluida_em');
 
             return [
@@ -321,7 +330,7 @@ class AcompanhamentoComiteService
                 'apenas_presencial' => (bool) $u->avaliadorProfile?->apenas_presencial,
                 'situacao' => match (true) {
                     $emAvaliacao->isNotEmpty() => 'avaliando',
-                    $designadas->isNotEmpty() || $onlinePendentes->isNotEmpty() => 'designado',
+                    $aFazer => 'designado',
                     default => 'livre',
                 },
                 'em_avaliacao' => $emAvaliacao->all(),

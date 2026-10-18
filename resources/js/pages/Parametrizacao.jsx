@@ -61,6 +61,12 @@ export default function Parametrizacao() {
                     descricao="Os itens entregues ao finalista no balcão."
                 />
                 <CardParametrizacao
+                    to="/admin/parametrizacao/presencial"
+                    icon="how_to_reg"
+                    titulo="Avaliação presencial"
+                    descricao="Regras da avaliação no estande — como o comitê especial avaliar apenas os projetos designados."
+                />
+                <CardParametrizacao
                     to="/admin/parametrizacao/itens-conferencia"
                     icon="fact_check"
                     titulo="Itens do credenciamento e da checagem"

@@ -9,9 +9,13 @@ vi.mock('../lib/auth.jsx', () => ({
 
 const getOpcoesDesignacaoComite = vi.fn();
 const designarPeloComite = vi.fn();
+const getPermissoesComite = vi.fn();
+const decidirPermissaoComite = vi.fn();
 vi.mock('../lib/comite.js', () => ({
     getOpcoesDesignacaoComite: (...a) => getOpcoesDesignacaoComite(...a),
     designarPeloComite: (...a) => designarPeloComite(...a),
+    getPermissoesComite: (...a) => getPermissoesComite(...a),
+    decidirPermissaoComite: (...a) => decidirPermissaoComite(...a),
 }));
 
 import ComiteDesignacoes from './ComiteDesignacoes.jsx';
@@ -32,6 +36,7 @@ describe('ComiteDesignacoes', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         getOpcoesDesignacaoComite.mockResolvedValue(OPCOES);
+        getPermissoesComite.mockResolvedValue({ data: [], meta: { ativa: true, pendentes: 0 } });
         designarPeloComite.mockResolvedValue({
             data: { designadas: 1, ignoradas: [], resumo: '1 designação(ões) criada(s).' },
             meta: { message: '1 designação(ões) criada(s).' },
@@ -107,6 +112,49 @@ describe('ComiteDesignacoes', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Limpar filtros' }));
         expect(screen.getByLabelText('Código')).toHaveValue('');
         expect(screen.getByLabelText('Turno')).toHaveValue('');
+    });
+
+    it('logo abaixo da designação, a organização decide os pedidos de permissão', async () => {
+        const pedido = {
+            id: 9, status: 'pendente', status_label: 'Aguardando a organização', justificativa: 'Sou da área.',
+            resposta: null, pedido_em: '2026-10-20T09:00:00-04:00', decidido_em: null, decidido_por: null,
+            avaliador: { id: 5, nome: 'Ana Comissao' },
+            projeto: { id: 1, titulo: 'Bioplástico', codigo: 'FET.EXA-001', estande: 42, turno_label: 'Turno A (matutino)', area: 'Exatas', categoria: 'FETECMS' },
+        };
+        getPermissoesComite.mockResolvedValue({ data: [pedido], meta: { ativa: true, pendentes: 1 } });
+        decidirPermissaoComite.mockResolvedValue({ data: { ...pedido, status: 'aprovado' }, meta: { message: 'Permissão aprovada.' } });
+        render(<ComiteDesignacoes />);
+
+        const secao = await screen.findByRole('region', { name: 'Pedidos de permissão' });
+        expect(await within(secao).findByText('1 aguardando')).toBeInTheDocument();
+        expect(within(secao).getByText(/FET\.EXA-001 · Estande 042/)).toBeInTheDocument();
+        expect(within(secao).getByText('“Sou da área.”')).toBeInTheDocument();
+
+        fireEvent.click(within(secao).getByRole('button', { name: 'Aprovar o pedido de Ana Comissao' }));
+        await waitFor(() => expect(decidirPermissaoComite).toHaveBeenCalledWith(9, 'aprovar', null));
+        expect(await within(secao).findByText('Permissão aprovada.')).toBeInTheDocument();
+        expect(getPermissoesComite).toHaveBeenCalledTimes(2);
+    });
+
+    it('recusar pede a resposta opcional; com a regra desligada, a tela avisa', async () => {
+        const pedido = {
+            id: 9, status: 'pendente', status_label: 'Aguardando a organização', justificativa: null,
+            resposta: null, pedido_em: null, decidido_em: null, decidido_por: null,
+            avaliador: { id: 5, nome: 'Ana Comissao' },
+            projeto: { id: 1, titulo: 'Bioplástico', codigo: null, estande: null, turno_label: null },
+        };
+        getPermissoesComite.mockResolvedValue({ data: [pedido], meta: { ativa: false, pendentes: 1 } });
+        decidirPermissaoComite.mockResolvedValue({ data: {}, meta: { message: 'Pedido recusado.' } });
+        render(<ComiteDesignacoes />);
+
+        const secao = await screen.findByRole('region', { name: 'Pedidos de permissão' });
+        expect(await within(secao).findByText(/A regra está desligada/)).toBeInTheDocument();
+
+        fireEvent.click(within(secao).getByRole('button', { name: 'Recusar o pedido de Ana Comissao' }));
+        fireEvent.change(within(secao).getByLabelText(/Resposta ao avaliador/), { target: { value: 'Já tem avaliador.' } });
+        fireEvent.click(within(secao).getByRole('button', { name: 'Confirmar recusa' }));
+
+        await waitFor(() => expect(decidirPermissaoComite).toHaveBeenCalledWith(9, 'recusar', 'Já tem avaliador.'));
     });
 
     it('sem ninguém na comissão, explica onde marcar', async () => {

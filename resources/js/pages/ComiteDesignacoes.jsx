@@ -4,6 +4,7 @@ import AppShell from '../components/AppShell.jsx';
 import { Alert, Button } from '../components/ui.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import { getOpcoesDesignacaoComite, designarPeloComite } from '../lib/comite.js';
+import PedidosPermissaoComite from '../components/PedidosPermissaoComite.jsx';
 
 const campoClass =
     'w-full bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface ' +
@@ -235,6 +236,9 @@ export default function ComiteDesignacoes() {
                     Designar
                 </Button>
             </div>
+
+            {/* Logo abaixo da designação: os pedidos para avaliar fora dela (Sprint 234). */}
+            <PedidosPermissaoComite />
         </AppShell>
     );
 }

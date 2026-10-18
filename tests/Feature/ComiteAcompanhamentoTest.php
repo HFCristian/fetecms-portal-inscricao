@@ -310,6 +310,24 @@ class ComiteAcompanhamentoTest extends TestCase
         );
     }
 
+    public function test_designacao_de_projeto_ja_aberto_ou_avaliado_nao_conta_como_a_fazer(): void
+    {
+        $abelhas = $this->finalista('Abelhas nativas', 42);
+        $horta = $this->finalista('Horta vertical', 43);
+        $ana = $this->avaliador('Ana Comissão');
+
+        // Designado online e já avaliado no estande; designado no estande e já iniciado online.
+        $this->online($ana, $abelhas, 'designada');
+        $this->avaliacao($ana, $abelhas, 'concluida');
+        $this->avaliacao($ana, $horta, 'designada');
+        $this->online($ana, $horta, 'concluida');
+
+        $ana = $this->getJson(self::URL)->assertOk()->json('data.avaliadores.0');
+
+        $this->assertSame('livre', $ana['situacao']);
+        $this->assertSame([], $ana['designadas']);
+    }
+
     private function urlRetirar(User $avaliador): string
     {
         return self::URL.'/avaliadores/'.$avaliador->id.'/retirar';

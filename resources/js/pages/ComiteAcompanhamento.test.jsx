@@ -43,16 +43,16 @@ const DADOS = {
         {
             id: 1, nome: 'Ana Comissão', area: 'Agrárias', situacao: 'avaliando', apenas_presencial: false,
             em_avaliacao: [projeto()],
-            designadas: [projeto({ avaliacao_id: 'estande-3', titulo: 'Robô seguidor', codigo: 'FET.ENG-002', estande: 45, situacao: 'designada' })],
+            designadas: [projeto({ avaliacao_id: 'estande-3', projeto_id: 13, titulo: 'Robô seguidor', codigo: 'FET.ENG-002', estande: 45, situacao: 'designada' })],
             concluidas: [], expiradas: 0, ultima_concluida_em: null,
             designacoes_comite: [
-                projeto({ avaliacao_id: 'online-7', origem: 'online', titulo: 'Solo vivo', codigo: 'FET.AGR-003', estande: 44, situacao: 'designada', vaga_label: null }),
-                projeto({ avaliacao_id: 'online-8', origem: 'online', titulo: 'Cisterna', codigo: null, estande: null, turno_label: null, situacao: 'concluida', vaga_label: null }),
+                projeto({ avaliacao_id: 'online-7', origem: 'online', projeto_id: 11, titulo: 'Solo vivo', codigo: 'FET.AGR-003', estande: 44, situacao: 'designada', vaga_label: null }),
+                projeto({ avaliacao_id: 'online-8', origem: 'online', projeto_id: 12, titulo: 'Cisterna', codigo: null, estande: null, turno_label: null, situacao: 'concluida', vaga_label: null }),
             ],
         },
         {
             id: 2, nome: 'Bruno Livre', area: 'Biológicas', situacao: 'livre', apenas_presencial: false,
-            em_avaliacao: [], designadas: [], concluidas: [projeto({ avaliacao_id: 'estande-2', titulo: 'Horta', situacao: 'concluida' })],
+            em_avaliacao: [], designadas: [], concluidas: [projeto({ avaliacao_id: 'estande-2', projeto_id: 14, titulo: 'Horta', situacao: 'concluida' })],
             expiradas: 0, ultima_concluida_em: null, designacoes_comite: [],
         },
     ],

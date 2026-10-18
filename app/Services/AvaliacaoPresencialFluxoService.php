@@ -49,6 +49,10 @@ use Illuminate\Validation\ValidationException;
  *
  * A nota é **separada** da avaliação online: alimenta a premiação, não o
  * ranking que definiu a lista final.
+ *
+ * Com a regra "avaliar apenas projetos designados" ligada (Sprint 234), o
+ * avaliador da **comissão especial** só escolhe o que é dele; fora disso, pede
+ * permissão ({@see PermissaoComiteService}).
  */
 class AvaliacaoPresencialFluxoService
 {
@@ -56,6 +60,7 @@ class AvaliacaoPresencialFluxoService
         private readonly AvaliacaoPresencialService $intencao,
         private readonly DistribuicaoPresencialService $distribuicao,
         private readonly LiberacaoPresencialService $liberacao,
+        private readonly PermissaoComiteService $permissoes,
     ) {}
 
     /** A aba está aberta agora para este avaliador? */
@@ -138,6 +143,19 @@ class AvaliacaoPresencialFluxoService
                 'peso_comite' => $janela->pesoComite(),
             ],
             'comissao' => DistribuicaoPresencialService::daComissao($avaliador),
+            // A regra do comitê (Sprint 234): só o designado, o resto por pedido.
+            'so_designados' => $this->permissoes->seAplica($avaliador),
+            'pedidos' => $this->permissoes->pedidosDe($avaliador)
+                ->map(fn ($p) => [
+                    'id' => $p->id,
+                    'projeto_id' => $p->projeto_id,
+                    'titulo' => $p->projeto?->titulo,
+                    'status' => $p->status->value,
+                    'status_label' => $p->status->label(),
+                    'resposta' => $p->resposta,
+                ])
+                ->values()
+                ->all(),
             'minhas' => $minhas
                 ->map(fn (AvaliacaoPresencial $a) => $this->linha($a, $avaliador, $modoTeste, $janela, $sinais[$a->projeto_id] ?? null))
                 ->all(),
@@ -187,6 +205,27 @@ class AvaliacaoPresencialFluxoService
         $avaliacao->save();
 
         return $this->detalhe($avaliacao->fresh(), $avaliador, $teste);
+    }
+
+    /**
+     * Com a regra do comitê ligada, pede à organização para avaliar um projeto
+     * fora das designações (Sprint 234). Não depende do turno: dá para pedir
+     * antes, e a permissão vale para quando o projeto estiver pronto.
+     *
+     * @return array<string, mixed>
+     */
+    public function pedirPermissao(User $avaliador, Projeto $projeto, ?string $justificativa, bool $teste = false): array
+    {
+        if (! $this->intencao->aceitou($avaliador)) {
+            throw ValidationException::withMessages([
+                'permissao' => 'Marque que quer avaliar presencialmente (aba Presencial) antes de pedir.',
+            ]);
+        }
+
+        $this->garantirFinalista($projeto, $this->modoTeste($avaliador, $teste));
+        $pedido = $this->permissoes->solicitar($avaliador, $projeto, $justificativa);
+
+        return ['id' => $pedido->id, 'status' => $pedido->status->value, 'status_label' => $pedido->status->label()];
     }
 
     /**
@@ -410,6 +449,9 @@ class AvaliacaoPresencialFluxoService
      */
     private function escolherNoCorredor(User $avaliador, Projeto $projeto, bool $modoTeste, JanelaTurnos $janela, ?AvaliacaoPresencial $vencida): AvaliacaoPresencial
     {
+        // O comitê com a regra ligada só escolhe o que é dele (Sprint 234).
+        $this->permissoes->garantir($avaliador, $projeto);
+
         $ocorrencia = $this->ocorrenciaDeTrabalho($modoTeste);
 
         if ($ocorrencia === null && ! $modoTeste) {
@@ -518,6 +560,10 @@ class AvaliacaoPresencialFluxoService
         $trabalho = $turno['turno'] ?? null;
         $qualquerTurno = $modoTeste && $trabalho === null;
         $liberado = $modoTeste || $this->liberacao->liberado($avaliador);
+        // A regra do comitê (Sprint 234): fora das designações, pede permissão.
+        $soDesignados = $this->permissoes->seAplica($avaliador);
+        $designados = $soDesignados ? $this->permissoes->liberados($avaliador) : [];
+        $pedidos = $soDesignados ? $this->permissoes->pedidosDe($avaliador) : collect();
 
         $porEstande = [];
         $fora = [];
@@ -531,6 +577,7 @@ class AvaliacaoPresencialFluxoService
 
             $minha = $minhasPorProjeto[$projeto->id] ?? null;
             $avaliacoes = (int) ($ocupacao[$projeto->id] ?? 0);
+            $permissao = $soDesignados ? $this->permissoes->situacao($projeto->id, $designados, $pedidos) : null;
 
             $situacao = match (true) {
                 (bool) $minha?->concluida() => 'avaliado',
@@ -538,6 +585,8 @@ class AvaliacaoPresencialFluxoService
                 ! isset($prontos[$projeto->id]) => 'nao_pronto',
                 $janela->vagaPara($comissao, $porVaga[$projeto->id] ?? []) === null => 'completo',
                 ! $liberado => 'nao_liberado',
+                $permissao === 'pendente' => 'permissao_pendente',
+                $permissao !== null => 'pedir_permissao',
                 ! $pode || (! $qualquerTurno && $trabalho !== $e->turno->value) => 'fora_do_turno',
                 default => 'disponivel',
             };
@@ -550,6 +599,9 @@ class AvaliacaoPresencialFluxoService
                 'avaliacoes' => $avaliacoes,
                 'situacao' => $situacao,
                 'avaliacao_id' => in_array($situacao, ['avaliado', 'comigo'], true) ? $minha->id : null,
+                // Recusado antes: a resposta da organização, para ele ler antes de pedir de novo.
+                'permissao_resposta' => $permissao === 'recusada' ? $pedidos->get($projeto->id)?->resposta : null,
+                'permissao_recusada' => $permissao === 'recusada',
             ];
 
             if (isset($naPlanta[$e->numero])) {
@@ -565,6 +617,7 @@ class AvaliacaoPresencialFluxoService
             'fora_da_planta' => $fora,
             'turno_trabalho' => $trabalho,
             'max_por_projeto' => $teto,
+            'so_designados' => $soDesignados,
         ];
     }
 
@@ -595,6 +648,9 @@ class AvaliacaoPresencialFluxoService
         $sinais = app(SinalizacaoProjetoService::class)->para($ids);
         $estandes = EstandeProjeto::where('edicao_id', Edicao::atual()?->id)->whereIn('projeto_id', $ids)->pluck('numero', 'projeto_id');
         $turnosDosProjetos = $this->distribuicao->turnosDe($ids);
+        $soDesignados = $this->permissoes->seAplica($avaliador);
+        $designados = $soDesignados ? $this->permissoes->liberados($avaliador) : [];
+        $pedidos = $soDesignados ? $this->permissoes->pedidosDe($avaliador) : collect();
 
         return Projeto::whereIn('id', $ids)
             ->whereNotIn('id', $comigo)
@@ -614,6 +670,9 @@ class AvaliacaoPresencialFluxoService
                 ],
                 'avaliacoes' => (int) ($ocupacao[$p->id] ?? 0),
                 'sinalizacoes' => $sinais[$p->id] ?? null,
+                // Nulo: pode avaliar. Senão `necessaria`, `pendente` ou `recusada` (Sprint 234).
+                'permissao' => $soDesignados ? $this->permissoes->situacao($p->id, $designados, $pedidos) : null,
+                'permissao_resposta' => $soDesignados ? $pedidos->get($p->id)?->resposta : null,
             ])
             ->values()
             ->all();

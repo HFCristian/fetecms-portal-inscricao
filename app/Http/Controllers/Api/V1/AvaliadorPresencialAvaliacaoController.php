@@ -34,6 +34,19 @@ class AvaliadorPresencialAvaliacaoController extends Controller
         ]);
     }
 
+    /** Pede permissão para avaliar um projeto fora das designações (regra do comitê). */
+    public function pedirPermissao(Request $request, Projeto $projeto): JsonResponse
+    {
+        $dados = $request->validate([
+            'justificativa' => ['nullable', 'string', 'max:500'],
+        ], ['justificativa.max' => 'A justificativa pode ter até 500 caracteres.']);
+
+        return response()->json([
+            'data' => $this->fluxo->pedirPermissao($request->user(), $projeto, $dados['justificativa'] ?? null, $request->boolean('teste')),
+            'meta' => ['message' => 'Pedido enviado: a organização vai responder em Comitê especial.'],
+        ], 201);
+    }
+
     /** Uma avaliação para responder (ou reler, depois de enviada). */
     public function show(Request $request, AvaliacaoPresencial $avaliacao): JsonResponse
     {
