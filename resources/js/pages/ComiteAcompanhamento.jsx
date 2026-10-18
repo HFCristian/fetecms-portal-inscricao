@@ -6,7 +6,7 @@ import PainelComiteMapa from '../components/PainelComiteMapa.jsx';
 import { getAcompanhamentoComite } from '../lib/comite.js';
 import {
     corDoEstande, legendaComite, filtrarAvaliadores, estande, hora, localDoProjeto, SEM_PROJETO,
-    designacoesPendentes,
+    designacoesPendentes, colunasDoAvaliador,
 } from '../lib/comiteAcompanhamento.js';
 
 /** Tamanho de uma célula da grade, em unidades do viewBox (o mesmo da planta). */
@@ -74,7 +74,7 @@ function CartaoAvaliador({ a }) {
     const pendentes = designacoesPendentes(a).length;
 
     return (
-        <li className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-4">
+        <li className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-4 flex flex-col">
             <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
                     <p className="font-semibold text-on-surface">{a.nome}</p>
@@ -114,18 +114,107 @@ function CartaoAvaliador({ a }) {
                 <span><strong className="text-on-surface">{a.concluidas.length}</strong> avaliação(ões) enviada(s) no estande</span>
                 {a.ultima_concluida_em && <span>última às {hora(a.ultima_concluida_em)}</span>}
                 {a.expiradas > 0 && <span>{a.expiradas} com o prazo encerrado sem envio</span>}
-                {a.concluidas.length > 0 && (
-                    <button type="button" className="text-primary font-semibold hover:underline" onClick={() => setAberto(!aberto)} aria-expanded={aberto}>
-                        {aberto ? 'Esconder enviadas' : 'Ver enviadas'}
-                    </button>
-                )}
             </div>
-            {aberto && (
-                <ul className="mt-2 space-y-1.5 border-t border-outline-variant/40 pt-2">
-                    {a.concluidas.map((p) => <LinhaProjeto key={p.avaliacao_id} p={p} />)}
+
+            <button
+                type="button"
+                onClick={() => setAberto(true)}
+                aria-label={`Ver detalhes de ${a.nome}`}
+                className="mt-3 inline-flex items-center gap-1 self-start text-sm font-semibold text-primary hover:underline"
+            >
+                <span className="material-symbols-outlined text-[18px]">view_column</span>
+                Ver detalhes
+            </button>
+
+            {aberto && <DialogoDetalhesAvaliador a={a} onFechar={() => setAberto(false)} />}
+        </li>
+    );
+}
+
+/** O selo da origem de cada projeto no diálogo de detalhes. */
+const SELOS_ORIGEM = {
+    estande: { label: 'No estande', classe: 'bg-surface-variant text-on-surface-variant' },
+    online: { label: 'Online', classe: 'bg-[#e9ddff] text-[#2a0058]' },
+};
+
+/** Uma coluna do diálogo: título com a contagem e os projetos. */
+function ColunaDetalhes({ titulo, cor, projetos, vazio, rodape = null }) {
+    return (
+        <section className="bg-surface rounded-xl p-3 flex flex-col min-h-0" aria-label={titulo}>
+            <h4 className="flex items-center gap-2 font-display font-semibold text-on-surface mb-2">
+                <span className="w-2.5 h-2.5 rounded-sm" style={{ background: cor }} />
+                {titulo}
+                <span className="ml-auto text-sm font-normal text-on-surface-variant tabular-nums">{projetos.length}</span>
+            </h4>
+            {projetos.length === 0 ? (
+                <p className="text-sm text-on-surface-variant">{vazio}</p>
+            ) : (
+                <ul className="space-y-2 overflow-y-auto fetec-scroll">
+                    {projetos.map((p) => <LinhaProjeto key={p.avaliacao_id} p={p} selo={SELOS_ORIGEM[p.origem]} />)}
                 </ul>
             )}
-        </li>
+            {rodape && <p className="text-xs text-on-surface-variant mt-2">{rodape}</p>}
+        </section>
+    );
+}
+
+/**
+ * "Ver detalhes" do avaliador: os projetos dele em três colunas — avaliados,
+ * em avaliação e designados —, no estande e pelas designações do comitê.
+ */
+function DialogoDetalhesAvaliador({ a, onFechar }) {
+    const colunas = colunasDoAvaliador(a);
+
+    useEffect(() => {
+        const aoTeclar = (e) => { if (e.key === 'Escape') onFechar(); };
+        document.addEventListener('keydown', aoTeclar);
+        return () => document.removeEventListener('keydown', aoTeclar);
+    }, [onFechar]);
+
+    return (
+        <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Detalhes de ${a.nome}`}
+            onClick={(e) => { if (e.target === e.currentTarget) onFechar(); }}
+        >
+            <div className="bg-surface-container-lowest rounded-2xl fetec-card-shadow w-full max-w-5xl p-6 max-h-[90vh] flex flex-col">
+                <div className="flex items-start justify-between gap-3 mb-4">
+                    <div className="min-w-0">
+                        <h3 className="font-display text-xl font-semibold text-on-surface">{a.nome}</h3>
+                        <p className="text-sm text-on-surface-variant">
+                            {[a.area, SITUACOES_AVALIADOR[a.situacao]?.label, a.email].filter(Boolean).join(' · ')}
+                        </p>
+                    </div>
+                    <button type="button" onClick={onFechar} className="text-on-surface-variant hover:text-primary" aria-label="Fechar os detalhes">
+                        <span className="material-symbols-outlined">close</span>
+                    </button>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-3 min-h-0 overflow-y-auto md:overflow-hidden">
+                    <ColunaDetalhes
+                        titulo="Projetos avaliados"
+                        cor="#0ca30c"
+                        projetos={colunas.avaliados}
+                        vazio="Nenhum projeto avaliado ainda."
+                    />
+                    <ColunaDetalhes
+                        titulo="Projetos em avaliação"
+                        cor="#43157A"
+                        projetos={colunas.emAvaliacao}
+                        vazio="Nenhum projeto em avaliação agora."
+                        rodape={a.expiradas > 0 ? `${a.expiradas} avaliação(ões) no estande com o prazo encerrado sem envio.` : null}
+                    />
+                    <ColunaDetalhes
+                        titulo="Projetos designados"
+                        cor="#6250d6"
+                        projetos={colunas.designados}
+                        vazio="Nenhum projeto designado aguardando."
+                    />
+                </div>
+            </div>
+        </div>
     );
 }
 

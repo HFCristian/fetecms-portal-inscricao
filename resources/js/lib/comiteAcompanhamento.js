@@ -113,6 +113,30 @@ export function designacoesPendentes(a) {
     return (a.designacoes_comite ?? []).filter((p) => p.situacao !== 'concluida');
 }
 
+/**
+ * O "Ver detalhes" do avaliador: os projetos em três colunas, juntando o
+ * estande e as designações online do comitê.
+ *
+ * - **avaliados**: enviados, do mais recente para o mais antigo;
+ * - **em avaliação**: abertos no estande agora e iniciados online;
+ * - **designados**: entregues e ainda não abertos.
+ *
+ * A avaliação no estande que venceu sem envio não está em nenhuma: não é
+ * trabalho feito nem em curso (o cartão conta quantas são).
+ */
+export function colunasDoAvaliador(a) {
+    const online = a.designacoes_comite ?? [];
+    const daSituacao = (s) => online.filter((p) => p.situacao === s);
+    const porTitulo = (x, y) => x.titulo.localeCompare(y.titulo, 'pt-BR');
+
+    return {
+        avaliados: [...(a.concluidas ?? []), ...daSituacao('concluida')]
+            .sort((x, y) => String(y.concluida_em ?? '').localeCompare(String(x.concluida_em ?? '')) || porTitulo(x, y)),
+        emAvaliacao: [...(a.em_avaliacao ?? []), ...daSituacao('iniciada')].sort(porTitulo),
+        designados: [...(a.designadas ?? []), ...daSituacao('designada')].sort(porTitulo),
+    };
+}
+
 /** Tudo que o avaliador já enviou para o comitê: no estande e online. */
 export function enviadas(a) {
     return (a.concluidas?.length ?? 0) + (a.designacoes_comite ?? []).filter((p) => p.situacao === 'concluida').length;

@@ -1007,7 +1007,18 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 227 | Comitê especial → Designações: busca e filtros de projeto por **código, estande e turno** | ✅ sim | ✅ sim (Pedro, PR #117 → v1.38) | 0 |
 | 228 | Comitê especial → **Acompanhamento das avaliações**: lista por avaliador + mapa só do comitê com dashboard | ✅ sim | ✅ sim (Pedro, PR #117 → v1.38) | 0 |
 | 229 | Acompanhamento do comitê: as **designações online** feitas em Designações do comitê (`avaliacoes.designada_pelo_comite`) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 230 | Acompanhamento do comitê: **Ver detalhes** do avaliador em 3 colunas (avaliados, em avaliação, designados) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprint 230 (mesma branch):** na aba Avaliadores do Acompanhamento, cada cartão ganhou **Ver
+> detalhes**, que abre um diálogo com os projetos do avaliador em **três colunas** — **Projetos
+> avaliados** (do mais recente ao mais antigo), **Projetos em avaliação** (aberta no estande agora e
+> iniciada online) e **Projetos designados** (entregues e ainda não abertos) —, juntando o estande e as
+> designações do comitê, cada projeto com o selo da origem (No estande / Online), o local e o horário.
+> A avaliação no estande que venceu sem envio não entra em coluna nenhuma (o rodapé de "em avaliação"
+> conta quantas são). A separação mora em `colunasDoAvaliador()` (`lib/comiteAcompanhamento.js`), e o
+> "Ver enviadas" do cartão saiu — a coluna Avaliados faz o mesmo. Só tela: sem endpoint novo.
+> Back sem mudança (**1584/1584**), front **877/877**, build OK.
+>
 > **Sprint 229 (branch `feat/acompanhamento-designacoes-comite`, saída da `origin/main` @ `fbb6aca`):**
 > o Acompanhamento das avaliações passou a mostrar também os projetos **atribuídos em Comitê especial
 > → Designações** (avaliação online). Até aqui essa designação nascia como qualquer designação manual
@@ -1027,7 +1038,7 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > destaques. A **nota** saiu do payload da tela (quem a lê fica registrado em Designações → Ver notas).
 > Back **1584/1584**, front **873/873**, Pint limpo, build OK.
 >
-> **Pendências do Pedro (Sprint 229):** `git push origin feat/acompanhamento-designacoes-comite` + PR
+> **Pendências do Pedro (Sprints 229–230):** `git push origin feat/acompanhamento-designacoes-comite` + PR
 > para a `main`. **Uma migration** (`avaliacoes.designada_pelo_comite`, com a marcação aproximada do
 > passado). Sem `.env` ou dependência nova. Depois do deploy, confira em Acompanhamento → Avaliadores se
 > as designações antigas que apareceram são mesmo do comitê: as feitas antes da lista final vigente não

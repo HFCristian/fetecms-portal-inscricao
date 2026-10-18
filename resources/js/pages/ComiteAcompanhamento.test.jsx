@@ -12,7 +12,7 @@ vi.mock('../lib/comite.js', () => ({
 import ComiteAcompanhamento from './ComiteAcompanhamento.jsx';
 
 const projeto = (over = {}) => ({
-    avaliacao_id: 1, projeto_id: 10, titulo: 'Abelhas nativas', codigo: 'FET.AGR-001', estande: 42,
+    avaliacao_id: 'estande-1', origem: 'estande', projeto_id: 10, titulo: 'Abelhas nativas', codigo: 'FET.AGR-001', estande: 42,
     turno: 'A', turno_label: 'Turno A (matutino)', vaga_label: 'Comissão especial', situacao: 'em_avaliacao',
     iniciada_em: null, concluida_em: null, ...over,
 });
@@ -45,7 +45,7 @@ const DADOS = {
         },
         {
             id: 2, nome: 'Bruno Livre', area: 'Biológicas', situacao: 'livre', apenas_presencial: false,
-            em_avaliacao: [], designadas: [], concluidas: [projeto({ avaliacao_id: 2, titulo: 'Horta', situacao: 'concluida' })],
+            em_avaliacao: [], designadas: [], concluidas: [projeto({ avaliacao_id: 'estande-2', titulo: 'Horta', situacao: 'concluida' })],
             expiradas: 0, ultima_concluida_em: null, designacoes_comite: [],
         },
     ],
@@ -87,6 +87,42 @@ describe('ComiteAcompanhamento', () => {
         const cisterna = screen.getByText('Cisterna').closest('li');
         expect(within(cisterna).getByText('Avaliado')).toBeInTheDocument();
         expect(within(cisterna).getByText(/Sem estande · enviada/)).toBeInTheDocument();
+    });
+
+    it('"Ver detalhes" mostra avaliados, em avaliação e designados em três colunas', async () => {
+        render(<ComiteAcompanhamento />);
+        await screen.findByText('Ana Comissão');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Ver detalhes de Ana Comissão' }));
+        const dialogo = screen.getByRole('dialog', { name: 'Detalhes de Ana Comissão' });
+
+        const avaliados = within(dialogo).getByRole('region', { name: 'Projetos avaliados' });
+        const emAvaliacao = within(dialogo).getByRole('region', { name: 'Projetos em avaliação' });
+        const designados = within(dialogo).getByRole('region', { name: 'Projetos designados' });
+
+        expect(within(avaliados).getByText('Cisterna')).toBeInTheDocument();
+        expect(within(avaliados).getByText('Online')).toBeInTheDocument();
+        expect(within(emAvaliacao).getByText('Abelhas nativas')).toBeInTheDocument();
+        expect(within(emAvaliacao).getByText('No estande')).toBeInTheDocument();
+        expect(within(designados).getByText('Solo vivo')).toBeInTheDocument();
+
+        fireEvent.keyDown(document, { key: 'Escape' });
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    it('o avaliador sem nada ganha as três colunas vazias', async () => {
+        render(<ComiteAcompanhamento />);
+        await screen.findByText('Bruno Livre');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Ver detalhes de Bruno Livre' }));
+        const dialogo = screen.getByRole('dialog', { name: 'Detalhes de Bruno Livre' });
+
+        expect(within(dialogo).getByText('Horta')).toBeInTheDocument();
+        expect(within(dialogo).getByText('Nenhum projeto em avaliação agora.')).toBeInTheDocument();
+        expect(within(dialogo).getByText('Nenhum projeto designado aguardando.')).toBeInTheDocument();
+
+        fireEvent.click(within(dialogo).getByRole('button', { name: 'Fechar os detalhes' }));
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
 
     it('filtra a lista pela busca e pela situação', async () => {

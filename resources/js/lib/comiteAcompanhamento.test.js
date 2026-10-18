@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
     chaveDoEstande, corDoEstande, legendaComite, resumoComite, filtrarAvaliadores, localDoProjeto, SEM_PROJETO,
-    designacoesPendentes, enviadas,
+    designacoesPendentes, enviadas, colunasDoAvaliador,
 } from './comiteAcompanhamento.js';
 
 const linha = (over = {}) => ({
@@ -118,6 +118,31 @@ describe('designações online do comitê', () => {
 
     it('a busca alcança os projetos designados pelo comitê', () => {
         expect(filtrarAvaliadores([ana, avaliador({ id: 2, nome: 'Bruno' })], 'agr-009').map((a) => a.nome)).toEqual(['Ana']);
+    });
+});
+
+describe('ver detalhes do avaliador', () => {
+    it('separa os projetos em avaliados, em avaliação e designados, nas duas origens', () => {
+        const a = avaliador({
+            em_avaliacao: [{ titulo: 'Abelhas', origem: 'estande', situacao: 'em_avaliacao' }],
+            designadas: [{ titulo: 'Solo', origem: 'estande', situacao: 'designada' }],
+            concluidas: [{ titulo: 'Horta', origem: 'estande', situacao: 'concluida', concluida_em: '2026-10-18T10:00:00-04:00' }],
+            designacoes_comite: [
+                { titulo: 'Cisterna', origem: 'online', situacao: 'designada' },
+                { titulo: 'Bioplástico', origem: 'online', situacao: 'iniciada' },
+                { titulo: 'Robô', origem: 'online', situacao: 'concluida', concluida_em: '2026-10-18T11:00:00-04:00' },
+            ],
+        });
+        const c = colunasDoAvaliador(a);
+
+        // Avaliados: o mais recente primeiro.
+        expect(c.avaliados.map((p) => p.titulo)).toEqual(['Robô', 'Horta']);
+        expect(c.emAvaliacao.map((p) => p.titulo)).toEqual(['Abelhas', 'Bioplástico']);
+        expect(c.designados.map((p) => p.titulo)).toEqual(['Cisterna', 'Solo']);
+    });
+
+    it('sem nada, as três colunas vêm vazias', () => {
+        expect(colunasDoAvaliador(avaliador())).toEqual({ avaliados: [], emAvaliacao: [], designados: [] });
     });
 });
 
