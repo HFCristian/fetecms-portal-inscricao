@@ -62,6 +62,7 @@ import PresencialInterpretesCheckin from './pages/PresencialInterpretesCheckin.j
 import PresencialInterpretesAcompanhamento from './pages/PresencialInterpretesAcompanhamento.jsx';
 import PresencialAvaliadores from './pages/PresencialAvaliadores.jsx';
 import PresencialDistribuicao from './pages/PresencialDistribuicao.jsx';
+import PresencialRanking from './pages/PresencialRanking.jsx';
 import ComiteHome from './pages/ComiteHome.jsx';
 import ComiteTransporte from './pages/ComiteTransporte.jsx';
 import ComiteMapa from './pages/ComiteMapa.jsx';
@@ -267,6 +268,7 @@ export default function Root() {
                             <Route path="/admin/presencial/interpretes/acompanhamento" element={<PresencialInterpretesAcompanhamento />} />
                             <Route path="/admin/presencial/avaliadores" element={<PresencialAvaliadores />} />
                             <Route path="/admin/presencial/distribuicao" element={<PresencialDistribuicao />} />
+                            <Route path="/admin/presencial/ranking" element={<PresencialRanking />} />
                             <Route path="/admin/comite" element={<ComiteHome />} />
                             <Route path="/admin/comite/transporte" element={<ComiteTransporte />} />
                             <Route path="/admin/comite/designacoes" element={<ComiteDesignacoes />} />

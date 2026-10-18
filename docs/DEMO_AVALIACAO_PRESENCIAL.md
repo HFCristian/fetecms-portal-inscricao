@@ -80,7 +80,12 @@ parecer.
 **Avaliação presencial → Distribuição presencial** e ligue o **Modo de teste**:
 a tela passa a usar a lista de demonstração e só os avaliadores demo. Dali dá
 para **Distribuir**, **Redistribuir**, designar à mão e retirar — a designação é
-opcional.
+opcional. Enviadas as avaliações, **Avaliação presencial → Ranking presencial**
+(também com o Modo de teste) mostra a média de cada projeto do ensaio.
+
+Para ensaiar as **vagas** (2 comuns + 1 da comissão especial, por padrão), marque
+o avaliador demo como comissão especial em Avaliadores Online: a avaliação dele
+ocupa a vaga da comissão e pesa 2 no ranking presencial.
 
 ---
 

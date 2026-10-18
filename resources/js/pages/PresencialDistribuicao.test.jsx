@@ -11,6 +11,9 @@ const PAINEL = {
     horarios: { A: { inicio: '08:00', fim: '12:00' }, B: { inicio: '13:30', fim: '17:30' } },
     fila_avaliador: 5,
     por_projeto: 3,
+    comuns_por_projeto: 2,
+    comite_por_projeto: 1,
+    peso_comite: 2,
     margem_minutos: 30,
     configurada: true,
     evento_de_label: '20/10/2026',
@@ -26,8 +29,8 @@ const PAINEL = {
         { id: 8, nome: 'Bruno', area: 'Biológicas', subarea: null, comissao: false, no_turno: 1, concluidas: 0 },
     ],
     resumo: { projetos: 3, prontos: 1, sem_credenciamento: 1, sem_checagem: 1, cobertos: 0, designacoes: 1, concluidas: 0, teto: 3 },
-    projetos: [{ id: 30, titulo: 'Abelhas', estande: 12, pronto: true, avaliacoes: 1 }],
-    designacoes: [{ id: 90, projeto_id: 30, projeto: 'Abelhas', estande: 12, avaliador_id: 8, avaliador: 'Bruno', status: 'designada', status_label: 'Designada', expirada: false, designacao_manual: false }],
+    projetos: [{ id: 30, titulo: 'Abelhas', estande: 12, pronto: true, avaliacoes: 1, comuns: 0, comite: 1 }],
+    designacoes: [{ id: 90, projeto_id: 30, projeto: 'Abelhas', estande: 12, avaliador_id: 8, avaliador: 'Bruno', status: 'designada', status_label: 'Designada', expirada: false, designacao_manual: false, vaga: 'comite' }],
 };
 
 const getDistribuicaoPresencial = vi.fn(() => Promise.resolve(PAINEL));
@@ -95,6 +98,24 @@ describe('PresencialDistribuicao', () => {
 
         await waitFor(() => expect(retirarDesignacaoPresencial).toHaveBeenCalledWith(90, { dia: '2026-10-20', turno: 'A' }, false));
         expect(await screen.findByText('Nenhuma designação neste turno.')).toBeInTheDocument();
+    });
+
+    it('salva as vagas comuns, as da comissão e o peso', async () => {
+        render(<PresencialDistribuicao />);
+
+        expect(await screen.findByText('· comissão')).toBeInTheDocument();
+        expect(screen.getByRole('option', { name: /Abelhas \(0 comum · 1 comissão\)/ })).toBeInTheDocument();
+
+        fireEvent.change(screen.getByLabelText('Avaliações comuns por projeto'), { target: { value: '3' } });
+        fireEvent.change(screen.getByLabelText('Avaliações da comissão por projeto'), { target: { value: '0' } });
+        fireEvent.change(screen.getByLabelText('Peso da comissão na média'), { target: { value: '' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+
+        await waitFor(() => expect(salvarDistribuicaoPresencial).toHaveBeenCalledWith(
+            expect.objectContaining({ comuns_por_projeto: 3, comite_por_projeto: 0, peso_comite: null }),
+            { dia: '2026-10-20', turno: 'A' },
+            false,
+        ));
     });
 
     it('salva os horários dos turnos', async () => {

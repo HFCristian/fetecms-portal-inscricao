@@ -16,6 +16,7 @@ use App\Models\Projeto;
 use App\Services\ChecagemEstandeService;
 use App\Services\CredenciaisService;
 use App\Services\DistribuicaoPresencialService;
+use App\Services\RankingPresencialService;
 use App\Services\TurnosPresenciaisService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -33,6 +34,7 @@ class AvaliacaoPresencialAdminController extends Controller
         private readonly CredenciaisService $credenciais,
         private readonly DistribuicaoPresencialService $distribuicao,
         private readonly TurnosPresenciaisService $turnos,
+        private readonly RankingPresencialService $ranking,
     ) {}
 
     /** Janela, lista em uso, catálogo de itens e as orientações publicadas. */
@@ -158,13 +160,15 @@ class AvaliacaoPresencialAdminController extends Controller
         )]);
     }
 
-    /** Horário de cada turno e os dois números da distribuição. */
+    /** Horário de cada turno, a fila de cada avaliador e as vagas por projeto. */
     public function salvarDistribuicao(Request $request): JsonResponse
     {
         $dados = $request->validate([
             'horarios' => ['nullable', 'array'],
             'fila_avaliador' => ['nullable', 'integer', 'min:1', 'max:50'],
-            'por_projeto' => ['nullable', 'integer', 'min:1', 'max:20'],
+            'comuns_por_projeto' => ['nullable', 'integer', 'min:0', 'max:20'],
+            'comite_por_projeto' => ['nullable', 'integer', 'min:0', 'max:20'],
+            'peso_comite' => ['nullable', 'numeric', 'min:1', 'max:10'],
         ]);
 
         $this->turnos->salvarConfig($dados);
@@ -173,6 +177,24 @@ class AvaliacaoPresencialAdminController extends Controller
             'data' => $this->distribuicao->painel($request->user(), $request->boolean('teste'), $request->input('dia'), $request->input('turno')),
             'meta' => ['message' => 'Turnos e números da distribuição salvos.'],
         ]);
+    }
+
+    /**
+     * O ranking presencial (Sprint 222): a média de cada finalista, com a
+     * avaliação da comissão especial pesando mais.
+     */
+    public function ranking(Request $request): JsonResponse
+    {
+        $filtros = $request->validate([
+            'area_id' => ['nullable', 'integer', 'exists:areas,id'],
+            'categoria' => ['nullable', Rule::enum(Categoria::class)],
+        ]);
+
+        return response()->json(['data' => [
+            ...$this->ranking->ranking($filtros, $this->turnos->emTeste($request->user(), $request->boolean('teste'))),
+            'modo_teste' => $this->turnos->emTeste($request->user(), $request->boolean('teste')),
+            'is_demo' => (bool) $request->user()?->is_demo,
+        ]]);
     }
 
     public function distribuir(Request $request): JsonResponse

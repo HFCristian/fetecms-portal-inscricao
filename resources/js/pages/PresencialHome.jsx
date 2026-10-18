@@ -23,6 +23,12 @@ const SECOES = [
         descricao: 'Horário dos turnos, vagas por projeto e as designações (opcionais) de cada turno.',
     },
     {
+        to: '/admin/presencial/ranking',
+        icon: 'leaderboard',
+        titulo: 'Ranking presencial',
+        descricao: 'A média de cada finalista nas avaliações do estande, com o peso da comissão especial.',
+    },
+    {
         to: '/admin/presencial/avaliadores',
         icon: 'person_add',
         titulo: 'Cadastro de avaliadores',

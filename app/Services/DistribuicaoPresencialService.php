@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\StatusAvaliacao;
 use App\Enums\Turno;
+use App\Enums\VagaPresencial;
 use App\Models\Area;
 use App\Models\AvaliacaoPresencial;
 use App\Models\ChecagemEstande;
@@ -37,7 +38,8 @@ use Illuminate\Validation\ValidationException;
  *
  * Do online vêm a prioridade de área (subárea → área → área correlata → o que
  * sobrar), as **rodadas iguais** (ninguém recebe o k+1-ésimo projeto antes de
- * todos terem k) e o teto de avaliações por projeto. A designação manual passa
+ * todos terem k) e as vagas por projeto — comuns e da comissão especial
+ * (Sprint 222, {@see JanelaTurnos::vagaPara()}). A designação manual passa
  * por cima do teto, como em todo o portal — mas não do credenciamento e da
  * checagem, que são fatos, não regras.
  *
@@ -172,11 +174,12 @@ class DistribuicaoPresencialService
         $todos = $projetos['todos']->keyBy('id');
         $prontos = $projetos['prontos']->keyBy('id');
         $confirmados = $this->avaliadoresConfirmados($demo)->keyBy('id');
+        $ocupadas = $this->ocupacaoPorVaga($prontos->keys()->all(), $janela);
 
         $criadas = 0;
         $ignoradas = [];
 
-        DB::transaction(function () use ($projetoIds, $avaliadorIds, $todos, $prontos, $confirmados, $dia, $turno, $janela, &$criadas, &$ignoradas) {
+        DB::transaction(function () use ($projetoIds, $avaliadorIds, $todos, $prontos, $confirmados, $dia, $turno, $janela, &$ocupadas, &$criadas, &$ignoradas) {
             foreach (array_unique($projetoIds) as $projetoId) {
                 $projeto = $todos[$projetoId] ?? null;
 
@@ -210,7 +213,10 @@ class DistribuicaoPresencialService
                         continue;
                     }
 
-                    $this->entregar($projetoId, $avaliador, $dia, $turno, manual: true, existente: $existente);
+                    $vaga = $janela->vagaForcada(self::daComissao($avaliador), $ocupadas[$projetoId] ?? []);
+                    $this->entregar($projetoId, $avaliador, $dia, $turno, $vaga, manual: true, existente: $existente);
+                    $ocupadas[$projetoId] ??= ['comum' => 0, 'comite' => 0];
+                    $ocupadas[$projetoId][$vaga->value]++;
                     $criadas++;
                 }
             }
@@ -323,6 +329,34 @@ class DistribuicaoPresencialService
         return $contagem;
     }
 
+    /**
+     * As vagas ocupadas em cada projeto, separadas em comuns e da comissão
+     * especial (Sprint 222) — a mesma conta de {@see ocupacao()}.
+     *
+     * @param  list<int>  $ids
+     * @return array<int, array{comum: int, comite: int}>
+     */
+    public function ocupacaoPorVaga(array $ids, ?JanelaTurnos $janela = null): array
+    {
+        $janela ??= JanelaTurnos::daEdicao();
+        $contagem = [];
+
+        foreach (AvaliacaoPresencial::whereIn('projeto_id', $ids)->get() as $a) {
+            if ($a->ocupaVaga($janela)) {
+                $contagem[$a->projeto_id] ??= ['comum' => 0, 'comite' => 0];
+                $contagem[$a->projeto_id][($a->vaga ?? VagaPresencial::Comum)->value]++;
+            }
+        }
+
+        return $contagem;
+    }
+
+    /** O avaliador é da comissão especial? É o que decide a vaga que ele ocupa. */
+    public static function daComissao(User $avaliador): bool
+    {
+        return (bool) $avaliador->avaliadorProfile?->comissao_especial;
+    }
+
     // --- Internos ----------------------------------------------------------
 
     /**
@@ -339,6 +373,7 @@ class DistribuicaoPresencialService
         $todos = $projetos['todos'];
         $ids = $todos->pluck('id')->all();
         $ocupacao = $this->ocupacao($ids, $janela);
+        $porVaga = $this->ocupacaoPorVaga($ids, $janela);
         $estandes = EstandeProjeto::where('edicao_id', Edicao::atual()?->id)->whereIn('projeto_id', $ids)->pluck('numero', 'projeto_id');
         $teto = $janela->porProjeto();
 
@@ -371,6 +406,8 @@ class DistribuicaoPresencialService
                 'checado' => isset($projetos['checados'][$p->id]),
                 'pronto' => isset($projetos['credenciados'][$p->id], $projetos['checados'][$p->id]),
                 'avaliacoes' => (int) ($ocupacao[$p->id] ?? 0),
+                'comuns' => (int) ($porVaga[$p->id]['comum'] ?? 0),
+                'comite' => (int) ($porVaga[$p->id]['comite'] ?? 0),
             ])->values()->all(),
             'designacoes' => $designacoes->map(fn (AvaliacaoPresencial $a) => [
                 'id' => $a->id,
@@ -383,6 +420,8 @@ class DistribuicaoPresencialService
                 'status_label' => $a->expirada($janela) ? 'Prazo encerrado' : $a->status?->label(),
                 'expirada' => $a->expirada($janela),
                 'designacao_manual' => $a->designacao_manual,
+                'vaga' => $a->vaga?->value,
+                'vaga_label' => $a->vaga?->label(),
                 'nota' => $a->nota,
             ])->values()->all(),
         ];
@@ -402,9 +441,8 @@ class DistribuicaoPresencialService
         }
 
         $fila = $janela->fila();
-        $teto = $janela->porProjeto();
         $ids = $prontos->pluck('id')->all();
-        $ocupacao = $this->ocupacao($ids, $janela);
+        $ocupacao = $this->ocupacaoPorVaga($ids, $janela);
         $estandes = EstandeProjeto::where('edicao_id', Edicao::atual()?->id)->whereIn('projeto_id', $ids)->pluck('numero', 'projeto_id');
 
         // O que cada avaliador já tem: não recebe de novo o que avaliou ou está
@@ -443,15 +481,17 @@ class DistribuicaoPresencialService
                     continue;
                 }
 
-                $escolhido = $this->escolher($u, $prontos, $ocupacao, $teto, $bloqueados[$u->id] ?? [], $estandes, $correlatas);
+                $escolhido = $this->escolher($u, $prontos, $ocupacao, $janela, $bloqueados[$u->id] ?? [], $estandes, $correlatas);
 
                 if ($escolhido === null) {
                     continue;
                 }
 
-                $this->entregar($escolhido->id, $u, $dia, $turno, manual: false, existente: $vencidas[$u->id][$escolhido->id] ?? null);
+                $vaga = $janela->vagaPara(self::daComissao($u), $ocupacao[$escolhido->id] ?? []);
+                $this->entregar($escolhido->id, $u, $dia, $turno, $vaga, manual: false, existente: $vencidas[$u->id][$escolhido->id] ?? null);
                 $carga[$u->id]++;
-                $ocupacao[$escolhido->id] = ($ocupacao[$escolhido->id] ?? 0) + 1;
+                $ocupacao[$escolhido->id] ??= ['comum' => 0, 'comite' => 0];
+                $ocupacao[$escolhido->id][$vaga->value]++;
                 $bloqueados[$u->id][$escolhido->id] = true;
                 $criadas++;
             }
@@ -463,17 +503,21 @@ class DistribuicaoPresencialService
     /**
      * O melhor projeto para este avaliador: subárea → área → área correlata →
      * o que sobrar; dentro da faixa, o que tem menos avaliações e, depois, o
-     * menor número de estande (o corredor se percorre em ordem).
+     * menor número de estande (o corredor se percorre em ordem). Só entra
+     * projeto com vaga para ele (comum, ou da comissão para quem é dela).
      *
      * @param  Collection<int, Projeto>  $prontos
-     * @param  array<int, int>  $ocupacao
+     * @param  array<int, array{comum: int, comite: int}>  $ocupacao
      * @param  array<int, true>  $bloqueados
      * @param  Collection<int, int>  $estandes
      * @param  array<int, list<int>>  $correlatas
      */
-    private function escolher(User $u, Collection $prontos, array $ocupacao, int $teto, array $bloqueados, Collection $estandes, array $correlatas): ?Projeto
+    private function escolher(User $u, Collection $prontos, array $ocupacao, JanelaTurnos $janela, array $bloqueados, Collection $estandes, array $correlatas): ?Projeto
     {
-        $candidatos = $prontos->filter(fn (Projeto $p) => ($ocupacao[$p->id] ?? 0) < $teto && ! isset($bloqueados[$p->id]));
+        $comissao = self::daComissao($u);
+        $total = fn (int $id) => array_sum($ocupacao[$id] ?? []);
+        $candidatos = $prontos->filter(fn (Projeto $p) => ! isset($bloqueados[$p->id])
+            && $janela->vagaPara($comissao, $ocupacao[$p->id] ?? []) !== null);
 
         if ($candidatos->isEmpty()) {
             return null;
@@ -496,7 +540,7 @@ class DistribuicaoPresencialService
 
             if ($naFaixa->isNotEmpty()) {
                 return $naFaixa
-                    ->sortBy(fn (Projeto $p) => [$ocupacao[$p->id] ?? 0, $estandes[$p->id] ?? PHP_INT_MAX, $p->id])
+                    ->sortBy(fn (Projeto $p) => [$total($p->id), $estandes[$p->id] ?? PHP_INT_MAX, $p->id])
                     ->first();
             }
         }
@@ -505,7 +549,7 @@ class DistribuicaoPresencialService
     }
 
     /** Grava a entrega — nova, ou revivendo uma linha vencida (com o rascunho dela). */
-    private function entregar(int $projetoId, User $avaliador, string $dia, Turno $turno, bool $manual, ?AvaliacaoPresencial $existente): AvaliacaoPresencial
+    private function entregar(int $projetoId, User $avaliador, string $dia, Turno $turno, VagaPresencial $vaga, bool $manual, ?AvaliacaoPresencial $existente): AvaliacaoPresencial
     {
         $avaliacao = $existente ?? new AvaliacaoPresencial([
             'edicao_id' => Edicao::atual()?->id,
@@ -519,6 +563,7 @@ class DistribuicaoPresencialService
             'turno' => $turno,
             'designacao_manual' => $manual,
             'escolha_livre' => false,
+            'vaga' => $vaga,
         ])->save();
 
         return $avaliacao;

@@ -26,14 +26,17 @@ const separar = (chave) => {
     return dia && turno ? { dia, turno } : {};
 };
 
-/** Os horários e os dois números da distribuição. */
+/** Os horários, a fila de cada avaliador e as vagas de cada projeto. */
 function Configuracao({ dados, salvando, onSalvar }) {
     const [horarios, setHorarios] = useState(() => ({
         A: { inicio: dados.horarios?.A?.inicio ?? '', fim: dados.horarios?.A?.fim ?? '' },
         B: { inicio: dados.horarios?.B?.inicio ?? '', fim: dados.horarios?.B?.fim ?? '' },
     }));
     const [fila, setFila] = useState(String(dados.fila_avaliador ?? ''));
-    const [porProjeto, setPorProjeto] = useState(String(dados.por_projeto ?? ''));
+    const [comuns, setComuns] = useState(String(dados.comuns_por_projeto ?? ''));
+    const [comite, setComite] = useState(String(dados.comite_por_projeto ?? ''));
+    const [peso, setPeso] = useState(String(dados.peso_comite ?? ''));
+    const numero = (v) => (v === '' ? null : Number(v));
 
     const mudar = (turno, ponta, valor) => setHorarios((h) => ({ ...h, [turno]: { ...h[turno], [ponta]: valor } }));
 
@@ -68,17 +71,41 @@ function Configuracao({ dados, salvando, onSalvar }) {
                     <input type="number" min="1" max="50" className={campoClass} aria-label="Projetos por avaliador"
                         value={fila} onChange={(e) => setFila(e.target.value)} />
                 </label>
-                <label className="text-sm text-on-surface">
-                    Avaliações por projeto
-                    <input type="number" min="1" max="20" className={campoClass} aria-label="Avaliações por projeto"
-                        value={porProjeto} onChange={(e) => setPorProjeto(e.target.value)} />
-                </label>
             </div>
+
+            <fieldset className="border border-outline-variant/40 rounded-lg p-3 mt-3">
+                <legend className="text-sm font-semibold text-on-surface px-1">Vagas de cada projeto</legend>
+                <p className="text-xs text-on-surface-variant mb-2">
+                    Quantas avaliações o projeto recebe de avaliadores comuns e da comissão especial — hoje{' '}
+                    {dados.por_projeto} no total. A da comissão pesa mais na média do ranking presencial; o avaliador
+                    da comissão que encontrar a vaga dela tomada entra numa comum, com peso 1. Em branco vale o padrão
+                    (2 + 1, peso 2).
+                </p>
+                <div className="grid gap-3 sm:grid-cols-3">
+                    <label className="text-sm text-on-surface">
+                        Avaliações comuns
+                        <input type="number" min="0" max="20" className={campoClass} aria-label="Avaliações comuns por projeto"
+                            value={comuns} onChange={(e) => setComuns(e.target.value)} />
+                    </label>
+                    <label className="text-sm text-on-surface">
+                        Avaliações da comissão especial
+                        <input type="number" min="0" max="20" className={campoClass} aria-label="Avaliações da comissão por projeto"
+                            value={comite} onChange={(e) => setComite(e.target.value)} />
+                    </label>
+                    <label className="text-sm text-on-surface">
+                        Peso da comissão na média
+                        <input type="number" min="1" max="10" step="0.5" className={campoClass} aria-label="Peso da comissão na média"
+                            value={peso} onChange={(e) => setPeso(e.target.value)} />
+                    </label>
+                </div>
+            </fieldset>
             <div className="flex justify-end mt-3">
                 <Button type="button" loading={salvando} onClick={() => onSalvar({
                     horarios,
-                    fila_avaliador: fila === '' ? null : Number(fila),
-                    por_projeto: porProjeto === '' ? null : Number(porProjeto),
+                    fila_avaliador: numero(fila),
+                    comuns_por_projeto: numero(comuns),
+                    comite_por_projeto: numero(comite),
+                    peso_comite: numero(peso),
                 })}>
                     Salvar
                 </Button>
@@ -187,7 +214,7 @@ export default function PresencialDistribuicao() {
             ) : (
                 <div className="max-w-4xl space-y-4">
                     <Configuracao
-                        key={JSON.stringify([dados.horarios, dados.fila_avaliador, dados.por_projeto])}
+                        key={JSON.stringify([dados.horarios, dados.fila_avaliador, dados.comuns_por_projeto, dados.comite_por_projeto, dados.peso_comite])}
                         dados={dados}
                         salvando={salvando === 'config'}
                         onSalvar={(c) => executar('config', () => salvarDistribuicaoPresencial(c, ocorrencia, modoTeste))}
@@ -293,7 +320,7 @@ export default function PresencialDistribuicao() {
                                         <option value="">Projeto pronto…</option>
                                         {prontos.map((p) => (
                                             <option key={p.id} value={p.id}>
-                                                {p.estande ? `${p.estande} · ` : ''}{p.titulo} ({p.avaliacoes})
+                                                {p.estande ? `${p.estande} · ` : ''}{p.titulo} ({p.comuns ?? 0} comum · {p.comite ?? 0} comissão)
                                             </option>
                                         ))}
                                     </select>
@@ -335,6 +362,7 @@ export default function PresencialDistribuicao() {
                                                         <td className="py-2 pr-2">
                                                             {d.avaliador}
                                                             {d.designacao_manual && <span className="ml-1 text-xs text-on-surface-variant">(à mão)</span>}
+                                                            {d.vaga === 'comite' && <span className="ml-1 text-xs font-semibold text-secondary">· comissão</span>}
                                                         </td>
                                                         <td className="py-2 pr-2">{d.status_label}</td>
                                                         <td className="py-2 text-right">

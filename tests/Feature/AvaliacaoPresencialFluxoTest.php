@@ -68,10 +68,10 @@ class AvaliacaoPresencialFluxoTest extends TestCase
         $this->projeto = $this->finalista('Bioplástico de mandioca');
     }
 
-    private function avaliadorPresencial(string $nome, bool $aceitou = true): User
+    private function avaliadorPresencial(string $nome, bool $aceitou = true, bool $comissao = false): User
     {
         $user = User::factory()->create(['role' => Role::Avaliador->value, 'name' => $nome]);
-        AvaliadorProfile::factory()->create(['user_id' => $user->id, 'presencial' => $aceitou]);
+        AvaliadorProfile::factory()->create(['user_id' => $user->id, 'presencial' => $aceitou, 'comissao_especial' => $comissao]);
 
         return $user;
     }
@@ -235,8 +235,8 @@ class AvaliacaoPresencialFluxoTest extends TestCase
 
     public function test_no_mapa_o_estande_com_o_maximo_aparece_completo_para_os_outros(): void
     {
-        foreach (['Bruno', 'Carla', 'Diego'] as $nome) {
-            Sanctum::actingAs($this->avaliadorPresencial($nome));
+        foreach (['Bruno' => false, 'Carla' => false, 'Diego' => true] as $nome => $comissao) {
+            Sanctum::actingAs($this->avaliadorPresencial($nome, comissao: $comissao));
             $this->abrir($this->projeto);
         }
 
@@ -442,8 +442,8 @@ class AvaliacaoPresencialFluxoTest extends TestCase
 
     public function test_projeto_com_o_maximo_de_avaliacoes_sai_da_lista(): void
     {
-        foreach (['Bruno', 'Carla', 'Diego'] as $nome) {
-            Sanctum::actingAs($this->avaliadorPresencial($nome));
+        foreach (['Bruno' => false, 'Carla' => false, 'Diego' => true] as $nome => $comissao) {
+            Sanctum::actingAs($this->avaliadorPresencial($nome, comissao: $comissao));
             $this->abrir($this->projeto);
         }
 
@@ -465,6 +465,57 @@ class AvaliacaoPresencialFluxoTest extends TestCase
 
         // Escolheu no mapa e enviou: nenhuma designação nasce sozinha.
         $this->assertSame(1, AvaliacaoPresencial::count());
+    }
+
+    // --- Vagas: comuns e da comissão especial (Sprint 222) --------------------
+
+    public function test_duas_vagas_comuns_e_uma_da_comissao(): void
+    {
+        foreach (['Bruno', 'Carla'] as $nome) {
+            Sanctum::actingAs($this->avaliadorPresencial($nome));
+            $this->abrir($this->projeto);
+        }
+
+        // As duas comuns tomadas: o terceiro comum fica de fora, mesmo com a
+        // vaga da comissão livre — e o mapa diz isso a ele.
+        Sanctum::actingAs($this->avaliador);
+        $this->getJson('/api/v1/avaliador/presencial/avaliacoes')
+            ->assertJsonCount(0, 'data.disponiveis')
+            ->assertJsonPath('data.mapa.estandes.1.A.situacao', 'completo');
+        $this->postJson("/api/v1/avaliador/presencial/avaliacoes/projetos/{$this->projeto->id}")
+            ->assertStatus(422)->assertJsonPath('errors.projeto.0', 'Este projeto já recebeu o número máximo de avaliações presenciais.');
+
+        // O da comissão ainda entra, na vaga dela.
+        Sanctum::actingAs($comissao = $this->avaliadorPresencial('Diana', comissao: true));
+        $this->getJson('/api/v1/avaliador/presencial/avaliacoes')
+            ->assertJsonPath('data.comissao', true)
+            ->assertJsonPath('data.vagas.peso_comite', 2)
+            ->assertJsonPath('data.mapa.estandes.1.A.situacao', 'disponivel');
+        $this->abrir($this->projeto);
+
+        $this->assertSame('comite', AvaliacaoPresencial::where('avaliador_id', $comissao->id)->sole()->vaga->value);
+        $this->assertSame(2, AvaliacaoPresencial::where('vaga', 'comum')->count());
+    }
+
+    public function test_da_comissao_com_a_vaga_dela_tomada_entra_numa_comum(): void
+    {
+        Sanctum::actingAs($this->avaliadorPresencial('Diana', comissao: true));
+        $this->abrir($this->projeto);
+
+        Sanctum::actingAs($segundo = $this->avaliadorPresencial('Edson', comissao: true));
+        $id = $this->abrir($this->projeto);
+
+        $this->getJson("/api/v1/avaliador/presencial/avaliacoes/{$id}")
+            ->assertJsonPath('data.vaga', 'comum')
+            ->assertJsonPath('data.vaga_label', 'Vaga comum');
+        $this->assertSame('comum', AvaliacaoPresencial::where('avaliador_id', $segundo->id)->sole()->vaga->value);
+
+        // Sobrou uma comum: um comum ainda entra; depois, mais ninguém.
+        Sanctum::actingAs($this->avaliadorPresencial('Bruno'));
+        $this->abrir($this->projeto);
+
+        Sanctum::actingAs($this->avaliadorPresencial('Fábio', comissao: true));
+        $this->postJson("/api/v1/avaliador/presencial/avaliacoes/projetos/{$this->projeto->id}")->assertStatus(422);
     }
 
     public function test_designada_pela_distribuicao_e_aberta_e_enviar_repoe_a_fila(): void

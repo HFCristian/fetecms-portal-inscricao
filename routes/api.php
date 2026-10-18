@@ -347,6 +347,8 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::post('/distribuicao/distribuir', [AvaliacaoPresencialAdminController::class, 'distribuir']);
                 Route::post('/distribuicao/redistribuir', [AvaliacaoPresencialAdminController::class, 'redistribuir']);
                 Route::post('/avaliacoes/designar', [AvaliacaoPresencialAdminController::class, 'designarAvaliacoes']);
+                // Ranking presencial (Sprint 222): média com o peso da comissão especial.
+                Route::get('/ranking', [AvaliacaoPresencialAdminController::class, 'ranking']);
                 Route::delete('/avaliacoes/{avaliacao}', [AvaliacaoPresencialAdminController::class, 'retirarAvaliacao']);
                 // Cadastro de avaliadores só do evento presencial (Sprint 191):
                 // a organização cria a conta e entrega a senha gerada.

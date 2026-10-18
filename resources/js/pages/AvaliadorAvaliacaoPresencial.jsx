@@ -109,12 +109,23 @@ export default function AvaliadorAvaliacaoPresencial() {
                 </div>
             ) : (
                 <div className="max-w-5xl space-y-4">
-                    {turno && (
+                    {(turno || painel.comissao) && (
                         <section className={cartao}>
-                            <p className="text-sm text-on-surface">
-                                <span className="material-symbols-outlined text-[18px] align-[-0.2em] text-secondary mr-1">schedule</span>
-                                <strong>{turno.rotulo}</strong> — avaliações aceitas até as {turno.prazo_label}.
-                            </p>
+                            {turno && (
+                                <p className="text-sm text-on-surface">
+                                    <span className="material-symbols-outlined text-[18px] align-[-0.2em] text-secondary mr-1">schedule</span>
+                                    <strong>{turno.rotulo}</strong> — avaliações aceitas até as {turno.prazo_label}.
+                                </p>
+                            )}
+                            {painel.comissao && painel.vagas && (
+                                <p className="text-xs text-on-surface-variant mt-1">
+                                    <span className="material-symbols-outlined text-[16px] align-[-0.2em] text-secondary mr-1">star</span>
+                                    Você é da <strong>comissão especial</strong>: cada projeto guarda{' '}
+                                    {painel.vagas.comite} vaga(s) para a comissão, e a sua avaliação nela pesa{' '}
+                                    {String(painel.vagas.peso_comite).replace('.', ',')} na média. Com a vaga da comissão
+                                    tomada, você entra numa vaga comum, com peso 1.
+                                </p>
+                            )}
                         </section>
                     )}
 
@@ -133,6 +144,7 @@ export default function AvaliadorAvaliacaoPresencial() {
                                             <p className="text-xs text-on-surface-variant">
                                                 {local(a.local)}{a.area ? ` · ${a.area}` : ''}
                                                 {a.designacao_manual ? ' · designado pela organização' : ''}
+                                                {a.vaga === 'comite' ? ' · vaga da comissão' : ''}
                                                 {a.prazo_label ? ` · até ${a.prazo_label}` : ''}
                                             </p>
                                             <SinalizacoesProjeto sinalizacoes={a.sinalizacoes} compacto />
@@ -170,8 +182,9 @@ export default function AvaliadorAvaliacaoPresencial() {
                         <section className={cartao}>
                             <h2 className="font-display text-base font-semibold text-on-surface mb-1">Estandes disponíveis</h2>
                             <p className="text-xs text-on-surface-variant mb-2">
-                                Projetos do seu turno, credenciados e com o estande checado, que ainda não receberam as{' '}
-                                {painel.max_por_projeto} avaliações presenciais. Escolha o que estiver livre no corredor.
+                                Projetos do seu turno, credenciados e com o estande checado, que ainda têm vaga para você
+                                ({painel.max_por_projeto} avaliações presenciais por projeto). Escolha o que estiver livre no
+                                corredor.
                             </p>
                             {painel.disponiveis.length === 0 ? (
                                 <p className="text-sm text-on-surface-variant">Nenhum estande disponível agora.</p>
@@ -205,7 +218,9 @@ export default function AvaliadorAvaliacaoPresencial() {
                                     <li key={a.id} className="py-3 flex flex-wrap items-center gap-3">
                                         <div className="min-w-0 flex-1">
                                             <p className="text-sm text-on-surface truncate">{a.titulo}</p>
-                                            <p className="text-xs text-on-surface-variant">{local(a.local)}</p>
+                                            <p className="text-xs text-on-surface-variant">
+                                                {local(a.local)}{a.vaga === 'comite' ? ' · vaga da comissão' : ''}
+                                            </p>
                                         </div>
                                         <span className="text-sm font-bold text-secondary">{nota(a.nota)}</span>
                                         <Button type="button" variant="outline" onClick={() => abrir(a.id)} aria-label={`Ver ${a.titulo}`}>

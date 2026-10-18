@@ -133,7 +133,11 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     checado, entre todos que confirmaram o presencial), mas sem designação o avaliador abre o
     **mapa** do evento, escolhe o turno, clica no estande e inicia (`escolha_livre`; a mesma escolha
     existe em lista). Só começa avaliação no **turno em andamento**, em projeto credenciado e checado,
-    com vaga. Avalia num **wizard** como o da online, com o **checklist dos itens da checagem** (sem
+    com vaga. As **vagas** são por projeto e da edição (Distribuição presencial): **2 comuns + 1 da
+    comissão especial** por padrão, e a avaliação da comissão **pesa 2** na média do **Ranking
+    presencial** (`RankingPresencialService`, `/admin/presencial/ranking`); o avaliador da comissão
+    que encontra a vaga dela tomada entra numa comum, com peso 1 (`avaliacoes_presenciais.vaga`,
+    `App\Enums\VagaPresencial`, `JanelaTurnos::vagaPara()`). Avalia num **wizard** como o da online, com o **checklist dos itens da checagem** (sem
     nota) como **primeiro passo**. A rubrica é a do documento **"Perguntas de Avaliação FETECMS 2026 ·
     Etapa Presencial"** (`App\Support\RubricaPresencial`) **sem a seção 1** (ética: TCE e TCLE/TALE,
     tirada a pedido da organização): 13 seções, **8,500** em escala e **1,500** em Sim/Não, perguntas
@@ -980,7 +984,42 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 219 | Avaliação presencial: **rubrica do documento de 2026** (14 seções, Sim/Não e escala, condicionais, sem valor, nota com 4 casas) + sinal de ética ao admin | ✅ sim | ✅ sim (Pedro, PR #113 → v1.35) | 0 |
 | 220 | `demo:avaliacao-presencial`: **documentos em PDF** (projeto, diário, pasta, banner, TCLE/TALE) e três cenários da rubrica | ✅ sim | ✅ sim (Pedro, PR #113 → v1.35) | 0 |
 | 221 | Avaliação presencial **sem cabine e sem designação obrigatória** (mapa: turno → estande → iniciar) + rubrica sem a seção de ética, 2.2 condicional e checklist como 1º passo | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 222 | Vagas presenciais por projeto: **2 comuns + 1 da comissão** (configuráveis), **peso 2** da comissão e o **Ranking presencial** | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprint 222 (mesma branch):** das avaliações presenciais de cada projeto, uma parte é de avaliadores
+> comuns e outra da **comissão especial**, e a da comissão pesa mais.
+> (a) **Vagas.** O teto único (`edicoes.presencial_por_projeto`, 3) virou dois números e um peso, na
+> Distribuição presencial: **avaliações comuns** (`presencial_comuns_por_projeto`, padrão 2), **da
+> comissão** (`presencial_comite_por_projeto`, padrão 1) e o **peso da comissão** na média
+> (`presencial_peso_comite`, padrão 2). Em branco vale o padrão; zero num tipo é resposta, nos dois
+> é recusado. Cada avaliação grava a vaga que ocupa (`avaliacoes_presenciais.vaga`, enum
+> `VagaPresencial`), e quem decide é um lugar só (`JanelaTurnos::vagaPara()`): o da comissão fica
+> com a vaga dela e, tomada, com uma comum (peso 1); o comum, só com uma comum. Gravada, a vaga não
+> muda se o avaliador sair da comissão depois. Valem a escolha pelo mapa e pela lista (o estande sem
+> vaga para ele aparece "Sem vaga para você"), a distribuição (o comum não ocupa a vaga da comissão)
+> e a designação manual, que passa do teto com a vaga do tipo do avaliador. O total continua sendo o
+> teto que o Mapa do Evento usa. A migration marca como `comite` a primeira avaliação de cada projeto
+> feita por alguém da comissão.
+> (b) **Ranking presencial** (`/admin/presencial/ranking`, `GET /admin/presencial/ranking`,
+> `RankingPresencialService`): os finalistas da lista que vale (a demo no modo de teste) com ao menos
+> uma avaliação presencial enviada, pela média **Σ(nota × peso) / Σ peso**, com código, estande, as
+> notas que formaram a média (sem quem avaliou; a da comissão em destaque) e a marca **parcial** de
+> quem ainda não teve todas as vagas preenchidas. Filtro por área e categoria; empate divide a
+> posição. A tela do avaliador da comissão explica a vaga e o peso.
+> Back **1552/1552**, front **837/837**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprints 221–222):** (1) `git push origin feat/presencial-mapa-e-vagas` + PR
+> para a `main`. **Duas migrations** (a que apaga `avaliador_turnos_presenciais` — as ativações já
+> feitas somem — e a das vagas, que troca `edicoes.presencial_por_projeto` pelos três campos),
+> **nenhuma variável de `.env`** e **nenhuma dependência nova**. (2) Depois do deploy, confira as
+> vagas em Avaliação presencial → Distribuição presencial: quem tinha mudado o teto de 3 volta ao
+> padrão 2 + 1. (3) **Marque a comissão especial** em Avaliadores Online antes do evento: é a marca
+> que dá a vaga e o peso da comissão. (4) **Avise os avaliadores** de que não há mais cabine: no
+> turno, eles abrem a aba Avaliação presencial e escolhem o estande no mapa. A distribuição continua
+> disponível e agora designa para **todos** que confirmaram o presencial — inclusive quem não veio —,
+> então use-a só se quiser. (5) A seção de ética (1.1 e 1.2) saiu da rubrica; o TCLE/TALE anexado
+> continua aparecendo nos documentos do projeto.
+>
 > **Sprint 221 (branch `feat/presencial-mapa-e-vagas`, saída da `main` @ `1c17de4`):** a avaliação
 > presencial deixou de depender da organização para começar.
 > (a) **Sem cabine.** A ativação do avaliador por turno (`avaliador_turnos_presenciais`,

@@ -130,6 +130,18 @@ describe('AvaliadorAvaliacaoPresencial', () => {
         expect(screen.getByText(/Estande 42 · Turno A \(matutino\) · Agrárias · 1 de 3 avaliações/)).toBeInTheDocument();
     });
 
+    it('quem é da comissão especial é avisado da vaga e do peso', async () => {
+        getPainelPresencial.mockResolvedValue({
+            ...PAINEL, comissao: true, vagas: { comuns: 2, comite: 1, peso_comite: 2 },
+            minhas: [{ id: 5, projeto_id: 7, titulo: 'Bioplástico', status: 'em_andamento', status_label: 'Em andamento', pode_escrever: true, vaga: 'comite', local: {} }],
+        });
+        render(<AvaliadorAvaliacaoPresencial />);
+
+        expect(await screen.findByText(/Você é da/)).toHaveTextContent('sua avaliação nela pesa 2 na média');
+        // O aviso e a linha da avaliação, marcada com a vaga que ela ocupa.
+        expect(screen.getByText(/Em andamento/).closest('li')).toHaveTextContent('vaga da comissão');
+    });
+
     it('fora do turno a aba explica e não oferece estande', async () => {
         getPainelPresencial.mockResolvedValue({
             ...PAINEL, aberto: false, turno: null, disponiveis: [],

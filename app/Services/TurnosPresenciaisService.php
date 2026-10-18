@@ -43,6 +43,9 @@ class TurnosPresenciaisService
             'horarios' => (object) $janela->horarios(),
             'fila_avaliador' => $janela->fila(),
             'por_projeto' => $janela->porProjeto(),
+            'comuns_por_projeto' => $janela->comunsPorProjeto(),
+            'comite_por_projeto' => $janela->comitePorProjeto(),
+            'peso_comite' => $janela->pesoComite(),
             'margem_minutos' => JanelaTurnos::MARGEM_MINUTOS,
             'configurada' => $janela->configurada(),
             'evento_de_label' => $edicao?->evento_de?->format('d/m/Y'),
@@ -57,7 +60,10 @@ class TurnosPresenciaisService
     }
 
     /**
-     * Grava os horários e os dois números da distribuição.
+     * Grava os horários, a fila de cada avaliador e as vagas por projeto —
+     * comuns, da comissão especial e o peso da comissão (Sprint 222). Campo em
+     * branco volta ao padrão; zero numa das vagas é resposta, mas o projeto
+     * precisa de ao menos uma.
      *
      * @param  array<string, mixed>  $dados
      */
@@ -69,10 +75,21 @@ class TurnosPresenciaisService
             throw ValidationException::withMessages(['horarios' => 'Nenhuma edição em vigor.']);
         }
 
+        $comuns = $dados['comuns_por_projeto'] ?? null;
+        $comite = $dados['comite_por_projeto'] ?? null;
+
+        if ((int) ($comuns ?? JanelaTurnos::PADRAO_COMUNS) + (int) ($comite ?? JanelaTurnos::PADRAO_COMITE) < 1) {
+            throw ValidationException::withMessages([
+                'comuns_por_projeto' => 'Cada projeto precisa de ao menos uma avaliação presencial.',
+            ]);
+        }
+
         $edicao->update([
             'horarios_turnos' => JanelaTurnos::validar($dados['horarios'] ?? []) ?: null,
             'presencial_fila_avaliador' => $dados['fila_avaliador'] ?? null,
-            'presencial_por_projeto' => $dados['por_projeto'] ?? null,
+            'presencial_comuns_por_projeto' => $comuns,
+            'presencial_comite_por_projeto' => $comite,
+            'presencial_peso_comite' => $dados['peso_comite'] ?? null,
         ]);
     }
 

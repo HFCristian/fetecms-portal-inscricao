@@ -108,3 +108,10 @@ export const designarPresencial = (ocorrencia, projetoIds, avaliadorIds, teste =
 
 export const retirarDesignacaoPresencial = (id, ocorrencia = {}, teste = false) =>
     http.delete(`/admin/presencial/avaliacoes/${id}`, com(ocorrencia, teste)).then((r) => r.data);
+
+// --- Ranking presencial (Sprint 222) -----------------------------------------
+// `filtros` é { area_id, categoria }; a média vem pronta do servidor, com o
+// peso da comissão especial.
+
+export const getRankingPresencial = (filtros = {}, teste = false) =>
+    http.get('/admin/presencial/ranking', com(filtros, teste)).then((r) => r.data.data);

@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Enums\Turno;
+use App\Enums\VagaPresencial;
 use App\Models\Edicao;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
@@ -30,8 +31,17 @@ final class JanelaTurnos
     /** Quantos projetos cada avaliador recebe por turno, sem configuração. */
     public const PADRAO_FILA = 5;
 
+    /** Avaliações de avaliadores comuns por projeto, sem configuração. */
+    public const PADRAO_COMUNS = 2;
+
+    /** Avaliações da comissão especial por projeto, sem configuração. */
+    public const PADRAO_COMITE = 1;
+
+    /** Quanto a avaliação da comissão especial pesa na média, sem configuração. */
+    public const PADRAO_PESO_COMITE = 2.0;
+
     /** Quantas avaliações presenciais cada projeto recebe, sem configuração. */
-    public const PADRAO_POR_PROJETO = 3;
+    public const PADRAO_POR_PROJETO = self::PADRAO_COMUNS + self::PADRAO_COMITE;
 
     /**
      * @param  array<string, array{inicio: string, fim: string}>  $horarios
@@ -41,7 +51,9 @@ final class JanelaTurnos
         private readonly ?CarbonImmutable $ate,
         private readonly array $horarios,
         private readonly int $fila,
-        private readonly int $porProjeto,
+        private readonly int $comuns,
+        private readonly int $comite,
+        private readonly float $pesoComite,
     ) {}
 
     public static function daEdicao(?Edicao $edicao = null): self
@@ -53,7 +65,10 @@ final class JanelaTurnos
             $edicao?->evento_ate?->toImmutable(),
             self::normalizar($edicao?->horarios_turnos ?? []),
             max(1, (int) ($edicao?->presencial_fila_avaliador ?: self::PADRAO_FILA)),
-            max(1, (int) ($edicao?->presencial_por_projeto ?: self::PADRAO_POR_PROJETO)),
+            // Zero é resposta (só comuns, ou só a comissão): em branco é que vale o padrão.
+            max(0, (int) ($edicao?->presencial_comuns_por_projeto ?? self::PADRAO_COMUNS)),
+            max(0, (int) ($edicao?->presencial_comite_por_projeto ?? self::PADRAO_COMITE)),
+            max(1.0, (float) ($edicao?->presencial_peso_comite ?? self::PADRAO_PESO_COMITE)),
         );
     }
 
@@ -109,9 +124,59 @@ final class JanelaTurnos
         return $this->fila;
     }
 
+    /** O teto de avaliações do projeto: as vagas comuns mais as da comissão. */
     public function porProjeto(): int
     {
-        return $this->porProjeto;
+        return $this->comuns + $this->comite;
+    }
+
+    public function comunsPorProjeto(): int
+    {
+        return $this->comuns;
+    }
+
+    public function comitePorProjeto(): int
+    {
+        return $this->comite;
+    }
+
+    public function pesoComite(): float
+    {
+        return $this->pesoComite;
+    }
+
+    /** O peso que uma avaliação tem na média do projeto, pela vaga que ocupa. */
+    public function peso(VagaPresencial $vaga): float
+    {
+        return $vaga === VagaPresencial::Comite ? $this->pesoComite : 1.0;
+    }
+
+    /**
+     * A vaga que o avaliador ocupa no projeto, ou null se não sobrou nenhuma
+     * para ele. O da comissão fica com a vaga dela e, tomada, com uma comum
+     * (que pesa como as outras); o comum, só com uma comum.
+     *
+     * @param  array{comum?: int, comite?: int}  $ocupadas
+     */
+    public function vagaPara(bool $comissao, array $ocupadas): ?VagaPresencial
+    {
+        if ($comissao && ($ocupadas['comite'] ?? 0) < $this->comite) {
+            return VagaPresencial::Comite;
+        }
+
+        return ($ocupadas['comum'] ?? 0) < $this->comuns ? VagaPresencial::Comum : null;
+    }
+
+    /**
+     * A vaga da designação manual, que passa por cima do teto: a que caberia
+     * e, sem nenhuma livre, a do tipo do avaliador.
+     *
+     * @param  array{comum?: int, comite?: int}  $ocupadas
+     */
+    public function vagaForcada(bool $comissao, array $ocupadas): VagaPresencial
+    {
+        return $this->vagaPara($comissao, $ocupadas)
+            ?? ($comissao ? VagaPresencial::Comite : VagaPresencial::Comum);
     }
 
     /** Há o que agendar: data do evento e o horário de ao menos um turno. */
