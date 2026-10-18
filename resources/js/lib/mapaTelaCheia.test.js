@@ -43,6 +43,20 @@ describe('cores da tela cheia do mapa', () => {
             .toEqual([['Nenhuma', 1], ['1', 1], ['2', 0], ['3 ou mais', 2]]);
         expect(legendaDoEscopo('credenciamento', linhas, 3).map((f) => f.total)).toEqual([1, 3]);
     });
+
+    it('na checagem, o estande checado sem credenciamento fica amarelo', () => {
+        const completo = linha({ credenciado: true, checado: true });
+        const semBalcao = linha({ checado: true });
+
+        expect(corNoEscopo('checagem', completo, 3).fill).toBe('#0ca30c');
+        expect(corNoEscopo('checagem', semBalcao, 3)).toMatchObject({ fill: '#f5d000', texto: '#0b0b0b' });
+        expect(corNoEscopo('checagem', linha({ credenciado: true }), 3).fill).toBe('#ffffff');
+        // A visualização do credenciamento não muda: só olha o balcão.
+        expect(corNoEscopo('credenciamento', semBalcao, 3).fill).toBe('#ffffff');
+
+        expect(legendaDoEscopo('checagem', [completo, semBalcao, semBalcao, linha()], 3).map((f) => [f.label, f.total]))
+            .toEqual([['Checado', 1], ['Checado sem credenciamento', 2], ['Pendente', 1]]);
+    });
 });
 
 describe('resumo do painel', () => {
