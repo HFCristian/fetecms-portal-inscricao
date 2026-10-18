@@ -126,15 +126,19 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     mala direta, nos avisos e no feedback. Quem se cadastrou antes do campo fica com a lista vazia:
     a tela cobra o preenchimento e os públicos por idioma não o alcançam.
   - **Avaliação presencial** (aba própria, `/avaliador/avaliacao-presencial`, só para quem aceitou
-    o presencial): abre **apenas no turno do evento em que a organização o ativou na cabine**, até o
-    fim do turno + 30 minutos (`App\Support\JanelaTurnos`); fora disso aparece fechada, com o motivo.
-    Recebe projetos pela **distribuição presencial por turno** (admin, Avaliação presencial →
-    Distribuição presencial: só projeto credenciado e com estande checado) e pode escolher no
-    corredor entre os do turno; avalia num **wizard** como o da online, com o **checklist dos itens
-    da checagem** (sem nota). A rubrica é a do documento **"Perguntas de Avaliação FETECMS 2026 ·
-    Etapa Presencial"** (`App\Support\RubricaPresencial`): 14 seções, **8,500** em escala e **1,500**
-    em Sim/Não, perguntas **condicionais** e **sem valor**, nota guardada com quatro casas; a 1.2 = Não
-    (documento de ética ausente) é sinalizada ao admin na Distribuição presencial. Ensaio: `php artisan demo:avaliacao-presencial`
+    o presencial): abre **durante os turnos do evento**, até o fim do turno + 30 minutos
+    (`App\Support\JanelaTurnos`); fora disso aparece fechada, com o motivo. **Não há cabine** (a
+    ativação por turno saiu na Sprint 221) e a **designação é opcional**: a organização pode
+    distribuir (Avaliação presencial → Distribuição presencial, só projeto credenciado e com estande
+    checado, entre todos que confirmaram o presencial), mas sem designação o avaliador abre o
+    **mapa** do evento, escolhe o turno, clica no estande e inicia (`escolha_livre`; a mesma escolha
+    existe em lista). Só começa avaliação no **turno em andamento**, em projeto credenciado e checado,
+    com vaga. Avalia num **wizard** como o da online, com o **checklist dos itens da checagem** (sem
+    nota) como **primeiro passo**. A rubrica é a do documento **"Perguntas de Avaliação FETECMS 2026 ·
+    Etapa Presencial"** (`App\Support\RubricaPresencial`) **sem a seção 1** (ética: TCE e TCLE/TALE,
+    tirada a pedido da organização): 13 seções, **8,500** em escala e **1,500** em Sim/Não, perguntas
+    **condicionais** (a 2.2 só depois do "Sim" na 2.1; "Não" na 2.1 = 2.2 vale 0) e **sem valor** (a
+    14.1), nota guardada com quatro casas. Ensaio: `php artisan demo:avaliacao-presencial`
     ([docs/DEMO_AVALIACAO_PRESENCIAL.md](docs/DEMO_AVALIACAO_PRESENCIAL.md)).
   - Ao **iniciar** uma avaliação o sistema confere se o projeto ainda cabe mais uma: contando as
     **concluídas + em andamento**, se ele já atingiu o **máximo de avaliações da categoria**, o
@@ -973,9 +977,34 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 216 | Fix (segurança): `symfony/http-foundation` 7.4.18 → 7.4.21 (CVE-2026-108082), `npm audit fix` (dev) + teste da planta sem corrida | ✅ sim | ✅ sim (Pedro, PR #111 → v1.33) | 0 |
 | 217 | Credenciamento: **código, turno e estande** nas listas e na ficha + "Tudo presente", "Todos compareceram" e "Todos os kits" | ✅ sim | ✅ sim (Pedro, PR #112 → v1.34) | 0 |
 | 218 | Credenciamento → **Etiquetas avulsas**: lista final, avaliadores (`V`), intérpretes, voluntários (`T`) e personalizada, a partir da posição da folha | ✅ sim | ✅ sim (Pedro, PR #112 → v1.34) | 0 |
-| 219 | Avaliação presencial: **rubrica do documento de 2026** (14 seções, Sim/Não e escala, condicionais, sem valor, nota com 4 casas) + sinal de ética ao admin | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 220 | `demo:avaliacao-presencial`: **documentos em PDF** (projeto, diário, pasta, banner, TCLE/TALE) e três cenários da rubrica | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 219 | Avaliação presencial: **rubrica do documento de 2026** (14 seções, Sim/Não e escala, condicionais, sem valor, nota com 4 casas) + sinal de ética ao admin | ✅ sim | ✅ sim (Pedro, PR #113 → v1.35) | 0 |
+| 220 | `demo:avaliacao-presencial`: **documentos em PDF** (projeto, diário, pasta, banner, TCLE/TALE) e três cenários da rubrica | ✅ sim | ✅ sim (Pedro, PR #113 → v1.35) | 0 |
+| 221 | Avaliação presencial **sem cabine e sem designação obrigatória** (mapa: turno → estande → iniciar) + rubrica sem a seção de ética, 2.2 condicional e checklist como 1º passo | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprint 221 (branch `feat/presencial-mapa-e-vagas`, saída da `main` @ `1c17de4`):** a avaliação
+> presencial deixou de depender da organização para começar.
+> (a) **Sem cabine.** A ativação do avaliador por turno (`avaliador_turnos_presenciais`,
+> `PUT /admin/presencial/avaliadores/{avaliador}/turnos`) saiu, com a tabela. Quem confirmou o
+> presencial avalia no **turno em andamento** (a margem de 30 minutos continua só para terminar), e a
+> distribuição do turno alcança **todos que confirmaram** — a tela de Distribuição presencial lista
+> esses avaliadores (com o selo da comissão especial) em vez dos botões de ativar.
+> (b) **Designação opcional, pelo mapa.** O painel do avaliador traz `mapa`: a planta vigente (ou a
+> padrão) e, para cada estande × turno da lista final que vale, o projeto e o que ele pode fazer ali
+> (`disponivel`, `comigo`, `avaliado`, `completo`, `nao_pronto`, `fora_do_turno`), calculado no
+> servidor. A tela (`MapaAvaliacaoPresencial.jsx`) tem o seletor de turno; clicar no estande livre
+> inicia (com a confirmação de sempre), no que é dele abre a avaliação, e nos outros diz o motivo.
+> Estande fora da planta (o ensaio usa 901–903) aparece embaixo do mapa. A lista "Estandes
+> disponíveis" continua. As travas são as de antes: turno em andamento, credenciado + checado e teto.
+> A avaliação escolhida assim fica marcada (`avaliacoes_presenciais.escolha_livre`) e o envio dela
+> **não repõe fila** — só o que veio da distribuição repõe; sem isso, cada envio num turno que a
+> organização não distribuiu criaria designações que ninguém pediu.
+> (c) **Rubrica.** A seção 1 do documento (1.1 e 1.2, ética: TCE e TCLE/TALE) saiu da tela, e com
+> ela o alerta de ética na Distribuição presencial — não valia ponto, então a nota máxima segue
+> 10,000. Os números das outras perguntas continuam os do documento. A **2.2** passou a ser
+> condicional à 2.1: sem o projeto impresso ela não aparece e vale 0. No wizard, o **checklist dos
+> itens do estande** virou o **primeiro passo** (era o 15º).
+> Back **1542/1542**, front **832/832**, Pint limpo.
+>
 > **Sprint 220 (mesma branch):** o ensaio da avaliação presencial ganhou o que o avaliador lê. O
 > `demo:avaliacao-presencial` gera, para os três projetos da lista final demo, os **documentos** que
 > a rubrica de 2026 pergunta — projeto de pesquisa, diário de bordo, pasta de referências, banner

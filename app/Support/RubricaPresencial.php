@@ -27,14 +27,16 @@ namespace App\Support;
  *
  * - **perguntas condicionais** (`condicao`): só aparecem quando a pergunta de
  *   que dependem foi respondida com "Sim". Quando não se aplicam, valem uma
- *   fração fixa — zero na 3.2, 4.2 e 4.3 (sem o diário ou sem a pasta não há o
- *   que avaliar), e o peso cheio na 14.2 (só perde ponto quem usou IA sem
- *   declarar);
+ *   fração fixa — zero na 2.2, 3.2, 4.2 e 4.3 (sem o projeto impresso, o diário
+ *   ou a pasta não há o que avaliar), e o peso cheio na 14.2 (só perde ponto
+ *   quem usou IA sem declarar);
  * - **"não se aplica"** na 4.3: com as demais referências em QR Code não há o
  *   que destacar, e a resposta vale como Sim;
- * - **perguntas sem valor** (peso 0): os documentos de ética (1.1 e 1.2) não
- *   entram na nota — a 1.2 fica registrada e, quando é "Não", **sinalizada** à
- *   Comissão Organizadora (`sinaliza`); a 14.1 só decide se a 14.2 se aplica.
+ * - **pergunta sem valor** (peso 0): a 14.1 só decide se a 14.2 se aplica.
+ *
+ * A seção 1 do documento (documentos de ética: TCE e TCLE/TALE, 1.1 e 1.2)
+ * **saiu da tela** a pedido da organização — não valia ponto. Os números das
+ * demais continuam os do documento, que é o que o avaliador tem impresso.
  */
 final class RubricaPresencial
 {
@@ -78,35 +80,6 @@ final class RubricaPresencial
      */
     public const SECOES = [
         [
-            'chave' => 'documentos',
-            'titulo' => 'Documentos',
-            'icone' => 'gavel',
-            'ajuda' => 'Os documentos de ética não entram na nota: a resposta fica registrada para a Comissão Organizadora.',
-            'perguntas' => [
-                [
-                    'chave' => 'etica_necessaria',
-                    'numero' => '1.1',
-                    'texto' => 'O projeto necessita de Termo de Comitê de Ética (TCE) ou Termo de Consentimento/Assentimento Livre e Esclarecido (TCLE/TALE) para sua execução?',
-                    'ajuda' => 'Considere se o projeto envolve pesquisa com seres humanos ou animais.',
-                    'tipo' => self::TIPO_SIM_NAO,
-                    'peso' => 0.0,
-                    'sem_valor' => 'Define se a 1.2 se aplica.',
-                ],
-                [
-                    'chave' => 'etica_documento',
-                    'numero' => '1.2',
-                    'texto' => 'Para TCE: o documento está presente no estande? Para TCLE/TALE: foi demonstrado seu uso na metodologia?',
-                    'ajuda' => 'Caso não tenha ambos ou falte um, a resposta é NÃO. A resposta é registrada e sinalizada à Comissão Organizadora. Não recolha o documento.',
-                    'tipo' => self::TIPO_SIM_NAO,
-                    'peso' => 0.0,
-                    'sem_valor' => 'Fica registrada para a Comissão Organizadora.',
-                    // Sem valor também quando não se aplica: não há o que somar.
-                    'condicao' => ['pergunta' => 'etica_necessaria', 'valor' => self::SIM, 'fracao_senao' => 0.0],
-                    'sinaliza' => ['valor' => self::NAO, 'texto' => 'Ética: TCE/TCLE/TALE exigido e não apresentado'],
-                ],
-            ],
-        ],
-        [
             'chave' => 'projeto_pesquisa',
             'titulo' => 'Projeto de Pesquisa',
             'icone' => 'description',
@@ -126,6 +99,8 @@ final class RubricaPresencial
                     'ajuda' => 'Observe a formatação geral, o uso do modelo da FETECMS 2026 e se as citações do texto estão nas referências.',
                     'tipo' => self::TIPO_SIM_NAO,
                     'peso' => 0.127,
+                    // Sem o projeto impresso não há o que conferir na ABNT.
+                    'condicao' => ['pergunta' => 'projeto_impresso', 'valor' => self::SIM, 'fracao_senao' => 0.0],
                 ],
             ],
         ],
@@ -600,29 +575,6 @@ final class RubricaPresencial
             fn (array $p) => self::bloco($p) === $bloco ? $p['peso'] : 0.0,
             self::perguntas(),
         )), self::CASAS);
-    }
-
-    /**
-     * O que a resposta pede para a Comissão Organizadora ver — hoje, o
-     * documento de ética que faltou no estande (1.2 = Não).
-     *
-     * @param  array<string, mixed>  $respostas
-     * @return list<string>
-     */
-    public static function alertas(array $respostas): array
-    {
-        $respostas = self::normalizar($respostas);
-        $alertas = [];
-
-        foreach (self::perguntas() as $pergunta) {
-            $sinaliza = $pergunta['sinaliza'] ?? null;
-
-            if ($sinaliza !== null && ($respostas[$pergunta['chave']] ?? null) === $sinaliza['valor']) {
-                $alertas[] = $sinaliza['texto'];
-            }
-        }
-
-        return $alertas;
     }
 
     /**

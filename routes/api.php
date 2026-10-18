@@ -340,11 +340,10 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::get('/checagem/{projeto}', [AvaliacaoPresencialAdminController::class, 'show']);
                 Route::post('/checagem/{projeto}', [AvaliacaoPresencialAdminController::class, 'store']);
                 // Avaliações presenciais: designar estandes e acompanhar.
-                // Distribuição presencial por turno (Sprints 169–170): horários,
-                // ativação dos avaliadores na cabine e as designações.
+                // Distribuição presencial por turno (Sprints 169–170): horários
+                // e as designações (a cabine saiu na Sprint 221).
                 Route::get('/distribuicao', [AvaliacaoPresencialAdminController::class, 'distribuicao']);
                 Route::patch('/distribuicao', [AvaliacaoPresencialAdminController::class, 'salvarDistribuicao']);
-                Route::put('/avaliadores/{avaliador}/turnos', [AvaliacaoPresencialAdminController::class, 'turnosDoAvaliador']);
                 Route::post('/distribuicao/distribuir', [AvaliacaoPresencialAdminController::class, 'distribuir']);
                 Route::post('/distribuicao/redistribuir', [AvaliacaoPresencialAdminController::class, 'redistribuir']);
                 Route::post('/avaliacoes/designar', [AvaliacaoPresencialAdminController::class, 'designarAvaliacoes']);

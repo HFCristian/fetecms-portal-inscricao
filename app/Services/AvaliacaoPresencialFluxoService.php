@@ -5,15 +5,17 @@ namespace App\Services;
 use App\Enums\StatusAvaliacao;
 use App\Enums\Turno;
 use App\Models\AvaliacaoPresencial;
-use App\Models\AvaliadorTurnoPresencial;
 use App\Models\Edicao;
 use App\Models\EstandeProjeto;
 use App\Models\ItemConferencia;
 use App\Models\ListaFinal;
+use App\Models\MapaLayout;
 use App\Models\Projeto;
 use App\Models\User;
 use App\Support\JanelaTurnos;
+use App\Support\PlantaEvento;
 use App\Support\RubricaPresencial;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -21,17 +23,18 @@ use Illuminate\Validation\ValidationException;
  * Avaliação presencial — **lado do avaliador** (aba "Avaliação presencial").
  *
  * Quem avalia no estande é quem **aceitou** avaliar presencialmente (aba
- * Presencial, Sprint 131), e só **durante um turno** em que a organização o
- * **ativou** na cabine da avaliação (Sprint 169). Fora disso a aba abre
- * fechada, com o motivo — e o que ele já respondeu continua legível.
+ * Presencial, Sprint 131), e só **durante um turno** do evento. Fora disso a
+ * aba abre fechada, com o motivo — e o que ele já respondeu continua legível.
+ * Até a Sprint 221 ele também precisava ser ativado na cabine da avaliação; a
+ * cabine saiu.
  *
- * O que ele avalia chega por dois caminhos, e os dois existem de propósito:
+ * O que ele avalia chega por dois caminhos, e a designação é opcional:
  *
  * - a **distribuição** do turno (Sprint 170), ou a designação à mão do admin;
- * - a **escolha no corredor**, porque a realidade muda — uma equipe saiu para
- *   almoçar, outra ainda está montando. A escolha é restrita ao que a
- *   distribuição também respeita: projeto do turno em andamento, credenciado e
- *   com o estande checado, abaixo do teto de avaliações.
+ * - a **escolha livre**, no mapa ou na lista: ele escolhe o turno, clica no
+ *   estande e inicia. A escolha é restrita ao que a distribuição também
+ *   respeita: projeto do turno em andamento, credenciado e com o estande
+ *   checado, abaixo do teto de avaliações.
  *
  * Cada avaliação vale até o **fim do turno em que foi entregue + 30 minutos**:
  * a margem é para terminar o que se abriu, e nada novo começa nela.
@@ -48,7 +51,6 @@ class AvaliacaoPresencialFluxoService
 {
     public function __construct(
         private readonly AvaliacaoPresencialService $intencao,
-        private readonly TurnosPresenciaisService $turnos,
         private readonly DistribuicaoPresencialService $distribuicao,
     ) {}
 
@@ -59,7 +61,7 @@ class AvaliacaoPresencialFluxoService
 
         return $this->intencao->aceitou($avaliador)
             && ListaFinal::vigente(Edicao::atual(), $modoTeste) !== null
-            && ($modoTeste || $this->turnosAtivosAbertos($avaliador) !== []);
+            && ($modoTeste || JanelaTurnos::daEdicao()->abertas() !== []);
     }
 
     /** Motivo de a aba estar fechada, em palavras. */
@@ -81,12 +83,6 @@ class AvaliacaoPresencialFluxoService
             return 'A organização ainda não definiu os dias e os horários dos turnos da avaliação presencial.';
         }
 
-        foreach ($janela->abertas() as $ocorrencia) {
-            if ($ocorrencia['situacao'] === 'em_andamento') {
-                return "O {$ocorrencia['turno_label']} está acontecendo: passe na cabine da avaliação para a organização ativar a sua participação neste turno.";
-            }
-        }
-
         $proxima = $janela->proxima();
 
         return $proxima !== null
@@ -105,7 +101,7 @@ class AvaliacaoPresencialFluxoService
         $modoTeste = $this->modoTeste($avaliador, $teste);
         $janela = JanelaTurnos::daEdicao();
         $pode = $this->podeAvaliar($avaliador, $teste);
-        $turno = $pode ? $this->ocorrenciaDeTrabalho($avaliador, $modoTeste) : null;
+        $turno = $pode ? $this->ocorrenciaDeTrabalho($modoTeste) : null;
 
         $minhas = AvaliacaoPresencial::where('avaliador_id', $avaliador->id)
             ->with(['projeto.area:id,nome', 'projeto.instituicao:id,nome'])
@@ -123,7 +119,6 @@ class AvaliacaoPresencialFluxoService
             'turno' => $turno,
             'horarios' => (object) $janela->horarios(),
             'margem_minutos' => JanelaTurnos::MARGEM_MINUTOS,
-            'meus_turnos' => $this->meusTurnos($avaliador, $janela),
             'rubrica' => RubricaPresencial::paraApi(),
             'itens' => $this->catalogo(),
             'max_por_projeto' => $janela->porProjeto(),
@@ -133,6 +128,9 @@ class AvaliacaoPresencialFluxoService
             'disponiveis' => $turno !== null || ($pode && $modoTeste)
                 ? $this->disponiveis($avaliador, $turno, $modoTeste, $janela)
                 : [],
+            'mapa' => $this->intencao->aceitou($avaliador)
+                ? $this->mapa($turno, $pode, $modoTeste, $janela, $minhas)
+                : null,
         ];
     }
 
@@ -255,8 +253,11 @@ class AvaliacaoPresencialFluxoService
             ])->save();
         });
 
-        // Enviou uma, recebe outra — se o turno ainda está acontecendo.
-        if ($avaliacao->dia !== null && $avaliacao->turno !== null) {
+        // Enviou uma, recebe outra — se o turno ainda está acontecendo e se ela
+        // veio da distribuição. A escolha livre e a designação à mão não repõem
+        // fila: num turno que a organização não distribuiu, repor criaria
+        // designações que ninguém pediu.
+        if ($avaliacao->dia !== null && $avaliacao->turno !== null && ! $avaliacao->escolha_livre && ! $avaliacao->designacao_manual) {
             $this->distribuicao->completarFila($avaliador, $avaliacao->dia->toDateString(), $avaliacao->turno, $modoTeste);
         }
 
@@ -295,7 +296,7 @@ class AvaliacaoPresencialFluxoService
             'nota_maxima' => RubricaPresencial::NOTA_MAXIMA,
             'concluida_em' => $avaliacao->concluida_em?->toIso8601String(),
             'prazo_label' => $this->prazoLabel($avaliacao, $janela),
-            'pode_escrever' => ! $avaliacao->concluida() && $this->podeEscrever($avaliacao, $avaliador, $modoTeste, $janela),
+            'pode_escrever' => ! $avaliacao->concluida() && $this->podeEscrever($avaliacao, $modoTeste, $janela),
             'projeto' => [
                 ...$leitura,
                 'escola' => $leitura['instituicao'],
@@ -315,35 +316,24 @@ class AvaliacaoPresencialFluxoService
     }
 
     /**
-     * As ocorrências abertas agora (com a margem) em que ele está ativado.
-     *
-     * @return list<array<string, mixed>>
-     */
-    private function turnosAtivosAbertos(User $avaliador): array
-    {
-        return array_values(array_filter(
-            JanelaTurnos::daEdicao()->abertas(),
-            fn (array $o) => $this->turnos->ativado($avaliador, $o['dia'], Turno::from($o['turno'])),
-        ));
-    }
-
-    /**
      * A ocorrência em que ele pode **começar** algo agora: o turno acontecendo
-     * (sem a margem) em que ele está ativado. No modo de teste, a da agenda em
-     * foco — o ensaio não espera o relógio.
+     * (sem a margem). No modo de teste, a da agenda em foco — o ensaio não
+     * espera o relógio.
      *
      * @return array<string, mixed>|null
      */
-    private function ocorrenciaDeTrabalho(User $avaliador, bool $modoTeste): ?array
+    private function ocorrenciaDeTrabalho(bool $modoTeste): ?array
     {
+        $janela = JanelaTurnos::daEdicao();
+
         if ($modoTeste) {
             // Turno já encerrado daria prazo vencido a tudo que o ensaio abrir.
-            $foco = JanelaTurnos::daEdicao()->emFoco();
+            $foco = $janela->emFoco();
 
             return $foco !== null && $foco['situacao'] !== 'encerrado' ? $foco : null;
         }
 
-        foreach (array_reverse($this->turnosAtivosAbertos($avaliador)) as $o) {
+        foreach (array_reverse($janela->abertas()) as $o) {
             if ($o['situacao'] === 'em_andamento') {
                 return $o;
             }
@@ -353,26 +343,23 @@ class AvaliacaoPresencialFluxoService
     }
 
     /**
-     * Ele pode escrever nesta avaliação agora? No prazo da ocorrência dela e
-     * ativado nela. Designação antiga, sem ocorrência gravada, vale em qualquer
-     * turno aberto do projeto em que ele esteja ativado.
+     * Ele pode escrever nesta avaliação agora? No prazo da ocorrência dela.
+     * Designação antiga, sem ocorrência gravada, vale em qualquer turno aberto
+     * do projeto.
      */
-    private function podeEscrever(AvaliacaoPresencial $avaliacao, User $avaliador, bool $modoTeste, JanelaTurnos $janela): bool
+    private function podeEscrever(AvaliacaoPresencial $avaliacao, bool $modoTeste, JanelaTurnos $janela): bool
     {
         if ($modoTeste) {
             return true;
         }
 
         if ($avaliacao->dia !== null && $avaliacao->turno !== null) {
-            $dia = $avaliacao->dia->toDateString();
-
-            return $janela->aberta($dia, $avaliacao->turno)
-                && $this->turnos->ativado($avaliador, $dia, $avaliacao->turno);
+            return $janela->aberta($avaliacao->dia->toDateString(), $avaliacao->turno);
         }
 
         $turnoDoProjeto = $this->distribuicao->turnosDe([$avaliacao->projeto_id])[$avaliacao->projeto_id] ?? null;
 
-        foreach ($this->turnosAtivosAbertos($avaliador) as $o) {
+        foreach ($janela->abertas() as $o) {
             if ($turnoDoProjeto === null || $o['turno'] === $turnoDoProjeto->value) {
                 return true;
             }
@@ -383,22 +370,22 @@ class AvaliacaoPresencialFluxoService
 
     private function garantirEscrita(AvaliacaoPresencial $avaliacao, User $avaliador, bool $modoTeste, JanelaTurnos $janela): void
     {
-        if (! $this->podeEscrever($avaliacao, $avaliador, $modoTeste, $janela)) {
+        if (! $this->podeEscrever($avaliacao, $modoTeste, $janela)) {
             throw ValidationException::withMessages([
                 'periodo' => $avaliacao->expirada($janela)
                     ? 'O prazo desta avaliação acabou com o turno (e os 30 minutos de margem).'
-                    : 'Esta avaliação é de um turno em que você não está ativado agora.',
+                    : 'Esta avaliação é de um turno que ainda não começou.',
             ]);
         }
     }
 
     /**
-     * A escolha no corredor: só no turno em andamento, só projeto daquele
-     * turno, credenciado, checado e abaixo do teto.
+     * A escolha livre (mapa ou lista): só no turno em andamento, só projeto
+     * daquele turno, credenciado, checado e abaixo do teto.
      */
     private function escolherNoCorredor(User $avaliador, Projeto $projeto, bool $modoTeste, JanelaTurnos $janela, ?AvaliacaoPresencial $vencida): AvaliacaoPresencial
     {
-        $ocorrencia = $this->ocorrenciaDeTrabalho($avaliador, $modoTeste);
+        $ocorrencia = $this->ocorrenciaDeTrabalho($modoTeste);
 
         if ($ocorrencia === null && ! $modoTeste) {
             throw ValidationException::withMessages([
@@ -441,9 +428,108 @@ class AvaliacaoPresencialFluxoService
             'dia' => $ocorrencia['dia'] ?? null,
             'turno' => $ocorrencia['turno'] ?? null,
             'designacao_manual' => false,
+            'escolha_livre' => true,
         ]);
 
         return $avaliacao;
+    }
+
+    /**
+     * O mapa do evento visto pelo avaliador: a planta e, em cada estande e
+     * turno, o projeto que apresenta ali e o que ele pode fazer com ele —
+     * iniciar, continuar, reler ou só saber por que não pode. É o caminho da
+     * avaliação sem designação: escolher o turno, clicar no estande, iniciar.
+     *
+     * O estande cujo número não está na planta (o ensaio usa 901–903) vem à
+     * parte, para continuar alcançável.
+     *
+     * @param  array<string, mixed>|null  $turno  a ocorrência em que ele pode começar algo
+     * @param  Collection<int, AvaliacaoPresencial>  $minhas
+     * @return array<string, mixed>|null
+     */
+    private function mapa(?array $turno, bool $pode, bool $modoTeste, JanelaTurnos $janela, Collection $minhas): ?array
+    {
+        $edicao = Edicao::atual();
+        $lista = ListaFinal::vigente($edicao, $modoTeste);
+
+        if ($lista === null) {
+            return null;
+        }
+
+        $planta = MapaLayout::vigente($edicao)?->dados ?? PlantaEvento::padrao();
+        $layout = array_map(
+            fn (array $e) => ['numero' => (int) $e['numero'], 'x' => $e['x'], 'y' => $e['y']],
+            $planta['estandes'] ?? [],
+        );
+        $naPlanta = array_fill_keys(array_column($layout, 'numero'), true);
+
+        $estandes = EstandeProjeto::where('edicao_id', $edicao?->id)
+            ->whereIn('projeto_id', $lista->projetos()->pluck('projetos.id'))
+            ->orderBy('numero')
+            ->get(['projeto_id', 'turno', 'numero']);
+        $ids = $estandes->pluck('projeto_id')->unique()->values()->all();
+        $projetos = Projeto::whereIn('id', $ids)->with('area:id,nome')->get(['id', 'titulo', 'area_id', 'categoria'])->keyBy('id');
+
+        $prontos = [];
+        foreach (Turno::cases() as $t) {
+            foreach ($this->distribuicao->projetosDoTurno($t, $modoTeste)['prontos'] as $p) {
+                $prontos[$p->id] = true;
+            }
+        }
+
+        $ocupacao = $this->distribuicao->ocupacao($ids, $janela);
+        $teto = $janela->porProjeto();
+        $minhasPorProjeto = $minhas->keyBy('projeto_id');
+        // No ensaio sem agenda, qualquer turno vale (como na escolha livre).
+        $trabalho = $turno['turno'] ?? null;
+        $qualquerTurno = $modoTeste && $trabalho === null;
+
+        $porEstande = [];
+        $fora = [];
+
+        foreach ($estandes as $e) {
+            $projeto = $projetos[$e->projeto_id] ?? null;
+
+            if ($projeto === null || $e->turno === null) {
+                continue;
+            }
+
+            $minha = $minhasPorProjeto[$projeto->id] ?? null;
+            $avaliacoes = (int) ($ocupacao[$projeto->id] ?? 0);
+
+            $situacao = match (true) {
+                (bool) $minha?->concluida() => 'avaliado',
+                $minha !== null && $minha->ocupaVaga($janela) => 'comigo',
+                ! isset($prontos[$projeto->id]) => 'nao_pronto',
+                $avaliacoes >= $teto => 'completo',
+                ! $pode || (! $qualquerTurno && $trabalho !== $e->turno->value) => 'fora_do_turno',
+                default => 'disponivel',
+            };
+
+            $linha = [
+                'projeto_id' => $projeto->id,
+                'titulo' => $projeto->titulo,
+                'area' => $projeto->area?->nome,
+                'categoria' => $projeto->categoria?->label(),
+                'avaliacoes' => $avaliacoes,
+                'situacao' => $situacao,
+                'avaliacao_id' => in_array($situacao, ['avaliado', 'comigo'], true) ? $minha->id : null,
+            ];
+
+            if (isset($naPlanta[$e->numero])) {
+                $porEstande[$e->numero][$e->turno->value] = $linha;
+            } else {
+                $fora[] = [...$linha, 'numero' => $e->numero, 'turno' => $e->turno->value];
+            }
+        }
+
+        return [
+            'layout' => $layout,
+            'estandes' => (object) $porEstande,
+            'fora_da_planta' => $fora,
+            'turno_trabalho' => $trabalho,
+            'max_por_projeto' => $teto,
+        ];
     }
 
     /**
@@ -496,26 +582,6 @@ class AvaliacaoPresencialFluxoService
             ->all();
     }
 
-    /**
-     * Os turnos em que ele está ativado e que ainda não terminaram — para ele
-     * saber quando voltar.
-     *
-     * @return list<array<string, mixed>>
-     */
-    private function meusTurnos(User $avaliador, JanelaTurnos $janela): array
-    {
-        $ativados = AvaliadorTurnoPresencial::where('edicao_id', Edicao::atual()?->id)
-            ->where('user_id', $avaliador->id)
-            ->get()
-            ->map(fn (AvaliadorTurnoPresencial $a) => $a->chave())
-            ->all();
-
-        return array_values(array_filter(
-            $janela->ocorrencias(),
-            fn (array $o) => in_array($o['chave'], $ativados, true) && $o['situacao'] !== 'encerrado',
-        ));
-    }
-
     /** @return array<string, mixed> */
     private function linha(AvaliacaoPresencial $avaliacao, User $avaliador, bool $modoTeste, JanelaTurnos $janela, ?array $sinais): array
     {
@@ -534,7 +600,7 @@ class AvaliacaoPresencialFluxoService
             'status_label' => $expirada ? 'Prazo encerrado' : $avaliacao->status?->label(),
             'expirada' => $expirada,
             'prazo_label' => $this->prazoLabel($avaliacao, $janela),
-            'pode_escrever' => ! $avaliacao->concluida() && $this->podeEscrever($avaliacao, $avaliador, $modoTeste, $janela),
+            'pode_escrever' => ! $avaliacao->concluida() && $this->podeEscrever($avaliacao, $modoTeste, $janela),
             'designacao_manual' => $avaliacao->designacao_manual,
             'nota' => $avaliacao->nota,
             'nota_maxima' => RubricaPresencial::NOTA_MAXIMA,

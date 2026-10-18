@@ -27,7 +27,7 @@ const PILL = {
 
 const respondida = (v) => v !== undefined && v !== null && v !== '';
 
-/** A pergunta aparece? As condicionais (3.2, 4.2, 4.3, 14.2…) só depois do "Sim". */
+/** A pergunta aparece? As condicionais (2.2, 3.2, 4.2, 4.3, 14.2…) só depois do "Sim". */
 const aplicavel = (p, respostas) => !p.condicao || respostas[p.condicao.pergunta] === p.condicao.valor;
 
 const opcaoDe = (p, valor) => p.opcoes?.find((o) => String(o.valor) === String(valor));
@@ -206,7 +206,8 @@ function Itens({ itens, marcados, onMarcar, somenteLeitura }) {
  * projeto, inicia e responde a rubrica do estande **um passo por seção**, com o
  * balão de orientação em cada pergunta, a nota parcial no rodapé e o rascunho a
  * qualquer momento. O passo a mais é o **checklist dos itens da checagem**
- * (banner, diário de bordo…): presente ou ausente, sem nota.
+ * (banner, diário de bordo…): presente ou ausente, sem nota — e, desde a
+ * Sprint 221, é o **primeiro** passo.
  *
  * A rubrica é a do documento de 2026 (`RubricaPresencial`): perguntas em escala
  * e de Sim/Não, condicionais que só aparecem depois do "Sim" e perguntas sem
@@ -230,7 +231,8 @@ export default function AvaliacaoPresencialModal({
     const [confirm, dialogo] = useConfirm();
     const topo = useRef(null);
 
-    // Seções pontuadas, o checklist (se houver catálogo) e o parecer no fim.
+    // O checklist (se houver catálogo) abre a visita — é o que se confere ao
+    // chegar no estande —, depois as seções pontuadas e o parecer no fim.
     const passos = useMemo(() => {
         const secoes = rubrica?.secoes ?? [];
         const pontuadas = secoes.filter((s) => s.perguntas.length > 0);
@@ -239,7 +241,7 @@ export default function AvaliacaoPresencialModal({
             ? [{ chave: 'itens', titulo: 'Itens do estande', icone: 'checklist', componente: 'itens',
                 ajuda: 'O que a checagem pediu em cada estande. Marque o que você encontrou na visita — não vale nota.', perguntas: [] }]
             : [];
-        return [...pontuadas, ...checklist, ...parecer];
+        return [...checklist, ...pontuadas, ...parecer];
     }, [rubrica, itens]);
 
     const perguntas = passos.flatMap((s) => s.perguntas);

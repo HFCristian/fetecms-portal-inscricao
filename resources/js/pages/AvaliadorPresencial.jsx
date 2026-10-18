@@ -153,8 +153,8 @@ export default function AvaliadorPresencial() {
                                     No dia do evento
                                 </h2>
                                 <p className="text-sm text-on-surface-variant">
-                                    Passe na cabine da avaliação para a organização ativar você no turno. A
-                                    avaliação dos estandes fica na aba <strong>Avaliação presencial</strong>.
+                                    Durante o turno, abra a aba <strong>Avaliação presencial</strong>, escolha o
+                                    estande no mapa e inicie a avaliação.
                                 </p>
                             </div>
                             <Link

@@ -95,10 +95,6 @@ export const getDistribuicaoPresencial = (filtros = {}, teste = false) =>
 export const salvarDistribuicaoPresencial = (dados, ocorrencia = {}, teste = false) =>
     http.patch('/admin/presencial/distribuicao', corpo({ ...dados, ...ocorrencia }, teste)).then((r) => r.data);
 
-export const definirTurnosAvaliador = (avaliadorId, turnos, ocorrencia = {}, teste = false) =>
-    http.put(`/admin/presencial/avaliadores/${avaliadorId}/turnos`, corpo({ turnos, ...ocorrencia }, teste))
-        .then((r) => r.data);
-
 export const distribuirPresencial = (ocorrencia, teste = false) =>
     http.post('/admin/presencial/distribuicao/distribuir', corpo(ocorrencia, teste)).then((r) => r.data);
 

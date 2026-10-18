@@ -8,7 +8,6 @@ use App\Enums\Turno;
 use App\Models\Area;
 use App\Models\AvaliacaoPresencial;
 use App\Models\AvaliadorProfile;
-use App\Models\AvaliadorTurnoPresencial;
 use App\Models\ChecagemEstande;
 use App\Models\Credenciamento;
 use App\Models\Edicao;
@@ -22,8 +21,9 @@ use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 /**
- * Sprints 169–170 — turnos da avaliação presencial, ativação dos avaliadores na
- * cabine e a distribuição por turno (só projeto credenciado e checado).
+ * Sprints 169–170 e 221 — turnos da avaliação presencial e a distribuição por
+ * turno (só projeto credenciado e checado), que alcança todos que confirmaram
+ * o presencial (a cabine saiu na Sprint 221).
  */
 class DistribuicaoPresencialTest extends TestCase
 {
@@ -68,13 +68,6 @@ class DistribuicaoPresencialTest extends TestCase
         AvaliadorProfile::factory()->create(['user_id' => $user->id, 'presencial' => $presencial, 'area_id' => ($area ?? $this->agr)->id]);
 
         return $user;
-    }
-
-    private function ativar(User $avaliador, string $dia = self::DIA, string $turno = 'A'): void
-    {
-        AvaliadorTurnoPresencial::create([
-            'edicao_id' => $this->edicao->id, 'user_id' => $avaliador->id, 'dia' => $dia, 'turno' => $turno,
-        ]);
     }
 
     /** Finalista do turno, já credenciado e checado (a menos que se diga o contrário). */
@@ -148,44 +141,11 @@ class DistribuicaoPresencialTest extends TestCase
             ->assertJsonPath('data.foco.situacao', 'futuro');
     }
 
-    // --- Ativação na cabine ------------------------------------------------
-
-    public function test_ativa_o_avaliador_no_turno_e_pre_ativa_os_seguintes(): void
-    {
-        $ana = $this->avaliador('Ana');
-
-        $this->putJson("/api/v1/admin/presencial/avaliadores/{$ana->id}/turnos", [
-            'turnos' => ['2026-10-20|A', '2026-10-21|B'],
-        ])->assertOk()
-            ->assertJsonPath('data.avaliadores.0.ativo', true)
-            ->assertJsonPath('data.avaliadores.0.turnos', ['2026-10-20|A', '2026-10-21|B']);
-
-        // Substitui a lista inteira: tirar um turno é mandar sem ele.
-        $this->putJson("/api/v1/admin/presencial/avaliadores/{$ana->id}/turnos", ['turnos' => ['2026-10-21|B']])
-            ->assertOk()
-            ->assertJsonPath('data.avaliadores.0.ativo', false);
-
-        $this->assertSame(1, AvaliadorTurnoPresencial::count());
-    }
-
-    public function test_so_ativa_quem_confirmou_e_so_turno_da_agenda(): void
-    {
-        $recusou = $this->avaliador('Bruno', presencial: false);
-        $ana = $this->avaliador('Ana');
-
-        $this->putJson("/api/v1/admin/presencial/avaliadores/{$recusou->id}/turnos", ['turnos' => ['2026-10-20|A']])
-            ->assertStatus(422)->assertJsonValidationErrors('avaliador');
-
-        $this->putJson("/api/v1/admin/presencial/avaliadores/{$ana->id}/turnos", ['turnos' => ['2026-10-25|A']])
-            ->assertStatus(422)->assertJsonValidationErrors('turnos');
-    }
-
     // --- Distribuição ------------------------------------------------------
 
     public function test_distribui_so_projetos_credenciados_e_checados_do_turno(): void
     {
         $ana = $this->avaliador('Ana');
-        $this->ativar($ana);
         $pronto = $this->finalista('Abelhas');
         $this->finalista('Bioplástico', credenciado: false);
         $this->finalista('Compostagem', checado: false);
@@ -207,22 +167,25 @@ class DistribuicaoPresencialTest extends TestCase
         $this->assertFalse($avaliacao->designacao_manual);
     }
 
-    public function test_so_alcanca_quem_foi_ativado_no_turno(): void
+    public function test_alcanca_todos_que_confirmaram_o_presencial_sem_cabine(): void
     {
-        $this->ativar($ana = $this->avaliador('Ana'));
-        $this->ativar($this->avaliador('Bruno'), turno: 'B');
-        $this->avaliador('Carla');
+        $ana = $this->avaliador('Ana');
+        $bruno = $this->avaliador('Bruno');
+        $this->avaliador('Carla', presencial: false);
         $this->finalista('Abelhas');
         $this->finalista('Bioplástico', estande: 2);
 
         $this->distribuir()->assertOk();
 
-        $this->assertSame([$ana->id], AvaliacaoPresencial::distinct()->pluck('avaliador_id')->all());
+        $this->assertEqualsCanonicalizing(
+            [$ana->id, $bruno->id],
+            AvaliacaoPresencial::distinct()->pluck('avaliador_id')->all(),
+        );
     }
 
-    public function test_sem_avaliador_ativado_a_distribuicao_e_recusada(): void
+    public function test_sem_avaliador_confirmado_a_distribuicao_e_recusada(): void
     {
-        $this->avaliador('Ana');
+        $this->avaliador('Ana', presencial: false);
         $this->finalista('Abelhas');
 
         $this->distribuir()->assertStatus(422)->assertJsonValidationErrors('avaliadores');
@@ -231,9 +194,9 @@ class DistribuicaoPresencialTest extends TestCase
     public function test_rodadas_iguais_teto_por_projeto_e_prioridade_de_area(): void
     {
         // Fila 2 por avaliador, 2 avaliações por projeto.
-        $this->ativar($ana = $this->avaliador('Ana', $this->bio));
-        $this->ativar($bruno = $this->avaliador('Bruno'));
-        $this->ativar($carla = $this->avaliador('Carla'));
+        $ana = $this->avaliador('Ana', $this->bio);
+        $bruno = $this->avaliador('Bruno');
+        $carla = $this->avaliador('Carla');
         $bio = $this->finalista('Células', $this->bio, estande: 3);
         $this->finalista('Abelhas', estande: 1);
 
@@ -251,7 +214,7 @@ class DistribuicaoPresencialTest extends TestCase
 
     public function test_redistribuir_preserva_o_que_ja_foi_aberto_e_o_manual(): void
     {
-        $this->ativar($ana = $this->avaliador('Ana'));
+        $ana = $this->avaliador('Ana');
         $a = $this->finalista('Abelhas');
         $b = $this->finalista('Bioplástico', estande: 2);
         $this->distribuir()->assertOk();
@@ -268,8 +231,7 @@ class DistribuicaoPresencialTest extends TestCase
 
     public function test_designacao_vencida_libera_a_vaga_e_e_reaproveitada(): void
     {
-        $this->ativar($ana = $this->avaliador('Ana'));
-        $this->ativar($ana, turno: 'B');
+        $ana = $this->avaliador('Ana');
         $projeto = $this->finalista('Abelhas');
         AvaliacaoPresencial::create([
             'edicao_id' => $this->edicao->id, 'projeto_id' => $projeto->id, 'avaliador_id' => $ana->id,
@@ -278,7 +240,6 @@ class DistribuicaoPresencialTest extends TestCase
 
         // No dia seguinte o turno A de ontem já venceu.
         $this->travelTo(now()->setDateTime(2026, 10, 21, 9, 0));
-        $this->ativar($ana, dia: '2026-10-21');
 
         $this->postJson('/api/v1/admin/presencial/distribuicao/distribuir', ['dia' => '2026-10-21', 'turno' => 'A'])
             ->assertOk()
@@ -292,7 +253,7 @@ class DistribuicaoPresencialTest extends TestCase
 
     public function test_turno_encerrado_nao_distribui(): void
     {
-        $this->ativar($this->avaliador('Ana'));
+        $this->avaliador('Ana');
         $this->finalista('Abelhas');
         $this->travelTo(now()->setDateTime(2026, 10, 20, 12, 31));
 
@@ -303,10 +264,10 @@ class DistribuicaoPresencialTest extends TestCase
 
     public function test_designacao_manual_passa_por_cima_do_teto_mas_nao_do_credenciamento(): void
     {
-        $this->ativar($ana = $this->avaliador('Ana'));
-        $this->ativar($bruno = $this->avaliador('Bruno'));
-        $this->ativar($carla = $this->avaliador('Carla'));
-        $semBalcao = $this->avaliador('Diego');
+        $ana = $this->avaliador('Ana');
+        $bruno = $this->avaliador('Bruno');
+        $carla = $this->avaliador('Carla');
+        $semBalcao = $this->avaliador('Diego', presencial: false);
         $pronto = $this->finalista('Abelhas');
         $naoCredenciado = $this->finalista('Bioplástico', credenciado: false, estande: 2);
         $this->distribuir()->assertOk(); // Ana e Bruno (teto 2) ficam com Abelhas.
@@ -322,12 +283,12 @@ class DistribuicaoPresencialTest extends TestCase
         $this->assertTrue(AvaliacaoPresencial::where('avaliador_id', $carla->id)->sole()->designacao_manual);
         $ignoradas = implode(' | ', $resposta->json('meta.resultado.ignoradas'));
         $this->assertStringContainsString('Bioplástico: ainda não foi credenciado e checado.', $ignoradas);
-        $this->assertStringContainsString('Diego: não está ativado neste turno.', $ignoradas);
+        $this->assertStringContainsString('Diego: não confirmou a avaliação presencial.', $ignoradas);
     }
 
     public function test_retira_designacao_aberta_mas_nao_a_enviada(): void
     {
-        $this->ativar($ana = $this->avaliador('Ana'));
+        $ana = $this->avaliador('Ana');
         $this->finalista('Abelhas');
         $this->distribuir()->assertOk();
         $avaliacao = AvaliacaoPresencial::sole();
@@ -338,23 +299,6 @@ class DistribuicaoPresencialTest extends TestCase
         $avaliacao->update(['status' => StatusAvaliacao::Designada, 'nota' => null]);
         $this->deleteJson("/api/v1/admin/presencial/avaliacoes/{$avaliacao->id}")->assertOk();
         $this->assertSame(0, AvaliacaoPresencial::count());
-    }
-
-    public function test_avaliacao_enviada_sem_o_documento_de_etica_e_sinalizada_a_organizacao(): void
-    {
-        $this->ativar($this->avaliador('Ana'));
-        $this->finalista('Abelhas');
-        $this->distribuir()->assertOk();
-
-        // 1.2 = Não: não muda a nota, mas a rubrica manda sinalizar.
-        AvaliacaoPresencial::sole()->update([
-            'status' => StatusAvaliacao::Concluida, 'nota' => 9,
-            'respostas' => ['etica_necessaria' => 'sim', 'etica_documento' => 'nao'],
-        ]);
-
-        $this->getJson('/api/v1/admin/presencial/distribuicao')
-            ->assertOk()
-            ->assertJsonPath('data.designacoes.0.alertas', ['Ética: TCE/TCLE/TALE exigido e não apresentado']);
     }
 
     public function test_modo_de_teste_usa_a_lista_e_os_avaliadores_demo(): void
@@ -370,8 +314,8 @@ class DistribuicaoPresencialTest extends TestCase
         Credenciamento::create(['projeto_id' => $projetoDemo->id, 'lista_final_id' => $listaDemo->id, 'finalizado_em' => now()]);
         ChecagemEstande::create(['projeto_id' => $projetoDemo->id, 'lista_final_id' => $listaDemo->id, 'verificado_em' => now(), 'demo' => true]);
         $this->finalista('Projeto de verdade');
-        $this->ativar($demo = $this->avaliador('Avaliador Demo', demo: true));
-        $this->ativar($this->avaliador('Avaliador de verdade'));
+        $demo = $this->avaliador('Avaliador Demo', demo: true);
+        $this->avaliador('Avaliador de verdade');
 
         $this->postJson('/api/v1/admin/presencial/distribuicao/distribuir', ['dia' => self::DIA, 'turno' => 'A', 'teste' => 1])
             ->assertOk()

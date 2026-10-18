@@ -13,7 +13,6 @@ use App\Models\AvaliacaoPresencial;
 use App\Models\Credencial;
 use App\Models\Edicao;
 use App\Models\Projeto;
-use App\Models\User;
 use App\Services\ChecagemEstandeService;
 use App\Services\CredenciaisService;
 use App\Services\DistribuicaoPresencialService;
@@ -173,22 +172,6 @@ class AvaliacaoPresencialAdminController extends Controller
         return response()->json([
             'data' => $this->distribuicao->painel($request->user(), $request->boolean('teste'), $request->input('dia'), $request->input('turno')),
             'meta' => ['message' => 'Turnos e números da distribuição salvos.'],
-        ]);
-    }
-
-    /** Os turnos em que o avaliador está ativado (substitui a lista inteira). */
-    public function turnosDoAvaliador(Request $request, User $avaliador): JsonResponse
-    {
-        $dados = $request->validate([
-            'turnos' => ['present', 'array'],
-            'turnos.*' => ['string', 'max:20'],
-        ]);
-
-        $this->turnos->definirTurnos($avaliador, $dados['turnos'], $request->user());
-
-        return response()->json([
-            'data' => $this->distribuicao->painel($request->user(), $request->boolean('teste'), $request->input('dia'), $request->input('turno')),
-            'meta' => ['message' => 'Turnos do avaliador atualizados.'],
         ]);
     }
 

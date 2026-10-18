@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Enums\Role;
 use App\Enums\TipoDocumento;
 use App\Models\AvaliacaoPresencial;
-use App\Models\AvaliadorTurnoPresencial;
 use App\Models\Edicao;
 use App\Models\ItemConferencia;
 use App\Models\ListaFinal;
@@ -53,8 +52,6 @@ class SemearAvaliacaoPresencialDemoTest extends TestCase
         $this->assertSame(Role::Avaliador, $avaliador->role);
         $this->assertTrue($avaliador->is_demo);
         $this->assertTrue($avaliador->avaliadorProfile->presencial);
-        // Os quatro turnos da agenda ainda não terminaram às 9h do primeiro dia.
-        $this->assertSame(4, AvaliadorTurnoPresencial::where('user_id', $avaliador->id)->count());
         // Os três itens do ensaio, além dos itens do sistema (os termos).
         $this->assertSame(3, ItemConferencia::where('na_checagem', true)->whereNull('chave')->count());
 
@@ -113,7 +110,6 @@ class SemearAvaliacaoPresencialDemoTest extends TestCase
         $this->artisan('demo:avaliacao-presencial')->assertSuccessful();
 
         $this->assertSame(3, ListaFinal::vigente($this->edicao, true)->projetos()->count());
-        $this->assertSame(4, AvaliadorTurnoPresencial::count());
         $this->assertSame(1, User::where('email', 'avaliador@fetecms.test')->count());
     }
 

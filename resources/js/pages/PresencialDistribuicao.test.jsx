@@ -22,8 +22,8 @@ const PAINEL = {
     modo_teste: false,
     is_demo: false,
     avaliadores: [
-        { id: 7, nome: 'Ana Avaliadora', area: 'Agrárias', subarea: null, turnos: [], ativo: false, no_turno: 0, concluidas: 0 },
-        { id: 8, nome: 'Bruno', area: 'Biológicas', subarea: null, turnos: ['2026-10-20|A'], ativo: true, no_turno: 1, concluidas: 0 },
+        { id: 7, nome: 'Ana Avaliadora', area: 'Agrárias', subarea: null, comissao: true, no_turno: 0, concluidas: 0 },
+        { id: 8, nome: 'Bruno', area: 'Biológicas', subarea: null, comissao: false, no_turno: 1, concluidas: 0 },
     ],
     resumo: { projetos: 3, prontos: 1, sem_credenciamento: 1, sem_checagem: 1, cobertos: 0, designacoes: 1, concluidas: 0, teto: 3 },
     projetos: [{ id: 30, titulo: 'Abelhas', estande: 12, pronto: true, avaliacoes: 1 }],
@@ -31,10 +31,10 @@ const PAINEL = {
 };
 
 const getDistribuicaoPresencial = vi.fn(() => Promise.resolve(PAINEL));
-const definirTurnosAvaliador = vi.fn(() => Promise.resolve({ data: PAINEL, meta: { message: 'Turnos do avaliador atualizados.' } }));
+const designarPresencial = vi.fn(() => Promise.resolve({ data: PAINEL, meta: { message: '1 designação(ões) criada(s).', resultado: { ignoradas: [] } } }));
 const distribuirPresencial = vi.fn(() => Promise.resolve({
     data: PAINEL,
-    meta: { message: '1 designação(ões) criada(s) para 1 avaliador(es) ativado(s).', resultado: { designadas: 1 } },
+    meta: { message: '1 designação(ões) criada(s) para 2 avaliador(es).', resultado: { designadas: 1 } },
 }));
 const retirarDesignacaoPresencial = vi.fn(() => Promise.resolve({ data: { ...PAINEL, designacoes: [] }, meta: { message: 'Designação retirada.' } }));
 const salvarDistribuicaoPresencial = vi.fn(() => Promise.resolve({ data: PAINEL, meta: { message: 'Turnos e números da distribuição salvos.' } }));
@@ -42,10 +42,9 @@ const salvarDistribuicaoPresencial = vi.fn(() => Promise.resolve({ data: PAINEL,
 vi.mock('../lib/presencial.js', () => ({
     getDistribuicaoPresencial: (...a) => getDistribuicaoPresencial(...a),
     salvarDistribuicaoPresencial: (...a) => salvarDistribuicaoPresencial(...a),
-    definirTurnosAvaliador: (...a) => definirTurnosAvaliador(...a),
     distribuirPresencial: (...a) => distribuirPresencial(...a),
     redistribuirPresencial: vi.fn(),
-    designarPresencial: vi.fn(),
+    designarPresencial: (...a) => designarPresencial(...a),
     retirarDesignacaoPresencial: (...a) => retirarDesignacaoPresencial(...a),
 }));
 
@@ -64,13 +63,19 @@ describe('PresencialDistribuicao', () => {
         expect(screen.getByText('Sem checagem')).toBeInTheDocument();
     });
 
-    it('ativa o avaliador no turno em foco', async () => {
+    it('lista quem confirmou o presencial, sem cabine, e designa qualquer um deles', async () => {
         render(<PresencialDistribuicao />);
 
-        fireEvent.click(await screen.findByRole('button', { name: 'Ativar Ana Avaliadora neste turno' }));
+        expect(await screen.findByText('2 confirmado(s)')).toBeInTheDocument();
+        expect(screen.getByText('Comissão especial')).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /Ativar/ })).not.toBeInTheDocument();
 
-        await waitFor(() => expect(definirTurnosAvaliador).toHaveBeenCalledWith(
-            7, ['2026-10-20|A'], { dia: '2026-10-20', turno: 'A' }, false,
+        fireEvent.change(screen.getByLabelText('Projeto para designar'), { target: { value: '30' } });
+        fireEvent.change(screen.getByLabelText('Avaliador para designar'), { target: { value: '7' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Designar' }));
+
+        await waitFor(() => expect(designarPresencial).toHaveBeenCalledWith(
+            { dia: '2026-10-20', turno: 'A' }, [30], [7], false,
         ));
     });
 
@@ -90,26 +95,6 @@ describe('PresencialDistribuicao', () => {
 
         await waitFor(() => expect(retirarDesignacaoPresencial).toHaveBeenCalledWith(90, { dia: '2026-10-20', turno: 'A' }, false));
         expect(await screen.findByText('Nenhuma designação neste turno.')).toBeInTheDocument();
-    });
-
-    it('sinaliza a avaliação enviada sem o documento de ética', async () => {
-        // A tela carrega de novo ao escolher o turno em foco: a resposta vale para todas.
-        getDistribuicaoPresencial.mockImplementation(() => Promise.resolve({
-            ...PAINEL,
-            designacoes: [{
-                ...PAINEL.designacoes[0], status: 'concluida', status_label: 'Concluída',
-                alertas: ['Ética: TCE/TCLE/TALE exigido e não apresentado'],
-            }],
-        }));
-        try {
-            render(<PresencialDistribuicao />);
-
-            expect(await screen.findByText('Ética: TCE/TCLE/TALE exigido e não apresentado')).toBeInTheDocument();
-            // Enviada não se retira.
-            expect(screen.queryByRole('button', { name: 'Retirar Abelhas de Bruno' })).not.toBeInTheDocument();
-        } finally {
-            getDistribuicaoPresencial.mockImplementation(() => Promise.resolve(PAINEL));
-        }
     });
 
     it('salva os horários dos turnos', async () => {

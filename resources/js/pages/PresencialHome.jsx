@@ -20,7 +20,7 @@ const SECOES = [
         to: '/admin/presencial/distribuicao',
         icon: 'shuffle',
         titulo: 'Distribuição presencial',
-        descricao: 'Horário dos turnos, avaliadores ativados na cabine e os projetos de cada um, turno a turno.',
+        descricao: 'Horário dos turnos, vagas por projeto e as designações (opcionais) de cada turno.',
     },
     {
         to: '/admin/presencial/avaliadores',
