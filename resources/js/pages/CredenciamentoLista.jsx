@@ -14,13 +14,15 @@ const dataHora = (iso) => (iso ? new Date(iso).toLocaleString('pt-BR') : '—');
  * As duas seções da aba Credenciamento — "Credenciar" (`situacao=pendentes`) e
  * "Credenciados" (`situacao=credenciados`) — são a mesma lista pesquisável, com
  * filtro por área e categoria; o que muda é o recorte e o que cada linha faz.
+ * Desde a Sprint 239 a busca acha também o código, o número do estande ("42",
+ * "042", "estande 42") e o turno, e há filtros próprios para os três.
  */
 export default function CredenciamentoLista({ situacao = 'pendentes' }) {
     const navigate = useNavigate();
     const [teste] = useModoTeste();
     const [dados, setDados] = useState(null);
     const [erro, setErro] = useState('');
-    const [filtros, setFiltros] = useState({ busca: '', area_id: '', categoria: '' });
+    const [filtros, setFiltros] = useState({ busca: '', area_id: '', categoria: '', codigo: '', estande: '', turno: '' });
     const [pagina, setPagina] = useState(1);
 
     const credenciados = situacao === 'credenciados';
@@ -30,6 +32,9 @@ export default function CredenciamentoLista({ situacao = 'pendentes' }) {
         if (filtros.busca.trim()) params.busca = filtros.busca.trim();
         if (filtros.area_id) params.area_id = filtros.area_id;
         if (filtros.categoria) params.categoria = filtros.categoria;
+        if (filtros.codigo.trim()) params.codigo = filtros.codigo.trim();
+        if (filtros.estande) params.estande = filtros.estande;
+        if (filtros.turno) params.turno = filtros.turno;
 
         getFinalistas(params, teste)
             .then((r) => { setDados(r); setErro(''); })
@@ -94,17 +99,37 @@ export default function CredenciamentoLista({ situacao = 'pendentes' }) {
 
             <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-4 mb-5 grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <Input
-                    placeholder="Buscar por título, escola ou orientador"
+                    aria-label="Buscar"
+                    placeholder="Buscar por título, escola, orientador, código ou estande"
                     value={filtros.busca}
                     onChange={(e) => alterarFiltro('busca', e.target.value)}
                 />
-                <Select value={filtros.area_id} onChange={(e) => alterarFiltro('area_id', e.target.value)}>
+                <Select aria-label="Área" value={filtros.area_id} onChange={(e) => alterarFiltro('area_id', e.target.value)}>
                     <option value="">Todas as áreas</option>
                     {(meta?.areas ?? []).map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
                 </Select>
-                <Select value={filtros.categoria} onChange={(e) => alterarFiltro('categoria', e.target.value)}>
+                <Select aria-label="Categoria" value={filtros.categoria} onChange={(e) => alterarFiltro('categoria', e.target.value)}>
                     <option value="">Todas as categorias</option>
                     {(meta?.categorias ?? []).map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                </Select>
+                {/* O local (Sprint 239): somam-se entre si e com a busca. */}
+                <Input
+                    aria-label="Código do projeto"
+                    placeholder="Código (ex.: AGR-001)"
+                    value={filtros.codigo}
+                    onChange={(e) => alterarFiltro('codigo', e.target.value)}
+                />
+                <Input
+                    aria-label="Número do estande"
+                    placeholder="Estande (ex.: 42)"
+                    inputMode="numeric"
+                    maxLength={4}
+                    value={filtros.estande}
+                    onChange={(e) => alterarFiltro('estande', e.target.value.replace(/\D/g, ''))}
+                />
+                <Select aria-label="Turno" value={filtros.turno} onChange={(e) => alterarFiltro('turno', e.target.value)}>
+                    <option value="">Todos os turnos</option>
+                    {(meta?.turnos ?? []).map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
                 </Select>
             </div>
 

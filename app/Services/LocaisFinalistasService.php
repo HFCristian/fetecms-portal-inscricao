@@ -26,11 +26,13 @@ class LocaisFinalistasService
     public function __construct(private readonly ListaFinalService $listas) {}
 
     /**
-     * Os projetos da edição em escopo que têm código, turno ou estande.
+     * Os projetos da edição em escopo que têm código, turno ou estande. O
+     * código sai da lista informada — a de demonstração, no balcão em modo de
+     * teste —, ou da final vigente.
      *
      * @return array<int, array{codigo: ?string, turno: ?string, turno_label: ?string, estande: ?int}>
      */
-    public function todos(): array
+    public function todos(?ListaFinal $lista = null): array
     {
         $edicao = Edicao::atual();
 
@@ -38,7 +40,7 @@ class LocaisFinalistasService
             return [];
         }
 
-        $lista = ListaFinal::vigente($edicao);
+        $lista ??= ListaFinal::vigente($edicao);
         $codigos = $lista === null ? [] : $this->listas->codigosDaLista($lista);
         $estandes = EstandeProjeto::where('edicao_id', $edicao->id)->get()->keyBy('projeto_id');
         $turnos = TurnoApresentacao::where('edicao_id', $edicao->id)->get()->keyBy('projeto_id');

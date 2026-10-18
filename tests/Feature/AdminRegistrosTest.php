@@ -242,6 +242,7 @@ class AdminRegistrosTest extends TestCase
                 'avaliacao_parecer_editado',
                 'avaliacao_ajustes_inicio', 'avaliacao_ajustes_fim',
                 'presencial_comite_so_designados',
+                'presencial_comite_lancamento_noturno',
             ],
             array_column($avaliacao->json('meta.tipos'), 'value'),
         );

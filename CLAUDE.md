@@ -1033,7 +1033,46 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 236 | Avaliador: aba **Avaliação online** (`/avaliador/avaliacao-online`) e, no evento, a tela inicial é a **avaliação presencial** | ✅ sim | ✅ sim (Pedro, PR #119 → v1.40) | 0 |
 | 237 | Avaliação presencial sem os **itens do estande** + seção verde/amarela no wizard; Ranking presencial → **Ver avaliações** e exclusão com justificativa | ✅ sim | ✅ sim (Pedro, PR #120 → v1.41) | 0 |
 | 238 | Comitê: **rascunho fora do horário** + **lançamento noturno** parametrizado; Ver detalhes remove também **em andamento e avaliadas** | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 239 | Avaliação presencial **em lote pela planilha** (xlsx dos designados → prévia com erros por extenso → envio) + Credenciar busca e filtra por **código, estande e turno** | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprint 239 (mesma branch):**
+> (a) Na aba **Avaliação presencial**, a seção **Designados a você** ganhou **Baixar planilha** e
+> **Enviar planilha preenchida** (`LoteAvaliacaoPresencial.jsx`, `LotePresencialService`, `GET
+> /avaliador/presencial/lote/modelo`, `POST .../lote/previa`, `POST .../lote`). O modelo, no molde do
+> documento do comitê, traz uma linha por projeto designado (os do estande e os do comitê online, inclusive
+> o que ele já abriu — `AvaliacaoPresencialFluxoService::designados()`) com **Turno, Stand, Código e
+> Projeto**, uma coluna por pergunta da rubrica presencial com o tipo no título ("(S/N)", "(0-2-10)",
+> "(S/N/NA)" na 4.3) — **inclusive as condicionais**, marcadas "[só se 2.1 = S]" — e o parecer; o
+> rascunho já salvo vem preenchido. A **prévia** não grava nada: o cabeçalho é conferido primeiro (coluna
+> não reconhecida, faltando ou repetida recusa o arquivo dizendo qual e em que letra; o cabeçalho é achado
+> pela coluna "Stand" nas cinco primeiras linhas) e depois cada linha, com o motivo de cada erro — valor
+> fora de 0/2/4/6/8/10, S/N escrito de outro jeito (aceita S, Sim, N, Não; NA na 4.3), condicional
+> preenchida sem a origem em S, pergunta em branco ("Faltam respostas: 7.1, 8.1."), estande que não é
+> dele, projeto repetido; linha em branco é ignorada. O turno aceita "A", "Turno B", "manhã", "tarde". O
+> **envio** passa pelo fluxo do wizard, linha a linha: abre (se preciso), salva o rascunho e envia quando
+> o horário deixa; o comitê fora do horário de envio fica com **rascunho** e sobe a mesma planilha depois.
+> Uma linha que falha não derruba as outras, e a resposta diz o que aconteceu com cada uma. De quebra, a
+> **designação vencida que o avaliador reabre continua designação** (antes virava escolha livre e saía de
+> "Designados a você").
+> (b) Em **Credenciamento → Credenciar** (e Credenciados), a busca acha também o **código** ("agr-001"), o
+> **número do estande** ("42", "042", "estande 42") e o **turno** ("vespertino"), e entram três filtros —
+> código, estande e turno — que se somam entre si e com os de área e categoria, e recortam também os
+> números do topo. O local sai do `LocaisFinalistasService` (o da Sprint 227), que passou a aceitar a lista
+> — no modo de teste, o código é o da lista demo. `GET /admin/credenciamento/finalistas` aceita `codigo`,
+> `estande` (dígitos) e `turno`, e devolve `turnos`.
+> Back **1623/1623**, front **919/919**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprints 238–239):** `git push origin feat/comite-noite-lote-credenciar` + PR para
+> a `main`. **Uma migration** (`edicoes.presencial_comite_noite_inicio`/`_fim` e
+> `avaliacoes_presenciais.aberta_pelo_comite`), sem `.env` ou dependência nova. (1) O **lançamento
+> noturno nasce desligado**: defina o horário em Parametrização → Avaliação presencial → Comitê especial.
+> Sem ele, o comitê só envia no horário de avaliação dos turnos (mas já salva rascunho a qualquer hora do
+> evento). (2) **O rascunho do comitê não vence e segura a vaga**: um avaliador da comissão que abre e
+> esquece prende o projeto até alguém removê-lo em Acompanhamento → Ver detalhes. (3) Antes do evento,
+> baixe uma planilha de um avaliador de teste, preencha no Excel e suba: aqui o arquivo foi conferido pelo
+> leitor do portal e pelos testes, não pelo Excel. (4) Remover avaliação **realizada no estande** pelo Ver
+> detalhes também a tira do certificado do avaliador, como no Ranking presencial.
+>
 > **Sprint 238 (branch `feat/comite-noite-lote-credenciar`, saída da `main` @ `a33510c`, v1.41):**
 > (a) O avaliador da **comissão especial** ganhou outro relógio na avaliação presencial: ele vai ao
 > estande com um caderno e lança depois. Quem é da comissão **abre e salva rascunho a qualquer hora do

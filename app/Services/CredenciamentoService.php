@@ -84,7 +84,10 @@ class CredenciamentoService
      */
     public const MINUTOS_ATENDIMENTO = 5;
 
-    public function __construct(private readonly RegistroAtividadeService $registros) {}
+    public function __construct(
+        private readonly RegistroAtividadeService $registros,
+        private readonly LocaisFinalistasService $locaisFinalistas,
+    ) {}
 
     /** O evento está aberto para este usuário? O demo em modo teste ignora as datas. */
     public function podeCredenciar(?User $user, bool $teste = false): bool
@@ -150,8 +153,10 @@ class CredenciamentoService
     /**
      * Os finalistas da edição, com a situação de cada um no balcão.
      *
-     * Filtros: `busca` (título, escola ou orientador), `area_id`, `categoria` e
-     * `situacao` (`credenciados` | `pendentes`).
+     * Filtros: `busca` (título, escola, orientador e, desde a Sprint 239, o
+     * código, o número do estande — "42", "042", "estande 42" — e o turno),
+     * `area_id`, `categoria`, `situacao` (`credenciados` | `pendentes`) e os do
+     * local: `codigo` (parte dele), `estande` (o número) e `turno` (A ou B).
      *
      * @param  array<string, mixed>  $filtros
      */
@@ -913,6 +918,21 @@ class CredenciamentoService
         $vigente = $this->listaFinal($user, $teste);
         $busca = trim((string) ($filtros['busca'] ?? ''));
 
+        // Código, estande e turno não são colunas do projeto (Sprint 239): o
+        // mapa é montado uma vez e devolve os ids que casam.
+        $porLocal = null;
+        $pelaBusca = [];
+        $comLocal = $busca !== '' || ! empty($filtros['codigo']) || ($filtros['estande'] ?? null) !== null || ! empty($filtros['turno']);
+        if ($comLocal && $vigente !== null) {
+            $locais = $this->locaisFinalistas->todos($vigente);
+            $porLocal = $this->locaisFinalistas->filtrar($locais, [
+                'codigo' => $filtros['codigo'] ?? null,
+                'estande' => $filtros['estande'] ?? null,
+                'turno' => $filtros['turno'] ?? null,
+            ]);
+            $pelaBusca = $busca === '' ? [] : $this->locaisFinalistas->casamBusca($locais, $busca);
+        }
+
         return Projeto::query()
             // Sem lista oficial não há finalista: a consulta devolve vazio.
             ->when($vigente === null, fn ($q) => $q->whereRaw('1 = 0'))
@@ -927,16 +947,18 @@ class CredenciamentoService
             ])
             ->when(! empty($filtros['area_id']), fn ($q) => $q->where('area_id', $filtros['area_id']))
             ->when(! empty($filtros['categoria']), fn ($q) => $q->where('categoria', $filtros['categoria']))
+            ->when($porLocal !== null, fn ($q) => $q->whereIn('id', $porLocal ?: [0]))
             ->when(($filtros['situacao'] ?? null) === 'credenciados', fn ($q) => $q
                 ->whereHas('credenciamento', fn ($c) => $c->whereNotNull('finalizado_em')))
             ->when(($filtros['situacao'] ?? null) === 'pendentes', fn ($q) => $q
                 ->whereDoesntHave('credenciamento', fn ($c) => $c->whereNotNull('finalizado_em')))
-            ->when($busca !== '', function ($q) use ($busca) {
+            ->when($busca !== '', function ($q) use ($busca, $pelaBusca) {
                 $termo = '%'.str_replace(['%', '_'], ['\%', '\_'], mb_strtolower($busca)).'%';
-                $q->where(function ($sub) use ($termo) {
+                $q->where(function ($sub) use ($termo, $pelaBusca) {
                     $sub->whereRaw('LOWER(titulo) LIKE ?', [$termo])
                         ->orWhereHas('user', fn ($u) => $u->whereRaw('LOWER(name) LIKE ?', [$termo]))
-                        ->orWhereHas('instituicao', fn ($i) => $i->whereRaw('LOWER(nome) LIKE ?', [$termo]));
+                        ->orWhereHas('instituicao', fn ($i) => $i->whereRaw('LOWER(nome) LIKE ?', [$termo]))
+                        ->when($pelaBusca !== [], fn ($w) => $w->orWhereIn('id', $pelaBusca));
                 });
             })
             ->orderBy('titulo');
