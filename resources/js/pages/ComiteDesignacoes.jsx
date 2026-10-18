@@ -187,7 +187,9 @@ export default function ComiteDesignacoes() {
                                 {resultado.ignoradas.length} designação(ões) não foram feitas:
                             </p>
                             <ul className="text-xs text-on-surface-variant list-disc pl-4 space-y-0.5">
-                                {resultado.ignoradas.map((motivo, i) => <li key={i}>{motivo}</li>)}
+                                {resultado.ignoradas.map((i, n) => (
+                                    <li key={n}>{i.projeto} → {i.avaliador}: {i.motivo}</li>
+                                ))}
                             </ul>
                         </div>
                     )}

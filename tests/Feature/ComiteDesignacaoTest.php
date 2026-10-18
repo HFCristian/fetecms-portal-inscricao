@@ -137,6 +137,30 @@ class ComiteDesignacaoTest extends TestCase
         $this->assertSame($daComissao->id, Avaliacao::sole()->avaliador_id);
     }
 
+    /**
+     * A tela lê cada item de `ignoradas` como objeto (projeto, avaliador,
+     * motivo): um teste de tela que mockava strings deixou passar o React
+     * renderizando o objeto cru, e a tela quebrava no primeiro pulado.
+     */
+    public function test_quem_ja_esta_com_o_projeto_volta_em_ignoradas_com_projeto_avaliador_e_motivo(): void
+    {
+        $daComissao = $this->avaliador('Ana Comissao', comissao: true);
+        $projeto = $this->projeto('Bioplástico');
+        $this->adminDoComite();
+        $payload = ['projeto_ids' => [$projeto->id], 'avaliador_ids' => [$daComissao->id]];
+
+        $this->postJson('/api/v1/admin/comite/designacoes', $payload)->assertOk();
+
+        $this->postJson('/api/v1/admin/comite/designacoes', $payload)
+            ->assertOk()
+            ->assertJsonPath('data.designadas', 0)
+            ->assertJsonPath('data.ignoradas', [[
+                'projeto' => 'Bioplástico',
+                'avaliador' => 'Ana Comissao',
+                'motivo' => 'já está com este projeto',
+            ]]);
+    }
+
     public function test_admin_sem_a_aba_comite_nao_entra(): void
     {
         $admin = User::factory()->admin()->create();

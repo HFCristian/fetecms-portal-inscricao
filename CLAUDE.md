@@ -1032,8 +1032,23 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 235 | Avaliador: seção **Designados a você** e busca por projeto ou estande na avaliação presencial | ✅ sim | ✅ sim (Pedro, PR #119 → v1.40) | 0 |
 | 236 | Avaliador: aba **Avaliação online** (`/avaliador/avaliacao-online`) e, no evento, a tela inicial é a **avaliação presencial** | ✅ sim | ✅ sim (Pedro, PR #119 → v1.40) | 0 |
 | 237 | Avaliação presencial sem os **itens do estande** + seção verde/amarela no wizard; Ranking presencial → **Ver avaliações** e exclusão com justificativa | ✅ sim | ✅ sim (Pedro, PR #120 → v1.41) | 0 |
-| 238 | Comitê: **rascunho fora do horário** + **lançamento noturno** parametrizado; Ver detalhes remove também **em andamento e avaliadas** | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 239 | Avaliação presencial **em lote pela planilha** (xlsx dos designados → prévia com erros por extenso → envio) + Credenciar busca e filtra por **código, estande e turno** | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 238 | Comitê: **rascunho fora do horário** + **lançamento noturno** parametrizado; Ver detalhes remove também **em andamento e avaliadas** | ✅ sim | ✅ sim (Pedro, PR #121 → v1.43) | 0 |
+| 239 | Avaliação presencial **em lote pela planilha** (xlsx dos designados → prévia com erros por extenso → envio) + Credenciar busca e filtra por **código, estande e turno** | ✅ sim | ✅ sim (Pedro, PR #121 → v1.43) | 0 |
+| 240 | Fix: Comitê → Designações quebrava a tela (React #31) quando alguma designação era pulada | ✅ sim | ❌ não (manual do Pedro) | 1 |
+
+> **Sprint 240 (branch `fix/comite-designacoes-ignoradas`, saída da `main` @ `974a936`, v1.43):** relato
+> de produção: designar em Comitê especial → Designações para um avaliador que **já tinha** o projeto (ou
+> já o avaliara) derrubava a tela com "Minified React error #31" (objeto com as chaves `projeto`,
+> `avaliador` e `motivo`). O servidor sempre devolveu `ignoradas` como lista de objetos — é o que a
+> Avaliação online → Designações lê —, mas a tela do comitê desenhava cada item como texto, e o teste
+> de tela mockava strings, então nunca viu o formato real. A linha passou a sair como na Avaliação
+> online ("Projeto → Avaliador: motivo"), o mock do teste usa o formato do servidor e um teste de
+> feature prende o contrato de `ignoradas`. As designações elegíveis do mesmo envio **já eram
+> gravadas** (e os e-mails saíam): só o resumo na tela quebrava.
+> Back **ComiteDesignacaoTest 12/12**, front **919/919**, Pint limpo.
+>
+> **Pendências do Pedro (Sprint 240):** `git push origin fix/comite-designacoes-ignoradas` + PR para a
+> `main` e `npm run build` no deploy. Sem migration, `.env` ou dependência nova.
 
 > **Sprint 239 (mesma branch):**
 > (a) Na aba **Avaliação presencial**, a seção **Designados a você** ganhou **Baixar planilha** e
