@@ -3,8 +3,11 @@
 namespace Tests\Feature;
 
 use App\Enums\Role;
+use App\Enums\StatusAvaliacao;
+use App\Models\AvaliacaoPresencial;
 use App\Models\AvaliadorProfile;
 use App\Models\Edicao;
+use App\Models\Projeto;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -86,33 +89,53 @@ class AvaliacaoPresencialIntencaoTest extends TestCase
             ->assertJsonPath('data.informacoes', 'Chegue às 7h30 no ginásio, com o crachá.');
     }
 
-    public function test_depois_que_o_evento_comeca_a_resposta_trava(): void
+    public function test_com_o_evento_em_curso_quem_quer_ir_ainda_marca_sim(): void
     {
+        // Sprint 225: sem trava de data — o avaliador online decide no dia.
         $this->comoAvaliador();
-        $this->putJson('/api/v1/avaliador/presencial', ['presencial' => true])->assertOk();
-
         $this->edicao->update(['evento_de' => now()->subHour(), 'evento_ate' => now()->addDay()]);
 
         $this->getJson('/api/v1/avaliador/presencial')
             ->assertOk()
-            ->assertJsonPath('data.pode_alterar', false)
-            // Quem aceitou continua vendo as orientações — é o dia do evento.
+            ->assertJsonPath('data.evento_iniciado', true)
+            ->assertJsonPath('data.pode_alterar', true);
+
+        $this->putJson('/api/v1/avaliador/presencial', ['presencial' => true])
+            ->assertOk()
+            ->assertJsonPath('data.presencial', true)
             ->assertJsonPath('data.informacoes', 'Chegue às 7h30 no ginásio, com o crachá.');
 
+        // E pode desistir também.
         $this->putJson('/api/v1/avaliador/presencial', ['presencial' => false])
-            ->assertStatus(422)
-            ->assertJsonValidationErrors('presencial');
+            ->assertOk()
+            ->assertJsonPath('data.presencial', false);
     }
 
-    public function test_avaliador_demo_ignora_a_trava_em_modo_teste(): void
+    public function test_quem_desiste_devolve_o_que_estava_so_designado(): void
     {
-        $this->avaliador->update(['is_demo' => true]);
-        $this->edicao->update(['evento_de' => now()->subHour(), 'evento_ate' => now()->addDay()]);
         $this->comoAvaliador();
+        $this->putJson('/api/v1/avaliador/presencial', ['presencial' => true])->assertOk();
+        foreach ([StatusAvaliacao::Designada, StatusAvaliacao::EmAndamento] as $status) {
+            AvaliacaoPresencial::create([
+                'edicao_id' => $this->edicao->id, 'avaliador_id' => $this->avaliador->id, 'status' => $status,
+                'projeto_id' => Projeto::factory()->submetido()->create(['edicao_id' => $this->edicao->id])->id,
+            ]);
+        }
 
-        $this->putJson('/api/v1/avaliador/presencial', ['presencial' => true, 'teste' => 1])
-            ->assertOk()
-            ->assertJsonPath('data.presencial', true);
+        $this->putJson('/api/v1/avaliador/presencial', ['presencial' => false])->assertOk();
+
+        // A que ele já abriu fica, para retomar se voltar atrás.
+        $this->assertSame([StatusAvaliacao::EmAndamento], AvaliacaoPresencial::pluck('status')->all());
+    }
+
+    public function test_conta_so_do_presencial_nao_muda_a_resposta(): void
+    {
+        $this->comoAvaliador();
+        $this->avaliador->avaliadorProfile->update(['apenas_presencial' => true, 'presencial' => true]);
+
+        $this->getJson('/api/v1/avaliador/presencial')->assertJsonPath('data.pode_alterar', false);
+        $this->putJson('/api/v1/avaliador/presencial', ['presencial' => false])
+            ->assertStatus(422)->assertJsonValidationErrors('presencial');
     }
 
     public function test_sem_orientacoes_publicadas_a_resposta_continua_valendo(): void

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
-import { Alert, Button, Toggle } from '../components/ui.jsx';
+import { Alert, Button } from '../components/ui.jsx';
 import { extractErrors, useAuth } from '../lib/auth.jsx';
 import { getPresencial, responderPresencial } from '../lib/avaliacaoPresencial.js';
 
@@ -10,8 +10,9 @@ import { getPresencial, responderPresencial } from '../lib/avaliacaoPresencial.j
  *
  * Ele responde se pretende avaliar **no dia da feira**. Quem aceita passa a ver
  * as orientações da organização (local, horário, o que levar); quem recusa
- * continua vendo a pergunta — e só ela —, porque mudar de ideia é permitido até
- * o evento começar.
+ * continua vendo a pergunta — e só ela —, porque mudar de ideia é permitido a
+ * qualquer momento, inclusive durante o evento (Sprint 225). Avaliar continua
+ * dependendo da liberação da organização.
  *
  * O trabalho do dia mora na aba **Avaliação presencial** (Sprint 171), que só
  * aparece no menu de quem disse "sim" — por isso a resposta atualiza o menu na
@@ -19,22 +20,21 @@ import { getPresencial, responderPresencial } from '../lib/avaliacaoPresencial.j
  */
 export default function AvaliadorPresencial() {
     const [dados, setDados] = useState(null);
-    const [modoTeste, setModoTeste] = useState(false);
     const [salvando, setSalvando] = useState(false);
     const [alert, setAlert] = useState('');
     const [sucesso, setSucesso] = useState('');
     const { setUser } = useAuth();
 
-    const carregar = useCallback((teste) => getPresencial(teste)
+    const carregar = useCallback(() => getPresencial()
         .then(setDados)
         .catch(() => setAlert('Não foi possível carregar a sua resposta.')), []);
 
-    useEffect(() => { carregar(modoTeste); }, [carregar, modoTeste]);
+    useEffect(() => { carregar(); }, [carregar]);
 
     async function responder(presencial) {
         setSalvando(true); setAlert(''); setSucesso('');
         try {
-            const resp = await responderPresencial(presencial, modoTeste);
+            const resp = await responderPresencial(presencial);
             setDados(resp.data);
             setSucesso(resp.meta?.message ?? '');
             // O menu mostra a aba da avaliação no estande só para quem aceitou.
@@ -59,17 +59,6 @@ export default function AvaliadorPresencial() {
                 participar.
             </p>
 
-            {dados?.is_demo && (
-                <div className="mb-4 max-w-3xl">
-                    <Toggle
-                        checked={modoTeste}
-                        onChange={setModoTeste}
-                        label="Modo de teste"
-                        description="Conta demo: responda mesmo depois de o evento ter começado."
-                    />
-                </div>
-            )}
-
             <div className="max-w-3xl space-y-3">
                 <Alert>{alert}</Alert>
                 <Alert type="info">{sucesso}</Alert>
@@ -91,9 +80,7 @@ export default function AvaliadorPresencial() {
                                 : 'As datas do evento ainda não foram divulgadas.'}
                             {dados.apenas_presencial
                                 ? ' Sua conta foi criada pela organização para a avaliação presencial: a participação já está confirmada.'
-                                : dados.pode_alterar
-                                    ? ' Você pode mudar a resposta até o início do evento.'
-                                    : ' O evento já começou: para alterar, fale com a organização.'}
+                                : ' Você pode mudar a resposta a qualquer momento, inclusive durante o evento.'}
                         </p>
 
                         <div className="flex flex-wrap gap-2">

@@ -35,8 +35,8 @@ class AvaliadorPresencialController extends Controller
         return response()->json([
             'data' => $situacao,
             'meta' => ['message' => $dados['presencial']
-                ? 'Participação presencial confirmada.'
-                : 'Tudo bem — você pode mudar de ideia até o início do evento.'],
+                ? 'Participação presencial confirmada. No evento, procure a equipe da avaliação presencial para ser liberado.'
+                : 'Tudo bem — você pode mudar de ideia a qualquer momento.'],
         ]);
     }
 }
