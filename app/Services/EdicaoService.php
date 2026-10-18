@@ -39,6 +39,7 @@ class EdicaoService
         // as datas não se herdam: fica de fora.
         'presencial_fila_avaliador',
         'presencial_comuns_por_projeto', 'presencial_comite_por_projeto', 'presencial_peso_comite',
+        'presencial_comite_so_designados',
     ];
 
     /**

@@ -20,6 +20,9 @@ const SITUACOES = {
     nao_pronto: { fill: '#ffffff', stroke: '#cfc6db', texto: '#9a93a6', legenda: 'Ainda não credenciado e checado', tracejado: true },
     fora_do_turno: { fill: '#ffffff', stroke: '#cfc6db', texto: '#2a0058', legenda: 'Fora do turno em andamento' },
     nao_liberado: { fill: '#ffffff', stroke: '#cfc6db', texto: '#2a0058', legenda: 'Aguardando a sua liberação', semLegenda: true },
+    // Regra do comitê (Sprint 234): só aparecem na legenda com ela ligada.
+    pedir_permissao: { fill: '#fff4cc', stroke: '#b38f00', texto: '#5c4a00', legenda: 'Fora das suas designações — peça permissão', soComite: true },
+    permissao_pendente: { fill: '#ffffff', stroke: '#b38f00', texto: '#5c4a00', legenda: 'Permissão pedida, aguardando', soComite: true, tracejado: true },
 };
 
 const VAZIO = { fill: '#f3f1f6', stroke: '#e6e0ee', texto: '#9a93a6' };
@@ -35,6 +38,8 @@ function motivo(projeto, maximo) {
             return 'apresenta fora do turno em andamento: só dá para iniciar durante o turno do projeto.';
         case 'nao_liberado':
             return 'aguarda a sua liberação: a organização precisa liberar você para avaliar.';
+        case 'permissao_pendente':
+            return 'seu pedido de permissão para avaliar aguarda a organização.';
         default:
             return '';
     }
@@ -49,7 +54,7 @@ function motivo(projeto, maximo) {
  * O estande que não está na planta (o ensaio usa 901–903) aparece embaixo,
  * para continuar alcançável.
  */
-export default function MapaAvaliacaoPresencial({ mapa, onIniciar, onAbrir }) {
+export default function MapaAvaliacaoPresencial({ mapa, onIniciar, onAbrir, onPedirPermissao }) {
     const [turno, setTurno] = useState(mapa.turno_trabalho ?? 'A');
     const [aviso, setAviso] = useState('');
 
@@ -69,8 +74,16 @@ export default function MapaAvaliacaoPresencial({ mapa, onIniciar, onAbrir }) {
             return;
         }
 
+        const doProjeto = { id: projeto.projeto_id, titulo: projeto.titulo, local: { estande: numero, turno_label: TURNOS.find((t) => t.value === turno)?.label } };
+
         if (projeto.situacao === 'disponivel') {
-            onIniciar({ id: projeto.projeto_id, titulo: projeto.titulo, local: { estande: numero, turno_label: TURNOS.find((t) => t.value === turno)?.label } });
+            onIniciar(doProjeto);
+            return;
+        }
+
+        // Com a regra do comitê, fora das designações: o clique é o pedido.
+        if (projeto.situacao === 'pedir_permissao' && onPedirPermissao) {
+            onPedirPermissao({ ...doProjeto, permissao: projeto.permissao_recusada ? 'recusada' : 'necessaria', permissao_resposta: projeto.permissao_resposta });
             return;
         }
 
@@ -185,7 +198,7 @@ export default function MapaAvaliacaoPresencial({ mapa, onIniciar, onAbrir }) {
             )}
 
             <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-xs text-on-surface-variant">
-                {Object.entries(SITUACOES).filter(([, c]) => !c.semLegenda).map(([chave, c]) => (
+                {Object.entries(SITUACOES).filter(([, c]) => !c.semLegenda && (!c.soComite || mapa.so_designados)).map(([chave, c]) => (
                     <span key={chave} className="inline-flex items-center gap-1">
                         <span className="w-3 h-3 rounded-sm border" style={{ background: c.fill, borderColor: c.stroke, borderStyle: c.tracejado ? 'dashed' : 'solid' }} />
                         {c.legenda}

@@ -112,7 +112,16 @@ describe('AppShell — menu do avaliador', () => {
         avaliador(true, { apenas_presencial: true });
         render(<AppShell><p>conteúdo</p></AppShell>);
 
-        expect(itens('Avaliações')).toHaveLength(0);
+        expect(itens('Avaliação online')).toHaveLength(0);
         expect(itens('Avaliação presencial').length).toBeGreaterThan(0);
+    });
+
+    it('a aba da avaliação online se chama assim e leva para a rota dela', () => {
+        avaliador(true);
+        render(<AppShell><p>conteúdo</p></AppShell>);
+
+        expect(itens('Avaliações')).toHaveLength(0);
+        const link = itens('Avaliação online')[0].closest('a');
+        expect(link).toHaveAttribute('href', '/avaliador/avaliacao-online');
     });
 });

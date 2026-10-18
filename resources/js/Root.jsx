@@ -14,7 +14,7 @@ import Resumo from './pages/Resumo.jsx';
 import AjustesPareceres from './pages/AjustesPareceres.jsx';
 import DocumentosPresenciais from './pages/DocumentosPresenciais.jsx';
 import Perfil from './pages/Perfil.jsx';
-import AvaliadorHome from './pages/AvaliadorHome.jsx';
+import AvaliadorHome, { AvaliadorInicio } from './pages/AvaliadorHome.jsx';
 import AvaliadorPerfil from './pages/AvaliadorPerfil.jsx';
 import AvaliadorPresencial from './pages/AvaliadorPresencial.jsx';
 import AvaliadorComite from './pages/AvaliadorComite.jsx';
@@ -87,6 +87,7 @@ import AlmoxarifadoHome from './pages/AlmoxarifadoHome.jsx';
 import AlmoxarifadoNovo from './pages/AlmoxarifadoNovo.jsx';
 import AlmoxarifadoRegistros from './pages/AlmoxarifadoRegistros.jsx';
 import ParametrizacaoCredenciamento from './pages/ParametrizacaoCredenciamento.jsx';
+import ParametrizacaoPresencial from './pages/ParametrizacaoPresencial.jsx';
 import ParametrizacaoItensConferencia from './pages/ParametrizacaoItensConferencia.jsx';
 import AdminAvaliacaoOnline from './pages/AdminAvaliacaoOnline.jsx';
 import AvaliacaoAvaliadores from './pages/AvaliacaoAvaliadores.jsx';
@@ -162,7 +163,9 @@ export default function Root() {
 
                         {/* Área do avaliador */}
                         <Route element={<RoleRoute allow={['avaliador']} />}>
-                            <Route path="/avaliador" element={<AvaliadorHome />} />
+                            {/* /avaliador é a porta de entrada (Sprint 235): no evento, a presencial. */}
+                            <Route path="/avaliador" element={<AvaliadorInicio />} />
+                            <Route path="/avaliador/avaliacao-online" element={<AvaliadorHome />} />
                             <Route path="/avaliador/presencial" element={<AvaliadorPresencial />} />
                             <Route path="/avaliador/avaliacao-presencial" element={<AvaliadorAvaliacaoPresencial />} />
                             <Route path="/avaliador/comite" element={<AvaliadorComite />} />
@@ -210,6 +213,7 @@ export default function Root() {
                             <Route path="/admin/parametrizacao/escopos" element={<ParametrizacaoEscopos />} />
                             <Route path="/admin/parametrizacao/abas" element={<ParametrizacaoAbas />} />
                             <Route path="/admin/parametrizacao/credenciamento" element={<ParametrizacaoCredenciamento />} />
+                            <Route path="/admin/parametrizacao/presencial" element={<ParametrizacaoPresencial />} />
                             <Route path="/admin/parametrizacao/itens-conferencia" element={<ParametrizacaoItensConferencia />} />
                             <Route path="/admin/parametrizacao/escolas" element={<ParametrizacaoEscolas />} />
                             <Route path="/admin/parametrizacao/datas" element={<ParametrizacaoDatas />} />

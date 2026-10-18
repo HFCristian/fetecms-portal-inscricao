@@ -31,6 +31,7 @@ use App\Http\Controllers\Api\V1\ChatController;
 use App\Http\Controllers\Api\V1\CodigosFinalistasController;
 use App\Http\Controllers\Api\V1\ComiteAcompanhamentoController;
 use App\Http\Controllers\Api\V1\ComiteDesignacaoController;
+use App\Http\Controllers\Api\V1\ComitePermissaoController;
 use App\Http\Controllers\Api\V1\ComitePremiacaoController;
 use App\Http\Controllers\Api\V1\ComiteTransporteController;
 use App\Http\Controllers\Api\V1\ContaTemporariaController;
@@ -61,6 +62,7 @@ use App\Http\Controllers\Api\V1\PainelPremiacaoController;
 use App\Http\Controllers\Api\V1\ParametrizacaoAbasController;
 use App\Http\Controllers\Api\V1\ParametrizacaoAgendaPresencialController;
 use App\Http\Controllers\Api\V1\ParametrizacaoCredenciamentoController;
+use App\Http\Controllers\Api\V1\ParametrizacaoPresencialController;
 use App\Http\Controllers\Api\V1\PerfilController;
 use App\Http\Controllers\Api\V1\PresencaContaTemporariaController;
 use App\Http\Controllers\Api\V1\ProjetoController;
@@ -296,6 +298,9 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
             // A avaliação no estande, para quem aceitou e durante o evento.
             Route::get('/presencial/avaliacoes', [AvaliadorPresencialAvaliacaoController::class, 'index']);
             Route::post('/presencial/avaliacoes/projetos/{projeto}', [AvaliadorPresencialAvaliacaoController::class, 'iniciar']);
+            // Regra do comitê (Sprint 234): pedir para avaliar fora das designações.
+            Route::post('/presencial/avaliacoes/projetos/{projeto}/permissao', [AvaliadorPresencialAvaliacaoController::class, 'pedirPermissao'])
+                ->middleware('throttle:30,1');
             Route::get('/presencial/avaliacoes/{avaliacao}', [AvaliadorPresencialAvaliacaoController::class, 'show']);
             Route::post('/presencial/avaliacoes/{avaliacao}/rascunho', [AvaliadorPresencialAvaliacaoController::class, 'rascunho']);
             Route::post('/presencial/avaliacoes/{avaliacao}/concluir', [AvaliadorPresencialAvaliacaoController::class, 'concluir']);
@@ -622,7 +627,11 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::post('/designacoes', [ComiteDesignacaoController::class, 'designar']);
                 // Acompanhamento: cada avaliador da comissão e o mapa só com as
                 // avaliações do comitê, com dashboard.
-                Route::get('/acompanhamento', ComiteAcompanhamentoController::class);
+                Route::get('/acompanhamento', [ComiteAcompanhamentoController::class, 'index']);
+                Route::post('/acompanhamento/avaliadores/{avaliador}/retirar', [ComiteAcompanhamentoController::class, 'retirar']);
+                // Pedidos de permissão para avaliar fora das designações (Sprint 234).
+                Route::get('/permissoes', [ComitePermissaoController::class, 'index']);
+                Route::post('/permissoes/{pedido}/decisao', [ComitePermissaoController::class, 'decidir']);
                 // Premiação (Sprint 190): as credenciais e prêmios da feira nos
                 // projetos premiados — a mesma base da Avaliação presencial.
                 Route::get('/premiacao', [ComitePremiacaoController::class, 'index']);
@@ -715,6 +724,11 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 // (Sprint 224): o horário de cada turno e da avaliação, dia a dia.
                 Route::get('/agenda-presencial', [ParametrizacaoAgendaPresencialController::class, 'show']);
                 Route::put('/agenda-presencial', [ParametrizacaoAgendaPresencialController::class, 'definir']);
+
+                // Parametrização → Avaliação presencial (Sprint 234): a regra do
+                // comitê especial de avaliar só o que foi designado.
+                Route::get('/parametrizacao/presencial', [ParametrizacaoPresencialController::class, 'show']);
+                Route::put('/parametrizacao/presencial', [ParametrizacaoPresencialController::class, 'definir']);
 
                 // Parametrização → Itens do credenciamento e da checagem (Sprint
                 // 181): a lista única que os dois balcões conferem.

@@ -46,6 +46,7 @@ class Edicao extends Model
         'info_avaliacao_presencial',
         'agenda_presencial', 'presencial_fila_avaliador',
         'presencial_comuns_por_projeto', 'presencial_comite_por_projeto', 'presencial_peso_comite',
+        'presencial_comite_so_designados',
     ];
 
     protected function casts(): array
@@ -87,6 +88,7 @@ class Edicao extends Model
             'presencial_comuns_por_projeto' => 'integer',
             'presencial_comite_por_projeto' => 'integer',
             'presencial_peso_comite' => 'float',
+            'presencial_comite_so_designados' => 'boolean',
         ];
     }
 
@@ -195,6 +197,15 @@ class Edicao extends Model
      * O avaliador recém-cadastrado já recebe projetos designados? (toggle do
      * Algoritmo de distribuição). Sem edição atual, não.
      */
+    /**
+     * O comitê especial avalia no estande só o que foi designado a ele (Sprint
+     * 234)? Fora disso, o avaliador da comissão pede permissão.
+     */
+    public static function comiteSoDesignados(): bool
+    {
+        return (bool) static::atual()?->presencial_comite_so_designados;
+    }
+
     public static function distribuiAoCadastrar(): bool
     {
         return (bool) static::atual()?->distribuicao_ao_cadastrar;

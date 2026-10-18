@@ -60,6 +60,32 @@ export const designarPeloComite = (projetoIds, avaliadorIds) =>
 export const getAcompanhamentoComite = (turno) =>
     http.get('/admin/comite/acompanhamento', { params: turno ? { turno } : {} }).then((r) => r.data.data);
 
+/**
+ * Remove de um avaliador da comissão as designações que ele ainda não abriu.
+ * Os ids da tela dizem a origem ("online-12", "estande-5"); o servidor recebe
+ * as duas listas separadas.
+ */
+export function retirarDesignacoesComite(avaliadorId, ids) {
+    const da = (origem) => ids.filter((id) => String(id).startsWith(`${origem}-`)).map((id) => Number(String(id).slice(origem.length + 1)));
+
+    return http.post(`/admin/comite/acompanhamento/avaliadores/${avaliadorId}/retirar`, {
+        online_ids: da('online'),
+        estande_ids: da('estande'),
+    }).then((r) => r.data);
+}
+
+// --- Pedidos de permissão do comitê (Sprint 234) -----------------------------
+//
+// Com a regra "avaliar apenas projetos designados" ligada, o avaliador da
+// comissão pede para avaliar fora das designações; a organização decide aqui.
+
+/** `situacao`: 'pendente', 'decididos' ou vazio (todos). Devolve { data, meta }. */
+export const getPermissoesComite = (situacao) =>
+    http.get('/admin/comite/permissoes', { params: situacao ? { situacao } : {} }).then((r) => r.data);
+
+export const decidirPermissaoComite = (id, decisao, resposta = null) =>
+    http.post(`/admin/comite/permissoes/${id}/decisao`, { decisao, resposta }).then((r) => r.data);
+
 // --- Premiação (Sprint 190) --------------------------------------------------
 //
 // A mesma base de Avaliação presencial → Credenciais e Prêmios: o comitê

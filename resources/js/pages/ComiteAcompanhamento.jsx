@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
-import { Alert } from '../components/ui.jsx';
+import { Alert, Button, useConfirm } from '../components/ui.jsx';
 import PainelComiteMapa from '../components/PainelComiteMapa.jsx';
-import { getAcompanhamentoComite } from '../lib/comite.js';
+import { getAcompanhamentoComite, retirarDesignacoesComite } from '../lib/comite.js';
+import { extractErrors } from '../lib/auth.jsx';
 import {
     corDoEstande, legendaComite, filtrarAvaliadores, estande, hora, localDoProjeto, SEM_PROJETO,
-    designacoesPendentes, colunasDoAvaliador,
+    colunasDoAvaliador,
 } from '../lib/comiteAcompanhamento.js';
 
 /** Tamanho de uma célula da grade, em unidades do viewBox (o mesmo da planta). */
@@ -35,13 +36,6 @@ const SITUACOES_AVALIACAO = {
     expirada: 'prazo encerrado',
 };
 
-/** O selo de cada designação online do comitê. */
-const SITUACOES_ONLINE = {
-    designada: { label: 'Aguardando', classe: 'bg-[#e9ddff] text-[#2a0058]' },
-    iniciada: { label: 'Em andamento', classe: 'bg-[#fff4cc] text-[#5c4a00]' },
-    concluida: { label: 'Avaliado', classe: 'bg-[#d4f0dc] text-[#004d15]' },
-};
-
 const ORIGENS = { estande: 'No estande', online: 'Online' };
 
 /** O horário que importa em cada situação. */
@@ -52,10 +46,10 @@ function quando(p) {
     return '';
 }
 
-/** Uma avaliação na lista do avaliador: local, título e o horário que importa. */
-function LinhaProjeto({ p, selo = null }) {
+/** O título do projeto e, embaixo, o local, a vaga e o horário que importa. */
+function ConteudoProjeto({ p, selo = null }) {
     return (
-        <li className="text-sm">
+        <>
             <span className="flex items-start justify-between gap-2">
                 <span className="text-on-surface">{p.titulo}</span>
                 {selo && <span className={`text-[11px] font-semibold rounded-full px-2 py-0.5 shrink-0 ${selo.classe}`}>{selo.label}</span>}
@@ -63,15 +57,26 @@ function LinhaProjeto({ p, selo = null }) {
             <span className="block text-xs text-on-surface-variant">
                 {[localDoProjeto(p) || 'Sem estande', p.vaga_label, quando(p)].filter(Boolean).join(' · ')}
             </span>
-        </li>
+        </>
     );
 }
 
-function CartaoAvaliador({ a }) {
+/** As três categorias do avaliador, na ordem do "Ver detalhes". */
+const CATEGORIAS = [
+    { chave: 'avaliados', titulo: 'Projetos avaliados', curto: 'Avaliados', cor: '#0ca30c', vazio: 'Nenhum projeto avaliado ainda.' },
+    { chave: 'emAvaliacao', titulo: 'Projetos em avaliação', curto: 'Em avaliação', cor: '#43157A', vazio: 'Nenhum projeto em avaliação agora.' },
+    { chave: 'designados', titulo: 'Projetos designados', curto: 'Designados', cor: '#6250d6', vazio: 'Nenhum projeto designado aguardando.' },
+];
+
+/**
+ * O cartão compacto: de cada categoria, só a contagem e o primeiro projeto
+ * (o avaliado mais recente, o primeiro em avaliação, o primeiro designado). O
+ * resto está no "Ver detalhes".
+ */
+function CartaoAvaliador({ a, onRetirado }) {
     const [aberto, setAberto] = useState(false);
     const situacao = SITUACOES_AVALIADOR[a.situacao];
-    const comite = a.designacoes_comite ?? [];
-    const pendentes = designacoesPendentes(a).length;
+    const colunas = colunasDoAvaliador(a);
 
     return (
         <li className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-4 flex flex-col">
@@ -85,48 +90,55 @@ function CartaoAvaliador({ a }) {
                 <span className={`text-xs font-semibold rounded-full px-2.5 py-1 ${situacao.classe}`}>{situacao.label}</span>
             </div>
 
-            {a.em_avaliacao.length > 0 && (
-                <div className="mt-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-primary mb-1">Avaliando</p>
-                    <ul className="space-y-1.5">{a.em_avaliacao.map((p) => <LinhaProjeto key={p.avaliacao_id} p={p} />)}</ul>
-                </div>
-            )}
+            <dl className="mt-3 space-y-2">
+                {CATEGORIAS.map((c) => {
+                    const lista = colunas[c.chave];
+                    const primeiro = lista[0];
 
-            {a.designadas.length > 0 && (
-                <div className="mt-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant mb-1">Designados no estande, não iniciados</p>
-                    <ul className="space-y-1.5">{a.designadas.map((p) => <LinhaProjeto key={p.avaliacao_id} p={p} />)}</ul>
-                </div>
-            )}
+                    return (
+                        <div key={c.chave} className="min-w-0">
+                            <dt className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+                                <span className="w-2 h-2 rounded-sm shrink-0" style={{ background: c.cor }} />
+                                {c.curto}
+                                <span className="tabular-nums font-normal">({lista.length})</span>
+                            </dt>
+                            <dd className="mt-0.5 text-sm min-w-0">
+                                {primeiro ? (
+                                    <>
+                                        <span className="block truncate text-on-surface" title={primeiro.titulo}>{primeiro.titulo}</span>
+                                        <span className="block truncate text-xs text-on-surface-variant">
+                                            {[ORIGENS[primeiro.origem], localDoProjeto(primeiro) || 'Sem estande', quando(primeiro)].filter(Boolean).join(' · ')}
+                                            {lista.length > 1 && ` · +${lista.length - 1}`}
+                                        </span>
+                                    </>
+                                ) : (
+                                    <span className="text-xs text-on-surface-variant">—</span>
+                                )}
+                            </dd>
+                        </div>
+                    );
+                })}
+            </dl>
 
-            {comite.length > 0 && (
-                <div className="mt-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant mb-1">
-                        Designações do comitê · {comite.length - pendentes} de {comite.length} avaliada(s)
-                    </p>
-                    <ul className="space-y-1.5">
-                        {comite.map((p) => <LinhaProjeto key={p.avaliacao_id} p={p} selo={SITUACOES_ONLINE[p.situacao]} />)}
-                    </ul>
-                </div>
-            )}
-
-            <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-on-surface-variant">
-                <span><strong className="text-on-surface">{a.concluidas.length}</strong> avaliação(ões) enviada(s) no estande</span>
-                {a.ultima_concluida_em && <span>última às {hora(a.ultima_concluida_em)}</span>}
-                {a.expiradas > 0 && <span>{a.expiradas} com o prazo encerrado sem envio</span>}
+            <div className="mt-auto pt-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+                <button
+                    type="button"
+                    onClick={() => setAberto(true)}
+                    aria-label={`Ver detalhes de ${a.nome}`}
+                    className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
+                >
+                    <span className="material-symbols-outlined text-[18px]">view_column</span>
+                    Ver detalhes
+                </button>
+                <span className="text-xs text-on-surface-variant">
+                    {[
+                        a.ultima_concluida_em ? `última enviada às ${hora(a.ultima_concluida_em)}` : null,
+                        a.expiradas > 0 ? `${a.expiradas} com o prazo encerrado` : null,
+                    ].filter(Boolean).join(' · ')}
+                </span>
             </div>
 
-            <button
-                type="button"
-                onClick={() => setAberto(true)}
-                aria-label={`Ver detalhes de ${a.nome}`}
-                className="mt-3 inline-flex items-center gap-1 self-start text-sm font-semibold text-primary hover:underline"
-            >
-                <span className="material-symbols-outlined text-[18px]">view_column</span>
-                Ver detalhes
-            </button>
-
-            {aberto && <DialogoDetalhesAvaliador a={a} onFechar={() => setAberto(false)} />}
+            {aberto && <DialogoDetalhesAvaliador a={a} onFechar={() => setAberto(false)} onRetirado={onRetirado} />}
         </li>
     );
 }
@@ -137,8 +149,12 @@ const SELOS_ORIGEM = {
     online: { label: 'Online', classe: 'bg-[#e9ddff] text-[#2a0058]' },
 };
 
-/** Uma coluna do diálogo: título com a contagem e os projetos. */
-function ColunaDetalhes({ titulo, cor, projetos, vazio, rodape = null }) {
+/**
+ * Uma coluna do diálogo: título com a contagem e os projetos. Com `marcados`,
+ * cada projeto ganha uma caixa de marcação (a coluna dos designados, de onde se
+ * remove a designação).
+ */
+function ColunaDetalhes({ titulo, cor, projetos, vazio, rodape = null, marcados = null, onAlternar, cabecalho = null }) {
     return (
         <section className="bg-surface rounded-xl p-3 flex flex-col min-h-0" aria-label={titulo}>
             <h4 className="flex items-center gap-2 font-display font-semibold text-on-surface mb-2">
@@ -146,11 +162,29 @@ function ColunaDetalhes({ titulo, cor, projetos, vazio, rodape = null }) {
                 {titulo}
                 <span className="ml-auto text-sm font-normal text-on-surface-variant tabular-nums">{projetos.length}</span>
             </h4>
+            {cabecalho}
             {projetos.length === 0 ? (
                 <p className="text-sm text-on-surface-variant">{vazio}</p>
             ) : (
                 <ul className="space-y-2 overflow-y-auto fetec-scroll">
-                    {projetos.map((p) => <LinhaProjeto key={p.avaliacao_id} p={p} selo={SELOS_ORIGEM[p.origem]} />)}
+                    {projetos.map((p) => (
+                        <li key={p.avaliacao_id} className="text-sm">
+                            {marcados ? (
+                                <label className="flex items-start gap-2 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        className="mt-1 w-4 h-4 rounded text-primary-container shrink-0"
+                                        checked={marcados.includes(p.avaliacao_id)}
+                                        onChange={() => onAlternar(p.avaliacao_id)}
+                                        aria-label={`Marcar ${p.titulo}`}
+                                    />
+                                    <span className="min-w-0 flex-1"><ConteudoProjeto p={p} selo={SELOS_ORIGEM[p.origem]} /></span>
+                                </label>
+                            ) : (
+                                <ConteudoProjeto p={p} selo={SELOS_ORIGEM[p.origem]} />
+                            )}
+                        </li>
+                    ))}
                 </ul>
             )}
             {rodape && <p className="text-xs text-on-surface-variant mt-2">{rodape}</p>}
@@ -161,15 +195,56 @@ function ColunaDetalhes({ titulo, cor, projetos, vazio, rodape = null }) {
 /**
  * "Ver detalhes" do avaliador: os projetos dele em três colunas — avaliados,
  * em avaliação e designados —, no estande e pelas designações do comitê.
+ *
+ * Na coluna dos designados, a coordenação marca projetos e **remove a
+ * designação**: só o que o avaliador ainda não abriu, e ninguém é designado no
+ * lugar. Quem decide o que pode sair é o servidor.
  */
-function DialogoDetalhesAvaliador({ a, onFechar }) {
+function DialogoDetalhesAvaliador({ a, onFechar, onRetirado }) {
     const colunas = colunasDoAvaliador(a);
+    const [marcados, setMarcados] = useState([]);
+    const [retirando, setRetirando] = useState(false);
+    const [aviso, setAviso] = useState(null);
+    const [confirm, confirmDialog] = useConfirm();
+
+    // Depois de recarregar, sobra marcado só o que ainda está na coluna.
+    const validos = marcados.filter((id) => colunas.designados.some((p) => p.avaliacao_id === id));
+    const todos = colunas.designados.length > 0 && validos.length === colunas.designados.length;
 
     useEffect(() => {
         const aoTeclar = (e) => { if (e.key === 'Escape') onFechar(); };
         document.addEventListener('keydown', aoTeclar);
         return () => document.removeEventListener('keydown', aoTeclar);
     }, [onFechar]);
+
+    const alternar = (id) => setMarcados(validos.includes(id) ? validos.filter((x) => x !== id) : [...validos, id]);
+
+    async function remover() {
+        const escolhidos = colunas.designados.filter((p) => validos.includes(p.avaliacao_id));
+        const ok = await confirm({
+            title: 'Remover designação',
+            message: `Tirar ${escolhidos.length} projeto(s) de ${a.nome}?\n\n`
+                + escolhidos.map((p) => `• ${p.titulo}`).join('\n')
+                + '\n\nNinguém é designado no lugar. A designação online sai também de Avaliação online → Designações.',
+            confirmLabel: 'Remover',
+            danger: true,
+        });
+        if (!ok) return;
+
+        setRetirando(true);
+        setAviso(null);
+        try {
+            const r = await retirarDesignacoesComite(a.id, validos);
+            setMarcados([]);
+            setAviso({ tipo: 'info', texto: r.meta?.message ?? 'Designação removida.' });
+            await onRetirado?.();
+        } catch (e) {
+            const { message, fields } = extractErrors(e);
+            setAviso({ tipo: 'error', texto: Object.values(fields ?? {})[0] || message || 'Não foi possível remover a designação.' });
+        } finally {
+            setRetirando(false);
+        }
+    }
 
     return (
         <div
@@ -192,33 +267,55 @@ function DialogoDetalhesAvaliador({ a, onFechar }) {
                     </button>
                 </div>
 
+                {aviso && <div className="mb-3"><Alert type={aviso.tipo}>{aviso.texto}</Alert></div>}
+
                 <div className="grid gap-3 md:grid-cols-3 min-h-0 overflow-y-auto md:overflow-hidden">
-                    <ColunaDetalhes
-                        titulo="Projetos avaliados"
-                        cor="#0ca30c"
-                        projetos={colunas.avaliados}
-                        vazio="Nenhum projeto avaliado ainda."
-                    />
-                    <ColunaDetalhes
-                        titulo="Projetos em avaliação"
-                        cor="#43157A"
-                        projetos={colunas.emAvaliacao}
-                        vazio="Nenhum projeto em avaliação agora."
-                        rodape={a.expiradas > 0 ? `${a.expiradas} avaliação(ões) no estande com o prazo encerrado sem envio.` : null}
-                    />
-                    <ColunaDetalhes
-                        titulo="Projetos designados"
-                        cor="#6250d6"
-                        projetos={colunas.designados}
-                        vazio="Nenhum projeto designado aguardando."
-                    />
+                    {CATEGORIAS.map((c) => (
+                        <ColunaDetalhes
+                            key={c.chave}
+                            titulo={c.titulo}
+                            cor={c.cor}
+                            projetos={colunas[c.chave]}
+                            vazio={c.vazio}
+                            rodape={c.chave === 'emAvaliacao' && a.expiradas > 0
+                                ? `${a.expiradas} avaliação(ões) no estande com o prazo encerrado sem envio.`
+                                : null}
+                            {...(c.chave === 'designados' && colunas.designados.length > 0 ? {
+                                marcados: validos,
+                                onAlternar: alternar,
+                                cabecalho: (
+                                    <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                                        <button
+                                            type="button"
+                                            className="text-xs font-semibold text-primary hover:underline"
+                                            onClick={() => setMarcados(todos ? [] : colunas.designados.map((p) => p.avaliacao_id))}
+                                        >
+                                            {todos ? 'Desmarcar todos' : 'Marcar todos'}
+                                        </button>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            className="!px-3 !py-1.5 text-xs"
+                                            loading={retirando}
+                                            disabled={validos.length === 0}
+                                            onClick={remover}
+                                        >
+                                            <span className="material-symbols-outlined text-[16px]" aria-hidden="true">person_remove</span>
+                                            Remover designação{validos.length > 0 ? ` (${validos.length})` : ''}
+                                        </Button>
+                                    </div>
+                                ),
+                            } : {})}
+                        />
+                    ))}
                 </div>
             </div>
+            {confirmDialog}
         </div>
     );
 }
 
-function AbaAvaliadores({ avaliadores }) {
+function AbaAvaliadores({ avaliadores, onRetirado }) {
     const [busca, setBusca] = useState('');
     const [situacao, setSituacao] = useState('');
     const lista = useMemo(() => filtrarAvaliadores(avaliadores, busca, situacao), [avaliadores, busca, situacao]);
@@ -254,7 +351,7 @@ function AbaAvaliadores({ avaliadores }) {
             {lista.length === 0 ? (
                 <p className="text-sm text-on-surface-variant">Nenhum avaliador encontrado.</p>
             ) : (
-                <ul className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{lista.map((a) => <CartaoAvaliador key={a.id} a={a} />)}</ul>
+                <ul className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{lista.map((a) => <CartaoAvaliador key={a.id} a={a} onRetirado={onRetirado} />)}</ul>
             )}
         </div>
     );
@@ -581,7 +678,7 @@ export default function ComiteAcompanhamento() {
             {!dados ? (
                 !alerta && <p className="text-sm text-on-surface-variant">Carregando…</p>
             ) : aba === 'avaliadores' ? (
-                <AbaAvaliadores avaliadores={dados.avaliadores} />
+                <AbaAvaliadores avaliadores={dados.avaliadores} onRetirado={carregar} />
             ) : (
                 <AbaMapa
                     dados={dados}

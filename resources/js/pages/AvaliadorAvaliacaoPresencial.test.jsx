@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../components/AppShell.jsx', () => ({ default: ({ children }) => <div>{children}</div> }));
@@ -12,7 +12,9 @@ const getAvaliacaoPresencial = vi.fn();
 const iniciarAvaliacaoPresencial = vi.fn();
 const salvarRascunhoPresencial = vi.fn();
 const concluirAvaliacaoPresencial = vi.fn();
+const pedirPermissaoPresencial = vi.fn();
 vi.mock('../lib/avaliacaoPresencial.js', () => ({
+    pedirPermissaoPresencial: (...a) => pedirPermissaoPresencial(...a),
     getPainelPresencial: (...a) => getPainelPresencial(...a),
     getAvaliacaoPresencial: (...a) => getAvaliacaoPresencial(...a),
     iniciarAvaliacaoPresencial: (...a) => iniciarAvaliacaoPresencial(...a),
@@ -390,5 +392,162 @@ describe('AvaliadorAvaliacaoPresencial', () => {
 
         expect(await screen.findByText(/O prazo desta avaliação acabou com o horário de avaliação do turno/)).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: /Salvar rascunho/ })).not.toBeInTheDocument();
+    });
+    // --- Regra do comitê: avaliar apenas projetos designados (Sprint 234) ------
+
+    const COMITE = {
+        ...PAINEL,
+        comissao: true,
+        vagas: { comuns: 2, comite: 1, peso_comite: 2 },
+        so_designados: true,
+        pedidos: [{ id: 3, projeto_id: 12, titulo: 'Horta vertical', status: 'recusado', status_label: 'Recusado', resposta: 'Já tem avaliador.' }],
+        disponiveis: [
+            { id: 7, titulo: 'Bioplástico', area: 'Agrárias', local: { estande: 42, turno_label: 'Turno A (matutino)' }, avaliacoes: 1, permissao: 'necessaria' },
+            { id: 12, titulo: 'Horta vertical', area: 'Agrárias', local: { estande: 44 }, avaliacoes: 0, permissao: 'recusada', permissao_resposta: 'Já tem avaliador.' },
+            { id: 13, titulo: 'Solo vivo', area: 'Agrárias', local: { estande: 45 }, avaliacoes: 0, permissao: 'pendente' },
+            { id: 14, titulo: 'Designado a mim', area: 'Agrárias', local: { estande: 46 }, avaliacoes: 0, permissao: null },
+        ],
+        mapa: {
+            ...PAINEL.mapa,
+            so_designados: true,
+            estandes: {
+                ...PAINEL.mapa.estandes,
+                42: { A: { projeto_id: 7, titulo: 'Bioplástico', situacao: 'pedir_permissao', avaliacao_id: null, avaliacoes: 1, permissao_recusada: false } },
+                43: { A: { projeto_id: 13, titulo: 'Solo vivo', situacao: 'permissao_pendente', avaliacao_id: null, avaliacoes: 0 } },
+            },
+        },
+    };
+
+    it('com a regra do comitê, avisa e troca o "Avaliar" pelo pedido de permissão', async () => {
+        getPainelPresencial.mockResolvedValue(COMITE);
+        render(<AvaliadorAvaliacaoPresencial />);
+
+        expect(await screen.findByText(/só os projetos designados a\s+você/)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Pedir permissão para Bioplástico' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Pedir permissão para Horta vertical' })).toBeInTheDocument();
+        expect(screen.getByText('Permissão pedida')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Avaliar Designado a mim' })).toBeInTheDocument();
+        // Os pedidos dele, com a resposta da organização.
+        expect(screen.getByText('Seus pedidos de permissão')).toBeInTheDocument();
+        expect(screen.getByText('Resposta: Já tem avaliador.')).toBeInTheDocument();
+        // A legenda do mapa ganha as duas situações do comitê.
+        expect(screen.getByText('Fora das suas designações — peça permissão')).toBeInTheDocument();
+    });
+
+    it('pede permissão pela lista, com justificativa, e recarrega', async () => {
+        getPainelPresencial.mockResolvedValue(COMITE);
+        pedirPermissaoPresencial.mockResolvedValue({ data: { status: 'pendente' }, meta: { message: 'Pedido enviado.' } });
+        render(<AvaliadorAvaliacaoPresencial />);
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Pedir permissão para Horta vertical' }));
+        const dialogo = screen.getByRole('dialog', { name: 'Pedir permissão para avaliar' });
+        expect(dialogo).toHaveTextContent('O pedido anterior foi recusado: “Já tem avaliador.”');
+
+        fireEvent.change(screen.getByLabelText(/Por que você quer avaliar/), { target: { value: 'Sou da área.' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Enviar pedido' }));
+
+        await waitFor(() => expect(pedirPermissaoPresencial).toHaveBeenCalledWith(12, 'Sou da área.', false));
+        expect(await screen.findByText('Pedido enviado.')).toBeInTheDocument();
+        expect(getPainelPresencial).toHaveBeenCalledTimes(2);
+        expect(screen.queryByRole('dialog', { name: 'Pedir permissão para avaliar' })).not.toBeInTheDocument();
+    });
+
+    it('no mapa, o estande fora das designações abre o pedido e o pendente só avisa', async () => {
+        getPainelPresencial.mockResolvedValue(COMITE);
+        render(<AvaliadorAvaliacaoPresencial />);
+
+        fireEvent.click(await screen.findByRole('button', { name: /Estande 043 · Solo vivo/ }));
+        expect(screen.getByText(/seu pedido de permissão para avaliar aguarda a organização/)).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: /Estande 042 · Bioplástico/ }));
+        expect(screen.getByRole('dialog', { name: 'Pedir permissão para avaliar' })).toHaveTextContent('Bioplástico');
+        expect(iniciarAvaliacaoPresencial).not.toHaveBeenCalled();
+    });
+
+    it('o erro do pedido fica no diálogo', async () => {
+        getPainelPresencial.mockResolvedValue(COMITE);
+        pedirPermissaoPresencial.mockRejectedValue({ fields: { permissao: ['Você já pediu: o pedido aguarda a organização.'] } });
+        render(<AvaliadorAvaliacaoPresencial />);
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Pedir permissão para Bioplástico' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Enviar pedido' }));
+
+        expect(await screen.findByText('Você já pediu: o pedido aguarda a organização.')).toBeInTheDocument();
+    });
+    // --- Sprint 235: designados numa seção própria, com busca ------------------
+
+    const COM_DESIGNADOS = {
+        ...PAINEL,
+        minhas: [
+            { id: 5, projeto_id: 7, titulo: 'Bioplástico', status: 'designada', status_label: 'Designada', pode_escrever: true, escolha_livre: false, designacao_manual: true, local: { estande: 42 } },
+            { id: 6, projeto_id: 9, titulo: 'Drone agrícola', status: 'em_andamento', status_label: 'Em andamento', pode_escrever: true, escolha_livre: true, local: { estande: 50 } },
+        ],
+        designados_comite: [
+            { id: 12, titulo: 'Horta vertical', area: 'Agrárias', local: { estande: 7, turno_label: 'Turno A (matutino)' } },
+        ],
+        disponiveis: [
+            { id: 12, titulo: 'Horta vertical', area: 'Agrárias', local: { estande: 7 }, avaliacoes: 0 },
+            { id: 20, titulo: 'Abelhas nativas', area: 'Agrárias', local: { estande: 21 }, avaliacoes: 0 },
+            { id: 21, titulo: 'Solo vivo', area: 'Agrárias', local: { estande: 22 }, avaliacoes: 0 },
+        ],
+    };
+
+    it('os designados ficam numa seção própria, separados do que ele escolheu', async () => {
+        getPainelPresencial.mockResolvedValue(COM_DESIGNADOS);
+        render(<AvaliadorAvaliacaoPresencial />);
+
+        const designados = await screen.findByRole('region', { name: 'Designados a você' });
+        expect(within(designados).getByText('(2)')).toBeInTheDocument();
+        expect(within(designados).getByText('Bioplástico')).toBeInTheDocument();
+        expect(within(designados).getByText('Horta vertical')).toBeInTheDocument();
+        expect(within(designados).getByText(/designado pelo comitê/)).toBeInTheDocument();
+        expect(within(designados).queryByText('Drone agrícola')).not.toBeInTheDocument();
+
+        const escolhidos = screen.getByRole('region', { name: 'Escolhidos por você' });
+        expect(within(escolhidos).getByText('Drone agrícola')).toBeInTheDocument();
+
+        // O designado pelo comitê não se repete nos disponíveis.
+        const disponiveis = screen.getByRole('region', { name: 'Estandes disponíveis' });
+        expect(within(disponiveis).queryByText('Horta vertical')).not.toBeInTheDocument();
+        expect(within(disponiveis).getByText('Abelhas nativas')).toBeInTheDocument();
+    });
+
+    it('busca pelo nome ou pelo estande, nos designados e nos disponíveis', async () => {
+        getPainelPresencial.mockResolvedValue(COM_DESIGNADOS);
+        render(<AvaliadorAvaliacaoPresencial />);
+
+        const designados = await screen.findByRole('region', { name: 'Designados a você' });
+        fireEvent.change(screen.getByLabelText('Buscar entre os designados'), { target: { value: '007' } });
+        expect(within(designados).getByText('Horta vertical')).toBeInTheDocument();
+        expect(within(designados).queryByText('Bioplástico')).not.toBeInTheDocument();
+
+        fireEvent.change(screen.getByLabelText('Buscar entre os designados'), { target: { value: 'nada disso' } });
+        expect(within(designados).getByText('Nenhum designado encontrado.')).toBeInTheDocument();
+
+        const disponiveis = screen.getByRole('region', { name: 'Estandes disponíveis' });
+        fireEvent.change(screen.getByLabelText('Buscar entre os estandes disponíveis'), { target: { value: 'solo' } });
+        expect(within(disponiveis).getByText('Solo vivo')).toBeInTheDocument();
+        expect(within(disponiveis).queryByText('Abelhas nativas')).not.toBeInTheDocument();
+
+        fireEvent.change(screen.getByLabelText('Buscar entre os estandes disponíveis'), { target: { value: 'estande 21' } });
+        expect(within(disponiveis).getByText('Abelhas nativas')).toBeInTheDocument();
+    });
+
+    it('o designado pelo comitê inicia pelo mesmo caminho do corredor', async () => {
+        getPainelPresencial.mockResolvedValue(COM_DESIGNADOS);
+        render(<AvaliadorAvaliacaoPresencial />);
+
+        const designados = await screen.findByRole('region', { name: 'Designados a você' });
+        fireEvent.click(within(designados).getByRole('button', { name: 'Avaliar Horta vertical' }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Iniciar' }));
+
+        await waitFor(() => expect(iniciarAvaliacaoPresencial).toHaveBeenCalledWith(12, false));
+    });
+
+    it('sem nenhum designado, a seção diz isso', async () => {
+        render(<AvaliadorAvaliacaoPresencial />);
+
+        const designados = await screen.findByRole('region', { name: 'Designados a você' });
+        expect(within(designados).getByText(/Nenhum projeto designado a você/)).toBeInTheDocument();
     });
 });

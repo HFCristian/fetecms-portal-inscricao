@@ -576,6 +576,12 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     **limpar tudo** — e **nada que não esteja marcado como demonstração é apagado aqui**.
     Existe porque cada dado de ensaio sumia de uma tela diferente e ninguém conseguia
     responder "o que ainda é de mentira no sistema?". `DadosDemoService`.
+  - **Parametrização → Avaliação presencial** (`/admin/parametrizacao/presencial`,
+    `PermissaoComiteService`): a subseção **Comitê especial** liga a regra **avaliar apenas projetos
+    designados** (`edicoes.presencial_comite_so_designados`). Ligada, o avaliador da comissão só inicia no
+    estande o que é dele — designação no estande, designação de Comitê → Designações ou **pedido de
+    permissão aprovado**; o resto ele pede pelo mapa ou pela lista, e a organização decide em Comitê
+    especial → Designações, logo abaixo da designação (`pedidos_avaliacao_comite`).
   - **Parametrização → Credenciamento** (`/admin/parametrizacao/credenciamento`): os **itens
     entregues** aos finalistas (`edicoes.itens_credenciamento`). O **período do evento**
     (`edicoes.evento_de`/`evento_ate`, **fechado enquanto não for definido** — credenciar é ato
@@ -1006,10 +1012,99 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 226 | Mapa em tela cheia → Checagem: estande **checado sem credenciamento** em amarelo | ✅ sim | ✅ sim (Pedro, PR #116 → v1.37.2) | 0 |
 | 227 | Comitê especial → Designações: busca e filtros de projeto por **código, estande e turno** | ✅ sim | ✅ sim (Pedro, PR #117 → v1.38) | 0 |
 | 228 | Comitê especial → **Acompanhamento das avaliações**: lista por avaliador + mapa só do comitê com dashboard | ✅ sim | ✅ sim (Pedro, PR #117 → v1.38) | 0 |
-| 229 | Acompanhamento do comitê: as **designações online** feitas em Designações do comitê (`avaliacoes.designada_pelo_comite`) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 230 | Acompanhamento do comitê: **Ver detalhes** do avaliador em 3 colunas (avaliados, em avaliação, designados) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 229 | Acompanhamento do comitê: as **designações online** feitas em Designações do comitê (`avaliacoes.designada_pelo_comite`) | ✅ sim | ✅ sim (Pedro, PR #118 → v1.39) | 0 |
+| 230 | Acompanhamento do comitê: **Ver detalhes** do avaliador em 3 colunas (avaliados, em avaliação, designados) | ✅ sim | ✅ sim (Pedro, PR #118 → v1.39) | 0 |
+| 231 | Acompanhamento do comitê: cartão do avaliador **compacto** (contagem + 1º projeto de cada categoria) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 232 | Acompanhamento do comitê: **remover designação** do avaliador no Ver detalhes (estande e online do comitê, sem reposição) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 233 | Ver detalhes: **Projetos designados** sem o que o avaliador já abriu ou avaliou por outro caminho | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 234 | Parametrização → **Avaliação presencial** → Comitê especial: avaliar **apenas projetos designados** + pedidos de permissão em Designações | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 235 | Avaliador: seção **Designados a você** e busca por projeto ou estande na avaliação presencial | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 236 | Avaliador: aba **Avaliação online** (`/avaliador/avaliacao-online`) e, no evento, a tela inicial é a **avaliação presencial** | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
-> **Sprint 230 (mesma branch):** na aba Avaliadores do Acompanhamento, cada cartão ganhou **Ver
+> **Sprint 236 (mesma branch):** no menu do avaliador, **Avaliações** virou **Avaliação online**, e a
+> tela mudou de endereço: `/avaliador/avaliacao-online`. `/avaliador` — para onde o login manda —
+> passou a ser só a **porta de entrada** (`AvaliadorInicio`): **durante o evento** (`edicoes.evento_de`
+> a `evento_ate`, `Edicao::eventoEmAndamento()`, que chega à tela como `evento_em_andamento` no usuário
+> avaliador), quem disse "sim" ao presencial abre na **Avaliação presencial**; fora dele, ou para quem
+> não vai ao estande, na online; a conta só do presencial, sempre na do estande, como antes. A online
+> continua a um clique no menu durante o evento. O balão do chat de suporte passou a aparecer nas duas
+> telas iniciais do avaliador.
+>
+> **Sprint 235 (mesma branch):** na Avaliação presencial do avaliador, os projetos **designados**
+> ganharam uma seção própria, **Designados a você**, no topo: as avaliações no estande que vieram da
+> distribuição ou da organização (`escolha_livre = false`, campo novo na linha) e os finalistas que o
+> comitê designou em Comitê → Designações e ainda não viraram avaliação no estande
+> (`painel.designados_comite`, com o botão Avaliar, que segue as travas de sempre). O que ele abriu pelo
+> mapa ou pela lista foi para **Escolhidos por você**, e o designado pelo comitê não se repete em
+> Estandes disponíveis. As duas listas — designados e disponíveis — têm **busca pelo nome do projeto ou
+> pelo estande** ("42", "042", "estande 42"; sem acento e sem caixa — `lib/buscaEstande.js`).
+> Back **1601/1601**, front **901/901**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprints 235–236):** vão no mesmo push das 231–234, abaixo. Sem migration nova,
+> `.env` ou dependência. **O endereço da avaliação online mudou** para `/avaliador/avaliacao-online`;
+> `/avaliador` continua funcionando (redireciona). A tela inicial do avaliador no evento depende do
+> **período do evento** em Parametrização → Datas e períodos.
+>
+> **Sprint 234 (mesma branch):** nasceu **Parametrização → Avaliação presencial**
+> (`/admin/parametrizacao/presencial`, `GET|PUT /admin/parametrizacao/presencial`,
+> `ParametrizacaoPresencialController`), com a subseção **Comitê especial** e o interruptor **Avaliar
+> apenas projetos designados** (`edicoes.presencial_comite_so_designados`, herdado por edição nova;
+> ligar/desligar vira registro `presencial_comite_so_designados` em Registros → Avaliação Online).
+> Ligado, o avaliador **da comissão especial** só inicia no estande o projeto que é dele
+> (`PermissaoComiteService::liberados()`): uma **designação no estande** (qualquer uma, até a vencida),
+> uma **designação do comitê** (`avaliacoes.designada_pelo_comite`) ou um **pedido aprovado**. O resto
+> barra no `iniciar` com 422 (`permissao`), antes das travas de turno e vaga, que continuam valendo
+> depois. Quem não é da comissão não é alcançado. O avaliador **pede permissão** pelo mapa (o estande
+> fica amarelo, "Fora das suas designações — peça permissão"; o pedido aguardando fica tracejado) ou
+> pela lista de estandes disponíveis ("Pedir permissão" / "Permissão pedida"), com justificativa
+> opcional (`POST /avaliador/presencial/avaliacoes/projetos/{projeto}/permissao`), e vê **Seus pedidos
+> de permissão** com a resposta. Pedir não depende do turno. Um pedido por avaliador e projeto na
+> edição (`pedidos_avaliacao_comite`); pedir de novo depois de uma recusa reabre o mesmo, e com um
+> pendente é recusado. A organização decide em **Comitê especial → Designações**, na seção nova
+> **Pedidos de permissão para avaliar** logo abaixo do botão Designar (`PedidosPermissaoComite.jsx`,
+> `GET /admin/comite/permissoes?situacao=pendente|decididos`, `POST
+> /admin/comite/permissoes/{pedido}/decisao` com `aprovar`/`recusar` e resposta opcional): aguardando
+> (o mais antigo primeiro) e decididos, com quem decidiu e quando; dá para mudar de ideia. Com a regra
+> desligada, a seção avisa e aponta a Parametrização.
+> Back **1599/1599**, front **889/889**, Pint limpo, build OK.
+>
+> **Sprint 233 (mesma branch):** no Ver detalhes do Acompanhamento, **Projetos designados** deixou de
+> mostrar o projeto que o avaliador já tem **em avaliação** ou **já avaliou** por outro caminho
+> (designado online e avaliado no estande, por exemplo) — `colunasDoAvaliador()`. No servidor, a mesma
+> regra: essa designação que sobrou não faz do avaliador "Com designação".
+>
+> **Pendências do Pedro (Sprints 231–234):** `git push origin feat/acompanhamento-cards-e-retirada` + PR
+> para a `main`. **Uma migration** (`edicoes.presencial_comite_so_designados` + a tabela
+> `pedidos_avaliacao_comite`), sem `.env` ou dependência nova. A regra nasce **desligada**: ligue em
+> Parametrização → Avaliação presencial quando quiser. Ligada, avise a comissão de que o estande amarelo
+> pede permissão, e acompanhe os pedidos em Comitê especial → Designações (a tela não recarrega sozinha).
+>
+> **Sprint 232 (mesma branch):** o **Ver detalhes** ganhou a remoção de designação. Na coluna
+> **Projetos designados**, cada projeto tem uma caixa de marcação, com **Marcar todos** e o botão
+> **Remover designação (N)**, que confirma listando os projetos e avisa que ninguém é designado no
+> lugar. `POST /admin/comite/acompanhamento/avaliadores/{avaliador}/retirar` (`online_ids`,
+> `estande_ids`; a tela manda os ids "online-12"/"estande-5" separados por `retirarDesignacoesComite`),
+> `AcompanhamentoComiteService::retirar()`. As travas são do servidor: o avaliador tem de ser ativo da
+> comissão especial; **só sai o que ele ainda não abriu** (designada — em avaliação e enviada ficam);
+> online, **só a designação feita pelo comitê** (a fila online comum é da Avaliação online). O online
+> sai pelo `DesignacaoService::retirar(redesignar: false)` — sem reposição e com o registro "(retirada
+> sem reposição)" em Registros → Avaliação Online —; o do estande, pelo
+> `DistribuicaoPresencialService::retirar()`, como na Distribuição presencial (sem registro, como lá).
+> O que vier fora das travas é contado (`ignoradas`) em vez de derrubar o pedido; nada elegível é 422.
+> A tela recarrega o retrato e mostra o resultado no próprio diálogo.
+> Back **1589/1589**, front **880/880**, Pint limpo, build OK.
+>
+> **Observação (Sprint 232):** quem tem a aba Comitê especial passa a poder tirar designação de
+> avaliador da comissão — inclusive a do estande feita pela Distribuição presencial.
+>
+> **Sprint 231 (branch `feat/acompanhamento-cards-e-retirada`, saída da `origin/main` @ `96b0172`):** o
+> cartão de cada avaliador na aba Avaliadores ficou **compacto**: em vez das listas inteiras, as três
+> categorias do Ver detalhes — **Avaliados**, **Em avaliação** e **Designados** —, cada uma com a
+> contagem e **só o primeiro projeto** (o avaliado mais recente; nos outros dois, por título), com a
+> origem, o local, o horário e "+N" quando há mais; categoria vazia mostra um traço. O resto está no
+> Ver detalhes, que usa a mesma separação (`colunasDoAvaliador()`).
+>
+> **Sprint 230 (branch `feat/acompanhamento-designacoes-comite`, já na `main` pelo PR #118 → v1.39):** na aba Avaliadores do Acompanhamento, cada cartão ganhou **Ver
 > detalhes**, que abre um diálogo com os projetos do avaliador em **três colunas** — **Projetos
 > avaliados** (do mais recente ao mais antigo), **Projetos em avaliação** (aberta no estande agora e
 > iniciada online) e **Projetos designados** (entregues e ainda não abertos) —, juntando o estande e as
@@ -1019,7 +1114,7 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > "Ver enviadas" do cartão saiu — a coluna Avaliados faz o mesmo. Só tela: sem endpoint novo.
 > Back sem mudança (**1584/1584**), front **877/877**, build OK.
 >
-> **Sprint 229 (branch `feat/acompanhamento-designacoes-comite`, saída da `origin/main` @ `fbb6aca`):**
+> **Sprint 229 (branch `feat/acompanhamento-designacoes-comite`, já na `main` pelo PR #118 → v1.39):**
 > o Acompanhamento das avaliações passou a mostrar também os projetos **atribuídos em Comitê especial
 > → Designações** (avaliação online). Até aqui essa designação nascia como qualquer designação manual
 > e não havia como separá-la da fila online comum do avaliador; agora a linha leva
@@ -1038,8 +1133,7 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > destaques. A **nota** saiu do payload da tela (quem a lê fica registrado em Designações → Ver notas).
 > Back **1584/1584**, front **873/873**, Pint limpo, build OK.
 >
-> **Pendências do Pedro (Sprints 229–230):** `git push origin feat/acompanhamento-designacoes-comite` + PR
-> para a `main`. **Uma migration** (`avaliacoes.designada_pelo_comite`, com a marcação aproximada do
+> **Pendências do Pedro (Sprints 229–230):** ~~push + PR~~ — **entrou na `main` pelo PR #118** (v1.39). **Uma migration** (`avaliacoes.designada_pelo_comite`, com a marcação aproximada do
 > passado). Sem `.env` ou dependência nova. Depois do deploy, confira em Acompanhamento → Avaliadores se
 > as designações antigas que apareceram são mesmo do comitê: as feitas antes da lista final vigente não
 > entram, e uma designação da Avaliação online para alguém da comissão, de um finalista, depois da

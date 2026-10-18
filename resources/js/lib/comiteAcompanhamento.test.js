@@ -141,6 +141,20 @@ describe('ver detalhes do avaliador', () => {
         expect(c.designados.map((p) => p.titulo)).toEqual(['Cisterna', 'Solo']);
     });
 
+    it('designado que ele já abriu ou já avaliou por outro caminho não aparece em designados', () => {
+        const a = avaliador({
+            em_avaliacao: [{ projeto_id: 1, titulo: 'Abelhas', origem: 'estande', situacao: 'em_avaliacao' }],
+            designadas: [{ projeto_id: 2, titulo: 'Horta', origem: 'estande', situacao: 'designada' }],
+            designacoes_comite: [
+                { projeto_id: 1, titulo: 'Abelhas', origem: 'online', situacao: 'designada' },
+                { projeto_id: 2, titulo: 'Horta', origem: 'online', situacao: 'concluida' },
+                { projeto_id: 3, titulo: 'Solo', origem: 'online', situacao: 'designada' },
+            ],
+        });
+
+        expect(colunasDoAvaliador(a).designados.map((p) => p.titulo)).toEqual(['Solo']);
+    });
+
     it('sem nada, as três colunas vêm vazias', () => {
         expect(colunasDoAvaliador(avaliador())).toEqual({ avaliados: [], emAvaliacao: [], designados: [] });
     });

@@ -21,6 +21,13 @@ export const iniciarAvaliacaoPresencial = (projetoId, teste = false) =>
     http.post(`/avaliador/presencial/avaliacoes/projetos/${projetoId}`, { teste: teste ? 1 : 0 })
         .then((r) => r.data.data);
 
+/** Regra do comitê (Sprint 234): pedir para avaliar fora das designações. */
+export const pedirPermissaoPresencial = (projetoId, justificativa = '', teste = false) =>
+    http.post(`/avaliador/presencial/avaliacoes/projetos/${projetoId}/permissao`, {
+        justificativa: justificativa || null,
+        teste: teste ? 1 : 0,
+    }).then((r) => r.data);
+
 export const getAvaliacaoPresencial = (id, teste = false) =>
     http.get(`/avaliador/presencial/avaliacoes/${id}`, params(teste)).then((r) => r.data.data);
 
