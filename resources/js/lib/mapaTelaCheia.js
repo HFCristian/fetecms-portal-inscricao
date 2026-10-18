@@ -14,8 +14,11 @@
  *   que passa nos testes de escala ordinal sobre o fundo claro.
  * - **Credenciado / checado** (estado): o verde de "bom", sempre com rótulo na
  *   legenda. Na checagem, o estande checado **sem ter passado pelo
- *   credenciamento** fica **amarelo**: a conferência aconteceu, mas a equipe
- *   ainda deve o balcão, e o verde esconderia isso.
+ *   credenciamento** fica **laranja**: a conferência aconteceu, mas a equipe
+ *   ainda deve o balcão, e o verde esconderia isso. O **credenciado que ainda
+ *   não foi checado** fica **amarelo**: a equipe chegou e o estande espera a
+ *   checagem — é a fila de quem confere, e o branco a misturaria com quem nem
+ *   apareceu.
  */
 
 /** Cor fixa de cada área, pela sigla da lista final. Área nova cai em "Outras". */
@@ -44,8 +47,10 @@ export function textoSobreArea(cor) {
 
 const VERDE_OK = '#0ca30c';
 const OK = { fill: VERDE_OK, stroke: '#0a7a0a', texto: '#ffffff' };
-/** Checado sem credenciamento: amarelo com texto escuro (branco não lê sobre ele). */
-const ALERTA = { fill: '#f5d000', stroke: '#9c7c00', texto: '#0b0b0b' };
+/** Checado sem credenciamento: laranja com texto escuro (branco não lê sobre ele). */
+const ALERTA = { fill: '#f5871f', stroke: '#a4520a', texto: '#0b0b0b' };
+/** Credenciado e ainda não checado: amarelo com texto escuro. */
+const AGUARDANDO_CHECAGEM = { fill: '#f5d000', stroke: '#9c7c00', texto: '#0b0b0b' };
 const SEM_PROJETO = { fill: '#f3f1f6', stroke: '#e6e0ee', texto: '#b9b2c4' };
 const PENDENTE = { fill: '#ffffff', stroke: '#b9b2c4', texto: '#52514e' };
 
@@ -78,7 +83,7 @@ export function corNoEscopo(escopo, linha, maximo) {
     if (escopo === 'credenciamento') return linha.credenciado ? OK : PENDENTE;
 
     if (escopo === 'checagem') {
-        if (!linha.checado) return PENDENTE;
+        if (!linha.checado) return linha.credenciado ? AGUARDANDO_CHECAGEM : PENDENTE;
         return linha.credenciado ? OK : ALERTA;
     }
 
@@ -107,11 +112,13 @@ export function legendaDoEscopo(escopo, linhas, maximo) {
     if (escopo === 'checagem') {
         const ok = linhas.filter((l) => l.checado && l.credenciado).length;
         const semCredenciamento = linhas.filter((l) => l.checado && !l.credenciado).length;
+        const aguardando = linhas.filter((l) => !l.checado && l.credenciado).length;
 
         return [
             { cor: OK.fill, borda: OK.stroke, label: 'Checado', total: ok },
+            { cor: AGUARDANDO_CHECAGEM.fill, borda: AGUARDANDO_CHECAGEM.stroke, label: 'Credenciado, aguardando checagem', total: aguardando },
             { cor: ALERTA.fill, borda: ALERTA.stroke, label: 'Checado sem credenciamento', total: semCredenciamento },
-            { cor: PENDENTE.fill, borda: PENDENTE.stroke, label: 'Pendente', total: linhas.length - ok - semCredenciamento },
+            { cor: PENDENTE.fill, borda: PENDENTE.stroke, label: 'Pendente', total: linhas.length - ok - semCredenciamento - aguardando },
         ];
     }
 

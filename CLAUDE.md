@@ -1035,6 +1035,16 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 238 | Comitê: **rascunho fora do horário** + **lançamento noturno** parametrizado; Ver detalhes remove também **em andamento e avaliadas** | ✅ sim | ✅ sim (Pedro, PR #121 → v1.43) | 0 |
 | 239 | Avaliação presencial **em lote pela planilha** (xlsx dos designados → prévia com erros por extenso → envio) + Credenciar busca e filtra por **código, estande e turno** | ✅ sim | ✅ sim (Pedro, PR #121 → v1.43) | 0 |
 | 240 | Fix: Comitê → Designações quebrava a tela (React #31) quando alguma designação era pulada | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 241 | Mapa em tela cheia → Checagem: checado sem credenciamento em **laranja**, credenciado sem checagem em **amarelo** | ✅ sim | ❌ não (manual do Pedro) | 1 |
+
+> **Sprint 241 (mesma branch):** na visualização **Checagem** do mapa em tela cheia, o estande
+> **checado sem credenciamento** passou de amarelo para **laranja**, e o **credenciado que ainda não
+> foi checado** — que ficava branco, junto de quem nem chegou — passou a **amarelo**: é a fila de quem
+> confere os estandes. A legenda ganhou o item "Credenciado, aguardando checagem" com a contagem.
+> Só cor e legenda (`lib/mapaTelaCheia.js`); as visualizações Credenciamento e Avaliação, a cor de
+> situação fora da tela cheia e o servidor não mudaram. Front **919/919**, build OK.
+>
+> **Pendências do Pedro (Sprint 241):** vai no mesmo push da Sprint 240, abaixo. Só `npm run build`.
 
 > **Sprint 240 (branch `fix/comite-designacoes-ignoradas`, saída da `main` @ `974a936`, v1.43):** relato
 > de produção: designar em Comitê especial → Designações para um avaliador que **já tinha** o projeto (ou

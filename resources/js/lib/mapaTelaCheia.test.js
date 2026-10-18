@@ -28,7 +28,7 @@ describe('cores da tela cheia do mapa', () => {
         const l = linha({ credenciado: true, avaliacoes: 2 });
 
         expect(corNoEscopo('credenciamento', l, 3).fill).toBe('#0ca30c');
-        expect(corNoEscopo('checagem', l, 3).fill).toBe('#ffffff');
+        expect(corNoEscopo('checagem', l, 3).fill).toBe('#f5d000');
         expect(corNoEscopo('avaliacao', l, 3).fill).toBe('#3987e5');
         expect(corNoEscopo('avaliacao', linha({ avaliacoes: 7 }), 3).fill).toBe('#184f95');
         expect(corNoEscopo('avaliacao', linha(), 3).fill).toBe('#ffffff');
@@ -44,18 +44,21 @@ describe('cores da tela cheia do mapa', () => {
         expect(legendaDoEscopo('credenciamento', linhas, 3).map((f) => f.total)).toEqual([1, 3]);
     });
 
-    it('na checagem, o estande checado sem credenciamento fica amarelo', () => {
+    it('na checagem, checado sem credenciamento fica laranja e credenciado sem checagem, amarelo', () => {
         const completo = linha({ credenciado: true, checado: true });
         const semBalcao = linha({ checado: true });
+        const semChecagem = linha({ credenciado: true });
 
         expect(corNoEscopo('checagem', completo, 3).fill).toBe('#0ca30c');
-        expect(corNoEscopo('checagem', semBalcao, 3)).toMatchObject({ fill: '#f5d000', texto: '#0b0b0b' });
-        expect(corNoEscopo('checagem', linha({ credenciado: true }), 3).fill).toBe('#ffffff');
+        expect(corNoEscopo('checagem', semBalcao, 3)).toMatchObject({ fill: '#f5871f', texto: '#0b0b0b' });
+        expect(corNoEscopo('checagem', semChecagem, 3)).toMatchObject({ fill: '#f5d000', texto: '#0b0b0b' });
+        expect(corNoEscopo('checagem', linha(), 3).fill).toBe('#ffffff');
         // A visualização do credenciamento não muda: só olha o balcão.
         expect(corNoEscopo('credenciamento', semBalcao, 3).fill).toBe('#ffffff');
+        expect(corNoEscopo('credenciamento', semChecagem, 3).fill).toBe('#0ca30c');
 
-        expect(legendaDoEscopo('checagem', [completo, semBalcao, semBalcao, linha()], 3).map((f) => [f.label, f.total]))
-            .toEqual([['Checado', 1], ['Checado sem credenciamento', 2], ['Pendente', 1]]);
+        expect(legendaDoEscopo('checagem', [completo, semBalcao, semBalcao, semChecagem, linha()], 3).map((f) => [f.label, f.total]))
+            .toEqual([['Checado', 1], ['Credenciado, aguardando checagem', 1], ['Checado sem credenciamento', 2], ['Pendente', 1]]);
     });
 });
 
