@@ -622,7 +622,8 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::post('/designacoes', [ComiteDesignacaoController::class, 'designar']);
                 // Acompanhamento: cada avaliador da comissão e o mapa só com as
                 // avaliações do comitê, com dashboard.
-                Route::get('/acompanhamento', ComiteAcompanhamentoController::class);
+                Route::get('/acompanhamento', [ComiteAcompanhamentoController::class, 'index']);
+                Route::post('/acompanhamento/avaliadores/{avaliador}/retirar', [ComiteAcompanhamentoController::class, 'retirar']);
                 // Premiação (Sprint 190): as credenciais e prêmios da feira nos
                 // projetos premiados — a mesma base da Avaliação presencial.
                 Route::get('/premiacao', [ComitePremiacaoController::class, 'index']);

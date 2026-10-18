@@ -5,8 +5,13 @@ vi.mock('../components/AppShell.jsx', () => ({ default: ({ children }) => <div>{
 vi.mock('react-router-dom', () => ({ Link: ({ children }) => <a>{children}</a> }));
 
 const getAcompanhamentoComite = vi.fn();
+const retirarDesignacoesComite = vi.fn();
 vi.mock('../lib/comite.js', () => ({
     getAcompanhamentoComite: (...a) => getAcompanhamentoComite(...a),
+    retirarDesignacoesComite: (...a) => retirarDesignacoesComite(...a),
+}));
+vi.mock('../lib/auth.jsx', () => ({
+    extractErrors: (e) => ({ message: e?.message ?? 'Erro.', fields: e?.fields ?? {} }),
 }));
 
 import ComiteAcompanhamento from './ComiteAcompanhamento.jsx';
@@ -37,7 +42,9 @@ const DADOS = {
     avaliadores: [
         {
             id: 1, nome: 'Ana Comissão', area: 'Agrárias', situacao: 'avaliando', apenas_presencial: false,
-            em_avaliacao: [projeto()], designadas: [], concluidas: [], expiradas: 0, ultima_concluida_em: null,
+            em_avaliacao: [projeto()],
+            designadas: [projeto({ avaliacao_id: 'estande-3', titulo: 'Robô seguidor', codigo: 'FET.ENG-002', estande: 45, situacao: 'designada' })],
+            concluidas: [], expiradas: 0, ultima_concluida_em: null,
             designacoes_comite: [
                 projeto({ avaliacao_id: 'online-7', origem: 'online', titulo: 'Solo vivo', codigo: 'FET.AGR-003', estande: 44, situacao: 'designada', vaga_label: null }),
                 projeto({ avaliacao_id: 'online-8', origem: 'online', titulo: 'Cisterna', codigo: null, estande: null, turno_label: null, situacao: 'concluida', vaga_label: null }),
@@ -65,28 +72,83 @@ describe('ComiteAcompanhamento', () => {
         getAcompanhamentoComite.mockResolvedValue(DADOS);
     });
 
-    it('lista cada avaliador da comissão com o projeto que está avaliando', async () => {
+    it('o cartão mostra só o primeiro projeto de cada categoria, com a contagem', async () => {
         render(<ComiteAcompanhamento />);
 
-        expect(await screen.findByText('Ana Comissão')).toBeInTheDocument();
-        expect(screen.getByText('Abelhas nativas')).toBeInTheDocument();
-        expect(screen.getByText(/FET\.AGR-001 · Estande 042 · Turno A \(matutino\)/)).toBeInTheDocument();
-        expect(screen.getByText('Avaliando agora', { selector: 'span' })).toBeInTheDocument();
+        const cartao = (await screen.findByText('Ana Comissão')).closest('li');
+        expect(within(cartao).getByText('Avaliando agora', { selector: 'span' })).toBeInTheDocument();
+
+        // Avaliados: 1 (online); em avaliação: 1 (estande); designados: 2, só o primeiro aparece.
+        expect(within(cartao).getByText('Cisterna')).toBeInTheDocument();
+        expect(within(cartao).getByText('Abelhas nativas')).toBeInTheDocument();
+        expect(within(cartao).getByText(/No estande · FET\.AGR-001 · Estande 042 · Turno A \(matutino\)/)).toBeInTheDocument();
+        expect(within(cartao).getByText('Robô seguidor')).toBeInTheDocument();
+        expect(within(cartao).queryByText('Solo vivo')).not.toBeInTheDocument();
+        expect(within(cartao).getByText(/· \+1/)).toBeInTheDocument();
+        expect(within(cartao).getAllByText('(1)')).toHaveLength(2);
+        expect(within(cartao).getByText('(2)')).toBeInTheDocument();
+
+        // Quem não tem nada na categoria ganha um traço.
+        const bruno = screen.getByText('Bruno Livre').closest('li');
+        expect(within(bruno).getAllByText('—')).toHaveLength(2);
+
         // O turno não foi escolhido: o servidor decide.
         expect(getAcompanhamentoComite).toHaveBeenCalledWith(undefined);
     });
 
-    it('mostra o que cada um recebeu em Designações do comitê, com a situação', async () => {
+    it('no "Ver detalhes", remove a designação dos projetos marcados', async () => {
+        retirarDesignacoesComite.mockResolvedValue({
+            data: { retiradas: 1 }, meta: { message: '1 designação(ões) retirada(s) de Ana Comissão.' },
+        });
         render(<ComiteAcompanhamento />);
         await screen.findByText('Ana Comissão');
 
-        expect(screen.getByText('Designações do comitê · 1 de 2 avaliada(s)')).toBeInTheDocument();
-        const solo = screen.getByText('Solo vivo').closest('li');
-        expect(within(solo).getByText('Aguardando')).toBeInTheDocument();
-        expect(within(solo).getByText(/FET\.AGR-003 · Estande 044/)).toBeInTheDocument();
-        const cisterna = screen.getByText('Cisterna').closest('li');
-        expect(within(cisterna).getByText('Avaliado')).toBeInTheDocument();
-        expect(within(cisterna).getByText(/Sem estande · enviada/)).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Ver detalhes de Ana Comissão' }));
+        const dialogo = screen.getByRole('dialog', { name: 'Detalhes de Ana Comissão' });
+        const designados = within(dialogo).getByRole('region', { name: 'Projetos designados' });
+
+        expect(within(designados).getByRole('button', { name: /Remover designação/ })).toBeDisabled();
+        fireEvent.click(within(designados).getByRole('checkbox', { name: 'Marcar Solo vivo' }));
+        fireEvent.click(within(designados).getByRole('button', { name: 'Remover designação (1)' }));
+
+        // Confirma antes de tirar.
+        expect(await screen.findByText(/Tirar 1 projeto\(s\) de Ana Comissão/)).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Remover' }));
+
+        await waitFor(() => expect(retirarDesignacoesComite).toHaveBeenCalledWith(1, ['online-7']));
+        expect(await within(dialogo).findByText('1 designação(ões) retirada(s) de Ana Comissão.')).toBeInTheDocument();
+        // Recarrega o retrato depois de remover.
+        expect(getAcompanhamentoComite).toHaveBeenCalledTimes(2);
+    });
+
+    it('"Marcar todos" pega a coluna inteira; cancelar a confirmação não remove nada', async () => {
+        render(<ComiteAcompanhamento />);
+        await screen.findByText('Ana Comissão');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Ver detalhes de Ana Comissão' }));
+        const designados = within(screen.getByRole('dialog', { name: 'Detalhes de Ana Comissão' }))
+            .getByRole('region', { name: 'Projetos designados' });
+
+        fireEvent.click(within(designados).getByRole('button', { name: 'Marcar todos' }));
+        fireEvent.click(within(designados).getByRole('button', { name: 'Remover designação (2)' }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Cancelar' }));
+
+        expect(retirarDesignacoesComite).not.toHaveBeenCalled();
+        expect(within(designados).getByRole('button', { name: 'Desmarcar todos' })).toBeInTheDocument();
+    });
+
+    it('o erro da remoção aparece no diálogo', async () => {
+        retirarDesignacoesComite.mockRejectedValue({ fields: { designacoes: ['Nenhuma designação a retirar.'] } });
+        render(<ComiteAcompanhamento />);
+        await screen.findByText('Ana Comissão');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Ver detalhes de Ana Comissão' }));
+        const dialogo = screen.getByRole('dialog', { name: 'Detalhes de Ana Comissão' });
+        fireEvent.click(within(dialogo).getByRole('checkbox', { name: 'Marcar Robô seguidor' }));
+        fireEvent.click(within(dialogo).getByRole('button', { name: 'Remover designação (1)' }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Remover' }));
+
+        expect(await within(dialogo).findByText('Nenhuma designação a retirar.')).toBeInTheDocument();
     });
 
     it('"Ver detalhes" mostra avaliados, em avaliação e designados em três colunas', async () => {

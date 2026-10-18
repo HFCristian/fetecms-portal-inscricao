@@ -17,6 +17,7 @@ use App\Support\JanelaTurnos;
 use App\Support\PlantaEvento;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Comitê especial → **Acompanhamento das avaliações**.
@@ -44,7 +45,11 @@ use Illuminate\Support\Facades\DB;
  */
 class AcompanhamentoComiteService
 {
-    public function __construct(private readonly LocaisFinalistasService $locais) {}
+    public function __construct(
+        private readonly LocaisFinalistasService $locais,
+        private readonly DesignacaoService $designacoes,
+        private readonly DistribuicaoPresencialService $presencial,
+    ) {}
 
     /**
      * A lista por avaliador e o mapa de um turno.
@@ -105,6 +110,73 @@ class AcompanhamentoComiteService
                 ->map(fn (Area $a) => ['id' => $a->id, 'nome' => $a->nome, 'sigla' => $a->siglaDaLista()])
                 ->all(),
             'atualizado_em' => now()->toIso8601String(),
+        ];
+    }
+
+    /**
+     * Tira de um avaliador da comissão as designações que ele **ainda não
+     * abriu** — o "Ver detalhes" do acompanhamento.
+     *
+     * Só sai o que o comitê pode desfazer sem atropelar ninguém:
+     *
+     * - **online**, só a designação feita em Comitê → Designações; o resto da
+     *   fila do avaliador é da Avaliação online, que tem a sua tela. Sai pelo
+     *   mesmo caminho da retirada de lá, **sem reposição** (o comitê escolheu
+     *   quem avalia; sortear outro desfaria a escolha) e com o registro;
+     * - **no estande**, a designação da edição em escopo.
+     *
+     * Aberta (em avaliação) ou enviada não sai: a primeira é alguém com o
+     * projeto na mão, a segunda já é nota. O que vier fora disso é ignorado e
+     * contado, em vez de derrubar o pedido inteiro.
+     *
+     * @param  list<int>  $onlineIds
+     * @param  list<int>  $estandeIds
+     * @return array{retiradas:int, online:int, estande:int, ignoradas:int}
+     */
+    public function retirar(User $avaliador, array $onlineIds, array $estandeIds, User $admin): array
+    {
+        if (! $this->membros()->has($avaliador->id)) {
+            throw ValidationException::withMessages([
+                'avaliador' => 'Só se retira designação de avaliador ativo da comissão especial.',
+            ]);
+        }
+
+        $online = $onlineIds === [] ? collect() : Avaliacao::whereIn('id', $onlineIds)
+            ->where('avaliador_id', $avaliador->id)
+            ->where('designada_pelo_comite', true)
+            ->where('status', StatusAvaliacao::Designada->value)
+            ->whereHas('projeto')
+            ->pluck('id');
+
+        $estande = $estandeIds === [] ? collect() : AvaliacaoPresencial::whereIn('id', $estandeIds)
+            ->where('avaliador_id', $avaliador->id)
+            ->where('edicao_id', Edicao::atual()?->id)
+            ->where('status', StatusAvaliacao::Designada->value)
+            ->get();
+
+        $retiradas = $online->count() + $estande->count();
+
+        if ($retiradas === 0) {
+            throw ValidationException::withMessages([
+                'designacoes' => 'Nenhuma designação a retirar: só sai o que o avaliador ainda não abriu.',
+            ]);
+        }
+
+        DB::transaction(function () use ($online, $estande, $admin) {
+            if ($online->isNotEmpty()) {
+                $this->designacoes->retirar($online->all(), $admin, redesignar: false);
+            }
+
+            foreach ($estande as $avaliacao) {
+                $this->presencial->retirar($avaliacao);
+            }
+        });
+
+        return [
+            'retiradas' => $retiradas,
+            'online' => $online->count(),
+            'estande' => $estande->count(),
+            'ignoradas' => count($onlineIds) + count($estandeIds) - $retiradas,
         ];
     }
 

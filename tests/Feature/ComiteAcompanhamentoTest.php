@@ -310,6 +310,98 @@ class ComiteAcompanhamentoTest extends TestCase
         );
     }
 
+    private function urlRetirar(User $avaliador): string
+    {
+        return self::URL.'/avaliadores/'.$avaliador->id.'/retirar';
+    }
+
+    public function test_retira_do_avaliador_as_designacoes_ainda_nao_abertas(): void
+    {
+        $abelhas = $this->finalista('Abelhas nativas', 42);
+        $horta = $this->finalista('Horta vertical', 43);
+        $ana = $this->avaliador('Ana Comissão');
+        $online = $this->online($ana, $abelhas, 'designada');
+        $estande = $this->avaliacao($ana, $horta, 'designada');
+
+        $this->postJson($this->urlRetirar($ana), ['online_ids' => [$online->id], 'estande_ids' => [$estande->id]])
+            ->assertOk()
+            ->assertJsonPath('data.retiradas', 2)
+            ->assertJsonPath('data.online', 1)
+            ->assertJsonPath('data.estande', 1)
+            ->assertJsonPath('meta.message', '2 designação(ões) retirada(s) de Ana Comissão.');
+
+        $this->assertNull(Avaliacao::find($online->id));
+        $this->assertNull(AvaliacaoPresencial::find($estande->id));
+        // Sem reposição: o comitê escolheu quem avalia, ninguém é sorteado no lugar.
+        $this->assertSame(0, Avaliacao::count());
+        // A retirada online entra na trilha, como na tela de Designações.
+        $this->assertDatabaseHas('registros_atividade', [
+            'tipo' => 'avaliacao_designacao_retirada', 'projeto_id' => $abelhas->id,
+        ]);
+    }
+
+    public function test_aberta_enviada_ou_de_fora_do_comite_nao_sai(): void
+    {
+        $abelhas = $this->finalista('Abelhas nativas', 42);
+        $horta = $this->finalista('Horta vertical', 43);
+        $solo = $this->finalista('Solo vivo', 44);
+        $ana = $this->avaliador('Ana Comissão');
+        $bruno = $this->avaliador('Bruno Comissão');
+
+        $aberta = $this->online($ana, $abelhas, 'em_andamento');
+        $daFila = $this->online($ana, $horta, 'designada', doComite: false);
+        $enviada = $this->avaliacao($ana, $solo, 'concluida');
+        $emCurso = $this->avaliacao($ana, $abelhas, 'em_andamento');
+        $deOutro = $this->avaliacao($bruno, $horta, 'designada');
+
+        $this->postJson($this->urlRetirar($ana), [
+            'online_ids' => [$aberta->id, $daFila->id],
+            'estande_ids' => [$enviada->id, $emCurso->id, $deOutro->id],
+        ])->assertStatus(422)->assertJsonValidationErrors('designacoes');
+
+        $this->assertSame(2, Avaliacao::count());
+        $this->assertSame(3, AvaliacaoPresencial::count());
+    }
+
+    public function test_o_que_nao_pode_sair_e_contado_sem_derrubar_o_resto(): void
+    {
+        $abelhas = $this->finalista('Abelhas nativas', 42);
+        $horta = $this->finalista('Horta vertical', 43);
+        $ana = $this->avaliador('Ana Comissão');
+        $designada = $this->avaliacao($ana, $abelhas, 'designada');
+        $emCurso = $this->avaliacao($ana, $horta, 'em_andamento');
+
+        $this->postJson($this->urlRetirar($ana), ['estande_ids' => [$designada->id, $emCurso->id]])
+            ->assertOk()
+            ->assertJsonPath('data.retiradas', 1)
+            ->assertJsonPath('data.ignoradas', 1);
+
+        $this->assertNotNull(AvaliacaoPresencial::find($emCurso->id));
+    }
+
+    public function test_retirar_pede_avaliador_da_comissao_e_alguma_designacao(): void
+    {
+        $abelhas = $this->finalista('Abelhas nativas', 42);
+        $comum = $this->avaliador('Davi Comum', comissao: false);
+        $designada = $this->avaliacao($comum, $abelhas, 'designada');
+
+        $this->postJson($this->urlRetirar($comum), ['estande_ids' => [$designada->id]])
+            ->assertStatus(422)->assertJsonValidationErrors('avaliador');
+        $this->postJson($this->urlRetirar($this->avaliador('Ana Comissão')), [])
+            ->assertStatus(422)->assertJsonValidationErrors(['online_ids', 'estande_ids']);
+    }
+
+    public function test_quem_nao_tem_a_aba_comite_nao_retira(): void
+    {
+        $ana = $this->avaliador('Ana Comissão');
+        $admin = User::factory()->admin()->create();
+        $escopo = EscopoAdmin::create(['nome' => 'Só projetos', 'abas' => ['projetos']]);
+        $admin->escopos()->attach($escopo->id, ['edicao_id' => $this->edicao->id]);
+        Sanctum::actingAs($admin);
+
+        $this->postJson($this->urlRetirar($ana), ['estande_ids' => [1]])->assertForbidden();
+    }
+
     public function test_turno_invalido_e_recusado(): void
     {
         $this->getJson(self::URL.'?turno=C')->assertStatus(422)->assertJsonValidationErrors('turno');
