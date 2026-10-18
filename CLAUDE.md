@@ -148,7 +148,8 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     que encontra a vaga dela tomada entra numa comum, com peso 1 (`avaliacoes_presenciais.vaga`,
     `App\Enums\VagaPresencial`, `JanelaTurnos::vagaPara()`). Avalia num **wizard** como o da online, **sem os itens do
     estande** (saíram na Sprint 237 — são conferidos na checagem, e o servidor não os cobra mais), e o atalho de cada
-    seção fica **verde** quando ele sai dela completa e **amarelo** quando sai com pergunta em branco. No Ranking
+    seção fica **verde** quando ele sai dela completa e **amarelo** quando sai com pergunta em branco; sair de
+    uma seção **salva o rascunho sozinho** quando algo mudou (Sprint 242). No Ranking
     presencial, **Ver avaliações** mostra quem avaliou, a vaga e os pontos por seção, e **exclui** uma avaliação
     enviada ou em andamento com justificativa — a vaga volta a abrir, ninguém é designado no lugar, e consulta e
     exclusão entram em Registros → Notas (`NotasPresenciaisService`, só admin permanente). A rubrica é a do documento **"Perguntas de Avaliação FETECMS 2026 ·
@@ -456,7 +457,10 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     devolve o mapa como ele estava no fim daquele dia, sem instantâneo gravado. O
     **turno** é o outro eixo. O mesmo recorte sai em **lista filtrável**
     (credenciamento, checagem, avaliações realizadas ou faltantes) e exporta em
-    TXT, CSV e PDF; o dia corrente se recarrega sozinho a cada 30s.
+    TXT, CSV e PDF; o dia corrente se recarrega sozinho a cada 30s. **Marcar saída**, ao lado da tela
+    cheia, registra a equipe credenciada que foi embora antes do fim do turno (`saidas_antecipadas`, uma
+    por projeto e dia): o estande fica **cinza** naquele dia, por cima de qualquer estágio, e a marcação
+    vai para Registros → Mapa do evento (Sprint 243, `SaidaAntecipadaService`).
   - **Credenciamento** (`/admin/credenciamento`): o balcão do evento, em duas seções —
     **Credenciar** (os finalistas que ainda não passaram) e **Credenciados** (quem já passou), a
     mesma lista pesquisável com filtro por área e categoria. **Finalista é quem está na lista final
@@ -480,7 +484,8 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     (`CredenciamentoService::MINUTOS_ATENDIMENTO`); intocado, o fim é o instante da conclusão. Ao
     concluir, a tela **lembra os itens a entregar** ao finalista. Só credencia dentro da **janela do
     evento**; fora dela a aba abre em leitura. O **admin demo** tem um *modo de teste* que ignora as
-    datas. `CredenciamentoService`. As listas e a ficha mostram o **código, o turno e o estande** do
+    datas. Concluído o atendimento, a ficha volta para a fila de **Credenciar**, com o aviso de qual
+    projeto passou (Sprint 242). `CredenciamentoService`. As listas e a ficha mostram o **código, o turno e o estande** do
     projeto, e a ficha tem os atalhos **Tudo presente** (por pessoa), **Todos compareceram** e
     **Todos os kits** (Sprint 217).
   - **Credenciamento → Etiquetas avulsas** (`/admin/credenciamento/etiquetas`): reimprime a etiqueta
@@ -732,6 +737,11 @@ Regras-chave:
 - **Web**: CSRF nativo + cookies HttpOnly (Sanctum SPA). **Mobile**: tokens Sanctum.
 - **Rate limiting** em login/registro/upload; validação server-side em todo input; proteção de
   mass assignment (`$fillable`); URLs assinadas/temporárias para download de arquivos.
+- **Sessão** (Sprint 244): no banco, **5 horas sem atividade** (`SESSION_LIFETIME=300`), faxina
+  agendada (`sessoes:limpar`) e raio-X para travamentos (`sessoes:diagnostico`, roteiro em
+  `docs/DEPLOY_AWS.md` §13). Na SPA, 419 renova o CSRF e repete uma vez; 401 de quem estava logado leva
+  ao login com aviso. Toda a `/api/v1` tem `throttle:120,1` **por conta** — a mesma conta em muitos
+  aparelhos divide esse limite.
 
 ## Comandos (disponíveis após o bootstrap do Sprint 1)
 
@@ -743,6 +753,9 @@ php artisan migrate:fresh --seed  # recria o banco e roda seeders
 php artisan test                  # testes (Pest/PHPUnit)
 php artisan test --filter=Nome    # roda um teste específico
 php artisan queue:work            # processa a fila (envio da mala direta) — exigido no deploy
+php artisan schedule:run          # agendador (cron a cada minuto no deploy): faxina das sessões, alerta do chat
+php artisan sessoes:limpar        # apaga sessões paradas há mais de 5 h e o cache vencido (--horas=N)
+php artisan sessoes:diagnostico   # raio-X de sessão, cache, fila e banco para travamentos/quedas
 
 # Frontend (Vite)
 npm run dev                       # dev server com HMR
@@ -1035,7 +1048,52 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 238 | Comitê: **rascunho fora do horário** + **lançamento noturno** parametrizado; Ver detalhes remove também **em andamento e avaliadas** | ✅ sim | ✅ sim (Pedro, PR #121 → v1.43) | 0 |
 | 239 | Avaliação presencial **em lote pela planilha** (xlsx dos designados → prévia com erros por extenso → envio) + Credenciar busca e filtra por **código, estande e turno** | ✅ sim | ✅ sim (Pedro, PR #121 → v1.43) | 0 |
 | 240 | Fix: Comitê → Designações quebrava a tela (React #31) quando alguma designação era pulada | ✅ sim | ✅ sim (Pedro, PR #122) | 0 |
-| 241 | Mapa em tela cheia → Checagem: checado sem credenciamento em **laranja**, credenciado sem checagem em **amarelo** | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 241 | Mapa em tela cheia → Checagem: checado sem credenciamento em **laranja**, credenciado sem checagem em **amarelo** | ✅ sim | ✅ sim (Pedro, PR #124 → v1.43.1) | 0 |
+| 242 | Credenciar: concluir volta para a **fila de Credenciar** + avaliação presencial com **rascunho automático** a cada seção | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 243 | Mapa do Evento: **Marcar saída** (equipe que foi embora antes do horário), estande cinza no dia | ✅ sim | ❌ não (manual do Pedro) | 2 |
+| 244 | Sessão de **5 h**, `sessoes:limpar` agendado, `sessoes:diagnostico` + 419/401 tratados na SPA | ✅ sim | ❌ não (manual do Pedro) | 3 |
+
+> **Sprints 242–244 (branch `feat/credenciar-autosave-saida-sessoes`, saída da `main` @ `e6aa44a`, v1.43.1):**
+> (a) **Sprint 242** — concluir um credenciamento (direto ou depois do lembrete dos itens a entregar)
+> volta para **Credenciar**, e não mais para Credenciados: a próxima equipe espera ali. A lista mostra
+> "Credenciamento de X concluído. Pode chamar a próxima equipe." (o título vai no `state` da rota). E o
+> wizard da **avaliação presencial** salva o **rascunho sozinho ao sair de cada seção** (Avançar,
+> Voltar, atalho do topo ou fechar), só quando algo mudou, sem travar a tela: a falha vira aviso e a
+> próxima saída tenta de novo. Os salvamentos vão numa fila (o mais novo nunca é atropelado) e o envio e
+> o "Salvar rascunho" esperam a fila. O rodapé diz a hora do último rascunho automático.
+> (b) **Sprint 243** — **Marcar saída**, ao lado de "Tela cheia" na planta: um diálogo com os projetos
+> **credenciados** do turno, onde se marca a hora da saída (agora, por padrão) e uma observação, ou se
+> desfaz (`POST /admin/mapa/saidas`, `DELETE /admin/mapa/saidas/{saida}`, `SaidaAntecipadaService`). Uma
+> linha por projeto e **dia** (`saidas_antecipadas`); marcar de novo no dia corrige a hora. Só sai quem
+> tem estande e credenciamento concluído, e a hora não pode ser futura nem anterior ao credenciamento.
+> `SituacaoEstande::Saiu` pinta o estande de **cinza-escuro** por cima de qualquer estágio, só no dia da
+> saída (o seletor de dia continua valendo); na tela cheia ele é cinza nas três visualizações, com faixa
+> própria na legenda. A ficha do estande diz hora, observação e quem marcou; a lista por situação ganhou
+> o critério "Saída antes do horário", e o TXT e o CSV trazem a hora. Marcar e desfazer entram em
+> Registros → Mapa do evento. **A avaliação presencial não sabe da saída**: o avaliador ainda vê o
+> estande como disponível no mapa dele.
+> (c) **Sprint 244** — relatos de travamentos e quedas. **Sessão de 5 horas sem atividade**
+> (`SESSION_LIFETIME=300`). `php artisan sessoes:limpar` apaga em lotes a sessão parada há mais do que
+> isso e o cache vencido em banco, agendado de 15 em 15 min com `onOneServer()`; `php artisan
+> sessoes:diagnostico` (só leitura, `SessoesService`) mostra a configuração com a impressão digital da
+> `APP_KEY`, as sessões por idade, as contas em muitos aparelhos (dividem o `throttle:120,1` da API), os
+> IPs que abrem sessão sem login, cache, fila e, no PostgreSQL, conexões, locks e tamanho das tabelas, e
+> fecha com os pontos de atenção. Na SPA, o **419** renova o cookie CSRF e repete o pedido uma vez
+> (`http.js`), e o **401** de quem estava logado leva ao login com "Sua sessão expirou" (`AuthProvider`,
+> `sessaoExpirada`) — antes a tela ficava aberta com cada ação falhando. O `docs/DEPLOY_AWS.md` ganhou o
+> cron do `schedule:run`, o pool do PHP-FPM (o padrão do Ubuntu é **5 processos**), os timeouts do Nginx
+> e do ALB e o roteiro de troubleshooting (§13).
+> Back **1641/1641**, front **937/937**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprints 242–244):** (1) `git push origin feat/credenciar-autosave-saida-sessoes`
+> + PR para a `main`. **Uma migration** (`saidas_antecipadas`), nenhuma dependência nova. (2) **No `.env`
+> de produção**, `SESSION_LIFETIME=300` (o arquivo provavelmente está com 120) e depois
+> `php artisan optimize:clear && php artisan optimize` em cada instância. (3) Instale o **cron** do
+> `schedule:run` (§9 do DEPLOY_AWS); sem ele a faxina só acontece pelo sorteio. (4) Rode
+> `php artisan sessoes:diagnostico` **em cada instância** e compare a impressão digital da `APP_KEY`;
+> confira o log do PHP-FPM (`max_children`) e os 429/502/504 do Nginx no horário dos relatos — é o
+> roteiro da §13. (5) Ajuste o pool do PHP-FPM antes do próximo dia de evento se o log mostrar
+> `max_children`.
 
 > **Sprint 241 (branch `fix/mapa-checagem-e-busca-validacao`, saída da `main` @ `91cb2d1`):** na visualização **Checagem** do mapa em tela cheia, o estande
 > **checado sem credenciamento** passou de amarelo para **laranja**, e o **credenciado que ainda não
@@ -1050,8 +1108,8 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > `DesignacaoEmMassaTest`. Os outros testes de busca foram conferidos: usam e-mail fixo ou derivado do
 > nome, ou a busca não olha e-mail.
 >
-> **Pendências do Pedro (Sprint 241):** `git push origin fix/mapa-checagem-e-busca-validacao` + PR para
-> a `main` e `npm run build` no deploy. Sem migration, `.env` ou dependência nova.
+> **Pendências do Pedro (Sprint 241):** ~~push + PR~~ — **entrou na `main` pelo PR #124** (v1.43.1).
+> `npm run build` no deploy. Sem migration, `.env` ou dependência nova.
 
 > **Sprint 240 (branch `fix/comite-designacoes-ignoradas`, saída da `main` @ `974a936`, v1.43):** relato
 > de produção: designar em Comitê especial → Designações para um avaliador que **já tinha** o projeto (ou
