@@ -122,3 +122,20 @@ export const alocarNoMapa = ({ projetoId, turno, numero = null, modo = null }) =
 /** Tira o projeto do mapa (turno e estande) — quem saiu da lista final. */
 export const retirarDoMapa = (projetoId) =>
     http.post('/admin/mapa/remanejamento/retirar', { projeto_id: projetoId }).then((r) => r.data);
+
+// --- Saída antes do horário (Sprint 243) ------------------------------------
+
+/**
+ * A equipe chegou e foi embora antes do fim do turno. `saiuEm` é
+ * "aaaa-mm-ddThh:mm" (hora de Campo Grande); em branco, o servidor usa agora.
+ */
+export const marcarSaida = ({ projetoId, saiuEm = null, observacao = '' }) =>
+    http.post('/admin/mapa/saidas', {
+        projeto_id: projetoId,
+        saiu_em: saiuEm || null,
+        observacao: observacao.trim() || null,
+    }).then((r) => r.data);
+
+/** Desfaz a marcação: a equipe voltou, ou era outro projeto. */
+export const desfazerSaida = (id) =>
+    http.delete(`/admin/mapa/saidas/${id}`).then((r) => r.data);

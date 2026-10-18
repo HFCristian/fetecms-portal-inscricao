@@ -9,6 +9,7 @@ import {
     getRemanejamento, alocarNoMapa,
 } from '../lib/mapaEvento.js';
 import DialogoDestinoMapa from '../components/DialogoDestinoMapa.jsx';
+import DialogoMarcarSaida from '../components/DialogoMarcarSaida.jsx';
 import SinalizacoesProjeto from '../components/SinalizacoesProjeto.jsx';
 import PainelAvaliacoesMapa from '../components/PainelAvaliacoesMapa.jsx';
 import { ESCOPOS, corDaArea, textoSobreArea, corNoEscopo, legendaDoEscopo } from '../lib/mapaTelaCheia.js';
@@ -36,6 +37,9 @@ import { ESCOPOS, corDaArea, textoSobreArea, corNoEscopo, legendaDoEscopo } from
  * lista final depois), e cada projeto do estande tem **Trocar** — escolhe-se o
  * destino clicando noutro estande, no mesmo turno ou no outro. A lista de
  * turnos acompanha sozinha: é a mesma alocação.
+ *
+ * **Marcar saída** (Sprint 243), ao lado da tela cheia, registra a equipe que
+ * chegou e foi embora antes do fim do turno: o estande fica cinza naquele dia.
  */
 
 /** Tamanho de uma célula da grade, em unidades do viewBox. */
@@ -80,7 +84,7 @@ function corPorSituacao({ selecionado, linha }) {
     if (selecionado) return { fill: '#43157A', stroke: '#2a0058', texto: '#ffffff' };
     if (!linha) return { fill: '#ffffff', stroke: '#cfc6db', texto: '#6b6577' };
 
-    const claro = linha.situacao === 'avaliado' || linha.situacao === 'checado';
+    const claro = ['avaliado', 'checado', 'saiu'].includes(linha.situacao);
 
     // Só o estágio de avaliação tem grau: 1 de 3 é mais claro que 3 de 3.
     const opacidade = linha.situacao === 'avaliado' && linha.avaliacoes_maximo
@@ -298,6 +302,9 @@ export default function MapaPlanta() {
     const [destino, setDestino] = useState(null);       // { projeto, numero } → diálogo
     const [alocando, setAlocando] = useState(null);     // { numero, turno } vazio → escolher
     const [avisosRem, setAvisosRem] = useState([]);
+
+    // --- Saída antes do horário (Sprint 243) ----------------------------
+    const [marcandoSaida, setMarcandoSaida] = useState(false);
 
     useEffect(() => { getRemanejamento().then(setRem).catch(() => setRem(null)); }, []);
 
@@ -681,6 +688,10 @@ export default function MapaPlanta() {
                     </span>
                     {telaCheia ? 'Sair da tela cheia' : 'Tela cheia'}
                 </Button>
+                <Button variant="outline" onClick={() => setMarcandoSaida(true)} disabled={editando}>
+                    <span className="material-symbols-outlined text-[20px]">logout</span>
+                    Marcar saída
+                </Button>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -917,7 +928,7 @@ export default function MapaPlanta() {
                                     {legendaDoEscopo(escopo, linhasDoTurno, maxAvaliacoes).map((l) => (
                                         <li key={l.label} className="inline-flex items-center gap-1">
                                             <span className="w-3 h-3 rounded-sm border" style={{ background: l.cor, borderColor: l.borda }} />
-                                            {escopo === 'avaliacao' && l.label !== 'Nenhuma' ? `${l.label} avaliação(ões)` : l.label}
+                                            {escopo === 'avaliacao' && /^\d/.test(l.label) ? `${l.label} avaliação(ões)` : l.label}
                                             <span className="text-on-surface-variant tabular-nums">({l.total})</span>
                                         </li>
                                     ))}
@@ -1010,6 +1021,15 @@ export default function MapaPlanta() {
                                             avaliação(ões) · faltam {situacaoDoSelecionado.avaliacoes_faltantes}
                                         </p>
                                         <TermoImagemEstande linha={situacaoDoSelecionado} />
+                                        {situacaoDoSelecionado.saida && (
+                                            <p className="text-xs font-semibold text-on-surface mt-1">
+                                                Saiu antes do horário às {situacaoDoSelecionado.saida.hora}
+                                                {situacaoDoSelecionado.saida.observacao && ` · ${situacaoDoSelecionado.saida.observacao}`}
+                                                {situacaoDoSelecionado.saida.registrado_por && (
+                                                    <span className="font-normal text-on-surface-variant"> · marcado por {situacaoDoSelecionado.saida.registrado_por}</span>
+                                                )}
+                                            </p>
+                                        )}
                                     </div>
                                 )}
 
@@ -1231,6 +1251,18 @@ export default function MapaPlanta() {
                     candidatos={[...(rem?.sem_turno ?? []), ...(rem?.sem_estande ?? [])]}
                     onAlocado={aplicarRemanejamento}
                     onFechar={() => setAlocando(null)}
+                />
+            )}
+
+            {marcandoSaida && (
+                <DialogoMarcarSaida
+                    turnos={filtros?.turnos?.length ? filtros.turnos : [
+                        { value: 'A', label: 'Turno A (matutino)' },
+                        { value: 'B', label: 'Turno B (vespertino)' },
+                    ]}
+                    turnoInicial={turno}
+                    onAlterado={(mensagem) => { setSucesso(mensagem); setAlerta(''); carregarSituacao(); }}
+                    onFechar={() => setMarcandoSaida(false)}
                 />
             )}
 

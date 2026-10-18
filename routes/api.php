@@ -55,6 +55,7 @@ use App\Http\Controllers\Api\V1\ItensConferenciaController;
 use App\Http\Controllers\Api\V1\MapaEstandesController;
 use App\Http\Controllers\Api\V1\MapaPlantaController;
 use App\Http\Controllers\Api\V1\MapaRemanejamentoController;
+use App\Http\Controllers\Api\V1\MapaSaidaController;
 use App\Http\Controllers\Api\V1\MapaTurnosController;
 use App\Http\Controllers\Api\V1\OrientadorAjusteController;
 use App\Http\Controllers\Api\V1\OrientadorController;
@@ -688,6 +689,10 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::get('/remanejamento', [MapaRemanejamentoController::class, 'index']);
                 Route::post('/remanejamento/alocar', [MapaRemanejamentoController::class, 'alocar']);
                 Route::post('/remanejamento/retirar', [MapaRemanejamentoController::class, 'retirar']);
+
+                // A equipe que chegou e foi embora antes do horário (Sprint 243).
+                Route::post('/saidas', [MapaSaidaController::class, 'store']);
+                Route::delete('/saidas/{saida}', [MapaSaidaController::class, 'destroy']);
             });
 
             // --- Parametrização (as datas do período de avaliação moram nas

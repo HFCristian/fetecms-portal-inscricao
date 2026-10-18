@@ -62,6 +62,22 @@ describe('cores da tela cheia do mapa', () => {
     });
 });
 
+describe('saída antes do horário', () => {
+    it('o estande de quem saiu fica cinza em qualquer visualização e conta à parte na legenda', () => {
+        const saiu = linha({ credenciado: true, checado: true, avaliacoes: 2, saida: { id: 1, hora: '14:20' } });
+        const ficou = linha({ credenciado: true });
+
+        for (const escopo of ['credenciamento', 'checagem', 'avaliacao']) {
+            expect(corNoEscopo(escopo, saiu, 3)).toMatchObject({ fill: '#5c5866', texto: '#ffffff' });
+        }
+
+        expect(legendaDoEscopo('credenciamento', [saiu, ficou, linha()], 3).map((f) => [f.label, f.total]))
+            .toEqual([['Credenciado', 1], ['Pendente', 1], ['Saiu antes do horário', 1]]);
+        // Sem ninguém que saiu, a legenda não ganha a faixa.
+        expect(legendaDoEscopo('avaliacao', [ficou], 3).map((f) => f.label)).not.toContain('Saiu antes do horário');
+    });
+});
+
 describe('resumo do painel', () => {
     const linhas = [
         linha({ avaliacoes: 0 }),

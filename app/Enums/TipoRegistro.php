@@ -46,6 +46,7 @@ namespace App\Enums;
  * que o admin move de turno ou de estande à mão depois delas. A troca manual não pede justificativa (é rearranjo de
  * logística, não escape do edital), mas fica registrada: no dia do evento é
  * preciso saber por que um projeto está em outro horário do que a lista dizia.
+ * A **saída antes do horário** (Sprint 243) entra aqui também, marcada e desfeita.
  *
  * Seção "Cerimonial" (a porta da cerimônia de premiação): cada pessoa que fez
  * check-in — com o projeto, o papel e quem atendeu — e cada check-in desfeito,
@@ -126,6 +127,8 @@ enum TipoRegistro: string
     case EstandeProjetoMovido = 'estande_projeto_movido';
     case MapaProjetoIncluido = 'mapa_projeto_incluido';
     case MapaProjetoRetirado = 'mapa_projeto_retirado';
+    case MapaSaidaAntecipada = 'mapa_saida_antecipada';
+    case MapaSaidaDesfeita = 'mapa_saida_desfeita';
     case InterpreteCadastrado = 'interprete_cadastrado';
     case InterpreteAlterado = 'interprete_alterado';
     case InterpreteExcluido = 'interprete_excluido';
@@ -226,6 +229,8 @@ enum TipoRegistro: string
             self::EstandeProjetoMovido => 'Projeto movido de estande',
             self::MapaProjetoIncluido => 'Projeto incluído no mapa',
             self::MapaProjetoRetirado => 'Projeto retirado do mapa',
+            self::MapaSaidaAntecipada => 'Saída antes do horário',
+            self::MapaSaidaDesfeita => 'Saída antes do horário desfeita',
             self::InterpreteCadastrado => 'Intérprete cadastrado',
             self::InterpreteAlterado => 'Intérprete alterado',
             self::InterpreteExcluido => 'Intérprete excluído',
@@ -265,7 +270,8 @@ enum TipoRegistro: string
             self::AlmoxarifadoEdicao, self::AlmoxarifadoExclusao => self::SECAO_ALMOXARIFADO,
             self::TurnosGerados, self::TurnosProjetoMovido,
             self::EstandesGerados, self::EstandeProjetoMovido,
-            self::MapaProjetoIncluido, self::MapaProjetoRetirado => self::SECAO_MAPA,
+            self::MapaProjetoIncluido, self::MapaProjetoRetirado,
+            self::MapaSaidaAntecipada, self::MapaSaidaDesfeita => self::SECAO_MAPA,
             self::NotasVisualizadas,
             self::NotaDesconsiderada,
             self::NotaReconsiderada,
