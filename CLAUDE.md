@@ -1034,7 +1034,24 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 237 | Avaliação presencial sem os **itens do estande** + seção verde/amarela no wizard; Ranking presencial → **Ver avaliações** e exclusão com justificativa | ✅ sim | ✅ sim (Pedro, PR #120 → v1.41) | 0 |
 | 238 | Comitê: **rascunho fora do horário** + **lançamento noturno** parametrizado; Ver detalhes remove também **em andamento e avaliadas** | ✅ sim | ✅ sim (Pedro, PR #121 → v1.43) | 0 |
 | 239 | Avaliação presencial **em lote pela planilha** (xlsx dos designados → prévia com erros por extenso → envio) + Credenciar busca e filtra por **código, estande e turno** | ✅ sim | ✅ sim (Pedro, PR #121 → v1.43) | 0 |
-| 240 | Fix: Comitê → Designações quebrava a tela (React #31) quando alguma designação era pulada | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 240 | Fix: Comitê → Designações quebrava a tela (React #31) quando alguma designação era pulada | ✅ sim | ✅ sim (Pedro, PR #122) | 0 |
+| 241 | Mapa em tela cheia → Checagem: checado sem credenciamento em **laranja**, credenciado sem checagem em **amarelo** | ✅ sim | ❌ não (manual do Pedro) | 1 |
+
+> **Sprint 241 (branch `fix/mapa-checagem-e-busca-validacao`, saída da `main` @ `91cb2d1`):** na visualização **Checagem** do mapa em tela cheia, o estande
+> **checado sem credenciamento** passou de amarelo para **laranja**, e o **credenciado que ainda não
+> foi checado** — que ficava branco, junto de quem nem chegou — passou a **amarelo**: é a fila de quem
+> confere os estandes. A legenda ganhou o item "Credenciado, aguardando checagem" com a contagem.
+> Só cor e legenda (`lib/mapaTelaCheia.js`); as visualizações Credenciamento e Avaliação, a cor de
+> situação fora da tela cheia e o servidor não mudaram. Front **919/919**, build OK.
+> De quebra, o `ValidacaoPresencialTest` falhou no CI da `main` depois do merge do PR #122: a busca da
+> Validação de avaliadores olha nome **e** e-mail, e o e-mail sorteado pela factory (faker en_US) tem
+> ~1% de chance de conter "ana" ("santana@…", "diana…") — aí `?busca=ana` achava o Bruno também. Não
+> é regressão: o e-mail dos avaliadores do teste passou a sair do nome, como no
+> `DesignacaoEmMassaTest`. Os outros testes de busca foram conferidos: usam e-mail fixo ou derivado do
+> nome, ou a busca não olha e-mail.
+>
+> **Pendências do Pedro (Sprint 241):** `git push origin fix/mapa-checagem-e-busca-validacao` + PR para
+> a `main` e `npm run build` no deploy. Sem migration, `.env` ou dependência nova.
 
 > **Sprint 240 (branch `fix/comite-designacoes-ignoradas`, saída da `main` @ `974a936`, v1.43):** relato
 > de produção: designar em Comitê especial → Designações para um avaliador que **já tinha** o projeto (ou
@@ -1047,8 +1064,8 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > gravadas** (e os e-mails saíam): só o resumo na tela quebrava.
 > Back **ComiteDesignacaoTest 12/12**, front **919/919**, Pint limpo.
 >
-> **Pendências do Pedro (Sprint 240):** `git push origin fix/comite-designacoes-ignoradas` + PR para a
-> `main` e `npm run build` no deploy. Sem migration, `.env` ou dependência nova.
+> **Pendências do Pedro (Sprint 240):** ~~push + PR~~ — **entrou na `main` pelo PR #122**. `npm run build`
+> no deploy. Sem migration, `.env` ou dependência nova.
 
 > **Sprint 239 (mesma branch):**
 > (a) Na aba **Avaliação presencial**, a seção **Designados a você** ganhou **Baixar planilha** e

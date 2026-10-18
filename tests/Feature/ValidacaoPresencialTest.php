@@ -12,6 +12,7 @@ use App\Models\Edicao;
 use App\Models\Projeto;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -41,7 +42,12 @@ class ValidacaoPresencialTest extends TestCase
 
     private function avaliador(string $nome, bool $presencial = true, bool $demo = false, bool $apenasPresencial = false): User
     {
-        $user = User::factory()->create(['role' => Role::Avaliador->value, 'name' => $nome, 'is_demo' => $demo]);
+        // O e-mail sai do nome: a busca olha nome e e-mail, e um endereço
+        // sorteado pela factory ("santana@…") faria "ana" achar o Bruno.
+        $user = User::factory()->create([
+            'role' => Role::Avaliador->value, 'name' => $nome, 'is_demo' => $demo,
+            'email' => Str::slug($nome, '.').'@fetec.test',
+        ]);
         AvaliadorProfile::factory()->create([
             'user_id' => $user->id, 'presencial' => $presencial, 'apenas_presencial' => $apenasPresencial,
             'area_id' => Area::firstOrCreate(['nome' => 'Ciências Agrárias'], ['sigla' => 'AGR'])->id,
