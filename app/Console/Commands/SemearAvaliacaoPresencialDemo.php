@@ -8,6 +8,7 @@ use App\Enums\TipoDocumento;
 use App\Enums\Turno;
 use App\Models\Aluno;
 use App\Models\Area;
+use App\Models\AvaliadorLiberacaoPresencial;
 use App\Models\ChecagemEstande;
 use App\Models\Credenciamento;
 use App\Models\Edicao;
@@ -31,9 +32,10 @@ use Illuminate\Support\Facades\Storage;
  * `avaliador@fetecms.test`: tudo que a aba "Avaliação presencial" e a
  * distribuição por turno precisam para serem testadas antes do evento.
  *
- * - o avaliador vira **conta demo** e **aceita** o presencial — é a marca demo
- *   que libera o "Modo de teste", que ignora o relógio do turno (é o aceite que
- *   o põe na distribuição do admin, também em modo de teste);
+ * - o avaliador vira **conta demo**, **aceita** o presencial e fica **liberado**
+ *   para o evento — a marca demo libera o "Modo de teste", que ignora o relógio
+ *   do turno, e o aceite com a liberação o põem na distribuição do admin
+ *   (também em modo de teste);
  * - três projetos de mentira entram na **lista final de demonstração** (a
  *   mesma do `demo:credenciamento`, que corre em paralelo à oficial), já
  *   **credenciados** e com o estande **checado** — as duas condições para um
@@ -97,6 +99,8 @@ class SemearAvaliacaoPresencialDemo extends Command
         [$avaliador, $lista, $projetos, $itens] = DB::transaction(function () use ($edicao, $turno, $exemplos) {
             $itens = $this->semearItens();
             $avaliador = $this->avaliadorDemo();
+            // Liberado para o evento inteiro, como a organização faria (Sprint 223).
+            AvaliadorLiberacaoPresencial::firstOrCreate(['edicao_id' => $edicao->id, 'user_id' => $avaliador->id]);
             $orientador = $this->orientadorDemo();
             $lista = $this->listaDemo($edicao);
             $projetos = [];
@@ -108,7 +112,7 @@ class SemearAvaliacaoPresencialDemo extends Command
             return [$avaliador, $lista, $projetos, $itens];
         });
 
-        $this->components->info("Avaliador demo: {$avaliador->email} (aceitou o presencial, modo de teste liberado)");
+        $this->components->info("Avaliador demo: {$avaliador->email} (aceitou o presencial, liberado para o evento, modo de teste liberado)");
         $this->components->info("Lista de demonstração: #{$lista->id} — {$lista->nome}");
 
         // Os PDFs saem depois da transação: o motor leva alguns segundos, e

@@ -25,8 +25,9 @@ const PAINEL = {
     modo_teste: false,
     is_demo: false,
     avaliadores: [
-        { id: 7, nome: 'Ana Avaliadora', area: 'Agrárias', subarea: null, comissao: true, no_turno: 0, concluidas: 0 },
-        { id: 8, nome: 'Bruno', area: 'Biológicas', subarea: null, comissao: false, no_turno: 1, concluidas: 0 },
+        { id: 7, nome: 'Ana Avaliadora', area: 'Agrárias', subarea: null, comissao: true, liberado: true, no_turno: 0, concluidas: 0 },
+        { id: 8, nome: 'Bruno', area: 'Biológicas', subarea: null, comissao: false, liberado: true, no_turno: 1, concluidas: 0 },
+        { id: 9, nome: 'Carla Pendente', area: 'Biológicas', subarea: null, comissao: false, liberado: false, no_turno: 0, concluidas: 0 },
     ],
     resumo: { projetos: 3, prontos: 1, sem_credenciamento: 1, sem_checagem: 1, cobertos: 0, designacoes: 1, concluidas: 0, teto: 3 },
     projetos: [{ id: 30, titulo: 'Abelhas', estande: 12, pronto: true, avaliacoes: 1, comuns: 0, comite: 1 }],
@@ -66,11 +67,14 @@ describe('PresencialDistribuicao', () => {
         expect(screen.getByText('Sem checagem')).toBeInTheDocument();
     });
 
-    it('lista quem confirmou o presencial, sem cabine, e designa qualquer um deles', async () => {
+    it('lista quem confirmou o presencial e designa só quem foi liberado', async () => {
         render(<PresencialDistribuicao />);
 
-        expect(await screen.findByText('2 confirmado(s)')).toBeInTheDocument();
+        expect(await screen.findByText('3 confirmado(s) · 2 liberado(s)')).toBeInTheDocument();
         expect(screen.getByText('Comissão especial')).toBeInTheDocument();
+        expect(screen.getByText('Aguardando liberação')).toBeInTheDocument();
+        // Só os liberados podem receber designação.
+        expect(screen.queryByRole('option', { name: 'Carla Pendente' })).not.toBeInTheDocument();
         expect(screen.queryByRole('button', { name: /Ativar/ })).not.toBeInTheDocument();
 
         fireEvent.change(screen.getByLabelText('Projeto para designar'), { target: { value: '30' } });

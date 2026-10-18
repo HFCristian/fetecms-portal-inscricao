@@ -7,6 +7,7 @@ use App\Enums\StatusAvaliacao;
 use App\Enums\TipoDocumento;
 use App\Models\Avaliacao;
 use App\Models\AvaliacaoPresencial;
+use App\Models\AvaliadorLiberacaoPresencial;
 use App\Models\AvaliadorProfile;
 use App\Models\ChecagemEstande;
 use App\Models\Credenciamento;
@@ -68,10 +69,14 @@ class AvaliacaoPresencialFluxoTest extends TestCase
         $this->projeto = $this->finalista('Bioplástico de mandioca');
     }
 
-    private function avaliadorPresencial(string $nome, bool $aceitou = true, bool $comissao = false): User
+    private function avaliadorPresencial(string $nome, bool $aceitou = true, bool $comissao = false, bool $liberado = true): User
     {
         $user = User::factory()->create(['role' => Role::Avaliador->value, 'name' => $nome]);
         AvaliadorProfile::factory()->create(['user_id' => $user->id, 'presencial' => $aceitou, 'comissao_especial' => $comissao]);
+
+        if ($aceitou && $liberado) {
+            AvaliadorLiberacaoPresencial::create(['edicao_id' => $this->edicao->id, 'user_id' => $user->id]);
+        }
 
         return $user;
     }
@@ -151,6 +156,38 @@ class AvaliacaoPresencialFluxoTest extends TestCase
 
         $this->postJson("/api/v1/avaliador/presencial/avaliacoes/projetos/{$this->projeto->id}")
             ->assertOk()->assertJsonPath('data.status', 'em_andamento');
+    }
+
+    public function test_sem_liberacao_da_organizacao_nao_avalia(): void
+    {
+        // Sprint 223: confirmou o presencial, mas a organização ainda não liberou.
+        Sanctum::actingAs($bruno = $this->avaliadorPresencial('Bruno', liberado: false));
+
+        $this->getJson('/api/v1/avaliador/presencial/avaliacoes')
+            ->assertOk()
+            ->assertJsonPath('data.aberto', false)
+            ->assertJsonPath('data.liberado', false)
+            ->assertJsonPath('data.motivo_fechado', 'Sua participação na avaliação presencial ainda não foi liberada pela organização: procure a equipe da avaliação presencial no evento.')
+            ->assertJsonPath('data.mapa.estandes.1.A.situacao', 'nao_liberado');
+
+        $this->postJson("/api/v1/avaliador/presencial/avaliacoes/projetos/{$this->projeto->id}")
+            ->assertStatus(422)->assertJsonValidationErrors('periodo');
+
+        // Liberado, avalia.
+        AvaliadorLiberacaoPresencial::create(['edicao_id' => $this->edicao->id, 'user_id' => $bruno->id]);
+        $this->postJson("/api/v1/avaliador/presencial/avaliacoes/projetos/{$this->projeto->id}")->assertOk();
+    }
+
+    public function test_revogada_a_liberacao_o_que_ele_abriu_vira_leitura(): void
+    {
+        Sanctum::actingAs($this->avaliador);
+        $id = $this->abrir($this->projeto);
+
+        AvaliadorLiberacaoPresencial::where('user_id', $this->avaliador->id)->delete();
+
+        $this->getJson("/api/v1/avaliador/presencial/avaliacoes/{$id}")->assertJsonPath('data.pode_escrever', false);
+        $this->postJson("/api/v1/avaliador/presencial/avaliacoes/{$id}/rascunho", ['respostas' => ['apresentacao' => 8]])
+            ->assertStatus(422);
     }
 
     public function test_fora_dos_turnos_a_aba_fica_fechada_com_o_proximo_turno(): void

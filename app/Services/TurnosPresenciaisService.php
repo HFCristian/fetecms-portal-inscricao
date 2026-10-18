@@ -116,6 +116,7 @@ class TurnosPresenciaisService
             ->get();
 
         $ids = $avaliadores->pluck('id');
+        $liberados = array_flip(app(LiberacaoPresencialService::class)->idsLiberados());
 
         $noFoco = $foco === null ? collect() : AvaliacaoPresencial::whereIn('avaliador_id', $ids)
             ->where('dia', $foco['dia'])
@@ -137,6 +138,7 @@ class TurnosPresenciaisService
             'area' => $u->avaliadorProfile?->area?->nome,
             'subarea' => $u->avaliadorProfile?->subarea?->nome,
             'comissao' => (bool) $u->avaliadorProfile?->comissao_especial,
+            'liberado' => isset($liberados[$u->id]),
             'no_turno' => (int) ($noFoco[$u->id] ?? 0),
             'concluidas' => (int) ($concluidas[$u->id] ?? 0),
         ])->all();

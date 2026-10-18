@@ -46,6 +46,21 @@ export const cadastrarAvaliadorPresencial = (dados) =>
 export const novaSenhaAvaliadorPresencial = (id) =>
     http.post(`/admin/presencial/avaliadores-cadastrados/${id}/senha`).then((r) => r.data);
 
+// --- Validação de avaliadores (Sprint 223) -----------------------------------
+// Liberar vale para o evento inteiro; `filtros` ({ busca, situacao }) volta na
+// resposta já aplicado, para a tela não piscar.
+
+export const getValidacaoPresencial = (filtros = {}, teste = false) =>
+    http.get('/admin/presencial/validacao', com(filtros, teste)).then((r) => r.data.data);
+
+export const liberarAvaliadoresPresencial = (avaliadorIds, filtros = {}, teste = false) =>
+    http.post('/admin/presencial/validacao/liberar', {
+        ...limpar(filtros), avaliador_ids: avaliadorIds, teste: teste ? 1 : 0,
+    }).then((r) => r.data);
+
+export const revogarLiberacaoPresencial = (avaliadorId, filtros = {}, teste = false) =>
+    http.delete(`/admin/presencial/validacao/${avaliadorId}`, com(filtros, teste)).then((r) => r.data);
+
 // --- Credenciais e prêmios (o que a feira tem para dar) ---------------------
 
 /** `filtros` (Sprint 201): o recorte das recomendações do comitê nos cartões. */

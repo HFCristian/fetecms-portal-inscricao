@@ -263,6 +263,24 @@ describe('AvaliadorAvaliacaoPresencial', () => {
         expect(screen.queryByText('Estande do ensaio')).not.toBeInTheDocument();
     });
 
+    it('sem liberação: a aba explica e o mapa diz por que não dá para iniciar', async () => {
+        getPainelPresencial.mockResolvedValue({
+            ...PAINEL, aberto: false, liberado: false, turno: null, disponiveis: [],
+            motivo_fechado: 'Sua participação na avaliação presencial ainda não foi liberada pela organização.',
+            mapa: {
+                ...PAINEL.mapa,
+                estandes: { 42: { A: { projeto_id: 7, titulo: 'Bioplástico', situacao: 'nao_liberado', avaliacao_id: null, avaliacoes: 0 } } },
+                fora_da_planta: [],
+            },
+        });
+        render(<AvaliadorAvaliacaoPresencial />);
+
+        expect(await screen.findByText(/ainda não foi liberada pela organização/)).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: /Estande 042 · Bioplástico/ }));
+        expect(await screen.findByText(/aguarda a sua liberação/)).toBeInTheDocument();
+        expect(iniciarAvaliacaoPresencial).not.toHaveBeenCalled();
+    });
+
     it('no mapa: o estande fora da planta continua alcançável', async () => {
         render(<AvaliadorAvaliacaoPresencial />);
 

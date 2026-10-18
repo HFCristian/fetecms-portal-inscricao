@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\Role;
 use App\Enums\TipoDocumento;
 use App\Models\AvaliacaoPresencial;
+use App\Models\AvaliadorLiberacaoPresencial;
 use App\Models\Edicao;
 use App\Models\ItemConferencia;
 use App\Models\ListaFinal;
@@ -52,6 +53,8 @@ class SemearAvaliacaoPresencialDemoTest extends TestCase
         $this->assertSame(Role::Avaliador, $avaliador->role);
         $this->assertTrue($avaliador->is_demo);
         $this->assertTrue($avaliador->avaliadorProfile->presencial);
+        // Liberado para o evento, como a organização faria em Validação de avaliadores.
+        $this->assertTrue(AvaliadorLiberacaoPresencial::where('edicao_id', $this->edicao->id)->where('user_id', $avaliador->id)->exists());
         // Os três itens do ensaio, além dos itens do sistema (os termos).
         $this->assertSame(3, ItemConferencia::where('na_checagem', true)->whereNull('chave')->count());
 

@@ -27,8 +27,9 @@ use Illuminate\Validation\ValidationException;
  *
  * - **o turno**: cada projeto apresenta num turno (Mapa do Evento → Turnos), e
  *   só recebe avaliador naquele turno. A distribuição trabalha uma
- *   **ocorrência** por vez — dia × turno — e alcança todos que confirmaram a
- *   avaliação presencial (a ativação na cabine saiu na Sprint 221);
+ *   **ocorrência** por vez — dia × turno — e alcança quem confirmou a
+ *   avaliação presencial e foi **liberado** pela organização (Sprint 223; a
+ *   ativação por turno na cabine saiu na Sprint 221);
  * - **o projeto pronto**: só entra quem já foi **credenciado** no balcão e
  *   teve o estande **checado**. Mandar avaliador a um estande que ninguém viu
  *   montado é mandá-lo esperar;
@@ -48,7 +49,10 @@ use Illuminate\Validation\ValidationException;
  */
 class DistribuicaoPresencialService
 {
-    public function __construct(private readonly TurnosPresenciaisService $turnos) {}
+    public function __construct(
+        private readonly TurnosPresenciaisService $turnos,
+        private readonly LiberacaoPresencialService $liberacao,
+    ) {}
 
     /**
      * Tudo que a tela da distribuição mostra para uma ocorrência.
@@ -69,20 +73,19 @@ class DistribuicaoPresencialService
     }
 
     /**
-     * Distribui os projetos prontos do turno entre os avaliadores que
-     * confirmaram o presencial, até cada um ter a fila cheia ou não sobrar
-     * projeto com vaga.
+     * Distribui os projetos prontos do turno entre os avaliadores liberados,
+     * até cada um ter a fila cheia ou não sobrar projeto com vaga.
      *
      * @return array<string, mixed>
      */
     public function distribuir(string $dia, Turno $turno, bool $demo): array
     {
         $janela = $this->janelaValida($dia, $turno);
-        $avaliadores = $this->avaliadoresConfirmados($demo);
+        $avaliadores = $this->avaliadoresLiberados($demo);
 
         if ($avaliadores->isEmpty()) {
             throw ValidationException::withMessages([
-                'avaliadores' => 'Nenhum avaliador confirmou a avaliação presencial.',
+                'avaliadores' => 'Nenhum avaliador liberado para a avaliação presencial. Libere quem vai avaliar em Validação de avaliadores.',
             ]);
         }
 
@@ -147,7 +150,8 @@ class DistribuicaoPresencialService
 
         if (! $janela->existe($dia, $turno)
             || (! $demo && ! $janela->emAndamento($dia, $turno))
-            || $avaliador->avaliadorProfile()->first()?->presencial !== true) {
+            || $avaliador->avaliadorProfile()->first()?->presencial !== true
+            || ! $this->liberacao->liberado($avaliador)) {
             return 0;
         }
 
@@ -161,7 +165,8 @@ class DistribuicaoPresencialService
     /**
      * Designação manual: N projetos × N avaliadores na ocorrência. Passa por
      * cima do teto por projeto; não passa por cima do credenciamento, da
-     * checagem, do turno do projeto e da confirmação do presencial.
+     * checagem, do turno do projeto, da confirmação do presencial e da
+     * liberação do avaliador.
      *
      * @param  list<int>  $projetoIds
      * @param  list<int>  $avaliadorIds
@@ -174,12 +179,13 @@ class DistribuicaoPresencialService
         $todos = $projetos['todos']->keyBy('id');
         $prontos = $projetos['prontos']->keyBy('id');
         $confirmados = $this->avaliadoresConfirmados($demo)->keyBy('id');
+        $liberados = array_flip($this->liberacao->idsLiberados());
         $ocupadas = $this->ocupacaoPorVaga($prontos->keys()->all(), $janela);
 
         $criadas = 0;
         $ignoradas = [];
 
-        DB::transaction(function () use ($projetoIds, $avaliadorIds, $todos, $prontos, $confirmados, $dia, $turno, $janela, &$ocupadas, &$criadas, &$ignoradas) {
+        DB::transaction(function () use ($projetoIds, $avaliadorIds, $todos, $prontos, $confirmados, $liberados, $dia, $turno, $janela, &$ocupadas, &$criadas, &$ignoradas) {
             foreach (array_unique($projetoIds) as $projetoId) {
                 $projeto = $todos[$projetoId] ?? null;
 
@@ -201,6 +207,12 @@ class DistribuicaoPresencialService
                     if ($avaliador === null) {
                         $nome = User::find($avaliadorId)?->name ?? "Avaliador {$avaliadorId}";
                         $ignoradas[] = "{$nome}: não confirmou a avaliação presencial.";
+
+                        continue;
+                    }
+
+                    if (! isset($liberados[$avaliadorId])) {
+                        $ignoradas[] = "{$avaliador->name}: ainda não foi liberado para avaliar (Validação de avaliadores).";
 
                         continue;
                     }
@@ -589,6 +601,12 @@ class DistribuicaoPresencialService
         }
 
         return $janela;
+    }
+
+    /** @return Collection<int, User> quem confirmou o presencial e foi liberado (Sprint 223) */
+    private function avaliadoresLiberados(bool $demo): Collection
+    {
+        return $this->avaliadoresConfirmados($demo)->whereIn('id', $this->liberacao->idsLiberados())->values();
     }
 
     /** @return Collection<int, User> quem confirmou a avaliação presencial */

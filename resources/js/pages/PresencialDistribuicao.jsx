@@ -172,6 +172,7 @@ export default function PresencialDistribuicao() {
     const foco = dados?.ocorrencias?.find((o) => o.chave === chave) ?? dados?.foco;
     const resumo = dados?.resumo;
     const avaliadores = dados?.avaliadores ?? [];
+    const liberados = avaliadores.filter((a) => a.liberado);
     const prontos = (dados?.projetos ?? []).filter((p) => p.pronto);
 
     return (
@@ -251,7 +252,9 @@ export default function PresencialDistribuicao() {
                             <section className={cartao}>
                                 <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                                     <h2 className="font-display text-lg font-semibold text-on-surface">Avaliadores do presencial</h2>
-                                    <span className="text-sm text-on-surface-variant">{avaliadores.length} confirmado(s)</span>
+                                    <span className="text-sm text-on-surface-variant">
+                                        {avaliadores.length} confirmado(s) · {liberados.length} liberado(s)
+                                    </span>
                                 </div>
                                 <input className={`${campoClass} mb-3`} placeholder="Buscar avaliador por nome ou e-mail…" aria-label="Buscar avaliador"
                                     value={busca} onChange={(e) => setBusca(e.target.value)} />
@@ -264,6 +267,7 @@ export default function PresencialDistribuicao() {
                                                 <p className="text-sm font-semibold text-on-surface truncate">
                                                     {a.nome}
                                                     {a.comissao && <span className="ml-2 text-xs font-semibold text-secondary">Comissão especial</span>}
+                                                    {!a.liberado && <span className="ml-2 text-xs font-semibold text-error">Aguardando liberação</span>}
                                                 </p>
                                                 <p className="text-xs text-on-surface-variant truncate">
                                                     {[a.area, a.subarea].filter(Boolean).join(' · ') || 'Sem área'}
@@ -294,7 +298,7 @@ export default function PresencialDistribuicao() {
                                     </div>
                                 )}
                                 <p className="text-xs text-on-surface-variant mb-3">
-                                    Cada avaliador que confirmou o presencial recebe até {dados.fila_avaliador} projeto(s), em
+                                    Cada avaliador liberado (Validação de avaliadores) recebe até {dados.fila_avaliador} projeto(s), em
                                     rodadas iguais, pela prioridade subárea → área → área correlata. Ao enviar uma avaliação que
                                     veio da distribuição, a fila dele é reposta.
                                 </p>
@@ -326,8 +330,8 @@ export default function PresencialDistribuicao() {
                                     </select>
                                     <select className={campoClass} aria-label="Avaliador para designar" value={manual.avaliador}
                                         onChange={(e) => setManual((m) => ({ ...m, avaliador: e.target.value }))}>
-                                        <option value="">Avaliador…</option>
-                                        {avaliadores.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
+                                        <option value="">Avaliador liberado…</option>
+                                        {liberados.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
                                     </select>
                                     <Button type="button" className="shrink-0" disabled={!manual.projeto || !manual.avaliador}
                                         loading={salvando === 'designar'}

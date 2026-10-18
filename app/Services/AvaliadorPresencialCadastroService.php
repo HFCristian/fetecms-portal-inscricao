@@ -21,8 +21,10 @@ use Illuminate\Validation\ValidationException;
  * organização cadastra direto: os mesmos dados do cadastro de avaliador, menos
  * camiseta, idiomas, cidade e estado.
  *
- * A conta nasce **pronta para o presencial** (`presencial` = sim, a intenção que
- * o avaliador normal responde na aba Presencial) e **fora da avaliação online**
+ * A conta nasce **com o presencial confirmado** (`presencial` = sim, a intenção
+ * que o avaliador normal responde na aba Presencial), mas **ainda não liberada**:
+ * como todo avaliador do presencial, ela só avalia depois de liberada em
+ * Validação de avaliadores (Sprint 223). E nasce **fora da avaliação online**
  * (`apenas_presencial`): distribuição, reposição da fila, sorteio e designação
  * online não a alcançam ({@see User::scopeAvaliadorDaOnline()}).
  *
@@ -31,7 +33,10 @@ use Illuminate\Validation\ValidationException;
  */
 class AvaliadorPresencialCadastroService
 {
-    public function __construct(private readonly SubareaService $subareas) {}
+    public function __construct(
+        private readonly SubareaService $subareas,
+        private readonly LiberacaoPresencialService $liberacao,
+    ) {}
 
     /**
      * Os avaliadores cadastrados só para o presencial, do mais novo para o
@@ -42,6 +47,7 @@ class AvaliadorPresencialCadastroService
     public function listar(string $busca = ''): array
     {
         $busca = Str::lower(trim($busca));
+        $liberados = $this->liberacao->idsLiberados();
 
         return User::query()
             ->where('role', Role::Avaliador->value)
@@ -53,7 +59,7 @@ class AvaliadorPresencialCadastroService
             ->withCount('avaliacoesPresenciais')
             ->latest('id')
             ->get()
-            ->map(fn (User $u) => $this->linha($u))
+            ->map(fn (User $u) => $this->linha($u, $liberados))
             ->all();
     }
 
@@ -133,8 +139,11 @@ class AvaliadorPresencialCadastroService
             ->loadCount('avaliacoesPresenciais');
     }
 
-    /** @return array<string, mixed> */
-    private function linha(User $u): array
+    /**
+     * @param  list<int>|null  $liberados  os ids liberados, quando a lista inteira já os buscou
+     * @return array<string, mixed>
+     */
+    private function linha(User $u, ?array $liberados = null): array
     {
         /** @var AvaliadorProfile|null $perfil */
         $perfil = $u->avaliadorProfile;
@@ -149,6 +158,8 @@ class AvaliadorPresencialCadastroService
             'ativo' => (bool) $u->is_active,
             'comissao_especial' => (bool) $perfil?->comissao_especial,
             'avaliacoes_presenciais' => (int) ($u->avaliacoes_presenciais_count ?? 0),
+            // Cadastrar não basta: a organização libera em Validação de avaliadores (Sprint 223).
+            'liberado' => $liberados === null ? $this->liberacao->liberado($u) : in_array($u->id, $liberados, true),
             'cadastrado_por' => $perfil?->cadastradoPor?->name,
             'cadastrado_em' => $u->created_at?->toIso8601String(),
         ];

@@ -25,8 +25,9 @@ use Illuminate\Validation\ValidationException;
  * Quem avalia no estande é quem **aceitou** avaliar presencialmente (aba
  * Presencial, Sprint 131), e só **durante um turno** do evento. Fora disso a
  * aba abre fechada, com o motivo — e o que ele já respondeu continua legível.
- * Até a Sprint 221 ele também precisava ser ativado na cabine da avaliação; a
- * cabine saiu.
+ * Antes, a organização precisa tê-lo **liberado** (Validação de avaliadores,
+ * Sprint 223): uma vez, para o evento inteiro — a cabine por turno saiu na
+ * Sprint 221.
  *
  * O que ele avalia chega por dois caminhos, e a designação é opcional:
  *
@@ -53,6 +54,7 @@ class AvaliacaoPresencialFluxoService
     public function __construct(
         private readonly AvaliacaoPresencialService $intencao,
         private readonly DistribuicaoPresencialService $distribuicao,
+        private readonly LiberacaoPresencialService $liberacao,
     ) {}
 
     /** A aba está aberta agora para este avaliador? */
@@ -61,6 +63,7 @@ class AvaliacaoPresencialFluxoService
         $modoTeste = $this->modoTeste($avaliador, $teste);
 
         return $this->intencao->aceitou($avaliador)
+            && ($modoTeste || $this->liberacao->liberado($avaliador))
             && ListaFinal::vigente(Edicao::atual(), $modoTeste) !== null
             && ($modoTeste || JanelaTurnos::daEdicao()->abertas() !== []);
     }
@@ -70,6 +73,10 @@ class AvaliacaoPresencialFluxoService
     {
         if (! $this->intencao->aceitou($avaliador)) {
             return 'Marque que quer avaliar presencialmente (aba Presencial) para receber os projetos do dia.';
+        }
+
+        if (! $this->modoTeste($avaliador, $teste) && ! $this->liberacao->liberado($avaliador)) {
+            return 'Sua participação na avaliação presencial ainda não foi liberada pela organização: procure a equipe da avaliação presencial no evento.';
         }
 
         $edicao = Edicao::atual();
@@ -115,6 +122,7 @@ class AvaliacaoPresencialFluxoService
             'aberto' => $pode,
             'motivo_fechado' => $pode ? null : $this->motivoFechado($avaliador, $teste),
             'aceitou' => $this->intencao->aceitou($avaliador),
+            'liberado' => $this->liberacao->liberado($avaliador),
             'modo_teste' => $modoTeste,
             'is_demo' => (bool) $avaliador->is_demo,
             'turno' => $turno,
@@ -307,7 +315,7 @@ class AvaliacaoPresencialFluxoService
             'nota_maxima' => RubricaPresencial::NOTA_MAXIMA,
             'concluida_em' => $avaliacao->concluida_em?->toIso8601String(),
             'prazo_label' => $this->prazoLabel($avaliacao, $janela),
-            'pode_escrever' => ! $avaliacao->concluida() && $this->podeEscrever($avaliacao, $modoTeste, $janela),
+            'pode_escrever' => ! $avaliacao->concluida() && $this->podeEscrever($avaliacao, $avaliador, $modoTeste, $janela),
             'projeto' => [
                 ...$leitura,
                 'escola' => $leitura['instituicao'],
@@ -354,14 +362,19 @@ class AvaliacaoPresencialFluxoService
     }
 
     /**
-     * Ele pode escrever nesta avaliação agora? No prazo da ocorrência dela.
-     * Designação antiga, sem ocorrência gravada, vale em qualquer turno aberto
-     * do projeto.
+     * Ele pode escrever nesta avaliação agora? Liberado e no prazo da
+     * ocorrência dela. Designação antiga, sem ocorrência gravada, vale em
+     * qualquer turno aberto do projeto.
      */
-    private function podeEscrever(AvaliacaoPresencial $avaliacao, bool $modoTeste, JanelaTurnos $janela): bool
+    private function podeEscrever(AvaliacaoPresencial $avaliacao, User $avaliador, bool $modoTeste, JanelaTurnos $janela): bool
     {
         if ($modoTeste) {
             return true;
+        }
+
+        // Revogada a liberação, o que ele abriu fica em leitura.
+        if (! $this->liberacao->liberado($avaliador)) {
+            return false;
         }
 
         if ($avaliacao->dia !== null && $avaliacao->turno !== null) {
@@ -381,11 +394,13 @@ class AvaliacaoPresencialFluxoService
 
     private function garantirEscrita(AvaliacaoPresencial $avaliacao, User $avaliador, bool $modoTeste, JanelaTurnos $janela): void
     {
-        if (! $this->podeEscrever($avaliacao, $modoTeste, $janela)) {
+        if (! $this->podeEscrever($avaliacao, $avaliador, $modoTeste, $janela)) {
             throw ValidationException::withMessages([
                 'periodo' => $avaliacao->expirada($janela)
                     ? 'O prazo desta avaliação acabou com o turno (e os 30 minutos de margem).'
-                    : 'Esta avaliação é de um turno que ainda não começou.',
+                    : ($modoTeste || $this->liberacao->liberado($avaliador)
+                ? 'Esta avaliação é de um turno que ainda não começou.'
+                : 'Sua participação na avaliação presencial não está liberada.'),
             ]);
         }
     }
@@ -503,6 +518,7 @@ class AvaliacaoPresencialFluxoService
         // No ensaio sem agenda, qualquer turno vale (como na escolha livre).
         $trabalho = $turno['turno'] ?? null;
         $qualquerTurno = $modoTeste && $trabalho === null;
+        $liberado = $modoTeste || $this->liberacao->liberado($avaliador);
 
         $porEstande = [];
         $fora = [];
@@ -522,6 +538,7 @@ class AvaliacaoPresencialFluxoService
                 $minha !== null && $minha->ocupaVaga($janela) => 'comigo',
                 ! isset($prontos[$projeto->id]) => 'nao_pronto',
                 $janela->vagaPara($comissao, $porVaga[$projeto->id] ?? []) === null => 'completo',
+                ! $liberado => 'nao_liberado',
                 ! $pode || (! $qualquerTurno && $trabalho !== $e->turno->value) => 'fora_do_turno',
                 default => 'disponivel',
             };
@@ -621,7 +638,7 @@ class AvaliacaoPresencialFluxoService
             'status_label' => $expirada ? 'Prazo encerrado' : $avaliacao->status?->label(),
             'expirada' => $expirada,
             'prazo_label' => $this->prazoLabel($avaliacao, $janela),
-            'pode_escrever' => ! $avaliacao->concluida() && $this->podeEscrever($avaliacao, $modoTeste, $janela),
+            'pode_escrever' => ! $avaliacao->concluida() && $this->podeEscrever($avaliacao, $avaliador, $modoTeste, $janela),
             'designacao_manual' => $avaliacao->designacao_manual,
             'vaga' => $avaliacao->vaga?->value,
             'vaga_label' => $avaliacao->vaga?->label(),

@@ -1,7 +1,9 @@
 # Ensaio da avaliação presencial
 
 A avaliação no estande só abre **durante um turno do evento**, para quem
-confirmou o presencial: o avaliador escolhe o turno no **mapa**, clica no
+confirmou o presencial e foi **liberado** pela organização (Avaliação
+presencial → Validação de avaliadores, uma vez para o evento inteiro): o
+avaliador escolhe o turno no **mapa**, clica no
 estande e inicia — com ou sem designação. Os projetos que ela alcança precisam
 estar **credenciados** e com o estande **checado**. Antes do evento, nada disso
 existe — e é justamente quando é preciso ensaiar.
@@ -19,7 +21,8 @@ php artisan demo:avaliacao-presencial
 
 Na edição padrão, sem duplicar nada se rodar de novo:
 
-1. **`avaliador@fetecms.test`** vira **conta demo** e **aceita** o presencial.
+1. **`avaliador@fetecms.test`** vira **conta demo**, **aceita** o presencial e
+   fica **liberado** para o evento (Validação de avaliadores).
    A marca demo é o que libera o *Modo de teste* na tela dele, e também o tira
    da distribuição e dos rankings de verdade. Se a conta não existir, ela é
    criada (senha `password`, ou a de `--senha=`).

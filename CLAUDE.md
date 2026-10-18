@@ -127,8 +127,13 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     a tela cobra o preenchimento e os públicos por idioma não o alcançam.
   - **Avaliação presencial** (aba própria, `/avaliador/avaliacao-presencial`, só para quem aceitou
     o presencial): abre **durante os turnos do evento**, até o fim do turno + 30 minutos
-    (`App\Support\JanelaTurnos`); fora disso aparece fechada, com o motivo. **Não há cabine** (a
-    ativação por turno saiu na Sprint 221) e a **designação é opcional**: a organização pode
+    (`App\Support\JanelaTurnos`); fora disso aparece fechada, com o motivo. Antes, a organização
+    precisa **liberar** o avaliador em Avaliação presencial → **Validação de avaliadores**
+    (`/admin/presencial/validacao`, `LiberacaoPresencialService`, `avaliador_liberacoes_presenciais`):
+    vale para todo avaliador do presencial — o online que disse "sim" e a conta criada em Cadastro de
+    avaliadores —, uma vez para o **evento inteiro** da edição; sem liberação ele não avalia nem entra
+    na distribuição, e revogar devolve o que estava só designado. **Não há cabine por turno** (saiu
+    na Sprint 221) e a **designação é opcional**: a organização pode
     distribuir (Avaliação presencial → Distribuição presencial, só projeto credenciado e com estande
     checado, entre todos que confirmaram o presencial), mas sem designação o avaliador abre o
     **mapa** do evento, escolhe o turno, clica no estande e inicia (`escolha_livre`; a mesma escolha
@@ -985,7 +990,31 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 220 | `demo:avaliacao-presencial`: **documentos em PDF** (projeto, diário, pasta, banner, TCLE/TALE) e três cenários da rubrica | ✅ sim | ✅ sim (Pedro, PR #113 → v1.35) | 0 |
 | 221 | Avaliação presencial **sem cabine e sem designação obrigatória** (mapa: turno → estande → iniciar) + rubrica sem a seção de ética, 2.2 condicional e checklist como 1º passo | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 222 | Vagas presenciais por projeto: **2 comuns + 1 da comissão** (configuráveis), **peso 2** da comissão e o **Ranking presencial** | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 223 | Avaliação presencial → **Validação de avaliadores**: liberar (em lote) para o evento inteiro, obrigatório para avaliar e ser distribuído | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprint 223 (mesma branch):** volta a **validação** do avaliador presencial, sem a cabine por turno.
+> Cadastrar a conta (ou o avaliador online dizer "sim") não basta: a organização **libera** cada um
+> na seção nova **Validação de avaliadores** (`/admin/presencial/validacao`,
+> `ValidacaoPresencialController`, `LiberacaoPresencialService`). A liberação é uma linha em
+> `avaliador_liberacoes_presenciais` (edição × avaliador, com quem liberou e quando) e vale para o
+> **evento inteiro** da edição — no ano seguinte, libera-se de novo. Vale para **todos** do
+> presencial. Sem ela: a aba do avaliador fica fechada com o motivo ("ainda não foi liberada pela
+> organização"), o mapa marca os estandes como `nao_liberado`, a distribuição não o alcança e a
+> designação manual o recusa dizendo por quê. A tela abre em "Aguardando liberação", com os números
+> do topo, busca, **liberação em lote** (marcar todos os que aguardam) e **Revogar** com confirmação —
+> revogar devolve ao bolo o que estava só designado; o que ele já abriu fica em leitura. Cadastro de
+> avaliadores mostra o selo "Aguardando liberação"/"Liberado" e avisa, ao entregar a senha, que a
+> conta ainda precisa ser liberada; a Distribuição presencial mostra quem aguarda e só oferece os
+> liberados na designação manual. O modo de teste do avaliador demo ignora a liberação, como ignora
+> o relógio; o `demo:avaliacao-presencial` já libera a conta do ensaio. A seção abre para quem abre a
+> aba Avaliação presencial (inclusive o voluntário de conta temporária, como a cabine antiga).
+> Back **1562/1562**, front **844/844**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprint 223):** mais **uma migration** (`avaliador_liberacoes_presenciais`),
+> no mesmo push das 221–222. **Antes do primeiro turno, libere quem vai avaliar** — sem isso ninguém
+> avalia nem recebe designação. Se só a organização (e não o voluntário de conta temporária) puder
+> liberar, é uma linha: pôr as rotas da validação sob `admin.permanente`.
+>
 > **Sprint 222 (mesma branch):** das avaliações presenciais de cada projeto, uma parte é de avaliadores
 > comuns e outra da **comissão especial**, e a da comissão pesa mais.
 > (a) **Vagas.** O teto único (`edicoes.presencial_por_projeto`, 3) virou dois números e um peso, na
@@ -1016,8 +1045,7 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > padrão 2 + 1. (3) **Marque a comissão especial** em Avaliadores Online antes do evento: é a marca
 > que dá a vaga e o peso da comissão. (4) **Avise os avaliadores** de que não há mais cabine: no
 > turno, eles abrem a aba Avaliação presencial e escolhem o estande no mapa. A distribuição continua
-> disponível e agora designa para **todos** que confirmaram o presencial — inclusive quem não veio —,
-> então use-a só se quiser. (5) A seção de ética (1.1 e 1.2) saiu da rubrica; o TCLE/TALE anexado
+> disponível e designa para quem foi **liberado** (Sprint 223), então use-a só se quiser. (5) A seção de ética (1.1 e 1.2) saiu da rubrica; o TCLE/TALE anexado
 > continua aparecendo nos documentos do projeto.
 >
 > **Sprint 221 (branch `feat/presencial-mapa-e-vagas`, saída da `main` @ `1c17de4`):** a avaliação

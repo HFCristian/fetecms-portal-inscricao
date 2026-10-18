@@ -34,7 +34,8 @@ function SenhaGerada({ acesso, onFechar }) {
                 <h2 className="font-display text-lg font-semibold text-on-surface mb-1">Acesso de {acesso.nome}</h2>
                 <p className="text-sm text-on-surface-variant mb-4">
                     Entregue estes dados à pessoa. A senha <strong>não aparece de novo</strong> — se ela se
-                    perder, gere outra nesta tela ou use “Esqueci a senha” no login.
+                    perder, gere outra nesta tela ou use “Esqueci a senha” no login. Para avaliar, a conta ainda
+                    precisa ser <strong>liberada</strong> em Validação de avaliadores.
                 </p>
                 <dl className="bg-surface rounded-lg border border-outline-variant p-3 text-sm space-y-2">
                     <div>
@@ -149,7 +150,9 @@ export default function PresencialAvaliadores() {
             <p className="text-on-surface-variant mb-6 max-w-3xl">
                 Para quem avalia <strong>só no dia da feira</strong>. A conta já nasce confirmada para a
                 avaliação presencial e fica <strong>fora da avaliação online</strong>. O portal gera a senha
-                e a mostra uma vez, para você entregar à pessoa.
+                e a mostra uma vez, para você entregar à pessoa. Cadastrar não basta para avaliar: como
+                todo avaliador do presencial, a conta precisa ser liberada em{' '}
+                <Link to="/admin/presencial/validacao" className="underline">Validação de avaliadores</Link>.
             </p>
 
             {alerta && <div className="mb-4 max-w-3xl"><Alert>{alerta}</Alert></div>}
@@ -233,6 +236,13 @@ export default function PresencialAvaliadores() {
                                         {!a.ativo && <span className="ml-2 text-xs text-error">desativado</span>}
                                         {a.comissao_especial && (
                                             <span className="ml-2 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-secondary-container text-on-secondary-container">Comissão</span>
+                                        )}
+                                        {a.liberado ? (
+                                            <span className="ml-2 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-secondary-container text-on-secondary-container">Liberado</span>
+                                        ) : (
+                                            <Link to="/admin/presencial/validacao" className="ml-2 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-error-container text-on-error-container hover:underline">
+                                                Aguardando liberação
+                                            </Link>
                                         )}
                                     </p>
                                     <p className="text-xs text-on-surface-variant break-all">{a.email}</p>

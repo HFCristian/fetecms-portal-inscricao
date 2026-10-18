@@ -67,6 +67,7 @@ use App\Http\Controllers\Api\V1\ProjetoSubmissaoController;
 use App\Http\Controllers\Api\V1\RecomendacaoPremiacaoController;
 use App\Http\Controllers\Api\V1\SuporteAdminController;
 use App\Http\Controllers\Api\V1\SuporteOrientadorController;
+use App\Http\Controllers\Api\V1\ValidacaoPresencialController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -349,6 +350,10 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::post('/avaliacoes/designar', [AvaliacaoPresencialAdminController::class, 'designarAvaliacoes']);
                 // Ranking presencial (Sprint 222): média com o peso da comissão especial.
                 Route::get('/ranking', [AvaliacaoPresencialAdminController::class, 'ranking']);
+                // Validação de avaliadores (Sprint 223): liberar para o evento inteiro.
+                Route::get('/validacao', [ValidacaoPresencialController::class, 'index']);
+                Route::post('/validacao/liberar', [ValidacaoPresencialController::class, 'liberar']);
+                Route::delete('/validacao/{avaliador}', [ValidacaoPresencialController::class, 'revogar']);
                 Route::delete('/avaliacoes/{avaliacao}', [AvaliacaoPresencialAdminController::class, 'retirarAvaliacao']);
                 // Cadastro de avaliadores só do evento presencial (Sprint 191):
                 // a organização cria a conta e entrega a senha gerada.

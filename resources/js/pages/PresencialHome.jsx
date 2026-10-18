@@ -35,6 +35,12 @@ const SECOES = [
         descricao: 'Contas de quem avalia só no dia da feira: já confirmadas para o presencial, com a senha gerada.',
     },
     {
+        to: '/admin/presencial/validacao',
+        icon: 'how_to_reg',
+        titulo: 'Validação de avaliadores',
+        descricao: 'Libere quem vai avaliar no estande: sem a liberação, o avaliador não avalia nem recebe designação.',
+    },
+    {
         to: '/admin/presencial/voluntarios',
         icon: 'volunteer_activism',
         titulo: 'Voluntários',

@@ -19,6 +19,7 @@ const SITUACOES = {
     completo: { fill: '#e6e0ee', stroke: '#cfc6db', texto: '#6b6478', legenda: 'Sem vaga para você' },
     nao_pronto: { fill: '#ffffff', stroke: '#cfc6db', texto: '#9a93a6', legenda: 'Ainda não credenciado e checado', tracejado: true },
     fora_do_turno: { fill: '#ffffff', stroke: '#cfc6db', texto: '#2a0058', legenda: 'Fora do turno em andamento' },
+    nao_liberado: { fill: '#ffffff', stroke: '#cfc6db', texto: '#2a0058', legenda: 'Aguardando a sua liberação', semLegenda: true },
 };
 
 const VAZIO = { fill: '#f3f1f6', stroke: '#e6e0ee', texto: '#9a93a6' };
@@ -32,6 +33,8 @@ function motivo(projeto, maximo) {
             return 'ainda não foi credenciado e checado — volte daqui a pouco.';
         case 'fora_do_turno':
             return 'apresenta fora do turno em andamento: só dá para iniciar durante o turno do projeto.';
+        case 'nao_liberado':
+            return 'aguarda a sua liberação: a organização precisa liberar você para avaliar.';
         default:
             return '';
     }
@@ -182,7 +185,7 @@ export default function MapaAvaliacaoPresencial({ mapa, onIniciar, onAbrir }) {
             )}
 
             <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-xs text-on-surface-variant">
-                {Object.entries(SITUACOES).map(([chave, c]) => (
+                {Object.entries(SITUACOES).filter(([, c]) => !c.semLegenda).map(([chave, c]) => (
                     <span key={chave} className="inline-flex items-center gap-1">
                         <span className="w-3 h-3 rounded-sm border" style={{ background: c.fill, borderColor: c.stroke, borderStyle: c.tracejado ? 'dashed' : 'solid' }} />
                         {c.legenda}

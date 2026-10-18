@@ -7,6 +7,7 @@ use App\Enums\StatusAvaliacao;
 use App\Enums\Turno;
 use App\Models\Area;
 use App\Models\AvaliacaoPresencial;
+use App\Models\AvaliadorLiberacaoPresencial;
 use App\Models\AvaliadorProfile;
 use App\Models\ChecagemEstande;
 use App\Models\Credenciamento;
@@ -64,12 +65,16 @@ class DistribuicaoPresencialTest extends TestCase
         Sanctum::actingAs($this->admin);
     }
 
-    private function avaliador(string $nome, ?Area $area = null, bool $presencial = true, bool $demo = false, bool $comissao = false): User
+    private function avaliador(string $nome, ?Area $area = null, bool $presencial = true, bool $demo = false, bool $comissao = false, bool $liberado = true): User
     {
         $user = User::factory()->create(['role' => Role::Avaliador->value, 'name' => $nome, 'is_demo' => $demo]);
         AvaliadorProfile::factory()->create([
             'user_id' => $user->id, 'presencial' => $presencial, 'area_id' => ($area ?? $this->agr)->id, 'comissao_especial' => $comissao,
         ]);
+
+        if ($presencial && $liberado) {
+            AvaliadorLiberacaoPresencial::create(['edicao_id' => $this->edicao->id, 'user_id' => $user->id]);
+        }
 
         return $user;
     }
@@ -190,6 +195,26 @@ class DistribuicaoPresencialTest extends TestCase
             [$ana->id, $bruno->id],
             AvaliacaoPresencial::distinct()->pluck('avaliador_id')->all(),
         );
+    }
+
+    public function test_so_alcanca_quem_foi_liberado_e_a_designacao_manual_tambem_respeita(): void
+    {
+        $ana = $this->avaliador('Ana');
+        $bruno = $this->avaliador('Bruno', liberado: false);
+        $projeto = $this->finalista('Abelhas');
+
+        $this->distribuir()->assertOk();
+        $this->assertSame([$ana->id], AvaliacaoPresencial::pluck('avaliador_id')->all());
+
+        $this->postJson('/api/v1/admin/presencial/avaliacoes/designar', [
+            'dia' => self::DIA, 'turno' => 'A', 'projeto_ids' => [$projeto->id], 'avaliador_ids' => [$bruno->id],
+        ])->assertOk()
+            ->assertJsonPath('meta.resultado.designadas', 0)
+            ->assertJsonPath('meta.resultado.ignoradas.0', 'Bruno: ainda não foi liberado para avaliar (Validação de avaliadores).');
+
+        $this->getJson('/api/v1/admin/presencial/distribuicao')
+            ->assertJsonPath('data.avaliadores.0.liberado', true)
+            ->assertJsonPath('data.avaliadores.1.liberado', false);
     }
 
     public function test_sem_avaliador_confirmado_a_distribuicao_e_recusada(): void
