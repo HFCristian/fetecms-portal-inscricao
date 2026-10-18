@@ -267,4 +267,42 @@ class ComiteSoDesignadosTest extends TestCase
 
         $this->putJson('/api/v1/admin/parametrizacao/presencial', [])->assertStatus(422);
     }
+    // --- Sprint 235: a tela do avaliador e a porta de entrada no evento --------
+
+    public function test_o_painel_traz_as_designacoes_do_comite_ainda_sem_avaliacao_no_estande(): void
+    {
+        $designado = $this->finalista('Abelhas nativas');
+        $jaNoEstande = $this->finalista('Horta vertical');
+        $foraDaLista = Projeto::factory()->submetido()->create(['edicao_id' => $this->edicao->id, 'titulo' => 'Não finalista']);
+        $ana = $this->avaliador('Ana Comissão');
+
+        foreach ([$designado, $jaNoEstande, $foraDaLista] as $projeto) {
+            Avaliacao::create([
+                'projeto_id' => $projeto->id, 'avaliador_id' => $ana->id, 'status' => StatusAvaliacao::Designada,
+                'designacao_manual' => true, 'designada_pelo_comite' => true,
+            ]);
+        }
+        AvaliacaoPresencial::create([
+            'edicao_id' => $this->edicao->id, 'projeto_id' => $jaNoEstande->id, 'avaliador_id' => $ana->id,
+            'status' => StatusAvaliacao::EmAndamento, 'dia' => '2026-10-20', 'turno' => 'A', 'vaga' => 'comite', 'escolha_livre' => true,
+        ]);
+        Sanctum::actingAs($ana);
+
+        $painel = $this->getJson('/api/v1/avaliador/presencial/avaliacoes')->assertOk()->json('data');
+
+        $this->assertSame(['Abelhas nativas'], array_column($painel['designados_comite'], 'titulo'));
+        $this->assertSame(1, $painel['designados_comite'][0]['local']['estande']);
+        // A do estande vem em `minhas`, marcada como escolha livre.
+        $this->assertSame('Horta vertical', $painel['minhas'][0]['titulo']);
+        $this->assertTrue($painel['minhas'][0]['escolha_livre']);
+    }
+
+    public function test_o_avaliador_sabe_se_o_evento_esta_em_andamento(): void
+    {
+        Sanctum::actingAs($this->avaliador('Ana Comissão'));
+        $this->getJson('/api/v1/auth/me')->assertOk()->assertJsonPath('data.evento_em_andamento', true);
+
+        $this->travelTo(now()->setDateTime(2026, 10, 25, 9, 0));
+        $this->getJson('/api/v1/auth/me')->assertOk()->assertJsonPath('data.evento_em_andamento', false);
+    }
 }

@@ -55,9 +55,9 @@ function NavLinks({ role, abas, presencial = false, apenasPresencial = false, co
             <>
                 {/* Conta só do evento presencial (Sprint 191): sem avaliação online. */}
                 {!apenasPresencial && (
-                    <NavLink to="/avaliador" end className={navClass} onClick={onNavigate}>
+                    <NavLink to="/avaliador/avaliacao-online" className={navClass} onClick={onNavigate}>
                         <span className="material-symbols-outlined">fact_check</span>
-                        Avaliações
+                        Avaliação online
                     </NavLink>
                 )}
                 {/* A aba fica sempre visível: é nela que ele diz se vai (ou

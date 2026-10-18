@@ -1018,7 +1018,33 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 232 | Acompanhamento do comitê: **remover designação** do avaliador no Ver detalhes (estande e online do comitê, sem reposição) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 233 | Ver detalhes: **Projetos designados** sem o que o avaliador já abriu ou avaliou por outro caminho | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 234 | Parametrização → **Avaliação presencial** → Comitê especial: avaliar **apenas projetos designados** + pedidos de permissão em Designações | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 235 | Avaliador: seção **Designados a você** e busca por projeto ou estande na avaliação presencial | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 236 | Avaliador: aba **Avaliação online** (`/avaliador/avaliacao-online`) e, no evento, a tela inicial é a **avaliação presencial** | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprint 236 (mesma branch):** no menu do avaliador, **Avaliações** virou **Avaliação online**, e a
+> tela mudou de endereço: `/avaliador/avaliacao-online`. `/avaliador` — para onde o login manda —
+> passou a ser só a **porta de entrada** (`AvaliadorInicio`): **durante o evento** (`edicoes.evento_de`
+> a `evento_ate`, `Edicao::eventoEmAndamento()`, que chega à tela como `evento_em_andamento` no usuário
+> avaliador), quem disse "sim" ao presencial abre na **Avaliação presencial**; fora dele, ou para quem
+> não vai ao estande, na online; a conta só do presencial, sempre na do estande, como antes. A online
+> continua a um clique no menu durante o evento. O balão do chat de suporte passou a aparecer nas duas
+> telas iniciais do avaliador.
+>
+> **Sprint 235 (mesma branch):** na Avaliação presencial do avaliador, os projetos **designados**
+> ganharam uma seção própria, **Designados a você**, no topo: as avaliações no estande que vieram da
+> distribuição ou da organização (`escolha_livre = false`, campo novo na linha) e os finalistas que o
+> comitê designou em Comitê → Designações e ainda não viraram avaliação no estande
+> (`painel.designados_comite`, com o botão Avaliar, que segue as travas de sempre). O que ele abriu pelo
+> mapa ou pela lista foi para **Escolhidos por você**, e o designado pelo comitê não se repete em
+> Estandes disponíveis. As duas listas — designados e disponíveis — têm **busca pelo nome do projeto ou
+> pelo estande** ("42", "042", "estande 42"; sem acento e sem caixa — `lib/buscaEstande.js`).
+> Back **1601/1601**, front **901/901**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprints 235–236):** vão no mesmo push das 231–234, abaixo. Sem migration nova,
+> `.env` ou dependência. **O endereço da avaliação online mudou** para `/avaliador/avaliacao-online`;
+> `/avaliador` continua funcionando (redireciona). A tela inicial do avaliador no evento depende do
+> **período do evento** em Parametrização → Datas e períodos.
+>
 > **Sprint 234 (mesma branch):** nasceu **Parametrização → Avaliação presencial**
 > (`/admin/parametrizacao/presencial`, `GET|PUT /admin/parametrizacao/presencial`,
 > `ParametrizacaoPresencialController`), com a subseção **Comitê especial** e o interruptor **Avaliar

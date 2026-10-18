@@ -25,9 +25,14 @@ export default function ChatWidget() {
     const location = useLocation();
     const fimRef = useRef(null);
 
-    // Balão de apresentação: só na página inicial do papel, enquanto não dispensado.
+    // Balão de apresentação: só na página inicial do papel, enquanto não
+    // dispensado. A do avaliador é uma porta de entrada (Sprint 235): ele chega
+    // na avaliação online ou na presencial.
+    const iniciais = user?.role === 'avaliador'
+        ? ['/avaliador/avaliacao-online', '/avaliador/avaliacao-presencial']
+        : [homeFor(user?.role)];
     const mostrarDica = !aberto && !dicaFechada && !!user
-        && !user.chat_dica_dispensada && location.pathname === homeFor(user.role);
+        && !user.chat_dica_dispensada && iniciais.includes(location.pathname);
 
     async function dispensarDica() {
         setDicaFechada(true); // esconde na hora (otimista)

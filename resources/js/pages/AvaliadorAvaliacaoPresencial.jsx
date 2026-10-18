@@ -5,6 +5,7 @@ import { extractErrors } from '../lib/auth.jsx';
 import AvaliacaoPresencialModal from '../components/AvaliacaoPresencialModal.jsx';
 import SinalizacoesProjeto from '../components/SinalizacoesProjeto.jsx';
 import MapaAvaliacaoPresencial from '../components/MapaAvaliacaoPresencial.jsx';
+import { filtrarPorBusca } from '../lib/buscaEstande.js';
 import {
     getPainelPresencial, getAvaliacaoPresencial, iniciarAvaliacaoPresencial, pedirPermissaoPresencial,
 } from '../lib/avaliacaoPresencial.js';
@@ -65,6 +66,46 @@ function DialogoPermissao({ projeto, enviando, erro, onEnviar, onCancelar }) {
     );
 }
 
+/** Busca por título ou número do estande. */
+function CampoBusca({ valor, onMudar, rotulo }) {
+    return (
+        <input
+            type="search"
+            className="w-full sm:w-64 bg-surface border border-outline-variant rounded-lg px-3 py-1.5 text-sm text-on-surface outline-none focus:border-primary-container"
+            placeholder="Projeto ou estande"
+            aria-label={rotulo}
+            value={valor}
+            onChange={(e) => onMudar(e.target.value)}
+        />
+    );
+}
+
+/** Uma avaliação no estande que está com ele (designada ou escolhida). */
+function LinhaMinha({ a, onAbrir }) {
+    return (
+        <li className="py-3 flex flex-wrap items-center gap-3">
+            <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-on-surface truncate">{a.titulo}</p>
+                <p className="text-xs text-on-surface-variant">
+                    {local(a.local)}{a.area ? ` · ${a.area}` : ''}
+                    {a.designacao_manual ? ' · designado pela organização' : ''}
+                    {a.vaga === 'comite' ? ' · vaga da comissão' : ''}
+                    {a.prazo_label ? ` · até ${a.prazo_label}` : ''}
+                </p>
+                <SinalizacoesProjeto sinalizacoes={a.sinalizacoes} compacto />
+            </div>
+            <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                a.expirada ? 'bg-error-container text-on-error-container' : 'bg-surface-variant text-on-surface-variant'
+            }`}>
+                {a.status_label}
+            </span>
+            <Button type="button" variant="outline" onClick={() => onAbrir(a.id)} aria-label={`Abrir ${a.titulo}`}>
+                {!a.pode_escrever ? 'Ver' : a.status === 'em_andamento' ? 'Continuar' : 'Abrir'}
+            </Button>
+        </li>
+    );
+}
+
 const SELO_PEDIDO = {
     pendente: 'bg-[#fff4cc] text-[#5c4a00]',
     aprovado: 'bg-[#d4f0dc] text-[#004d15]',
@@ -93,6 +134,8 @@ export default function AvaliadorAvaliacaoPresencial() {
     const [pedindo, setPedindo] = useState(null);
     const [enviandoPedido, setEnviandoPedido] = useState(false);
     const [erroPedido, setErroPedido] = useState('');
+    const [buscaDesignados, setBuscaDesignados] = useState('');
+    const [buscaOutros, setBuscaOutros] = useState('');
     const [confirm, dialogo] = useConfirm();
 
     const carregar = useCallback(() => getPainelPresencial(modoTeste)
@@ -155,6 +198,19 @@ export default function AvaliadorAvaliacaoPresencial() {
     const avaliados = (painel?.minhas ?? []).filter((a) => a.status === 'concluida');
     const turno = painel?.turno;
 
+    // Designados (Sprint 235): o que a distribuição ou a organização entregou
+    // no estande e o que o comitê designou e ainda não virou avaliação aqui.
+    const meus = pendentes.filter((a) => !a.escolha_livre);
+    const doComite = painel?.designados_comite ?? [];
+    const totalDesignados = meus.length + doComite.length;
+    const designadosMeus = filtrarPorBusca(meus, buscaDesignados);
+    const designadosComite = filtrarPorBusca(doComite, buscaDesignados);
+    const escolhidos = pendentes.filter((a) => a.escolha_livre);
+    // Os disponíveis sem o que já está na seção de designados.
+    const idsDoComite = new Set(doComite.map((p) => p.id));
+    const outros = (painel?.disponiveis ?? []).filter((p) => !idsDoComite.has(p.id));
+    const outrosFiltrados = filtrarPorBusca(outros, buscaOutros);
+
     return (
         <AppShell>
             <h1 className="font-display text-2xl font-semibold text-primary mb-1">Avaliação presencial</h1>
@@ -214,39 +270,56 @@ export default function AvaliadorAvaliacaoPresencial() {
                         </section>
                     )}
 
-                    <section className={cartao}>
-                        <h2 className="font-display text-base font-semibold text-on-surface mb-1">Para avaliar</h2>
-                        {pendentes.length === 0 ? (
+                    <section className={cartao} aria-label="Designados a você">
+                        <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                            <h2 className="font-display text-base font-semibold text-on-surface">
+                                Designados a você
+                                <span className="ml-2 text-sm font-normal text-on-surface-variant tabular-nums">({totalDesignados})</span>
+                            </h2>
+                            {totalDesignados > 0 && (
+                                <CampoBusca valor={buscaDesignados} onMudar={setBuscaDesignados} rotulo="Buscar entre os designados" />
+                            )}
+                        </div>
+                        <p className="text-xs text-on-surface-variant mb-2">
+                            O que a organização (ou o comitê) entregou a você, ainda sem envio.
+                        </p>
+                        {totalDesignados === 0 ? (
                             <p className="text-sm text-on-surface-variant">
-                                Nada com você agora.{painel.aberto ? ' Escolha um estande no mapa abaixo.' : ''}
+                                Nenhum projeto designado a você.{painel.aberto && !painel.so_designados ? ' Escolha um estande no mapa abaixo.' : ''}
                             </p>
+                        ) : designadosMeus.length + designadosComite.length === 0 ? (
+                            <p className="text-sm text-on-surface-variant">Nenhum designado encontrado.</p>
                         ) : (
                             <ul className="divide-y divide-outline-variant/30">
-                                {pendentes.map((a) => (
-                                    <li key={a.id} className="py-3 flex flex-wrap items-center gap-3">
+                                {designadosMeus.map((a) => <LinhaMinha key={a.id} a={a} onAbrir={abrir} />)}
+                                {designadosComite.map((p) => (
+                                    <li key={`comite-${p.id}`} className="py-3 flex flex-wrap items-center gap-3">
                                         <div className="min-w-0 flex-1">
-                                            <p className="text-sm font-semibold text-on-surface truncate">{a.titulo}</p>
+                                            <p className="text-sm font-semibold text-on-surface truncate">{p.titulo}</p>
                                             <p className="text-xs text-on-surface-variant">
-                                                {local(a.local)}{a.area ? ` · ${a.area}` : ''}
-                                                {a.designacao_manual ? ' · designado pela organização' : ''}
-                                                {a.vaga === 'comite' ? ' · vaga da comissão' : ''}
-                                                {a.prazo_label ? ` · até ${a.prazo_label}` : ''}
+                                                {local(p.local)}{p.area ? ` · ${p.area}` : ''} · designado pelo comitê
                                             </p>
-                                            <SinalizacoesProjeto sinalizacoes={a.sinalizacoes} compacto />
+                                            <SinalizacoesProjeto sinalizacoes={p.sinalizacoes} compacto />
                                         </div>
-                                        <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
-                                            a.expirada ? 'bg-error-container text-on-error-container' : 'bg-surface-variant text-on-surface-variant'
-                                        }`}>
-                                            {a.status_label}
-                                        </span>
-                                        <Button type="button" variant="outline" onClick={() => abrir(a.id)} aria-label={`Abrir ${a.titulo}`}>
-                                            {!a.pode_escrever ? 'Ver' : a.status === 'em_andamento' ? 'Continuar' : 'Abrir'}
+                                        <span className="text-xs font-semibold px-2 py-1 rounded-full bg-[#e9ddff] text-[#2a0058]">A iniciar</span>
+                                        <Button type="button" variant="outline" onClick={() => escolher(p)} aria-label={`Avaliar ${p.titulo}`}>
+                                            Avaliar
                                         </Button>
                                     </li>
                                 ))}
                             </ul>
                         )}
                     </section>
+
+                    {escolhidos.length > 0 && (
+                        <section className={cartao} aria-label="Escolhidos por você">
+                            <h2 className="font-display text-base font-semibold text-on-surface mb-1">Escolhidos por você</h2>
+                            <p className="text-xs text-on-surface-variant mb-2">Os estandes que você abriu pelo mapa ou pela lista.</p>
+                            <ul className="divide-y divide-outline-variant/30">
+                                {escolhidos.map((a) => <LinhaMinha key={a.id} a={a} onAbrir={abrir} />)}
+                            </ul>
+                        </section>
+                    )}
 
                     {painel.mapa && (
                         <section className={cartao}>
@@ -265,18 +338,25 @@ export default function AvaliadorAvaliacaoPresencial() {
                     )}
 
                     {painel.aberto && (
-                        <section className={cartao}>
-                            <h2 className="font-display text-base font-semibold text-on-surface mb-1">Estandes disponíveis</h2>
+                        <section className={cartao} aria-label="Estandes disponíveis">
+                            <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                                <h2 className="font-display text-base font-semibold text-on-surface">Estandes disponíveis</h2>
+                                {outros.length > 0 && (
+                                    <CampoBusca valor={buscaOutros} onMudar={setBuscaOutros} rotulo="Buscar entre os estandes disponíveis" />
+                                )}
+                            </div>
                             <p className="text-xs text-on-surface-variant mb-2">
                                 Projetos do seu turno, credenciados e com o estande checado, que ainda têm vaga para você
                                 ({painel.max_por_projeto} avaliações presenciais por projeto). Escolha o que estiver livre no
                                 corredor.
                             </p>
-                            {painel.disponiveis.length === 0 ? (
+                            {outros.length === 0 ? (
                                 <p className="text-sm text-on-surface-variant">Nenhum estande disponível agora.</p>
+                            ) : outrosFiltrados.length === 0 ? (
+                                <p className="text-sm text-on-surface-variant">Nenhum estande encontrado.</p>
                             ) : (
                                 <ul className="divide-y divide-outline-variant/30">
-                                    {painel.disponiveis.map((p) => (
+                                    {outrosFiltrados.map((p) => (
                                         <li key={p.id} className="py-3 flex flex-wrap items-center gap-3">
                                             <div className="min-w-0 flex-1">
                                                 <p className="text-sm text-on-surface truncate">{p.titulo}</p>

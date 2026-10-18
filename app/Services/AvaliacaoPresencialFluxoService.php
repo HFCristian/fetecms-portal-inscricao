@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\StatusAvaliacao;
 use App\Enums\Turno;
+use App\Models\Avaliacao;
 use App\Models\AvaliacaoPresencial;
 use App\Models\Edicao;
 use App\Models\EstandeProjeto;
@@ -159,6 +160,10 @@ class AvaliacaoPresencialFluxoService
             'minhas' => $minhas
                 ->map(fn (AvaliacaoPresencial $a) => $this->linha($a, $avaliador, $modoTeste, $janela, $sinais[$a->projeto_id] ?? null))
                 ->all(),
+            // Os finalistas designados a ele em Comitê → Designações que ainda
+            // não viraram avaliação no estande (Sprint 235): a seção "Designados
+            // a você" mostra os dois caminhos juntos.
+            'designados_comite' => $this->designadosDoComite($avaliador, $modoTeste, $minhas),
             'disponiveis' => $turno !== null || ($pode && $modoTeste)
                 ? $this->disponiveis($avaliador, $turno, $modoTeste, $janela)
                 : [],
@@ -698,12 +703,64 @@ class AvaliacaoPresencialFluxoService
             'prazo_label' => $this->prazoLabel($avaliacao, $janela),
             'pode_escrever' => ! $avaliacao->concluida() && $this->podeEscrever($avaliacao, $avaliador, $modoTeste, $janela),
             'designacao_manual' => $avaliacao->designacao_manual,
+            // Escolhida no corredor (mapa ou lista) — o resto foi designado.
+            'escolha_livre' => (bool) $avaliacao->escolha_livre,
             'vaga' => $avaliacao->vaga?->value,
             'vaga_label' => $avaliacao->vaga?->label(),
             'nota' => $avaliacao->nota,
             'nota_maxima' => RubricaPresencial::NOTA_MAXIMA,
             'concluida_em' => $avaliacao->concluida_em?->toIso8601String(),
         ];
+    }
+
+    /**
+     * Os finalistas designados ao avaliador em Comitê → Designações (online)
+     * que ainda não têm avaliação dele no estande — esses já vêm em `minhas`.
+     * Fora da lista final não há estande, então não entram.
+     *
+     * @param  Collection<int, AvaliacaoPresencial>  $minhas
+     * @return list<array<string, mixed>>
+     */
+    private function designadosDoComite(User $avaliador, bool $modoTeste, Collection $minhas): array
+    {
+        $lista = ListaFinal::vigente(Edicao::atual(), $modoTeste);
+
+        if ($lista === null) {
+            return [];
+        }
+
+        $noEstande = $minhas->pluck('projeto_id')->flip();
+        $designados = Avaliacao::where('avaliador_id', $avaliador->id)
+            ->where('designada_pelo_comite', true)
+            ->whereHas('projeto')
+            ->pluck('projeto_id')
+            ->reject(fn ($id) => $noEstande->has($id))
+            ->unique()
+            ->values();
+
+        $ids = $designados->isEmpty() ? [] : $lista->projetos()->whereIn('projetos.id', $designados)->pluck('projetos.id')->all();
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $sinais = app(SinalizacaoProjetoService::class)->para($ids);
+
+        return Projeto::whereIn('id', $ids)
+            ->with(['area:id,nome', 'instituicao:id,nome'])
+            ->get()
+            ->map(fn (Projeto $p) => [
+                'id' => $p->id,
+                'titulo' => $p->titulo,
+                'categoria' => $p->categoria?->label(),
+                'area' => $p->area?->nome,
+                'escola' => $p->instituicao?->nome,
+                'local' => $this->local($p->id),
+                'sinalizacoes' => $sinais[$p->id] ?? null,
+            ])
+            ->sortBy(fn (array $p) => [$p['local']['estande'] ?? PHP_INT_MAX, $p['titulo']])
+            ->values()
+            ->all();
     }
 
     private function prazoLabel(AvaliacaoPresencial $avaliacao, JanelaTurnos $janela): ?string

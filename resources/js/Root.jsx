@@ -14,7 +14,7 @@ import Resumo from './pages/Resumo.jsx';
 import AjustesPareceres from './pages/AjustesPareceres.jsx';
 import DocumentosPresenciais from './pages/DocumentosPresenciais.jsx';
 import Perfil from './pages/Perfil.jsx';
-import AvaliadorHome from './pages/AvaliadorHome.jsx';
+import AvaliadorHome, { AvaliadorInicio } from './pages/AvaliadorHome.jsx';
 import AvaliadorPerfil from './pages/AvaliadorPerfil.jsx';
 import AvaliadorPresencial from './pages/AvaliadorPresencial.jsx';
 import AvaliadorComite from './pages/AvaliadorComite.jsx';
@@ -163,7 +163,9 @@ export default function Root() {
 
                         {/* Área do avaliador */}
                         <Route element={<RoleRoute allow={['avaliador']} />}>
-                            <Route path="/avaliador" element={<AvaliadorHome />} />
+                            {/* /avaliador é a porta de entrada (Sprint 235): no evento, a presencial. */}
+                            <Route path="/avaliador" element={<AvaliadorInicio />} />
+                            <Route path="/avaliador/avaliacao-online" element={<AvaliadorHome />} />
                             <Route path="/avaliador/presencial" element={<AvaliadorPresencial />} />
                             <Route path="/avaliador/avaliacao-presencial" element={<AvaliadorAvaliacaoPresencial />} />
                             <Route path="/avaliador/comite" element={<AvaliadorComite />} />

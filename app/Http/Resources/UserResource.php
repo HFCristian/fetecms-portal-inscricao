@@ -41,6 +41,12 @@ class UserResource extends JsonResource
                 fn () => app(ContaTemporariaService::class)->presencaDe($this->resource),
             ),
             'chat_dica_dispensada' => (bool) $this->chat_dica_dispensada,
+            // Durante o evento presencial (Sprint 235), a tela inicial do
+            // avaliador que vai ao estande é a avaliação presencial.
+            'evento_em_andamento' => $this->when(
+                $this->role === Role::Avaliador,
+                fn () => (bool) Edicao::atual()?->eventoEmAndamento(),
+            ),
             // Abas do menu que este admin abre (escopo da edição em curso), na
             // ordem escolhida em Parametrização → Ordem do menu. Para os demais
             // papéis a lista é vazia — eles não têm menu de admin.

@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../components/AppShell.jsx', () => ({ default: ({ children }) => <div>{children}</div> }));
@@ -473,5 +473,81 @@ describe('AvaliadorAvaliacaoPresencial', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Enviar pedido' }));
 
         expect(await screen.findByText('Você já pediu: o pedido aguarda a organização.')).toBeInTheDocument();
+    });
+    // --- Sprint 235: designados numa seção própria, com busca ------------------
+
+    const COM_DESIGNADOS = {
+        ...PAINEL,
+        minhas: [
+            { id: 5, projeto_id: 7, titulo: 'Bioplástico', status: 'designada', status_label: 'Designada', pode_escrever: true, escolha_livre: false, designacao_manual: true, local: { estande: 42 } },
+            { id: 6, projeto_id: 9, titulo: 'Drone agrícola', status: 'em_andamento', status_label: 'Em andamento', pode_escrever: true, escolha_livre: true, local: { estande: 50 } },
+        ],
+        designados_comite: [
+            { id: 12, titulo: 'Horta vertical', area: 'Agrárias', local: { estande: 7, turno_label: 'Turno A (matutino)' } },
+        ],
+        disponiveis: [
+            { id: 12, titulo: 'Horta vertical', area: 'Agrárias', local: { estande: 7 }, avaliacoes: 0 },
+            { id: 20, titulo: 'Abelhas nativas', area: 'Agrárias', local: { estande: 21 }, avaliacoes: 0 },
+            { id: 21, titulo: 'Solo vivo', area: 'Agrárias', local: { estande: 22 }, avaliacoes: 0 },
+        ],
+    };
+
+    it('os designados ficam numa seção própria, separados do que ele escolheu', async () => {
+        getPainelPresencial.mockResolvedValue(COM_DESIGNADOS);
+        render(<AvaliadorAvaliacaoPresencial />);
+
+        const designados = await screen.findByRole('region', { name: 'Designados a você' });
+        expect(within(designados).getByText('(2)')).toBeInTheDocument();
+        expect(within(designados).getByText('Bioplástico')).toBeInTheDocument();
+        expect(within(designados).getByText('Horta vertical')).toBeInTheDocument();
+        expect(within(designados).getByText(/designado pelo comitê/)).toBeInTheDocument();
+        expect(within(designados).queryByText('Drone agrícola')).not.toBeInTheDocument();
+
+        const escolhidos = screen.getByRole('region', { name: 'Escolhidos por você' });
+        expect(within(escolhidos).getByText('Drone agrícola')).toBeInTheDocument();
+
+        // O designado pelo comitê não se repete nos disponíveis.
+        const disponiveis = screen.getByRole('region', { name: 'Estandes disponíveis' });
+        expect(within(disponiveis).queryByText('Horta vertical')).not.toBeInTheDocument();
+        expect(within(disponiveis).getByText('Abelhas nativas')).toBeInTheDocument();
+    });
+
+    it('busca pelo nome ou pelo estande, nos designados e nos disponíveis', async () => {
+        getPainelPresencial.mockResolvedValue(COM_DESIGNADOS);
+        render(<AvaliadorAvaliacaoPresencial />);
+
+        const designados = await screen.findByRole('region', { name: 'Designados a você' });
+        fireEvent.change(screen.getByLabelText('Buscar entre os designados'), { target: { value: '007' } });
+        expect(within(designados).getByText('Horta vertical')).toBeInTheDocument();
+        expect(within(designados).queryByText('Bioplástico')).not.toBeInTheDocument();
+
+        fireEvent.change(screen.getByLabelText('Buscar entre os designados'), { target: { value: 'nada disso' } });
+        expect(within(designados).getByText('Nenhum designado encontrado.')).toBeInTheDocument();
+
+        const disponiveis = screen.getByRole('region', { name: 'Estandes disponíveis' });
+        fireEvent.change(screen.getByLabelText('Buscar entre os estandes disponíveis'), { target: { value: 'solo' } });
+        expect(within(disponiveis).getByText('Solo vivo')).toBeInTheDocument();
+        expect(within(disponiveis).queryByText('Abelhas nativas')).not.toBeInTheDocument();
+
+        fireEvent.change(screen.getByLabelText('Buscar entre os estandes disponíveis'), { target: { value: 'estande 21' } });
+        expect(within(disponiveis).getByText('Abelhas nativas')).toBeInTheDocument();
+    });
+
+    it('o designado pelo comitê inicia pelo mesmo caminho do corredor', async () => {
+        getPainelPresencial.mockResolvedValue(COM_DESIGNADOS);
+        render(<AvaliadorAvaliacaoPresencial />);
+
+        const designados = await screen.findByRole('region', { name: 'Designados a você' });
+        fireEvent.click(within(designados).getByRole('button', { name: 'Avaliar Horta vertical' }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Iniciar' }));
+
+        await waitFor(() => expect(iniciarAvaliacaoPresencial).toHaveBeenCalledWith(12, false));
+    });
+
+    it('sem nenhum designado, a seção diz isso', async () => {
+        render(<AvaliadorAvaliacaoPresencial />);
+
+        const designados = await screen.findByRole('region', { name: 'Designados a você' });
+        expect(within(designados).getByText(/Nenhum projeto designado a você/)).toBeInTheDocument();
     });
 });
