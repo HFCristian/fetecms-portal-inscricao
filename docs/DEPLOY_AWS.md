@@ -161,6 +161,7 @@ DB_PASSWORD=<segredo do Secrets Manager>
 
 # Estado compartilhado entre instâncias (via RDS) — mantém o app stateless
 SESSION_DRIVER=database
+SESSION_LIFETIME=300              # 5 h sem atividade; `sessoes:limpar` apaga o que passar disso
 CACHE_STORE=database
 QUEUE_CONNECTION=database
 
@@ -263,6 +264,51 @@ WantedBy=multi-user.target
 sudo systemctl enable --now fetecms-queue
 ```
 
+**Agendador** (o `schedule:run` do Laravel): roda a faxina das sessões a cada 15 minutos
+(`sessoes:limpar`) e o aviso diário do chat. Sem ele, as sessões ainda são limpas pelo sorteio do
+Laravel (2% das requisições), mas sem hora certa.
+
+```bash
+echo '* * * * * www-data cd /var/www/fetecms && php artisan schedule:run >> /dev/null 2>&1' \
+  | sudo tee /etc/cron.d/fetecms
+```
+
+Com mais de uma EC2 o cron pode rodar em todas: a faxina usa `onOneServer()` e só uma instância a
+executa por vez.
+
+**PHP-FPM** — o pool padrão do Ubuntu vem com **`pm.max_children = 5`**: cinco requisições ao mesmo
+tempo por instância. O portal tem várias telas que se atualizam sozinhas (mapa em tela cheia a cada
+5 s, cerimonial, chat, avisos), e cinco processos esgotam rápido no dia do evento — a sexta
+requisição espera na fila do Nginx até dar 504. Ajuste em `/etc/php/8.4/fpm/pool.d/www.conf`
+(conta de ~50 MB por processo; numa `t3.small` com 2 GB sobra para o resto):
+
+```ini
+pm = dynamic
+pm.max_children = 24
+pm.start_servers = 6
+pm.min_spare_servers = 4
+pm.max_spare_servers = 10
+pm.max_requests = 500            ; recicla o processo e devolve memória vazada
+request_terminate_timeout = 300  ; uma requisição presa não segura o processo para sempre
+pm.status_path = /fpm-status     ; ver a fila: curl localhost/fpm-status (só de dentro do EC2)
+```
+
+O teto de conexões do RDS precisa caber: `instâncias × pm.max_children + workers da fila` abaixo do
+`max_connections` (o `sessoes:diagnostico` mostra os dois números). No Nginx, exponha o status só
+para a própria máquina e dê às exportações grandes (ZIP de projetos, PDFs) mais tempo que os 60 s
+padrão:
+
+```nginx
+location = /fpm-status { allow 127.0.0.1; deny all; include fastcgi_params;
+    fastcgi_param SCRIPT_FILENAME $fastcgi_script_name; fastcgi_pass unix:/run/php/php8.4-fpm.sock; }
+
+# dentro do `location ~ \.php$`:
+fastcgi_read_timeout 300;
+```
+
+O **idle timeout do ALB** (60 s por padrão) também corta uma exportação longa: suba para 300 s em
+*Load balancer → Attributes* se o ZIP da lista final passar de um minuto.
+
 ---
 
 ## 10. ALB (Application Load Balancer)
@@ -326,6 +372,8 @@ sudo systemctl restart fetecms-queue
 - [ ] `sg-rds` só aceita `sg-ec2`; `sg-ec2` só aceita `sg-alb`; RDS sem acesso público.
 - [ ] Backups automáticos do RDS habilitados; Multi-AZ se for crítico.
 - [ ] Carga validada (`load/k6-concurrency.js` apontando para o domínio) dentro dos thresholds.
+- [ ] Cron do `schedule:run` instalado (§9) e `php artisan sessoes:diagnostico` sem pontos de atenção.
+- [ ] Pool do PHP-FPM ajustado (§9) — o padrão de 5 processos não aguenta o dia do evento.
 - [ ] CI verde na `main` (lint + testes + build) — `.github/workflows/ci.yml`.
 
 ---
@@ -340,3 +388,56 @@ sudo systemctl restart fetecms-queue
 - **Mudei o `.env` e nada mudou:** faltou `php artisan optimize:clear` (config cacheada).
 - **`could not find driver`:** falta `php8.4-pgsql` no EC2.
 - **Timeout no banco:** regra `5432` do `sg-rds` deve ter *source* = `sg-ec2`, não um IP.
+
+### Travamentos, quedas e "a sessão caiu" (Sprint 244)
+
+Comece pelo raio-X, **em cada instância**:
+
+```bash
+cd /var/www/fetecms && php artisan sessoes:diagnostico
+```
+
+Ele mostra a configuração da sessão, a tabela `sessions` (quantas, de quem, há quanto tempo), o
+cache e a fila em banco e, no PostgreSQL, conexões e locks — e termina com os **pontos de atenção**.
+O que procurar, do mais provável para o menos:
+
+1. **PHP-FPM sem processo livre** (a causa mais comum de "travou" e de 502/504 em pico):
+   ```bash
+   sudo grep -c "max_children" /var/log/php8.4-fpm.log          # "server reached pm.max_children"
+   sudo grep -E "upstream timed out|Resource temporarily unavailable|connect\(\) to unix" \
+     /var/log/nginx/error.log | tail -n 20
+   sudo awk '{print $9}' /var/log/nginx/access.log | grep -E '^(429|499|502|504)$' | sort | uniq -c
+   ```
+   `max_children` no log do FPM ou `Resource temporarily unavailable` no Nginx = faltou processo:
+   ajuste o pool (§9). **502** = o FPM caiu ou o socket encheu; **504** = a requisição passou do
+   tempo; **499** = o usuário desistiu de esperar (lentidão, não erro).
+2. **429 em quem está logado**: toda a `/api/v1` tem limite de **120 requisições por minuto por
+   conta**. A mesma conta aberta em vários aparelhos (o tablet do balcão, o mapa em tela cheia, o
+   notebook da organização) divide esse limite, e as telas que se atualizam sozinhas passam a falhar
+   — parece queda, e é o limite. O diagnóstico aponta a conta com 4 ou mais sessões na última hora.
+   Saída: uma conta por aparelho (as contas temporárias existem para isso) ou subir o
+   `throttle:120,1` de `routes/api.php`.
+3. **`APP_KEY` diferente entre instâncias**: o cookie criptografado numa EC2 não abre na outra, e o
+   ALB alterna as duas — o usuário "cai" sem padrão e vê 419. Compare a impressão digital que o
+   diagnóstico imprime em cada instância; tem de ser igual. O mesmo vale para o `.env` em geral
+   (`SANCTUM_STATEFUL_DOMAINS`, `SESSION_DOMAIN`): mudou, rode `optimize:clear && optimize` em todas.
+4. **Banco no limite**: conexões perto do `max_connections`, conexão `idle in transaction` ou
+   consulta esperando lock aparecem nos pontos de atenção. No console da AWS, olhe
+   `DatabaseConnections`, `CPUUtilization` e `FreeableMemory` do RDS no horário do relato.
+5. **Fila parada**: job pendente há mais de 15 min = `queue:work` fora do ar
+   (`sudo systemctl status fetecms-queue`). Não derruba o portal, mas e-mail e distribuição param.
+6. **Erros do Laravel** no horário do relato:
+   ```bash
+   grep -E "SQLSTATE|TokenMismatch|Allowed memory|Maximum execution time" storage/logs/laravel.log | tail -n 30
+   ```
+
+**Tempo de vida e faxina da sessão.** A sessão dura **5 horas sem atividade**
+(`SESSION_LIFETIME=300`) — um turno de balcão inteiro — e `php artisan sessoes:limpar` (agendado de
+15 em 15 minutos, §9) apaga do banco a que passou disso e o cache vencido. Rodar à mão é seguro:
+sessão expirada já não autentica ninguém. `--horas=N` usa outro corte.
+
+**O que o usuário vê quando a sessão cai.** Até a Sprint 244 a tela continuava aberta e cada ação
+falhava em silêncio. Agora o 419 (token CSRF trocado por login ou logout em outra aba) renova o
+cookie e repete o pedido uma vez, sem o usuário perceber; se a sessão acabou de verdade (401), o
+portal leva ao login com o aviso "Sua sessão expirou". Relato de "travou" que vira "fui mandado para o
+login" é sessão; relato de "travou" que continua igual é capacidade (itens 1, 2 e 4).

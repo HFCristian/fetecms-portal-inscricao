@@ -3,7 +3,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../components/AppShell.jsx', () => ({ default: ({ children }) => <div>{children}</div> }));
 vi.mock('../components/LeitorCodigo.jsx', () => ({ default: () => null }));
-vi.mock('react-router-dom', () => ({ Link: ({ children }) => <a>{children}</a>, useNavigate: () => vi.fn() }));
+let estadoDaRota = null;
+vi.mock('react-router-dom', () => ({
+    Link: ({ children }) => <a>{children}</a>,
+    useNavigate: () => vi.fn(),
+    useLocation: () => ({ state: estadoDaRota }),
+}));
 vi.mock('../lib/modoTeste.js', () => ({ useModoTeste: () => [false, vi.fn()] }));
 
 const getFinalistas = vi.fn();
@@ -24,7 +29,24 @@ const RESPOSTA = {
 describe('CredenciamentoLista', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        estadoDaRota = null;
         getFinalistas.mockResolvedValue(RESPOSTA);
+    });
+
+    it('voltando da ficha concluída, avisa qual projeto acabou de ser credenciado', async () => {
+        estadoDaRota = { credenciado: 'Robô seguidor' };
+        render(<CredenciamentoLista />);
+
+        expect(await screen.findByText(/concluído\. Pode chamar a próxima equipe/)).toHaveTextContent(
+            'Credenciamento de Robô seguidor concluído.',
+        );
+    });
+
+    it('sem vir da ficha, não há aviso', async () => {
+        render(<CredenciamentoLista />);
+        await screen.findByText('Bioplástico');
+
+        expect(screen.queryByText(/Pode chamar a próxima equipe/)).not.toBeInTheDocument();
     });
 
     it('a busca aceita o estande e os filtros de código, estande e turno vão ao servidor', async () => {

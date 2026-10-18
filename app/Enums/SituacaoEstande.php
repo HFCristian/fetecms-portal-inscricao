@@ -9,8 +9,10 @@ namespace App\Enums;
  * mudar de cor conforme a feira acontece, sem abrir estande por estande.
  *
  * Os estágios são cumulativos e saem todos de fatos que o portal já registrava
- * com hora — credenciamento, checagem do estande e avaliação presencial. Nada
- * aqui é marcado à mão, e é por isso que o mapa nunca discorda das outras abas.
+ * com hora — credenciamento, checagem do estande e avaliação presencial —, e é
+ * por isso que o mapa nunca discorda das outras abas. A exceção é a **saída
+ * antes do horário** (Sprint 243): não há balcão na porta de saída, então a
+ * organização a marca à mão, e ela vale só no dia em que aconteceu.
  */
 enum SituacaoEstande: string
 {
@@ -29,6 +31,9 @@ enum SituacaoEstande: string
     /** Já recebeu ao menos uma avaliação presencial. */
     case Avaliado = 'avaliado';
 
+    /** A equipe chegou e foi embora antes do fim do turno, neste dia. */
+    case Saiu = 'saiu';
+
     public function label(): string
     {
         return match ($this) {
@@ -37,6 +42,7 @@ enum SituacaoEstande: string
             self::Credenciado => 'Credenciado',
             self::Checado => 'Pronto para avaliação',
             self::Avaliado => 'Em avaliação',
+            self::Saiu => 'Saiu antes do horário',
         };
     }
 
@@ -53,6 +59,9 @@ enum SituacaoEstande: string
             self::Credenciado => '#c9b6e8',
             self::Checado => '#9fd8ae',
             self::Avaliado => '#2f8f4e',
+            // Cinza-escuro: o estande ficou vazio, e nenhuma cor do evento
+            // ("bom" ou "falta") pode ser confundida com ele.
+            self::Saiu => '#5c5866',
         };
     }
 

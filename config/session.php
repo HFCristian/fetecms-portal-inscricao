@@ -32,7 +32,9 @@ return [
     |
     */
 
-    'lifetime' => (int) env('SESSION_LIFETIME', 120),
+    // 5 horas sem atividade (Sprint 244): cobre um turno inteiro de balcão
+    // sem pedir login de novo, e `sessoes:limpar` apaga o que passar disso.
+    'lifetime' => (int) env('SESSION_LIFETIME', 300),
 
     'expire_on_close' => env('SESSION_EXPIRE_ON_CLOSE', false),
 

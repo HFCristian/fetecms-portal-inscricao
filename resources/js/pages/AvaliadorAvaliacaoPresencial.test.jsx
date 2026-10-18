@@ -205,6 +205,89 @@ describe('AvaliadorAvaliacaoPresencial', () => {
         expect(screen.getByRole('button', { name: /Enviar avaliação/ })).toBeEnabled();
     });
 
+    // --- Rascunho automático ao sair de cada seção --------------------------
+
+    it('sair de uma seção salva o rascunho sozinho, só quando algo mudou', async () => {
+        render(<AvaliadorAvaliacaoPresencial />);
+        await abrirDisponivel();
+        await screen.findByRole('heading', { name: 'Projeto de Pesquisa' });
+
+        // Passar por uma seção sem responder nada não chama o servidor.
+        fireEvent.click(screen.getByRole('button', { name: 'Avançar' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Voltar' }));
+        expect(salvarRascunhoPresencial).not.toHaveBeenCalled();
+
+        fireEvent.click(screen.getByLabelText('Não'));
+        fireEvent.click(screen.getByRole('button', { name: 'Avançar' }));
+
+        await waitFor(() => expect(salvarRascunhoPresencial).toHaveBeenCalledWith(
+            5, { respostas: { projeto_impresso: 'nao' }, comentario: null }, false,
+        ));
+        expect(await screen.findByText(/Rascunho salvo automaticamente às \d{2}:\d{2}/)).toBeInTheDocument();
+
+        // Voltar sem mexer em nada não salva de novo o que já está gravado.
+        fireEvent.click(screen.getByRole('button', { name: 'Voltar' }));
+        await screen.findByRole('heading', { name: 'Projeto de Pesquisa' });
+        expect(salvarRascunhoPresencial).toHaveBeenCalledTimes(1);
+    });
+
+    it('o atalho do topo e o fechar também salvam a seção que ficou para trás', async () => {
+        render(<AvaliadorAvaliacaoPresencial />);
+        await abrirDisponivel();
+        await screen.findByRole('heading', { name: 'Projeto de Pesquisa' });
+
+        fireEvent.click(screen.getByLabelText('Sim'));
+        fireEvent.click(screen.getByRole('button', { name: /^Ir para Diário de Bordo/ }));
+        await waitFor(() => expect(salvarRascunhoPresencial).toHaveBeenCalledTimes(1));
+
+        fireEvent.click(screen.getByLabelText('Não'));
+        fireEvent.click(screen.getByRole('button', { name: 'Fechar' }));
+        await waitFor(() => expect(salvarRascunhoPresencial).toHaveBeenLastCalledWith(
+            5, { respostas: { projeto_impresso: 'sim', diario_manuscrito: 'nao' }, comentario: null }, false,
+        ));
+    });
+
+    it('se o rascunho automático falha, avisa e tenta de novo na próxima saída', async () => {
+        salvarRascunhoPresencial.mockRejectedValueOnce({ response: { data: { message: 'O prazo desta avaliação acabou.' } } });
+        render(<AvaliadorAvaliacaoPresencial />);
+        await abrirDisponivel();
+        await screen.findByRole('heading', { name: 'Projeto de Pesquisa' });
+
+        fireEvent.click(screen.getByLabelText('Não'));
+        fireEvent.click(screen.getByRole('button', { name: 'Avançar' }));
+
+        expect(await screen.findByText(/não foi salvo automaticamente/)).toHaveTextContent('O prazo desta avaliação acabou.');
+        // A tela não trava: a seção seguinte abriu.
+        expect(screen.getByRole('heading', { name: 'Diário de Bordo' })).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Voltar' }));
+        await waitFor(() => expect(salvarRascunhoPresencial).toHaveBeenCalledTimes(2));
+        await waitFor(() => expect(screen.queryByText(/não foi salvo automaticamente/)).not.toBeInTheDocument());
+    });
+
+    it('o envio espera o rascunho automático que ainda está a caminho', async () => {
+        let terminar;
+        salvarRascunhoPresencial.mockImplementationOnce(() => new Promise((r) => { terminar = () => r({ data: AVALIACAO }); }));
+        render(<AvaliadorAvaliacaoPresencial />);
+        await abrirDisponivel();
+        await screen.findByRole('heading', { name: 'Projeto de Pesquisa' });
+
+        fireEvent.click(screen.getByLabelText('Não'));
+        fireEvent.click(screen.getByRole('button', { name: /^Ir para Diário de Bordo/ }));
+        fireEvent.click(screen.getByLabelText('Não'));
+        fireEvent.click(screen.getByRole('button', { name: /^Ir para Parecer/ }));
+        fireEvent.click(screen.getByRole('button', { name: /Enviar avaliação/ }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Enviar' }));
+
+        await new Promise((r) => setTimeout(r, 20));
+        expect(concluirAvaliacaoPresencial).not.toHaveBeenCalled();
+
+        terminar();
+        await waitFor(() => expect(concluirAvaliacaoPresencial).toHaveBeenCalled());
+        // O segundo rascunho (saindo do Diário de Bordo) foi antes do envio.
+        expect(salvarRascunhoPresencial).toHaveBeenCalledTimes(2);
+    });
+
     it('ao trocar de seção, a completa fica verde e a que ficou pela metade, amarela', async () => {
         render(<AvaliadorAvaliacaoPresencial />);
         await abrirDisponivel();

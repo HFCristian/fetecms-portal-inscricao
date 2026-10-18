@@ -24,4 +24,24 @@ export async function ensureCsrf() {
     await axios.get('/sanctum/csrf-cookie', { withCredentials: true });
 }
 
+/**
+ * 419 é o token CSRF que não bate com a sessão: o login ou o logout em outra
+ * aba trocou o token, ou a sessão sumiu no servidor. O Laravel recusa antes
+ * de o controller rodar — nada do pedido foi executado —, então renovar o
+ * cookie e repetir **uma vez** é seguro. Se a repetição falhar de novo, o erro
+ * segue: sessão perdida de verdade, e o AuthProvider leva para o login.
+ */
+http.interceptors.response.use(undefined, async (erro) => {
+    const config = erro?.config;
+
+    if (erro?.response?.status !== 419 || !config || config._csrfRenovado) {
+        throw erro;
+    }
+
+    config._csrfRenovado = true;
+    await ensureCsrf();
+
+    return http(config);
+});
+
 export default http;

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { Alert, Button, Input, Select } from '../components/ui.jsx';
 import { getFinalistas } from '../lib/credenciamento.js';
@@ -7,6 +7,9 @@ import LeitorCodigo from '../components/LeitorCodigo.jsx';
 import { useModoTeste } from '../lib/modoTeste.js';
 import SinalizacoesProjeto from '../components/SinalizacoesProjeto.jsx';
 import LocalProjeto from '../components/LocalProjeto.jsx';
+
+/** O título que a ficha manda ao concluir ("o projeto" quando ela não sabe o nome). */
+const credenciadoDe = (state) => (state && 'credenciado' in state ? (state.credenciado || 'o projeto') : null);
 
 const dataHora = (iso) => (iso ? new Date(iso).toLocaleString('pt-BR') : '—');
 
@@ -19,6 +22,9 @@ const dataHora = (iso) => (iso ? new Date(iso).toLocaleString('pt-BR') : '—');
  */
 export default function CredenciamentoLista({ situacao = 'pendentes' }) {
     const navigate = useNavigate();
+    const location = useLocation();
+    // A ficha devolve o balcão para cá ao concluir e diz qual projeto foi.
+    const recemCredenciado = credenciadoDe(location.state);
     const [teste] = useModoTeste();
     const [dados, setDados] = useState(null);
     const [erro, setErro] = useState('');
@@ -74,6 +80,14 @@ export default function CredenciamentoLista({ situacao = 'pendentes' }) {
                     teste={teste}
                     onAbrir={(dados) => navigate(`/admin/credenciamento/projetos/${dados.projeto.id}`)}
                 />
+            )}
+
+            {!credenciados && recemCredenciado && (
+                <div className="mb-4">
+                    <Alert type="info">
+                        Credenciamento de <strong>{recemCredenciado}</strong> concluído. Pode chamar a próxima equipe.
+                    </Alert>
+                </div>
             )}
 
             {erro && <div className="mb-4"><Alert>{erro}</Alert></div>}

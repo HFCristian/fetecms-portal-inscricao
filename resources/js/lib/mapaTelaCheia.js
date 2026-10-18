@@ -19,6 +19,9 @@
  *   não foi checado** fica **amarelo**: a equipe chegou e o estande espera a
  *   checagem — é a fila de quem confere, e o branco a misturaria com quem nem
  *   apareceu.
+ * - **Saiu antes do horário** (Sprint 243): cinza-escuro em qualquer
+ *   visualização. O estande está vazio, e o verde do credenciamento ou o azul
+ *   das avaliações diriam que a equipe está lá.
  */
 
 /** Cor fixa de cada área, pela sigla da lista final. Área nova cai em "Outras". */
@@ -52,6 +55,8 @@ const ALERTA = { fill: '#f5871f', stroke: '#a4520a', texto: '#0b0b0b' };
 /** Credenciado e ainda não checado: amarelo com texto escuro. */
 const AGUARDANDO_CHECAGEM = { fill: '#f5d000', stroke: '#9c7c00', texto: '#0b0b0b' };
 const SEM_PROJETO = { fill: '#f3f1f6', stroke: '#e6e0ee', texto: '#b9b2c4' };
+/** A equipe foi embora antes do fim do turno (Sprint 243). */
+const SAIU = { fill: '#5c5866', stroke: '#2e2b33', texto: '#ffffff' };
 const PENDENTE = { fill: '#ffffff', stroke: '#b9b2c4', texto: '#52514e' };
 
 /** Os passos do azul, do claro ao escuro (o 250 é o mais claro que ainda aparece no fundo). */
@@ -79,6 +84,7 @@ export const ESCOPOS = [
 /** Cor do estande na visualização escolhida. `linha` nula = estande sem projeto no turno. */
 export function corNoEscopo(escopo, linha, maximo) {
     if (!linha) return SEM_PROJETO;
+    if (linha.saida) return SAIU;
 
     if (escopo === 'credenciamento') return linha.credenciado ? OK : PENDENTE;
 
@@ -98,8 +104,19 @@ export function corNoEscopo(escopo, linha, maximo) {
     return { fill, stroke: '#0d366b', texto: AZUL.indexOf(fill) >= 3 ? '#ffffff' : '#0b0b0b' };
 }
 
-/** A legenda da visualização, com quantos estandes há em cada faixa. */
-export function legendaDoEscopo(escopo, linhas, maximo) {
+/**
+ * A legenda da visualização, com quantos estandes há em cada faixa. Quem saiu
+ * antes do horário conta numa faixa própria, no fim — e só aparece quando há.
+ */
+export function legendaDoEscopo(escopo, todas, maximo) {
+    const linhas = todas.filter((l) => !l.saida);
+    const saiu = todas.length - linhas.length;
+    const faixaSaiu = saiu > 0 ? [{ cor: SAIU.fill, borda: SAIU.stroke, label: 'Saiu antes do horário', total: saiu }] : [];
+
+    return [...legendaDosPresentes(escopo, linhas, maximo), ...faixaSaiu];
+}
+
+function legendaDosPresentes(escopo, linhas, maximo) {
     if (escopo === 'credenciamento') {
         const ok = linhas.filter((l) => l.credenciado).length;
 

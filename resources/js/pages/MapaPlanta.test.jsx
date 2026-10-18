@@ -20,6 +20,8 @@ const getListaSituacao = vi.fn();
 const baixarListaSituacao = vi.fn();
 const getRemanejamento = vi.fn();
 const alocarNoMapa = vi.fn();
+const marcarSaida = vi.fn();
+const desfazerSaida = vi.fn();
 vi.mock('../lib/mapaEvento.js', () => ({
     getPlanta: (...a) => getPlanta(...a),
     salvarPlanta: (...a) => salvarPlanta(...a),
@@ -29,6 +31,8 @@ vi.mock('../lib/mapaEvento.js', () => ({
     baixarListaSituacao: (...a) => baixarListaSituacao(...a),
     getRemanejamento: (...a) => getRemanejamento(...a),
     alocarNoMapa: (...a) => alocarNoMapa(...a),
+    marcarSaida: (...a) => marcarSaida(...a),
+    desfazerSaida: (...a) => desfazerSaida(...a),
 }));
 
 import MapaPlanta from './MapaPlanta.jsx';
@@ -511,6 +515,83 @@ describe('MapaPlanta', () => {
         render(<MapaPlanta />);
 
         expect(await screen.findByRole('button', { name: /Tela cheia/ })).toBeInTheDocument();
+    });
+
+    // --- Sprint 243: saída antes do horário ---------------------------------
+    describe('marcar saída', () => {
+        const NAO_CREDENCIADO = {
+            ...SITUACAO.estandes[42], numero: 2, estande: '002', projeto_id: 5, titulo: 'Ainda não chegou',
+            situacao: 'aguardando', credenciado: false, saida: null,
+        };
+
+        beforeEach(() => {
+            marcarSaida.mockReset().mockResolvedValue({ data: { id: 3 }, meta: { message: 'Saiu às 14:20 de 02/10: saída registrada.' } });
+            desfazerSaida.mockReset().mockResolvedValue({ data: null, meta: { message: 'Saída desfeita.' } });
+            getSituacaoPlanta.mockResolvedValue({
+                ...SITUACAO,
+                estandes: { 42: { ...SITUACAO.estandes[42], saida: null }, 2: NAO_CREDENCIADO },
+            });
+        });
+
+        it('ao lado da tela cheia, lista só os credenciados do turno e registra a saída com hora e observação', async () => {
+            render(<MapaPlanta />);
+            fireEvent.click(await screen.findByRole('button', { name: /Marcar saída/ }));
+
+            const dialogo = await screen.findByRole('dialog', { name: 'Marcar saída' });
+            expect(await within(dialogo).findByText('Estande 042 · Bioplástico de mandioca')).toBeInTheDocument();
+            expect(within(dialogo).queryByText(/Ainda não chegou/)).not.toBeInTheDocument();
+            expect(within(dialogo).getByText(/1 projeto\(s\) do turno ainda não credenciado/)).toBeInTheDocument();
+
+            fireEvent.click(within(dialogo).getByRole('button', { name: 'Marcar saída de Bioplástico de mandioca' }));
+            fireEvent.change(within(dialogo).getByLabelText('Horário da saída'), { target: { value: '14:20' } });
+            fireEvent.change(within(dialogo).getByLabelText('Observação da saída'), { target: { value: 'Ônibus da escola' } });
+            fireEvent.click(within(dialogo).getByRole('button', { name: 'Confirmar saída' }));
+
+            await waitFor(() => expect(marcarSaida).toHaveBeenCalledWith({
+                projetoId: 1, saiuEm: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T14:20$/), observacao: 'Ônibus da escola',
+            }));
+            expect(await screen.findByText(/Bioplástico de mandioca: Saiu às 14:20 de 02\/10: saída registrada\./)).toBeInTheDocument();
+        });
+
+        it('quem já saiu mostra a hora e pode ser desfeito, com confirmação', async () => {
+            getSituacaoPlanta.mockResolvedValue({
+                ...SITUACAO,
+                estandes: {
+                    42: {
+                        ...SITUACAO.estandes[42], situacao: 'saiu', situacao_label: 'Saiu antes do horário',
+                        saida: { id: 3, hora: '14:20', observacao: 'Ônibus', registrado_por: 'Pedro' },
+                    },
+                },
+            });
+            render(<MapaPlanta />);
+            fireEvent.click(await screen.findByRole('button', { name: /Marcar saída/ }));
+
+            const dialogo = await screen.findByRole('dialog', { name: 'Marcar saída' });
+            expect(await within(dialogo).findByText('Saiu às 14:20 · Ônibus · marcado por Pedro')).toBeInTheDocument();
+            fireEvent.click(within(dialogo).getByRole('button', { name: 'Desfazer' }));
+            // A confirmação abre por cima da lista, com o próprio botão.
+            const confirmacao = (await screen.findByRole('heading', { name: 'Desfazer saída' })).closest('[role="dialog"]');
+            fireEvent.click(within(confirmacao).getByRole('button', { name: 'Desfazer' }));
+
+            await waitFor(() => expect(desfazerSaida).toHaveBeenCalledWith(3));
+        });
+
+        it('a ficha do estande diz quando a equipe saiu', async () => {
+            getSituacaoPlanta.mockResolvedValue({
+                ...SITUACAO,
+                estandes: {
+                    42: {
+                        ...SITUACAO.estandes[42], situacao: 'saiu', situacao_label: 'Saiu antes do horário', cor: '#5c5866',
+                        saida: { id: 3, hora: '14:20', observacao: null, registrado_por: 'Pedro' },
+                    },
+                },
+            });
+            render(<MapaPlanta />);
+            await waitFor(() => expect(getSituacaoPlanta).toHaveBeenCalled());
+
+            fireEvent.click(await screen.findByRole('button', { name: estande('042') }));
+            expect(await screen.findByText(/Saiu antes do horário às 14:20/)).toHaveTextContent('marcado por Pedro');
+        });
     });
 
     // --- Sprint 197: a rua da borda esquerda --------------------------------

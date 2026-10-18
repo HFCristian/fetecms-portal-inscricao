@@ -11,6 +11,7 @@ use App\Models\AvaliacaoPresencial;
 use App\Models\AvaliadorProfile;
 use App\Models\Edicao;
 use App\Models\EstandeProjeto;
+use App\Models\SaidaAntecipada;
 use App\Support\JanelaTurnos;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -27,7 +28,9 @@ use Illuminate\Support\Facades\DB;
  * **Nada disso é marcado à mão.** Os três estágios saem de fatos que o portal
  * já registrava com hora — `credenciamentos.finalizado_em`,
  * `checagens_estande.verificado_em` e `avaliacoes_presenciais.concluida_em` —,
- * e é por isso que o mapa nunca discorda das outras abas.
+ * e é por isso que o mapa nunca discorda das outras abas. A **saída antes do
+ * horário** (Sprint 243) é a exceção: a organização a marca à mão e ela vale só
+ * no dia em que aconteceu, por cima de qualquer outro estágio.
  *
  * O **termo de uso de imagem** (Sprint 176) segue o mesmo princípio: sai do
  * envio online do orientador (com a hora do envio) e do que o balcão marcou no
@@ -50,6 +53,7 @@ class MapaSituacaoService
         'avaliacoes_realizadas' => 'Avaliações realizadas',
         'avaliacoes_faltantes' => 'Avaliações faltantes',
         'termo_imagem' => 'Termo de uso de imagem',
+        'saida' => 'Saída antes do horário',
     ];
 
     /**
@@ -173,20 +177,13 @@ class MapaSituacaoService
                     'value' => $chave,
                     'label' => $label,
                     // Sim/Não nos dois primeiros, número nos de contagem e uma
-                    // lista própria no termo de imagem.
+                    // lista própria no termo de imagem e na saída.
                     'tipo' => match (true) {
-                        $chave === 'termo_imagem' => 'opcoes',
+                        in_array($chave, ['termo_imagem', 'saida'], true) => 'opcoes',
                         str_starts_with($chave, 'avaliacoes_') => 'numero',
                         default => 'booleano',
                     },
-                ] + ($chave === 'termo_imagem' ? [
-                    'valores' => array_map(
-                        fn (string $valor, string $rotulo) => ['value' => $valor, 'label' => ucfirst($rotulo)],
-                        array_keys(self::VALORES_TERMO_IMAGEM),
-                        array_values(self::VALORES_TERMO_IMAGEM),
-                    ),
-                    'padrao' => 'incompleto',
-                ] : []),
+                ] + $this->valoresDoCriterio($chave),
                 array_keys(self::CRITERIOS),
                 array_values(self::CRITERIOS),
             ),
@@ -195,6 +192,29 @@ class MapaSituacaoService
             'areas' => Area::orderBy('nome')->get(['id', 'nome', 'sigla'])
                 ->map(fn (Area $a) => ['id' => $a->id, 'nome' => $a->nome, 'sigla' => $a->siglaDaLista()])
                 ->all(),
+        ];
+    }
+
+    /** As opções dos critérios que não são Sim/Não nem contagem. */
+    private function valoresDoCriterio(string $chave): array
+    {
+        $valores = match ($chave) {
+            'termo_imagem' => self::VALORES_TERMO_IMAGEM,
+            'saida' => ['sim' => 'saiu antes do horário', 'nao' => 'não saiu'],
+            default => null,
+        };
+
+        if ($valores === null) {
+            return [];
+        }
+
+        return [
+            'valores' => array_map(
+                fn (string $valor, string $rotulo) => ['value' => $valor, 'label' => ucfirst($rotulo)],
+                array_keys($valores),
+                array_values($valores),
+            ),
+            'padrao' => array_key_first($valores),
         ];
     }
 
@@ -219,6 +239,10 @@ class MapaSituacaoService
             $linhas[] = '      '.$l['situacao_label']
                 .' · '.$l['avaliacoes'].' de '.$l['avaliacoes_maximo'].' avaliação(ões)';
             $linhas[] = '      Termo de imagem: '.$this->termoImagem($l);
+            if ($l['saida'] !== null) {
+                $linhas[] = '      Saiu antes do horário às '.$l['saida']['hora']
+                    .($l['saida']['observacao'] ? ' ('.$l['saida']['observacao'].')' : '');
+            }
             $linhas[] = '';
         }
 
@@ -257,7 +281,7 @@ class MapaSituacaoService
             'Estande', 'Turno', 'Projeto', 'Categoria', 'Área', 'Escola', 'Orientador',
             'Situação', 'Credenciado em', 'Checado em', 'Avaliações realizadas', 'Avaliações faltantes',
             'Credenciamento fora do prazo', 'Termo de uso de imagem', 'Estudantes cobertos',
-            'Estudantes sem termo de imagem',
+            'Estudantes sem termo de imagem', 'Saiu antes do horário',
         ])."\n";
 
         foreach ($lista['linhas'] as $l) {
@@ -272,6 +296,7 @@ class MapaSituacaoService
                     $l['termo_imagem_label'],
                     $l['termo_imagem_total'] === 0 ? '' : $l['termo_imagem_cobertos'].' de '.$l['termo_imagem_total'],
                     implode(', ', $l['termo_imagem_faltando']),
+                    $l['saida']['hora'] ?? '',
                 ],
             ))."\n";
         }
@@ -346,8 +371,9 @@ class MapaSituacaoService
         $maximo = JanelaTurnos::daEdicao()->porProjeto();
         $sinais = app(SinalizacaoProjetoService::class)->para($ids);
         $termos = app(TermosImagemService::class)->noEvento($ids, $corte);
+        $saidas = $this->saidas($ids, $corte);
 
-        return $alocacoes->map(function (EstandeProjeto $e) use ($credenciados, $checados, $avaliacoes, $doComite, $maximo, $sinais, $termos) {
+        return $alocacoes->map(function (EstandeProjeto $e) use ($credenciados, $checados, $avaliacoes, $doComite, $maximo, $sinais, $termos, $saidas) {
             $projeto = $e->projeto;
             $feitas = (int) ($avaliacoes[$projeto->id] ?? 0);
             $credenciado = $credenciados[$projeto->id] ?? null;
@@ -356,8 +382,11 @@ class MapaSituacaoService
             // Cumulativo e na ordem do evento: a última coisa que aconteceu é a
             // que manda na cor.
             $termo = $termos[$projeto->id] ?? null;
+            $saida = $saidas[$projeto->id] ?? null;
 
             $situacao = match (true) {
+                // A equipe foi embora: o estande está vazio, seja qual for o estágio.
+                $saida !== null => SituacaoEstande::Saiu,
                 $feitas > 0 => SituacaoEstande::Avaliado,
                 $checado !== null => SituacaoEstande::Checado,
                 $credenciado !== null => SituacaoEstande::Credenciado,
@@ -404,6 +433,14 @@ class MapaSituacaoService
                     fn (array $a) => ['id' => $a['id'], 'nome_original' => $a['nome_original']],
                     $termo['arquivos'] ?? [],
                 ),
+                // Saída antes do horário (Sprint 243), só no dia do corte.
+                'saida' => $saida === null ? null : [
+                    'id' => $saida->id,
+                    'saiu_em' => $saida->saiu_em->toIso8601String(),
+                    'hora' => $saida->saiu_em->format('H:i'),
+                    'observacao' => $saida->observacao,
+                    'registrado_por' => $saida->autor?->name,
+                ],
             ];
         })->values()->all();
     }
@@ -427,6 +464,29 @@ class MapaSituacaoService
             ->orderBy($coluna)
             ->pluck($coluna, 'projeto_id')
             ->map(fn ($valor) => CarbonImmutable::parse($valor))
+            ->all();
+    }
+
+    /**
+     * As saídas antes do horário do **dia do corte**, até a hora do corte: a de
+     * ontem não vale hoje (a equipe pode ter voltado), e escolher um dia
+     * anterior mostra as daquele dia.
+     *
+     * @param  list<int>  $ids
+     * @return array<int, SaidaAntecipada>
+     */
+    private function saidas(array $ids, CarbonImmutable $corte): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+
+        return SaidaAntecipada::whereIn('projeto_id', $ids)
+            ->where('dia', $corte->toDateString())
+            ->where('saiu_em', '<=', $corte)
+            ->with('autor:id,name')
+            ->get()
+            ->keyBy('projeto_id')
             ->all();
     }
 
@@ -467,6 +527,7 @@ class MapaSituacaoService
             'avaliacoes_realizadas' => $valor === null || $linha['avaliacoes'] === (int) $valor,
             'avaliacoes_faltantes' => $valor === null || $linha['avaliacoes_faltantes'] === (int) $valor,
             // Sem valor, "incompleto": quem ainda deve a autorização de alguém.
+            'saida' => ($linha['saida'] !== null) === $this->booleano($valor),
             'termo_imagem' => match ($valor ?? 'incompleto') {
                 'incompleto' => in_array($linha['termo_imagem'], [SituacaoTermoImagem::Parcial->value, SituacaoTermoImagem::Nenhum->value], true),
                 default => $linha['termo_imagem'] === $valor,
@@ -484,6 +545,7 @@ class MapaSituacaoService
     {
         return match ($criterio) {
             'credenciamento', 'checagem' => $this->booleano($valor) ? 'já passou' : 'ainda não passou',
+            'saida' => $this->booleano($valor) ? 'saiu antes do horário' : 'não saiu',
             'avaliacoes_realizadas' => $valor === null ? 'qualquer quantidade' : $valor.' realizada(s)',
             'avaliacoes_faltantes' => $valor === null ? 'qualquer quantidade' : $valor.' faltante(s)',
             'termo_imagem' => self::VALORES_TERMO_IMAGEM[$valor ?? 'incompleto'] ?? (string) $valor,

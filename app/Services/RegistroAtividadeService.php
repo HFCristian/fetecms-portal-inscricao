@@ -666,6 +666,30 @@ class RegistroAtividadeService
     }
 
     /**
+     * Mapa do evento (Sprint 243): a equipe foi embora antes do fim do turno —
+     * ou a marcação foi desfeita, porque voltou ou porque era outro projeto.
+     */
+    public function mapaSaida(
+        Projeto $projeto,
+        User $admin,
+        bool $marcada,
+        string $lugar,
+        string $saida,
+        ?string $observacao,
+    ): RegistroAtividade {
+        return $this->registrarNoProjeto(
+            $marcada ? TipoRegistro::MapaSaidaAntecipada : TipoRegistro::MapaSaidaDesfeita,
+            $projeto,
+            $admin,
+            array_filter([
+                'de' => $marcada ? $lugar : $saida,
+                'para' => $marcada ? $saida : $lugar,
+                'resumo' => $observacao,
+            ], fn ($v) => $v !== null),
+        );
+    }
+
+    /**
      * Intérpretes (Sprints 214–215): cadastro, alteração, exclusão e check-in
      * desfeito. Não há projeto no registro — o intérprete não pertence a um —,
      * então o que aconteceu vai escrito no `resumo`.
