@@ -76,7 +76,7 @@ describe('ComiteDesignacoes', () => {
         designarPeloComite.mockResolvedValue({
             data: {
                 designadas: 0, resumo: '0 designação(ões) criada(s).',
-                ignoradas: ['Bioplástico → Ana Comissao: já avaliou este projeto.'],
+                ignoradas: [{ projeto: 'Bioplástico', avaliador: 'Ana Comissao', motivo: 'já avaliou este projeto' }],
             },
             meta: {},
         });
@@ -86,7 +86,7 @@ describe('ComiteDesignacoes', () => {
         fireEvent.click(await screen.findByRole('checkbox', { name: 'Ana Comissao' }));
         fireEvent.click(screen.getByRole('button', { name: /Designar/ }));
 
-        expect(await screen.findByText(/já avaliou este projeto/)).toBeInTheDocument();
+        expect(await screen.findByText('Bioplástico → Ana Comissao: já avaliou este projeto')).toBeInTheDocument();
     });
 
     it('mostra o código, o estande e o turno de cada projeto', async () => {
