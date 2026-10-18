@@ -13,6 +13,7 @@ use App\Models\EscopoAdmin;
 use App\Models\EstandeProjeto;
 use App\Models\ListaFinal;
 use App\Models\Projeto;
+use App\Models\RegistroAtividade;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -344,9 +345,8 @@ class ComiteAcompanhamentoTest extends TestCase
         $this->postJson($this->urlRetirar($ana), ['online_ids' => [$online->id], 'estande_ids' => [$estande->id]])
             ->assertOk()
             ->assertJsonPath('data.retiradas', 2)
-            ->assertJsonPath('data.online', 1)
-            ->assertJsonPath('data.estande', 1)
-            ->assertJsonPath('meta.message', '2 designação(ões) retirada(s) de Ana Comissão.');
+            ->assertJsonPath('data.designacoes', 2)
+            ->assertJsonPath('meta.message', 'Removido de Ana Comissão: 2 designação(ões).');
 
         $this->assertNull(Avaliacao::find($online->id));
         $this->assertNull(AvaliacaoPresencial::find($estande->id));
@@ -358,7 +358,7 @@ class ComiteAcompanhamentoTest extends TestCase
         ]);
     }
 
-    public function test_aberta_enviada_ou_de_fora_do_comite_nao_sai(): void
+    public function test_aberta_ou_enviada_sai_com_justificativa_e_a_de_fora_do_comite_nao(): void
     {
         $abelhas = $this->finalista('Abelhas nativas', 42);
         $horta = $this->finalista('Horta vertical', 43);
@@ -371,14 +371,51 @@ class ComiteAcompanhamentoTest extends TestCase
         $enviada = $this->avaliacao($ana, $solo, 'concluida');
         $emCurso = $this->avaliacao($ana, $abelhas, 'em_andamento');
         $deOutro = $this->avaliacao($bruno, $horta, 'designada');
-
-        $this->postJson($this->urlRetirar($ana), [
+        $pedido = [
             'online_ids' => [$aberta->id, $daFila->id],
             'estande_ids' => [$enviada->id, $emCurso->id, $deOutro->id],
-        ])->assertStatus(422)->assertJsonValidationErrors('designacoes');
+        ];
 
+        // Sem o motivo, nada sai.
+        $this->postJson($this->urlRetirar($ana), $pedido)
+            ->assertStatus(422)->assertJsonValidationErrors('justificativa');
         $this->assertSame(2, Avaliacao::count());
         $this->assertSame(3, AvaliacaoPresencial::count());
+
+        $this->postJson($this->urlRetirar($ana), [...$pedido, 'justificativa' => 'Avaliou o estande trocado.'])
+            ->assertOk()
+            ->assertJsonPath('data.retiradas', 3)
+            ->assertJsonPath('data.em_andamento', 2)
+            ->assertJsonPath('data.avaliadas', 1)
+            ->assertJsonPath('data.ignoradas', 2)
+            ->assertJsonPath('meta.message', 'Removido de Ana Comissão: 2 em andamento, 1 já avaliada(s).');
+
+        // A fila online comum e o do outro avaliador ficam.
+        $this->assertNotNull(Avaliacao::find($daFila->id));
+        $this->assertNull(Avaliacao::find($aberta->id));
+        $this->assertSame([$deOutro->id], AvaliacaoPresencial::pluck('id')->all());
+        // Cada uma com o motivo na trilha.
+        $this->assertSame(2, RegistroAtividade::where('tipo', 'avaliacao_presencial_excluida')->count());
+        $this->assertSame('Avaliou o estande trocado.', RegistroAtividade::where('tipo', 'avaliacao_designacao_retirada')->sole()->detalhes['justificativa']);
+    }
+
+    public function test_a_nota_online_do_comite_e_desconsiderada_e_nao_apagada(): void
+    {
+        $abelhas = $this->finalista('Abelhas nativas', 42);
+        $ana = $this->avaliador('Ana Comissão');
+        $nota = $this->online($ana, $abelhas, 'concluida');
+
+        $this->postJson($this->urlRetirar($ana), ['online_ids' => [$nota->id], 'justificativa' => 'Nota fora da rubrica.'])
+            ->assertOk()->assertJsonPath('data.avaliadas', 1);
+
+        $nota->refresh();
+        $this->assertNotNull($nota->desconsiderada_em);
+        $this->assertSame('Nota fora da rubrica.', $nota->desconsiderada_motivo);
+        $this->assertSame('nota_desconsiderada', RegistroAtividade::sole()->tipo->value);
+
+        // Já desconsiderada, não há mais o que tirar.
+        $this->postJson($this->urlRetirar($ana), ['online_ids' => [$nota->id], 'justificativa' => 'De novo.'])
+            ->assertStatus(422)->assertJsonValidationErrors('designacoes');
     }
 
     public function test_o_que_nao_pode_sair_e_contado_sem_derrubar_o_resto(): void
@@ -387,14 +424,14 @@ class ComiteAcompanhamentoTest extends TestCase
         $horta = $this->finalista('Horta vertical', 43);
         $ana = $this->avaliador('Ana Comissão');
         $designada = $this->avaliacao($ana, $abelhas, 'designada');
-        $emCurso = $this->avaliacao($ana, $horta, 'em_andamento');
+        $deOutro = $this->avaliacao($this->avaliador('Bruno Comissão'), $horta, 'designada');
 
-        $this->postJson($this->urlRetirar($ana), ['estande_ids' => [$designada->id, $emCurso->id]])
+        $this->postJson($this->urlRetirar($ana), ['estande_ids' => [$designada->id, $deOutro->id]])
             ->assertOk()
             ->assertJsonPath('data.retiradas', 1)
             ->assertJsonPath('data.ignoradas', 1);
 
-        $this->assertNotNull(AvaliacaoPresencial::find($emCurso->id));
+        $this->assertNotNull(AvaliacaoPresencial::find($deOutro->id));
     }
 
     public function test_retirar_pede_avaliador_da_comissao_e_alguma_designacao(): void

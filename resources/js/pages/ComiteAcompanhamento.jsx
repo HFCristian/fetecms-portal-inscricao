@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
-import { Alert, Button, useConfirm } from '../components/ui.jsx';
+import { Alert, Button } from '../components/ui.jsx';
 import PainelComiteMapa from '../components/PainelComiteMapa.jsx';
 import { getAcompanhamentoComite, retirarDesignacoesComite } from '../lib/comite.js';
 import { extractErrors } from '../lib/auth.jsx';
@@ -151,10 +151,11 @@ const SELOS_ORIGEM = {
 
 /**
  * Uma coluna do diálogo: título com a contagem e os projetos. Com `marcados`,
- * cada projeto ganha uma caixa de marcação (a coluna dos designados, de onde se
- * remove a designação).
+ * cada projeto ganha uma caixa de marcação e a coluna, o "Marcar todos".
  */
-function ColunaDetalhes({ titulo, cor, projetos, vazio, rodape = null, marcados = null, onAlternar, cabecalho = null }) {
+function ColunaDetalhes({ titulo, cor, projetos, vazio, rodape = null, marcados = null, onAlternar, onMarcarTodos }) {
+    const todos = marcados !== null && projetos.length > 0 && projetos.every((p) => marcados.includes(p.avaliacao_id));
+
     return (
         <section className="bg-surface rounded-xl p-3 flex flex-col min-h-0" aria-label={titulo}>
             <h4 className="flex items-center gap-2 font-display font-semibold text-on-surface mb-2">
@@ -162,7 +163,15 @@ function ColunaDetalhes({ titulo, cor, projetos, vazio, rodape = null, marcados 
                 {titulo}
                 <span className="ml-auto text-sm font-normal text-on-surface-variant tabular-nums">{projetos.length}</span>
             </h4>
-            {cabecalho}
+            {marcados !== null && projetos.length > 0 && (
+                <button
+                    type="button"
+                    className="self-start text-xs font-semibold text-primary hover:underline mb-2"
+                    onClick={() => onMarcarTodos(projetos.map((p) => p.avaliacao_id), !todos)}
+                >
+                    {todos ? 'Desmarcar todos' : 'Marcar todos'}
+                </button>
+            )}
             {projetos.length === 0 ? (
                 <p className="text-sm text-on-surface-variant">{vazio}</p>
             ) : (
@@ -192,24 +201,82 @@ function ColunaDetalhes({ titulo, cor, projetos, vazio, rodape = null, marcados 
     );
 }
 
+/** O que acontece com cada tipo de projeto removido — é o que a confirmação explica. */
+const EFEITOS = {
+    designados: 'a designação sai e ninguém é designado no lugar.',
+    emAvaliacao: 'o rascunho é descartado — no estande, a vaga volta a abrir.',
+    avaliados: 'no estande, a avaliação é excluída e a vaga reabre; online, a nota é desconsiderada (fica riscada e sai do ranking e da lista final).',
+};
+
+/**
+ * A confirmação da remoção, dentro do diálogo: o que sai, agrupado pelo tipo,
+ * com o efeito de cada um — e a justificativa, obrigatória quando sai alguma
+ * avaliação em andamento ou já realizada.
+ */
+function ConfirmarRemocao({ nome, grupos, retirando, onConfirmar, onCancelar }) {
+    const [justificativa, setJustificativa] = useState('');
+    const total = CATEGORIAS.reduce((n, c) => n + grupos[c.chave].length, 0);
+    const pedeMotivo = grupos.emAvaliacao.length + grupos.avaliados.length > 0;
+
+    return (
+        <div className="mb-3 rounded-xl border border-error/40 bg-error/5 p-4 space-y-3" role="group" aria-label="Confirmar remoção">
+            <p className="font-semibold text-on-surface">Remover {total} projeto(s) de {nome}?</p>
+            {CATEGORIAS.filter((c) => grupos[c.chave].length > 0).map((c) => (
+                <div key={c.chave} className="text-sm">
+                    <p className="text-on-surface"><strong>{c.curto}:</strong> {EFEITOS[c.chave]}</p>
+                    <ul className="list-disc pl-5 text-on-surface-variant">
+                        {grupos[c.chave].map((p) => <li key={p.avaliacao_id}>{p.titulo}</li>)}
+                    </ul>
+                </div>
+            ))}
+            {pedeMotivo && (
+                <label className="block text-sm">
+                    <span className="block font-semibold text-on-surface mb-1">Por que remover estas avaliações?</span>
+                    <textarea
+                        className="fetec-input w-full text-sm"
+                        rows={2}
+                        maxLength={1000}
+                        value={justificativa}
+                        onChange={(e) => setJustificativa(e.target.value)}
+                        placeholder="A justificativa vai para os Registros de cada uma."
+                    />
+                </label>
+            )}
+            <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={onCancelar}>Cancelar</Button>
+                <Button
+                    type="button"
+                    loading={retirando}
+                    disabled={pedeMotivo && justificativa.trim().length < 5}
+                    onClick={() => onConfirmar(pedeMotivo ? justificativa.trim() : null)}
+                >
+                    Remover
+                </Button>
+            </div>
+        </div>
+    );
+}
+
 /**
  * "Ver detalhes" do avaliador: os projetos dele em três colunas — avaliados,
  * em avaliação e designados —, no estande e pelas designações do comitê.
  *
- * Na coluna dos designados, a coordenação marca projetos e **remove a
- * designação**: só o que o avaliador ainda não abriu, e ninguém é designado no
- * lugar. Quem decide o que pode sair é o servidor.
+ * A coordenação marca projetos em qualquer coluna e os **remove** de uma vez
+ * (Sprint 238; antes, só a designação). Ninguém é designado no lugar, e
+ * avaliação aberta ou enviada pede justificativa. Quem decide o que pode sair
+ * é o servidor.
  */
 function DialogoDetalhesAvaliador({ a, onFechar, onRetirado }) {
     const colunas = colunasDoAvaliador(a);
     const [marcados, setMarcados] = useState([]);
+    const [confirmando, setConfirmando] = useState(false);
     const [retirando, setRetirando] = useState(false);
     const [aviso, setAviso] = useState(null);
-    const [confirm, confirmDialog] = useConfirm();
 
-    // Depois de recarregar, sobra marcado só o que ainda está na coluna.
-    const validos = marcados.filter((id) => colunas.designados.some((p) => p.avaliacao_id === id));
-    const todos = colunas.designados.length > 0 && validos.length === colunas.designados.length;
+    // Depois de recarregar, sobra marcado só o que ainda está nas colunas.
+    const presentes = CATEGORIAS.flatMap((c) => colunas[c.chave]).map((p) => p.avaliacao_id);
+    const validos = marcados.filter((id) => presentes.includes(id));
+    const grupos = Object.fromEntries(CATEGORIAS.map((c) => [c.chave, colunas[c.chave].filter((p) => validos.includes(p.avaliacao_id))]));
 
     useEffect(() => {
         const aoTeclar = (e) => { if (e.key === 'Escape') onFechar(); };
@@ -218,29 +285,22 @@ function DialogoDetalhesAvaliador({ a, onFechar, onRetirado }) {
     }, [onFechar]);
 
     const alternar = (id) => setMarcados(validos.includes(id) ? validos.filter((x) => x !== id) : [...validos, id]);
+    const marcarTodos = (ids, marcar) => setMarcados(marcar
+        ? [...new Set([...validos, ...ids])]
+        : validos.filter((id) => !ids.includes(id)));
 
-    async function remover() {
-        const escolhidos = colunas.designados.filter((p) => validos.includes(p.avaliacao_id));
-        const ok = await confirm({
-            title: 'Remover designação',
-            message: `Tirar ${escolhidos.length} projeto(s) de ${a.nome}?\n\n`
-                + escolhidos.map((p) => `• ${p.titulo}`).join('\n')
-                + '\n\nNinguém é designado no lugar. A designação online sai também de Avaliação online → Designações.',
-            confirmLabel: 'Remover',
-            danger: true,
-        });
-        if (!ok) return;
-
+    async function remover(justificativa) {
         setRetirando(true);
         setAviso(null);
         try {
-            const r = await retirarDesignacoesComite(a.id, validos);
+            const r = await retirarDesignacoesComite(a.id, validos, justificativa);
             setMarcados([]);
-            setAviso({ tipo: 'info', texto: r.meta?.message ?? 'Designação removida.' });
+            setConfirmando(false);
+            setAviso({ tipo: 'info', texto: r.meta?.message ?? 'Removido.' });
             await onRetirado?.();
         } catch (e) {
             const { message, fields } = extractErrors(e);
-            setAviso({ tipo: 'error', texto: Object.values(fields ?? {})[0] || message || 'Não foi possível remover a designação.' });
+            setAviso({ tipo: 'error', texto: Object.values(fields ?? {})[0] || message || 'Não foi possível remover.' });
         } finally {
             setRetirando(false);
         }
@@ -269,6 +329,34 @@ function DialogoDetalhesAvaliador({ a, onFechar, onRetirado }) {
 
                 {aviso && <div className="mb-3"><Alert type={aviso.tipo}>{aviso.texto}</Alert></div>}
 
+                {presentes.length > 0 && !confirmando && (
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                        <p className="text-xs text-on-surface-variant">
+                            Marque os projetos que saem deste avaliador — designados, em avaliação ou já avaliados.
+                        </p>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            className="!px-3 !py-1.5 text-xs"
+                            disabled={validos.length === 0}
+                            onClick={() => { setAviso(null); setConfirmando(true); }}
+                        >
+                            <span className="material-symbols-outlined text-[16px]" aria-hidden="true">person_remove</span>
+                            Remover selecionados{validos.length > 0 ? ` (${validos.length})` : ''}
+                        </Button>
+                    </div>
+                )}
+
+                {confirmando && validos.length > 0 && (
+                    <ConfirmarRemocao
+                        nome={a.nome}
+                        grupos={grupos}
+                        retirando={retirando}
+                        onConfirmar={remover}
+                        onCancelar={() => setConfirmando(false)}
+                    />
+                )}
+
                 <div className="grid gap-3 md:grid-cols-3 min-h-0 overflow-y-auto md:overflow-hidden">
                     {CATEGORIAS.map((c) => (
                         <ColunaDetalhes
@@ -280,37 +368,13 @@ function DialogoDetalhesAvaliador({ a, onFechar, onRetirado }) {
                             rodape={c.chave === 'emAvaliacao' && a.expiradas > 0
                                 ? `${a.expiradas} avaliação(ões) no estande com o prazo encerrado sem envio.`
                                 : null}
-                            {...(c.chave === 'designados' && colunas.designados.length > 0 ? {
-                                marcados: validos,
-                                onAlternar: alternar,
-                                cabecalho: (
-                                    <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                                        <button
-                                            type="button"
-                                            className="text-xs font-semibold text-primary hover:underline"
-                                            onClick={() => setMarcados(todos ? [] : colunas.designados.map((p) => p.avaliacao_id))}
-                                        >
-                                            {todos ? 'Desmarcar todos' : 'Marcar todos'}
-                                        </button>
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            className="!px-3 !py-1.5 text-xs"
-                                            loading={retirando}
-                                            disabled={validos.length === 0}
-                                            onClick={remover}
-                                        >
-                                            <span className="material-symbols-outlined text-[16px]" aria-hidden="true">person_remove</span>
-                                            Remover designação{validos.length > 0 ? ` (${validos.length})` : ''}
-                                        </Button>
-                                    </div>
-                                ),
-                            } : {})}
+                            marcados={validos}
+                            onAlternar={alternar}
+                            onMarcarTodos={marcarTodos}
                         />
                     ))}
                 </div>
             </div>
-            {confirmDialog}
         </div>
     );
 }

@@ -96,9 +96,9 @@ describe('ComiteAcompanhamento', () => {
         expect(getAcompanhamentoComite).toHaveBeenCalledWith(undefined);
     });
 
-    it('no "Ver detalhes", remove a designação dos projetos marcados', async () => {
+    it('no "Ver detalhes", remove a designação dos projetos marcados sem pedir justificativa', async () => {
         retirarDesignacoesComite.mockResolvedValue({
-            data: { retiradas: 1 }, meta: { message: '1 designação(ões) retirada(s) de Ana Comissão.' },
+            data: { retiradas: 1 }, meta: { message: 'Removido de Ana Comissão: 1 designação(ões).' },
         });
         render(<ComiteAcompanhamento />);
         await screen.findByText('Ana Comissão');
@@ -107,18 +107,43 @@ describe('ComiteAcompanhamento', () => {
         const dialogo = screen.getByRole('dialog', { name: 'Detalhes de Ana Comissão' });
         const designados = within(dialogo).getByRole('region', { name: 'Projetos designados' });
 
-        expect(within(designados).getByRole('button', { name: /Remover designação/ })).toBeDisabled();
+        expect(within(dialogo).getByRole('button', { name: /Remover selecionados/ })).toBeDisabled();
         fireEvent.click(within(designados).getByRole('checkbox', { name: 'Marcar Solo vivo' }));
-        fireEvent.click(within(designados).getByRole('button', { name: 'Remover designação (1)' }));
+        fireEvent.click(within(dialogo).getByRole('button', { name: 'Remover selecionados (1)' }));
 
-        // Confirma antes de tirar.
-        expect(await screen.findByText(/Tirar 1 projeto\(s\) de Ana Comissão/)).toBeInTheDocument();
-        fireEvent.click(screen.getByRole('button', { name: 'Remover' }));
+        // Confirma antes de tirar, dizendo o efeito; designação não pede motivo.
+        const confirmacao = within(dialogo).getByRole('group', { name: 'Confirmar remoção' });
+        expect(confirmacao).toHaveTextContent('Remover 1 projeto(s) de Ana Comissão?');
+        expect(confirmacao).toHaveTextContent('ninguém é designado no lugar');
+        expect(within(confirmacao).queryByLabelText(/Por que remover/)).not.toBeInTheDocument();
+        fireEvent.click(within(confirmacao).getByRole('button', { name: 'Remover' }));
 
-        await waitFor(() => expect(retirarDesignacoesComite).toHaveBeenCalledWith(1, ['online-7']));
-        expect(await within(dialogo).findByText('1 designação(ões) retirada(s) de Ana Comissão.')).toBeInTheDocument();
+        await waitFor(() => expect(retirarDesignacoesComite).toHaveBeenCalledWith(1, ['online-7'], null));
+        expect(await within(dialogo).findByText('Removido de Ana Comissão: 1 designação(ões).')).toBeInTheDocument();
         // Recarrega o retrato depois de remover.
         expect(getAcompanhamentoComite).toHaveBeenCalledTimes(2);
+    });
+
+    it('remove avaliação em andamento e já realizada com justificativa', async () => {
+        retirarDesignacoesComite.mockResolvedValue({ data: { retiradas: 2 }, meta: { message: 'Removido.' } });
+        render(<ComiteAcompanhamento />);
+        await screen.findByText('Ana Comissão');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Ver detalhes de Ana Comissão' }));
+        const dialogo = screen.getByRole('dialog', { name: 'Detalhes de Ana Comissão' });
+        fireEvent.click(within(within(dialogo).getByRole('region', { name: 'Projetos avaliados' })).getByRole('checkbox', { name: 'Marcar Cisterna' }));
+        fireEvent.click(within(within(dialogo).getByRole('region', { name: 'Projetos em avaliação' })).getByRole('checkbox', { name: 'Marcar Abelhas nativas' }));
+        fireEvent.click(within(dialogo).getByRole('button', { name: 'Remover selecionados (2)' }));
+
+        const confirmacao = within(dialogo).getByRole('group', { name: 'Confirmar remoção' });
+        expect(confirmacao).toHaveTextContent('a nota é desconsiderada');
+        expect(confirmacao).toHaveTextContent('o rascunho é descartado');
+        const remover = within(confirmacao).getByRole('button', { name: 'Remover' });
+        expect(remover).toBeDisabled();
+        fireEvent.change(within(confirmacao).getByLabelText('Por que remover estas avaliações?'), { target: { value: ' Avaliou o estande trocado. ' } });
+        fireEvent.click(remover);
+
+        await waitFor(() => expect(retirarDesignacoesComite).toHaveBeenCalledWith(1, ['online-8', 'estande-1'], 'Avaliou o estande trocado.'));
     });
 
     it('"Marcar todos" pega a coluna inteira; cancelar a confirmação não remove nada', async () => {
@@ -126,29 +151,29 @@ describe('ComiteAcompanhamento', () => {
         await screen.findByText('Ana Comissão');
 
         fireEvent.click(screen.getByRole('button', { name: 'Ver detalhes de Ana Comissão' }));
-        const designados = within(screen.getByRole('dialog', { name: 'Detalhes de Ana Comissão' }))
-            .getByRole('region', { name: 'Projetos designados' });
+        const dialogo = screen.getByRole('dialog', { name: 'Detalhes de Ana Comissão' });
+        const designados = within(dialogo).getByRole('region', { name: 'Projetos designados' });
 
         fireEvent.click(within(designados).getByRole('button', { name: 'Marcar todos' }));
-        fireEvent.click(within(designados).getByRole('button', { name: 'Remover designação (2)' }));
-        fireEvent.click(await screen.findByRole('button', { name: 'Cancelar' }));
+        fireEvent.click(within(dialogo).getByRole('button', { name: 'Remover selecionados (2)' }));
+        fireEvent.click(within(dialogo).getByRole('button', { name: 'Cancelar' }));
 
         expect(retirarDesignacoesComite).not.toHaveBeenCalled();
         expect(within(designados).getByRole('button', { name: 'Desmarcar todos' })).toBeInTheDocument();
     });
 
     it('o erro da remoção aparece no diálogo', async () => {
-        retirarDesignacoesComite.mockRejectedValue({ fields: { designacoes: ['Nenhuma designação a retirar.'] } });
+        retirarDesignacoesComite.mockRejectedValue({ fields: { designacoes: ['Nada a remover.'] } });
         render(<ComiteAcompanhamento />);
         await screen.findByText('Ana Comissão');
 
         fireEvent.click(screen.getByRole('button', { name: 'Ver detalhes de Ana Comissão' }));
         const dialogo = screen.getByRole('dialog', { name: 'Detalhes de Ana Comissão' });
         fireEvent.click(within(dialogo).getByRole('checkbox', { name: 'Marcar Robô seguidor' }));
-        fireEvent.click(within(dialogo).getByRole('button', { name: 'Remover designação (1)' }));
-        fireEvent.click(await screen.findByRole('button', { name: 'Remover' }));
+        fireEvent.click(within(dialogo).getByRole('button', { name: 'Remover selecionados (1)' }));
+        fireEvent.click(within(dialogo).getByRole('button', { name: 'Remover' }));
 
-        expect(await within(dialogo).findByText('Nenhuma designação a retirar.')).toBeInTheDocument();
+        expect(await within(dialogo).findByText('Nada a remover.')).toBeInTheDocument();
     });
 
     it('"Ver detalhes" mostra avaliados, em avaliação e designados em três colunas', async () => {

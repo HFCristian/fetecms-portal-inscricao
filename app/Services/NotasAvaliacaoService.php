@@ -174,6 +174,21 @@ class NotasAvaliacaoService
         string $justificativa,
         ?array $substituicao = null,
     ): array {
+        $this->apenasDesconsiderar($avaliacao, $admin, $justificativa);
+
+        $projeto = $avaliacao->projeto->fresh();
+        $dados = $this->compararProjeto($projeto, $admin, registrar: false);
+        $dados['substituicao'] = $this->substituir($projeto, $admin, $substituicao);
+
+        return $dados;
+    }
+
+    /**
+     * Só a desconsideração, sem a tela do projeto nem a substituição: o caminho
+     * do acompanhamento do comitê (Sprint 238), que tira várias de uma vez.
+     */
+    public function apenasDesconsiderar(Avaliacao $avaliacao, User $admin, string $justificativa): void
+    {
         $this->exigirConcluida($avaliacao);
 
         if ($avaliacao->foiDesconsiderada()) {
@@ -185,12 +200,6 @@ class NotasAvaliacaoService
         $avaliacao->loadMissing(['projeto', 'avaliador:id,name']);
 
         DB::transaction(fn () => $this->gravarDesconsideracao($avaliacao, $admin, $justificativa));
-
-        $projeto = $avaliacao->projeto->fresh();
-        $dados = $this->compararProjeto($projeto, $admin, registrar: false);
-        $dados['substituicao'] = $this->substituir($projeto, $admin, $substituicao);
-
-        return $dados;
     }
 
     /**

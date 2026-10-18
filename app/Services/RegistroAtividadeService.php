@@ -120,12 +120,15 @@ class RegistroAtividadeService
         string $de,
         ?string $para,
         string $situacao,
+        ?string $justificativa = null,
     ): RegistroAtividade {
-        return $this->registrarNoProjeto(TipoRegistro::AvaliacaoDesignacaoRetirada, $projeto, $admin, [
+        return $this->registrarNoProjeto(TipoRegistro::AvaliacaoDesignacaoRetirada, $projeto, $admin, array_filter([
             'campo' => $situacao,
             'de' => $de,
             'para' => $para ?? '(sem avaliador)',
-        ]);
+            // A retirada de uma avaliação já aberta pede o motivo (Sprint 238).
+            'justificativa' => $justificativa,
+        ], fn ($v) => $v !== null));
     }
 
     /**

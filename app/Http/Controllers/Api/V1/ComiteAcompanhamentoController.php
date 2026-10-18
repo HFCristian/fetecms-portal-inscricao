@@ -37,6 +37,8 @@ class ComiteAcompanhamentoController extends Controller
             'online_ids.*' => ['integer'],
             'estande_ids' => ['array', 'max:200', 'required_without:online_ids'],
             'estande_ids.*' => ['integer'],
+            // Obrigatória para tirar avaliação aberta ou enviada; quem confere é o serviço.
+            'justificativa' => ['nullable', 'string', 'max:1000'],
         ], [
             'online_ids.required_without' => 'Escolha ao menos uma designação.',
             'estande_ids.required_without' => 'Escolha ao menos uma designação.',
@@ -47,11 +49,18 @@ class ComiteAcompanhamentoController extends Controller
             array_map('intval', $dados['online_ids'] ?? []),
             array_map('intval', $dados['estande_ids'] ?? []),
             $request->user(),
+            $dados['justificativa'] ?? null,
         );
+
+        $partes = array_filter([
+            $resultado['designacoes'] ? $resultado['designacoes'].' designação(ões)' : null,
+            $resultado['em_andamento'] ? $resultado['em_andamento'].' em andamento' : null,
+            $resultado['avaliadas'] ? $resultado['avaliadas'].' já avaliada(s)' : null,
+        ]);
 
         return response()->json([
             'data' => $resultado,
-            'meta' => ['message' => $resultado['retiradas'].' designação(ões) retirada(s) de '.$avaliador->name.'.'],
+            'meta' => ['message' => 'Removido de '.$avaliador->name.': '.implode(', ', $partes).'.'],
         ]);
     }
 }
