@@ -52,6 +52,14 @@ export const designarPeloComite = (projetoIds, avaliadorIds) =>
         avaliador_ids: avaliadorIds,
     }).then((r) => r.data);
 
+// --- Acompanhamento das avaliações do comitê ----------------------------------
+//
+// Cada avaliador da comissão com o que está avaliando e o mapa do evento só
+// com as avaliações do comitê. Sem turno, o servidor escolhe o turno em foco.
+
+export const getAcompanhamentoComite = (turno) =>
+    http.get('/admin/comite/acompanhamento', { params: turno ? { turno } : {} }).then((r) => r.data.data);
+
 // --- Premiação (Sprint 190) --------------------------------------------------
 //
 // A mesma base de Avaliação presencial → Credenciais e Prêmios: o comitê

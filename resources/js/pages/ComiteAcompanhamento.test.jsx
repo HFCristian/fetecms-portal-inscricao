@@ -1,0 +1,129 @@
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+vi.mock('../components/AppShell.jsx', () => ({ default: ({ children }) => <div>{children}</div> }));
+vi.mock('react-router-dom', () => ({ Link: ({ children }) => <a>{children}</a> }));
+
+const getAcompanhamentoComite = vi.fn();
+vi.mock('../lib/comite.js', () => ({
+    getAcompanhamentoComite: (...a) => getAcompanhamentoComite(...a),
+}));
+
+import ComiteAcompanhamento from './ComiteAcompanhamento.jsx';
+
+const projeto = (over = {}) => ({
+    avaliacao_id: 1, projeto_id: 10, titulo: 'Abelhas nativas', codigo: 'FET.AGR-001', estande: 42,
+    turno: 'A', turno_label: 'Turno A (matutino)', vaga_label: 'Comissão especial', situacao: 'em_avaliacao',
+    iniciada_em: null, concluida_em: null, ...over,
+});
+
+const linha = (over = {}) => ({
+    numero: 42, projeto_id: 10, titulo: 'Abelhas nativas', codigo: 'FET.AGR-001', area: 'Ciências Agrárias',
+    area_sigla: 'AGR', categoria: 'FETECMS', pronto: true, concluidas: 0, em_avaliacao: 1, designadas: 0,
+    situacao: 'em_avaliacao',
+    avaliacoes: [{ avaliacao_id: 1, avaliador: 'Ana Comissão', situacao: 'em_avaliacao', vaga_label: 'Comissão especial', iniciada_em: null, concluida_em: null }],
+    ...over,
+});
+
+const DADOS = {
+    turno: 'A',
+    turno_label: 'Turno A (matutino)',
+    turnos: [{ value: 'A', label: 'Turno A (matutino)' }, { value: 'B', label: 'Turno B (vespertino)' }],
+    turno_em_andamento: 'A',
+    vagas_comite: 1,
+    avaliadores: [
+        {
+            id: 1, nome: 'Ana Comissão', area: 'Agrárias', situacao: 'avaliando', apenas_presencial: false,
+            em_avaliacao: [projeto()], designadas: [], concluidas: [], expiradas: 0, ultima_concluida_em: null,
+        },
+        {
+            id: 2, nome: 'Bruno Livre', area: 'Biológicas', situacao: 'livre', apenas_presencial: false,
+            em_avaliacao: [], designadas: [], concluidas: [projeto({ avaliacao_id: 2, titulo: 'Horta', situacao: 'concluida' })],
+            expiradas: 0, ultima_concluida_em: null,
+        },
+    ],
+    mapa: {
+        layout: [{ numero: 42, x: 0, y: 0 }, { numero: 43, x: 1, y: 0 }],
+        estandes: {
+            42: linha(),
+            43: linha({ numero: 43, projeto_id: 11, titulo: 'Solo vivo', situacao: 'pendente', em_avaliacao: 0, avaliacoes: [] }),
+        },
+        fora_da_planta: [],
+    },
+};
+
+describe('ComiteAcompanhamento', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        getAcompanhamentoComite.mockResolvedValue(DADOS);
+    });
+
+    it('lista cada avaliador da comissão com o projeto que está avaliando', async () => {
+        render(<ComiteAcompanhamento />);
+
+        expect(await screen.findByText('Ana Comissão')).toBeInTheDocument();
+        expect(screen.getByText('Abelhas nativas')).toBeInTheDocument();
+        expect(screen.getByText(/FET\.AGR-001 · Estande 042 · Turno A \(matutino\)/)).toBeInTheDocument();
+        expect(screen.getByText('Avaliando agora', { selector: 'span' })).toBeInTheDocument();
+        // O turno não foi escolhido: o servidor decide.
+        expect(getAcompanhamentoComite).toHaveBeenCalledWith(undefined);
+    });
+
+    it('filtra a lista pela busca e pela situação', async () => {
+        render(<ComiteAcompanhamento />);
+        await screen.findByText('Ana Comissão');
+
+        fireEvent.change(screen.getByLabelText('Situação do avaliador'), { target: { value: 'livre' } });
+        expect(screen.queryByText('Ana Comissão')).not.toBeInTheDocument();
+        expect(screen.getByText('Bruno Livre')).toBeInTheDocument();
+
+        fireEvent.change(screen.getByLabelText('Situação do avaliador'), { target: { value: '' } });
+        fireEvent.change(screen.getByLabelText('Buscar por avaliador, projeto, código ou estande'), { target: { value: 'horta' } });
+        expect(screen.queryByText('Ana Comissão')).not.toBeInTheDocument();
+        expect(screen.getByText('Bruno Livre')).toBeInTheDocument();
+    });
+
+    it('o mapa pinta só as avaliações do comitê e abre o estande clicado', async () => {
+        render(<ComiteAcompanhamento />);
+        await screen.findByText('Ana Comissão');
+
+        fireEvent.click(screen.getByRole('tab', { name: /Mapa/ }));
+
+        const estande = screen.getByRole('button', { name: /Estande 042 · Abelhas nativas · Em avaliação agora/ });
+        expect(screen.getByRole('button', { name: /Estande 043 · Solo vivo · Sem avaliação do comitê/ })).toBeInTheDocument();
+
+        fireEvent.click(estande);
+        const detalhe = screen.getByRole('region', { name: 'Estande 042' });
+        expect(within(detalhe).getByText('Ana Comissão')).toBeInTheDocument();
+    });
+
+    it('o mapa tem dashboard e troca de turno no servidor', async () => {
+        render(<ComiteAcompanhamento />);
+        await screen.findByText('Ana Comissão');
+        fireEvent.click(screen.getByRole('tab', { name: /Mapa/ }));
+
+        const painel = screen.getByRole('complementary', { name: 'Dashboard do comitê' });
+        expect(within(painel).getByText('Avaliações do comitê')).toBeInTheDocument();
+        expect(within(painel).getByText('2 projeto(s) no Turno A (matutino) · meta de 1 por projeto')).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Fechar o dashboard' }));
+        expect(screen.queryByRole('complementary', { name: 'Dashboard do comitê' })).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('radio', { name: /Turno B/ }));
+        await waitFor(() => expect(getAcompanhamentoComite).toHaveBeenLastCalledWith('B'));
+    });
+
+    it('sem ninguém na comissão, explica onde marcar', async () => {
+        getAcompanhamentoComite.mockResolvedValue({ ...DADOS, avaliadores: [] });
+        render(<ComiteAcompanhamento />);
+
+        expect(await screen.findByText(/Ninguém está marcado como comissão especial/)).toBeInTheDocument();
+    });
+
+    it('falha na primeira carga vira aviso', async () => {
+        getAcompanhamentoComite.mockRejectedValue(new Error('rede'));
+        render(<ComiteAcompanhamento />);
+
+        expect(await screen.findByText('Não foi possível carregar o acompanhamento.')).toBeInTheDocument();
+    });
+});
