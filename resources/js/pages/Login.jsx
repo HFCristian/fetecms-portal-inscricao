@@ -39,7 +39,7 @@ function BloqueioTentativas({ mensagem, restante, total }) {
 }
 
 export default function Login() {
-    const { login } = useAuth();
+    const { login, sessaoExpirada } = useAuth();
     const navigate = useNavigate();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -79,6 +79,14 @@ export default function Login() {
                 <p className="text-sm text-on-surface-variant mb-8">
                     Informe seu e-mail e senha para acessar o portal.
                 </p>
+
+                {sessaoExpirada && !error && (
+                    <div className="mb-4">
+                        <Alert type="info">
+                            Sua sessão expirou ou foi encerrada no servidor. Entre de novo para continuar de onde parou.
+                        </Alert>
+                    </div>
+                )}
 
                 <div className="mb-4">
                     {bloqueado ? (

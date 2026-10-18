@@ -10,8 +10,9 @@ vi.mock('react-router-dom', async (importOriginal) => {
 
 const loginMock = vi.fn();
 const extractErrorsMock = vi.fn(() => ({ message: 'erro', fields: {} }));
+let sessaoExpirada = false;
 vi.mock('../lib/auth.jsx', () => ({
-    useAuth: () => ({ login: loginMock }),
+    useAuth: () => ({ login: loginMock, sessaoExpirada }),
     extractErrors: (e) => extractErrorsMock(e),
     homeFor: (role) => (role === 'avaliador' ? '/avaliador' : role === 'admin' ? '/admin' : '/projetos'),
 }));
@@ -27,9 +28,23 @@ function preencherEEnviar() {
 describe('Login', () => {
     beforeEach(() => {
         navigateMock.mockClear();
+        sessaoExpirada = false;
         loginMock.mockReset();
         extractErrorsMock.mockReset();
         extractErrorsMock.mockReturnValue({ message: 'erro', fields: {} });
+    });
+
+    it('quem caiu por sessão expirada chega ao login com a explicação', () => {
+        sessaoExpirada = true;
+        render(<MemoryRouter><Login /></MemoryRouter>);
+
+        expect(screen.getByText(/Sua sessão expirou ou foi encerrada no servidor/)).toBeInTheDocument();
+    });
+
+    it('sem sessão expirada, nenhum aviso extra', () => {
+        render(<MemoryRouter><Login /></MemoryRouter>);
+
+        expect(screen.queryByText(/Sua sessão expirou/)).not.toBeInTheDocument();
     });
 
     it('redireciona o avaliador para /avaliador (home do papel, não /projetos)', async () => {
