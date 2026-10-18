@@ -26,8 +26,9 @@ use Tests\TestCase;
 /**
  * Avaliação presencial — lado do avaliador (Sprints 135, 171 e 221): quem
  * confirmou o presencial avalia no estande durante o turno em andamento — com
- * ou sem designação, escolhendo pelo mapa —, com a rubrica presencial, o
- * checklist dos itens da checagem e nota separada da online.
+ * ou sem designação, escolhendo pelo mapa —, com a rubrica presencial e nota
+ * separada da online. O checklist dos itens do estande saiu na Sprint 237: o
+ * que o estande tem é conferido na checagem.
  */
 class AvaliacaoPresencialFluxoTest extends TestCase
 {
@@ -120,7 +121,7 @@ class AvaliacaoPresencialFluxoTest extends TestCase
     /** @return array<string, mixed> */
     private function envio(int $ponto = 10): array
     {
-        return ['respostas' => $this->respostasCheias($ponto), 'itens' => [$this->banner->id => 'presente']];
+        return ['respostas' => $this->respostasCheias($ponto)];
     }
 
     private function abrir(Projeto $projeto): int
@@ -225,7 +226,8 @@ class AvaliacaoPresencialFluxoTest extends TestCase
             ->assertJsonPath('data.turno.chave', '2026-10-20|A')
             ->assertJsonCount(1, 'data.disponiveis')
             ->assertJsonPath('data.disponiveis.0.titulo', 'Bioplástico de mandioca')
-            ->assertJsonPath('data.itens.0.nome', 'Banner montado');
+            // O catálogo da checagem existe, mas não vai mais para o avaliador.
+            ->assertJsonMissingPath('data.itens');
 
         $this->postJson("/api/v1/avaliador/presencial/avaliacoes/projetos/{$this->projeto->id}")
             ->assertOk()
@@ -373,15 +375,14 @@ class AvaliacaoPresencialFluxoTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.status', 'concluida')
             ->assertJsonPath('data.nota', 10)
-            ->assertJsonPath('data.itens.'.$this->banner->id, 'presente');
+            ->assertJsonMissingPath('data.itens');
 
-        // "Regular" (60%) nos 8,500 da escala e Sim nos 1,500 dos documentos;
-        // o checklist não muda nada.
+        // "Regular" (60%) nos 8,500 da escala e Sim nos 1,500 dos documentos.
         $outro = $this->finalista('Compostagem');
         $id2 = $this->abrir($outro);
 
         $this->postJson("/api/v1/avaliador/presencial/avaliacoes/{$id2}/concluir", [
-            'respostas' => $this->respostasCheias(6), 'itens' => [$this->banner->id => 'ausente'],
+            'respostas' => $this->respostasCheias(6),
         ])->assertOk()->assertJsonPath('data.nota', 6.6);
     }
 
@@ -396,7 +397,7 @@ class AvaliacaoPresencialFluxoTest extends TestCase
         unset($respostas['uso_ia_declarado']);
 
         $this->postJson("/api/v1/avaliador/presencial/avaliacoes/{$id}/concluir", [
-            'respostas' => $respostas, 'itens' => [$this->banner->id => 'presente'],
+            'respostas' => $respostas,
         ])->assertOk()->assertJsonPath('data.nota', 9.436);
 
         $this->assertArrayNotHasKey('diario_registro', AvaliacaoPresencial::find($id)->respostas);
@@ -409,40 +410,43 @@ class AvaliacaoPresencialFluxoTest extends TestCase
 
         // A 6.1 em "Muito ruim" rende 0,2274: duas casas apagariam o desempate.
         $this->postJson("/api/v1/avaliador/presencial/avaliacoes/{$id}/concluir", [
-            'respostas' => [...$this->respostasCheias(), 'apresentacao' => 2], 'itens' => [$this->banner->id => 'presente'],
+            'respostas' => [...$this->respostasCheias(), 'apresentacao' => 2],
         ])->assertOk()->assertJsonPath('data.nota', 9.0904);
 
         $this->assertSame(9.0904, AvaliacaoPresencial::find($id)->nota);
     }
 
-    public function test_envio_sem_todas_as_perguntas_ou_sem_o_checklist_e_recusado(): void
+    public function test_envio_sem_todas_as_perguntas_e_recusado_e_o_checklist_nao_e_cobrado(): void
     {
         Sanctum::actingAs($this->avaliador);
         $id = $this->abrir($this->projeto);
 
         $this->postJson("/api/v1/avaliador/presencial/avaliacoes/{$id}/concluir", [
-            'respostas' => ['apresentacao' => 10], 'itens' => [$this->banner->id => 'presente'],
+            'respostas' => ['apresentacao' => 10],
         ])->assertStatus(422)->assertJsonValidationErrors('respostas');
 
+        // Com item de checagem ativo no catálogo, e nenhum marcado: envia.
         $this->postJson("/api/v1/avaliador/presencial/avaliacoes/{$id}/concluir", [
             'respostas' => $this->respostasCheias(),
-        ])->assertStatus(422)->assertJsonValidationErrors('itens');
+        ])->assertOk()->assertJsonPath('data.status', 'concluida');
     }
 
-    public function test_rascunho_guarda_respostas_e_checklist(): void
+    public function test_rascunho_guarda_respostas_e_nao_mexe_no_checklist_antigo(): void
     {
         Sanctum::actingAs($this->avaliador);
         $id = $this->abrir($this->projeto);
+        // O que foi marcado antes da Sprint 237 fica onde estava.
+        AvaliacaoPresencial::find($id)->forceFill(['itens_conferidos' => [$this->banner->id => 'presente']])->save();
 
         $this->postJson("/api/v1/avaliador/presencial/avaliacoes/{$id}/rascunho", [
             'respostas' => ['apresentacao' => 8, 'projeto_impresso' => 'sim', 'inexistente' => 10],
-            'itens' => [$this->banner->id => 'presente', 9999 => 'presente'],
+            'itens' => [$this->banner->id => 'ausente'],
             'comentario' => 'voltar depois',
         ])->assertOk()
             ->assertJsonPath('data.respostas.apresentacao', 8)
             ->assertJsonPath('data.respostas.projeto_impresso', 'sim');
 
-        // O que está fora da rubrica ou do catálogo é descartado.
+        // O que está fora da rubrica é descartado; o checklist enviado é ignorado.
         $avaliacao = AvaliacaoPresencial::find($id);
         $this->assertArrayNotHasKey('inexistente', $avaliacao->respostas);
         $this->assertSame([$this->banner->id => 'presente'], $avaliacao->itens_conferidos);

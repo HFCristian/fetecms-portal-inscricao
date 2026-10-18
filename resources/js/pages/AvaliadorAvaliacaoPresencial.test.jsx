@@ -71,13 +71,11 @@ const RUBRICA = {
     ],
 };
 
-const ITENS = [{ id: 3, nome: 'Banner montado', descricao: null }];
-
 const PAINEL = {
     aberto: true, motivo_fechado: null, aceitou: true, modo_teste: false, is_demo: false,
     turno: { chave: '2026-10-20|A', rotulo: '20/10 · Turno A (matutino) · 08:00–12:00', prazo_label: '12:30' },
     max_por_projeto: 3,
-    rubrica: RUBRICA, itens: ITENS,
+    rubrica: RUBRICA,
     minhas: [],
     disponiveis: [{ id: 7, titulo: 'Bioplástico', area: 'Agrárias', local: { estande: 42, turno_label: 'Turno A (matutino)' }, avaliacoes: 1 }],
     mapa: {
@@ -98,7 +96,7 @@ const PAINEL = {
 
 const AVALIACAO = {
     id: 5, status: 'em_andamento', status_label: 'Em andamento', pode_escrever: true, prazo_label: '20/10 12:30',
-    respostas: {}, itens: {}, comentario: null, nota: null, nota_maxima: 10,
+    respostas: {}, comentario: null, nota: null, nota_maxima: 10,
     projeto: {
         id: 7, titulo: 'Bioplástico', categoria: 'FETECMS', area: 'Agrárias', escola: 'EE Alfa',
         orientador: 'Marta', alunos: ['Ana'], resumo: 'Plástico de mandioca.', palavras_chave: [],
@@ -155,22 +153,20 @@ describe('AvaliadorAvaliacaoPresencial', () => {
         expect(screen.queryByText('Estandes disponíveis')).not.toBeInTheDocument();
     });
 
-    it('wizard: o checklist dos itens é o primeiro passo, depois uma seção por passo, e envio só completo', async () => {
+    it('wizard: uma seção por passo, sem os itens do estande, e envio só completo', async () => {
         render(<AvaliadorAvaliacaoPresencial />);
         await abrirDisponivel();
 
         await waitFor(() => expect(iniciarAvaliacaoPresencial).toHaveBeenCalledWith(7, false));
-        expect(await screen.findByRole('heading', { name: 'Itens do estande' })).toBeInTheDocument();
-        expect(screen.getByText('Passo 1 de 4')).toBeInTheDocument();
+        // Os itens do estande ficaram na checagem: o primeiro passo já é a rubrica.
+        expect(await screen.findByRole('heading', { name: 'Projeto de Pesquisa' })).toBeInTheDocument();
+        expect(screen.getByText('Passo 1 de 3')).toBeInTheDocument();
+        expect(screen.queryByText('Itens do estande')).not.toBeInTheDocument();
         // A leitura do projeto vem junto, com o documento para baixar.
         fireEvent.click(screen.getByRole('button', { name: /Mostrar/ }));
         expect(screen.getByRole('link', { name: /plano.pdf/ })).toHaveAttribute('href', '/api/v1/documentos/1/download');
 
-        fireEvent.click(screen.getByLabelText('Banner montado: Presente'));
-        fireEvent.click(screen.getByRole('button', { name: 'Avançar' }));
-
         // Projeto de pesquisa: a 2.2 só aparece depois do "Sim" na 2.1.
-        expect(await screen.findByRole('heading', { name: 'Projeto de Pesquisa' })).toBeInTheDocument();
         expect(screen.queryByText(/normas da ABNT/)).not.toBeInTheDocument();
         fireEvent.click(screen.getByLabelText('Sim'));
         expect(await screen.findByText(/normas da ABNT/)).toBeInTheDocument();
@@ -190,14 +186,13 @@ describe('AvaliadorAvaliacaoPresencial', () => {
         await waitFor(() => expect(concluirAvaliacaoPresencial).toHaveBeenCalledWith(
             5, {
                 respostas: { projeto_impresso: 'sim', projeto_abnt: 'sim', diario_manuscrito: 'sim', diario_registro: 10 },
-                itens: { 3: 'presente' },
                 comentario: null,
             }, false,
         ));
         expect(await screen.findByText(/Avaliação concluída — nota/)).toBeInTheDocument();
     });
 
-    it('sem o checklist dos itens o envio fica travado', async () => {
+    it('com as perguntas respondidas o envio libera — nenhum item do estande é cobrado', async () => {
         render(<AvaliadorAvaliacaoPresencial />);
         await abrirDisponivel();
 
@@ -207,7 +202,48 @@ describe('AvaliadorAvaliacaoPresencial', () => {
         fireEvent.click(screen.getByLabelText('Não'));
         fireEvent.click(screen.getByRole('button', { name: 'Ir para Parecer' }));
 
-        expect(screen.getByRole('button', { name: /Enviar avaliação/ })).toBeDisabled();
+        expect(screen.getByRole('button', { name: /Enviar avaliação/ })).toBeEnabled();
+    });
+
+    it('ao trocar de seção, a completa fica verde e a que ficou pela metade, amarela', async () => {
+        render(<AvaliadorAvaliacaoPresencial />);
+        await abrirDisponivel();
+
+        const atalho = (nome) => screen.getByRole('button', { name: new RegExp(`^Ir para ${nome}`) });
+        await screen.findByRole('heading', { name: 'Projeto de Pesquisa' });
+        // Antes de sair, a seção aberta tem o destaque de sempre e as outras ficam neutras.
+        expect(atalho('Projeto de Pesquisa')).toHaveAttribute('data-situacao', 'atual');
+        expect(atalho('Diário de Bordo')).toHaveAttribute('data-situacao', 'neutra');
+
+        // Sai do Projeto de Pesquisa com a 2.2 em branco: amarela.
+        fireEvent.click(screen.getByLabelText('Sim'));
+        fireEvent.click(screen.getByRole('button', { name: 'Avançar' }));
+        expect(atalho('Projeto de Pesquisa')).toHaveAttribute('data-situacao', 'pendente');
+        expect(atalho('Projeto de Pesquisa')).toHaveClass('bg-yellow-100');
+        expect(atalho('Projeto de Pesquisa')).toHaveAccessibleName('Ir para Projeto de Pesquisa (falta responder)');
+
+        // Sai do Diário de Bordo completo: verde, com o ícone de concluída.
+        fireEvent.click(screen.getByLabelText('Não'));
+        fireEvent.click(screen.getByRole('button', { name: 'Avançar' }));
+        expect(atalho('Diário de Bordo')).toHaveAttribute('data-situacao', 'completa');
+        expect(atalho('Diário de Bordo')).toHaveClass('bg-secondary-container/60');
+        expect(atalho('Diário de Bordo')).toHaveTextContent('check_circle');
+
+        // Volta, completa a 2.2 e sai de novo: o amarelo vira verde.
+        fireEvent.click(atalho('Projeto de Pesquisa'));
+        fireEvent.click(screen.getAllByLabelText('Sim')[1]);
+        fireEvent.click(atalho('Parecer'));
+        expect(atalho('Projeto de Pesquisa')).toHaveAttribute('data-situacao', 'completa');
+    });
+
+    it('retomando um rascunho, a seção que já tem resposta conta como visitada', async () => {
+        iniciarAvaliacaoPresencial.mockResolvedValue({ ...AVALIACAO, respostas: { diario_manuscrito: 'nao' } });
+        render(<AvaliadorAvaliacaoPresencial />);
+        await abrirDisponivel();
+
+        await screen.findByRole('heading', { name: 'Projeto de Pesquisa' });
+        expect(screen.getByRole('button', { name: /^Ir para Diário de Bordo/ })).toHaveAttribute('data-situacao', 'completa');
+        expect(screen.getByRole('button', { name: /^Ir para Parecer/ })).toHaveAttribute('data-situacao', 'neutra');
     });
 
     it('sem o projeto impresso a 2.2 some e vale 0', async () => {
@@ -226,7 +262,7 @@ describe('AvaliadorAvaliacaoPresencial', () => {
 
         fireEvent.click(screen.getByRole('button', { name: /Salvar rascunho/ }));
         await waitFor(() => expect(salvarRascunhoPresencial).toHaveBeenCalledWith(
-            5, { respostas: { projeto_impresso: 'nao' }, itens: {}, comentario: null }, false,
+            5, { respostas: { projeto_impresso: 'nao' }, comentario: null }, false,
         ));
     });
 
@@ -240,7 +276,7 @@ describe('AvaliadorAvaliacaoPresencial', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Iniciar' }));
 
         await waitFor(() => expect(iniciarAvaliacaoPresencial).toHaveBeenCalledWith(7, false));
-        expect(await screen.findByRole('heading', { name: 'Itens do estande' })).toBeInTheDocument();
+        expect(await screen.findByRole('heading', { name: 'Projeto de Pesquisa' })).toBeInTheDocument();
     });
 
     it('no mapa: o estande que já está com ele abre a avaliação; o que não está pronto explica', async () => {
@@ -292,18 +328,17 @@ describe('AvaliadorAvaliacaoPresencial', () => {
         await waitFor(() => expect(iniciarAvaliacaoPresencial).toHaveBeenCalledWith(11, false));
     });
 
-    it('salva o rascunho com o checklist', async () => {
+    it('salva o rascunho sem checklist', async () => {
         render(<AvaliadorAvaliacaoPresencial />);
         await abrirDisponivel();
 
-        fireEvent.click(await screen.findByLabelText('Banner montado: Presente'));
-        fireEvent.click(screen.getByRole('button', { name: 'Ir para Diário de Bordo' }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Ir para Diário de Bordo' }));
         fireEvent.click(screen.getByLabelText('Sim'));
         fireEvent.click(await screen.findByLabelText('Bom (8)'));
         fireEvent.click(screen.getByRole('button', { name: /Salvar rascunho/ }));
 
         await waitFor(() => expect(salvarRascunhoPresencial).toHaveBeenCalledWith(
-            5, { respostas: { diario_manuscrito: 'sim', diario_registro: 8 }, itens: { 3: 'presente' }, comentario: null }, false,
+            5, { respostas: { diario_manuscrito: 'sim', diario_registro: 8 }, comentario: null }, false,
         ));
     });
 
@@ -323,7 +358,7 @@ describe('AvaliadorAvaliacaoPresencial', () => {
 
         fireEvent.click(screen.getByRole('button', { name: /Salvar rascunho/ }));
         await waitFor(() => expect(salvarRascunhoPresencial).toHaveBeenCalledWith(
-            5, { respostas: { diario_manuscrito: 'nao' }, itens: {}, comentario: null }, false,
+            5, { respostas: { diario_manuscrito: 'nao' }, comentario: null }, false,
         ));
     });
 

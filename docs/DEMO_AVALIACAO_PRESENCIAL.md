@@ -76,9 +76,9 @@ aparece e vale 0).
 **Como avaliador** — entre com `avaliador@fetecms.test`, abra a aba
 **Avaliação presencial** e ligue o **Modo de teste**. Os três estandes aparecem
 abaixo do mapa (*Estandes fora da planta*, porque 901–903 não estão na prancha)
-e em *Estandes disponíveis*; clicar abre o wizard: leitura do projeto, o
-checklist dos itens (primeiro passo), um passo por seção da rubrica e o
-parecer.
+e em *Estandes disponíveis*; clicar abre o wizard: leitura do projeto, um passo
+por seção da rubrica e o parecer. Os itens do estande não aparecem ali: são
+conferidos na checagem, pela organização.
 
 **Como admin** — marque um administrador como demo (aba Administradores), abra
 **Avaliação presencial → Distribuição presencial** e ligue o **Modo de teste**:

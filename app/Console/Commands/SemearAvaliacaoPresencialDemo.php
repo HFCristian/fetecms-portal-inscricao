@@ -334,7 +334,7 @@ class SemearAvaliacaoPresencialDemo extends Command
         }
     }
 
-    /** O checklist do avaliador sai deste catálogo; sem ele, o passo some. */
+    /** Os itens que a checagem do estande confere; sem eles, ela não tem o que marcar. */
     private function semearItens(): int
     {
         // Os itens do sistema (os termos) não contam: "vazio" é sem nenhum

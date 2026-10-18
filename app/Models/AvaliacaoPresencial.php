@@ -41,6 +41,7 @@ class AvaliacaoPresencial extends Model
             'dia' => 'date:Y-m-d',
             'turno' => Turno::class,
             'respostas' => 'array',
+            // Só o que foi marcado até a Sprint 236: o checklist saiu do wizard.
             'itens_conferidos' => 'array',
             'nota' => 'float',
             'designacao_manual' => 'boolean',
