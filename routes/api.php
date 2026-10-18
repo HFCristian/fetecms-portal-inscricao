@@ -58,6 +58,7 @@ use App\Http\Controllers\Api\V1\OrientadorAjusteController;
 use App\Http\Controllers\Api\V1\OrientadorController;
 use App\Http\Controllers\Api\V1\PainelPremiacaoController;
 use App\Http\Controllers\Api\V1\ParametrizacaoAbasController;
+use App\Http\Controllers\Api\V1\ParametrizacaoAgendaPresencialController;
 use App\Http\Controllers\Api\V1\ParametrizacaoCredenciamentoController;
 use App\Http\Controllers\Api\V1\PerfilController;
 use App\Http\Controllers\Api\V1\PresencaContaTemporariaController;
@@ -705,6 +706,11 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::get('/credenciamento', [ParametrizacaoCredenciamentoController::class, 'show']);
                 Route::patch('/credenciamento/janela', [ParametrizacaoCredenciamentoController::class, 'definirJanela']);
                 Route::patch('/credenciamento/itens', [ParametrizacaoCredenciamentoController::class, 'definirItens']);
+
+                // Parametrização → Datas e períodos → turnos da avaliação presencial
+                // (Sprint 224): o horário de cada turno e da avaliação, dia a dia.
+                Route::get('/agenda-presencial', [ParametrizacaoAgendaPresencialController::class, 'show']);
+                Route::put('/agenda-presencial', [ParametrizacaoAgendaPresencialController::class, 'definir']);
 
                 // Parametrização → Itens do credenciamento e da checagem (Sprint
                 // 181): a lista única que os dois balcões conferem.

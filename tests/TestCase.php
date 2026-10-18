@@ -45,6 +45,19 @@ abstract class TestCase extends BaseTestCase
         );
     }
 
+    /**
+     * A agenda da avaliação presencial (Sprint 224) com o mesmo horário em
+     * cada dia pedido — a avaliação em branco vai do início do turno até 30
+     * minutos depois do fim.
+     *
+     * @param  array<string, array<string, string>>  $horarios  turno => {inicio, fim[, avaliacao_inicio, avaliacao_fim]}
+     * @return array<string, array<string, array<string, string>>>
+     */
+    protected static function agendaPresencial(array $horarios, string ...$dias): array
+    {
+        return array_fill_keys($dias, $horarios);
+    }
+
     /** O código de 6 dígitos do último e-mail de confirmação disparado. */
     protected function codigoEnviado(): string
     {

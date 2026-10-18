@@ -38,8 +38,9 @@ use Illuminate\Validation\ValidationException;
  *   checado, com vaga — comum, ou da comissão especial para quem é dela
  *   (Sprint 222).
  *
- * Cada avaliação vale até o **fim do turno em que foi entregue + 30 minutos**:
- * a margem é para terminar o que se abriu, e nada novo começa nela.
+ * Cada avaliação vale até o **fim do horário de avaliação** do turno em que foi
+ * entregue (Parametrização → Datas e períodos, Sprint 224). O que passa do fim
+ * do turno é margem, para terminar o que se abriu — nada novo começa nela.
  *
  * A avaliação segue o modelo da online (Sprint 171): um passo por seção da
  * rubrica presencial, balão de orientação, leitura do projeto, rascunho a
@@ -126,8 +127,6 @@ class AvaliacaoPresencialFluxoService
             'modo_teste' => $modoTeste,
             'is_demo' => (bool) $avaliador->is_demo,
             'turno' => $turno,
-            'horarios' => (object) $janela->horarios(),
-            'margem_minutos' => JanelaTurnos::MARGEM_MINUTOS,
             'rubrica' => RubricaPresencial::paraApi(),
             'itens' => $this->catalogo(),
             'max_por_projeto' => $janela->porProjeto(),
@@ -336,7 +335,7 @@ class AvaliacaoPresencialFluxoService
 
     /**
      * A ocorrência em que ele pode **começar** algo agora: o turno acontecendo
-     * (sem a margem). No modo de teste, a da agenda em foco — o ensaio não
+     * (dentro do horário de avaliação, sem a margem). No modo de teste, a da agenda em foco — o ensaio não
      * espera o relógio.
      *
      * @return array<string, mixed>|null
@@ -397,7 +396,7 @@ class AvaliacaoPresencialFluxoService
         if (! $this->podeEscrever($avaliacao, $avaliador, $modoTeste, $janela)) {
             throw ValidationException::withMessages([
                 'periodo' => $avaliacao->expirada($janela)
-                    ? 'O prazo desta avaliação acabou com o turno (e os 30 minutos de margem).'
+                    ? 'O prazo desta avaliação acabou: o horário de avaliação do turno terminou.'
                     : ($modoTeste || $this->liberacao->liberado($avaliador)
                 ? 'Esta avaliação é de um turno que ainda não começou.'
                 : 'Sua participação na avaliação presencial não está liberada.'),
@@ -415,7 +414,7 @@ class AvaliacaoPresencialFluxoService
 
         if ($ocorrencia === null && ! $modoTeste) {
             throw ValidationException::withMessages([
-                'periodo' => 'Novas avaliações só começam durante o turno — nos 30 minutos de margem, termine as que já abriu.',
+                'periodo' => 'Novas avaliações só começam no horário de avaliação do turno — depois do fim do turno, termine as que já abriu.',
             ]);
         }
 

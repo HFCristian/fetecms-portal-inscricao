@@ -160,11 +160,10 @@ class AvaliacaoPresencialAdminController extends Controller
         )]);
     }
 
-    /** Horário de cada turno, a fila de cada avaliador e as vagas por projeto. */
+    /** A fila de cada avaliador e as vagas por projeto (os horários estão em Datas e períodos). */
     public function salvarDistribuicao(Request $request): JsonResponse
     {
         $dados = $request->validate([
-            'horarios' => ['nullable', 'array'],
             'fila_avaliador' => ['nullable', 'integer', 'min:1', 'max:50'],
             'comuns_por_projeto' => ['nullable', 'integer', 'min:0', 'max:20'],
             'comite_por_projeto' => ['nullable', 'integer', 'min:0', 'max:20'],
@@ -175,7 +174,7 @@ class AvaliacaoPresencialAdminController extends Controller
 
         return response()->json([
             'data' => $this->distribuicao->painel($request->user(), $request->boolean('teste'), $request->input('dia'), $request->input('turno')),
-            'meta' => ['message' => 'Turnos e números da distribuição salvos.'],
+            'meta' => ['message' => 'Números da distribuição salvos.'],
         ]);
     }
 

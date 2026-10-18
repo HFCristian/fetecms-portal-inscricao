@@ -74,7 +74,7 @@ const ITENS = [{ id: 3, nome: 'Banner montado', descricao: null }];
 const PAINEL = {
     aberto: true, motivo_fechado: null, aceitou: true, modo_teste: false, is_demo: false,
     turno: { chave: '2026-10-20|A', rotulo: '20/10 · Turno A (matutino) · 08:00–12:00', prazo_label: '12:30' },
-    margem_minutos: 30, max_por_projeto: 3,
+    max_por_projeto: 3,
     rubrica: RUBRICA, itens: ITENS,
     minhas: [],
     disponiveis: [{ id: 7, titulo: 'Bioplástico', area: 'Agrárias', local: { estande: 42, turno_label: 'Turno A (matutino)' }, avaliacoes: 1 }],
@@ -388,7 +388,7 @@ describe('AvaliadorAvaliacaoPresencial', () => {
 
         fireEvent.click(await screen.findByRole('button', { name: 'Abrir Bioplástico' }));
 
-        expect(await screen.findByText(/O prazo desta avaliação acabou com o turno/)).toBeInTheDocument();
+        expect(await screen.findByText(/O prazo desta avaliação acabou com o horário de avaliação do turno/)).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: /Salvar rascunho/ })).not.toBeInTheDocument();
     });
 });

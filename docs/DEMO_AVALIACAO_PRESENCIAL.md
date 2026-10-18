@@ -44,8 +44,9 @@ Na edição padrão, sem duplicar nada se rodar de novo:
 
 Opções: `--avaliador=`, `--orientador=` e `--senha=`.
 
-> A agenda vem de **Parametrização → Datas e períodos** (dias do evento) e de
-> **Avaliação presencial → Distribuição presencial** (horário de cada turno).
+> A agenda vem de **Parametrização → Datas e períodos**: o período do evento e,
+> em *Turnos da avaliação presencial*, o horário de cada turno e o da avaliação,
+> dia a dia.
 > Sem ela os turnos não existem — o *Modo de teste* do avaliador funciona assim
 > mesmo, porque ignora o relógio.
 

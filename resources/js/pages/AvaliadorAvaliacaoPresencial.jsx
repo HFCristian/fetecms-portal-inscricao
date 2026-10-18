@@ -82,9 +82,9 @@ export default function AvaliadorAvaliacaoPresencial() {
         <AppShell>
             <h1 className="font-display text-2xl font-semibold text-primary mb-1">Avaliação presencial</h1>
             <p className="text-on-surface-variant mb-4 max-w-3xl">
-                Avalie os estandes dos finalistas durante o turno: escolha o estande no mapa — com ou sem
-                designação — e inicie. Cada avaliação vale até o fim do turno mais{' '}
-                {painel?.margem_minutos ?? 30} minutos.
+                Avalie os estandes dos finalistas no horário de avaliação do turno: escolha o estande no
+                mapa — com ou sem designação — e inicie. Cada avaliação vale até o fim do horário de
+                avaliação do turno em que foi aberta.
             </p>
 
             {painel?.is_demo && (

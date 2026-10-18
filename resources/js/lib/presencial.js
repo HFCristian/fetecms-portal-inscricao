@@ -130,3 +130,14 @@ export const retirarDesignacaoPresencial = (id, ocorrencia = {}, teste = false) 
 
 export const getRankingPresencial = (filtros = {}, teste = false) =>
     http.get('/admin/presencial/ranking', com(filtros, teste)).then((r) => r.data.data);
+
+// --- Agenda da avaliação presencial (Sprint 224) -----------------------------
+// Parametrização → Datas e períodos: o horário de cada turno e o da avaliação,
+// dia a dia. `agenda` é { "Y-m-d": { A: {inicio, fim, avaliacao_inicio,
+// avaliacao_fim} | null, B: … } } e substitui a gravada.
+
+export const getAgendaPresencial = () =>
+    http.get('/admin/agenda-presencial').then((r) => r.data.data);
+
+export const salvarAgendaPresencial = (agenda) =>
+    http.put('/admin/agenda-presencial', { agenda }).then((r) => r.data);

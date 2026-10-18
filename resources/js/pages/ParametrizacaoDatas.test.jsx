@@ -30,7 +30,26 @@ vi.mock('../lib/credenciamento.js', () => ({
     definirJanelaEvento: (...a) => definirJanelaEvento(...a),
 }));
 
+const getAgendaPresencial = vi.fn();
+const salvarAgendaPresencial = vi.fn();
+vi.mock('../lib/presencial.js', () => ({
+    getAgendaPresencial: (...a) => getAgendaPresencial(...a),
+    salvarAgendaPresencial: (...a) => salvarAgendaPresencial(...a),
+}));
+
 import ParametrizacaoDatas from './ParametrizacaoDatas.jsx';
+
+const TURNOS = [{ value: 'A', label: 'Turno A (matutino)' }, { value: 'B', label: 'Turno B (vespertino)' }];
+const agendaPresencial = {
+    dias: [{ dia: '2026-10-20', label: 'ter, 20/10' }, { dia: '2026-10-21', label: 'qua, 21/10' }],
+    turnos: TURNOS,
+    margem_padrao: 30,
+    agenda: {
+        '2026-10-20': { A: { inicio: '08:00', fim: '12:00', avaliacao_inicio: '08:30', avaliacao_fim: '12:15' }, B: null },
+        '2026-10-21': { A: null, B: null },
+    },
+    ocorrencias: [],
+};
 
 const inscricoes = {
     abertas: true, encerradas: false, nao_iniciadas: false,
@@ -56,6 +75,54 @@ describe('ParametrizacaoDatas', () => {
         definirInicioAjustes.mockReset();
         definirFimAjustes.mockReset();
         definirJanelaEvento.mockReset();
+        getAgendaPresencial.mockReset().mockResolvedValue(agendaPresencial);
+        salvarAgendaPresencial.mockReset().mockResolvedValue({ data: agendaPresencial, meta: { message: 'Horários dos turnos salvos.' } });
+    });
+
+    it('turnos da avaliação presencial: cada dia com o horário do turno e o da avaliação', async () => {
+        render(<ParametrizacaoDatas />);
+
+        expect(await screen.findByLabelText('ter, 20/10 · Turno A (matutino) · Início da avaliação')).toHaveValue('08:30');
+        expect(screen.getByLabelText('qua, 21/10 · Turno B (vespertino) · Início do turno')).toHaveValue('');
+
+        fireEvent.change(screen.getByLabelText('qua, 21/10 · Turno B (vespertino) · Início do turno'), { target: { value: '13:00' } });
+        fireEvent.change(screen.getByLabelText('qua, 21/10 · Turno B (vespertino) · Fim do turno'), { target: { value: '17:00' } });
+        fireEvent.click(screen.getByRole('button', { name: /Salvar horários/ }));
+
+        await waitFor(() => expect(salvarAgendaPresencial).toHaveBeenCalledWith(expect.objectContaining({
+            '2026-10-20': expect.objectContaining({ A: { inicio: '08:00', fim: '12:00', avaliacao_inicio: '08:30', avaliacao_fim: '12:15' } }),
+            '2026-10-21': expect.objectContaining({ B: { inicio: '13:00', fim: '17:00', avaliacao_inicio: '', avaliacao_fim: '' } }),
+        })));
+        expect(await screen.findByText('Horários dos turnos salvos.')).toBeInTheDocument();
+    });
+
+    it('turnos: copia o primeiro dia para os demais e limpa um turno', async () => {
+        render(<ParametrizacaoDatas />);
+
+        fireEvent.click(await screen.findByRole('button', { name: /Copiar o primeiro dia para os demais/ }));
+        expect(screen.getByLabelText('qua, 21/10 · Turno A (matutino) · Fim da avaliação')).toHaveValue('12:15');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Limpar Turno A (matutino) de qua, 21/10' }));
+        expect(screen.getByLabelText('qua, 21/10 · Turno A (matutino) · Início do turno')).toHaveValue('');
+    });
+
+    it('turnos: sem período do evento, pede para definir antes', async () => {
+        getAgendaPresencial.mockResolvedValue({ ...agendaPresencial, dias: [], agenda: {} });
+        render(<ParametrizacaoDatas />);
+
+        expect(await screen.findByText(/Defina o período do evento \(acima\)/)).toBeInTheDocument();
+    });
+
+    it('turnos: mostra o erro do servidor', async () => {
+        salvarAgendaPresencial.mockRejectedValue({ response: { status: 422, data: {
+            message: 'Dados inválidos.',
+            errors: { 'agenda.2026-10-20.A.fim': ['20/10, Turno A (matutino): o turno precisa terminar depois de começar.'] },
+        } } });
+        render(<ParametrizacaoDatas />);
+
+        fireEvent.click(await screen.findByRole('button', { name: /Salvar horários/ }));
+
+        expect(await screen.findByText(/o turno precisa terminar depois de começar/)).toBeInTheDocument();
     });
 
     it('reúne as quatro janelas da edição numa tela só', async () => {

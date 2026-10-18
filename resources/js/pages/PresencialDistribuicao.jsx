@@ -16,7 +16,7 @@ const cartao = 'bg-surface-container-lowest rounded-xl fetec-card-shadow p-4';
 
 const SITUACAO = {
     em_andamento: ['Acontecendo agora', 'bg-secondary-container text-on-secondary-container'],
-    margem: ['Nos 30 minutos de margem', 'bg-tertiary-container text-on-tertiary-container'],
+    margem: ['Só para terminar (margem)', 'bg-primary-fixed text-primary-container'],
     futuro: ['Ainda não começou', 'bg-surface-variant text-on-surface-variant'],
     encerrado: ['Encerrado', 'bg-surface-variant text-on-surface-variant'],
 };
@@ -26,46 +26,22 @@ const separar = (chave) => {
     return dia && turno ? { dia, turno } : {};
 };
 
-/** Os horários, a fila de cada avaliador e as vagas de cada projeto. */
+/** A fila de cada avaliador e as vagas de cada projeto. Os horários moram em Datas e períodos. */
 function Configuracao({ dados, salvando, onSalvar }) {
-    const [horarios, setHorarios] = useState(() => ({
-        A: { inicio: dados.horarios?.A?.inicio ?? '', fim: dados.horarios?.A?.fim ?? '' },
-        B: { inicio: dados.horarios?.B?.inicio ?? '', fim: dados.horarios?.B?.fim ?? '' },
-    }));
     const [fila, setFila] = useState(String(dados.fila_avaliador ?? ''));
     const [comuns, setComuns] = useState(String(dados.comuns_por_projeto ?? ''));
     const [comite, setComite] = useState(String(dados.comite_por_projeto ?? ''));
     const [peso, setPeso] = useState(String(dados.peso_comite ?? ''));
     const numero = (v) => (v === '' ? null : Number(v));
 
-    const mudar = (turno, ponta, valor) => setHorarios((h) => ({ ...h, [turno]: { ...h[turno], [ponta]: valor } }));
-
     return (
         <section className={cartao}>
-            <h2 className="font-display text-lg font-semibold text-on-surface mb-1">Turnos e números</h2>
+            <h2 className="font-display text-lg font-semibold text-on-surface mb-1">Números da distribuição</h2>
             <p className="text-sm text-on-surface-variant mb-3">
-                O horário de cada turno vale em todos os dias do evento
-                {dados.evento_de_label ? ` (${dados.evento_de_label} a ${dados.evento_ate_label ?? dados.evento_de_label})` : ''}.
-                Cada avaliação aceita escrita até o fim do turno mais {dados.margem_minutos} minutos.
+                O horário de cada turno e o da avaliação, dia a dia, ficam em{' '}
+                <Link to="/admin/parametrizacao/datas" className="underline">Parametrização → Datas e períodos</Link>.
             </p>
             <div className="grid gap-3 sm:grid-cols-2">
-                {(dados.turnos ?? []).map((t) => (
-                    <fieldset key={t.value} className="border border-outline-variant/40 rounded-lg p-3">
-                        <legend className="text-sm font-semibold text-on-surface px-1">{t.label}</legend>
-                        <div className="flex gap-2">
-                            <label className="flex-1 text-xs text-on-surface-variant">
-                                Início
-                                <input type="time" className={campoClass} aria-label={`Início do ${t.label}`}
-                                    value={horarios[t.value]?.inicio ?? ''} onChange={(e) => mudar(t.value, 'inicio', e.target.value)} />
-                            </label>
-                            <label className="flex-1 text-xs text-on-surface-variant">
-                                Fim
-                                <input type="time" className={campoClass} aria-label={`Fim do ${t.label}`}
-                                    value={horarios[t.value]?.fim ?? ''} onChange={(e) => mudar(t.value, 'fim', e.target.value)} />
-                            </label>
-                        </div>
-                    </fieldset>
-                ))}
                 <label className="text-sm text-on-surface">
                     Projetos por avaliador, por turno
                     <input type="number" min="1" max="50" className={campoClass} aria-label="Projetos por avaliador"
@@ -101,7 +77,6 @@ function Configuracao({ dados, salvando, onSalvar }) {
             </fieldset>
             <div className="flex justify-end mt-3">
                 <Button type="button" loading={salvando} onClick={() => onSalvar({
-                    horarios,
                     fila_avaliador: numero(fila),
                     comuns_por_projeto: numero(comuns),
                     comite_por_projeto: numero(comite),
@@ -215,7 +190,7 @@ export default function PresencialDistribuicao() {
             ) : (
                 <div className="max-w-4xl space-y-4">
                     <Configuracao
-                        key={JSON.stringify([dados.horarios, dados.fila_avaliador, dados.comuns_por_projeto, dados.comite_por_projeto, dados.peso_comite])}
+                        key={JSON.stringify([dados.fila_avaliador, dados.comuns_por_projeto, dados.comite_por_projeto, dados.peso_comite])}
                         dados={dados}
                         salvando={salvando === 'config'}
                         onSalvar={(c) => executar('config', () => salvarDistribuicaoPresencial(c, ocorrencia, modoTeste))}
@@ -223,8 +198,8 @@ export default function PresencialDistribuicao() {
 
                     {!dados.configurada ? (
                         <Alert type="info">
-                            Defina o período do evento (Parametrização → Datas e períodos) e o horário de ao menos um
-                            turno para montar a agenda.
+                            Defina o período do evento e o horário de ao menos um turno em Parametrização → Datas e
+                            períodos para montar a agenda.
                         </Alert>
                     ) : !dados.lista ? (
                         <Alert type="info">A lista final ainda não foi gerada: sem finalistas, não há o que distribuir.</Alert>
@@ -244,7 +219,8 @@ export default function PresencialDistribuicao() {
                                 </div>
                                 {foco?.prazo_label && (
                                     <p className="text-xs text-on-surface-variant mt-2">
-                                        As avaliações deste turno são aceitas até as {foco.prazo_label} ({foco.fim_label} + {dados.margem_minutos} min).
+                                        Turno das {foco.inicio_label} às {foco.fim_label}; avaliação das{' '}
+                                        {foco.avaliacao_inicio_label} às {foco.prazo_label}.
                                     </p>
                                 )}
                             </section>

@@ -68,7 +68,8 @@ class AvaliacaoPresencial extends Model
 
     /**
      * O último instante em que ela aceita escrita: o fim do turno em que foi
-     * entregue, mais a margem. Nulo na designação antiga, sem turno gravado.
+     * entregue — o fim do horário de avaliação dele. Nulo na designação
+     * antiga, sem turno gravado.
      */
     public function prazo(?JanelaTurnos $janela = null): ?CarbonImmutable
     {

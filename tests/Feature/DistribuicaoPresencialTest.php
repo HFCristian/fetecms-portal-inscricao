@@ -50,7 +50,7 @@ class DistribuicaoPresencialTest extends TestCase
         $this->edicao = Edicao::create([
             'nome' => 'XVI FETECMS', 'ano' => 2026, 'padrao' => true, 'inscricoes_abertas' => true,
             'evento_de' => '2026-10-20 07:00', 'evento_ate' => '2026-10-21 18:00',
-            'horarios_turnos' => ['A' => ['inicio' => '08:00', 'fim' => '12:00'], 'B' => ['inicio' => '13:30', 'fim' => '17:30']],
+            'agenda_presencial' => self::agendaPresencial(['A' => ['inicio' => '08:00', 'fim' => '12:00'], 'B' => ['inicio' => '13:30', 'fim' => '17:30']], '2026-10-20', '2026-10-21'),
             'presencial_fila_avaliador' => 2,
             // Duas vagas comuns e nenhuma da comissão: o teto de 2 dos testes de antes.
             'presencial_comuns_por_projeto' => 2,
@@ -107,16 +107,16 @@ class DistribuicaoPresencialTest extends TestCase
 
     // --- Turnos e agenda ---------------------------------------------------
 
-    public function test_salva_os_horarios_e_monta_a_agenda_dos_dias_do_evento(): void
+    public function test_salva_os_numeros_e_mostra_a_agenda_dos_dias_do_evento(): void
     {
+        // Os horários moram em Parametrização → Datas e períodos (Sprint 224).
         $this->patchJson('/api/v1/admin/presencial/distribuicao', [
-            'horarios' => ['A' => ['inicio' => '07:30', 'fim' => '11:30'], 'B' => ['inicio' => '13:00', 'fim' => '17:00']],
             'fila_avaliador' => 4,
             'comuns_por_projeto' => 3,
             'comite_por_projeto' => 1,
             'peso_comite' => 2.5,
         ])->assertOk()
-            ->assertJsonPath('data.horarios.A.inicio', '07:30')
+            ->assertJsonMissingPath('data.horarios')
             ->assertJsonPath('data.fila_avaliador', 4)
             ->assertJsonPath('data.comuns_por_projeto', 3)
             ->assertJsonPath('data.comite_por_projeto', 1)
@@ -127,14 +127,8 @@ class DistribuicaoPresencialTest extends TestCase
             // 09:00 do primeiro dia: o turno A está acontecendo.
             ->assertJsonPath('data.foco.chave', '2026-10-20|A')
             ->assertJsonPath('data.foco.situacao', 'em_andamento')
-            ->assertJsonPath('data.foco.prazo_label', '12:00');
-    }
-
-    public function test_turno_que_termina_antes_de_comecar_e_recusado(): void
-    {
-        $this->patchJson('/api/v1/admin/presencial/distribuicao', [
-            'horarios' => ['A' => ['inicio' => '12:00', 'fim' => '08:00']],
-        ])->assertStatus(422)->assertJsonValidationErrors('horarios.A.fim');
+            ->assertJsonPath('data.foco.avaliacao_inicio_label', '08:00')
+            ->assertJsonPath('data.foco.prazo_label', '12:30');
     }
 
     public function test_na_margem_de_30_minutos_o_turno_ainda_aceita_escrita(): void

@@ -33,9 +33,9 @@ use Illuminate\Validation\ValidationException;
  * - **o projeto pronto**: só entra quem já foi **credenciado** no balcão e
  *   teve o estande **checado**. Mandar avaliador a um estande que ninguém viu
  *   montado é mandá-lo esperar;
- * - **o prazo**: a avaliação entregue numa ocorrência vale até o fim do turno
- *   mais 30 minutos ({@see JanelaTurnos}). Passado isso ela não ocupa mais vaga
- *   no projeto, e outro avaliador pode recebê-lo.
+ * - **o prazo**: a avaliação entregue numa ocorrência vale até o fim do
+ *   horário de avaliação dela ({@see JanelaTurnos}). Passado isso ela não ocupa
+ *   mais vaga no projeto, e outro avaliador pode recebê-lo.
  *
  * Do online vêm a prioridade de área (subárea → área → área correlata → o que
  * sobrar), as **rodadas iguais** (ninguém recebe o k+1-ésimo projeto antes de

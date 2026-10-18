@@ -126,8 +126,10 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     mala direta, nos avisos e no feedback. Quem se cadastrou antes do campo fica com a lista vazia:
     a tela cobra o preenchimento e os públicos por idioma não o alcançam.
   - **Avaliação presencial** (aba própria, `/avaliador/avaliacao-presencial`, só para quem aceitou
-    o presencial): abre **durante os turnos do evento**, até o fim do turno + 30 minutos
-    (`App\Support\JanelaTurnos`); fora disso aparece fechada, com o motivo. Antes, a organização
+    o presencial): abre no **horário de avaliação** de cada turno de cada dia, definido em
+    Parametrização → Datas e períodos (`edicoes.agenda_presencial`, `App\Support\JanelaTurnos`):
+    começa-se uma avaliação do início da avaliação até o fim dela ou do turno, o que vier antes, e
+    escreve-se até o fim da avaliação; fora disso a aba aparece fechada, com o motivo. Antes, a organização
     precisa **liberar** o avaliador em Avaliação presencial → **Validação de avaliadores**
     (`/admin/presencial/validacao`, `LiberacaoPresencialService`, `avaliador_liberacoes_presenciais`):
     vale para todo avaliador do presencial — o online que disse "sim" e a conta criada em Cadastro de
@@ -213,8 +215,11 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     linha: um admin pode receber **vários escopos em cada edição** e abre a **união** das abas de
     todos. `EscopoAdminService`, `PUT /admin/admins/{admin}/escopos`.
   - **Parametrização → Datas e períodos** (`/admin/parametrizacao/datas`): **todas** as janelas da
-    edição, na ordem em que a feira acontece — inscrições, avaliação online, ajustes do orientador e
-    evento (credenciamento). Cada ponta continua tendo o seu endpoint; a tela só reúne os campos, que
+    edição, na ordem em que a feira acontece — inscrições, avaliação online, ajustes do orientador,
+    evento (credenciamento) e os **turnos da avaliação presencial**: cada dia do evento × turno com o
+    horário do turno e o da avaliação (`GET|PUT /admin/agenda-presencial`; turno em branco não
+    acontece naquele dia, avaliação em branco vai do início do turno até 30 min depois do fim).
+    Cada ponta continua tendo o seu endpoint; a tela só reúne os campos, que
     antes estavam espalhados por três telas. Em regra, **campo em branco deixa aquela ponta aberta**;
     as exceções são os **ajustes** e o **credenciamento**, que ficam fechados sem data de início.
     A **janela de inscrição** é a **abertura** (`edicoes.submissoes_de`) e o **prazo de submissão**
@@ -991,7 +996,32 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 221 | Avaliação presencial **sem cabine e sem designação obrigatória** (mapa: turno → estande → iniciar) + rubrica sem a seção de ética, 2.2 condicional e checklist como 1º passo | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 222 | Vagas presenciais por projeto: **2 comuns + 1 da comissão** (configuráveis), **peso 2** da comissão e o **Ranking presencial** | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 223 | Avaliação presencial → **Validação de avaliadores**: liberar (em lote) para o evento inteiro, obrigatório para avaliar e ser distribuído | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 224 | Datas e períodos → **turnos da avaliação presencial**: horário de cada turno e da avaliação, dia a dia | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprint 224 (mesma branch):** o horário da avaliação presencial passou a ser parametrizado **por
+> dia × turno**, com uma **janela própria de avaliação**. `edicoes.horarios_turnos` (um horário por
+> turno, igual todo dia, avaliação até o fim + 30 min fixos) deu lugar a `edicoes.agenda_presencial`:
+> cada dia do evento, cada turno com o horário **do turno** (a equipe no estande) e o **da
+> avaliação**. A edição saiu do card da Distribuição presencial (que ficou com os números) e foi para
+> **Parametrização → Datas e períodos → Turnos da avaliação presencial** (`GET|PUT
+> /admin/agenda-presencial`, `ParametrizacaoAgendaPresencialController`), com um bloco por dia, quatro
+> horas por turno, **Copiar o primeiro dia para os demais** e **Sem este turno no dia** — turno em
+> branco não acontece naquele dia. Avaliação em branco vai do início do turno até 30 minutos depois
+> do fim, a regra de antes. As regras (`JanelaTurnos`): **começar** vale do início da avaliação até o
+> fim dela ou do turno, o que vier antes (sem a equipe no estande não há o que avaliar); **escrever**
+> vale até o fim da avaliação, que é o prazo — o que passa do fim do turno é a margem, só para
+> terminar. A validação recusa turno que termina antes de começar, avaliação com uma ponta só ou fora
+> do turno e dia fora do período do evento, dizendo o dia e o turno. A migration copia o horário que
+> existia para cada dia do evento, com a avaliação que valia, então nada muda para quem já tinha
+> configurado (e o `down` volta o horário do primeiro dia). A agenda é datada, então **não é herdada**
+> por uma edição nova. Mudar o período do evento recarrega os dias da seção.
+> Back **1567/1567**, front **848/848**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprint 224):** mais **uma migration** (`edicoes.agenda_presencial`, que
+> converte e apaga `horarios_turnos`), no mesmo push das 221–223. Depois do deploy, confira os
+> horários em Parametrização → Datas e períodos: cada dia nasce com o horário de antes e a avaliação
+> até 30 minutos depois do fim do turno.
+>
 > **Sprint 223 (mesma branch):** volta a **validação** do avaliador presencial, sem a cabine por turno.
 > Cadastrar a conta (ou o avaliador online dizer "sim") não basta: a organização **libera** cada um
 > na seção nova **Validação de avaliadores** (`/admin/presencial/validacao`,

@@ -213,8 +213,8 @@ function Itens({ itens, marcados, onMarcar, somenteLeitura }) {
  * e de Sim/Não, condicionais que só aparecem depois do "Sim" e perguntas sem
  * valor, que são registro. Cada pergunta traz as próprias opções.
  *
- * O prazo é o fim do turno + 30 minutos; passado ele — ou sem ativação no
- * turno —, a avaliação abre só para leitura.
+ * O prazo é o fim do horário de avaliação do turno; passado ele — ou sem a
+ * liberação da organização —, a avaliação abre só para leitura.
  */
 export default function AvaliacaoPresencialModal({
     avaliacao: inicial, rubrica, itens = [], teste = false, onAtualizado, onFechar, api = API,
@@ -467,8 +467,8 @@ export default function AvaliacaoPresencialModal({
                     {av.status !== 'concluida' && !av.pode_escrever && (
                         <p className="text-sm text-on-surface-variant text-right">
                             {av.status_label === 'Prazo encerrado'
-                                ? 'O prazo desta avaliação acabou com o turno — leitura apenas.'
-                                : 'Fora do seu turno ativado — leitura apenas.'}
+                                ? 'O prazo desta avaliação acabou com o horário de avaliação do turno — leitura apenas.'
+                                : 'Fora do horário de avaliação, ou sem a liberação da organização — leitura apenas.'}
                         </p>
                     )}
                     {av.pode_escrever && av.status === 'designada' && (

@@ -41,7 +41,7 @@ class SemearAvaliacaoPresencialDemoTest extends TestCase
         $this->edicao = Edicao::padrao();
         $this->edicao->update([
             'evento_de' => '2026-10-20 07:00', 'evento_ate' => '2026-10-21 18:00',
-            'horarios_turnos' => ['A' => ['inicio' => '08:00', 'fim' => '12:00'], 'B' => ['inicio' => '13:30', 'fim' => '17:30']],
+            'agenda_presencial' => self::agendaPresencial(['A' => ['inicio' => '08:00', 'fim' => '12:00'], 'B' => ['inicio' => '13:30', 'fim' => '17:30']], '2026-10-20', '2026-10-21'),
         ]);
     }
 

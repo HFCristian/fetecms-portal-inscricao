@@ -10,22 +10,29 @@ use Carbon\CarbonInterface;
 use Illuminate\Validation\ValidationException;
 
 /**
- * A agenda da **avaliação presencial** (Sprint 169): em que dias e horários
- * cada turno acontece, e portanto quando um avaliador pode avaliar.
+ * A agenda da **avaliação presencial** (Sprints 169 e 224): em que dias e
+ * horários cada turno acontece, e quando o avaliador pode avaliar nele.
  *
- * O horário de cada turno é um só e vale **em todos os dias** do evento
- * (`edicoes.horarios_turnos`); os dias são os da janela do evento
- * (`evento_de` → `evento_ate`). Cada par dia × turno é uma **ocorrência**, e é
- * nela que a organização ativa avaliadores, distribui projetos e conta o prazo.
+ * Os dias são os da janela do evento (`evento_de` → `evento_ate`), e cada dia
+ * tem os seus turnos (`edicoes.agenda_presencial`, editada em Parametrização →
+ * Datas e períodos). Cada par dia × turno é uma **ocorrência**, com dois pares
+ * de horas: o **do turno** (quando a equipe apresenta no estande) e o **da
+ * avaliação** (quando o avaliador avalia). Turno sem horário num dia não
+ * acontece naquele dia.
  *
- * O prazo é o fim do turno **mais 30 minutos**: a equipe ainda está no estande
- * quando o turno acaba, e o avaliador que começou às 11h50 precisa terminar o
- * que abriu. Nada novo se abre na margem — ela existe para fechar, não para
- * começar (quem decide isso é o fluxo, que pergunta {@see emAndamento()}).
+ * Começar uma avaliação vale do início da avaliação até o fim dela ou do turno,
+ * o que vier antes — sem a equipe no estande não há o que avaliar. Escrever
+ * vale até o **fim da avaliação**, que é o prazo: o que passa do fim do turno é
+ * **margem**, para terminar o que se abriu (quem decide começar é o fluxo, que
+ * pergunta {@see emAndamento()}). Avaliação em branco vai do início do turno até
+ * 30 minutos depois do fim, a regra de antes da Sprint 224.
  */
 final class JanelaTurnos
 {
-    /** Minutos depois do fim do turno em que a avaliação ainda é aceita. */
+    /**
+     * Minutos depois do fim do turno em que a avaliação ainda é aceita, quando
+     * a organização não define o horário da avaliação.
+     */
     public const MARGEM_MINUTOS = 30;
 
     /** Quantos projetos cada avaliador recebe por turno, sem configuração. */
@@ -44,12 +51,12 @@ final class JanelaTurnos
     public const PADRAO_POR_PROJETO = self::PADRAO_COMUNS + self::PADRAO_COMITE;
 
     /**
-     * @param  array<string, array{inicio: string, fim: string}>  $horarios
+     * @param  array<string, array<string, array{inicio: string, fim: string, avaliacao_inicio: string, avaliacao_fim: string}>>  $agenda
      */
     private function __construct(
         private readonly ?CarbonImmutable $de,
         private readonly ?CarbonImmutable $ate,
-        private readonly array $horarios,
+        private readonly array $agenda,
         private readonly int $fila,
         private readonly int $comuns,
         private readonly int $comite,
@@ -63,7 +70,7 @@ final class JanelaTurnos
         return new self(
             $edicao?->evento_de?->toImmutable(),
             $edicao?->evento_ate?->toImmutable(),
-            self::normalizar($edicao?->horarios_turnos ?? []),
+            self::normalizar($edicao?->agenda_presencial ?? []),
             max(1, (int) ($edicao?->presencial_fila_avaliador ?: self::PADRAO_FILA)),
             // Zero é resposta (só comuns, ou só a comissão): em branco é que vale o padrão.
             max(0, (int) ($edicao?->presencial_comuns_por_projeto ?? self::PADRAO_COMUNS)),
@@ -73,50 +80,107 @@ final class JanelaTurnos
     }
 
     /**
-     * Valida e normaliza os horários vindos da tela: "08:00"–"12:00" por
-     * turno, início antes do fim. Turno sem os dois campos fica de fora — a
-     * feira pode ter um turno só.
+     * Valida e normaliza a agenda vinda da tela: para cada dia do evento, cada
+     * turno com o horário dele ("08:00"–"12:00") e o da avaliação. Turno sem
+     * nenhum campo não acontece naquele dia; com o horário do turno e a
+     * avaliação em branco, a avaliação vai do início do turno até 30 minutos
+     * depois do fim. Dia fora do período do evento é recusado.
      *
-     * @param  array<string, mixed>  $horarios
-     * @return array<string, array{inicio: string, fim: string}>
+     * @param  array<string, mixed>  $agenda  "Y-m-d" => turno => campos
+     * @param  list<string>  $dias  os dias do evento
+     * @return array<string, array<string, array{inicio: string, fim: string, avaliacao_inicio: string, avaliacao_fim: string}>>
      */
-    public static function validar(array $horarios): array
+    public static function validar(array $agenda, array $dias): array
     {
-        $limpos = [];
+        $limpa = [];
 
-        foreach (Turno::cases() as $turno) {
-            $par = $horarios[$turno->value] ?? null;
-            $inicio = is_array($par) ? trim((string) ($par['inicio'] ?? '')) : '';
-            $fim = is_array($par) ? trim((string) ($par['fim'] ?? '')) : '';
+        foreach ($agenda as $dia => $turnos) {
+            $dia = (string) $dia;
 
-            if ($inicio === '' && $fim === '') {
+            if (! is_array($turnos)) {
                 continue;
             }
 
-            foreach (['inicio' => $inicio, 'fim' => $fim] as $campo => $valor) {
-                if (! preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $valor)) {
+            foreach (Turno::cases() as $turno) {
+                $campos = $turnos[$turno->value] ?? null;
+                $valores = array_map(
+                    fn (string $c) => is_array($campos) ? trim((string) ($campos[$c] ?? '')) : '',
+                    array_combine(self::CAMPOS, self::CAMPOS),
+                );
+
+                if (implode('', $valores) === '') {
+                    continue;
+                }
+
+                $rotulo = self::rotuloDia($dia).", {$turno->label()}";
+                $chave = "agenda.{$dia}.{$turno->value}";
+
+                if (! in_array($dia, $dias, true)) {
                     throw ValidationException::withMessages([
-                        "horarios.{$turno->value}.{$campo}" => "Informe o horário do {$turno->label()} no formato 08:00.",
+                        $chave => "{$rotulo}: o dia está fora do período do evento.",
                     ]);
                 }
-            }
 
-            if ($inicio >= $fim) {
-                throw ValidationException::withMessages([
-                    "horarios.{$turno->value}.fim" => "O {$turno->label()} precisa terminar depois de começar.",
-                ]);
-            }
+                foreach (['inicio' => 'o início do turno', 'fim' => 'o fim do turno'] as $campo => $nome) {
+                    if ($valores[$campo] === '') {
+                        throw ValidationException::withMessages(["{$chave}.{$campo}" => "{$rotulo}: informe {$nome}."]);
+                    }
+                }
 
-            $limpos[$turno->value] = ['inicio' => $inicio, 'fim' => $fim];
+                if (($valores['avaliacao_inicio'] === '') !== ($valores['avaliacao_fim'] === '')) {
+                    throw ValidationException::withMessages([
+                        "{$chave}.avaliacao_inicio" => "{$rotulo}: informe o início e o fim da avaliação, ou deixe os dois em branco.",
+                    ]);
+                }
+
+                foreach ($valores as $campo => $valor) {
+                    if ($valor !== '' && ! preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $valor)) {
+                        throw ValidationException::withMessages(["{$chave}.{$campo}" => "{$rotulo}: use o formato 08:00."]);
+                    }
+                }
+
+                if ($valores['inicio'] >= $valores['fim']) {
+                    throw ValidationException::withMessages(["{$chave}.fim" => "{$rotulo}: o turno precisa terminar depois de começar."]);
+                }
+
+                if ($valores['avaliacao_inicio'] !== '' && $valores['avaliacao_inicio'] >= $valores['avaliacao_fim']) {
+                    throw ValidationException::withMessages([
+                        "{$chave}.avaliacao_fim" => "{$rotulo}: a avaliação precisa terminar depois de começar.",
+                    ]);
+                }
+
+                if ($valores['avaliacao_inicio'] !== '' && ($valores['avaliacao_inicio'] >= $valores['fim'] || $valores['avaliacao_fim'] <= $valores['inicio'])) {
+                    throw ValidationException::withMessages([
+                        "{$chave}.avaliacao_inicio" => "{$rotulo}: a avaliação precisa acontecer durante o turno (pode passar do fim, para terminar o que se abriu).",
+                    ]);
+                }
+
+                $limpa[$dia][$turno->value] = self::comAvaliacao($dia, $valores);
+            }
         }
 
-        return $limpos;
+        ksort($limpa);
+
+        return $limpa;
     }
 
-    /** @return array<string, array{inicio: string, fim: string}> */
-    public function horarios(): array
+    /**
+     * A agenda dos dias do evento, como a tela a edita: todo dia aparece, e o
+     * turno sem horário vem nulo.
+     *
+     * @return array<string, array<string, array{inicio: string, fim: string, avaliacao_inicio: string, avaliacao_fim: string}|null>>
+     */
+    public function agenda(): array
     {
-        return $this->horarios;
+        $agenda = [];
+
+        foreach ($this->dias() as $dia) {
+            foreach (Turno::cases() as $turno) {
+                $agenda[$dia][$turno->value] = $this->agenda[$dia][$turno->value] ?? null;
+            }
+        }
+
+        return $agenda;
     }
 
     public function fila(): int
@@ -179,10 +243,16 @@ final class JanelaTurnos
             ?? ($comissao ? VagaPresencial::Comite : VagaPresencial::Comum);
     }
 
-    /** Há o que agendar: data do evento e o horário de ao menos um turno. */
+    /** Há o que agendar: data do evento e o horário de ao menos um turno num dos dias dela. */
     public function configurada(): bool
     {
-        return $this->de !== null && $this->horarios !== [];
+        foreach ($this->dias() as $dia) {
+            if (! empty($this->agenda[$dia])) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -206,45 +276,55 @@ final class JanelaTurnos
         return $dias;
     }
 
+    /** O início do turno (a equipe no estande). */
     public function inicio(string $dia, Turno $turno): ?CarbonImmutable
     {
         return $this->hora($dia, $turno, 'inicio');
     }
 
+    /** O fim do turno. */
     public function fim(string $dia, Turno $turno): ?CarbonImmutable
     {
         return $this->hora($dia, $turno, 'fim');
     }
 
-    /** O último instante aceito: o fim do turno mais a margem. */
-    public function prazo(string $dia, Turno $turno): ?CarbonImmutable
+    /** Quando o avaliador pode começar a avaliar. */
+    public function inicioAvaliacao(string $dia, Turno $turno): ?CarbonImmutable
     {
-        return $this->fim($dia, $turno)?->addMinutes(self::MARGEM_MINUTOS);
+        return $this->hora($dia, $turno, 'avaliacao_inicio');
     }
 
-    /** A ocorrência aceita escrita agora (do início ao fim + margem)? */
+    /** O último instante aceito: o fim da avaliação. */
+    public function prazo(string $dia, Turno $turno): ?CarbonImmutable
+    {
+        return $this->hora($dia, $turno, 'avaliacao_fim');
+    }
+
+    /** A ocorrência aceita escrita agora (do início ao fim da avaliação)? */
     public function aberta(string $dia, Turno $turno, ?CarbonInterface $agora = null): bool
     {
         $agora ??= now();
-        $inicio = $this->inicio($dia, $turno);
-        $prazo = $this->prazo($dia, $turno);
+        $inicio = $this->inicioAvaliacao($dia, $turno);
 
-        return $inicio !== null && $agora->greaterThanOrEqualTo($inicio) && $agora->lessThanOrEqualTo($prazo);
+        return $inicio !== null && $agora->greaterThanOrEqualTo($inicio) && $agora->lessThanOrEqualTo($this->prazo($dia, $turno));
     }
 
-    /** O turno está acontecendo agora (sem a margem)? É o que deixa começar algo novo. */
+    /**
+     * Dá para começar uma avaliação agora? Do início da avaliação até o fim
+     * dela ou do turno, o que vier antes — depois disso é margem.
+     */
     public function emAndamento(string $dia, Turno $turno, ?CarbonInterface $agora = null): bool
     {
         $agora ??= now();
-        $inicio = $this->inicio($dia, $turno);
+        $inicio = $this->inicioAvaliacao($dia, $turno);
 
-        return $inicio !== null && $agora->greaterThanOrEqualTo($inicio) && $agora->lessThanOrEqualTo($this->fim($dia, $turno));
+        return $inicio !== null && $agora->greaterThanOrEqualTo($inicio) && $agora->lessThanOrEqualTo($this->fimDoComeco($dia, $turno));
     }
 
-    /** A ocorrência faz parte da agenda (dia do evento e turno com horário)? */
+    /** A ocorrência faz parte da agenda (dia do evento e turno com horário nele)? */
     public function existe(string $dia, Turno $turno): bool
     {
-        return in_array($dia, $this->dias(), true) && isset($this->horarios[$turno->value]);
+        return in_array($dia, $this->dias(), true) && isset($this->agenda[$dia][$turno->value]);
     }
 
     /**
@@ -258,7 +338,7 @@ final class JanelaTurnos
 
         foreach ($this->dias() as $dia) {
             foreach (Turno::cases() as $turno) {
-                if (isset($this->horarios[$turno->value])) {
+                if (isset($this->agenda[$dia][$turno->value])) {
                     $lista[] = $this->ocorrencia($dia, $turno, $agora);
                 }
             }
@@ -336,13 +416,14 @@ final class JanelaTurnos
         $agora ??= now();
         $inicio = $this->inicio($dia, $turno);
         $fim = $this->fim($dia, $turno);
+        $inicioAvaliacao = $this->inicioAvaliacao($dia, $turno);
         $prazo = $this->prazo($dia, $turno);
         $diaLabel = CarbonImmutable::parse($dia)->format('d/m');
 
         $situacao = match (true) {
-            $inicio === null => 'sem_horario',
-            $agora->lessThan($inicio) => 'futuro',
-            $agora->lessThanOrEqualTo($fim) => 'em_andamento',
+            $inicioAvaliacao === null => 'sem_horario',
+            $agora->lessThan($inicioAvaliacao) => 'futuro',
+            $agora->lessThanOrEqualTo($this->fimDoComeco($dia, $turno)) => 'em_andamento',
             $agora->lessThanOrEqualTo($prazo) => 'margem',
             default => 'encerrado',
         };
@@ -358,6 +439,8 @@ final class JanelaTurnos
             'prazo' => $prazo?->toIso8601String(),
             'inicio_label' => $inicio?->format('H:i'),
             'fim_label' => $fim?->format('H:i'),
+            'avaliacao_inicio_label' => $inicioAvaliacao?->format('H:i'),
+            'avaliacao_fim_label' => $prazo?->format('H:i'),
             'prazo_label' => $prazo?->format('H:i'),
             'situacao' => $situacao,
             'aberta' => in_array($situacao, ['em_andamento', 'margem'], true),
@@ -367,31 +450,82 @@ final class JanelaTurnos
         ];
     }
 
+    /** O fim de quando se pode começar: o da avaliação ou o do turno, o que vier antes. */
+    private function fimDoComeco(string $dia, Turno $turno): ?CarbonImmutable
+    {
+        $fim = $this->fim($dia, $turno);
+        $prazo = $this->prazo($dia, $turno);
+
+        return $fim === null || $prazo === null ? $prazo ?? $fim : $fim->min($prazo);
+    }
+
     private function hora(string $dia, Turno $turno, string $ponta): ?CarbonImmutable
     {
-        $hora = $this->horarios[$turno->value][$ponta] ?? null;
+        $hora = $this->agenda[$dia][$turno->value][$ponta] ?? null;
 
         return $hora === null ? null : CarbonImmutable::parse("{$dia} {$hora}");
     }
 
+    /** Os campos de cada turno num dia. */
+    private const CAMPOS = ['inicio', 'fim', 'avaliacao_inicio', 'avaliacao_fim'];
+
     /**
-     * O que está gravado, sem confiar no formato: descarta turno incompleto.
+     * Completa a avaliação em branco com a regra de antes: do início do turno
+     * até 30 minutos depois do fim (sem passar da meia-noite).
      *
-     * @param  array<string, mixed>  $horarios
-     * @return array<string, array{inicio: string, fim: string}>
+     * @param  array<string, string>  $valores
+     * @return array{inicio: string, fim: string, avaliacao_inicio: string, avaliacao_fim: string}
      */
-    private static function normalizar(array $horarios): array
+    private static function comAvaliacao(string $dia, array $valores): array
     {
-        $limpos = [];
+        if (($valores['avaliacao_inicio'] ?? '') === '' || ($valores['avaliacao_fim'] ?? '') === '') {
+            $fim = CarbonImmutable::parse("{$dia} {$valores['fim']}")->addMinutes(self::MARGEM_MINUTOS);
+            $valores['avaliacao_inicio'] = $valores['inicio'];
+            $valores['avaliacao_fim'] = $fim->toDateString() === $dia ? $fim->format('H:i') : '23:59';
+        }
 
-        foreach (Turno::cases() as $turno) {
-            $par = $horarios[$turno->value] ?? null;
+        return [
+            'inicio' => $valores['inicio'],
+            'fim' => $valores['fim'],
+            'avaliacao_inicio' => $valores['avaliacao_inicio'],
+            'avaliacao_fim' => $valores['avaliacao_fim'],
+        ];
+    }
 
-            if (is_array($par) && ! empty($par['inicio']) && ! empty($par['fim'])) {
-                $limpos[$turno->value] = ['inicio' => (string) $par['inicio'], 'fim' => (string) $par['fim']];
+    private static function rotuloDia(string $dia): string
+    {
+        try {
+            return CarbonImmutable::parse($dia)->format('d/m');
+        } catch (\Throwable) {
+            return $dia;
+        }
+    }
+
+    /**
+     * O que está gravado, sem confiar no formato: descarta turno sem o horário
+     * dele e completa a avaliação que faltar.
+     *
+     * @param  array<string, mixed>  $agenda
+     * @return array<string, array<string, array{inicio: string, fim: string, avaliacao_inicio: string, avaliacao_fim: string}>>
+     */
+    private static function normalizar(array $agenda): array
+    {
+        $limpa = [];
+
+        foreach ($agenda as $dia => $turnos) {
+            if (! is_array($turnos) || ! preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $dia)) {
+                continue;
+            }
+
+            foreach (Turno::cases() as $turno) {
+                $campos = $turnos[$turno->value] ?? null;
+
+                if (is_array($campos) && ! empty($campos['inicio']) && ! empty($campos['fim'])) {
+                    $limpa[(string) $dia][$turno->value] = self::comAvaliacao((string) $dia, array_map('strval', $campos));
+                }
             }
         }
 
-        return $limpos;
+        return $limpa;
     }
 }

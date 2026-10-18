@@ -55,7 +55,7 @@ class AvaliacaoPresencialFluxoTest extends TestCase
         $this->edicao = Edicao::create([
             'nome' => 'XVI FETECMS', 'ano' => 2026, 'padrao' => true, 'inscricoes_abertas' => true,
             'evento_de' => '2026-10-20 07:00', 'evento_ate' => '2026-10-21 18:00',
-            'horarios_turnos' => ['A' => ['inicio' => '08:00', 'fim' => '12:00'], 'B' => ['inicio' => '13:30', 'fim' => '17:30']],
+            'agenda_presencial' => self::agendaPresencial(['A' => ['inicio' => '08:00', 'fim' => '12:00'], 'B' => ['inicio' => '13:30', 'fim' => '17:30']], '2026-10-20', '2026-10-21'),
             'presencial_fila_avaliador' => 3,
         ]);
         $this->lista = ListaFinal::create([
@@ -203,7 +203,7 @@ class AvaliacaoPresencialFluxoTest extends TestCase
 
     public function test_sem_horario_dos_turnos_a_aba_explica(): void
     {
-        $this->edicao->update(['horarios_turnos' => null]);
+        $this->edicao->update(['agenda_presencial' => null]);
         Sanctum::actingAs($this->avaliador);
 
         $this->getJson('/api/v1/avaliador/presencial/avaliacoes')
@@ -356,7 +356,7 @@ class AvaliacaoPresencialFluxoTest extends TestCase
 
         $this->postJson("/api/v1/avaliador/presencial/avaliacoes/{$id}/rascunho", ['respostas' => ['apresentacao' => 8]])
             ->assertStatus(422)
-            ->assertJsonPath('errors.periodo.0', 'O prazo desta avaliação acabou com o turno (e os 30 minutos de margem).');
+            ->assertJsonPath('errors.periodo.0', 'O prazo desta avaliação acabou: o horário de avaliação do turno terminou.');
     }
 
     // --- A avaliação ---------------------------------------------------------

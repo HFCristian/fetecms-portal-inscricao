@@ -8,6 +8,7 @@ use App\Models\Edicao;
 use App\Models\ListaFinal;
 use App\Models\User;
 use App\Support\JanelaTurnos;
+use Carbon\CarbonImmutable;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -28,7 +29,8 @@ use Illuminate\Validation\ValidationException;
 class TurnosPresenciaisService
 {
     /**
-     * A configuração da tela: horários, números, agenda e a ocorrência em foco.
+     * A configuração da tela: números, agenda e a ocorrência em foco. Os
+     * horários se editam em Parametrização → Datas e períodos ({@see agenda()}).
      *
      * @return array<string, mixed>
      */
@@ -40,13 +42,11 @@ class TurnosPresenciaisService
         $foco = $this->ocorrenciaPedida($janela, $dia, $turno) ?? $janela->emFoco();
 
         return [
-            'horarios' => (object) $janela->horarios(),
             'fila_avaliador' => $janela->fila(),
             'por_projeto' => $janela->porProjeto(),
             'comuns_por_projeto' => $janela->comunsPorProjeto(),
             'comite_por_projeto' => $janela->comitePorProjeto(),
             'peso_comite' => $janela->pesoComite(),
-            'margem_minutos' => JanelaTurnos::MARGEM_MINUTOS,
             'configurada' => $janela->configurada(),
             'evento_de_label' => $edicao?->evento_de?->format('d/m/Y'),
             'evento_ate_label' => $edicao?->evento_ate?->format('d/m/Y'),
@@ -60,7 +60,7 @@ class TurnosPresenciaisService
     }
 
     /**
-     * Grava os horários, a fila de cada avaliador e as vagas por projeto —
+     * Grava a fila de cada avaliador e as vagas por projeto —
      * comuns, da comissão especial e o peso da comissão (Sprint 222). Campo em
      * branco volta ao padrão; zero numa das vagas é resposta, mas o projeto
      * precisa de ao menos uma.
@@ -72,7 +72,7 @@ class TurnosPresenciaisService
         $edicao = Edicao::atual();
 
         if ($edicao === null) {
-            throw ValidationException::withMessages(['horarios' => 'Nenhuma edição em vigor.']);
+            throw ValidationException::withMessages(['fila_avaliador' => 'Nenhuma edição em vigor.']);
         }
 
         $comuns = $dados['comuns_por_projeto'] ?? null;
@@ -85,12 +85,63 @@ class TurnosPresenciaisService
         }
 
         $edicao->update([
-            'horarios_turnos' => JanelaTurnos::validar($dados['horarios'] ?? []) ?: null,
             'presencial_fila_avaliador' => $dados['fila_avaliador'] ?? null,
             'presencial_comuns_por_projeto' => $comuns,
             'presencial_comite_por_projeto' => $comite,
             'presencial_peso_comite' => $dados['peso_comite'] ?? null,
         ]);
+    }
+
+    /**
+     * A agenda da avaliação presencial como Parametrização → Datas e períodos a
+     * edita (Sprint 224): cada dia do evento, cada turno com o horário dele e o
+     * da avaliação, e as ocorrências que isso forma.
+     *
+     * @return array<string, mixed>
+     */
+    public function agenda(): array
+    {
+        $edicao = Edicao::atual();
+        $janela = JanelaTurnos::daEdicao($edicao);
+
+        return [
+            'dias' => array_map(fn (string $dia) => [
+                'dia' => $dia,
+                'label' => CarbonImmutable::parse($dia)->locale('pt_BR')->translatedFormat('D, d/m'),
+            ], $janela->dias()),
+            'agenda' => (object) $janela->agenda(),
+            'turnos' => Turno::opcoes(),
+            'margem_padrao' => JanelaTurnos::MARGEM_MINUTOS,
+            'configurada' => $janela->configurada(),
+            'evento_de_label' => $edicao?->evento_de?->format('d/m/Y'),
+            'evento_ate_label' => $edicao?->evento_ate?->format('d/m/Y'),
+            'ocorrencias' => $janela->ocorrencias(),
+        ];
+    }
+
+    /**
+     * Grava a agenda inteira (substitui a anterior). Turno sem horário num dia
+     * não acontece naquele dia.
+     *
+     * @param  array<string, mixed>  $agenda
+     */
+    public function salvarAgenda(array $agenda): void
+    {
+        $edicao = Edicao::atual();
+
+        if ($edicao === null) {
+            throw ValidationException::withMessages(['agenda' => 'Nenhuma edição em vigor.']);
+        }
+
+        $janela = JanelaTurnos::daEdicao($edicao);
+
+        if ($janela->dias() === []) {
+            throw ValidationException::withMessages([
+                'agenda' => 'Defina o período do evento antes dos horários dos turnos.',
+            ]);
+        }
+
+        $edicao->update(['agenda_presencial' => JanelaTurnos::validar($agenda, $janela->dias()) ?: null]);
     }
 
     /**

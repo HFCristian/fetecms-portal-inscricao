@@ -4,17 +4,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../components/AppShell.jsx', () => ({ default: ({ children }) => <div>{children}</div> }));
 vi.mock('react-router-dom', () => ({ Link: ({ children, to }) => <a href={to}>{children}</a> }));
 
-const A = { chave: '2026-10-20|A', dia: '2026-10-20', turno: 'A', rotulo: '20/10 · Turno A (matutino) · 08:00–12:00', situacao: 'em_andamento', fim_label: '12:00', prazo_label: '12:30' };
+const A = { chave: '2026-10-20|A', dia: '2026-10-20', turno: 'A', rotulo: '20/10 · Turno A (matutino) · 08:00–12:00', situacao: 'em_andamento', inicio_label: '08:00', fim_label: '12:00', avaliacao_inicio_label: '08:30', prazo_label: '12:30' };
 const B = { chave: '2026-10-20|B', dia: '2026-10-20', turno: 'B', rotulo: '20/10 · Turno B (vespertino) · 13:30–17:30', situacao: 'futuro', fim_label: '17:30', prazo_label: '18:00' };
 
 const PAINEL = {
-    horarios: { A: { inicio: '08:00', fim: '12:00' }, B: { inicio: '13:30', fim: '17:30' } },
     fila_avaliador: 5,
     por_projeto: 3,
     comuns_por_projeto: 2,
     comite_por_projeto: 1,
     peso_comite: 2,
-    margem_minutos: 30,
     configurada: true,
     evento_de_label: '20/10/2026',
     evento_ate_label: '21/10/2026',
@@ -59,11 +57,11 @@ describe('PresencialDistribuicao', () => {
         vi.clearAllMocks();
     });
 
-    it('mostra o turno em foco, o prazo com a margem e o resumo', async () => {
+    it('mostra o turno em foco, o horário do turno e o da avaliação, e o resumo', async () => {
         render(<PresencialDistribuicao />);
 
         expect(await screen.findByText('Acontecendo agora')).toBeInTheDocument();
-        expect(screen.getByText(/aceitas até as 12:30/)).toBeInTheDocument();
+        expect(screen.getByText(/Turno das 08:00 às 12:00; avaliação das/)).toHaveTextContent('avaliação das 08:30 às 12:30');
         expect(screen.getByText('Sem checagem')).toBeInTheDocument();
     });
 
@@ -122,16 +120,12 @@ describe('PresencialDistribuicao', () => {
         ));
     });
 
-    it('salva os horários dos turnos', async () => {
+    it('os horários moram em Datas e períodos: aqui só os números', async () => {
         render(<PresencialDistribuicao />);
 
-        fireEvent.change(await screen.findByLabelText('Fim do Turno A (matutino)'), { target: { value: '11:30' } });
-        fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
-
-        await waitFor(() => expect(salvarDistribuicaoPresencial).toHaveBeenCalledWith(
-            expect.objectContaining({ horarios: expect.objectContaining({ A: { inicio: '08:00', fim: '11:30' } }), fila_avaliador: 5 }),
-            { dia: '2026-10-20', turno: 'A' },
-            false,
-        ));
+        expect(await screen.findByText('Números da distribuição')).toBeInTheDocument();
+        expect(screen.queryByLabelText('Fim do Turno A (matutino)')).not.toBeInTheDocument();
+        expect(screen.getByText('Parametrização → Datas e períodos')).toBeInTheDocument();
+        expect(screen.getByText(/Turno das 08:00 às 12:00; avaliação das/)).toBeInTheDocument();
     });
 });
