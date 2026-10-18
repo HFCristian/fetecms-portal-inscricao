@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
     chaveDoEstande, corDoEstande, legendaComite, resumoComite, filtrarAvaliadores, localDoProjeto, SEM_PROJETO,
+    designacoesPendentes, enviadas, colunasDoAvaliador,
 } from './comiteAcompanhamento.js';
 
 const linha = (over = {}) => ({
@@ -9,7 +10,8 @@ const linha = (over = {}) => ({
 });
 
 const avaliador = (over = {}) => ({
-    id: 1, nome: 'Ana', area: 'Agrárias', situacao: 'livre', em_avaliacao: [], designadas: [], concluidas: [], ...over,
+    id: 1, nome: 'Ana', area: 'Agrárias', situacao: 'livre', em_avaliacao: [], designadas: [], concluidas: [],
+    designacoes_comite: [], ...over,
 });
 
 describe('cores do mapa do comitê', () => {
@@ -83,6 +85,64 @@ describe('resumo do dashboard do comitê', () => {
 
         expect(r.avaliadores).toEqual({ total: 3, avaliando: 1, designados: 1, livres: 1, concluidas: 3 });
         expect(r.destaques.map((d) => [d.nome, d.total])).toEqual([['Ana', 2], ['Bruno', 1]]);
+    });
+});
+
+describe('designações online do comitê', () => {
+    const ana = avaliador({
+        concluidas: [{}],
+        designacoes_comite: [
+            { titulo: 'Solo vivo', codigo: 'FET.AGR-009', estande: 9, situacao: 'designada' },
+            { titulo: 'Horta', situacao: 'iniciada' },
+            { titulo: 'Abelhas', situacao: 'concluida' },
+        ],
+    });
+
+    it('separam o que falta do que já foi enviado', () => {
+        expect(designacoesPendentes(ana).map((p) => p.titulo)).toEqual(['Solo vivo', 'Horta']);
+        // 1 no estande + 1 online.
+        expect(enviadas(ana)).toBe(2);
+    });
+
+    it('entram no total enviado, nos destaques e no resumo do turno', () => {
+        const r = resumoComite(
+            [linha({ situacao: 'designado', designadas: 1, designadas_online: 1 }), linha({ situacao: 'avaliado', concluidas: 1, concluidas_online: 1 })],
+            [ana],
+            1,
+        );
+
+        expect(r.avaliadores.concluidas).toBe(2);
+        expect(r.destaques).toEqual([{ id: 1, nome: 'Ana', total: 2 }]);
+        expect(r.online).toEqual({ designadas: 1, concluidas: 1 });
+    });
+
+    it('a busca alcança os projetos designados pelo comitê', () => {
+        expect(filtrarAvaliadores([ana, avaliador({ id: 2, nome: 'Bruno' })], 'agr-009').map((a) => a.nome)).toEqual(['Ana']);
+    });
+});
+
+describe('ver detalhes do avaliador', () => {
+    it('separa os projetos em avaliados, em avaliação e designados, nas duas origens', () => {
+        const a = avaliador({
+            em_avaliacao: [{ titulo: 'Abelhas', origem: 'estande', situacao: 'em_avaliacao' }],
+            designadas: [{ titulo: 'Solo', origem: 'estande', situacao: 'designada' }],
+            concluidas: [{ titulo: 'Horta', origem: 'estande', situacao: 'concluida', concluida_em: '2026-10-18T10:00:00-04:00' }],
+            designacoes_comite: [
+                { titulo: 'Cisterna', origem: 'online', situacao: 'designada' },
+                { titulo: 'Bioplástico', origem: 'online', situacao: 'iniciada' },
+                { titulo: 'Robô', origem: 'online', situacao: 'concluida', concluida_em: '2026-10-18T11:00:00-04:00' },
+            ],
+        });
+        const c = colunasDoAvaliador(a);
+
+        // Avaliados: o mais recente primeiro.
+        expect(c.avaliados.map((p) => p.titulo)).toEqual(['Robô', 'Horta']);
+        expect(c.emAvaliacao.map((p) => p.titulo)).toEqual(['Abelhas', 'Bioplástico']);
+        expect(c.designados.map((p) => p.titulo)).toEqual(['Cisterna', 'Solo']);
+    });
+
+    it('sem nada, as três colunas vêm vazias', () => {
+        expect(colunasDoAvaliador(avaliador())).toEqual({ avaliados: [], emAvaliacao: [], designados: [] });
     });
 });
 

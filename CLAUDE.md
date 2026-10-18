@@ -595,7 +595,8 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     projetos premiados, na mesma base de Avaliação presencial → Credenciais e Prêmios, com a lista de
     premiação em TXT; `ComitePremiacaoController` — e o **Acompanhamento das avaliações**
     (`/admin/comite/acompanhamento`, `AcompanhamentoComiteService`): cada avaliador da comissão com o
-    que está avaliando no estande, e o mapa do evento só com as avaliações do comitê, com dashboard). **Transporte de comitê** lista quem está com o localizador ligado e o que cada um
+    que está avaliando no estande e o que recebeu em Designações do comitê
+    (`avaliacoes.designada_pelo_comite`), e o mapa do evento só com o trabalho do comitê, com dashboard). **Transporte de comitê** lista quem está com o localizador ligado e o que cada um
     configurou, e traz o botão **Habilitar localização** — um assistente de **seis passos**:
     quantas pessoas estão junto → os **nomes** (opcionais, com a área de cada uma) → o **meio de
     transporte** → o **ponto de partida** → o **destino** (autocomplete do Google Places) e por
@@ -1003,16 +1004,53 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 224 | Datas e períodos → **turnos da avaliação presencial**: horário de cada turno e da avaliação, dia a dia | ✅ sim | ✅ sim (Pedro, PR #114 → v1.36) | 0 |
 | 225 | Aba Presencial do avaliador: marcar "quero ser presencial" **sem trava de data** (desistir devolve o designado) | ✅ sim | ✅ sim (Pedro, PR #115 → v1.37) | 0 |
 | 226 | Mapa em tela cheia → Checagem: estande **checado sem credenciamento** em amarelo | ✅ sim | ✅ sim (Pedro, PR #116 → v1.37.2) | 0 |
-| 227 | Comitê especial → Designações: busca e filtros de projeto por **código, estande e turno** | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 228 | Comitê especial → **Acompanhamento das avaliações**: lista por avaliador + mapa só do comitê com dashboard | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 227 | Comitê especial → Designações: busca e filtros de projeto por **código, estande e turno** | ✅ sim | ✅ sim (Pedro, PR #117 → v1.38) | 0 |
+| 228 | Comitê especial → **Acompanhamento das avaliações**: lista por avaliador + mapa só do comitê com dashboard | ✅ sim | ✅ sim (Pedro, PR #117 → v1.38) | 0 |
+| 229 | Acompanhamento do comitê: as **designações online** feitas em Designações do comitê (`avaliacoes.designada_pelo_comite`) | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 230 | Acompanhamento do comitê: **Ver detalhes** do avaliador em 3 colunas (avaliados, em avaliação, designados) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
-> **Sprint 228 (mesma branch):** nova seção do Comitê especial, **Acompanhamento das avaliações**
+> **Sprint 230 (mesma branch):** na aba Avaliadores do Acompanhamento, cada cartão ganhou **Ver
+> detalhes**, que abre um diálogo com os projetos do avaliador em **três colunas** — **Projetos
+> avaliados** (do mais recente ao mais antigo), **Projetos em avaliação** (aberta no estande agora e
+> iniciada online) e **Projetos designados** (entregues e ainda não abertos) —, juntando o estande e as
+> designações do comitê, cada projeto com o selo da origem (No estande / Online), o local e o horário.
+> A avaliação no estande que venceu sem envio não entra em coluna nenhuma (o rodapé de "em avaliação"
+> conta quantas são). A separação mora em `colunasDoAvaliador()` (`lib/comiteAcompanhamento.js`), e o
+> "Ver enviadas" do cartão saiu — a coluna Avaliados faz o mesmo. Só tela: sem endpoint novo.
+> Back sem mudança (**1584/1584**), front **877/877**, build OK.
+>
+> **Sprint 229 (branch `feat/acompanhamento-designacoes-comite`, saída da `origin/main` @ `fbb6aca`):**
+> o Acompanhamento das avaliações passou a mostrar também os projetos **atribuídos em Comitê especial
+> → Designações** (avaliação online). Até aqui essa designação nascia como qualquer designação manual
+> e não havia como separá-la da fila online comum do avaliador; agora a linha leva
+> `avaliacoes.designada_pelo_comite`, gravado pelo `DesignacaoService::designar(soComissao: true)` ao
+> criar, ao reviver uma devolvida e ao assumir a que o avaliador já tinha (a da Avaliação online não
+> marca). **O passado é marcado por aproximação** na migration: designação manual, para avaliador da
+> comissão, de projeto da lista final vigente (não demo), criada depois de a lista ser gerada — o que a
+> Avaliação online designou nesse recorte também entra. Na tela: cada cartão de avaliador ganhou o
+> bloco **Designações do comitê** ("1 de 2 avaliada(s)"), com o selo Aguardando / Em andamento /
+> Avaliado de cada projeto; o avaliador com designação pendente fica "Com designação". No **mapa**, a
+> designação online pendente pinta o estande de "designado" e a concluída conta como avaliado (os campos
+> `concluidas`/`designadas` somam as duas origens; `concluidas_online`/`designadas_online` dizem quanto
+> veio do comitê online); a aberta online é "em andamento", e não "avaliando agora", que continua sendo
+> de quem está no estande. O detalhe do estande diz a origem de cada avaliação (No estande / Online) e
+> o dashboard conta as designações do comitê do turno e soma as duas origens no total enviado e nos
+> destaques. A **nota** saiu do payload da tela (quem a lê fica registrado em Designações → Ver notas).
+> Back **1584/1584**, front **873/873**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprints 229–230):** `git push origin feat/acompanhamento-designacoes-comite` + PR
+> para a `main`. **Uma migration** (`avaliacoes.designada_pelo_comite`, com a marcação aproximada do
+> passado). Sem `.env` ou dependência nova. Depois do deploy, confira em Acompanhamento → Avaliadores se
+> as designações antigas que apareceram são mesmo do comitê: as feitas antes da lista final vigente não
+> entram, e uma designação da Avaliação online para alguém da comissão, de um finalista, depois da
+> lista, entra. As novas, feitas pela tela do comitê, saem certas.
+>
+> **Sprint 228 (branch `feat/comite-designacoes-busca`, já na `main` pelo PR #117 → v1.38):** nova seção do Comitê especial, **Acompanhamento das avaliações**
 > (`/admin/comite/acompanhamento`, `GET /admin/comite/acompanhamento?turno=`,
 > `AcompanhamentoComiteService`, `ComiteAcompanhamentoController`), só leitura e recarregando sozinha
 > (30 s; 5 s em tela cheia). "Avaliação do comitê" é a avaliação **no estande** feita por avaliador da
 > comissão especial — a definição do painel da tela cheia (Sprint 200), em qualquer vaga; conta demo
-> fica de fora. A designação **online** (Comitê → Designações) não entra: na avaliação online não há
-> como separar o que veio do comitê do resto da fila do avaliador.
+> fica de fora. A designação **online** (Comitê → Designações) entrou na Sprint 229.
 > (a) Aba **Avaliadores**: um cartão por membro da comissão — inclusive quem não fez nada —, com o
 > que está **avaliando agora** (código · estande · turno, título, vaga e desde que horas), o que tem
 > **designado** sem iniciar, quantas **enviou** (com a lista) e as abertas que **venceram** sem envio
@@ -1029,13 +1067,12 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > quem mais enviou.
 > Back **1579/1579**, front **869/869**, Pint limpo, build OK.
 >
-> **Pendências do Pedro (Sprints 227–228):** `git push origin feat/comite-designacoes-busca` + PR para
-> a `main`. Sem migration, `.env` ou dependência nova. A seção nova fica na aba Comitê especial, então
-> quem tem o escopo dela já a vê. O mapa precisa de **estandes gerados** e da **comissão especial
+> **Pendências do Pedro (Sprints 227–228):** ~~push + PR~~ — **entrou na `main` pelo PR #117** (v1.38).
+> A seção nova fica na aba Comitê especial, então quem tem o escopo dela já a vê. O mapa precisa de **estandes gerados** e da **comissão especial
 > marcada** em Avaliadores Online. A tela não foi aberta num navegador aqui — vale conferir o mapa e
 > a tela cheia antes do evento.
 >
-> **Sprint 227 (branch `feat/comite-designacoes-busca`, saída da `origin/main` @ `21ed1d1`):** em
+> **Sprint 227 (branch `feat/comite-designacoes-busca`, já na `main` pelo PR #117 → v1.38):** em
 > Comitê especial → **Designações**, a busca de projetos passou a casar também com o **código** da
 > lista final vigente ("exa-002"), o **número do estande** ("42", "042" ou "estande 42") e o
 > **turno** ("vespertino", "turno a"; o turno pede ao menos três letras). Abaixo da busca, três

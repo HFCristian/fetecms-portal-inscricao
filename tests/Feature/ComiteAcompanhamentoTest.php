@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\Role;
 use App\Enums\StatusAvaliacao;
 use App\Models\Area;
+use App\Models\Avaliacao;
 use App\Models\AvaliacaoPresencial;
 use App\Models\AvaliadorProfile;
 use App\Models\Edicao;
@@ -176,6 +177,137 @@ class ComiteAcompanhamentoTest extends TestCase
             ->assertOk()
             ->assertJsonCount(0, 'data.avaliadores')
             ->assertJsonPath('data.mapa.estandes.42.situacao', 'pendente');
+    }
+
+    /** Uma avaliação online, como a designação do comitê (ou a fila comum) a cria. */
+    private function online(User $avaliador, Projeto $projeto, string $status, bool $doComite = true): Avaliacao
+    {
+        return Avaliacao::create([
+            'projeto_id' => $projeto->id, 'avaliador_id' => $avaliador->id,
+            'status' => StatusAvaliacao::from($status), 'designacao_manual' => $doComite,
+            'designada_pelo_comite' => $doComite,
+            'iniciada_em' => $status === 'designada' ? null : now()->subHour(),
+            'concluida_em' => $status === 'concluida' ? now()->subMinutes(10) : null,
+            'nota' => $status === 'concluida' ? 7.5 : null,
+        ]);
+    }
+
+    public function test_mostra_as_designacoes_online_feitas_pelo_comite(): void
+    {
+        $abelhas = $this->finalista('Abelhas nativas', 42, codigo: 'FET.AGR-001');
+        $horta = $this->finalista('Horta vertical', 43);
+        $solo = $this->finalista('Solo vivo', 44);
+        $ana = $this->avaliador('Ana Comissão');
+        $bruno = $this->avaliador('Bruno Comissão');
+
+        $this->online($ana, $abelhas, 'designada');
+        $this->online($ana, $horta, 'concluida');
+        // A fila online comum do avaliador não é trabalho do comitê.
+        $this->online($bruno, $solo, 'designada', doComite: false);
+
+        $avaliadores = collect($this->getJson(self::URL)->assertOk()->json('data.avaliadores'))->keyBy('nome');
+
+        $ana = $avaliadores['Ana Comissão'];
+        $this->assertSame('designado', $ana['situacao']);
+        $this->assertSame(['Abelhas nativas', 'Horta vertical'], array_column($ana['designacoes_comite'], 'titulo'));
+        $this->assertSame(['designada', 'concluida'], array_column($ana['designacoes_comite'], 'situacao'));
+        $this->assertSame('online', $ana['designacoes_comite'][0]['origem']);
+        $this->assertSame('FET.AGR-001', $ana['designacoes_comite'][0]['codigo']);
+        $this->assertSame(42, $ana['designacoes_comite'][0]['estande']);
+        $this->assertNotNull($ana['ultima_concluida_em']);
+        // A nota não sai nesta tela.
+        $this->assertArrayNotHasKey('nota', $ana['designacoes_comite'][1]);
+
+        $this->assertSame('livre', $avaliadores['Bruno Comissão']['situacao']);
+        $this->assertSame([], $avaliadores['Bruno Comissão']['designacoes_comite']);
+    }
+
+    public function test_a_designacao_online_do_comite_pinta_o_mapa(): void
+    {
+        $abelhas = $this->finalista('Abelhas nativas', 42);
+        $horta = $this->finalista('Horta vertical', 43);
+        $solo = $this->finalista('Solo vivo', 44);
+        $ana = $this->avaliador('Ana Comissão');
+
+        $this->online($ana, $abelhas, 'em_andamento');
+        $this->online($ana, $horta, 'concluida');
+        $this->online($ana, $solo, 'designada', doComite: false);
+
+        $estandes = $this->getJson(self::URL.'?turno=A')->assertOk()->json('data.mapa.estandes');
+
+        // Aberta online é "a fazer", não "avaliando agora" — isso é do estande.
+        $this->assertSame('designado', $estandes['42']['situacao']);
+        $this->assertSame(1, $estandes['42']['designadas_online']);
+        $this->assertSame('iniciada', $estandes['42']['avaliacoes'][0]['situacao']);
+        $this->assertSame('online', $estandes['42']['avaliacoes'][0]['origem']);
+
+        $this->assertSame('avaliado', $estandes['43']['situacao']);
+        $this->assertSame(1, $estandes['43']['concluidas']);
+        $this->assertSame(1, $estandes['43']['concluidas_online']);
+
+        $this->assertSame('pendente', $estandes['44']['situacao']);
+    }
+
+    public function test_so_a_tela_do_comite_marca_a_designacao_como_dele(): void
+    {
+        $abelhas = $this->finalista('Abelhas nativas', 42);
+        $horta = $this->finalista('Horta vertical', 43);
+        $ana = $this->avaliador('Ana Comissão');
+
+        $this->postJson('/api/v1/admin/comite/designacoes', [
+            'projeto_ids' => [$abelhas->id], 'avaliador_ids' => [$ana->id],
+        ])->assertOk()->assertJsonPath('data.designadas', 1);
+
+        Sanctum::actingAs(User::factory()->admin()->create());
+        $this->postJson('/api/v1/admin/avaliacao/designacoes/designar', [
+            'projeto_ids' => [$horta->id], 'avaliador_ids' => [$ana->id],
+        ])->assertOk()->assertJsonPath('data.designadas', 1);
+
+        $this->assertTrue(Avaliacao::where('projeto_id', $abelhas->id)->sole()->designada_pelo_comite);
+        $this->assertFalse(Avaliacao::where('projeto_id', $horta->id)->sole()->designada_pelo_comite);
+    }
+
+    public function test_o_comite_assume_a_designacao_que_o_avaliador_ja_tinha(): void
+    {
+        $abelhas = $this->finalista('Abelhas nativas', 42);
+        $ana = $this->avaliador('Ana Comissão');
+        $existente = $this->online($ana, $abelhas, 'designada', doComite: false);
+
+        $this->postJson('/api/v1/admin/comite/designacoes', [
+            'projeto_ids' => [$abelhas->id], 'avaliador_ids' => [$ana->id],
+        ])->assertOk();
+
+        $this->assertTrue($existente->fresh()->designada_pelo_comite);
+    }
+
+    public function test_a_migration_marca_o_passado_por_aproximacao(): void
+    {
+        $this->lista->update(['gerada_em' => now()->subDay()]);
+        $finalista = $this->finalista('Abelhas nativas', 42);
+        $deFora = Projeto::factory()->submetido()->create(['edicao_id' => $this->edicao->id, 'area_id' => $this->agr->id]);
+        $ana = $this->avaliador('Ana Comissão');
+        $comum = $this->avaliador('Davi Comum', comissao: false);
+
+        $migration = require database_path('migrations/2026_10_18_140000_designada_pelo_comite_nas_avaliacoes.php');
+        $migration->down();
+
+        $criar = fn (User $u, Projeto $p, bool $manual, $quando) => tap(Avaliacao::create([
+            'projeto_id' => $p->id, 'avaliador_id' => $u->id, 'status' => StatusAvaliacao::Designada, 'designacao_manual' => $manual,
+        ]))->forceFill(['created_at' => $quando])->saveQuietly();
+
+        $criar($ana, $finalista, true, now());                 // o comitê, depois da lista: marca
+        $outro = Projeto::factory()->submetido()->create(['edicao_id' => $this->edicao->id, 'area_id' => $this->agr->id]);
+        $this->lista->projetos()->attach($outro->id);
+        $criar($ana, $outro, true, now()->subDays(3));         // antes da lista: não
+        $criar($ana, $deFora, true, now());                    // fora da lista: não
+        $criar($comum, $finalista, true, now());               // fora da comissão: não
+
+        $migration->up();
+
+        $this->assertSame(
+            [$finalista->id],
+            Avaliacao::where('designada_pelo_comite', true)->pluck('projeto_id')->all(),
+        );
     }
 
     public function test_turno_invalido_e_recusado(): void

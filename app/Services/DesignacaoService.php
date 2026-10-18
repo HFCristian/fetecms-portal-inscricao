@@ -144,7 +144,12 @@ class DesignacaoService
             'por_avaliador' => [],
         ];
 
-        DB::transaction(function () use ($projetos, $avaliadores, $existentes, &$resultado) {
+        // A tela do comitê marca o que designa (Sprint 229): é o que o
+        // Acompanhamento das avaliações do comitê lê para separar essas
+        // designações do resto da fila do avaliador.
+        $doComite = $soComissao ? ['designada_pelo_comite' => true] : [];
+
+        DB::transaction(function () use ($projetos, $avaliadores, $existentes, $doComite, &$resultado) {
             foreach ($projetos as $projeto) {
                 foreach ($avaliadores as $avaliador) {
                     $existente = $existentes->get($projeto->id.':'.$avaliador->id);
@@ -155,7 +160,7 @@ class DesignacaoService
                             'avaliador_id' => $avaliador->id,
                             'status' => StatusAvaliacao::Designada,
                             'designacao_manual' => true,
-                        ]);
+                        ] + $doComite);
 
                         $resultado['designadas']++;
                         $this->creditar($resultado, $avaliador, $projeto->titulo);
@@ -174,7 +179,7 @@ class DesignacaoService
                     }
 
                     if ($existente->foiDevolvida()) {
-                        $existente->update(['devolvida_em' => null, 'designacao_manual' => true]);
+                        $existente->update(['devolvida_em' => null, 'designacao_manual' => true] + $doComite);
 
                         $resultado['retomadas']++;
                         $this->creditar($resultado, $avaliador, $projeto->titulo);
@@ -183,9 +188,10 @@ class DesignacaoService
                     }
 
                     // Já está com o projeto: nada muda, mas a partir de agora a
-                    // designação manual o protege das devoluções automáticas.
-                    if (! $existente->designacao_manual) {
-                        $existente->update(['designacao_manual' => true]);
+                    // designação manual o protege das devoluções automáticas —
+                    // e, vinda do comitê, passa a ser acompanhada por ele.
+                    if (! $existente->designacao_manual || ($doComite !== [] && ! $existente->designada_pelo_comite)) {
+                        $existente->update(['designacao_manual' => true] + $doComite);
                     }
 
                     $resultado['ignoradas'][] = [
