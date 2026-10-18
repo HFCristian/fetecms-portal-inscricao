@@ -6,6 +6,7 @@ use App\Enums\Categoria;
 use App\Enums\ProjetoStatus;
 use App\Enums\Role;
 use App\Enums\StatusAvaliacao;
+use App\Enums\Turno;
 use App\Models\Avaliacao;
 use App\Models\Edicao;
 use App\Models\Projeto;
@@ -60,6 +61,7 @@ class DesignacaoService
         private readonly DistribuicaoService $distribuicao,
         private readonly RegistroAtividadeService $registros,
         private readonly NotificacaoDesignacaoService $notificacoes,
+        private readonly LocaisFinalistasService $locais,
     ) {}
 
     /**
@@ -481,6 +483,14 @@ class DesignacaoService
      * especial** — é o que a tela da aba Comitê usa (Sprint 137): quem
      * administra o comitê designa para o comitê, e não para a base inteira.
      *
+     * `$local` (a tela do Comitê também) liga o **local no evento**: cada
+     * projeto vem com o código da lista final, o turno e o estande, a busca
+     * por texto casa também com eles e os filtros (`codigo`, `estande`,
+     * `turno`) recortam a lista — com um filtro, só sobra quem tem local, isto
+     * é, os finalistas. `null` é a tela da Avaliação online, que não monta o
+     * mapa a cada tecla digitada.
+     *
+     * @param  array{codigo?: ?string, estande?: int|string|null, turno?: ?string}|null  $local
      * @return array<string, mixed>
      */
     public function opcoesDeDesignacao(
@@ -488,12 +498,20 @@ class DesignacaoService
         string $avaliador = '',
         int $limite = 30,
         bool $soComissao = false,
+        ?array $local = null,
     ): array {
         $como = fn (string $termo) => '%'.str_replace(['%', '_'], ['\%', '\_'], mb_strtolower(trim($termo))).'%';
 
+        $locais = $local === null ? null : $this->locais->todos();
+        $peloLocal = $locais === null ? [] : $this->locais->casamBusca($locais, $projeto);
+        $recorte = $locais === null ? null : $this->locais->filtrar($locais, $local);
+
         $projetos = Projeto::avaliacaoOnline()
             ->where('status', ProjetoStatus::Submetido->value)
-            ->when(trim($projeto) !== '', fn ($q) => $q->whereRaw('LOWER(titulo) LIKE ?', [$como($projeto)]))
+            ->when(trim($projeto) !== '', fn ($q) => $q->where(fn ($w) => $w
+                ->whereRaw('LOWER(titulo) LIKE ?', [$como($projeto)])
+                ->when($peloLocal !== [], fn ($o) => $o->orWhereIn('id', $peloLocal))))
+            ->when($recorte !== null, fn ($q) => $q->whereIn('id', $recorte))
             ->with('area:id,nome')
             ->withCount([
                 'avaliacoes as concluidas_count' => fn ($q) => $q->considerada()
@@ -524,6 +542,8 @@ class DesignacaoService
             ->limit($limite)
             ->get();
 
+        $semLocal = ['codigo' => null, 'turno' => null, 'turno_label' => null, 'estande' => null];
+
         return [
             'projetos' => $projetos->map(fn (Projeto $p) => [
                 'id' => $p->id,
@@ -531,7 +551,7 @@ class DesignacaoService
                 'area' => $p->area?->nome,
                 'categoria' => $p->categoria?->label(),
                 'concluidas' => (int) $p->concluidas_count,
-            ])->all(),
+            ] + ($locais === null ? [] : ($locais[$p->id] ?? $semLocal)))->all(),
             'avaliadores' => $avaliadores->map(fn (User $u) => [
                 'id' => $u->id,
                 'nome' => $u->name,
@@ -539,7 +559,7 @@ class DesignacaoService
                 'area' => $u->avaliadorProfile?->area?->nome,
                 'na_fila' => (int) $u->designadas_count,
             ])->all(),
-        ];
+        ] + ($locais === null ? [] : ['turnos' => Turno::opcoes()]);
     }
 
     /**

@@ -29,6 +29,7 @@ use App\Http\Controllers\Api\V1\CertificadosController;
 use App\Http\Controllers\Api\V1\ChatAdminController;
 use App\Http\Controllers\Api\V1\ChatController;
 use App\Http\Controllers\Api\V1\CodigosFinalistasController;
+use App\Http\Controllers\Api\V1\ComiteAcompanhamentoController;
 use App\Http\Controllers\Api\V1\ComiteDesignacaoController;
 use App\Http\Controllers\Api\V1\ComitePremiacaoController;
 use App\Http\Controllers\Api\V1\ComiteTransporteController;
@@ -619,6 +620,9 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 // Designação do comitê: só para os avaliadores da comissão especial.
                 Route::get('/designacoes/opcoes', [ComiteDesignacaoController::class, 'opcoes']);
                 Route::post('/designacoes', [ComiteDesignacaoController::class, 'designar']);
+                // Acompanhamento: cada avaliador da comissão e o mapa só com as
+                // avaliações do comitê, com dashboard.
+                Route::get('/acompanhamento', ComiteAcompanhamentoController::class);
                 // Premiação (Sprint 190): as credenciais e prêmios da feira nos
                 // projetos premiados — a mesma base da Avaliação presencial.
                 Route::get('/premiacao', [ComitePremiacaoController::class, 'index']);

@@ -593,7 +593,9 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
   - **Comitê especial** (`/admin/comite`): o deslocamento das equipes durante a feira, em duas
     seções (mais as **Designações** do comitê e a **Premiação** — as credenciais e prêmios nos
     projetos premiados, na mesma base de Avaliação presencial → Credenciais e Prêmios, com a lista de
-    premiação em TXT; `ComitePremiacaoController`). **Transporte de comitê** lista quem está com o localizador ligado e o que cada um
+    premiação em TXT; `ComitePremiacaoController` — e o **Acompanhamento das avaliações**
+    (`/admin/comite/acompanhamento`, `AcompanhamentoComiteService`): cada avaliador da comissão com o
+    que está avaliando no estande, e o mapa do evento só com as avaliações do comitê, com dashboard). **Transporte de comitê** lista quem está com o localizador ligado e o que cada um
     configurou, e traz o botão **Habilitar localização** — um assistente de **seis passos**:
     quantas pessoas estão junto → os **nomes** (opcionais, com a área de cada uma) → o **meio de
     transporte** → o **ponto de partida** → o **destino** (autocomplete do Google Places) e por
@@ -1000,17 +1002,61 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 223 | Avaliação presencial → **Validação de avaliadores**: liberar (em lote) para o evento inteiro, obrigatório para avaliar e ser distribuído | ✅ sim | ✅ sim (Pedro, PR #114 → v1.36) | 0 |
 | 224 | Datas e períodos → **turnos da avaliação presencial**: horário de cada turno e da avaliação, dia a dia | ✅ sim | ✅ sim (Pedro, PR #114 → v1.36) | 0 |
 | 225 | Aba Presencial do avaliador: marcar "quero ser presencial" **sem trava de data** (desistir devolve o designado) | ✅ sim | ✅ sim (Pedro, PR #115 → v1.37) | 0 |
-| 226 | Mapa em tela cheia → Checagem: estande **checado sem credenciamento** em amarelo | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 226 | Mapa em tela cheia → Checagem: estande **checado sem credenciamento** em amarelo | ✅ sim | ✅ sim (Pedro, PR #116 → v1.37.2) | 0 |
+| 227 | Comitê especial → Designações: busca e filtros de projeto por **código, estande e turno** | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 228 | Comitê especial → **Acompanhamento das avaliações**: lista por avaliador + mapa só do comitê com dashboard | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
-> **Sprint 226 (branch `feat/mapa-checagem-sem-credenciamento`, saída da `origin/main` @ `920a2b5`):** na visualização **Checagem** do mapa em tela cheia, o estande
+> **Sprint 228 (mesma branch):** nova seção do Comitê especial, **Acompanhamento das avaliações**
+> (`/admin/comite/acompanhamento`, `GET /admin/comite/acompanhamento?turno=`,
+> `AcompanhamentoComiteService`, `ComiteAcompanhamentoController`), só leitura e recarregando sozinha
+> (30 s; 5 s em tela cheia). "Avaliação do comitê" é a avaliação **no estande** feita por avaliador da
+> comissão especial — a definição do painel da tela cheia (Sprint 200), em qualquer vaga; conta demo
+> fica de fora. A designação **online** (Comitê → Designações) não entra: na avaliação online não há
+> como separar o que veio do comitê do resto da fila do avaliador.
+> (a) Aba **Avaliadores**: um cartão por membro da comissão — inclusive quem não fez nada —, com o
+> que está **avaliando agora** (código · estande · turno, título, vaga e desde que horas), o que tem
+> **designado** sem iniciar, quantas **enviou** (com a lista) e as abertas que **venceram** sem envio
+> (a avaliação aberta cujo prazo passou não conta como trabalho em curso). Quem está avaliando vem
+> primeiro; busca por avaliador, projeto, código ou estande e filtro de situação.
+> (b) Aba **Mapa**: a planta vigente (ou a padrão) num turno — o em foco da agenda, por padrão —,
+> pintada só pelo comitê: **em avaliação agora**, **avaliado** (verde; "em parte" quando a edição pede
+> mais de uma avaliação da comissão por projeto), **designado**, **sem avaliação do comitê**; borda
+> tracejada no estande ainda não credenciado e checado e um selo com quantas o comitê já enviou. Clicar
+> abre o estande com cada avaliação do comitê nele. Tela cheia pela Fullscreen API. O **dashboard**
+> (`PainelComiteMapa.jsx`, contas em `lib/comiteAcompanhamento.js`) traz a barra de avaliações feitas
+> sobre a meta (projetos do turno × vagas da comissão), os projetos por situação no geral e por área,
+> quantos estão **prontos sem ninguém do comitê**, os avaliadores avaliando/com designação/livres e
+> quem mais enviou.
+> Back **1579/1579**, front **869/869**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprints 227–228):** `git push origin feat/comite-designacoes-busca` + PR para
+> a `main`. Sem migration, `.env` ou dependência nova. A seção nova fica na aba Comitê especial, então
+> quem tem o escopo dela já a vê. O mapa precisa de **estandes gerados** e da **comissão especial
+> marcada** em Avaliadores Online. A tela não foi aberta num navegador aqui — vale conferir o mapa e
+> a tela cheia antes do evento.
+>
+> **Sprint 227 (branch `feat/comite-designacoes-busca`, saída da `origin/main` @ `21ed1d1`):** em
+> Comitê especial → **Designações**, a busca de projetos passou a casar também com o **código** da
+> lista final vigente ("exa-002"), o **número do estande** ("42", "042" ou "estande 42") e o
+> **turno** ("vespertino", "turno a"; o turno pede ao menos três letras). Abaixo da busca, três
+> **filtros** que se somam entre si e com a busca: código (parte dele), estande (o número) e turno
+> (A/B). Com qualquer filtro, só aparecem finalistas — quem não está na lista não tem local. Cada
+> projeto mostra código · estande · turno antes da área. O local sai de um serviço novo,
+> `LocaisFinalistasService` (o turno é o do estande; sem estande, o de Turnos, como no balcão),
+> ligado no `DesignacaoService::opcoesDeDesignacao(local: [...])` só pela tela do comitê: a designação
+> da Avaliação online não muda e não monta o mapa a cada tecla. `GET /admin/comite/designacoes/opcoes`
+> aceita `codigo`, `estande` (dígitos, com zero à esquerda) e `turno`, e devolve `turnos`.
+> Back **1573/1573**, front **852/852**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprint 227):** vai no push da 228, acima. Os filtros dependem da lista final
+> vigente (código) e de Mapa do Evento → Turnos/Estandes gerados.
+>
+> **Sprint 226 (branch `feat/mapa-checagem-sem-credenciamento`, já na `main` pelo PR #116 → v1.37.2):** na visualização **Checagem** do mapa em tela cheia, o estande
 > checado **sem ter passado pelo credenciamento** deixou de ficar verde e passou a **amarelo**
 > (`lib/mapaTelaCheia.js`, texto escuro sobre ele), com um item próprio na legenda — "Checado sem
 > credenciamento" e quantos estandes estão assim. Verde ficou para checado **e** credenciado. As
 > visualizações Credenciamento e Avaliação, a cor de situação fora da tela cheia e o servidor não
 > mudaram. Front **850/850**, build OK.
->
-> **Pendências do Pedro (Sprint 226):** `git push origin feat/mapa-checagem-sem-credenciamento` + PR
-> para a `main`. Sem migration, `.env` ou dependência nova.
 >
 > **Sprint 225 (branch `feat/presencial-sem-trava-de-data`, já na `main` pelo PR #115 → v1.37):** o avaliador online que decide avaliar presencialmente marca "sim" na
 > aba **Presencial** **a qualquer momento** — antes a resposta travava quando o evento começava
