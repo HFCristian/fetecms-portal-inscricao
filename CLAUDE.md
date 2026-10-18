@@ -131,6 +131,8 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     começa-se uma avaliação do início da avaliação até o fim dela ou do turno, o que vier antes, e
     escreve-se até o fim da avaliação; fora disso a aba aparece fechada, com o motivo. Antes, a organização
     precisa **liberar** o avaliador em Avaliação presencial → **Validação de avaliadores**
+    (o avaliador online marca "quero ser presencial" na aba Presencial **a qualquer momento**, inclusive
+    durante o evento; desistir devolve o que estava só designado — Sprint 225)
     (`/admin/presencial/validacao`, `LiberacaoPresencialService`, `avaliador_liberacoes_presenciais`):
     vale para todo avaliador do presencial — o online que disse "sim" e a conta criada em Cadastro de
     avaliadores —, uma vez para o **evento inteiro** da edição; sem liberação ele não avalia nem entra
@@ -997,7 +999,18 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 222 | Vagas presenciais por projeto: **2 comuns + 1 da comissão** (configuráveis), **peso 2** da comissão e o **Ranking presencial** | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 223 | Avaliação presencial → **Validação de avaliadores**: liberar (em lote) para o evento inteiro, obrigatório para avaliar e ser distribuído | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 224 | Datas e períodos → **turnos da avaliação presencial**: horário de cada turno e da avaliação, dia a dia | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 225 | Aba Presencial do avaliador: marcar "quero ser presencial" **sem trava de data** (desistir devolve o designado) | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprint 225 (mesma branch):** o avaliador online que decide avaliar presencialmente marca "sim" na
+> aba **Presencial** **a qualquer momento** — antes a resposta travava quando o evento começava
+> ("fale com a organização"). Como avaliar depende da **liberação** (Sprint 223), marcar "sim" no
+> meio do evento não dá acesso sozinho: põe o avaliador na Validação de avaliadores, e a resposta
+> passa a pedir que ele procure a equipe. Desistir também é livre, e devolve ao bolo o que estava só
+> designado para ele no estande; o que ele já abriu fica, para retomar se voltar atrás. A conta criada
+> pela organização só para o presencial continua sem responder. O "Modo de teste" saiu da aba
+> Presencial, que não tem mais data a ignorar. Sem migration.
+> Back **1568/1568**, front **849/849**, Pint limpo, build OK.
+>
 > **Sprint 224 (mesma branch):** o horário da avaliação presencial passou a ser parametrizado **por
 > dia × turno**, com uma **janela própria de avaliação**. `edicoes.horarios_turnos` (um horário por
 > turno, igual todo dia, avaliação até o fim + 30 min fixos) deu lugar a `edicoes.agenda_presencial`:

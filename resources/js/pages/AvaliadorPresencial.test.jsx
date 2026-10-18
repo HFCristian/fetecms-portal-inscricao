@@ -54,7 +54,7 @@ describe('AvaliadorPresencial', () => {
 
         fireEvent.click(await screen.findByRole('button', { name: /Sim, quero participar/i }));
 
-        await waitFor(() => expect(responderPresencial).toHaveBeenCalledWith(true, false));
+        await waitFor(() => expect(responderPresencial).toHaveBeenCalledWith(true));
         expect(await screen.findByText(/Chegue às 7h30 no ginásio/)).toBeInTheDocument();
         expect(screen.getByText('Participação presencial confirmada.')).toBeInTheDocument();
         // O menu passa a mostrar a aba da avaliação no estande, sem recarregar.
@@ -81,11 +81,20 @@ describe('AvaliadorPresencial', () => {
         expect(await screen.findByText(/ainda não publicou as orientações/i)).toBeInTheDocument();
     });
 
-    it('com o evento em curso os botões travam e a tela explica', async () => {
-        getPresencial.mockResolvedValue({ ...ACEITOU, pode_alterar: false, evento_iniciado: true });
+    it('com o evento em curso a resposta continua livre', async () => {
+        getPresencial.mockResolvedValue({ ...ACEITOU, pode_alterar: true, evento_iniciado: true });
         render(<AvaliadorPresencial />);
 
-        expect(await screen.findByText(/fale com a organização/i)).toBeInTheDocument();
+        expect(await screen.findByText(/a qualquer momento, inclusive durante o evento/i)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Não vou participar/i })).toBeEnabled();
+        expect(screen.getByRole('button', { name: /Sim, quero participar/i })).toBeEnabled();
+    });
+
+    it('a conta criada só para o presencial não responde', async () => {
+        getPresencial.mockResolvedValue({ ...ACEITOU, pode_alterar: false, apenas_presencial: true });
+        render(<AvaliadorPresencial />);
+
+        expect(await screen.findByText(/participação já está confirmada/i)).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /Não vou participar/i })).toBeDisabled();
     });
 });
