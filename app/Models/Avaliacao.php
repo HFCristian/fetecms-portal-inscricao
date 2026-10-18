@@ -44,7 +44,7 @@ class Avaliacao extends Model
         'subarea_correta', 'subarea_sugerida_id',
         'rascunho_em', 'iniciada_em', 'concluida_em', 'atividade_em', 'devolvida_em',
         'desconsiderada_em', 'desconsiderada_por', 'desconsiderada_motivo',
-        'designacao_manual', 'pela_organizacao',
+        'designacao_manual', 'designada_pelo_comite', 'pela_organizacao',
         'substitui_avaliacao_id', 'substituicao_motivo',
     ];
 
@@ -79,6 +79,8 @@ class Avaliacao extends Model
             'atividade_em' => 'datetime',
             'devolvida_em' => 'datetime',
             'designacao_manual' => 'boolean',
+            // Feita em Comitê especial → Designações (Sprint 229).
+            'designada_pelo_comite' => 'boolean',
             'pela_organizacao' => 'boolean',
         ];
     }

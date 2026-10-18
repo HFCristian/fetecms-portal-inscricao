@@ -3,10 +3,11 @@
  * a legenda, o resumo do dashboard e o filtro da lista de avaliadores. Tudo
  * puro — a tela só desenha.
  *
- * A cor do estande diz o que o **comitê** fez ali, nada mais: o que está
- * acontecendo agora manda (em avaliação), depois o que já foi feito (avaliado,
- * parcial quando a edição pede mais de uma avaliação da comissão por projeto),
- * depois o que só foi designado. Estande ainda não credenciado e checado tem a
+ * A cor do estande diz o que o **comitê** fez ali, nada mais — no estande ou
+ * pelas designações online do comitê: o que está acontecendo agora manda (em
+ * avaliação no estande), depois o que já foi feito (avaliado, parcial quando a
+ * edição pede mais de uma avaliação da comissão por projeto), depois o que só
+ * foi designado. Estande ainda não credenciado e checado tem a
  * borda tracejada — o comitê não começa ali.
  */
 
@@ -14,7 +15,7 @@ export const CORES_COMITE = {
     em_avaliacao: { fill: '#43157A', stroke: '#2a0058', texto: '#ffffff', label: 'Em avaliação agora' },
     avaliado: { fill: '#0ca30c', stroke: '#0a7a0a', texto: '#ffffff', label: 'Avaliado pelo comitê' },
     parcial: { fill: '#9fd8ae', stroke: '#2f8f4e', texto: '#0b3d1a', label: 'Avaliado em parte' },
-    designado: { fill: '#e9ddff', stroke: '#6250d6', texto: '#2a0058', label: 'Designado, não iniciado' },
+    designado: { fill: '#e9ddff', stroke: '#6250d6', texto: '#2a0058', label: 'Designado, a fazer' },
     pendente: { fill: '#ffffff', stroke: '#b9b2c4', texto: '#52514e', label: 'Sem avaliação do comitê' },
 };
 
@@ -91,24 +92,39 @@ export function resumoComite(linhas, avaliadores = [], vagas = 1) {
             avaliando: avaliadores.filter((a) => a.situacao === 'avaliando').length,
             designados: avaliadores.filter((a) => a.situacao === 'designado').length,
             livres: avaliadores.filter((a) => a.situacao === 'livre').length,
-            concluidas: avaliadores.reduce((soma, a) => soma + (a.concluidas?.length ?? 0), 0),
+            concluidas: avaliadores.reduce((soma, a) => soma + enviadas(a), 0),
+        },
+        // As designações online do comitê no turno: o que falta e o que veio.
+        online: {
+            designadas: linhas.reduce((soma, l) => soma + (l.designadas_online ?? 0), 0),
+            concluidas: linhas.reduce((soma, l) => soma + (l.concluidas_online ?? 0), 0),
         },
         // Quem mais avaliou: o número, para a coordenação redistribuir esforço.
-        destaques: [...avaliadores]
-            .filter((a) => (a.concluidas?.length ?? 0) > 0)
-            .sort((a, b) => b.concluidas.length - a.concluidas.length || a.nome.localeCompare(b.nome, 'pt-BR'))
-            .slice(0, 5)
-            .map((a) => ({ id: a.id, nome: a.nome, total: a.concluidas.length })),
+        destaques: avaliadores
+            .map((a) => ({ id: a.id, nome: a.nome, total: enviadas(a) }))
+            .filter((a) => a.total > 0)
+            .sort((a, b) => b.total - a.total || a.nome.localeCompare(b.nome, 'pt-BR'))
+            .slice(0, 5),
     };
+}
+
+/** O que a designação online do comitê ainda pede do avaliador. */
+export function designacoesPendentes(a) {
+    return (a.designacoes_comite ?? []).filter((p) => p.situacao !== 'concluida');
+}
+
+/** Tudo que o avaliador já enviou para o comitê: no estande e online. */
+export function enviadas(a) {
+    return (a.concluidas?.length ?? 0) + (a.designacoes_comite ?? []).filter((p) => p.situacao === 'concluida').length;
 }
 
 const ORDEM_SITUACAO = { avaliando: 0, designado: 1, livre: 2 };
 
-const semAcento = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const semAcento = (s) => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
 /**
  * A lista de avaliadores filtrada pela busca (nome, área ou qualquer projeto
- * dele: título, código, estande) e pela situação, com quem está avaliando
+ * dele, no estande ou designado pelo comitê: título, código, estande) e pela situação, com quem está avaliando
  * primeiro.
  */
 export function filtrarAvaliadores(avaliadores, busca = '', situacao = '') {
@@ -116,7 +132,7 @@ export function filtrarAvaliadores(avaliadores, busca = '', situacao = '') {
 
     const casa = (a) => {
         if (!termo) return true;
-        const projetos = [...a.em_avaliacao, ...a.designadas, ...a.concluidas]
+        const projetos = [...a.em_avaliacao, ...a.designadas, ...a.concluidas, ...(a.designacoes_comite ?? [])]
             .map((p) => `${p.titulo} ${p.codigo ?? ''} ${p.estande ? estande(p.estande) : ''}`);
 
         return semAcento([a.nome, a.area, ...projetos].join(' ')).includes(termo);

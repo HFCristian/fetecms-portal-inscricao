@@ -6,6 +6,7 @@ import PainelComiteMapa from '../components/PainelComiteMapa.jsx';
 import { getAcompanhamentoComite } from '../lib/comite.js';
 import {
     corDoEstande, legendaComite, filtrarAvaliadores, estande, hora, localDoProjeto, SEM_PROJETO,
+    designacoesPendentes,
 } from '../lib/comiteAcompanhamento.js';
 
 /** Tamanho de uma célula da grade, em unidades do viewBox (o mesmo da planta). */
@@ -29,21 +30,38 @@ const SITUACOES_AVALIADOR = {
 const SITUACOES_AVALIACAO = {
     em_avaliacao: 'em avaliação',
     designada: 'designada',
+    iniciada: 'iniciada',
     concluida: 'enviada',
     expirada: 'prazo encerrado',
 };
 
-/** Uma avaliação na lista do avaliador: local, título e o horário que importa. */
-function LinhaProjeto({ p }) {
-    const quando = p.situacao === 'concluida'
-        ? `enviada às ${hora(p.concluida_em)}`
-        : p.situacao === 'em_avaliacao' && p.iniciada_em ? `desde ${hora(p.iniciada_em)}` : '';
+/** O selo de cada designação online do comitê. */
+const SITUACOES_ONLINE = {
+    designada: { label: 'Aguardando', classe: 'bg-[#e9ddff] text-[#2a0058]' },
+    iniciada: { label: 'Em andamento', classe: 'bg-[#fff4cc] text-[#5c4a00]' },
+    concluida: { label: 'Avaliado', classe: 'bg-[#d4f0dc] text-[#004d15]' },
+};
 
+const ORIGENS = { estande: 'No estande', online: 'Online' };
+
+/** O horário que importa em cada situação. */
+function quando(p) {
+    if (p.situacao === 'concluida') return p.concluida_em ? `enviada às ${hora(p.concluida_em)}` : 'enviada';
+    if ((p.situacao === 'em_avaliacao' || p.situacao === 'iniciada') && p.iniciada_em) return `desde ${hora(p.iniciada_em)}`;
+
+    return '';
+}
+
+/** Uma avaliação na lista do avaliador: local, título e o horário que importa. */
+function LinhaProjeto({ p, selo = null }) {
     return (
         <li className="text-sm">
-            <span className="text-on-surface">{p.titulo}</span>
+            <span className="flex items-start justify-between gap-2">
+                <span className="text-on-surface">{p.titulo}</span>
+                {selo && <span className={`text-[11px] font-semibold rounded-full px-2 py-0.5 shrink-0 ${selo.classe}`}>{selo.label}</span>}
+            </span>
             <span className="block text-xs text-on-surface-variant">
-                {[localDoProjeto(p) || 'Sem estande', p.vaga_label, quando].filter(Boolean).join(' · ')}
+                {[localDoProjeto(p) || 'Sem estande', p.vaga_label, quando(p)].filter(Boolean).join(' · ')}
             </span>
         </li>
     );
@@ -52,6 +70,8 @@ function LinhaProjeto({ p }) {
 function CartaoAvaliador({ a }) {
     const [aberto, setAberto] = useState(false);
     const situacao = SITUACOES_AVALIADOR[a.situacao];
+    const comite = a.designacoes_comite ?? [];
+    const pendentes = designacoesPendentes(a).length;
 
     return (
         <li className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-4">
@@ -74,13 +94,24 @@ function CartaoAvaliador({ a }) {
 
             {a.designadas.length > 0 && (
                 <div className="mt-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant mb-1">Designados, não iniciados</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant mb-1">Designados no estande, não iniciados</p>
                     <ul className="space-y-1.5">{a.designadas.map((p) => <LinhaProjeto key={p.avaliacao_id} p={p} />)}</ul>
                 </div>
             )}
 
+            {comite.length > 0 && (
+                <div className="mt-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant mb-1">
+                        Designações do comitê · {comite.length - pendentes} de {comite.length} avaliada(s)
+                    </p>
+                    <ul className="space-y-1.5">
+                        {comite.map((p) => <LinhaProjeto key={p.avaliacao_id} p={p} selo={SITUACOES_ONLINE[p.situacao]} />)}
+                    </ul>
+                </div>
+            )}
+
             <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-on-surface-variant">
-                <span><strong className="text-on-surface">{a.concluidas.length}</strong> avaliação(ões) enviada(s)</span>
+                <span><strong className="text-on-surface">{a.concluidas.length}</strong> avaliação(ões) enviada(s) no estande</span>
                 {a.ultima_concluida_em && <span>última às {hora(a.ultima_concluida_em)}</span>}
                 {a.expiradas > 0 && <span>{a.expiradas} com o prazo encerrado sem envio</span>}
                 {a.concluidas.length > 0 && (
@@ -165,6 +196,7 @@ function DetalheEstande({ linha, onFechar }) {
                             <span className="text-on-surface">{av.avaliador}</span>
                             <span className="text-xs text-on-surface-variant">
                                 {[
+                                    ORIGENS[av.origem],
                                     SITUACOES_AVALIACAO[av.situacao],
                                     av.situacao === 'concluida' ? hora(av.concluida_em) : hora(av.iniciada_em),
                                     av.vaga_label,
@@ -432,8 +464,9 @@ export default function ComiteAcompanhamento() {
             </Link>
             <h1 className="font-display text-2xl font-semibold text-primary mb-1">Acompanhamento das avaliações</h1>
             <p className="text-on-surface-variant mb-4 max-w-3xl">
-                O que cada avaliador da <strong>comissão especial</strong> está avaliando no estande, e o mapa do
-                evento só com as avaliações do comitê. A tela se atualiza sozinha.
+                O que cada avaliador da <strong>comissão especial</strong> está avaliando no estande e o que
+                recebeu em <strong>Designações do comitê</strong>, e o mapa do evento só com o trabalho do comitê.
+                A tela se atualiza sozinha.
             </p>
 
             {alerta && <div className="mb-4 max-w-3xl"><Alert>{alerta}</Alert></div>}

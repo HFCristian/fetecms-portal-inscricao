@@ -93,6 +93,12 @@ export default function PainelComiteMapa({ linhas, avaliadores, vagas, turnoLabe
                     <Numero valor={r.designados} label="designados" cor={CORES_COMITE.designado.stroke} />
                     <Numero valor={r.pendentes} label="sem avaliação" />
                 </ul>
+                {(r.online.designadas > 0 || r.online.concluidas > 0) && (
+                    <p className="text-xs text-on-surface-variant mt-2">
+                        Designações do comitê (online) neste turno: <strong className="text-on-surface">{r.online.designadas}</strong> a fazer ·{' '}
+                        <strong className="text-on-surface">{r.online.concluidas}</strong> avaliada(s)
+                    </p>
+                )}
                 {r.prontosSemComite > 0 && (
                     <p className="text-xs text-on-surface mt-2 rounded-lg bg-[#fff4cc] px-2 py-1.5">
                         <strong>{r.prontosSemComite}</strong> projeto(s) pronto(s) para avaliação ainda sem ninguém do comitê.
@@ -108,7 +114,7 @@ export default function PainelComiteMapa({ linhas, avaliadores, vagas, turnoLabe
                     <Numero valor={r.avaliadores.livres} label="livres" />
                 </ul>
                 <p className="text-xs text-on-surface-variant mt-1">
-                    {r.avaliadores.total} na comissão · {r.avaliadores.concluidas} avaliação(ões) enviada(s) no evento
+                    {r.avaliadores.total} na comissão · {r.avaliadores.concluidas} avaliação(ões) enviada(s), no estande e online
                 </p>
                 {r.destaques.length > 0 && (
                     <ol className="mt-2 space-y-1 text-xs">

@@ -6,10 +6,12 @@ use App\Enums\Role;
 use App\Enums\StatusAvaliacao;
 use App\Enums\Turno;
 use App\Models\Area;
+use App\Models\Avaliacao;
 use App\Models\AvaliacaoPresencial;
 use App\Models\Edicao;
 use App\Models\EstandeProjeto;
 use App\Models\MapaLayout;
+use App\Models\Projeto;
 use App\Models\User;
 use App\Support\JanelaTurnos;
 use App\Support\PlantaEvento;
@@ -21,20 +23,24 @@ use Illuminate\Support\Facades\DB;
  *
  * Durante a feira, quem coordena o comitê pergunta duas coisas: **onde está
  * cada avaliador da comissão** (o que ele está avaliando agora, o que ainda
- * tem designado, quanto já fez) e **que estandes o comitê já cobriu**. A tela
- * responde com uma lista por avaliador e um mapa do evento que só enxerga as
- * avaliações do comitê, com um dashboard ao lado.
+ * tem a fazer, quanto já fez) e **que estandes o comitê já cobriu**. A tela
+ * responde com uma lista por avaliador e um mapa do evento que só enxerga o
+ * trabalho do comitê, com um dashboard ao lado.
  *
- * "Avaliação do comitê" é a avaliação **no estande** feita por um avaliador
- * marcado como comissão especial — a mesma definição do painel da tela cheia
- * do Mapa do Evento (Sprint 200), para os dois números nunca discordarem. Vale
- * qualquer vaga: o avaliador da comissão que entrou numa vaga comum continua
- * sendo o comitê trabalhando, e a vaga vai escrita em cada linha. A designação
- * online (Comitê → Designações) fica de fora: na avaliação online não há como
- * separar o que veio do comitê do resto da fila do avaliador.
+ * O trabalho do comitê vem de dois lugares:
  *
- * Conta de ensaio (`is_demo`) não entra: o acompanhamento é do evento de
- * verdade.
+ * - a avaliação **no estande** feita por um avaliador marcado como comissão
+ *   especial — a mesma definição do painel da tela cheia do Mapa do Evento
+ *   (Sprint 200), para os dois números nunca discordarem. Vale qualquer vaga:
+ *   o avaliador da comissão que entrou numa vaga comum continua sendo o comitê
+ *   trabalhando, e a vaga vai escrita em cada linha;
+ * - a designação **online** feita em Comitê especial → Designações
+ *   (`avaliacoes.designada_pelo_comite`, Sprint 229). O resto da fila online do
+ *   avaliador não entra: é a avaliação da feira, não a do comitê.
+ *
+ * Cada linha diz de onde veio (`origem`: `estande` ou `online`). Conta de
+ * ensaio (`is_demo`) não entra: o acompanhamento é do evento de verdade. A
+ * nota não vai no payload — quem a lê fica registrado em outra tela.
  */
 class AcompanhamentoComiteService
 {
@@ -58,23 +64,38 @@ class AcompanhamentoComiteService
             ?? Turno::A;
 
         $membros = $this->membros();
-        $avaliacoes = $edicao === null || $membros->isEmpty()
+        $locais = $this->locais->todos();
+        $comProjeto = ['projeto:id,titulo,categoria,area_id', 'projeto.area:id,nome,sigla'];
+
+        $noEstande = $edicao === null || $membros->isEmpty()
             ? collect()
             : AvaliacaoPresencial::where('edicao_id', $edicao->id)
                 ->whereIn('avaliador_id', $membros->keys())
-                ->with(['projeto:id,titulo,categoria,area_id', 'projeto.area:id,nome,sigla'])
+                ->with($comProjeto)
                 ->orderBy('id')
                 ->get()
-                ->filter(fn (AvaliacaoPresencial $a) => $a->projeto !== null);
+                ->filter(fn (AvaliacaoPresencial $a) => $a->projeto !== null)
+                ->map(fn (AvaliacaoPresencial $a) => $this->linhaNoEstande($a, $locais, $membros, $janela));
 
-        $locais = $this->locais->todos();
-        $linhas = $avaliacoes->map(fn (AvaliacaoPresencial $a) => $this->linha($a, $locais, $membros, $janela));
+        // O `whereHas` traz o recorte da edição em escopo (EdicaoScope do
+        // projeto); a devolvida pelo prazo some pelo escopo da avaliação.
+        $online = $membros->isEmpty()
+            ? collect()
+            : Avaliacao::where('designada_pelo_comite', true)
+                ->whereIn('avaliador_id', $membros->keys())
+                ->whereHas('projeto')
+                ->with($comProjeto)
+                ->orderBy('id')
+                ->get()
+                ->map(fn (Avaliacao $a) => $this->linhaOnline($a, $locais, $membros));
+
+        $linhas = $noEstande->concat($online)->values();
 
         return [
             'turno' => $turnoMapa->value,
             'turno_label' => $turnoMapa->label(),
             'turnos' => Turno::opcoes(),
-            'turno_em_andamento' => ($foco['situacao'] ?? null) === 'em_andamento' || ($foco['situacao'] ?? null) === 'margem'
+            'turno_em_andamento' => in_array($foco['situacao'] ?? null, ['em_andamento', 'margem'], true)
                 ? $foco['turno']
                 : null,
             'vagas_comite' => $janela->comitePorProjeto(),
@@ -105,7 +126,7 @@ class AcompanhamentoComiteService
     }
 
     /**
-     * Uma avaliação do comitê como a tela lê.
+     * Uma avaliação no estande como a tela lê.
      *
      * A situação separa o que **ocupa** o avaliador (em avaliação, designada)
      * do que já passou: a avaliação aberta cujo turno acabou sem envio não é
@@ -116,37 +137,77 @@ class AcompanhamentoComiteService
      * @param  Collection<int, User>  $membros
      * @return array<string, mixed>
      */
-    private function linha(AvaliacaoPresencial $a, array $locais, Collection $membros, JanelaTurnos $janela): array
+    private function linhaNoEstande(AvaliacaoPresencial $a, array $locais, Collection $membros, JanelaTurnos $janela): array
     {
-        $projeto = $a->projeto;
-        $local = $locais[$projeto->id] ?? null;
-
-        $situacao = match (true) {
-            $a->concluida() => 'concluida',
-            $a->expirada($janela) => 'expirada',
-            $a->status === StatusAvaliacao::EmAndamento => 'em_avaliacao',
-            default => 'designada',
-        };
-
         return [
-            'avaliacao_id' => $a->id,
+            ...$this->doProjeto($a->projeto, $locais, $a->turno),
+            'avaliacao_id' => 'estande-'.$a->id,
+            'origem' => 'estande',
             'avaliador_id' => $a->avaliador_id,
             'avaliador' => $membros->get($a->avaliador_id)?->name,
+            'vaga' => $a->vaga?->value,
+            'vaga_label' => $a->vaga?->label(),
+            'situacao' => match (true) {
+                $a->concluida() => 'concluida',
+                $a->expirada($janela) => 'expirada',
+                $a->status === StatusAvaliacao::EmAndamento => 'em_avaliacao',
+                default => 'designada',
+            },
+            'iniciada_em' => $a->iniciada_em?->toIso8601String(),
+            'concluida_em' => $a->concluida_em?->toIso8601String(),
+        ];
+    }
+
+    /**
+     * Uma designação online do comitê. A aberta é `iniciada`, e não "em
+     * avaliação": o rascunho online pode ficar aberto por dias, e o "avaliando
+     * agora" é de quem está num estande.
+     *
+     * @param  array<int, array<string, mixed>>  $locais
+     * @param  Collection<int, User>  $membros
+     * @return array<string, mixed>
+     */
+    private function linhaOnline(Avaliacao $a, array $locais, Collection $membros): array
+    {
+        return [
+            ...$this->doProjeto($a->projeto, $locais, null),
+            'avaliacao_id' => 'online-'.$a->id,
+            'origem' => 'online',
+            'avaliador_id' => $a->avaliador_id,
+            'avaliador' => $membros->get($a->avaliador_id)?->name,
+            'vaga' => null,
+            'vaga_label' => null,
+            'situacao' => match ($a->status) {
+                StatusAvaliacao::Concluida => 'concluida',
+                StatusAvaliacao::EmAndamento => 'iniciada',
+                default => 'designada',
+            },
+            'iniciada_em' => $a->iniciada_em?->toIso8601String(),
+            'concluida_em' => $a->concluida_em?->toIso8601String(),
+            'designada_em' => $a->created_at?->toIso8601String(),
+        ];
+    }
+
+    /**
+     * O projeto e o lugar dele no evento.
+     *
+     * @param  array<int, array<string, mixed>>  $locais
+     * @return array<string, mixed>
+     */
+    private function doProjeto(Projeto $projeto, array $locais, ?Turno $turnoDaAvaliacao): array
+    {
+        $local = $locais[$projeto->id] ?? null;
+
+        return [
             'projeto_id' => $projeto->id,
             'titulo' => $projeto->titulo,
             'codigo' => $local['codigo'] ?? null,
             'estande' => $local['estande'] ?? null,
-            'turno' => $local['turno'] ?? $a->turno?->value,
-            'turno_label' => $local['turno_label'] ?? $a->turno?->label(),
+            'turno' => $local['turno'] ?? $turnoDaAvaliacao?->value,
+            'turno_label' => $local['turno_label'] ?? $turnoDaAvaliacao?->label(),
             'area' => $projeto->area?->nome,
             'area_sigla' => $projeto->area?->siglaDaLista(),
             'categoria' => $projeto->categoria?->label(),
-            'vaga' => $a->vaga?->value,
-            'vaga_label' => $a->vaga?->label(),
-            'situacao' => $situacao,
-            'iniciada_em' => $a->iniciada_em?->toIso8601String(),
-            'concluida_em' => $a->concluida_em?->toIso8601String(),
-            'nota' => $a->concluida() && $a->nota !== null ? round((float) $a->nota, 3) : null,
         ];
     }
 
@@ -164,11 +225,21 @@ class AcompanhamentoComiteService
 
         return $membros->map(function (User $u) use ($doAvaliador) {
             $suas = $doAvaliador->get($u->id, collect());
-            $de = fn (string $situacao) => $suas->where('situacao', $situacao)->values();
+            $estande = $suas->where('origem', 'estande');
+            $de = fn (string $situacao) => $estande->where('situacao', $situacao)->values();
 
             $emAvaliacao = $de('em_avaliacao');
             $designadas = $de('designada');
             $concluidas = $de('concluida')->sortByDesc('concluida_em')->values();
+
+            // As designações do comitê: o que falta primeiro, o concluído depois.
+            $online = $suas->where('origem', 'online');
+            $onlinePendentes = $online->where('situacao', '!=', 'concluida');
+            $designacoesComite = $onlinePendentes->sortBy('titulo')
+                ->concat($online->where('situacao', 'concluida')->sortByDesc('concluida_em'))
+                ->values();
+
+            $ultima = $estande->concat($online)->where('situacao', 'concluida')->max('concluida_em');
 
             return [
                 'id' => $u->id,
@@ -178,20 +249,25 @@ class AcompanhamentoComiteService
                 'apenas_presencial' => (bool) $u->avaliadorProfile?->apenas_presencial,
                 'situacao' => match (true) {
                     $emAvaliacao->isNotEmpty() => 'avaliando',
-                    $designadas->isNotEmpty() => 'designado',
+                    $designadas->isNotEmpty() || $onlinePendentes->isNotEmpty() => 'designado',
                     default => 'livre',
                 },
                 'em_avaliacao' => $emAvaliacao->all(),
                 'designadas' => $designadas->all(),
                 'concluidas' => $concluidas->all(),
                 'expiradas' => $de('expirada')->count(),
-                'ultima_concluida_em' => $concluidas->first()['concluida_em'] ?? null,
+                'designacoes_comite' => $designacoesComite->all(),
+                'ultima_concluida_em' => $ultima,
             ];
         })->values()->all();
     }
 
     /**
      * A planta com, em cada estande do turno, o que o comitê fez ali.
+     *
+     * A designação online do comitê também pinta: pendente, o estande fica
+     * "designado"; concluída, conta como avaliado — é o trabalho do comitê
+     * naquele projeto, venha de onde vier.
      *
      * @param  Collection<int, array<string, mixed>>  $linhas
      * @param  array<int, array<string, mixed>>  $locais
@@ -224,11 +300,11 @@ class AcompanhamentoComiteService
         foreach ($alocacoes as $e) {
             $projeto = $e->projeto;
             $avaliacoes = $doProjeto->get($projeto->id, collect());
-            $conta = fn (string $s) => $avaliacoes->where('situacao', $s)->count();
+            $online = $avaliacoes->where('origem', 'online');
 
-            $concluidas = $conta('concluida');
-            $emAvaliacao = $conta('em_avaliacao');
-            $designadas = $conta('designada');
+            $concluidas = $avaliacoes->where('situacao', 'concluida')->count();
+            $emAvaliacao = $avaliacoes->where('situacao', 'em_avaliacao')->count();
+            $designadas = $avaliacoes->whereIn('situacao', ['designada', 'iniciada'])->count();
 
             $linha = [
                 'numero' => $e->numero,
@@ -241,9 +317,13 @@ class AcompanhamentoComiteService
                 // Pronto para avaliação: passou pelo balcão e teve o estande
                 // conferido — o comitê só começa ali.
                 'pronto' => isset($credenciados[$projeto->id], $checados[$projeto->id]),
+                // Os três somam as duas origens; os `_online` dizem quanto veio
+                // das designações do comitê.
                 'concluidas' => $concluidas,
                 'em_avaliacao' => $emAvaliacao,
                 'designadas' => $designadas,
+                'concluidas_online' => $online->where('situacao', 'concluida')->count(),
+                'designadas_online' => $online->whereIn('situacao', ['designada', 'iniciada'])->count(),
                 // O que manda na cor é o que está acontecendo agora.
                 'situacao' => match (true) {
                     $emAvaliacao > 0 => 'em_avaliacao',
@@ -253,6 +333,7 @@ class AcompanhamentoComiteService
                 },
                 'avaliacoes' => $avaliacoes->map(fn (array $l) => [
                     'avaliacao_id' => $l['avaliacao_id'],
+                    'origem' => $l['origem'],
                     'avaliador' => $l['avaliador'],
                     'situacao' => $l['situacao'],
                     'vaga_label' => $l['vaga_label'],
