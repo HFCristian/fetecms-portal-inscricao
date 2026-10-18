@@ -184,6 +184,17 @@ const CORES_ATALHO = {
 const ROTULO_SITUACAO = { completa: ' (completa)', pendente: ' (falta responder)' };
 
 /**
+ * O conteúdo do rascunho numa string comparável: chaves em ordem, para "mudou
+ * desde o último salvamento?" não depender da ordem em que foram respondidas.
+ */
+const assinatura = ({ respostas, comentario }) => JSON.stringify([
+    Object.keys(respostas).sort().map((k) => [k, respostas[k]]),
+    comentario ?? null,
+]);
+
+const hora = (d) => d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+/**
  * A avaliação **presencial**, no molde da online (Sprint 171): o avaliador lê o
  * projeto, inicia e responde a rubrica do estande **um passo por seção**, com o
  * balão de orientação em cada pergunta, a nota parcial no rodapé e o rascunho a
@@ -196,6 +207,12 @@ const ROTULO_SITUACAO = { completa: ' (completa)', pendente: ' (falta responder)
  *
  * O prazo é o fim do horário de avaliação do turno; passado ele — ou sem a
  * liberação da organização —, a avaliação abre só para leitura.
+ *
+ * Ao **sair de uma seção** (Avançar, Voltar, um atalho do topo ou fechar), o
+ * que mudou é salvo como rascunho sozinho, sem prender o avaliador: o celular
+ * no corredor perde sinal, a bateria acaba, e a seção respondida não pode
+ * depender de ele lembrar do botão. Os salvamentos entram numa fila, então o
+ * mais novo nunca é atropelado por um anterior, e o envio espera a fila.
  */
 export default function AvaliacaoPresencialModal({
     avaliacao: inicial, rubrica, teste = false, onAtualizado, onFechar, api = API,
@@ -210,6 +227,11 @@ export default function AvaliacaoPresencialModal({
     const [aviso, setAviso] = useState('');
     const [confirm, dialogo] = useConfirm();
     const topo = useRef(null);
+    // Rascunho automático: o que está gravado no servidor, a fila dos
+    // salvamentos e o que a tela diz sobre eles.
+    const salvo = useRef(assinatura({ respostas: inicial.respostas ?? {}, comentario: (inicial.comentario ?? '').trim() || null }));
+    const fila = useRef(Promise.resolve());
+    const [autosave, setAutosave] = useState(null); // null | 'salvando' | { em: Date } | { erro: string }
 
     // As seções pontuadas, e o parecer no fim.
     const passos = useMemo(() => {
@@ -244,19 +266,60 @@ export default function AvaliacaoPresencialModal({
         return feita(s) ? 'completa' : 'pendente';
     };
 
-    function irPara(i) {
-        // Sair de uma seção é o que a marca como visitada.
-        setVisitados((v) => (v.has(passo) ? v : new Set(v).add(passo)));
-        setPasso(i);
-        topo.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
-    }
-
     // A resposta de uma condicional que deixou de valer não vai junto.
     const payload = () => ({
         respostas: Object.fromEntries(Object.entries(respostas)
             .filter(([chave]) => ativas.some((p) => p.chave === chave))),
         comentario: comentario.trim() || null,
     });
+
+    /**
+     * Salva o rascunho em segundo plano, se algo mudou desde o último
+     * salvamento. Não trava a tela: a falha vira aviso, e a próxima saída de
+     * seção tenta de novo.
+     */
+    function salvarAutomatico() {
+        if (!editavel) return;
+        const dados = payload();
+        const atual = assinatura(dados);
+        if (atual === salvo.current) return;
+
+        // Marca antes de mandar: sair de duas seções seguidas não manda o mesmo duas vezes.
+        salvo.current = atual;
+        setAutosave('salvando');
+        fila.current = fila.current.then(async () => {
+            try {
+                const resp = await api.salvar(av.id, dados, teste);
+                setAv(resp.data ?? resp);
+                setAutosave({ em: new Date() });
+            } catch (e) {
+                salvo.current = null;
+                const errs = e?.response?.data?.errors ?? {};
+                setAutosave({ erro: Object.values(errs)[0]?.[0] || e?.response?.data?.message || 'falha de conexão' });
+            }
+        });
+    }
+
+    function irPara(i) {
+        // Sair de uma seção é o que a marca como visitada — e o que a salva.
+        if (i !== passo) salvarAutomatico();
+        setVisitados((v) => (v.has(passo) ? v : new Set(v).add(passo)));
+        setPasso(i);
+        topo.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+    }
+
+    /** Fechar no meio de uma seção também a deixa salva. */
+    function fechar() {
+        salvarAutomatico();
+        onFechar?.();
+    }
+
+    async function salvarRascunho() {
+        await fila.current;
+        const dados = payload();
+        const ok = await chamar(() => api.salvar(av.id, dados, teste), 'Rascunho salvo. Você pode continuar depois.');
+        if (ok) { salvo.current = assinatura(dados); setAutosave(null); }
+    }
 
     async function chamar(fn, sucesso) {
         setSalvando(true); setErro(''); setAviso('');
@@ -292,6 +355,8 @@ export default function AvaliacaoPresencialModal({
             message: `Nota final: ${formatar(total)} de ${formatar(notaMaxima)}. Depois de enviada, a avaliação não pode ser alterada. Continuar?`,
         });
         if (!ok) return;
+        // Um rascunho automático ainda a caminho chega antes do envio.
+        await fila.current;
         await chamar(() => api.concluir(av.id, payload(), teste));
     }
 
@@ -304,7 +369,7 @@ export default function AvaliacaoPresencialModal({
                         <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${PILL[av.status] ?? 'bg-surface-variant'}`}>
                             {av.status_label}
                         </span>
-                        <button type="button" onClick={onFechar} aria-label="Fechar" className="text-on-surface-variant p-1">
+                        <button type="button" onClick={fechar} aria-label="Fechar" className="text-on-surface-variant p-1">
                             <span className="material-symbols-outlined">close</span>
                         </button>
                     </div>
@@ -434,6 +499,14 @@ export default function AvaliacaoPresencialModal({
 
                 <div className="px-5 py-4 border-t border-outline-variant/30">
                     {erro && <div className="mb-3"><Alert>{erro}</Alert></div>}
+                    {autosave?.erro && (
+                        <div className="mb-3">
+                            <Alert>
+                                O rascunho não foi salvo automaticamente: {autosave.erro}. Use “Salvar rascunho” para
+                                tentar de novo.
+                            </Alert>
+                        </div>
+                    )}
                     {aviso && <div className="mb-3"><Alert type="info">{aviso}</Alert></div>}
                     {editavel && av.envio_fechado && <div className="mb-3"><Alert type="warning">{av.envio_fechado}</Alert></div>}
                     {av.status !== 'concluida' && !av.pode_escrever && (
@@ -457,10 +530,13 @@ export default function AvaliacaoPresencialModal({
                                     {respondidas} de {perguntas.length} perguntas respondidas
                                     {!completa && ' — responda todas para enviar'}
                                 </span>
+                                <span className="block text-xs" aria-live="polite">
+                                    {autosave === 'salvando' && 'Salvando rascunho…'}
+                                    {autosave?.em && `Rascunho salvo automaticamente às ${hora(autosave.em)}.`}
+                                </span>
                             </p>
                             <div className="flex items-center gap-3 flex-wrap">
-                                <Button type="button" variant="outline" loading={salvando}
-                                    onClick={() => chamar(() => api.salvar(av.id, payload(), teste), 'Rascunho salvo. Você pode continuar depois.')}>
+                                <Button type="button" variant="outline" loading={salvando} onClick={salvarRascunho}>
                                     <span className="material-symbols-outlined text-[18px]">save</span>
                                     Salvar rascunho
                                 </Button>
