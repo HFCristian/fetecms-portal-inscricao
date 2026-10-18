@@ -195,6 +195,38 @@ class AvaliacaoPresencialFluxoService
     }
 
     /**
+     * Os projetos designados a ele e ainda não enviados — a seção "Designados
+     * a você": as avaliações no estande que vieram da distribuição ou da
+     * organização e os finalistas que o comitê designou online. É a lista da
+     * planilha em lote (Sprint 239).
+     *
+     * @return Collection<int, array{projeto: Projeto, avaliacao: ?AvaliacaoPresencial}> por id do projeto
+     */
+    public function designados(User $avaliador, bool $teste = false): Collection
+    {
+        $modoTeste = $this->modoTeste($avaliador, $teste);
+        $minhas = AvaliacaoPresencial::where('avaliador_id', $avaliador->id)->get();
+        $doComite = $this->idsDesignadosPeloComite($avaliador, $modoTeste);
+        $enviados = $minhas->filter(fn (AvaliacaoPresencial $a) => $a->concluida())->map(fn ($a) => (int) $a->projeto_id)->all();
+        // O designado pelo comitê que ele já abriu no estande vira escolha livre,
+        // mas continua sendo designado: entra com a avaliação aberta.
+        $noEstande = $minhas
+            ->filter(fn (AvaliacaoPresencial $a) => ! $a->concluida() && (! $a->escolha_livre || in_array($a->projeto_id, $doComite, true)))
+            ->keyBy('projeto_id');
+        $ids = $noEstande->keys()
+            ->merge($doComite)
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->reject(fn (int $id) => in_array($id, $enviados, true))
+            ->values();
+        $projetos = Projeto::whereIn('id', $ids)->get()->keyBy('id');
+
+        return $ids
+            ->filter(fn (int $id) => $projetos->has($id))
+            ->mapWithKeys(fn (int $id) => [$id => ['projeto' => $projetos[$id], 'avaliacao' => $noEstande->get($id)]]);
+    }
+
+    /**
      * Abre (ou retoma) a avaliação de um projeto — a designada, ou uma nova
      * escolhida no corredor.
      *
@@ -597,8 +629,10 @@ class AvaliacaoPresencialFluxoService
         $avaliacao->forceFill([
             'dia' => $ocorrencia['dia'] ?? null,
             'turno' => $ocorrencia['turno'] ?? null,
-            'designacao_manual' => false,
-            'escolha_livre' => true,
+            // A designação vencida que ele reabre continua sendo designação
+            // (Sprint 239): só a escolha no corredor é escolha livre.
+            'designacao_manual' => (bool) $vencida?->designacao_manual,
+            'escolha_livre' => $vencida === null || $vencida->escolha_livre,
             'vaga' => $vaga,
         ]);
 
@@ -817,22 +851,11 @@ class AvaliacaoPresencialFluxoService
      */
     private function designadosDoComite(User $avaliador, bool $modoTeste, Collection $minhas): array
     {
-        $lista = ListaFinal::vigente(Edicao::atual(), $modoTeste);
-
-        if ($lista === null) {
-            return [];
-        }
-
         $noEstande = $minhas->pluck('projeto_id')->flip();
-        $designados = Avaliacao::where('avaliador_id', $avaliador->id)
-            ->where('designada_pelo_comite', true)
-            ->whereHas('projeto')
-            ->pluck('projeto_id')
-            ->reject(fn ($id) => $noEstande->has($id))
-            ->unique()
-            ->values();
-
-        $ids = $designados->isEmpty() ? [] : $lista->projetos()->whereIn('projetos.id', $designados)->pluck('projetos.id')->all();
+        $ids = array_values(array_filter(
+            $this->idsDesignadosPeloComite($avaliador, $modoTeste),
+            fn (int $id) => ! $noEstande->has($id),
+        ));
 
         if ($ids === []) {
             return [];
@@ -855,6 +878,31 @@ class AvaliacaoPresencialFluxoService
             ->sortBy(fn (array $p) => [$p['local']['estande'] ?? PHP_INT_MAX, $p['titulo']])
             ->values()
             ->all();
+    }
+
+    /**
+     * Os finalistas da lista que vale designados a ele em Comitê → Designações.
+     *
+     * @return list<int>
+     */
+    private function idsDesignadosPeloComite(User $avaliador, bool $modoTeste): array
+    {
+        $lista = ListaFinal::vigente(Edicao::atual(), $modoTeste);
+
+        if ($lista === null) {
+            return [];
+        }
+
+        $designados = Avaliacao::where('avaliador_id', $avaliador->id)
+            ->where('designada_pelo_comite', true)
+            ->whereHas('projeto')
+            ->pluck('projeto_id')
+            ->unique()
+            ->values();
+
+        return $designados->isEmpty()
+            ? []
+            : $lista->projetos()->whereIn('projetos.id', $designados)->pluck('projetos.id')->map(fn ($id) => (int) $id)->all();
     }
 
     private function prazoLabel(AvaliacaoPresencial $avaliacao, JanelaTurnos $janela): ?string

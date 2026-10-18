@@ -5,6 +5,7 @@ import { extractErrors } from '../lib/auth.jsx';
 import AvaliacaoPresencialModal from '../components/AvaliacaoPresencialModal.jsx';
 import SinalizacoesProjeto from '../components/SinalizacoesProjeto.jsx';
 import MapaAvaliacaoPresencial from '../components/MapaAvaliacaoPresencial.jsx';
+import LoteAvaliacaoPresencial from '../components/LoteAvaliacaoPresencial.jsx';
 import { filtrarPorBusca } from '../lib/buscaEstande.js';
 import {
     getPainelPresencial, getAvaliacaoPresencial, iniciarAvaliacaoPresencial, pedirPermissaoPresencial,
@@ -295,6 +296,12 @@ export default function AvaliadorAvaliacaoPresencial() {
                         <p className="text-xs text-on-surface-variant mb-2">
                             O que a organização (ou o comitê) entregou a você, ainda sem envio.
                         </p>
+                        {totalDesignados > 0 && (
+                            <LoteAvaliacaoPresencial
+                                teste={modoTeste}
+                                onEnviado={async (mensagem) => { setInfo(mensagem ?? ''); await carregar(); }}
+                            />
+                        )}
                         {totalDesignados === 0 ? (
                             <p className="text-sm text-on-surface-variant">
                                 Nenhum projeto designado a você.{painel.aberto && !painel.so_designados ? ' Escolha um estande no mapa abaixo.' : ''}

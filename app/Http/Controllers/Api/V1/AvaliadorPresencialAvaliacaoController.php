@@ -6,8 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\AvaliacaoPresencial;
 use App\Models\Projeto;
 use App\Services\AvaliacaoPresencialFluxoService;
+use App\Services\LotePresencialService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Avaliação presencial — lado do avaliador: os estandes que ele avalia no dia
@@ -15,7 +17,10 @@ use Illuminate\Http\Request;
  */
 class AvaliadorPresencialAvaliacaoController extends Controller
 {
-    public function __construct(private readonly AvaliacaoPresencialFluxoService $fluxo) {}
+    public function __construct(
+        private readonly AvaliacaoPresencialFluxoService $fluxo,
+        private readonly LotePresencialService $lote,
+    ) {}
 
     /** O painel: o que está com ele e o que ainda pode pegar. */
     public function index(Request $request): JsonResponse
@@ -72,6 +77,54 @@ class AvaliadorPresencialAvaliacaoController extends Controller
         return response()->json([
             'data' => $this->fluxo->concluir($request->user(), $avaliacao, $dados, $request->boolean('teste')),
             'meta' => ['message' => 'Avaliação enviada.'],
+        ]);
+    }
+
+    /** A planilha com os projetos designados a ele, para preencher fora do portal. */
+    public function modeloLote(Request $request): Response
+    {
+        return response($this->lote->modelo($request->user(), $request->boolean('teste')), 200, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition' => 'attachment; filename="avaliacoes-presenciais.xlsx"',
+        ]);
+    }
+
+    /** A planilha preenchida, linha a linha: o que vira avaliação e o que não vira, com o motivo. */
+    public function previaLote(Request $request): JsonResponse
+    {
+        $request->validate([
+            'arquivo' => ['required', 'file', 'max:2048', 'extensions:xlsx,csv', 'mimes:xlsx,csv,txt,zip'],
+        ], [
+            'arquivo.extensions' => 'Envie a planilha em .xlsx (ou .csv).',
+            'arquivo.mimes' => 'Envie a planilha em .xlsx (ou .csv).',
+        ], ['arquivo' => 'planilha']);
+
+        return response()->json([
+            'data' => $this->lote->previa($request->user(), $request->file('arquivo'), $request->boolean('teste')),
+        ]);
+    }
+
+    /** Envia as linhas da prévia; o que o horário não deixa enviar fica como rascunho. */
+    public function enviarLote(Request $request): JsonResponse
+    {
+        $dados = $request->validate([
+            'linhas' => ['required', 'array', 'min:1', 'max:'.LotePresencialService::MAX_LINHAS],
+            'linhas.*.linha' => ['nullable', 'integer'],
+            'linhas.*.projeto_id' => ['required', 'integer'],
+            'linhas.*.respostas' => ['nullable', 'array'],
+            'linhas.*.comentario' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        $resultado = $this->lote->enviar($request->user(), $dados['linhas'], $request->boolean('teste'));
+        $r = $resultado['resumo'];
+
+        return response()->json([
+            'data' => $resultado,
+            'meta' => ['message' => implode(' · ', array_filter([
+                $r['enviadas'] ? "{$r['enviadas']} avaliação(ões) enviada(s)" : null,
+                $r['rascunhos'] ? "{$r['rascunhos']} salva(s) como rascunho" : null,
+                $r['erros'] ? "{$r['erros']} com erro" : null,
+            ])).'.'],
         ]);
     }
 
