@@ -340,6 +340,18 @@ export default function CredenciamentoFicha() {
         return payload;
     }
 
+    /**
+     * Concluído, o balcão volta para a fila de **Credenciar**: a próxima equipe
+     * já está esperando, e "Credenciados" obrigava a voltar um passo a cada
+     * atendimento. O aviso diz qual projeto acabou de ser credenciado.
+     */
+    function voltarParaFila() {
+        navigate('/admin/credenciamento/credenciar', {
+            replace: true,
+            state: { credenciado: dados?.projeto?.titulo ?? null },
+        });
+    }
+
     async function concluir() {
         setSalvando(true);
         setErro('');
@@ -348,7 +360,7 @@ export default function CredenciamentoFicha() {
 
             // Lembrete dos itens a entregar antes de sair da ficha.
             if ((dados.config?.itens ?? []).length > 0) setEntregar(dados.config.itens);
-            else navigate('/admin/credenciamento/credenciados', { replace: true });
+            else voltarParaFila();
         } catch (e) {
             setErro(extractErrors(e).message || 'Não foi possível concluir o credenciamento.');
             carregar();
@@ -875,7 +887,7 @@ export default function CredenciamentoFicha() {
                         <div className="flex justify-end">
                             <Button
                                 type="button"
-                                onClick={() => navigate('/admin/credenciamento/credenciados', { replace: true })}
+                                onClick={voltarParaFila}
                             >
                                 Entendi
                             </Button>

@@ -206,7 +206,10 @@ describe('CredenciamentoFicha', () => {
             { documento_id: 1, pessoa_tipo: 'aluno', pessoa_id: 30, situacao: 'presente' },
             { documento_id: 3, pessoa_tipo: 'orientador', pessoa_id: 5, situacao: 'ausente' },
         ]));
-        expect(navigate).toHaveBeenCalledWith('/admin/credenciamento/credenciados', { replace: true });
+        // Concluir devolve o balcão à fila de Credenciar, dizendo quem acabou de passar.
+        expect(navigate).toHaveBeenCalledWith('/admin/credenciamento/credenciar', {
+            replace: true, state: { credenciado: 'Bioplástico' },
+        });
     });
 
     it('fora da janela do evento a ficha fica só de leitura', async () => {
@@ -259,7 +262,10 @@ describe('CredenciamentoFicha', () => {
         expect(navigate).not.toHaveBeenCalled();
 
         fireEvent.click(screen.getByRole('button', { name: 'Entendi' }));
-        expect(navigate).toHaveBeenCalledWith('/admin/credenciamento/credenciados', { replace: true });
+        // Concluir devolve o balcão à fila de Credenciar, dizendo quem acabou de passar.
+        expect(navigate).toHaveBeenCalledWith('/admin/credenciamento/credenciar', {
+            replace: true, state: { credenciado: 'Bioplástico' },
+        });
     });
 
     it('marcar que a pessoa faltou esconde os documentos dela e viaja na conclusão', async () => {
