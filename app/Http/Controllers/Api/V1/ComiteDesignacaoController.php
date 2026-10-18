@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\Turno;
 use App\Http\Controllers\Controller;
 use App\Services\DesignacaoService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 /**
  * Designação **do comitê especial** (aba Comitê).
@@ -23,12 +25,23 @@ class ComiteDesignacaoController extends Controller
 {
     public function __construct(private readonly DesignacaoService $designacao) {}
 
-    /** Projetos submetidos e os avaliadores da comissão especial. */
+    /**
+     * Projetos submetidos e os avaliadores da comissão especial. A busca de
+     * projetos casa também com o código da lista final, o estande e o turno, e
+     * os três viram filtros próprios.
+     */
     public function opcoes(Request $request): JsonResponse
     {
         $filtros = $request->validate([
             'projeto' => ['nullable', 'string', 'max:120'],
             'avaliador' => ['nullable', 'string', 'max:120'],
+            'codigo' => ['nullable', 'string', 'max:40'],
+            // Como na planta: "042" é o estande 42.
+            'estande' => ['nullable', 'regex:/^\d{1,4}$/'],
+            'turno' => ['nullable', Rule::in(Turno::valores())],
+        ], [
+            'estande.regex' => 'Informe o número do estande.',
+            'turno.in' => 'Turno inválido.',
         ]);
 
         return response()->json([
@@ -36,6 +49,11 @@ class ComiteDesignacaoController extends Controller
                 (string) ($filtros['projeto'] ?? ''),
                 (string) ($filtros['avaliador'] ?? ''),
                 soComissao: true,
+                local: [
+                    'codigo' => $filtros['codigo'] ?? null,
+                    'estande' => $filtros['estande'] ?? null,
+                    'turno' => $filtros['turno'] ?? null,
+                ],
             ),
         ]);
     }

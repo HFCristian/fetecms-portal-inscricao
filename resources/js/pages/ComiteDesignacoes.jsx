@@ -9,8 +9,13 @@ const campoClass =
     'w-full bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface ' +
     'focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 outline-none';
 
+const FILTROS_VAZIOS = { codigo: '', estande: '', turno: '' };
+
+/** O número do estande como na planta: três dígitos. */
+const estande = (n) => String(n).padStart(3, '0');
+
 /** Uma lista de caixas de marcação, com busca no servidor. */
-function Lista({ titulo, itens, marcados, onAlternar, busca, onBuscar, placeholder, vazio, detalhe }) {
+function Lista({ titulo, itens, marcados, onAlternar, busca, onBuscar, placeholder, vazio, detalhe, filtros = null }) {
     return (
         <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-4">
             <h2 className="font-display font-semibold text-on-surface mb-2">{titulo}</h2>
@@ -21,6 +26,7 @@ function Lista({ titulo, itens, marcados, onAlternar, busca, onBuscar, placehold
                 value={busca}
                 onChange={(e) => onBuscar(e.target.value)}
             />
+            {filtros}
             {itens.length === 0 ? (
                 <p className="text-sm text-on-surface-variant">{vazio}</p>
             ) : (
@@ -49,6 +55,57 @@ function Lista({ titulo, itens, marcados, onAlternar, busca, onBuscar, placehold
 }
 
 /**
+ * Filtros do local do projeto no evento: código da lista final, número do
+ * estande e turno. Com qualquer um preenchido, só aparecem finalistas — os
+ * demais projetos não têm local.
+ */
+function FiltrosLocal({ filtros, onMudar, turnos }) {
+    const algum = Object.values(filtros).some(Boolean);
+    const mudar = (campo) => (e) => onMudar({ ...filtros, [campo]: e.target.value });
+
+    return (
+        <div className="mb-3">
+            <div className="grid grid-cols-3 gap-2">
+                <label className="text-xs text-on-surface-variant">
+                    Código
+                    <input
+                        className={`${campoClass} mt-1`}
+                        placeholder="FET.AGR"
+                        value={filtros.codigo}
+                        onChange={mudar('codigo')}
+                    />
+                </label>
+                <label className="text-xs text-on-surface-variant">
+                    Estande
+                    <input
+                        className={`${campoClass} mt-1`}
+                        inputMode="numeric"
+                        placeholder="042"
+                        value={filtros.estande}
+                        onChange={(e) => onMudar({ ...filtros, estande: e.target.value.replace(/\D/g, '').slice(0, 4) })}
+                    />
+                </label>
+                <label className="text-xs text-on-surface-variant">
+                    Turno
+                    <select className={`${campoClass} mt-1`} value={filtros.turno} onChange={mudar('turno')}>
+                        <option value="">Todos</option>
+                        {turnos.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                    </select>
+                </label>
+            </div>
+            {algum && (
+                <div className="flex items-center justify-between gap-2 mt-2 text-xs text-on-surface-variant">
+                    <span>Com filtro de local, só aparecem os finalistas da lista final vigente.</span>
+                    <button type="button" className="text-primary font-semibold hover:underline shrink-0" onClick={() => onMudar(FILTROS_VAZIOS)}>
+                        Limpar filtros
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+}
+
+/**
  * Comitê especial → **Designações**.
  *
  * Aqui o admin do comitê designa projetos **só** para os avaliadores da
@@ -60,6 +117,7 @@ function Lista({ titulo, itens, marcados, onAlternar, busca, onBuscar, placehold
 export default function ComiteDesignacoes() {
     const [opcoes, setOpcoes] = useState({ projetos: [], avaliadores: [] });
     const [buscaProjeto, setBuscaProjeto] = useState('');
+    const [filtros, setFiltros] = useState(FILTROS_VAZIOS);
     const [buscaAvaliador, setBuscaAvaliador] = useState('');
     const [projetos, setProjetos] = useState([]);
     const [avaliadores, setAvaliadores] = useState([]);
@@ -70,9 +128,12 @@ export default function ComiteDesignacoes() {
     const carregar = useCallback(() => getOpcoesDesignacaoComite({
         projeto: buscaProjeto.trim(),
         avaliador: buscaAvaliador.trim(),
+        codigo: filtros.codigo.trim(),
+        estande: filtros.estande,
+        turno: filtros.turno,
     })
         .then(setOpcoes)
-        .catch(() => setAlerta('Não foi possível carregar projetos e avaliadores.')), [buscaProjeto, buscaAvaliador]);
+        .catch(() => setAlerta('Não foi possível carregar projetos e avaliadores.')), [buscaProjeto, buscaAvaliador, filtros]);
 
     useEffect(() => {
         const t = setTimeout(carregar, 300);
@@ -140,9 +201,17 @@ export default function ComiteDesignacoes() {
                     onAlternar={alternar(projetos, setProjetos)}
                     busca={buscaProjeto}
                     onBuscar={setBuscaProjeto}
-                    placeholder="Buscar projeto"
+                    placeholder="Buscar por título, código, estande ou turno"
                     vazio="Nenhum projeto encontrado."
-                    detalhe={(p) => [p.area, p.categoria, `${p.concluidas} avaliação(ões)`].filter(Boolean).join(' · ')}
+                    filtros={<FiltrosLocal filtros={filtros} onMudar={setFiltros} turnos={opcoes.turnos ?? []} />}
+                    detalhe={(p) => [
+                        p.codigo,
+                        p.estande ? `Estande ${estande(p.estande)}` : null,
+                        p.turno_label,
+                        p.area,
+                        p.categoria,
+                        `${p.concluidas} avaliação(ões)`,
+                    ].filter(Boolean).join(' · ')}
                 />
                 <Lista
                     titulo="Avaliadores da comissão especial"

@@ -17,8 +17,15 @@ vi.mock('../lib/comite.js', () => ({
 import ComiteDesignacoes from './ComiteDesignacoes.jsx';
 
 const OPCOES = {
-    projetos: [{ id: 1, titulo: 'Bioplástico', area: 'Exatas', categoria: 'FETECMS', concluidas: 0 }],
+    projetos: [{
+        id: 1, titulo: 'Bioplástico', area: 'Exatas', categoria: 'FETECMS', concluidas: 0,
+        codigo: 'FET.EXA-001', turno: 'A', turno_label: 'Turno A (matutino)', estande: 42,
+    }],
     avaliadores: [{ id: 5, nome: 'Ana Comissao', email: 'ana@fetec.test', area: 'Exatas', na_fila: 2 }],
+    turnos: [
+        { value: 'A', label: 'Turno A (matutino)' },
+        { value: 'B', label: 'Turno B (vespertino)' },
+    ],
 };
 
 describe('ComiteDesignacoes', () => {
@@ -75,6 +82,31 @@ describe('ComiteDesignacoes', () => {
         fireEvent.click(screen.getByRole('button', { name: /Designar/ }));
 
         expect(await screen.findByText(/já avaliou este projeto/)).toBeInTheDocument();
+    });
+
+    it('mostra o código, o estande e o turno de cada projeto', async () => {
+        render(<ComiteDesignacoes />);
+
+        expect(await screen.findByText(/FET\.EXA-001 · Estande 042 · Turno A \(matutino\)/)).toBeInTheDocument();
+    });
+
+    it('a busca e os filtros de código, estande e turno vão para o servidor', async () => {
+        render(<ComiteDesignacoes />);
+        await screen.findByText('Bioplástico');
+
+        fireEvent.change(screen.getByLabelText('Buscar por título, código, estande ou turno'), { target: { value: 'vespertino' } });
+        fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'FET.AGR' } });
+        fireEvent.change(screen.getByLabelText('Estande'), { target: { value: '04a2' } });
+        fireEvent.change(screen.getByLabelText('Turno'), { target: { value: 'B' } });
+
+        await waitFor(() => expect(getOpcoesDesignacaoComite).toHaveBeenLastCalledWith({
+            projeto: 'vespertino', avaliador: '', codigo: 'FET.AGR', estande: '042', turno: 'B',
+        }));
+        expect(screen.getByText(/só aparecem os finalistas/)).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Limpar filtros' }));
+        expect(screen.getByLabelText('Código')).toHaveValue('');
+        expect(screen.getByLabelText('Turno')).toHaveValue('');
     });
 
     it('sem ninguém na comissão, explica onde marcar', async () => {
