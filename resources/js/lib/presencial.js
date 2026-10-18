@@ -160,3 +160,7 @@ export const getParametrizacaoPresencial = () =>
 
 export const salvarParametrizacaoPresencial = (comiteSoDesignados) =>
     http.put('/admin/parametrizacao/presencial', { comite_so_designados: comiteSoDesignados }).then((r) => r.data);
+
+/** O lançamento noturno do comitê (Sprint 238): "19:00"/"23:00"; os dois em branco desligam. */
+export const salvarLancamentoNoturno = (inicio, fim) =>
+    http.put('/admin/parametrizacao/presencial/lancamento-noturno', { inicio, fim }).then((r) => r.data);

@@ -10,6 +10,7 @@ use App\Models\Edicao;
 use App\Models\PedidoAvaliacaoComite;
 use App\Models\Projeto;
 use App\Models\User;
+use App\Support\JanelaTurnos;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
 
@@ -219,6 +220,46 @@ class PermissaoComiteService
         ]);
 
         return $this->linha($pedido->fresh(['projeto.area', 'avaliador', 'decisor']), $this->locais->todos());
+    }
+
+    /**
+     * O lançamento noturno do comitê (Sprint 238): as horas, o rótulo e se
+     * está ligado (precisa também do período do evento).
+     *
+     * @return array<string, mixed>
+     */
+    public function noite(): array
+    {
+        $janela = JanelaTurnos::daEdicao();
+
+        return [
+            ...$janela->noite(),
+            'rotulo' => $janela->noiteRotulo(),
+            'ligado' => $janela->noiteConfigurada(),
+            'sem_evento' => $janela->dias() === [],
+        ];
+    }
+
+    /** Grava o lançamento noturno (em branco desliga), com o registro do "de → para". */
+    public function definirNoite(?string $inicio, ?string $fim, User $admin): void
+    {
+        $edicao = Edicao::atual();
+        abort_if($edicao === null, 422, 'Nenhuma edição em curso.');
+
+        [$inicio, $fim] = JanelaTurnos::validarNoite($inicio, $fim);
+        $anterior = JanelaTurnos::daEdicao($edicao)->noiteRotulo();
+
+        $edicao->update(['presencial_comite_noite_inicio' => $inicio, 'presencial_comite_noite_fim' => $fim]);
+        $novo = JanelaTurnos::daEdicao($edicao->fresh())->noiteRotulo();
+
+        if ($anterior !== $novo) {
+            $this->registros->parametroAvaliacao(
+                TipoRegistro::PresencialComiteLancamentoNoturno,
+                $admin,
+                $anterior ?? 'desligado',
+                $novo ?? 'desligado',
+            );
+        }
     }
 
     /** Liga ou desliga a regra na edição em escopo, com o registro. */

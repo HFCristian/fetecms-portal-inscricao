@@ -16,6 +16,7 @@ use App\Models\EstandeProjeto;
 use App\Models\ItemConferencia;
 use App\Models\ListaFinal;
 use App\Models\Projeto;
+use App\Models\RegistroAtividade;
 use App\Models\TurnoApresentacao;
 use App\Models\User;
 use App\Support\RubricaPresencial;
@@ -634,5 +635,124 @@ class AvaliacaoPresencialFluxoTest extends TestCase
         $this->deleteJson("/api/v1/admin/presencial/avaliacoes/{$id}")
             ->assertStatus(422)
             ->assertJsonValidationErrors('avaliacao');
+    }
+
+    // --- Comitê: rascunho fora do horário e lançamento noturno (Sprint 238) --
+
+    public function test_fora_do_horario_o_comite_abre_e_salva_rascunho_mas_so_envia_quando_o_horario_reabre(): void
+    {
+        $tarde = $this->finalista('Drone da tarde', turno: 'B');
+        $comite = $this->avaliadorPresencial('Diana', comissao: true);
+        // Entre os turnos: o comum vê a aba fechada; o comitê, aberta.
+        $this->travelTo(now()->setDateTime(2026, 10, 20, 12, 45));
+        Sanctum::actingAs($comite);
+
+        $painel = $this->getJson('/api/v1/avaliador/presencial/avaliacoes')
+            ->assertOk()
+            ->assertJsonPath('data.aberto', true)
+            ->assertJsonPath('data.turno', null)
+            ->assertJsonPath('data.comite.envio_aberto', false)
+            ->assertJsonPath('data.comite.proximo_envio_label', '20/10 às 13:30')
+            ->json('data');
+        // Os dois turnos na lista: o comitê não está preso ao turno em andamento.
+        $this->assertEqualsCanonicalizing([$this->projeto->id, $tarde->id], array_column($painel['disponiveis'], 'id'));
+
+        $id = $this->postJson("/api/v1/avaliador/presencial/avaliacoes/projetos/{$this->projeto->id}")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'em_andamento')
+            ->assertJsonPath('data.sem_prazo', true)
+            ->assertJsonPath('data.prazo_label', null)
+            ->assertJsonPath('data.pode_escrever', true)
+            ->assertJsonPath('data.pode_enviar', false)
+            ->json('data.id');
+        $this->assertStringContainsString('O envio abre em 20/10 às 13:30', $this->getJson("/api/v1/avaliador/presencial/avaliacoes/{$id}")->json('data.envio_fechado'));
+        $this->assertTrue(AvaliacaoPresencial::find($id)->aberta_pelo_comite);
+
+        $this->postJson("/api/v1/avaliador/presencial/avaliacoes/{$id}/rascunho", ['respostas' => $this->respostasCheias()])
+            ->assertOk();
+        $this->postJson("/api/v1/avaliador/presencial/avaliacoes/{$id}/concluir", $this->envio())
+            ->assertStatus(422)->assertJsonValidationErrors('periodo');
+
+        // O turno B abre: o rascunho do turno A, que não venceu, é enviado.
+        $this->travelTo(now()->setDateTime(2026, 10, 20, 13, 40));
+        $this->postJson("/api/v1/avaliador/presencial/avaliacoes/{$id}/concluir", $this->envio())
+            ->assertOk()->assertJsonPath('data.status', 'concluida');
+    }
+
+    public function test_o_comum_continua_preso_ao_turno(): void
+    {
+        $this->travelTo(now()->setDateTime(2026, 10, 20, 12, 45));
+        Sanctum::actingAs($this->avaliador);
+
+        $this->getJson('/api/v1/avaliador/presencial/avaliacoes')
+            ->assertJsonPath('data.aberto', false)
+            ->assertJsonPath('data.comite', null);
+        $this->postJson("/api/v1/avaliador/presencial/avaliacoes/projetos/{$this->projeto->id}")->assertStatus(422);
+    }
+
+    public function test_o_rascunho_do_comite_nao_vence_e_segura_a_vaga(): void
+    {
+        $this->edicao->update(['presencial_comite_por_projeto' => 1, 'presencial_comuns_por_projeto' => 0]);
+        Sanctum::actingAs($this->avaliadorPresencial('Diana', comissao: true));
+        $id = $this->abrir($this->projeto);
+
+        // Passou o horário de avaliação do turno A: o rascunho segue com ela.
+        $this->travelTo(now()->setDateTime(2026, 10, 20, 14, 0));
+        $avaliacao = AvaliacaoPresencial::find($id);
+        $this->assertFalse($avaliacao->expirada());
+        $this->assertTrue($avaliacao->ocupaVaga());
+
+        // A única vaga continua tomada para o outro da comissão.
+        Sanctum::actingAs($this->avaliadorPresencial('Edson', comissao: true));
+        $this->postJson("/api/v1/avaliador/presencial/avaliacoes/projetos/{$this->projeto->id}")->assertStatus(422);
+    }
+
+    public function test_no_lancamento_noturno_o_comite_inicia_e_envia(): void
+    {
+        $this->edicao->update(['presencial_comite_noite_inicio' => '22:00', 'presencial_comite_noite_fim' => '01:00']);
+        $comite = $this->avaliadorPresencial('Diana', comissao: true);
+        Sanctum::actingAs($comite);
+
+        // 00:30 do dia 21: a janela das 22:00 do dia 20 ainda está aberta.
+        $this->travelTo(now()->setDateTime(2026, 10, 21, 0, 30));
+        $this->getJson('/api/v1/avaliador/presencial/avaliacoes')
+            ->assertJsonPath('data.aberto', true)
+            ->assertJsonPath('data.comite.envio_aberto', true)
+            ->assertJsonPath('data.comite.noite_label', '22:00–01:00 (do dia seguinte)');
+        $id = $this->abrir($this->projeto);
+        $this->assertSame('2026-10-20', AvaliacaoPresencial::find($id)->dia->toDateString());
+        $this->postJson("/api/v1/avaliador/presencial/avaliacoes/{$id}/concluir", $this->envio())->assertOk();
+
+        // Depois do fim do evento, só o lançamento noturno daquele dia.
+        $outro = $this->finalista('Compostagem');
+        $this->travelTo(now()->setDateTime(2026, 10, 21, 19, 0));
+        $this->getJson('/api/v1/avaliador/presencial/avaliacoes')->assertJsonPath('data.aberto', false);
+        $this->travelTo(now()->setDateTime(2026, 10, 21, 22, 30));
+        $id2 = $this->abrir($outro);
+        $this->postJson("/api/v1/avaliador/presencial/avaliacoes/{$id2}/concluir", $this->envio())->assertOk();
+    }
+
+    public function test_a_organizacao_parametriza_o_lancamento_noturno(): void
+    {
+        Sanctum::actingAs($admin = User::factory()->admin()->create());
+
+        $this->putJson('/api/v1/admin/parametrizacao/presencial/lancamento-noturno', ['inicio' => '19:00'])
+            ->assertStatus(422)->assertJsonValidationErrors('fim');
+        $this->putJson('/api/v1/admin/parametrizacao/presencial/lancamento-noturno', ['inicio' => '19h', 'fim' => '23:00'])
+            ->assertStatus(422)->assertJsonValidationErrors('inicio');
+
+        $this->putJson('/api/v1/admin/parametrizacao/presencial/lancamento-noturno', ['inicio' => '22:00', 'fim' => '01:00'])
+            ->assertOk()
+            ->assertJsonPath('data.comite_noite.rotulo', '22:00–01:00 (do dia seguinte)')
+            ->assertJsonPath('data.comite_noite.ligado', true);
+        $this->assertSame('22:00', $this->edicao->fresh()->presencial_comite_noite_inicio);
+
+        $registro = RegistroAtividade::where('tipo', 'presencial_comite_lancamento_noturno')->sole();
+        $this->assertSame(['de' => 'desligado', 'para' => '22:00–01:00 (do dia seguinte)'], $registro->detalhes);
+        $this->assertSame($admin->id, $registro->user_id);
+
+        $this->putJson('/api/v1/admin/parametrizacao/presencial/lancamento-noturno', ['inicio' => '', 'fim' => ''])
+            ->assertOk()->assertJsonPath('data.comite_noite.ligado', false);
+        $this->assertNull($this->edicao->fresh()->presencial_comite_noite_fim);
     }
 }

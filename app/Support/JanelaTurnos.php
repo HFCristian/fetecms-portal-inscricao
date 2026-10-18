@@ -26,6 +26,13 @@ use Illuminate\Validation\ValidationException;
  * **margem**, para terminar o que se abriu (quem decide começar é o fluxo, que
  * pergunta {@see emAndamento()}). Avaliação em branco vai do início do turno até
  * 30 minutos depois do fim, a regra de antes da Sprint 224.
+ *
+ * O **comitê especial** tem um horário a mais (Sprint 238): o **lançamento
+ * noturno** (`edicoes.presencial_comite_noite_inicio`/`_fim`), um par de horas
+ * que vale em cada dia do evento e pode passar da meia-noite. Quem é da
+ * comissão abre e salva rascunho a qualquer hora do evento, e envia num
+ * horário de avaliação de turno ou no lançamento noturno
+ * ({@see comiteAberto()}, {@see envioComiteAberto()}).
  */
 final class JanelaTurnos
 {
@@ -61,6 +68,8 @@ final class JanelaTurnos
         private readonly int $comuns,
         private readonly int $comite,
         private readonly float $pesoComite,
+        private readonly ?string $noiteInicio = null,
+        private readonly ?string $noiteFim = null,
     ) {}
 
     public static function daEdicao(?Edicao $edicao = null): self
@@ -76,7 +85,44 @@ final class JanelaTurnos
             max(0, (int) ($edicao?->presencial_comuns_por_projeto ?? self::PADRAO_COMUNS)),
             max(0, (int) ($edicao?->presencial_comite_por_projeto ?? self::PADRAO_COMITE)),
             max(1.0, (float) ($edicao?->presencial_peso_comite ?? self::PADRAO_PESO_COMITE)),
+            self::horaValida($edicao?->presencial_comite_noite_inicio),
+            self::horaValida($edicao?->presencial_comite_noite_fim),
         );
+    }
+
+    /**
+     * Valida o lançamento noturno do comitê vindo da tela: os dois em branco
+     * desligam; um só, ou os dois iguais, é recusado. Fim antes do início passa
+     * da meia-noite (22:00–01:00).
+     *
+     * @return array{0: ?string, 1: ?string}
+     */
+    public static function validarNoite(?string $inicio, ?string $fim): array
+    {
+        $inicio = trim((string) $inicio);
+        $fim = trim((string) $fim);
+
+        if ($inicio === '' && $fim === '') {
+            return [null, null];
+        }
+
+        if ($inicio === '' || $fim === '') {
+            throw ValidationException::withMessages([
+                $inicio === '' ? 'inicio' : 'fim' => 'Informe o início e o fim do lançamento noturno, ou deixe os dois em branco para desligá-lo.',
+            ]);
+        }
+
+        foreach (['inicio' => $inicio, 'fim' => $fim] as $campo => $valor) {
+            if (self::horaValida($valor) === null) {
+                throw ValidationException::withMessages([$campo => 'Use o formato 19:00.']);
+            }
+        }
+
+        if ($inicio === $fim) {
+            throw ValidationException::withMessages(['fim' => 'O lançamento noturno precisa terminar em outra hora que não a do início.']);
+        }
+
+        return [$inicio, $fim];
     }
 
     /**
@@ -241,6 +287,113 @@ final class JanelaTurnos
     {
         return $this->vagaPara($comissao, $ocupadas)
             ?? ($comissao ? VagaPresencial::Comite : VagaPresencial::Comum);
+    }
+
+    // --- Lançamento noturno do comitê (Sprint 238) --------------------------
+
+    /** O lançamento noturno está ligado (as duas horas e o período do evento)? */
+    public function noiteConfigurada(): bool
+    {
+        return $this->noiteInicio !== null && $this->noiteFim !== null && $this->dias() !== [];
+    }
+
+    /** @return array{inicio: ?string, fim: ?string} as horas, como a tela as edita */
+    public function noite(): array
+    {
+        return ['inicio' => $this->noiteInicio, 'fim' => $this->noiteFim];
+    }
+
+    /** "19:00–23:59", ou "22:00–01:00 (do dia seguinte)"; nulo desligado. */
+    public function noiteRotulo(): ?string
+    {
+        if ($this->noiteInicio === null || $this->noiteFim === null) {
+            return null;
+        }
+
+        return "{$this->noiteInicio}–{$this->noiteFim}".($this->noiteFim < $this->noiteInicio ? ' (do dia seguinte)' : '');
+    }
+
+    /**
+     * As janelas do lançamento noturno, uma por dia do evento.
+     *
+     * @return list<array{dia: string, inicio: CarbonImmutable, fim: CarbonImmutable}>
+     */
+    public function noites(): array
+    {
+        if (! $this->noiteConfigurada()) {
+            return [];
+        }
+
+        $noites = [];
+
+        foreach ($this->dias() as $dia) {
+            $inicio = CarbonImmutable::parse("{$dia} {$this->noiteInicio}");
+            $fim = CarbonImmutable::parse("{$dia} {$this->noiteFim}");
+            $noites[] = ['dia' => $dia, 'inicio' => $inicio, 'fim' => $fim->lessThanOrEqualTo($inicio) ? $fim->addDay() : $fim];
+        }
+
+        return $noites;
+    }
+
+    /** @return array{dia: string, inicio: CarbonImmutable, fim: CarbonImmutable}|null a janela noturna aberta agora */
+    public function noiteAberta(?CarbonInterface $agora = null): ?array
+    {
+        $agora ??= now();
+
+        foreach ($this->noites() as $noite) {
+            if ($agora->greaterThanOrEqualTo($noite['inicio']) && $agora->lessThanOrEqualTo($noite['fim'])) {
+                return $noite;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * O comitê trabalha agora — abre e salva rascunho? Do início ao fim do
+     * evento, e no lançamento noturno (que pode passar do fim do último dia).
+     */
+    public function comiteAberto(?CarbonInterface $agora = null): bool
+    {
+        $agora ??= now();
+
+        if ($this->noiteAberta($agora) !== null) {
+            return true;
+        }
+
+        return $this->de !== null
+            && $agora->greaterThanOrEqualTo($this->de)
+            && $agora->lessThanOrEqualTo($this->ate ?? $this->de->endOfDay());
+    }
+
+    /** O comitê pode enviar agora? Num horário de avaliação de turno ou no lançamento noturno. */
+    public function envioComiteAberto(?CarbonInterface $agora = null): bool
+    {
+        return $this->abertas($agora) !== [] || $this->noiteAberta($agora) !== null;
+    }
+
+    /** Quando o envio do comitê abre de novo: o próximo horário de avaliação ou lançamento noturno. */
+    public function proximoEnvioComite(?CarbonInterface $agora = null): ?CarbonImmutable
+    {
+        $agora ??= now();
+        $candidatos = [];
+
+        foreach ($this->ocorrencias($agora) as $o) {
+            if ($o['situacao'] === 'futuro') {
+                $candidatos[] = $this->inicioAvaliacao($o['dia'], Turno::from($o['turno']));
+            }
+        }
+
+        foreach ($this->noites() as $noite) {
+            if ($noite['inicio']->greaterThan($agora)) {
+                $candidatos[] = $noite['inicio'];
+            }
+        }
+
+        $candidatos = array_filter($candidatos);
+        usort($candidatos, fn (CarbonImmutable $a, CarbonImmutable $b) => $a <=> $b);
+
+        return $candidatos[0] ?? null;
     }
 
     /** Há o que agendar: data do evento e o horário de ao menos um turno num dos dias dela. */
@@ -468,6 +621,14 @@ final class JanelaTurnos
 
     /** Os campos de cada turno num dia. */
     private const CAMPOS = ['inicio', 'fim', 'avaliacao_inicio', 'avaliacao_fim'];
+
+    /** "19:00" se for uma hora válida; senão nulo. */
+    private static function horaValida(?string $hora): ?string
+    {
+        $hora = trim((string) $hora);
+
+        return preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $hora) ? $hora : null;
+    }
 
     /**
      * Completa a avaliação em branco com a regra de antes: do início do turno

@@ -233,6 +233,8 @@ export default function AvaliacaoPresencialModal({
     const secao = passos[Math.min(passo, passos.length - 1)];
     const ultimo = passo >= passos.length - 1;
     const editavel = av.pode_escrever && av.status === 'em_andamento';
+    // O comitê salva fora do horário, mas só envia nele (Sprint 238).
+    const podeEnviar = av.pode_enviar !== false;
 
     const feita = (s) => s.perguntas.filter((p) => aplicavel(p, respostas)).every((p) => respondida(respostas[p.chave]));
 
@@ -433,6 +435,7 @@ export default function AvaliacaoPresencialModal({
                 <div className="px-5 py-4 border-t border-outline-variant/30">
                     {erro && <div className="mb-3"><Alert>{erro}</Alert></div>}
                     {aviso && <div className="mb-3"><Alert type="info">{aviso}</Alert></div>}
+                    {editavel && av.envio_fechado && <div className="mb-3"><Alert type="warning">{av.envio_fechado}</Alert></div>}
                     {av.status !== 'concluida' && !av.pode_escrever && (
                         <p className="text-sm text-on-surface-variant text-right">
                             {av.status_label === 'Prazo encerrado'
@@ -465,7 +468,7 @@ export default function AvaliacaoPresencialModal({
                                     Voltar
                                 </Button>
                                 {ultimo ? (
-                                    <Button type="button" variant="success" loading={salvando} disabled={!completa} onClick={concluir}>
+                                    <Button type="button" variant="success" loading={salvando} disabled={!completa || !podeEnviar} onClick={concluir}>
                                         Enviar avaliação
                                     </Button>
                                 ) : (

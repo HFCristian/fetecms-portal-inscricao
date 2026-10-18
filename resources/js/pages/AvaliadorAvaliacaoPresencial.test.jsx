@@ -585,4 +585,38 @@ describe('AvaliadorAvaliacaoPresencial', () => {
         const designados = await screen.findByRole('region', { name: 'Designados a você' });
         expect(within(designados).getByText(/Nenhum projeto designado a você/)).toBeInTheDocument();
     });
+
+    // --- Comitê fora do horário (Sprint 238) -------------------------------
+
+    it('fora do horário, o comitê vê que pode salvar rascunho e quando o envio abre', async () => {
+        getPainelPresencial.mockResolvedValue({
+            ...PAINEL, turno: null, comissao: true, vagas: { comuns: 2, comite: 1, peso_comite: 2 },
+            comite: { envio_aberto: false, proximo_envio_label: '20/10 às 19:00', noite_label: '19:00–23:00' },
+            minhas: [{ id: 5, projeto_id: 7, titulo: 'Bioplástico', status: 'em_andamento', status_label: 'Em andamento', pode_escrever: true, sem_prazo: true, escolha_livre: true, local: {} }],
+        });
+        render(<AvaliadorAvaliacaoPresencial />);
+
+        expect(await screen.findByText(/Fora do horário de envio/)).toHaveTextContent('O envio abre em 20/10 às 19:00.');
+        expect(screen.getByText(/Fora do horário de envio/)).toHaveTextContent('Lançamento noturno do comitê: 19:00–23:00.');
+        const escolhidos = screen.getByRole('region', { name: 'Escolhidos por você' });
+        expect(within(escolhidos).getByText('Bioplástico').closest('li')).toHaveTextContent('rascunho sem prazo');
+        expect(screen.getByText(/Projetos de qualquer turno/)).toBeInTheDocument();
+    });
+
+    it('com o envio fechado, o wizard salva o rascunho e trava o envio dizendo por quê', async () => {
+        iniciarAvaliacaoPresencial.mockResolvedValue({
+            ...AVALIACAO, pode_enviar: false, sem_prazo: true, prazo_label: null,
+            envio_fechado: 'Fora do horário de envio: salve como rascunho. O envio abre em 20/10 às 19:00.',
+            respostas: { projeto_impresso: 'nao', diario_manuscrito: 'nao' },
+        });
+        render(<AvaliadorAvaliacaoPresencial />);
+        await abrirDisponivel();
+
+        expect(await screen.findByText(/O envio abre em 20\/10 às 19:00/)).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: /^Ir para Parecer/ }));
+        expect(screen.getByRole('button', { name: /Enviar avaliação/ })).toBeDisabled();
+
+        fireEvent.click(screen.getByRole('button', { name: /Salvar rascunho/ }));
+        await waitFor(() => expect(salvarRascunhoPresencial).toHaveBeenCalled());
+    });
 });

@@ -32,6 +32,7 @@ class AvaliacaoPresencial extends Model
     protected $fillable = [
         'edicao_id', 'projeto_id', 'avaliador_id', 'dia', 'turno', 'status', 'respostas', 'nota',
         'comentario', 'itens_conferidos', 'designacao_manual', 'escolha_livre', 'vaga', 'iniciada_em', 'concluida_em',
+        'aberta_pelo_comite',
     ];
 
     protected function casts(): array
@@ -46,6 +47,7 @@ class AvaliacaoPresencial extends Model
             'nota' => 'float',
             'designacao_manual' => 'boolean',
             'escolha_livre' => 'boolean',
+            'aberta_pelo_comite' => 'boolean',
             'vaga' => VagaPresencial::class,
             'iniciada_em' => 'datetime',
             'concluida_em' => 'datetime',
@@ -82,11 +84,24 @@ class AvaliacaoPresencial extends Model
     }
 
     /**
+     * Rascunho do comitê especial (Sprint 238): aberto por quem é da comissão,
+     * não vence com o turno — fica com ele até o envio.
+     */
+    public function semPrazo(): bool
+    {
+        return $this->aberta_pelo_comite && $this->status === StatusAvaliacao::EmAndamento;
+    }
+
+    /**
      * Passou do prazo sem ser enviada: não ocupa mais vaga no projeto, e o
-     * rascunho fica guardado só para leitura.
+     * rascunho fica guardado só para leitura. O rascunho do comitê não vence.
      */
     public function expirada(?JanelaTurnos $janela = null): bool
     {
+        if ($this->semPrazo()) {
+            return false;
+        }
+
         $prazo = $this->prazo($janela);
 
         return ! $this->concluida() && $prazo !== null && now()->greaterThan($prazo);

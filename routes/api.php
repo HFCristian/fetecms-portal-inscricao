@@ -735,6 +735,8 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 // comitê especial de avaliar só o que foi designado.
                 Route::get('/parametrizacao/presencial', [ParametrizacaoPresencialController::class, 'show']);
                 Route::put('/parametrizacao/presencial', [ParametrizacaoPresencialController::class, 'definir']);
+                // O lançamento noturno do comitê (Sprint 238).
+                Route::put('/parametrizacao/presencial/lancamento-noturno', [ParametrizacaoPresencialController::class, 'definirNoite']);
 
                 // Parametrização → Itens do credenciamento e da checagem (Sprint
                 // 181): a lista única que os dois balcões conferem.

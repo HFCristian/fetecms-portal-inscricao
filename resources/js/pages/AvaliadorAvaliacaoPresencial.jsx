@@ -91,6 +91,7 @@ function LinhaMinha({ a, onAbrir }) {
                     {a.designacao_manual ? ' · designado pela organização' : ''}
                     {a.vaga === 'comite' ? ' · vaga da comissão' : ''}
                     {a.prazo_label ? ` · até ${a.prazo_label}` : ''}
+                    {a.sem_prazo ? ' · rascunho sem prazo' : ''}
                 </p>
                 <SinalizacoesProjeto sinalizacoes={a.sinalizacoes} compacto />
             </div>
@@ -251,6 +252,17 @@ export default function AvaliadorAvaliacaoPresencial() {
                                     <strong>{turno.rotulo}</strong> — avaliações aceitas até as {turno.prazo_label}.
                                 </p>
                             )}
+                            {/* O relógio do comitê (Sprint 238): rascunho a qualquer hora, envio no horário. */}
+                            {painel.comite && painel.aberto && (
+                                <p className={`text-sm mt-1 rounded-lg px-3 py-2 ${painel.comite.envio_aberto ? 'bg-secondary-container/40 text-on-surface' : 'bg-[#fff4cc] text-on-surface'}`}>
+                                    <span className="material-symbols-outlined text-[18px] align-[-0.2em] mr-1">edit_note</span>
+                                    {painel.comite.envio_aberto
+                                        ? <>Envio aberto agora. Você pode abrir projetos de qualquer turno e salvar como rascunho a qualquer hora do evento.</>
+                                        : <>Fora do horário de envio: você pode <strong>abrir e salvar avaliações como rascunho</strong>, sem prazo para vencer.
+                                            {painel.comite.proximo_envio_label ? ` O envio abre em ${painel.comite.proximo_envio_label}.` : ''}</>}
+                                    {painel.comite.noite_label && <> Lançamento noturno do comitê: {painel.comite.noite_label}.</>}
+                                </p>
+                            )}
                             {painel.comissao && painel.vagas && (
                                 <p className="text-xs text-on-surface-variant mt-1">
                                     <span className="material-symbols-outlined text-[16px] align-[-0.2em] text-secondary mr-1">star</span>
@@ -346,7 +358,7 @@ export default function AvaliadorAvaliacaoPresencial() {
                                 )}
                             </div>
                             <p className="text-xs text-on-surface-variant mb-2">
-                                Projetos do seu turno, credenciados e com o estande checado, que ainda têm vaga para você
+                                {painel.comite ? 'Projetos de qualquer turno' : 'Projetos do seu turno'}, credenciados e com o estande checado, que ainda têm vaga para você
                                 ({painel.max_por_projeto} avaliações presenciais por projeto). Escolha o que estiver livre no
                                 corredor.
                             </p>

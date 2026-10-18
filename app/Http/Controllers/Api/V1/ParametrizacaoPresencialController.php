@@ -9,7 +9,8 @@ use Illuminate\Http\Request;
 
 /**
  * Parametrização → **Avaliação presencial** (Sprint 234). Por ora, a subseção
- * do comitê especial: a regra "avaliar apenas projetos designados".
+ * do comitê especial: a regra "avaliar apenas projetos designados" e, desde a
+ * Sprint 238, o horário do lançamento noturno.
  */
 class ParametrizacaoPresencialController extends Controller
 {
@@ -36,12 +37,32 @@ class ParametrizacaoPresencialController extends Controller
         ]);
     }
 
+    /** O lançamento noturno do comitê: as duas horas, ou as duas em branco. */
+    public function definirNoite(Request $request): JsonResponse
+    {
+        $dados = $request->validate([
+            'inicio' => ['nullable', 'string', 'max:5'],
+            'fim' => ['nullable', 'string', 'max:5'],
+        ]);
+
+        $this->permissoes->definirNoite($dados['inicio'] ?? null, $dados['fim'] ?? null, $request->user());
+        $noite = $this->permissoes->noite();
+
+        return response()->json([
+            'data' => $this->dados(),
+            'meta' => ['message' => $noite['rotulo'] === null
+                ? 'Lançamento noturno desligado: o comitê envia só no horário de avaliação dos turnos.'
+                : "Lançamento noturno das {$noite['rotulo']} salvo."],
+        ]);
+    }
+
     /** @return array<string, mixed> */
     private function dados(): array
     {
         return [
             'comite_so_designados' => $this->permissoes->ativa(),
             'pedidos_pendentes' => $this->permissoes->pendentes(),
+            'comite_noite' => $this->permissoes->noite(),
         ];
     }
 }

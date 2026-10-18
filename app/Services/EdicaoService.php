@@ -40,6 +40,8 @@ class EdicaoService
         'presencial_fila_avaliador',
         'presencial_comuns_por_projeto', 'presencial_comite_por_projeto', 'presencial_peso_comite',
         'presencial_comite_so_designados',
+        // O lançamento noturno do comitê (Sprint 238) é hora de parede, não data.
+        'presencial_comite_noite_inicio', 'presencial_comite_noite_fim',
     ];
 
     /**
