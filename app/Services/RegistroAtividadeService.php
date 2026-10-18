@@ -811,6 +811,50 @@ class RegistroAtividadeService
     }
 
     /**
+     * Um administrador abriu, em Ranking presencial → Ver avaliações, a nota
+     * que um avaliador deu a um projeto no estande (Sprint 237).
+     *
+     * É o mesmo ato da consulta da nota online, e vai para a mesma seção; a
+     * fase vai junto para a trilha dizer de qual nota se trata. Três casas,
+     * como a rubrica presencial.
+     */
+    public function notaPresencialVisualizada(Projeto $projeto, User $admin, string $avaliador, ?float $nota): RegistroAtividade
+    {
+        return $this->registrarNoProjeto(TipoRegistro::NotasVisualizadas, $projeto, $admin, [
+            'avaliador' => $avaliador,
+            'nota' => $nota === null ? null : number_format($nota, 3, ',', ''),
+            'fase' => 'presencial',
+        ]);
+    }
+
+    /**
+     * O admin **excluiu** uma avaliação presencial (Ranking presencial → Ver
+     * avaliações, Sprint 237): a linha some, a vaga volta a abrir no estande e
+     * ninguém é designado no lugar.
+     *
+     * Ao contrário da nota online desconsiderada, que fica riscada, esta sai de
+     * vez — então o registro é a única memória dela: de quem era, quanto valia,
+     * em que vaga e **por quê** saiu.
+     */
+    public function avaliacaoPresencialExcluida(
+        Projeto $projeto,
+        User $admin,
+        string $avaliador,
+        ?float $nota,
+        string $situacao,
+        ?string $vaga,
+        string $justificativa,
+    ): RegistroAtividade {
+        return $this->registrarNoProjeto(TipoRegistro::AvaliacaoPresencialExcluida, $projeto, $admin, [
+            'avaliador' => $avaliador,
+            'nota' => $nota === null ? null : number_format($nota, 3, ',', ''),
+            'situacao' => $situacao,
+            'vaga' => $vaga,
+            'justificativa' => $justificativa,
+        ]);
+    }
+
+    /**
      * O admin pediu a lista dos projetos com notas díspares (Ranking →
      * Verificar disparidade).
      *
@@ -1007,7 +1051,8 @@ class RegistroAtividadeService
         // Consulta de nota não é "de → para": é quem foi lido, e quanto.
         if ($registro->tipo === TipoRegistro::NotasVisualizadas) {
             return sprintf(
-                'viu a nota de %s%s',
+                'viu a nota %sde %s%s',
+                ($detalhes['fase'] ?? null) === 'presencial' ? 'presencial ' : '',
                 $detalhes['avaliador'] ?? 'um avaliador',
                 empty($detalhes['nota']) ? '' : ' · nota '.$detalhes['nota'],
             );
@@ -1022,6 +1067,19 @@ class RegistroAtividadeService
                 $registro->tipo === TipoRegistro::NotaDesconsiderada ? 'desconsiderou' : 'voltou a considerar',
                 $detalhes['avaliador'] ?? 'um avaliador',
                 empty($detalhes['nota']) ? '' : ' ('.$detalhes['nota'].')',
+                $detalhes['justificativa'] ?? 'sem justificativa',
+            );
+        }
+
+        // A avaliação presencial excluída não deixa linha nenhuma: o registro diz
+        // tudo o que ela era, além do motivo.
+        if ($registro->tipo === TipoRegistro::AvaliacaoPresencialExcluida) {
+            return sprintf(
+                'excluiu a avaliação presencial de %s (%s%s%s) · %s',
+                $detalhes['avaliador'] ?? 'um avaliador',
+                $detalhes['situacao'] ?? 'avaliação',
+                empty($detalhes['nota']) ? '' : ' · nota '.$detalhes['nota'],
+                empty($detalhes['vaga']) ? '' : ' · '.$detalhes['vaga'],
                 $detalhes['justificativa'] ?? 'sem justificativa',
             );
         }

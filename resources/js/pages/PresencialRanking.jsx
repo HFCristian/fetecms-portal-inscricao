@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
+import DialogoAvaliacoesPresenciais from '../components/DialogoAvaliacoesPresenciais.jsx';
 import { Alert, Toggle } from '../components/ui.jsx';
-import { extractErrors } from '../lib/auth.jsx';
-import { getRankingPresencial } from '../lib/presencial.js';
+import { extractErrors, useAuth } from '../lib/auth.jsx';
+import { getAvaliacoesRankingPresencial, getRankingPresencial } from '../lib/presencial.js';
 
 const campoClass =
     'w-full bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface ' +
@@ -30,7 +31,7 @@ function Posicao({ n }) {
     );
 }
 
-function Linha({ p }) {
+function Linha({ p, onVerAvaliacoes }) {
     return (
         <li className="px-4 py-3 flex items-center gap-3 flex-wrap">
             <Posicao n={p.posicao} />
@@ -65,6 +66,18 @@ function Linha({ p }) {
                     {p.parcial && <span className="block text-error font-semibold">parcial</span>}
                 </div>
             </div>
+
+            {onVerAvaliacoes && (
+                <button
+                    type="button"
+                    onClick={() => onVerAvaliacoes(p)}
+                    aria-label={`Ver avaliações de ${p.titulo}`}
+                    className="shrink-0 inline-flex items-center gap-1 rounded-lg border border-primary-container px-3 py-1.5 text-xs font-semibold text-primary-container hover:bg-primary-fixed"
+                >
+                    <span className="material-symbols-outlined text-[16px]">fact_check</span>
+                    Ver avaliações
+                </button>
+            )}
         </li>
     );
 }
@@ -76,13 +89,22 @@ function Linha({ p }) {
  * da comissão especial pesa mais (o peso é da edição, em Distribuição
  * presencial). Quem calcula é o servidor; a tela só mostra e filtra. Parcial
  * é quem ainda não teve todas as vagas preenchidas.
+ *
+ * Cada linha tem **Ver avaliações** (Sprint 237): quem avaliou, a nota seção por
+ * seção e a exclusão, com justificativa. É da organização — a conta temporária
+ * do voluntário não vê o botão, e o servidor recusa.
  */
 export default function PresencialRanking() {
+    const { user } = useAuth();
+    const podeVerAvaliacoes = !user?.conta_temporaria;
     const [dados, setDados] = useState(null);
     const [areaId, setAreaId] = useState('');
     const [categoria, setCategoria] = useState('');
     const [modoTeste, setModoTeste] = useState(false);
     const [erro, setErro] = useState('');
+    const [aviso, setAviso] = useState('');
+    // O diálogo de Ver avaliações: { dados, carregando, erro }.
+    const [avaliacoes, setAvaliacoes] = useState(null);
 
     const carregar = useCallback(() => {
         setErro('');
@@ -95,6 +117,24 @@ export default function PresencialRanking() {
     }, [areaId, categoria, modoTeste]);
 
     useEffect(() => { carregar(); }, [carregar]);
+
+    function verAvaliacoes(p) {
+        setAviso('');
+        setAvaliacoes({ dados: null, carregando: true, erro: '' });
+        getAvaliacoesRankingPresencial(p.projeto_id, modoTeste)
+            .then((d) => setAvaliacoes({ dados: d, carregando: false, erro: '' }))
+            .catch((e) => setAvaliacoes({
+                dados: null, carregando: false,
+                erro: extractErrors(e).message || 'Não foi possível carregar as avaliações.',
+            }));
+    }
+
+    // A exclusão devolve o projeto sem a avaliação; o ranking é recalculado no servidor.
+    function aoExcluir(resposta) {
+        setAvaliacoes({ dados: resposta.data, carregando: false, erro: '' });
+        setAviso(resposta.meta?.message ?? 'Avaliação excluída.');
+        carregar();
+    }
 
     const projetos = dados?.projetos ?? [];
     const parciais = projetos.filter((p) => p.parcial).length;
@@ -153,6 +193,7 @@ export default function PresencialRanking() {
             </div>
 
             {erro && <div className="mb-4 max-w-3xl"><Alert>{erro}</Alert></div>}
+            {aviso && <div className="mb-4 max-w-3xl"><Alert type="info">{aviso}</Alert></div>}
 
             {dados === null ? (
                 <div className="text-center py-10 text-on-surface-variant">
@@ -182,10 +223,23 @@ export default function PresencialRanking() {
                             </span>
                         </div>
                         <ul className="divide-y divide-outline-variant/30">
-                            {projetos.map((p) => <Linha key={p.projeto_id} p={p} />)}
+                            {projetos.map((p) => (
+                                <Linha key={p.projeto_id} p={p} onVerAvaliacoes={podeVerAvaliacoes ? verAvaliacoes : null} />
+                            ))}
                         </ul>
                     </div>
                 </div>
+            )}
+
+            {avaliacoes && (
+                <DialogoAvaliacoesPresenciais
+                    dados={avaliacoes.dados}
+                    carregando={avaliacoes.carregando}
+                    erro={avaliacoes.erro}
+                    teste={modoTeste}
+                    onExcluida={aoExcluir}
+                    onFechar={() => setAvaliacoes(null)}
+                />
             )}
         </AppShell>
     );

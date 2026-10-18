@@ -37,7 +37,9 @@ namespace App\Enums;
  * o detalhe da nota que um avaliador deu a um projeto, em Avaliação online →
  * Designações. A nota é o que decide a lista final, e o avaliador é anônimo para
  * o orientador — então quem a consulta fica registrado, com o projeto, o
- * avaliador e o valor que estava na tela naquele momento.
+ * avaliador e o valor que estava na tela naquele momento. A avaliação presencial
+ * entra aqui também: a consulta em Ranking presencial → Ver avaliações e a
+ * exclusão de uma avaliação do estande, com justificativa (Sprint 237).
  *
  * Seção "Mapa do evento" (a ocupação do ginásio): a geração da lista de turnos
  * e a dos estandes — cada uma substitui a anterior por inteiro — e cada projeto
@@ -130,6 +132,7 @@ enum TipoRegistro: string
     case NotasVisualizadas = 'notas_visualizadas';
     case NotaDesconsiderada = 'nota_desconsiderada';
     case NotaReconsiderada = 'nota_reconsiderada';
+    case AvaliacaoPresencialExcluida = 'avaliacao_presencial_excluida';
     case CerimonialCheckin = 'cerimonial_checkin';
     case CerimonialCheckinDesfeito = 'cerimonial_checkin_desfeito';
 
@@ -228,6 +231,7 @@ enum TipoRegistro: string
             self::NotasVisualizadas => 'Notas consultadas',
             self::NotaDesconsiderada => 'Nota desconsiderada',
             self::NotaReconsiderada => 'Nota reconsiderada',
+            self::AvaliacaoPresencialExcluida => 'Avaliação presencial excluída',
             self::CerimonialCheckin => 'Check-in do cerimonial',
             self::CerimonialCheckinDesfeito => 'Check-in desfeito',
         };
@@ -262,7 +266,8 @@ enum TipoRegistro: string
             self::MapaProjetoIncluido, self::MapaProjetoRetirado => self::SECAO_MAPA,
             self::NotasVisualizadas,
             self::NotaDesconsiderada,
-            self::NotaReconsiderada => self::SECAO_NOTAS,
+            self::NotaReconsiderada,
+            self::AvaliacaoPresencialExcluida => self::SECAO_NOTAS,
             self::CerimonialCheckin, self::CerimonialCheckinDesfeito => self::SECAO_CERIMONIAL,
             default => self::SECAO_AVALIACAO,
         };

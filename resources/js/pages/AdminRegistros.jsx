@@ -133,7 +133,8 @@ const SECOES = {
         titulo: 'Registros · Notas',
         descricao: 'Quem abriu a nota que um avaliador deu a um projeto, quando e qual era o valor '
             + 'na tela. A consulta não muda nada, mas o parecer é anônimo para o orientador — e é '
-            + 'este registro que protege esse sigilo.',
+            + 'este registro que protege esse sigilo. Ficam aqui também as notas desconsideradas e as '
+            + 'avaliações presenciais excluídas, com a justificativa.',
         placeholder: 'Buscar por título do projeto ou quem consultou…',
         vazio: 'Nenhuma consulta de nota registrada por enquanto.',
     },

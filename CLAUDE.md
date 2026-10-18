@@ -146,8 +146,12 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     comissão especial** por padrão, e a avaliação da comissão **pesa 2** na média do **Ranking
     presencial** (`RankingPresencialService`, `/admin/presencial/ranking`); o avaliador da comissão
     que encontra a vaga dela tomada entra numa comum, com peso 1 (`avaliacoes_presenciais.vaga`,
-    `App\Enums\VagaPresencial`, `JanelaTurnos::vagaPara()`). Avalia num **wizard** como o da online, com o **checklist dos itens da checagem** (sem
-    nota) como **primeiro passo**. A rubrica é a do documento **"Perguntas de Avaliação FETECMS 2026 ·
+    `App\Enums\VagaPresencial`, `JanelaTurnos::vagaPara()`). Avalia num **wizard** como o da online, **sem os itens do
+    estande** (saíram na Sprint 237 — são conferidos na checagem, e o servidor não os cobra mais), e o atalho de cada
+    seção fica **verde** quando ele sai dela completa e **amarelo** quando sai com pergunta em branco. No Ranking
+    presencial, **Ver avaliações** mostra quem avaliou, a vaga e os pontos por seção, e **exclui** uma avaliação
+    enviada ou em andamento com justificativa — a vaga volta a abrir, ninguém é designado no lugar, e consulta e
+    exclusão entram em Registros → Notas (`NotasPresenciaisService`, só admin permanente). A rubrica é a do documento **"Perguntas de Avaliação FETECMS 2026 ·
     Etapa Presencial"** (`App\Support\RubricaPresencial`) **sem a seção 1** (ética: TCE e TCLE/TALE,
     tirada a pedido da organização): 13 seções, **8,500** em escala e **1,500** em Sim/Não, perguntas
     **condicionais** (a 2.2 só depois do "Sim" na 2.1; "Não" na 2.1 = 2.2 vale 0) e **sem valor** (a
@@ -593,7 +597,7 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     checagem** do estande ou nos dois, e pode ser **recebido antes** — o orientador o envia pela aba
     Documentos. No credenciamento o item de pessoa aparece em cada pessoa e o do projeto num bloco
     "Do projeto"; na checagem o do projeto aparece uma vez e o de pessoa com um marcador por pessoa. O
-    checklist do avaliador presencial usa só os itens do projeto que não são recebidos antes. Item
+    avaliador presencial não confere item nenhum (Sprint 237). Item
     conferido ou com arquivo não é excluído — desative-o. Os dois termos do finalista são **itens do
     sistema** (`chave`): renomeiam-se e ligam/desligam, mas não mudam de abrangência nem se excluem.
   - **Comitê especial** (`/admin/comite`): o deslocamento das equipes durante a feira, em duas
@@ -1014,13 +1018,40 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 228 | Comitê especial → **Acompanhamento das avaliações**: lista por avaliador + mapa só do comitê com dashboard | ✅ sim | ✅ sim (Pedro, PR #117 → v1.38) | 0 |
 | 229 | Acompanhamento do comitê: as **designações online** feitas em Designações do comitê (`avaliacoes.designada_pelo_comite`) | ✅ sim | ✅ sim (Pedro, PR #118 → v1.39) | 0 |
 | 230 | Acompanhamento do comitê: **Ver detalhes** do avaliador em 3 colunas (avaliados, em avaliação, designados) | ✅ sim | ✅ sim (Pedro, PR #118 → v1.39) | 0 |
-| 231 | Acompanhamento do comitê: cartão do avaliador **compacto** (contagem + 1º projeto de cada categoria) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 232 | Acompanhamento do comitê: **remover designação** do avaliador no Ver detalhes (estande e online do comitê, sem reposição) | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 233 | Ver detalhes: **Projetos designados** sem o que o avaliador já abriu ou avaliou por outro caminho | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 234 | Parametrização → **Avaliação presencial** → Comitê especial: avaliar **apenas projetos designados** + pedidos de permissão em Designações | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 235 | Avaliador: seção **Designados a você** e busca por projeto ou estande na avaliação presencial | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 236 | Avaliador: aba **Avaliação online** (`/avaliador/avaliacao-online`) e, no evento, a tela inicial é a **avaliação presencial** | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 231 | Acompanhamento do comitê: cartão do avaliador **compacto** (contagem + 1º projeto de cada categoria) | ✅ sim | ✅ sim (Pedro, PR #119 → v1.40) | 0 |
+| 232 | Acompanhamento do comitê: **remover designação** do avaliador no Ver detalhes (estande e online do comitê, sem reposição) | ✅ sim | ✅ sim (Pedro, PR #119 → v1.40) | 0 |
+| 233 | Ver detalhes: **Projetos designados** sem o que o avaliador já abriu ou avaliou por outro caminho | ✅ sim | ✅ sim (Pedro, PR #119 → v1.40) | 0 |
+| 234 | Parametrização → **Avaliação presencial** → Comitê especial: avaliar **apenas projetos designados** + pedidos de permissão em Designações | ✅ sim | ✅ sim (Pedro, PR #119 → v1.40) | 0 |
+| 235 | Avaliador: seção **Designados a você** e busca por projeto ou estande na avaliação presencial | ✅ sim | ✅ sim (Pedro, PR #119 → v1.40) | 0 |
+| 236 | Avaliador: aba **Avaliação online** (`/avaliador/avaliacao-online`) e, no evento, a tela inicial é a **avaliação presencial** | ✅ sim | ✅ sim (Pedro, PR #119 → v1.40) | 0 |
+| 237 | Avaliação presencial sem os **itens do estande** + seção verde/amarela no wizard; Ranking presencial → **Ver avaliações** e exclusão com justificativa | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprint 237 (branch `feat/presencial-ranking-avaliacoes`, saída da `main` @ `ea4751c`, v1.40):**
+> (a) O formulário de **avaliação presencial** perdeu o passo **Itens do estande**: o que o estande tem
+> é conferido na checagem, pela organização. O painel e o detalhe não mandam mais `itens`, o envio não
+> cobra o checklist e o rascunho/envio não gravam `avaliacoes_presenciais.itens_conferidos` (a coluna
+> fica com o que já foi marcado). No wizard, o atalho de cada seção é **verde** quando o avaliador sai
+> dela completa e **amarelo** quando sai com pergunta em branco; a não visitada fica neutra e a aberta
+> tem o destaque de sempre. Retomando um rascunho, conta como visitada a seção que já tem resposta. Só
+> no presencial — o wizard da online não mudou.
+> (b) No **Ranking presencial**, cada linha ganhou **Ver avaliações** (`DialogoAvaliacoesPresenciais.jsx`,
+> `NotasPresenciaisService`): as avaliações **enviadas** e **em andamento** do projeto, com o nome do
+> avaliador, a vaga e o peso, a ocorrência, a origem e o parecer, e as enviadas lado a lado **seção por
+> seção** da rubrica (`POST /admin/presencial/ranking/projetos/{projeto}/avaliacoes`). Abrir registra uma
+> consulta por nota em Registros → Notas (`notas_visualizadas` com `fase = presencial`). Cada avaliação
+> pode ser **excluída** com justificativa (mín. 5 caracteres; `POST
+> /admin/presencial/ranking/avaliacoes/{avaliacao}/excluir`): a linha é apagada, a vaga volta a abrir no
+> estande, ninguém é designado no lugar e o mesmo avaliador pode avaliar de novo. O registro
+> `avaliacao_presencial_excluida` (Registros → Notas) guarda avaliador, nota, situação, vaga e motivo. A
+> só designada é recusada (sai pela Distribuição presencial). As duas rotas são `admin.permanente`: o
+> voluntário de conta temporária continua vendo o ranking sem nomes, sem o botão.
+> Back **1607/1607**, front **907/907**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprint 237):** `git push origin feat/presencial-ranking-avaliacoes` + PR para a
+> `main`. Sem migration, `.env` ou dependência nova. **Excluir uma avaliação presencial tira ela também da contagem do
+> certificado do avaliador** (Certificados conta as presenciais concluídas) — é a diferença para a nota
+> online desconsiderada, que continua contando para a pessoa.
+>
 > **Sprint 236 (mesma branch):** no menu do avaliador, **Avaliações** virou **Avaliação online**, e a
 > tela mudou de endereço: `/avaliador/avaliacao-online`. `/avaliador` — para onde o login manda —
 > passou a ser só a **porta de entrada** (`AvaliadorInicio`): **durante o evento** (`edicoes.evento_de`
@@ -1040,7 +1071,7 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > pelo estande** ("42", "042", "estande 42"; sem acento e sem caixa — `lib/buscaEstande.js`).
 > Back **1601/1601**, front **901/901**, Pint limpo, build OK.
 >
-> **Pendências do Pedro (Sprints 235–236):** vão no mesmo push das 231–234, abaixo. Sem migration nova,
+> **Pendências do Pedro (Sprints 235–236):** ~~push + PR~~ — **entrou na `main` pelo PR #119** (v1.40). Sem migration nova,
 > `.env` ou dependência. **O endereço da avaliação online mudou** para `/avaliador/avaliacao-online`;
 > `/avaliador` continua funcionando (redireciona). A tela inicial do avaliador no evento depende do
 > **período do evento** em Parametrização → Datas e períodos.
@@ -1073,8 +1104,7 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > (designado online e avaliado no estande, por exemplo) — `colunasDoAvaliador()`. No servidor, a mesma
 > regra: essa designação que sobrou não faz do avaliador "Com designação".
 >
-> **Pendências do Pedro (Sprints 231–234):** `git push origin feat/acompanhamento-cards-e-retirada` + PR
-> para a `main`. **Uma migration** (`edicoes.presencial_comite_so_designados` + a tabela
+> **Pendências do Pedro (Sprints 231–234):** ~~push + PR~~ — **entrou na `main` pelo PR #119** (v1.40). **Uma migration** (`edicoes.presencial_comite_so_designados` + a tabela
 > `pedidos_avaliacao_comite`), sem `.env` ou dependência nova. A regra nasce **desligada**: ligue em
 > Parametrização → Avaliação presencial quando quiser. Ligada, avise a comissão de que o estande amarelo
 > pede permissão, e acompanhe os pedidos em Comitê especial → Designações (a tela não recarrega sozinha).

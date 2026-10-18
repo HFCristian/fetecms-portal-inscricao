@@ -1,9 +1,13 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../components/AppShell.jsx', () => ({ default: ({ children }) => <div>{children}</div> }));
 vi.mock('react-router-dom', () => ({ Link: ({ children, to }) => <a href={to}>{children}</a> }));
-vi.mock('../lib/auth.jsx', () => ({ extractErrors: (e) => ({ message: e?.message ?? 'Erro.' }) }));
+const auth = { user: { id: 1, role: 'admin', conta_temporaria: false } };
+vi.mock('../lib/auth.jsx', () => ({
+    extractErrors: (e) => ({ message: e?.message ?? 'Erro.', fields: e?.fields ?? {} }),
+    useAuth: () => auth,
+}));
 
 const RANKING = {
     lista: { id: 1, nome: 'Final', demo: false },
@@ -28,15 +32,49 @@ const RANKING = {
     ],
 };
 
+const AVALIACOES = {
+    projeto: { id: 10, titulo: 'Abelhas', codigo: 'FET.AGR-001', area: 'Ciências Agrárias', categoria: 'FETECMS', estande: 12, turno_label: 'Turno A (matutino)' },
+    media: 8,
+    nota_maxima: 10,
+    secoes: [
+        { chave: 'apresentacao', titulo: 'Apresentação', maximo: 1.137 },
+        { chave: 'metodologia', titulo: 'Metodologia', maximo: 1.2 },
+    ],
+    avaliacoes: [
+        {
+            avaliacao_id: 21, avaliador: 'Ana Souza', status: 'concluida', status_label: 'Concluída', vaga: 'comum', vaga_label: 'Vaga comum', peso: 1,
+            nota: 8.5, ocorrencia_label: '20/10 · Turno A (matutino)', origem_label: 'Escolhido no estande',
+            concluida_em_label: '20/10/2026 10:15', secoes: { apresentacao: 1.1, metodologia: 0.96 }, comentario: 'Boa equipe.',
+        },
+        {
+            avaliacao_id: 22, avaliador: 'Bruno Lima', status: 'concluida', status_label: 'Concluída', vaga: 'comite', vaga_label: 'Comissão especial', peso: 2,
+            nota: 9, ocorrencia_label: '20/10 · Turno A (matutino)', origem_label: 'Designado',
+            concluida_em_label: '20/10/2026 11:00', secoes: { apresentacao: 1.137, metodologia: 1.2 }, comentario: null,
+        },
+        {
+            avaliacao_id: 23, avaliador: 'Carla Dias', status: 'em_andamento', status_label: 'Em andamento', vaga: 'comum', vaga_label: 'Vaga comum', peso: 1,
+            nota: null, ocorrencia_label: '20/10 · Turno A (matutino)', origem_label: 'Escolhido no estande',
+            iniciada_em_label: '20/10/2026 11:30', secoes: null, comentario: null,
+        },
+    ],
+};
+
 const getRankingPresencial = vi.fn(() => Promise.resolve(RANKING));
+const getAvaliacoesRankingPresencial = vi.fn(() => Promise.resolve(AVALIACOES));
+const excluirAvaliacaoPresencial = vi.fn();
 vi.mock('../lib/presencial.js', () => ({
     getRankingPresencial: (...a) => getRankingPresencial(...a),
+    getAvaliacoesRankingPresencial: (...a) => getAvaliacoesRankingPresencial(...a),
+    excluirAvaliacaoPresencial: (...a) => excluirAvaliacaoPresencial(...a),
 }));
 
 import PresencialRanking from './PresencialRanking.jsx';
 
 describe('PresencialRanking', () => {
-    beforeEach(() => vi.clearAllMocks());
+    beforeEach(() => {
+        vi.clearAllMocks();
+        auth.user = { id: 1, role: 'admin', conta_temporaria: false };
+    });
 
     it('mostra a média ponderada, as notas com a da comissão em destaque e o parcial', async () => {
         render(<PresencialRanking />);
@@ -61,6 +99,70 @@ describe('PresencialRanking', () => {
 
         fireEvent.change(screen.getByLabelText('Categoria'), { target: { value: 'fetecms' } });
         await waitFor(() => expect(getRankingPresencial).toHaveBeenLastCalledWith({ area_id: '3', categoria: 'fetecms' }, false));
+    });
+
+    it('Ver avaliações abre quem avaliou, a vaga e os pontos de cada seção', async () => {
+        render(<PresencialRanking />);
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Ver avaliações de Abelhas' }));
+        await waitFor(() => expect(getAvaliacoesRankingPresencial).toHaveBeenCalledWith(10, false));
+
+        const dialogo = await screen.findByRole('dialog', { name: 'Avaliações presenciais' });
+        const tabela = within(dialogo).getByRole('table');
+        // Na tabela, só quem enviou: a em andamento não tem nota para comparar.
+        expect(within(tabela).getAllByRole('columnheader')).toHaveLength(3);
+        expect(within(tabela).getByRole('columnheader', { name: /Bruno Lima/ })).toHaveTextContent('Comissão especial · peso 2');
+        expect(within(tabela).getByRole('row', { name: /Metodologia/ })).toHaveTextContent('0,960');
+        expect(within(dialogo).getByText('Boa equipe.')).toBeInTheDocument();
+        expect(within(dialogo).getByText('Carla Dias').closest('li')).toHaveTextContent('iniciada em 20/10/2026 11:30');
+        expect(within(dialogo).getByText(/média ponderada 8,000/)).toBeInTheDocument();
+    });
+
+    it('exclui uma avaliação com justificativa e recarrega o ranking', async () => {
+        excluirAvaliacaoPresencial.mockResolvedValue({
+            data: { ...AVALIACOES, avaliacoes: AVALIACOES.avaliacoes.filter((a) => a.avaliacao_id !== 21) },
+            meta: { message: 'Avaliação excluída. A vaga voltou a abrir no estande.' },
+        });
+        render(<PresencialRanking />);
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Ver avaliações de Abelhas' }));
+        const dialogo = await screen.findByRole('dialog', { name: 'Avaliações presenciais' });
+        fireEvent.click(within(dialogo).getByRole('button', { name: 'Excluir a avaliação de Ana Souza' }));
+
+        const confirmar = within(dialogo).getByRole('button', { name: 'Excluir avaliação' });
+        // Sem justificativa não exclui.
+        expect(confirmar).toBeDisabled();
+        fireEvent.change(within(dialogo).getByLabelText('Por que excluir esta avaliação?'), {
+            target: { value: '  Avaliou o estande errado.  ' },
+        });
+        fireEvent.click(confirmar);
+
+        await waitFor(() => expect(excluirAvaliacaoPresencial).toHaveBeenCalledWith(21, 'Avaliou o estande errado.', false));
+        await waitFor(() => expect(within(dialogo).queryByText('Ana Souza')).not.toBeInTheDocument());
+        expect(screen.getByText(/A vaga voltou a abrir no estande/)).toBeInTheDocument();
+        expect(getRankingPresencial).toHaveBeenCalledTimes(2);
+    });
+
+    it('o erro da exclusão fica no cartão', async () => {
+        excluirAvaliacaoPresencial.mockRejectedValue({ message: 'Esta avaliação ainda não foi aberta.' });
+        render(<PresencialRanking />);
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Ver avaliações de Abelhas' }));
+        const dialogo = await screen.findByRole('dialog', { name: 'Avaliações presenciais' });
+        fireEvent.click(within(dialogo).getByRole('button', { name: 'Excluir a avaliação de Carla Dias' }));
+        fireEvent.change(within(dialogo).getByLabelText('Por que excluir esta avaliação?'), { target: { value: 'Desistiu do estande.' } });
+        fireEvent.click(within(dialogo).getByRole('button', { name: 'Excluir avaliação' }));
+
+        expect(await within(dialogo).findByText('Esta avaliação ainda não foi aberta.')).toBeInTheDocument();
+        expect(within(dialogo).getByText('Carla Dias')).toBeInTheDocument();
+    });
+
+    it('a conta temporária do voluntário não vê o botão', async () => {
+        auth.user = { id: 2, role: 'admin', conta_temporaria: true };
+        render(<PresencialRanking />);
+
+        await screen.findByText('Abelhas');
+        expect(screen.queryByRole('button', { name: /Ver avaliações/ })).not.toBeInTheDocument();
     });
 
     it('sem avaliação enviada, diz que não há ranking ainda', async () => {

@@ -16,6 +16,7 @@ use App\Models\Projeto;
 use App\Services\ChecagemEstandeService;
 use App\Services\CredenciaisService;
 use App\Services\DistribuicaoPresencialService;
+use App\Services\NotasPresenciaisService;
 use App\Services\RankingPresencialService;
 use App\Services\TurnosPresenciaisService;
 use Illuminate\Http\JsonResponse;
@@ -35,6 +36,7 @@ class AvaliacaoPresencialAdminController extends Controller
         private readonly DistribuicaoPresencialService $distribuicao,
         private readonly TurnosPresenciaisService $turnos,
         private readonly RankingPresencialService $ranking,
+        private readonly NotasPresenciaisService $notas,
     ) {}
 
     /** Janela, lista em uso, catálogo de itens e as orientações publicadas. */
@@ -194,6 +196,38 @@ class AvaliacaoPresencialAdminController extends Controller
             'modo_teste' => $this->turnos->emTeste($request->user(), $request->boolean('teste')),
             'is_demo' => (bool) $request->user()?->is_demo,
         ]]);
+    }
+
+    /**
+     * Ranking presencial → Ver avaliações (Sprint 237): as avaliações do
+     * projeto, com quem avaliou. POST porque abrir fica registrado — num GET,
+     * um prefetch ou um F5 gravariam consultas que ninguém fez.
+     */
+    public function avaliacoesDoRanking(Request $request, Projeto $projeto): JsonResponse
+    {
+        return response()->json(['data' => $this->notas->doProjeto(
+            $projeto,
+            $request->user(),
+            $this->turnos->emTeste($request->user(), $request->boolean('teste')),
+        )]);
+    }
+
+    /** Exclui uma avaliação presencial, com justificativa; a vaga volta a abrir. */
+    public function excluirAvaliacaoDoRanking(Request $request, AvaliacaoPresencial $avaliacao): JsonResponse
+    {
+        $dados = $request->validate([
+            'justificativa' => ['required', 'string', 'min:5', 'max:1000'],
+        ]);
+
+        return response()->json([
+            'data' => $this->notas->excluir(
+                $avaliacao,
+                $request->user(),
+                trim($dados['justificativa']),
+                $this->turnos->emTeste($request->user(), $request->boolean('teste')),
+            ),
+            'meta' => ['message' => 'Avaliação excluída. A vaga voltou a abrir no estande.'],
+        ]);
     }
 
     public function distribuir(Request $request): JsonResponse
