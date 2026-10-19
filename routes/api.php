@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\V1\CadastroPendenteController;
 use App\Http\Controllers\Api\V1\CatalogoAdminController;
 use App\Http\Controllers\Api\V1\CatalogoController;
 use App\Http\Controllers\Api\V1\CerimonialController;
+use App\Http\Controllers\Api\V1\CerimonialFotografiaController;
 use App\Http\Controllers\Api\V1\CertificadosController;
 use App\Http\Controllers\Api\V1\ChatAdminController;
 use App\Http\Controllers\Api\V1\ChatController;
@@ -583,6 +584,17 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::get('/projetos/{projeto}', [CerimonialController::class, 'show']);
                 Route::post('/projetos/{projeto}/checkin', [CerimonialController::class, 'checkin']);
                 Route::post('/projetos/{projeto}/desfazer', [CerimonialController::class, 'desfazer']);
+
+                // Fotografias de estandes (Sprint 247): o voluntário fotógrafo
+                // (conta temporária do setor) registra; excluir a foto alheia é
+                // da organização, conferido no serviço.
+                Route::get('/fotografias', [CerimonialFotografiaController::class, 'index']);
+                Route::post('/fotografias/projetos/{projeto}/reserva', [CerimonialFotografiaController::class, 'reservar']);
+                Route::delete('/fotografias/projetos/{projeto}/reserva', [CerimonialFotografiaController::class, 'cancelar']);
+                Route::post('/fotografias/projetos/{projeto}', [CerimonialFotografiaController::class, 'registrar'])
+                    ->middleware('throttle:30,1');
+                Route::get('/fotografias/{fotografia}/arquivo', [CerimonialFotografiaController::class, 'arquivo']);
+                Route::delete('/fotografias/{fotografia}', [CerimonialFotografiaController::class, 'excluir']);
 
                 // O painel e as contas são da organização: quem atende a porta
                 // não precisa saber quantas medalhas estão na mesa. O menu

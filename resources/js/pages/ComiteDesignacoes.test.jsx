@@ -95,6 +95,28 @@ describe('ComiteDesignacoes', () => {
         expect(await screen.findByText(/FET\.EXA-001 · Estande 042 · Turno A \(matutino\)/)).toBeInTheDocument();
     });
 
+    it('diz quantos casaram e mostra mais sob pedido (o corte de 30 não é mais silencioso)', async () => {
+        getOpcoesDesignacaoComite.mockResolvedValue({ ...OPCOES, projetos_total: 45, avaliadores_total: 1 });
+        render(<ComiteDesignacoes />);
+
+        expect(await screen.findByText(/Mostrando 1 de 45/)).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Mostrar mais 30' }));
+
+        await waitFor(() => expect(getOpcoesDesignacaoComite).toHaveBeenLastCalledWith(
+            expect.objectContaining({ limite_projetos: 60, limite_avaliadores: 30 }),
+        ));
+    });
+
+    it('o finalista de cadastro manual aparece marcado como só no estande', async () => {
+        getOpcoesDesignacaoComite.mockResolvedValue({
+            ...OPCOES,
+            projetos: [{ ...OPCOES.projetos[0], cadastro_manual: true }],
+        });
+        render(<ComiteDesignacoes />);
+
+        expect(await screen.findByText(/Cadastro manual · só no estande/)).toBeInTheDocument();
+    });
+
     it('a busca e os filtros de código, estande e turno vão para o servidor', async () => {
         render(<ComiteDesignacoes />);
         await screen.findByText('Bioplástico');
@@ -106,6 +128,7 @@ describe('ComiteDesignacoes', () => {
 
         await waitFor(() => expect(getOpcoesDesignacaoComite).toHaveBeenLastCalledWith({
             projeto: 'vespertino', avaliador: '', codigo: 'FET.AGR', estande: '042', turno: 'B',
+            limite_projetos: 30, limite_avaliadores: 30,
         }));
         expect(screen.getByText(/só aparecem os finalistas/)).toBeInTheDocument();
 

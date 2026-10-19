@@ -3,8 +3,20 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../components/AppShell.jsx', () => ({ default: ({ children }) => <div>{children}</div> }));
 vi.mock('../components/VideoPreview.jsx', () => ({ default: () => null }));
+const setUser = vi.fn();
 vi.mock('../lib/auth.jsx', () => ({
     extractErrors: (e) => ({ message: e?.message ?? 'Erro.', fields: e?.fields ?? {} }),
+    useAuth: () => ({ setUser }),
+}));
+vi.mock('react-router-dom', () => ({ Link: ({ children, to }) => <a href={to}>{children}</a> }));
+
+const getComiteAvaliador = vi.fn();
+const recomendarProjeto = vi.fn();
+const retirarRecomendacao = vi.fn();
+vi.mock('../lib/avaliador.js', () => ({
+    getComiteAvaliador: (...a) => getComiteAvaliador(...a),
+    recomendarProjeto: (...a) => recomendarProjeto(...a),
+    retirarRecomendacao: (...a) => retirarRecomendacao(...a),
 }));
 
 const getPainelPresencial = vi.fn();
@@ -13,7 +25,11 @@ const iniciarAvaliacaoPresencial = vi.fn();
 const salvarRascunhoPresencial = vi.fn();
 const concluirAvaliacaoPresencial = vi.fn();
 const pedirPermissaoPresencial = vi.fn();
+const getPresencial = vi.fn();
+const responderPresencial = vi.fn();
 vi.mock('../lib/avaliacaoPresencial.js', () => ({
+    getPresencial: (...a) => getPresencial(...a),
+    responderPresencial: (...a) => responderPresencial(...a),
     pedirPermissaoPresencial: (...a) => pedirPermissaoPresencial(...a),
     getPainelPresencial: (...a) => getPainelPresencial(...a),
     getAvaliacaoPresencial: (...a) => getAvaliacaoPresencial(...a),
@@ -72,7 +88,7 @@ const RUBRICA = {
 };
 
 const PAINEL = {
-    aberto: true, motivo_fechado: null, aceitou: true, modo_teste: false, is_demo: false,
+    aberto: true, motivo_fechado: null, aceitou: true, liberado: true, modo_teste: false, is_demo: false,
     turno: { chave: '2026-10-20|A', rotulo: '20/10 · Turno A (matutino) · 08:00–12:00', prazo_label: '12:30' },
     max_por_projeto: 3,
     rubrica: RUBRICA,
@@ -105,6 +121,14 @@ const AVALIACAO = {
     },
 };
 
+/** O que era a aba "Presencial" (Sprint 246): a intenção e as orientações. */
+const SEM_RESPOSTA = {
+    respondido: false, presencial: null, pode_alterar: true, evento_iniciado: false,
+    evento_de_label: '20/10/2026 08:00', evento_ate_label: '22/10/2026 18:00',
+    informacoes: null, is_demo: false,
+};
+const ACEITOU = { ...SEM_RESPOSTA, respondido: true, presencial: true, informacoes: 'Chegue às 7h30 no ginásio, com o crachá.' };
+
 import AvaliadorAvaliacaoPresencial from './AvaliadorAvaliacaoPresencial.jsx';
 
 /** Abre o estande disponível, passando pela confirmação. */
@@ -118,6 +142,9 @@ describe('AvaliadorAvaliacaoPresencial', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         getPainelPresencial.mockResolvedValue(PAINEL);
+        getPresencial.mockResolvedValue(ACEITOU);
+        responderPresencial.mockResolvedValue({ data: ACEITOU, meta: { message: 'Participação presencial confirmada.' } });
+        getComiteAvaliador.mockResolvedValue({ credenciais: [], candidatos: [], recomendacoes: [] });
         iniciarAvaliacaoPresencial.mockResolvedValue(AVALIACAO);
         salvarRascunhoPresencial.mockResolvedValue({ data: AVALIACAO, meta: { message: 'Rascunho salvo.' } });
         concluirAvaliacaoPresencial.mockResolvedValue({ data: { ...AVALIACAO, status: 'concluida', status_label: 'Concluída', nota: 10 }, meta: {} });
@@ -137,7 +164,9 @@ describe('AvaliadorAvaliacaoPresencial', () => {
         });
         render(<AvaliadorAvaliacaoPresencial />);
 
-        expect(await screen.findByText(/Você é da/)).toHaveTextContent('sua avaliação nela pesa 2 na média');
+        // "Você é da comissão especial" também abre a área de indicação (Sprint 246).
+        const avisos = await screen.findAllByText(/Você é da/);
+        expect(avisos.some((el) => /sua avaliação nela pesa 2 na média/.test(el.textContent))).toBe(true);
         // O aviso e a linha da avaliação, marcada com a vaga que ela ocupa.
         expect(screen.getByText(/Em andamento/).closest('li')).toHaveTextContent('vaga da comissão');
     });
@@ -384,22 +413,117 @@ describe('AvaliadorAvaliacaoPresencial', () => {
         expect(screen.queryByText('Estande do ensaio')).not.toBeInTheDocument();
     });
 
-    it('sem liberação: a aba explica e o mapa diz por que não dá para iniciar', async () => {
+    it('sem liberação: no lugar da avaliação, a pergunta, as orientações e o aviso', async () => {
         getPainelPresencial.mockResolvedValue({
             ...PAINEL, aberto: false, liberado: false, turno: null, disponiveis: [],
             motivo_fechado: 'Sua participação na avaliação presencial ainda não foi liberada pela organização.',
-            mapa: {
-                ...PAINEL.mapa,
-                estandes: { 42: { A: { projeto_id: 7, titulo: 'Bioplástico', situacao: 'nao_liberado', avaliacao_id: null, avaliacoes: 0 } } },
-                fora_da_planta: [],
+        });
+        render(<AvaliadorAvaliacaoPresencial />);
+
+        expect(await screen.findByText('Aguardando a liberação da organização')).toBeInTheDocument();
+        expect(screen.getByText(/Chegue às 7h30 no ginásio/)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Sim, quero participar/ })).toBeInTheDocument();
+        // A avaliação não aparece até a liberação.
+        expect(screen.queryByText('Mapa do evento')).not.toBeInTheDocument();
+        expect(screen.queryByLabelText('Designados a você')).not.toBeInTheDocument();
+    });
+
+    it('sem resposta: só a pergunta, sem orientações nem aviso de liberação', async () => {
+        getPainelPresencial.mockResolvedValue({ ...PAINEL, aceitou: false, liberado: false, mapa: null });
+        getPresencial.mockResolvedValue(SEM_RESPOSTA);
+        render(<AvaliadorAvaliacaoPresencial />);
+
+        expect(await screen.findByText('Você ainda não respondeu.')).toBeInTheDocument();
+        expect(screen.queryByText(/Orientações para o dia do evento/)).not.toBeInTheDocument();
+        expect(screen.queryByText('Aguardando a liberação da organização')).not.toBeInTheDocument();
+    });
+
+    it('aceitar grava a resposta, atualiza o menu e recarrega', async () => {
+        getPainelPresencial.mockResolvedValue({ ...PAINEL, aceitou: false, liberado: false, mapa: null });
+        getPresencial.mockResolvedValue(SEM_RESPOSTA);
+        render(<AvaliadorAvaliacaoPresencial />);
+
+        fireEvent.click(await screen.findByRole('button', { name: /Sim, quero participar/ }));
+
+        await waitFor(() => expect(responderPresencial).toHaveBeenCalledWith(true, false));
+        expect(await screen.findByText('Participação presencial confirmada.')).toBeInTheDocument();
+        expect(setUser.mock.calls[0][0]({ role: 'avaliador', avaliador_profile: { presencial: null } }))
+            .toEqual({ role: 'avaliador', avaliador_profile: { presencial: true } });
+        await waitFor(() => expect(getPainelPresencial).toHaveBeenCalledTimes(2));
+    });
+
+    it('recusou: mantém a pergunta e diz que a online continua valendo', async () => {
+        getPainelPresencial.mockResolvedValue({ ...PAINEL, aceitou: false, liberado: false, mapa: null });
+        getPresencial.mockResolvedValue({ ...SEM_RESPOSTA, respondido: true, presencial: false });
+        render(<AvaliadorAvaliacaoPresencial />);
+
+        expect(await screen.findByText(/sua avaliação online continua valendo/i)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Sim, quero participar/ })).toBeEnabled();
+    });
+
+    it('a conta criada só para o presencial não responde', async () => {
+        getPainelPresencial.mockResolvedValue({ ...PAINEL, liberado: false });
+        getPresencial.mockResolvedValue({ ...ACEITOU, pode_alterar: false, apenas_presencial: true });
+        render(<AvaliadorAvaliacaoPresencial />);
+
+        expect(await screen.findByText(/participação já está confirmada/i)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Não vou participar/ })).toBeDisabled();
+    });
+
+    it('liberado: a avaliação no lugar da pergunta, e desistir fica no rodapé', async () => {
+        render(<AvaliadorAvaliacaoPresencial />);
+
+        expect(await screen.findByText(/avaliações aceitas até as 12:30/)).toBeInTheDocument();
+        expect(screen.queryByText(/Você quer avaliar presencialmente/)).not.toBeInTheDocument();
+        // As orientações continuam, recolhidas.
+        expect(screen.getByText('Orientações para o dia do evento').closest('details')).not.toBeNull();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Não vou mais participar da avaliação presencial' }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Não vou participar' }));
+
+        await waitFor(() => expect(responderPresencial).toHaveBeenCalledWith(false, false));
+    });
+
+    it('a conta só do presencial, liberada, não tem o link de desistir', async () => {
+        getPresencial.mockResolvedValue({ ...ACEITOU, pode_alterar: false, apenas_presencial: true });
+        render(<AvaliadorAvaliacaoPresencial />);
+
+        expect(await screen.findByText(/avaliações aceitas até as 12:30/)).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Não vou mais participar da avaliação presencial' })).not.toBeInTheDocument();
+    });
+
+    it('a comissão especial indica um finalista para a premiação no topo da tela', async () => {
+        getPainelPresencial.mockResolvedValue({ ...PAINEL, comissao: true, vagas: { comuns: 2, comite: 1, peso_comite: 2 } });
+        getComiteAvaliador.mockResolvedValue({
+            credenciais: [{ id: 3, nome: 'Credencial Genius', orgao: 'Genius Olympiad', tipo: 'credencial', vagas: 2 }],
+            candidatos: [{ id: 7, titulo: 'Bioplástico', codigo: 'FET.AGR-001', categoria: 'FETECMS', area: 'Agrárias' }],
+            recomendacoes: [],
+        });
+        recomendarProjeto.mockResolvedValue({
+            data: {
+                credenciais: [{ id: 3, nome: 'Credencial Genius', orgao: 'Genius Olympiad', tipo: 'credencial', vagas: 2 }],
+                candidatos: [{ id: 7, titulo: 'Bioplástico', codigo: 'FET.AGR-001', categoria: 'FETECMS', area: 'Agrárias' }],
+                recomendacoes: [{ id: 1, credencial_id: 3, projeto_id: 7, projeto: 'Bioplástico', codigo: 'FET.AGR-001', status: 'pendente', status_label: 'Aguardando' }],
             },
         });
         render(<AvaliadorAvaliacaoPresencial />);
 
-        expect(await screen.findByText(/ainda não foi liberada pela organização/)).toBeInTheDocument();
-        fireEvent.click(screen.getByRole('button', { name: /Estande 042 · Bioplástico/ }));
-        expect(await screen.findByText(/aguarda a sua liberação/)).toBeInTheDocument();
-        expect(iniciarAvaliacaoPresencial).not.toHaveBeenCalled();
+        const area = within(await screen.findByRole('region', { name: 'Indicar para premiação' }));
+        fireEvent.change(await area.findByLabelText('Credencial ou prêmio'), { target: { value: '3' } });
+        fireEvent.change(area.getByPlaceholderText(/Buscar finalista/), { target: { value: 'agr-001' } });
+        fireEvent.mouseDown(await area.findByText('FET.AGR-001 — Bioplástico'));
+        fireEvent.click(area.getByRole('button', { name: /Indicar/ }));
+
+        await waitFor(() => expect(recomendarProjeto).toHaveBeenCalledWith(3, 7, null));
+        expect(await area.findByText(/Suas indicações \(1\)/)).toBeInTheDocument();
+    });
+
+    it('quem não é da comissão não vê a área de indicação', async () => {
+        render(<AvaliadorAvaliacaoPresencial />);
+
+        expect(await screen.findByText(/avaliações aceitas até as 12:30/)).toBeInTheDocument();
+        expect(screen.queryByRole('region', { name: 'Indicar para premiação' })).not.toBeInTheDocument();
+        expect(getComiteAvaliador).not.toHaveBeenCalled();
     });
 
     it('no mapa: o estande fora da planta continua alcançável', async () => {

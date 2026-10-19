@@ -298,4 +298,105 @@ class ComiteDesignacaoTest extends TestCase
             'avaliador_ids' => [$comum->id],
         ])->assertOk()->assertJsonPath('data.designadas', 1);
     }
+
+    /**
+     * O relato de produção: com o filtro "Turno B", parte dos finalistas não
+     * aparecia. Não era o horário do credenciamento — a lista era cortada em 30,
+     * em ordem alfabética, sem a tela saber que havia mais.
+     */
+    public function test_a_lista_diz_quantos_casaram_e_entrega_mais_sob_pedido(): void
+    {
+        $lista = ListaFinal::create([
+            'edicao_id' => $this->edicao->id, 'nome' => 'Lista final', 'tipo' => 'final', 'vigente' => true, 'versao' => 1,
+        ]);
+        foreach (range(1, 35) as $n) {
+            $projeto = $this->projeto(sprintf('Projeto %02d', $n));
+            $lista->projetos()->attach($projeto->id, ['codigo' => sprintf('FET.EXA-%03d', $n)]);
+            TurnoApresentacao::create(['edicao_id' => $this->edicao->id, 'projeto_id' => $projeto->id, 'turno' => 'B']);
+        }
+        $this->adminDoComite();
+
+        $dados = $this->getJson('/api/v1/admin/comite/designacoes/opcoes?turno=B')->assertOk()->json('data');
+        $this->assertCount(30, $dados['projetos']);
+        $this->assertSame(35, $dados['projetos_total']);
+
+        $dados = $this->getJson('/api/v1/admin/comite/designacoes/opcoes?turno=B&limite_projetos=60')->assertOk()->json('data');
+        $this->assertCount(35, $dados['projetos']);
+        $this->assertContains('Projeto 35', array_column($dados['projetos'], 'titulo'));
+    }
+
+    public function test_os_avaliadores_da_comissao_tambem_passam_de_30(): void
+    {
+        foreach (range(1, 32) as $n) {
+            $this->avaliador(sprintf('Avaliador %02d', $n), comissao: true);
+        }
+        $this->adminDoComite();
+
+        $dados = $this->getJson('/api/v1/admin/comite/designacoes/opcoes')->assertOk()->json('data');
+        $this->assertCount(30, $dados['avaliadores']);
+        $this->assertSame(32, $dados['avaliadores_total']);
+
+        $dados = $this->getJson('/api/v1/admin/comite/designacoes/opcoes?limite_avaliadores=60')->assertOk()->json('data');
+        $this->assertCount(32, $dados['avaliadores']);
+    }
+
+    public function test_o_finalista_de_cadastro_manual_aparece_e_e_designado_pelo_comite(): void
+    {
+        $daComissao = $this->avaliador('Ana Comissao', comissao: true);
+        $manual = $this->projeto('Feira afiliada');
+        $manual->update(['cadastro_manual' => true]);
+        $this->adminDoComite();
+
+        $dados = $this->getJson('/api/v1/admin/comite/designacoes/opcoes')->assertOk()->json('data');
+        $porTitulo = array_column($dados['projetos'], null, 'titulo');
+        $this->assertTrue($porTitulo['Feira afiliada']['cadastro_manual']);
+
+        $this->postJson('/api/v1/admin/comite/designacoes', [
+            'projeto_ids' => [$manual->id],
+            'avaliador_ids' => [$daComissao->id],
+        ])->assertOk()->assertJsonPath('data.designadas', 1);
+
+        // Na avaliação online ele continua fora: lá não há fase online a cobrir.
+        Sanctum::actingAs(User::factory()->admin()->create());
+        $online = $this->getJson('/api/v1/admin/avaliacao/designacoes/opcoes')->assertOk()->json('data');
+        $this->assertNotContains('Feira afiliada', array_column($online['projetos'], 'titulo'));
+    }
+
+    public function test_a_designacao_do_manual_nao_vira_avaliacao_online(): void
+    {
+        $daComissao = $this->avaliador('Ana Comissao', comissao: true);
+        $manual = $this->projeto('Feira afiliada');
+        $manual->update(['cadastro_manual' => true]);
+        Avaliacao::create([
+            'projeto_id' => $manual->id, 'avaliador_id' => $daComissao->id, 'status' => 'designada',
+            'designacao_manual' => true, 'designada_pelo_comite' => true,
+        ]);
+        $comum = $this->projeto('Bioplástico');
+        Avaliacao::create([
+            'projeto_id' => $comum->id, 'avaliador_id' => $daComissao->id, 'status' => 'designada',
+            'designacao_manual' => true, 'designada_pelo_comite' => true,
+        ]);
+        $this->edicao->update(['avaliacao_liberada_em' => now()->subDay()]);
+        Sanctum::actingAs($daComissao);
+
+        $painel = $this->getJson('/api/v1/avaliacao')->assertOk()->json('data');
+
+        $this->assertSame(['Bioplástico'], array_column($painel['designados_organizacao'], 'titulo'));
+    }
+
+    public function test_a_conta_so_do_presencial_da_comissao_recebe_designacao_do_comite(): void
+    {
+        $presencial = $this->avaliador('Clara Presencial', comissao: true);
+        $presencial->avaliadorProfile->update(['apenas_presencial' => true]);
+        $projeto = $this->projeto('Bioplástico');
+        $this->adminDoComite();
+
+        $dados = $this->getJson('/api/v1/admin/comite/designacoes/opcoes')->assertOk()->json('data');
+        $this->assertSame([$presencial->id], array_column($dados['avaliadores'], 'id'));
+
+        $this->postJson('/api/v1/admin/comite/designacoes', [
+            'projeto_ids' => [$projeto->id],
+            'avaliador_ids' => [$presencial->id],
+        ])->assertOk()->assertJsonPath('data.designadas', 1);
+    }
 }

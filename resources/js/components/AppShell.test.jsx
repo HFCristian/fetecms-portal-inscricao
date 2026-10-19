@@ -81,20 +81,23 @@ describe('AppShell — menu do avaliador', () => {
         Object.assign(user, { id: 2, name: 'Ana', role: 'avaliador', avaliador_profile: { presencial, ...extra } });
     };
 
-    it('quem aceitou o presencial vê a aba da avaliação no estande', () => {
+    // Sprint 246: a aba "Presencial" entrou na Avaliação presencial, que fica
+    // sempre no menu — é nela que ele responde se vai ao estande.
+    it('a avaliação presencial aparece para todos, e a aba "Presencial" não existe mais', () => {
+        for (const presencial of [true, false, null]) {
+            avaliador(presencial);
+            const { unmount } = render(<AppShell><p>conteúdo</p></AppShell>);
+            expect(itens('Avaliação presencial').length).toBeGreaterThan(0);
+            expect(itens('Presencial')).toHaveLength(0);
+            unmount();
+        }
+    });
+
+    it('o menu começa pela Home do avaliador', () => {
         avaliador(true);
         render(<AppShell><p>conteúdo</p></AppShell>);
 
-        expect(itens('Avaliação presencial').length).toBeGreaterThan(0);
-        expect(itens('Presencial').length).toBeGreaterThan(0);
-    });
-
-    it('quem recusou ou não respondeu não vê a aba', () => {
-        avaliador(null);
-        render(<AppShell><p>conteúdo</p></AppShell>);
-
-        expect(itens('Avaliação presencial')).toHaveLength(0);
-        expect(itens('Presencial').length).toBeGreaterThan(0);
+        expect(itens('Início')[0].closest('a')).toHaveAttribute('href', '/avaliador');
     });
 
     it('a comissão especial vê a aba Comitê especial; os demais, não', () => {

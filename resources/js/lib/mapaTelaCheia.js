@@ -19,6 +19,11 @@
  *   não foi checado** fica **amarelo**: a equipe chegou e o estande espera a
  *   checagem — é a fila de quem confere, e o branco a misturaria com quem nem
  *   apareceu.
+ * - **Credenciado em dia anterior × hoje** (Sprint 245): a partir do segundo
+ *   dia, a visualização do credenciamento separa quem já tinha passado pelo
+ *   balcão (verde-escuro: não precisa voltar) de quem chegou hoje pela
+ *   primeira vez (o verde de sempre). Fora dela, o estande de quem chegou hoje
+ *   ganha um **ponto âmbar** no canto ({@link marcaPrimeiraVez}).
  * - **Saiu antes do horário** (Sprint 243): cinza-escuro em qualquer
  *   visualização. O estande está vazio, e o verde do credenciamento ou o azul
  *   das avaliações diriam que a equipe está lá.
@@ -50,6 +55,10 @@ export function textoSobreArea(cor) {
 
 const VERDE_OK = '#0ca30c';
 const OK = { fill: VERDE_OK, stroke: '#0a7a0a', texto: '#ffffff' };
+/** Credenciado num dia anterior (Sprint 245): o mesmo verde, mais escuro. */
+const CREDENCIADO_ANTES = { fill: '#0b5d2a', stroke: '#063d1b', texto: '#ffffff' };
+/** O ponto do estande de quem chegou hoje pela primeira vez. */
+export const COR_PRIMEIRA_VEZ = '#f5a300';
 /** Checado sem credenciamento: laranja com texto escuro (branco não lê sobre ele). */
 const ALERTA = { fill: '#f5871f', stroke: '#a4520a', texto: '#0b0b0b' };
 /** Credenciado e ainda não checado: amarelo com texto escuro. */
@@ -86,7 +95,10 @@ export function corNoEscopo(escopo, linha, maximo) {
     if (!linha) return SEM_PROJETO;
     if (linha.saida) return SAIU;
 
-    if (escopo === 'credenciamento') return linha.credenciado ? OK : PENDENTE;
+    if (escopo === 'credenciamento') {
+        if (!linha.credenciado) return PENDENTE;
+        return linha.credenciamento === 'anterior' ? CREDENCIADO_ANTES : OK;
+    }
 
     if (escopo === 'checagem') {
         if (!linha.checado) return linha.credenciado ? AGUARDANDO_CHECAGEM : PENDENTE;
@@ -108,17 +120,41 @@ export function corNoEscopo(escopo, linha, maximo) {
  * A legenda da visualização, com quantos estandes há em cada faixa. Quem saiu
  * antes do horário conta numa faixa própria, no fim — e só aparece quando há.
  */
-export function legendaDoEscopo(escopo, todas, maximo) {
+export function legendaDoEscopo(escopo, todas, maximo, { primeiroDia = true, hoje = true } = {}) {
     const linhas = todas.filter((l) => !l.saida);
     const saiu = todas.length - linhas.length;
     const faixaSaiu = saiu > 0 ? [{ cor: SAIU.fill, borda: SAIU.stroke, label: 'Saiu antes do horário', total: saiu }] : [];
 
-    return [...legendaDosPresentes(escopo, linhas, maximo), ...faixaSaiu];
+    return [...legendaDosPresentes(escopo, linhas, maximo, primeiroDia, hoje), ...faixaSaiu];
 }
 
-function legendaDosPresentes(escopo, linhas, maximo) {
+/**
+ * O estande ganha o ponto de "primeira vez"? Só a partir do segundo dia do
+ * evento: no primeiro, todo credenciado é de hoje, e o ponto em todos não
+ * diria nada.
+ */
+export function marcaPrimeiraVez(linha, primeiroDia) {
+    return Boolean(linha && !linha.saida && !primeiroDia && linha.credenciamento === 'hoje');
+}
+
+/** "hoje (1ª vez)" no dia corrente; "neste dia (1ª vez)" num dia passado do seletor. */
+export function rotuloPrimeiraVez(hoje) {
+    return hoje ? 'Credenciado hoje (1ª vez)' : 'Credenciado neste dia (1ª vez)';
+}
+
+function legendaDosPresentes(escopo, linhas, maximo, primeiroDia, hoje) {
     if (escopo === 'credenciamento') {
         const ok = linhas.filter((l) => l.credenciado).length;
+
+        if (!primeiroDia) {
+            const antes = linhas.filter((l) => l.credenciado && l.credenciamento === 'anterior').length;
+
+            return [
+                { cor: CREDENCIADO_ANTES.fill, borda: CREDENCIADO_ANTES.stroke, label: 'Credenciado em dia anterior', total: antes },
+                { cor: OK.fill, borda: OK.stroke, label: rotuloPrimeiraVez(hoje), total: ok - antes },
+                { cor: PENDENTE.fill, borda: PENDENTE.stroke, label: 'Pendente', total: linhas.length - ok },
+            ];
+        }
 
         return [
             { cor: OK.fill, borda: OK.stroke, label: 'Credenciado', total: ok },

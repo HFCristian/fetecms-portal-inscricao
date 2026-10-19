@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
     corDaArea, COR_AREA_OUTRAS, textoSobreArea, escalaAvaliacoes, corNoEscopo, legendaDoEscopo, resumoDoPainel,
+    marcaPrimeiraVez,
 } from './mapaTelaCheia.js';
 
 const linha = (over = {}) => ({
@@ -34,6 +35,29 @@ describe('cores da tela cheia do mapa', () => {
         expect(corNoEscopo('avaliacao', linha(), 3).fill).toBe('#ffffff');
         // Estande sem projeto no turno.
         expect(corNoEscopo('avaliacao', null, 3).fill).toBe('#f3f1f6');
+    });
+
+    it('a partir do 2º dia, separa o credenciado em dia anterior do que chegou hoje', () => {
+        const antes = linha({ credenciado: true, credenciamento: 'anterior' });
+        const hoje = linha({ credenciado: true, credenciamento: 'hoje' });
+        const linhas = [antes, hoje, linha()];
+
+        expect(corNoEscopo('credenciamento', antes, 3).fill).toBe('#0b5d2a');
+        expect(corNoEscopo('credenciamento', hoje, 3).fill).toBe('#0ca30c');
+
+        expect(legendaDoEscopo('credenciamento', linhas, 3, { primeiroDia: false }).map((f) => [f.label, f.total]))
+            .toEqual([['Credenciado em dia anterior', 1], ['Credenciado hoje (1ª vez)', 1], ['Pendente', 1]]);
+        expect(legendaDoEscopo('credenciamento', linhas, 3, { primeiroDia: false, hoje: false })[1].label)
+            .toBe('Credenciado neste dia (1ª vez)');
+        // No primeiro dia não há "dia anterior": a legenda fica como sempre.
+        expect(legendaDoEscopo('credenciamento', linhas, 3, { primeiroDia: true }).map((f) => f.label))
+            .toEqual(['Credenciado', 'Pendente']);
+
+        // O ponto de "1ª vez" só a partir do segundo dia, e nunca em quem saiu.
+        expect(marcaPrimeiraVez(hoje, false)).toBe(true);
+        expect(marcaPrimeiraVez(hoje, true)).toBe(false);
+        expect(marcaPrimeiraVez(antes, false)).toBe(false);
+        expect(marcaPrimeiraVez({ ...hoje, saida: { hora: '10:00' } }, false)).toBe(false);
     });
 
     it('a legenda conta os estandes de cada faixa', () => {

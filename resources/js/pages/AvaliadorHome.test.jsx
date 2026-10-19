@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 const mockPerfil = { area: 'Ciências Exatas e da Terra', subarea: null, apenas_presencial: false, presencial: null };
 const mockUser = { name: 'Av Teste', role: 'avaliador', avaliador_profile: mockPerfil, evento_em_andamento: false };
@@ -47,7 +47,7 @@ vi.mock('../lib/avaliacao.js', () => ({
 }));
 
 import { getMinhaAvaliacao } from '../lib/avaliacao.js';
-import AvaliadorHome, { AvaliadorInicio } from './AvaliadorHome.jsx';
+import AvaliadorHome from './AvaliadorHome.jsx';
 
 describe('AvaliadorHome', () => {
     it('lista os projetos designados', async () => {
@@ -254,49 +254,5 @@ describe('AvaliadorHome', () => {
         } finally {
             mockPerfil.apenas_presencial = false;
         }
-    });
-    // Sprint 235: /avaliador é a porta de entrada.
-    describe('porta de entrada', () => {
-        const entrar = () => render(
-            <MemoryRouter initialEntries={['/avaliador']}>
-                <Routes>
-                    <Route path="/avaliador" element={<AvaliadorInicio />} />
-                    <Route path="/avaliador/avaliacao-online" element={<p>Tela online</p>} />
-                    <Route path="/avaliador/avaliacao-presencial" element={<p>Tela do estande</p>} />
-                </Routes>
-            </MemoryRouter>,
-        );
-
-        afterEach(() => {
-            mockUser.evento_em_andamento = false;
-            mockPerfil.presencial = null;
-            mockPerfil.apenas_presencial = false;
-        });
-
-        it('fora do evento, abre a avaliação online', () => {
-            mockPerfil.presencial = true;
-            entrar();
-            expect(screen.getByText('Tela online')).toBeInTheDocument();
-        });
-
-        it('durante o evento, quem vai ao presencial abre a avaliação presencial', () => {
-            mockUser.evento_em_andamento = true;
-            mockPerfil.presencial = true;
-            entrar();
-            expect(screen.getByText('Tela do estande')).toBeInTheDocument();
-        });
-
-        it('durante o evento, quem não vai ao presencial continua na online', () => {
-            mockUser.evento_em_andamento = true;
-            mockPerfil.presencial = false;
-            entrar();
-            expect(screen.getByText('Tela online')).toBeInTheDocument();
-        });
-
-        it('a conta só do presencial sempre abre a do estande', () => {
-            mockPerfil.apenas_presencial = true;
-            entrar();
-            expect(screen.getByText('Tela do estande')).toBeInTheDocument();
-        });
     });
 });

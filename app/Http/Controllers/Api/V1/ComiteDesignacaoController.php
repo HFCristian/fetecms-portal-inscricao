@@ -39,6 +39,9 @@ class ComiteDesignacaoController extends Controller
             // Como na planta: "042" é o estande 42.
             'estande' => ['nullable', 'regex:/^\d{1,4}$/'],
             'turno' => ['nullable', Rule::in(Turno::valores())],
+            // "Mostrar mais" de cada lista: a tela pede de 30 em 30.
+            'limite_projetos' => ['nullable', 'integer', 'min:1', 'max:1000'],
+            'limite_avaliadores' => ['nullable', 'integer', 'min:1', 'max:1000'],
         ], [
             'estande.regex' => 'Informe o número do estande.',
             'turno.in' => 'Turno inválido.',
@@ -48,12 +51,14 @@ class ComiteDesignacaoController extends Controller
             'data' => $this->designacao->opcoesDeDesignacao(
                 (string) ($filtros['projeto'] ?? ''),
                 (string) ($filtros['avaliador'] ?? ''),
+                limite: (int) ($filtros['limite_projetos'] ?? 30),
                 soComissao: true,
                 local: [
                     'codigo' => $filtros['codigo'] ?? null,
                     'estande' => $filtros['estande'] ?? null,
                     'turno' => $filtros['turno'] ?? null,
                 ],
+                limiteAvaliadores: (int) ($filtros['limite_avaliadores'] ?? 30),
             ),
         ]);
     }

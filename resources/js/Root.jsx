@@ -14,9 +14,9 @@ import Resumo from './pages/Resumo.jsx';
 import AjustesPareceres from './pages/AjustesPareceres.jsx';
 import DocumentosPresenciais from './pages/DocumentosPresenciais.jsx';
 import Perfil from './pages/Perfil.jsx';
-import AvaliadorHome, { AvaliadorInicio } from './pages/AvaliadorHome.jsx';
+import AvaliadorHome from './pages/AvaliadorHome.jsx';
+import AvaliadorInicio from './pages/AvaliadorInicio.jsx';
 import AvaliadorPerfil from './pages/AvaliadorPerfil.jsx';
-import AvaliadorPresencial from './pages/AvaliadorPresencial.jsx';
 import AvaliadorComite from './pages/AvaliadorComite.jsx';
 import AvaliadorAvaliacaoPresencial from './pages/AvaliadorAvaliacaoPresencial.jsx';
 import AdminAvisoDetalhe from './pages/AdminAvisoDetalhe.jsx';
@@ -52,6 +52,7 @@ import CerimonialEventos from './pages/CerimonialEventos.jsx';
 import CerimonialFicha from './pages/CerimonialFicha.jsx';
 import CerimonialVisaoGeral from './pages/CerimonialVisaoGeral.jsx';
 import CerimonialPremiados from './pages/CerimonialPremiados.jsx';
+import CerimonialFotografias from './pages/CerimonialFotografias.jsx';
 import PresencialHome from './pages/PresencialHome.jsx';
 import PresencialChecagem from './pages/PresencialChecagem.jsx';
 import PresencialEspelho from './pages/PresencialEspelho.jsx';
@@ -163,10 +164,11 @@ export default function Root() {
 
                         {/* Área do avaliador */}
                         <Route element={<RoleRoute allow={['avaliador']} />}>
-                            {/* /avaliador é a porta de entrada (Sprint 235): no evento, a presencial. */}
+                            {/* /avaliador é a Home (Sprint 246), com um botão por aba. */}
                             <Route path="/avaliador" element={<AvaliadorInicio />} />
                             <Route path="/avaliador/avaliacao-online" element={<AvaliadorHome />} />
-                            <Route path="/avaliador/presencial" element={<AvaliadorPresencial />} />
+                            {/* A aba "Presencial" entrou na Avaliação presencial (Sprint 246). */}
+                            <Route path="/avaliador/presencial" element={<Navigate to="/avaliador/avaliacao-presencial" replace />} />
                             <Route path="/avaliador/avaliacao-presencial" element={<AvaliadorAvaliacaoPresencial />} />
                             <Route path="/avaliador/comite" element={<AvaliadorComite />} />
                             <Route path="/avaliador/comite/painel" element={<PainelPremiacao origem="avaliador" />} />
@@ -252,6 +254,7 @@ export default function Root() {
                             <Route path="/admin/cerimonial/projetos/:id" element={<CerimonialFicha />} />
                             <Route path="/admin/cerimonial/visao-geral" element={<CerimonialVisaoGeral />} />
                             <Route path="/admin/cerimonial/premiados" element={<CerimonialPremiados />} />
+                            <Route path="/admin/cerimonial/fotografias" element={<CerimonialFotografias />} />
                             {/* Mesma tela do credenciamento: o que muda é o setor. */}
                             <Route path="/admin/cerimonial/contas" element={<CredenciamentoContas setor="cerimonial" />} />
 

@@ -212,7 +212,7 @@ describe('AvaliacaoDesignacoes', () => {
             expect(dialogo.getByRole('checkbox', { name: /Robô seguidor/ })).toBeChecked());
         // E a busca já foi feita pelo título, para o projeto estar na lista.
         await waitFor(() =>
-            expect(getOpcoesDesignacao).toHaveBeenCalledWith({ projeto: 'Robô seguidor' }));
+            expect(getOpcoesDesignacao).toHaveBeenCalledWith({ projeto: 'Robô seguidor', limite_projetos: 30, limite_avaliadores: 30 }));
         // A URL é limpa: um F5 não deve reabrir a designação já feita.
         expect(setSearchParams).toHaveBeenCalledWith({}, { replace: true });
 
@@ -226,7 +226,7 @@ describe('AvaliacaoDesignacoes', () => {
         fireEvent.change(dialogo.getByLabelText('Buscar projeto'), { target: { value: 'horta' } });
 
         await waitFor(() =>
-            expect(getOpcoesDesignacao).toHaveBeenLastCalledWith({ projeto: 'horta' }));
+            expect(getOpcoesDesignacao).toHaveBeenLastCalledWith({ projeto: 'horta', limite_projetos: 30, limite_avaliadores: 30 }));
     });
 
     it('mostra cada designação com o tempo que está com o avaliador', async () => {

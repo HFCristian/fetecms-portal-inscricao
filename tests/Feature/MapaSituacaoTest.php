@@ -243,6 +243,96 @@ class MapaSituacaoTest extends TestCase
         $this->assertSame('credenciado', $meio['situacao']);
     }
 
+    /**
+     * Sprint 245 — a partir do segundo dia, o mapa separa quem já tinha sido
+     * credenciado num dia anterior de quem chegou hoje pela primeira vez.
+     */
+    public function test_separa_o_credenciado_em_dia_anterior_do_que_chegou_hoje(): void
+    {
+        $ontem = $this->noEstande('Chegou ontem', Turno::A, 10);
+        $hoje = $this->noEstande('Chegou hoje', Turno::A, 11);
+        $this->noEstande('Ainda não chegou', Turno::A, 12);
+        $this->credenciar($ontem, now()->subDay()->setTime(9, 0));
+        $this->credenciar($hoje, now()->startOfDay()->addMinute());
+        $this->admin();
+
+        $dados = $this->getJson('/api/v1/admin/mapa/planta/situacao?turno=A')->assertOk()->json('data');
+
+        $this->assertFalse($dados['primeiro_dia']);
+        $this->assertSame('anterior', $dados['estandes'][10]['credenciamento']);
+        $this->assertSame('hoje', $dados['estandes'][11]['credenciamento']);
+        $this->assertNull($dados['estandes'][12]['credenciamento']);
+        $this->assertSame(['anterior' => 1, 'hoje' => 1], $dados['credenciamento']);
+
+        // No dia anterior, quem chegou ontem era a novidade daquele dia.
+        $dia = now()->subDay()->toDateString();
+        $antes = $this->getJson("/api/v1/admin/mapa/planta/situacao?turno=A&dia={$dia}")->json('data');
+        $this->assertSame('hoje', $antes['estandes'][10]['credenciamento']);
+        $this->assertNull($antes['estandes'][11]['credenciamento']);
+
+        // O primeiro dia do evento não tem "dia anterior".
+        $primeiro = now()->subDays(2)->toDateString();
+        $this->assertTrue($this->getJson("/api/v1/admin/mapa/planta/situacao?turno=A&dia={$primeiro}")->json('data.primeiro_dia'));
+    }
+
+    public function test_regravar_o_credenciamento_hoje_nao_o_torna_primeira_vez(): void
+    {
+        $projeto = $this->noEstande('Bioplástico', Turno::A, 42);
+        $this->credenciar($projeto, now()->subDay()->setTime(9, 0));
+        $this->admin();
+
+        // Regravar a ficha move o fim do atendimento para agora…
+        Credenciamento::where('projeto_id', $projeto->id)->first()->update(['finalizado_em' => now()]);
+
+        $linha = $this->getJson('/api/v1/admin/mapa/planta/situacao?turno=A')->json('data.estandes.42');
+        $this->assertSame('anterior', $linha['credenciamento']);
+        $this->assertSame(now()->subDay()->setTime(9, 0)->format('d/m/Y H:i'), $linha['credenciado_em']);
+
+        // …e o mapa de ontem continua com ele credenciado.
+        $dia = now()->subDay()->toDateString();
+        $this->assertTrue($this->getJson("/api/v1/admin/mapa/planta/situacao?turno=A&dia={$dia}")->json('data.estandes.42.credenciado'));
+    }
+
+    public function test_corrigir_a_hora_para_antes_corrige_a_primeira_vez(): void
+    {
+        $projeto = $this->noEstande('Bioplástico', Turno::A, 42);
+        $this->credenciar($projeto);
+
+        $credenciamento = Credenciamento::where('projeto_id', $projeto->id)->first();
+        $credenciamento->update(['finalizado_em' => now()->subDay()->setTime(8, 0)]);
+
+        $this->assertSame(
+            now()->subDay()->setTime(8, 0)->toDateTimeString(),
+            $credenciamento->fresh()->primeiro_finalizado_em->toDateTimeString(),
+        );
+    }
+
+    public function test_filtra_e_exporta_quem_chegou_hoje_e_quem_ja_tinha_chegado(): void
+    {
+        $ontem = $this->noEstande('Chegou ontem', Turno::A, 10);
+        $hoje = $this->noEstande('Chegou hoje', Turno::A, 11);
+        $this->credenciar($ontem, now()->subDay()->setTime(9, 0));
+        $this->credenciar($hoje, now()->startOfDay()->addMinute());
+        $this->admin();
+
+        $titulos = fn (string $valor) => array_column(
+            $this->getJson("/api/v1/admin/mapa/planta/lista?turno=A&criterio=credenciamento&valor={$valor}")->assertOk()->json('data.linhas'),
+            'titulo',
+        );
+
+        $this->assertSame(['Chegou ontem'], $titulos('anterior'));
+        $this->assertSame(['Chegou hoje'], $titulos('hoje'));
+        $this->assertSame(['Chegou ontem', 'Chegou hoje'], $titulos('sim'));
+
+        $csv = $this->get('/api/v1/admin/mapa/planta/lista/csv?turno=A&criterio=credenciamento&valor=sim')->assertOk()->getContent();
+        $this->assertStringContainsString('Em dia anterior', $csv);
+        $this->assertStringContainsString('No dia (1ª vez)', $csv);
+
+        $criterio = collect($this->getJson('/api/v1/admin/mapa/planta')->json('meta.filtros.criterios'))->firstWhere('value', 'credenciamento');
+        $this->assertSame('opcoes', $criterio['tipo']);
+        $this->assertSame(['sim', 'anterior', 'hoje', 'nao'], array_column($criterio['valores'], 'value'));
+    }
+
     public function test_os_dias_oferecidos_sao_os_da_janela_do_evento(): void
     {
         $this->admin();

@@ -58,6 +58,9 @@ class AvaliadorAvaliacaoController extends Controller
         if ($podeVer) {
             $avaliacoes = Avaliacao::query()
                 ->where('avaliador_id', $user->id)
+                // O finalista de cadastro manual não tem fase online: a
+                // designação do comitê para ele vale só no estande.
+                ->whereHas('projeto', fn ($q) => $q->where('cadastro_manual', false))
                 ->with(['projeto:id,titulo,area_id', 'projeto.area:id,nome'])
                 ->orderBy('id')
                 ->get();

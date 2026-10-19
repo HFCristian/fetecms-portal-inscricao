@@ -5,6 +5,7 @@ import { Alert, Button } from '../components/ui.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import { getOpcoesDesignacaoComite, designarPeloComite } from '../lib/comite.js';
 import PedidosPermissaoComite from '../components/PedidosPermissaoComite.jsx';
+import MostrarMais, { PASSO_LISTA } from '../components/MostrarMais.jsx';
 
 const campoClass =
     'w-full bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface ' +
@@ -16,7 +17,7 @@ const FILTROS_VAZIOS = { codigo: '', estande: '', turno: '' };
 const estande = (n) => String(n).padStart(3, '0');
 
 /** Uma lista de caixas de marcação, com busca no servidor. */
-function Lista({ titulo, itens, marcados, onAlternar, busca, onBuscar, placeholder, vazio, detalhe, filtros = null }) {
+function Lista({ titulo, itens, total, onMais, marcados, onAlternar, busca, onBuscar, placeholder, vazio, detalhe, filtros = null }) {
     return (
         <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-4">
             <h2 className="font-display font-semibold text-on-surface mb-2">{titulo}</h2>
@@ -51,6 +52,7 @@ function Lista({ titulo, itens, marcados, onAlternar, busca, onBuscar, placehold
                     ))}
                 </ul>
             )}
+            <MostrarMais exibidos={itens.length} total={total} onMais={onMais} />
         </div>
     );
 }
@@ -120,6 +122,9 @@ export default function ComiteDesignacoes() {
     const [buscaProjeto, setBuscaProjeto] = useState('');
     const [filtros, setFiltros] = useState(FILTROS_VAZIOS);
     const [buscaAvaliador, setBuscaAvaliador] = useState('');
+    // Quantos de cada lista o servidor manda: a busca nova volta ao começo.
+    const [limiteProjetos, setLimiteProjetos] = useState(PASSO_LISTA);
+    const [limiteAvaliadores, setLimiteAvaliadores] = useState(PASSO_LISTA);
     const [projetos, setProjetos] = useState([]);
     const [avaliadores, setAvaliadores] = useState([]);
     const [salvando, setSalvando] = useState(false);
@@ -132,9 +137,14 @@ export default function ComiteDesignacoes() {
         codigo: filtros.codigo.trim(),
         estande: filtros.estande,
         turno: filtros.turno,
+        limite_projetos: limiteProjetos,
+        limite_avaliadores: limiteAvaliadores,
     })
         .then(setOpcoes)
-        .catch(() => setAlerta('Não foi possível carregar projetos e avaliadores.')), [buscaProjeto, buscaAvaliador, filtros]);
+        .catch(() => setAlerta('Não foi possível carregar projetos e avaliadores.')), [buscaProjeto, buscaAvaliador, filtros, limiteProjetos, limiteAvaliadores]);
+
+    useEffect(() => { setLimiteProjetos(PASSO_LISTA); }, [buscaProjeto, filtros]);
+    useEffect(() => { setLimiteAvaliadores(PASSO_LISTA); }, [buscaAvaliador]);
 
     useEffect(() => {
         const t = setTimeout(carregar, 300);
@@ -200,6 +210,8 @@ export default function ComiteDesignacoes() {
                 <Lista
                     titulo="Projetos submetidos"
                     itens={opcoes.projetos}
+                    total={opcoes.projetos_total}
+                    onMais={() => setLimiteProjetos((n) => n + PASSO_LISTA)}
                     marcados={projetos}
                     onAlternar={alternar(projetos, setProjetos)}
                     busca={buscaProjeto}
@@ -213,12 +225,15 @@ export default function ComiteDesignacoes() {
                         p.turno_label,
                         p.area,
                         p.categoria,
-                        `${p.concluidas} avaliação(ões)`,
+                        // Cadastro manual não tem fase online: avalia-se só no estande.
+                        p.cadastro_manual ? 'Cadastro manual · só no estande' : `${p.concluidas} avaliação(ões)`,
                     ].filter(Boolean).join(' · ')}
                 />
                 <Lista
                     titulo="Avaliadores da comissão especial"
                     itens={opcoes.avaliadores}
+                    total={opcoes.avaliadores_total}
+                    onMais={() => setLimiteAvaliadores((n) => n + PASSO_LISTA)}
                     marcados={avaliadores}
                     onAlternar={alternar(avaliadores, setAvaliadores)}
                     busca={buscaAvaliador}

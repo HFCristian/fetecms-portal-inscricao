@@ -12,7 +12,7 @@ import DialogoDestinoMapa from '../components/DialogoDestinoMapa.jsx';
 import DialogoMarcarSaida from '../components/DialogoMarcarSaida.jsx';
 import SinalizacoesProjeto from '../components/SinalizacoesProjeto.jsx';
 import PainelAvaliacoesMapa from '../components/PainelAvaliacoesMapa.jsx';
-import { ESCOPOS, corDaArea, textoSobreArea, corNoEscopo, legendaDoEscopo } from '../lib/mapaTelaCheia.js';
+import { ESCOPOS, COR_PRIMEIRA_VEZ, corDaArea, textoSobreArea, corNoEscopo, legendaDoEscopo, marcaPrimeiraVez, rotuloPrimeiraVez } from '../lib/mapaTelaCheia.js';
 
 /**
  * Mapa do Evento → **a planta do ginásio**.
@@ -825,6 +825,10 @@ export default function MapaPlanta() {
                                     ? corPorSituacao({ selecionado: e.numero === selecionado, linha })
                                     : corPorOcupacao({ selecionado: e.numero === selecionado, ocupacao: ocupacao[e.numero] });
                             const faixa = telaCheia && linha;
+                            // Sprint 245: quem chegou hoje pela 1ª vez ganha um
+                            // ponto. Na visualização do credenciamento a cor já diz.
+                            const primeiraVez = (telaCheia ? escopo !== 'credenciamento' : modo === 'situacao')
+                                && marcaPrimeiraVez(linha, situacao?.primeiro_dia ?? true);
                             const corFaixa = faixa ? corDaArea(linha.area_sigla) : null;
                             const apagado = telaCheia && areaDestacada && linha?.area_sigla !== areaDestacada;
                             const x0 = MARGEM + e.x * CELULA;
@@ -891,6 +895,17 @@ export default function MapaPlanta() {
                                     >
                                         {String(e.numero).padStart(3, '0')}
                                     </text>
+                                    {primeiraVez && (
+                                        <circle
+                                            cx={x0 + CELULA - 2.6}
+                                            cy={y0 + 1.6}
+                                            r="1.2"
+                                            fill={COR_PRIMEIRA_VEZ}
+                                            stroke="#ffffff"
+                                            strokeWidth="0.4"
+                                            aria-hidden="true"
+                                        />
+                                    )}
                                 </g>
                             );
                         })}
@@ -925,7 +940,7 @@ export default function MapaPlanta() {
                                     ))}
                                 </div>
                                 <ul className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-on-surface">
-                                    {legendaDoEscopo(escopo, linhasDoTurno, maxAvaliacoes).map((l) => (
+                                    {legendaDoEscopo(escopo, linhasDoTurno, maxAvaliacoes, { primeiroDia: situacao?.primeiro_dia ?? true, hoje: ehHoje }).map((l) => (
                                         <li key={l.label} className="inline-flex items-center gap-1">
                                             <span className="w-3 h-3 rounded-sm border" style={{ background: l.cor, borderColor: l.borda }} />
                                             {escopo === 'avaliacao' && /^\d/.test(l.label) ? `${l.label} avaliação(ões)` : l.label}
@@ -945,7 +960,13 @@ export default function MapaPlanta() {
                                     {l.label}
                                     {situacao?.resumo?.[l.value] !== undefined && ` (${situacao.resumo[l.value]})`}
                                 </span>
-                            ))
+                            )).concat(situacao && !situacao.primeiro_dia ? [
+                                <span key="primeira-vez" className="inline-flex items-center gap-1">
+                                    <span className="w-3 h-3 rounded-full border border-white" style={{ background: COR_PRIMEIRA_VEZ }} />
+                                    {rotuloPrimeiraVez(ehHoje)} ({situacao.credenciamento?.hoje ?? 0})
+                                    <span className="text-on-surface-variant/80">· em dia anterior: {situacao.credenciamento?.anterior ?? 0}</span>
+                                </span>,
+                            ] : [])
                         ) : (
                             <>
                                 <span className="inline-flex items-center gap-1">
@@ -1010,6 +1031,11 @@ export default function MapaPlanta() {
                                             {situacaoDoSelecionado.credenciado
                                                 ? `Credenciado em ${situacaoDoSelecionado.credenciado_em}`
                                                 : 'Ainda não passou pelo credenciamento'}
+                                            {situacaoDoSelecionado.credenciado && !(situacao?.primeiro_dia ?? true) && (
+                                                situacaoDoSelecionado.credenciamento === 'anterior'
+                                                    ? ' · em dia anterior (não precisa voltar ao balcão)'
+                                                    : ` · ${ehHoje ? 'chegou hoje' : 'chegou neste dia'}, 1ª vez`
+                                            )}
                                         </p>
                                         <p className="text-xs text-on-surface-variant">
                                             {situacaoDoSelecionado.checado
@@ -1188,6 +1214,8 @@ export default function MapaPlanta() {
                                                 </p>
                                                 <p className="text-xs text-on-surface-variant">
                                                     {l.situacao_label} · {l.avaliacoes} de {l.avaliacoes_maximo} avaliação(ões)
+                                                    {l.credenciamento === 'anterior' && ' · credenciado em dia anterior'}
+                                                    {l.credenciamento === 'hoje' && !(situacao?.primeiro_dia ?? true) && ' · credenciado no dia (1ª vez)'}
                                                 </p>
                                                 {l.termo_imagem_total > 0 && (
                                                     <p className={`text-xs ${l.termo_imagem === 'completo' ? 'text-secondary' : 'text-on-surface-variant'}`}>

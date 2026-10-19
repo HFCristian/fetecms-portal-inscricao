@@ -132,10 +132,18 @@ class AdminAvaliacaoController extends Controller
     /** As duas listas do diálogo de designação em massa, filtradas pela busca. */
     public function opcoesDeDesignacao(Request $request): JsonResponse
     {
+        $limites = $request->validate([
+            // "Mostrar mais" de cada lista: a tela pede de 30 em 30.
+            'limite_projetos' => ['nullable', 'integer', 'min:1', 'max:1000'],
+            'limite_avaliadores' => ['nullable', 'integer', 'min:1', 'max:1000'],
+        ]);
+
         return response()->json([
             'data' => $this->designacao->opcoesDeDesignacao(
                 (string) $request->query('projeto', ''),
                 (string) $request->query('avaliador', ''),
+                limite: (int) ($limites['limite_projetos'] ?? 30),
+                limiteAvaliadores: (int) ($limites['limite_avaliadores'] ?? 30),
             ),
         ]);
     }

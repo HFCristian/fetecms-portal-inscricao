@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
 import AppShell from '../components/AppShell.jsx';
 import { Alert, Button, Toggle, useConfirm } from '../components/ui.jsx';
-import { extractErrors } from '../lib/auth.jsx';
+import { extractErrors, useAuth } from '../lib/auth.jsx';
 import AvaliacaoPresencialModal from '../components/AvaliacaoPresencialModal.jsx';
+import IntencaoPresencial, { OrientacoesPresencial } from '../components/IntencaoPresencial.jsx';
+import IndicacaoComite from '../components/IndicacaoComite.jsx';
 import SinalizacoesProjeto from '../components/SinalizacoesProjeto.jsx';
 import MapaAvaliacaoPresencial from '../components/MapaAvaliacaoPresencial.jsx';
 import LoteAvaliacaoPresencial from '../components/LoteAvaliacaoPresencial.jsx';
 import { filtrarPorBusca } from '../lib/buscaEstande.js';
 import {
     getPainelPresencial, getAvaliacaoPresencial, iniciarAvaliacaoPresencial, pedirPermissaoPresencial,
+    getPresencial, responderPresencial,
 } from '../lib/avaliacaoPresencial.js';
 
 // Três casas, como a rubrica presencial: os pesos foram escolhidos para desempatar.
@@ -115,12 +118,21 @@ const SELO_PEDIDO = {
 };
 
 /**
- * Aba **Avaliação presencial** do avaliador (Sprints 171 e 221).
+ * Aba **Avaliação presencial** do avaliador (Sprints 171, 221 e 246).
  *
- * Só existe para quem aceitou avaliar no dia da feira, e só abre **durante um
- * turno** do evento — a ativação na cabine saiu na Sprint 221. Fora disso a aba
- * aparece fechada, dizendo por quê e quando é o próximo turno — o que ele já
- * avaliou continua legível, e o mapa fica para consulta.
+ * Desde a Sprint 246 ela é uma aba só, sempre no menu. Enquanto o avaliador não
+ * diz "sim" **e** não é liberado pela organização (Validação de avaliadores),
+ * ela mostra o que era a aba "Presencial": a pergunta, as orientações e o
+ * aviso de que falta a liberação. Liberado, esse conteúdo dá lugar à
+ * avaliação, com um link discreto no rodapé para desistir.
+ *
+ * A avaliação só abre **durante um turno** do evento — a ativação na cabine
+ * saiu na Sprint 221. Fora disso ela aparece fechada, dizendo por quê e quando
+ * é o próximo turno — o que ele já avaliou continua legível, e o mapa fica para
+ * consulta.
+ *
+ * Quem é da **comissão especial** encontra no topo a área de indicar
+ * finalistas para a premiação, nas duas situações.
  *
  * Aberta, ela mostra o que a organização designou a ele (se designou) e o
  * **mapa**: ele escolhe o turno, clica no estande e inicia. Embaixo, a mesma
@@ -129,6 +141,9 @@ const SELO_PEDIDO = {
  */
 export default function AvaliadorAvaliacaoPresencial() {
     const [painel, setPainel] = useState(null);
+    const [intencao, setIntencao] = useState(null);
+    const [respondendo, setRespondendo] = useState(false);
+    const { setUser } = useAuth();
     const [modoTeste, setModoTeste] = useState(false);
     const [aberta, setAberta] = useState(null);
     const [alert, setAlert] = useState('');
@@ -140,11 +155,38 @@ export default function AvaliadorAvaliacaoPresencial() {
     const [buscaOutros, setBuscaOutros] = useState('');
     const [confirm, dialogo] = useConfirm();
 
-    const carregar = useCallback(() => getPainelPresencial(modoTeste)
-        .then(setPainel)
+    const carregar = useCallback(() => Promise.all([getPainelPresencial(modoTeste), getPresencial(modoTeste)])
+        .then(([p, i]) => { setPainel(p); setIntencao(i); })
         .catch(() => setAlert('Não foi possível carregar a avaliação presencial.')), [modoTeste]);
 
     useEffect(() => { carregar(); }, [carregar]);
+
+    async function responder(presencial) {
+        setRespondendo(true); setAlert(''); setInfo('');
+        try {
+            const resp = await responderPresencial(presencial, modoTeste);
+            setIntencao(resp.data);
+            setInfo(resp.meta?.message ?? '');
+            // O menu e a Home leem a resposta do usuário em memória.
+            setUser?.((u) => (u ? { ...u, avaliador_profile: { ...(u.avaliador_profile ?? {}), presencial } } : u));
+            await carregar();
+        } catch (e) {
+            const { message, fields } = extractErrors(e);
+            setAlert(Object.values(fields ?? {})[0] || message || 'Não foi possível salvar.');
+        } finally {
+            setRespondendo(false);
+        }
+    }
+
+    async function desistir() {
+        const ok = await confirm({
+            title: 'Não vai mais participar?',
+            message: 'O que estava só designado a você no estande volta para a distribuição. O que você já abriu fica guardado, para retomar se mudar de ideia.',
+            confirmLabel: 'Não vou participar',
+            danger: true,
+        });
+        if (ok) await responder(false);
+    }
 
     async function abrir(avaliacaoId) {
         setAlert('');
@@ -199,6 +241,9 @@ export default function AvaliadorAvaliacaoPresencial() {
     const pendentes = (painel?.minhas ?? []).filter((a) => a.status !== 'concluida');
     const avaliados = (painel?.minhas ?? []).filter((a) => a.status === 'concluida');
     const turno = painel?.turno;
+    // A avaliação no lugar da pergunta: disse "sim" e foi liberado (o modo de
+    // teste da conta demo ignora a liberação, como no servidor).
+    const avaliacaoVisivel = Boolean(painel?.aceitou && (painel.liberado || painel.modo_teste));
 
     // Designados (Sprint 235): o que a distribuição ou a organização entregou
     // no estande e o que o comitê designou e ainda não virou avaliação aqui.
@@ -217,9 +262,12 @@ export default function AvaliadorAvaliacaoPresencial() {
         <AppShell>
             <h1 className="font-display text-2xl font-semibold text-primary mb-1">Avaliação presencial</h1>
             <p className="text-on-surface-variant mb-4 max-w-3xl">
-                Avalie os estandes dos finalistas no horário de avaliação do turno: escolha o estande no
-                mapa — com ou sem designação — e inicie. Cada avaliação vale até o fim do horário de
-                avaliação do turno em que foi aberta.
+                {painel && !avaliacaoVisivel
+                    ? <>Além da avaliação online, a feira precisa de avaliadores <strong>no dia do evento</strong>,
+                        visitando os estandes dos finalistas. Diga aqui se você pretende participar.</>
+                    : <>Avalie os estandes dos finalistas no horário de avaliação do turno: escolha o estande no
+                        mapa — com ou sem designação — e inicie. Cada avaliação vale até o fim do horário de
+                        avaliação do turno em que foi aberta.</>}
             </p>
 
             {painel?.is_demo && (
@@ -236,13 +284,22 @@ export default function AvaliadorAvaliacaoPresencial() {
             <div className="max-w-5xl space-y-3 mb-4">
                 <Alert>{alert}</Alert>
                 <Alert type="info">{info}</Alert>
-                {painel && !painel.aberto && painel.motivo_fechado && <Alert type="info">{painel.motivo_fechado}</Alert>}
+                {avaliacaoVisivel && !painel.aberto && painel.motivo_fechado && <Alert type="info">{painel.motivo_fechado}</Alert>}
             </div>
 
-            {painel === null ? (
+            {/* A comissão especial indica finalistas para a premiação (Sprint 246). */}
+            {painel?.comissao && (
+                <div className="max-w-5xl mb-4">
+                    <IndicacaoComite />
+                </div>
+            )}
+
+            {painel === null || intencao === null ? (
                 <div className="text-center py-10 text-on-surface-variant">
                     <span className="inline-block w-8 h-8 rounded-full border-4 border-on-surface-variant/25 border-t-primary animate-spin align-[-0.2em]" role="status" aria-label="Carregando" />
                 </div>
+            ) : !avaliacaoVisivel ? (
+                <IntencaoPresencial dados={intencao} salvando={respondendo} onResponder={responder} />
             ) : (
                 <div className="max-w-5xl space-y-4">
                     {(turno || painel.comissao) && (
@@ -423,7 +480,7 @@ export default function AvaliadorAvaliacaoPresencial() {
                     )}
 
                     {avaliados.length > 0 && (
-                        <section className={cartao}>
+                        <section className={cartao} aria-label="Avaliados">
                             <h2 className="font-display text-base font-semibold text-on-surface mb-1">Avaliados</h2>
                             <ul className="divide-y divide-outline-variant/30">
                                 {avaliados.map((a) => (
@@ -442,6 +499,23 @@ export default function AvaliadorAvaliacaoPresencial() {
                                 ))}
                             </ul>
                         </section>
+                    )}
+
+                    <OrientacoesPresencial informacoes={intencao.informacoes} recolhivel />
+
+                    {/* Desistir continua livre (Sprint 225), mas discreto: liberado, a
+                        pergunta saiu da tela. A conta só do presencial não desiste. */}
+                    {intencao.pode_alterar && (
+                        <p className="text-xs text-on-surface-variant text-right">
+                            <button
+                                type="button"
+                                className="underline hover:text-error disabled:opacity-50"
+                                disabled={respondendo}
+                                onClick={desistir}
+                            >
+                                Não vou mais participar da avaliação presencial
+                            </button>
+                        </p>
                     )}
                 </div>
             )}

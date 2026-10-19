@@ -30,6 +30,8 @@ const TAG = {
     almoxarifado_retirada: 'bg-secondary-container text-on-secondary-container',
     cerimonial_checkin: 'bg-secondary-container text-on-secondary-container',
     cerimonial_checkin_desfeito: 'bg-error-container text-on-error-container',
+    cerimonial_fotografia_registrada: 'bg-secondary-container text-on-secondary-container',
+    cerimonial_fotografia_excluida: 'bg-error-container text-on-error-container',
 };
 
 const ICONE = {
@@ -59,6 +61,8 @@ const ICONE = {
     almoxarifado_exclusao: 'delete',
     cerimonial_checkin: 'celebration',
     cerimonial_checkin_desfeito: 'undo',
+    cerimonial_fotografia_registrada: 'photo_camera',
+    cerimonial_fotografia_excluida: 'hide_image',
 };
 
 /** Título, texto e placeholder de busca de cada seção da trilha. */
