@@ -162,27 +162,9 @@ function Abas({ aba, setAba, pendentes, concluidos }) {
     );
 }
 
-/** Onde fica a avaliação online (Sprint 235): `/avaliador` virou só a porta de entrada. */
+/** Onde fica a avaliação online (Sprint 235): `/avaliador` é a Home (Sprint 246). */
 export const ROTA_AVALIACAO_ONLINE = '/avaliador/avaliacao-online';
 export const ROTA_AVALIACAO_PRESENCIAL = '/avaliador/avaliacao-presencial';
-
-/**
- * A tela inicial do avaliador (`/avaliador`, para onde o login manda): decide
- * entre a avaliação online e a presencial.
- *
- * - Conta só do presencial (Sprint 191): sempre a do estande.
- * - **Durante o evento** (Sprint 235), quem disse "sim" ao presencial abre na
- *   avaliação presencial — é o que ele vai fazer naquele dia. A online
- *   continua a um clique no menu, em "Avaliação online".
- * - No resto do tempo, a avaliação online.
- */
-export function AvaliadorInicio() {
-    const { user } = useAuth();
-    const perfil = user?.avaliador_profile;
-    const presencial = perfil?.apenas_presencial || (user?.evento_em_andamento && perfil?.presencial === true);
-
-    return <Navigate to={presencial ? ROTA_AVALIACAO_PRESENCIAL : ROTA_AVALIACAO_ONLINE} replace />;
-}
 
 /**
  * A avaliação online. Conta cadastrada pela organização só para o evento

@@ -8,6 +8,7 @@ import AvisoCard from './AvisoCard.jsx';
 import FeedbackCard from './FeedbackCard.jsx';
 import SeletorEdicao from './SeletorEdicao.jsx';
 import { abasPermitidas } from '../lib/abasAdmin.js';
+import { abasDoAvaliador } from '../lib/abasAvaliador.js';
 
 function navClass({ isActive }) {
     return (
@@ -30,7 +31,7 @@ function NavBadge({ count }) {
 
 
 // Links de navegação por papel. onNavigate fecha o menu mobile ao clicar num link.
-function NavLinks({ role, abas, presencial = false, apenasPresencial = false, comissao = false, onNavigate, suporteBadge = 0 }) {
+function NavLinks({ role, abas, apenasPresencial = false, comissao = false, onNavigate, suporteBadge = 0 }) {
     if (role === 'admin') {
         return (
             <>
@@ -51,40 +52,21 @@ function NavLinks({ role, abas, presencial = false, apenasPresencial = false, co
         );
     }
     if (role === 'avaliador') {
+        // A mesma lista da Home do avaliador (Sprint 246). A aba "Presencial"
+        // entrou na Avaliação presencial, que fica sempre visível: é nela que
+        // ele diz se vai avaliar no dia da feira.
         return (
             <>
-                {/* Conta só do evento presencial (Sprint 191): sem avaliação online. */}
-                {!apenasPresencial && (
-                    <NavLink to="/avaliador/avaliacao-online" className={navClass} onClick={onNavigate}>
-                        <span className="material-symbols-outlined">fact_check</span>
-                        Avaliação online
-                    </NavLink>
-                )}
-                {/* A aba fica sempre visível: é nela que ele diz se vai (ou
-                    não) avaliar no dia da feira. */}
-                <NavLink to="/avaliador/presencial" className={navClass} onClick={onNavigate}>
-                    <span className="material-symbols-outlined">stadium</span>
-                    Presencial
+                <NavLink to="/avaliador" end className={navClass} onClick={onNavigate}>
+                    <span className="material-symbols-outlined">home</span>
+                    Início
                 </NavLink>
-                {/* A avaliação no estande só existe para quem disse "sim". Fora
-                    do turno a aba continua aqui e abre fechada, com o motivo. */}
-                {presencial && (
-                    <NavLink to="/avaliador/avaliacao-presencial" className={navClass} onClick={onNavigate}>
-                        <span className="material-symbols-outlined">rate_review</span>
-                        Avaliação presencial
+                {abasDoAvaliador({ apenas_presencial: apenasPresencial, comissao_especial: comissao }).map((a) => (
+                    <NavLink key={a.to} to={a.to} className={navClass} onClick={onNavigate}>
+                        <span className="material-symbols-outlined">{a.icon}</span>
+                        {a.label}
                     </NavLink>
-                )}
-                {/* Só a comissão especial recomenda projetos para a premiação (Sprint 193). */}
-                {comissao && (
-                    <NavLink to="/avaliador/comite" className={navClass} onClick={onNavigate}>
-                        <span className="material-symbols-outlined">workspace_premium</span>
-                        Comitê especial
-                    </NavLink>
-                )}
-                <NavLink to="/avaliador/perfil" className={navClass} onClick={onNavigate}>
-                    <span className="material-symbols-outlined">account_circle</span>
-                    Perfil
-                </NavLink>
+                ))}
             </>
         );
     }
@@ -185,7 +167,7 @@ export default function AppShell({ children }) {
                     não tem efeito nenhum dentro de uma coluna flex. */}
                 <div className="flex-1 min-h-0 flex flex-col gap-1 overflow-y-auto fetec-scroll">
                     <SeletorEdicao />
-                    <NavLinks role={user?.role} abas={user?.abas} presencial={user?.avaliador_profile?.presencial === true} apenasPresencial={user?.avaliador_profile?.apenas_presencial === true} comissao={user?.avaliador_profile?.comissao_especial === true} suporteBadge={suporteBadge} />
+                    <NavLinks role={user?.role} abas={user?.abas} apenasPresencial={user?.avaliador_profile?.apenas_presencial === true} comissao={user?.avaliador_profile?.comissao_especial === true} suporteBadge={suporteBadge} />
                 </div>
                 {/* Acesso, Sair e o rodapé de suporte ficam ancorados embaixo:
                     são a saída da tela e não podem depender de rolagem. */}
@@ -231,7 +213,7 @@ export default function AppShell({ children }) {
                             Olá, <strong className="text-on-surface">{user?.name}</strong>
                         </p>
                         <SeletorEdicao />
-                        <NavLinks role={user?.role} abas={user?.abas} presencial={user?.avaliador_profile?.presencial === true} apenasPresencial={user?.avaliador_profile?.apenas_presencial === true} comissao={user?.avaliador_profile?.comissao_especial === true} onNavigate={() => setMenuOpen(false)} suporteBadge={suporteBadge} />
+                        <NavLinks role={user?.role} abas={user?.abas} apenasPresencial={user?.avaliador_profile?.apenas_presencial === true} comissao={user?.avaliador_profile?.comissao_especial === true} onNavigate={() => setMenuOpen(false)} suporteBadge={suporteBadge} />
                     </div>
                     <div className="p-4 border-t border-outline-variant/30 flex flex-col gap-1 shrink-0">
                         <NavLink to="/acesso" className={navClass} onClick={() => setMenuOpen(false)}>
