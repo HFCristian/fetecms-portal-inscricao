@@ -235,8 +235,25 @@ server {
     }
 
     location ~ /\.(?!well-known).* { deny all; }
-    client_max_body_size 25M;   # uploads de PDF/DOCX
+    # Uploads: PDF/DOCX dos projetos, anexos da mala direta (20 MB) e a
+    # fotografia do estande no Cerimonial (até 100 MB, Sprint 247).
+    client_max_body_size 110M;
+    client_body_timeout 300s;   # foto grande pelo 4G do ginásio
 }
+```
+
+O PHP precisa aceitar o mesmo tamanho — sem isso a foto de 100 MB chega ao
+Laravel vazia e a tela diz que "o envio da fotografia falhou". Em
+`/etc/php/8.4/fpm/conf.d/99-fetecms.ini`:
+
+```ini
+upload_max_filesize = 100M
+post_max_size = 110M
+max_execution_time = 300
+```
+
+```bash
+sudo systemctl restart php8.4-fpm
 ```
 
 ```bash

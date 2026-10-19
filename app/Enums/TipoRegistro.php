@@ -52,7 +52,8 @@ namespace App\Enums;
  * check-in — com o projeto, o papel e quem atendeu — e cada check-in desfeito,
  * este com justificativa obrigatória. O check-in decide quantas medalhas e
  * quantas credenciais a organização separa da mesa, então desfazer um é mexer
- * no que vai ser entregue no palco.
+ * no que vai ser entregue no palco. As **fotografias de estandes** (Sprint 247)
+ * entram aqui também: quem registrou a foto de cada estande e quem a excluiu.
  *
  * Seção "Almoxarifado" (a guarda de volumes durante a feira): o material que
  * entrou, o que saiu e para quem, e as correções e exclusões de registro — as
@@ -139,6 +140,8 @@ enum TipoRegistro: string
     case AvaliacaoPresencialExcluida = 'avaliacao_presencial_excluida';
     case CerimonialCheckin = 'cerimonial_checkin';
     case CerimonialCheckinDesfeito = 'cerimonial_checkin_desfeito';
+    case CerimonialFotografiaRegistrada = 'cerimonial_fotografia_registrada';
+    case CerimonialFotografiaExcluida = 'cerimonial_fotografia_excluida';
 
     /** Seções da tela de Registros. */
     public const SECAO_INSCRICOES = 'inscricoes';
@@ -241,6 +244,8 @@ enum TipoRegistro: string
             self::AvaliacaoPresencialExcluida => 'Avaliação presencial excluída',
             self::CerimonialCheckin => 'Check-in do cerimonial',
             self::CerimonialCheckinDesfeito => 'Check-in desfeito',
+            self::CerimonialFotografiaRegistrada => 'Fotografia do estande registrada',
+            self::CerimonialFotografiaExcluida => 'Fotografia do estande excluída',
         };
     }
 
@@ -276,7 +281,8 @@ enum TipoRegistro: string
             self::NotaDesconsiderada,
             self::NotaReconsiderada,
             self::AvaliacaoPresencialExcluida => self::SECAO_NOTAS,
-            self::CerimonialCheckin, self::CerimonialCheckinDesfeito => self::SECAO_CERIMONIAL,
+            self::CerimonialCheckin, self::CerimonialCheckinDesfeito,
+            self::CerimonialFotografiaRegistrada, self::CerimonialFotografiaExcluida => self::SECAO_CERIMONIAL,
             default => self::SECAO_AVALIACAO,
         };
     }

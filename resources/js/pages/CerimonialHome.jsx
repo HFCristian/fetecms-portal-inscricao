@@ -115,6 +115,12 @@ export default function CerimonialHome() {
                     titulo="Check-in"
                     descricao="Leia o crachá ou busque pelo nome ou CPF para marcar quem chegou."
                 />
+                <CardSecao
+                    to="/admin/cerimonial/fotografias"
+                    icon="photo_camera"
+                    titulo="Fotografias de estandes"
+                    descricao="O mapa do evento: clique no estande e registre a foto dele, pela câmera ou por arquivo."
+                />
                 {podeGerir && (
                     <>
                         <CardSecao

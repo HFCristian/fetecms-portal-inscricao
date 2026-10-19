@@ -81,3 +81,32 @@ export const getPremiados = (teste = false, evento = null) =>
 /** De quantos em quantos segundos o painel se atualiza (null desliga). */
 export const definirAtualizacao = (segundos) =>
     http.patch('/admin/cerimonial/atualizacao', { segundos }).then((r) => r.data.data);
+
+// --- Fotografias de estandes (Sprint 247) -------------------------------------
+//
+// O mapa de um turno com a situação da foto de cada estande. Registrar é em
+// dois passos: confirmar o estande (a reserva de "em registro") e depois enviar
+// a foto, tirada pela câmera ou escolhida como arquivo.
+
+export const getFotografiasEstandes = (turno = 'A') =>
+    http.get('/admin/cerimonial/fotografias', { params: { turno } }).then((r) => r.data.data);
+
+export const reservarFotografiaEstande = (projetoId) =>
+    http.post(`/admin/cerimonial/fotografias/projetos/${projetoId}/reserva`).then((r) => r.data.data);
+
+export const cancelarFotografiaEstande = (projetoId) =>
+    http.delete(`/admin/cerimonial/fotografias/projetos/${projetoId}/reserva`);
+
+/** Envia a foto; `onProgresso` recebe de 0 a 100 (o arquivo pode ter 100 MB). */
+export const enviarFotografiaEstande = (projetoId, arquivo, onProgresso) => {
+    const form = new FormData();
+    form.append('arquivo', arquivo);
+
+    return http.post(`/admin/cerimonial/fotografias/projetos/${projetoId}`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (e) => { if (onProgresso && e.total) onProgresso(Math.round((e.loaded / e.total) * 100)); },
+    }).then((r) => r.data);
+};
+
+export const excluirFotografiaEstande = (fotografiaId) =>
+    http.delete(`/admin/cerimonial/fotografias/${fotografiaId}`);

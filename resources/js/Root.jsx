@@ -52,6 +52,7 @@ import CerimonialEventos from './pages/CerimonialEventos.jsx';
 import CerimonialFicha from './pages/CerimonialFicha.jsx';
 import CerimonialVisaoGeral from './pages/CerimonialVisaoGeral.jsx';
 import CerimonialPremiados from './pages/CerimonialPremiados.jsx';
+import CerimonialFotografias from './pages/CerimonialFotografias.jsx';
 import PresencialHome from './pages/PresencialHome.jsx';
 import PresencialChecagem from './pages/PresencialChecagem.jsx';
 import PresencialEspelho from './pages/PresencialEspelho.jsx';
@@ -253,6 +254,7 @@ export default function Root() {
                             <Route path="/admin/cerimonial/projetos/:id" element={<CerimonialFicha />} />
                             <Route path="/admin/cerimonial/visao-geral" element={<CerimonialVisaoGeral />} />
                             <Route path="/admin/cerimonial/premiados" element={<CerimonialPremiados />} />
+                            <Route path="/admin/cerimonial/fotografias" element={<CerimonialFotografias />} />
                             {/* Mesma tela do credenciamento: o que muda é o setor. */}
                             <Route path="/admin/cerimonial/contas" element={<CredenciamentoContas setor="cerimonial" />} />
 

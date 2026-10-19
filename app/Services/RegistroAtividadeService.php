@@ -399,6 +399,28 @@ class RegistroAtividadeService
     }
 
     /**
+     * Cerimonial: a fotografia de um estande (Sprint 247) — registrada ou
+     * substituída (`substituiu`), com o estande e o turno em que o projeto
+     * estava na hora.
+     */
+    public function cerimonialFotografia(Projeto $projeto, User $admin, ?string $estande, bool $substituiu): RegistroAtividade
+    {
+        return $this->registrarNoProjeto(TipoRegistro::CerimonialFotografiaRegistrada, $projeto, $admin, [
+            'estande' => $estande,
+            'substituiu' => $substituiu,
+        ]);
+    }
+
+    /** Cerimonial: a fotografia de um estande excluída (Sprint 247). */
+    public function cerimonialFotografiaExcluida(Projeto $projeto, User $admin, ?string $estande, ?string $registradaPor): RegistroAtividade
+    {
+        return $this->registrarNoProjeto(TipoRegistro::CerimonialFotografiaExcluida, $projeto, $admin, [
+            'estande' => $estande,
+            'registrada_por' => $registradaPor,
+        ]);
+    }
+
+    /**
      * Almoxarifado: material guardado. Quem deixou e o que entrou — a lista
      * inteira, porque é ela que a retirada vai conferir depois.
      *
@@ -1039,6 +1061,22 @@ class RegistroAtividadeService
                 empty($detalhes['junto_de']) ? '' : ' junto com o vínculo de '.$detalhes['junto_de'],
                 $detalhes['justificativa'] ?? 'sem justificativa',
                 ($detalhes['demo'] ?? false) ? ' · modo de teste' : '',
+            );
+        }
+
+        if ($registro->tipo === TipoRegistro::CerimonialFotografiaRegistrada) {
+            return sprintf(
+                '%s do estande%s',
+                ($detalhes['substituiu'] ?? false) ? 'fotografia substituída' : 'fotografia registrada',
+                empty($detalhes['estande']) ? '' : ' '.$detalhes['estande'],
+            );
+        }
+
+        if ($registro->tipo === TipoRegistro::CerimonialFotografiaExcluida) {
+            return sprintf(
+                'fotografia do estande%s excluída%s',
+                empty($detalhes['estande']) ? '' : ' '.$detalhes['estande'],
+                empty($detalhes['registrada_por']) ? '' : ' (registrada por '.$detalhes['registrada_por'].')',
             );
         }
 
