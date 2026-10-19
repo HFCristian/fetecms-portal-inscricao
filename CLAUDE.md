@@ -125,8 +125,11 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     soma passa do total, porque quem marcou três conta nos três) e três públicos combináveis na
     mala direta, nos avisos e no feedback. Quem se cadastrou antes do campo fica com a lista vazia:
     a tela cobra o preenchimento e os públicos por idioma não o alcançam.
-  - **Avaliação presencial** (aba própria, `/avaliador/avaliacao-presencial`, só para quem aceitou
-    o presencial): abre no **horário de avaliação** de cada turno de cada dia, definido em
+  - **Home do avaliador** (`/avaliador`, Sprint 246): um botão por aba, como a do admin; no evento, a
+    Avaliação presencial vem primeiro para quem vai ao estande.
+  - **Avaliação presencial** (aba própria, `/avaliador/avaliacao-presencial`, sempre no menu desde a Sprint
+    246 — até o "sim" **e** a liberação ela mostra a pergunta e as orientações da antiga aba Presencial; a
+    comissão especial indica finalistas para a premiação no topo dela): abre no **horário de avaliação** de cada turno de cada dia, definido em
     Parametrização → Datas e períodos (`edicoes.agenda_presencial`, `App\Support\JanelaTurnos`):
     começa-se uma avaliação do início da avaliação até o fim dela ou do turno, o que vier antes, e
     escreve-se até o fim da avaliação; fora disso a aba aparece fechada, com o motivo. Antes, a organização
@@ -447,6 +450,8 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     As **ruas** são os corredores entre as ilhas: **achadas no desenho**
     (`PlantaEvento::ruas()`), não desenhadas à parte — o admin só as batiza, e o
     que se guarda é o nome, então mover um estande reposiciona a rua sozinha.
+    A partir do segundo dia, ela separa o credenciado **em dia anterior** do que chegou **hoje pela
+    primeira vez** (`credenciamentos.primeiro_finalizado_em`, Sprint 245).
     Durante a feira a planta **muda de cor** (`App\Enums\SituacaoEstande`,
     `MapaSituacaoService`): aguardando → credenciado → pronto para avaliação → em
     avaliação, o último escurecendo a cada avaliação presencial recebida. Os
@@ -535,7 +540,10 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     alguém na sala), contando só `tipo = credencial` — prêmio se anuncia, não se entrega.
     **Premiado** é quem recebeu credencial **ou** prêmio em *Credenciais e Prêmios*. **Contas
     temporárias** (`/admin/cerimonial/contas`) seguem o padrão do credenciamento, setor
-    `cerimonial` — e abrem **só o Check-in**, pelo middleware `admin.permanente`. Desfazer um
+    `cerimonial` — e abrem **só o Check-in e as Fotografias**, pelo middleware `admin.permanente`.
+    **Fotografias de estandes** (`/admin/cerimonial/fotografias`, Sprint 247): mapa por turno com
+    registrado / em registro / sem registro; confirmar o estande o reserva por 15 min, e a foto vem da
+    câmera ou de um arquivo de até 100 MB, com prévia (`FotografiaEstandeService`). Desfazer um
     check-in exige **justificativa** e entra em Registros → Cerimonial. Janela do **evento**, com
     o mesmo modo demo do balcão; o painel se atualiza por polling no intervalo da edição
     (`edicoes.cerimonial_atualizacao_segundos`, padrão 30s). `CerimonialService`.
@@ -1049,9 +1057,51 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 239 | Avaliação presencial **em lote pela planilha** (xlsx dos designados → prévia com erros por extenso → envio) + Credenciar busca e filtra por **código, estande e turno** | ✅ sim | ✅ sim (Pedro, PR #121 → v1.43) | 0 |
 | 240 | Fix: Comitê → Designações quebrava a tela (React #31) quando alguma designação era pulada | ✅ sim | ✅ sim (Pedro, PR #122) | 0 |
 | 241 | Mapa em tela cheia → Checagem: checado sem credenciamento em **laranja**, credenciado sem checagem em **amarelo** | ✅ sim | ✅ sim (Pedro, PR #124 → v1.43.1) | 0 |
-| 242 | Credenciar: concluir volta para a **fila de Credenciar** + avaliação presencial com **rascunho automático** a cada seção | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 243 | Mapa do Evento: **Marcar saída** (equipe que foi embora antes do horário), estande cinza no dia | ✅ sim | ❌ não (manual do Pedro) | 2 |
-| 244 | Sessão de **5 h**, `sessoes:limpar` agendado, `sessoes:diagnostico` + 419/401 tratados na SPA | ✅ sim | ❌ não (manual do Pedro) | 3 |
+| 242 | Credenciar: concluir volta para a **fila de Credenciar** + avaliação presencial com **rascunho automático** a cada seção | ✅ sim | ✅ sim (Pedro, PR #125 → v1.44) | 0 |
+| 243 | Mapa do Evento: **Marcar saída** (equipe que foi embora antes do horário), estande cinza no dia | ✅ sim | ✅ sim (Pedro, PR #125 → v1.44) | 0 |
+| 244 | Sessão de **5 h**, `sessoes:limpar` agendado, `sessoes:diagnostico` + 419/401 tratados na SPA | ✅ sim | ✅ sim (Pedro, PR #125 → v1.44) | 0 |
+| 245 | Fix: designação do comitê cortava em **30** (sem aviso) + manuais; mapa separa **credenciado antes × hoje** | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 246 | Avaliador: **Home** com as abas, aba presencial **unificada** e **indicação do comitê** no topo | ✅ sim | ❌ não (manual do Pedro) | 2 |
+| 247 | Cerimonial → **Fotografias de estandes** (mapa, reserva "em registro", câmera ou arquivo de 100 MB, prévia) | ✅ sim | ❌ não (manual do Pedro) | 3 |
+
+> **Sprints 245–247 (branch `feat/fotos-estandes-home-avaliador`, saída da `main` @ `3151ceb`, v1.44):**
+> (a) **Sprint 245** — relato: projetos do turno B "sumiam" de Comitê especial → Designações. **Não era o
+> credenciamento de manhã** (a tela não olha credenciamento nem horário): `opcoesDeDesignacao()` cortava as
+> duas listas em **30**, em ordem alfabética, sem a tela saber — com o filtro "Turno B" só os 30 primeiros do
+> alfabeto apareciam. A resposta traz `projetos_total`/`avaliadores_total`, a tela mostra "Mostrando 30 de N"
+> e **Mostrar mais** (`limite_projetos`/`limite_avaliadores`, `MostrarMais.jsx`), no comitê e no diálogo da
+> Avaliação online. Na tela do comitê entram também os finalistas de **cadastro manual** (`semDemo` em vez de
+> `avaliacaoOnline`; a designação deles não aparece no painel online, vale só no estande) e as **contas só do
+> presencial** da comissão. E o mapa do evento passou a separar, **a partir do segundo dia**, quem foi
+> credenciado **em dia anterior** de quem chegou **hoje pela primeira vez**: `credenciamentos.primeiro_finalizado_em`
+> guarda a primeira conclusão (o model cuida ao salvar; regravar depois não muda, corrigir a hora para antes
+> corrige; cancelar apaga a linha). Tela cheia → Credenciamento pinta verde-escuro × verde; fora dela, um
+> **ponto âmbar** no estande de quem chegou hoje; legenda, ficha do estande, filtro da lista (`anterior`/`hoje`)
+> e exportações. Os balcões não mudaram: o credenciamento sempre valeu o evento inteiro.
+> (b) **Sprint 246** — `/avaliador` virou **Home** (`AvaliadorInicio.jsx`, lista em `lib/abasAvaliador.js`), um
+> botão por aba; durante o evento quem vai ao estande encontra a Avaliação presencial primeiro e destacada (o
+> desvio automático da Sprint 236 saiu). A aba **Presencial** entrou na **Avaliação presencial**, sempre no menu:
+> até dizer "sim" **e** ser liberado ela mostra a pergunta, as orientações e "Aguardando a liberação"
+> (`IntencaoPresencial.jsx`); liberado (ou no modo de teste do demo), a avaliação, com as orientações recolhidas e
+> o link **Não vou mais participar** no rodapé. `/avaliador/presencial` redireciona. A comissão especial tem no
+> topo a área **Indicar para premiação** (`IndicacaoComite.jsx`, mesma API da aba Comitê especial, que continua).
+> (c) **Sprint 247** — Cerimonial → **Fotografias de estandes** (`/admin/cerimonial/fotografias`,
+> `FotografiaEstandeService`, `fotografias_estande`): mapa por turno com **registrado / em registro / sem
+> registro**. Clicar pergunta "Registrar fotografia do estande?" com número, projeto e turno; confirmado, o
+> estande fica **em registro** com quem confirmou (15 min, barra o segundo fotógrafo) e a tela oferece a
+> **câmera** do aparelho (`capture`) ou um **arquivo de até 100 MB**, com **prévia** antes de gravar. Uma foto
+> por projeto (segue o projeto); registrar de novo substitui; excluir libera. A conta temporária do cerimonial
+> registra e só exclui o que ela registrou. Registros → Cerimonial ganhou os dois tipos.
+> Back **1662/1662**, front **951/951**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprints 245–247):** (1) `git push origin feat/fotos-estandes-home-avaliador` + PR para a
+> `main`. **Duas migrations** (`credenciamentos.primeiro_finalizado_em`, com backfill, e `fotografias_estande`),
+> nenhuma dependência nova. (2) **Upload de 100 MB**: no Nginx `client_max_body_size 110M` e no PHP-FPM
+> `upload_max_filesize = 100M` / `post_max_size = 110M` (§ Nginx do `DEPLOY_AWS.md`); sem isso a foto grande
+> falha. As fotos ficam em `storage/app/private/fotografias-estandes` — o mesmo cuidado de persistência dos
+> outros uploads. (3) O credenciamento regravado **antes** deste deploy já tinha perdido a hora da primeira
+> conclusão: o backfill usa a hora que ficou. (4) Teste a câmera num celular de verdade antes do evento (aqui
+> foi conferida só em teste de tela).
 
 > **Sprints 242–244 (branch `feat/credenciar-autosave-saida-sessoes`, saída da `main` @ `e6aa44a`, v1.43.1):**
 > (a) **Sprint 242** — concluir um credenciamento (direto ou depois do lembrete dos itens a entregar)
