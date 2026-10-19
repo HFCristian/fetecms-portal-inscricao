@@ -107,7 +107,7 @@ class DesignacaoService
         $avaliadores = User::whereIn('id', $avaliadorIds)
             ->where('role', Role::Avaliador->value)
             ->where('is_active', true)
-            ->avaliadorDaOnline()
+            ->when(! $soComissao, fn ($q) => $q->avaliadorDaOnline())
             ->when($soComissao, fn ($q) => $q->whereHas(
                 'avaliadorProfile',
                 fn ($p) => $p->where('comissao_especial', true),
@@ -497,6 +497,16 @@ class DesignacaoService
      * é, os finalistas. `null` é a tela da Avaliação online, que não monta o
      * mapa a cada tecla digitada.
      *
+     * Cada lista vem com o **total** que casou com a busca (`projetos_total`,
+     * `avaliadores_total`), e a tela pede mais com `$limiteProjetos` /
+     * `$limiteAvaliadores`. Antes o corte em 30 era silencioso: com o filtro
+     * "Turno B" e duzentos finalistas no turno, só os 30 primeiros do alfabeto
+     * apareciam, e o resto parecia não existir.
+     *
+     * Na tela do comitê entram também os projetos de **cadastro manual**
+     * (Sprint 157): eles não têm fase online, mas são finalistas, e a
+     * designação do comitê é o que libera o estande para quem é da comissão.
+     *
      * @param  array{codigo?: ?string, estande?: int|string|null, turno?: ?string}|null  $local
      * @return array<string, mixed>
      */
@@ -506,6 +516,7 @@ class DesignacaoService
         int $limite = 30,
         bool $soComissao = false,
         ?array $local = null,
+        ?int $limiteAvaliadores = null,
     ): array {
         $como = fn (string $termo) => '%'.str_replace(['%', '_'], ['\%', '\_'], mb_strtolower(trim($termo))).'%';
 
@@ -513,12 +524,16 @@ class DesignacaoService
         $peloLocal = $locais === null ? [] : $this->locais->casamBusca($locais, $projeto);
         $recorte = $locais === null ? null : $this->locais->filtrar($locais, $local);
 
-        $projetos = Projeto::avaliacaoOnline()
+        $consultaProjetos = ($soComissao ? Projeto::semDemo() : Projeto::avaliacaoOnline())
             ->where('status', ProjetoStatus::Submetido->value)
             ->when(trim($projeto) !== '', fn ($q) => $q->where(fn ($w) => $w
                 ->whereRaw('LOWER(titulo) LIKE ?', [$como($projeto)])
                 ->when($peloLocal !== [], fn ($o) => $o->orWhereIn('id', $peloLocal))))
-            ->when($recorte !== null, fn ($q) => $q->whereIn('id', $recorte))
+            ->when($recorte !== null, fn ($q) => $q->whereIn('id', $recorte));
+
+        $totalProjetos = (clone $consultaProjetos)->count();
+
+        $projetos = $consultaProjetos
             ->with('area:id,nome')
             ->withCount([
                 'avaliacoes as concluidas_count' => fn ($q) => $q->considerada()
@@ -528,17 +543,24 @@ class DesignacaoService
             ->limit($limite)
             ->get();
 
-        $avaliadores = User::where('role', Role::Avaliador->value)
+        $consultaAvaliadores = User::where('role', Role::Avaliador->value)
             ->where('is_active', true)
             ->where('is_demo', false)
-            ->avaliadorDaOnline()
+            // A conta só do presencial (Sprint 191) fica fora da avaliação
+            // online, mas não do comitê: a designação do comitê é o que libera
+            // o estande para ela.
+            ->when(! $soComissao, fn ($q) => $q->avaliadorDaOnline())
             ->when(trim($avaliador) !== '', fn ($q) => $q->where(fn ($sub) => $sub
                 ->whereRaw('LOWER(name) LIKE ?', [$como($avaliador)])
                 ->orWhereRaw('LOWER(email) LIKE ?', [$como($avaliador)])))
             ->when($soComissao, fn ($q) => $q->whereHas(
                 'avaliadorProfile',
                 fn ($p) => $p->where('comissao_especial', true),
-            ))
+            ));
+
+        $totalAvaliadores = (clone $consultaAvaliadores)->count();
+
+        $avaliadores = $consultaAvaliadores
             ->with('avaliadorProfile.area:id,nome')
             ->withCount([
                 'avaliacoes as designadas_count' => fn ($q) => $q->whereIn('status', [
@@ -546,7 +568,7 @@ class DesignacaoService
                 ]),
             ])
             ->orderBy('name')
-            ->limit($limite)
+            ->limit($limiteAvaliadores ?? $limite)
             ->get();
 
         $semLocal = ['codigo' => null, 'turno' => null, 'turno_label' => null, 'estande' => null];
@@ -558,7 +580,9 @@ class DesignacaoService
                 'area' => $p->area?->nome,
                 'categoria' => $p->categoria?->label(),
                 'concluidas' => (int) $p->concluidas_count,
+                'cadastro_manual' => (bool) $p->cadastro_manual,
             ] + ($locais === null ? [] : ($locais[$p->id] ?? $semLocal)))->all(),
+            'projetos_total' => $totalProjetos,
             'avaliadores' => $avaliadores->map(fn (User $u) => [
                 'id' => $u->id,
                 'nome' => $u->name,
@@ -566,6 +590,7 @@ class DesignacaoService
                 'area' => $u->avaliadorProfile?->area?->nome,
                 'na_fila' => (int) $u->designadas_count,
             ])->all(),
+            'avaliadores_total' => $totalAvaliadores,
         ] + ($locais === null ? [] : ['turnos' => Turno::opcoes()]);
     }
 

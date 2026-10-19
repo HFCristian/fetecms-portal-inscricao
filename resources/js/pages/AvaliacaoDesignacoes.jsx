@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { Alert, Button } from '../components/ui.jsx';
+import MostrarMais, { PASSO_LISTA } from '../components/MostrarMais.jsx';
 import BuscaCombobox from '../components/BuscaCombobox.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import {
@@ -145,7 +146,7 @@ function ConfirmarRetirada({ linhas, salvando, erro, onConfirmar, onFechar }) {
  * projetos e de avaliadores, e mandar tudo para a tela a cada abertura seria
  * pagar caro por uma lista que ninguém lê inteira.
  */
-function Escolha({ titulo, itens, marcados, onAlternar, busca, onBuscar, rotuloBusca, render }) {
+function Escolha({ titulo, itens, total, onMais, marcados, onAlternar, busca, onBuscar, rotuloBusca, render }) {
     return (
         <div className="flex-1 min-w-0">
             <h4 className="text-sm font-semibold text-on-surface mb-2">
@@ -177,6 +178,7 @@ function Escolha({ titulo, itens, marcados, onAlternar, busca, onBuscar, rotuloB
                     </li>
                 ))}
             </ul>
+            <MostrarMais exibidos={itens.length} total={total} onMais={onMais} />
         </div>
     );
 }
@@ -196,6 +198,8 @@ function DialogoDesignar({ onFechar, onConcluido, projetoInicial = null, buscaIn
     const [opcoes, setOpcoes] = useState({ projetos: [], avaliadores: [] });
     const [buscaProjeto, setBuscaProjeto] = useState(buscaInicial);
     const [buscaAvaliador, setBuscaAvaliador] = useState('');
+    const [limiteProjetos, setLimiteProjetos] = useState(PASSO_LISTA);
+    const [limiteAvaliadores, setLimiteAvaliadores] = useState(PASSO_LISTA);
     const [projetos, setProjetos] = useState(projetoInicial ? [projetoInicial] : []);
     const [avaliadores, setAvaliadores] = useState([]);
     const [salvando, setSalvando] = useState(false);
@@ -207,13 +211,18 @@ function DialogoDesignar({ onFechar, onConcluido, projetoInicial = null, buscaIn
             getOpcoesDesignacao({
                 ...(buscaProjeto.trim() ? { projeto: buscaProjeto.trim() } : {}),
                 ...(buscaAvaliador.trim() ? { avaliador: buscaAvaliador.trim() } : {}),
+                limite_projetos: limiteProjetos,
+                limite_avaliadores: limiteAvaliadores,
             })
                 .then(setOpcoes)
                 .catch(() => setErro('Não foi possível carregar projetos e avaliadores.'));
         }, 300);
 
         return () => clearTimeout(t);
-    }, [buscaProjeto, buscaAvaliador]);
+    }, [buscaProjeto, buscaAvaliador, limiteProjetos, limiteAvaliadores]);
+
+    useEffect(() => { setLimiteProjetos(PASSO_LISTA); }, [buscaProjeto]);
+    useEffect(() => { setLimiteAvaliadores(PASSO_LISTA); }, [buscaAvaliador]);
 
     const alternar = (lista, set) => (id) =>
         set(lista.includes(id) ? lista.filter((x) => x !== id) : [...lista, id]);
@@ -294,6 +303,8 @@ function DialogoDesignar({ onFechar, onConcluido, projetoInicial = null, buscaIn
                                 busca={buscaProjeto}
                                 onBuscar={setBuscaProjeto}
                                 itens={opcoes.projetos}
+                                total={opcoes.projetos_total}
+                                onMais={() => setLimiteProjetos((n) => n + PASSO_LISTA)}
                                 marcados={projetos}
                                 onAlternar={alternar(projetos, setProjetos)}
                                 render={(p) => (
@@ -311,6 +322,8 @@ function DialogoDesignar({ onFechar, onConcluido, projetoInicial = null, buscaIn
                                 busca={buscaAvaliador}
                                 onBuscar={setBuscaAvaliador}
                                 itens={opcoes.avaliadores}
+                                total={opcoes.avaliadores_total}
+                                onMais={() => setLimiteAvaliadores((n) => n + PASSO_LISTA)}
                                 marcados={avaliadores}
                                 onAlternar={alternar(avaliadores, setAvaliadores)}
                                 render={(a) => (

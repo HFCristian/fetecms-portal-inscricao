@@ -383,6 +383,22 @@ describe('MapaPlanta', () => {
         expect(screen.getByRole('link', { name: 'ana.pdf' })).toHaveAttribute('href', '/api/v1/documentos/77/preview');
     });
 
+    it('a partir do 2º dia, separa quem já tinha credenciado de quem chegou hoje', async () => {
+        getSituacaoPlanta.mockResolvedValue({
+            ...SITUACAO,
+            primeiro_dia: false,
+            credenciamento: { anterior: 1, hoje: 0 },
+            estandes: { 42: { ...SITUACAO.estandes[42], credenciamento: 'anterior', credenciado_em: '01/10/2026 09:10' } },
+        });
+        render(<MapaPlanta />);
+
+        expect(await screen.findByText(/Credenciado hoje \(1ª vez\) \(0\)/)).toBeInTheDocument();
+        expect(screen.getByText(/em dia anterior: 1/)).toBeInTheDocument();
+
+        fireEvent.click(await screen.findByRole('button', { name: estande('042') }));
+        expect(await screen.findByText(/em dia anterior \(não precisa voltar ao balcão\)/)).toBeInTheDocument();
+    });
+
     /** O dia é um corte no tempo: escolher um anterior volta o mapa. */
     it('trocar o dia e o turno recarrega a situação', async () => {
         render(<MapaPlanta />);

@@ -57,6 +57,18 @@ class MapaSituacaoService
     ];
 
     /**
+     * Valores do filtro do credenciamento. "Já passou" é qualquer dia; a partir
+     * do segundo dia do evento a organização separa quem já tinha passado
+     * (Sprint 245) de quem chegou hoje pela primeira vez.
+     */
+    private const VALORES_CREDENCIAMENTO = [
+        'sim' => 'já passou',
+        'anterior' => 'credenciado em dia anterior',
+        'hoje' => 'credenciado no dia (1ª vez)',
+        'nao' => 'ainda não passou',
+    ];
+
+    /**
      * Valores do filtro do termo de imagem (Sprint 176). "Incompleto" junta
      * parcial e pendente — é a pergunta da véspera: quem ainda falta?
      */
@@ -116,10 +128,15 @@ class MapaSituacaoService
 
         $mapa = [];
         $resumo = array_fill_keys(array_column(SituacaoEstande::cases(), 'value'), 0);
+        $credenciamento = ['anterior' => 0, 'hoje' => 0];
 
         foreach ($linhas as $linha) {
             $mapa[$linha['numero']] = $linha;
             $resumo[$linha['situacao']]++;
+
+            if ($linha['credenciamento'] !== null) {
+                $credenciamento[$linha['credenciamento']]++;
+            }
         }
 
         return [
@@ -127,8 +144,12 @@ class MapaSituacaoService
             'turno' => $turno->value,
             'turno_label' => $turno->label(),
             'corte_label' => $corte->format('d/m/Y H:i'),
+            // No primeiro dia do evento todo credenciado é "de hoje": a tela só
+            // separa os credenciados de dias anteriores a partir do segundo.
+            'primeiro_dia' => $this->ehPrimeiroDia($corte),
             'estandes' => $mapa,
             'resumo' => $resumo,
+            'credenciamento' => $credenciamento,
             'total' => count($linhas),
         ];
     }
@@ -179,7 +200,7 @@ class MapaSituacaoService
                     // Sim/Não nos dois primeiros, número nos de contagem e uma
                     // lista própria no termo de imagem e na saída.
                     'tipo' => match (true) {
-                        in_array($chave, ['termo_imagem', 'saida'], true) => 'opcoes',
+                        in_array($chave, ['credenciamento', 'termo_imagem', 'saida'], true) => 'opcoes',
                         str_starts_with($chave, 'avaliacoes_') => 'numero',
                         default => 'booleano',
                     },
@@ -199,6 +220,7 @@ class MapaSituacaoService
     private function valoresDoCriterio(string $chave): array
     {
         $valores = match ($chave) {
+            'credenciamento' => self::VALORES_CREDENCIAMENTO,
             'termo_imagem' => self::VALORES_TERMO_IMAGEM,
             'saida' => ['sim' => 'saiu antes do horário', 'nao' => 'não saiu'],
             default => null,
@@ -238,6 +260,9 @@ class MapaSituacaoService
             $linhas[] = '      '.$l['escola'];
             $linhas[] = '      '.$l['situacao_label']
                 .' · '.$l['avaliacoes'].' de '.$l['avaliacoes_maximo'].' avaliação(ões)';
+            if ($l['credenciamento'] !== null) {
+                $linhas[] = '      Credenciamento: '.$this->credenciamentoTexto($l).' ('.$l['credenciado_em'].')';
+            }
             $linhas[] = '      Termo de imagem: '.$this->termoImagem($l);
             if ($l['saida'] !== null) {
                 $linhas[] = '      Saiu antes do horário às '.$l['saida']['hora']
@@ -247,6 +272,16 @@ class MapaSituacaoService
         }
 
         return implode("\n", $linhas);
+    }
+
+    /** "Em dia anterior", "No dia (1ª vez)" ou vazio. */
+    private function credenciamentoTexto(array $linha): string
+    {
+        return match ($linha['credenciamento']) {
+            'anterior' => 'Em dia anterior',
+            'hoje' => 'No dia (1ª vez)',
+            default => '',
+        };
     }
 
     /** "Parcial · 2 de 3 (falta: Caio)", "Completo · 3 de 3" ou "Sem estudantes". */
@@ -279,7 +314,7 @@ class MapaSituacaoService
         // UTF-8 com BOM e separador `;`: é o que o Excel em pt_BR abre certo.
         $saida = "\u{FEFF}".implode(';', [
             'Estande', 'Turno', 'Projeto', 'Categoria', 'Área', 'Escola', 'Orientador',
-            'Situação', 'Credenciado em', 'Checado em', 'Avaliações realizadas', 'Avaliações faltantes',
+            'Situação', 'Credenciado em', 'Credenciamento', 'Checado em', 'Avaliações realizadas', 'Avaliações faltantes',
             'Credenciamento fora do prazo', 'Termo de uso de imagem', 'Estudantes cobertos',
             'Estudantes sem termo de imagem', 'Saiu antes do horário',
         ])."\n";
@@ -290,7 +325,7 @@ class MapaSituacaoService
                 [
                     $l['estande'], $lista['turno_label'], $l['titulo'], $l['categoria'],
                     $l['area'] ?? '', $l['escola'], $l['orientador'] ?? '',
-                    $l['situacao_label'], $l['credenciado_em'] ?? '', $l['checado_em'] ?? '',
+                    $l['situacao_label'], $l['credenciado_em'] ?? '', $this->credenciamentoTexto($l), $l['checado_em'] ?? '',
                     $l['avaliacoes'], $l['avaliacoes_faltantes'],
                     $this->foraPrazo($l),
                     $l['termo_imagem_label'],
@@ -364,7 +399,8 @@ class MapaSituacaoService
 
         $ids = $alocacoes->pluck('projeto_id')->all();
 
-        $credenciados = $this->carimbos('credenciamentos', 'finalizado_em', $ids, $corte);
+        $credenciados = $this->primeirosCredenciamentos($ids, $corte);
+        $inicioDoDia = $corte->startOfDay();
         $checados = $this->carimbos('checagens_estande', 'verificado_em', $ids, $corte);
         $avaliacoes = $this->avaliacoes($ids, $corte);
         $doComite = $this->avaliacoes($ids, $corte, soComite: true);
@@ -373,7 +409,7 @@ class MapaSituacaoService
         $termos = app(TermosImagemService::class)->noEvento($ids, $corte);
         $saidas = $this->saidas($ids, $corte);
 
-        return $alocacoes->map(function (EstandeProjeto $e) use ($credenciados, $checados, $avaliacoes, $doComite, $maximo, $sinais, $termos, $saidas) {
+        return $alocacoes->map(function (EstandeProjeto $e) use ($credenciados, $inicioDoDia, $checados, $avaliacoes, $doComite, $maximo, $sinais, $termos, $saidas) {
             $projeto = $e->projeto;
             $feitas = (int) ($avaliacoes[$projeto->id] ?? 0);
             $credenciado = $credenciados[$projeto->id] ?? null;
@@ -410,7 +446,12 @@ class MapaSituacaoService
                 'situacao_label' => $situacao->label(),
                 'cor' => $situacao->cor(),
                 'credenciado' => $credenciado !== null,
+                // A primeira passagem pelo balcão: regravar depois não a muda.
                 'credenciado_em' => $credenciado?->format('d/m/Y H:i'),
+                // Sprint 245: "anterior" = credenciado num dia anterior ao do
+                // corte (não precisa voltar ao balcão); "hoje" = chegando agora,
+                // pela primeira vez.
+                'credenciamento' => $credenciado === null ? null : ($credenciado->lessThan($inicioDoDia) ? 'anterior' : 'hoje'),
                 'checado' => $checado !== null,
                 'checado_em' => $checado?->format('d/m/Y H:i'),
                 'avaliacoes' => $feitas,
@@ -443,6 +484,40 @@ class MapaSituacaoService
                 ],
             ];
         })->values()->all();
+    }
+
+    /**
+     * Quando cada projeto foi credenciado **pela primeira vez**, até o corte.
+     *
+     * A primeira conclusão, e não a última: regravar a ficha no dia 2 não pode
+     * fazer o projeto parecer recém-chegado, nem sumir do mapa do dia 1. As
+     * linhas anteriores à coluna (ou criadas sem passar pelo model) caem em
+     * `finalizado_em`.
+     *
+     * @param  list<int>  $ids
+     * @return array<int, CarbonImmutable>
+     */
+    private function primeirosCredenciamentos(array $ids, CarbonImmutable $corte): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+
+        return DB::table('credenciamentos')
+            ->whereIn('projeto_id', $ids)
+            ->whereNotNull('finalizado_em')
+            ->get(['projeto_id', 'primeiro_finalizado_em', 'finalizado_em'])
+            ->mapWithKeys(fn ($c) => [$c->projeto_id => CarbonImmutable::parse($c->primeiro_finalizado_em ?? $c->finalizado_em)])
+            ->filter(fn (CarbonImmutable $quando) => $quando->lessThanOrEqualTo($corte))
+            ->all();
+    }
+
+    /** O corte cai no primeiro dia do evento (ou não há janela definida)? */
+    private function ehPrimeiroDia(CarbonImmutable $corte): bool
+    {
+        $de = Edicao::atual()?->evento_de;
+
+        return $de === null || $corte->startOfDay()->lessThanOrEqualTo(CarbonImmutable::parse($de)->startOfDay());
     }
 
     /**
@@ -522,7 +597,9 @@ class MapaSituacaoService
     {
         return match ($criterio) {
             // Sem valor, "sim": o filtro mais pedido é "quem já passou".
-            'credenciamento' => $linha['credenciado'] === $this->booleano($valor),
+            'credenciamento' => in_array($valor, ['anterior', 'hoje'], true)
+                ? $linha['credenciamento'] === $valor
+                : $linha['credenciado'] === $this->booleano($valor),
             'checagem' => $linha['checado'] === $this->booleano($valor),
             'avaliacoes_realizadas' => $valor === null || $linha['avaliacoes'] === (int) $valor,
             'avaliacoes_faltantes' => $valor === null || $linha['avaliacoes_faltantes'] === (int) $valor,
@@ -544,7 +621,9 @@ class MapaSituacaoService
     private function rotuloDoValor(string $criterio, mixed $valor): string
     {
         return match ($criterio) {
-            'credenciamento', 'checagem' => $this->booleano($valor) ? 'já passou' : 'ainda não passou',
+            'credenciamento' => self::VALORES_CREDENCIAMENTO[$valor ?? 'sim']
+                ?? ($this->booleano($valor) ? 'já passou' : 'ainda não passou'),
+            'checagem' => $this->booleano($valor) ? 'já passou' : 'ainda não passou',
             'saida' => $this->booleano($valor) ? 'saiu antes do horário' : 'não saiu',
             'avaliacoes_realizadas' => $valor === null ? 'qualquer quantidade' : $valor.' realizada(s)',
             'avaliacoes_faltantes' => $valor === null ? 'qualquer quantidade' : $valor.' faltante(s)',

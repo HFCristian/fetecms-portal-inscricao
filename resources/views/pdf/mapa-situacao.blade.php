@@ -42,7 +42,7 @@
                     <td>
                         {{ $linha['situacao_label'] }}
                         <div class="menor">
-                            {{ $linha['credenciado'] ? 'credenciado '.$linha['credenciado_em'] : 'sem credenciamento' }}
+                            {{ $linha['credenciado'] ? 'credenciado '.$linha['credenciado_em'].($linha['credenciamento'] === 'anterior' ? ' (dia anterior)' : ' (1ª vez no dia)') : 'sem credenciamento' }}
                             @if ($linha['checado']) · checado {{ $linha['checado_em'] }} @endif
                         </div>
                     </td>

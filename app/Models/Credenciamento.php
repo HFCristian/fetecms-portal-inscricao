@@ -14,6 +14,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * `finalizado_em` é o que separa o **rascunho** do "credenciado" — e um
  * projeto credenciado ainda pode ter **pendências**: quem faltou ao balcão e os
  * kits que ninguém levou. As duas coisas estão em `pessoas`.
+ *
+ * `primeiro_finalizado_em` (Sprint 245) guarda a **primeira** conclusão:
+ * regravar a ficha depois move `finalizado_em`, e o mapa do evento precisa
+ * saber se a equipe já tinha passado pelo balcão num dia anterior. Quem cuida
+ * dele é o próprio model, ao salvar — todo caminho que conclui (balcão,
+ * cadastro manual, ensaio) passa por aqui.
  */
 class Credenciamento extends Model
 {
@@ -21,14 +27,30 @@ class Credenciamento extends Model
 
     protected $fillable = [
         'projeto_id', 'lista_final_id', 'credenciado_por', 'iniciado_por',
-        'iniciado_em', 'finalizado_em', 'observacao',
+        'iniciado_em', 'finalizado_em', 'primeiro_finalizado_em', 'observacao',
     ];
+
+    protected static function booted(): void
+    {
+        static::saving(function (Credenciamento $c) {
+            if ($c->finalizado_em === null) {
+                return;
+            }
+
+            // A menor das duas: regravar mais tarde não muda a primeira vez,
+            // mas corrigir a hora para antes (lançamento retroativo) corrige.
+            if ($c->primeiro_finalizado_em === null || $c->finalizado_em->lessThan($c->primeiro_finalizado_em)) {
+                $c->primeiro_finalizado_em = $c->finalizado_em;
+            }
+        });
+    }
 
     protected function casts(): array
     {
         return [
             'iniciado_em' => 'datetime',
             'finalizado_em' => 'datetime',
+            'primeiro_finalizado_em' => 'datetime',
         ];
     }
 
