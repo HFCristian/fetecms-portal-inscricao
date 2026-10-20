@@ -44,6 +44,9 @@ class MapaAvaliacoesController extends Controller
             'categorias' => ['nullable', 'array', 'max:50'],
             'categorias.*' => ['string', 'max:40'],
             'em_andamento' => ['nullable', 'boolean'],
+            // A ordem da tela vale para a lista em PDF (Sprint 249).
+            'ordem' => ['nullable', Rule::in(['estande', 'situacao'])],
+            'direcao' => ['nullable', Rule::in(['asc', 'desc'])],
         ]);
 
         $pdf = $tipo === 'mapa'

@@ -8,8 +8,10 @@ vi.mock('react-router-dom', () => ({
     Link: ({ children, to }) => <a href={to}>{children}</a>,
     useSearchParams: () => [busca, setParams],
 }));
+const auth = { user: { id: 1, role: 'admin', conta_temporaria: false } };
 vi.mock('../lib/auth.jsx', () => ({
     extractErrors: (e) => ({ message: e?.message ?? '', fields: {} }),
+    useAuth: () => auth,
 }));
 
 const getAvaliacoesMapa = vi.fn();
@@ -19,9 +21,20 @@ vi.mock('../lib/mapaEvento.js', async () => {
     return {
         filtrarAvaliacoes: real.filtrarAvaliacoes,
         getAvaliacoesMapa: (...a) => getAvaliacoesMapa(...a),
+        ordenarAvaliacoes: real.ordenarAvaliacoes,
         baixarAvaliacoesMapa: (...a) => baixarAvaliacoesMapa(...a),
     };
 });
+
+const getAvaliacoesRankingPresencial = vi.fn();
+const getDestinosAvaliacaoPresencial = vi.fn();
+const transferirAvaliacaoPresencial = vi.fn();
+vi.mock('../lib/presencial.js', () => ({
+    getAvaliacoesRankingPresencial: (...a) => getAvaliacoesRankingPresencial(...a),
+    excluirAvaliacaoPresencial: vi.fn(),
+    getDestinosAvaliacaoPresencial: (...a) => getDestinosAvaliacaoPresencial(...a),
+    transferirAvaliacaoPresencial: (...a) => transferirAvaliacaoPresencial(...a),
+}));
 
 import MapaAvaliacoes from './MapaAvaliacoes.jsx';
 
@@ -82,6 +95,7 @@ function linhasDaTabela() {
 describe('MapaAvaliacoes', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        auth.user = { id: 1, role: 'admin', conta_temporaria: false };
         busca = new URLSearchParams('turno=A');
         getAvaliacoesMapa.mockResolvedValue({ data: painel(), meta: META });
         baixarAvaliacoesMapa.mockResolvedValue();
@@ -151,11 +165,79 @@ describe('MapaAvaliacoes', () => {
         fireEvent.click(within(screen.getByLabelText('Filtros de situação')).getByRole('button', { name: /Faltam 3 avaliações/ }));
         fireEvent.click(screen.getByRole('button', { name: /Exportar lista \(PDF\)/ }));
         await waitFor(() => expect(baixarAvaliacoesMapa).toHaveBeenCalledWith('lista', {
-            dia: '2026-10-20', turno: 'A', categorias: ['comum2-comite1'], emAndamento: false,
+            dia: '2026-10-20', turno: 'A', categorias: ['comum2-comite1'], emAndamento: false, ordem: 'estande', direcao: 'asc',
         }));
 
         fireEvent.click(screen.getByRole('button', { name: /Exportar mapa \(PDF\)/ }));
         await waitFor(() => expect(baixarAvaliacoesMapa).toHaveBeenCalledWith('mapa', expect.objectContaining({ categorias: ['comum2-comite1'] })));
+    });
+
+    it('ordena por estande ou por situação, e o PDF sai na mesma ordem', async () => {
+        render(<MapaAvaliacoes />);
+        await screen.findByText('Horta vertical');
+        const estandes = () => linhasDaTabela().map((t) => t.slice(0, 3));
+
+        expect(estandes()).toEqual(['001', '002', '003']);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Ordenar por Estande' }));
+        expect(estandes()).toEqual(['003', '002', '001']);
+        expect(screen.getByRole('button', { name: 'Ordenar por Estande' }).closest('th')).toHaveAttribute('aria-sort', 'descending');
+
+        // Situação: da que mais falta à fechada.
+        fireEvent.click(screen.getByRole('button', { name: 'Ordenar por Situação' }));
+        expect(estandes()).toEqual(['001', '002', '003']);
+        fireEvent.click(screen.getByRole('button', { name: 'Ordenar por Situação' }));
+        expect(estandes()).toEqual(['003', '002', '001']);
+
+        fireEvent.click(screen.getByRole('button', { name: /Exportar lista \(PDF\)/ }));
+        await waitFor(() => expect(baixarAvaliacoesMapa).toHaveBeenCalledWith('lista', expect.objectContaining({ ordem: 'situacao', direcao: 'desc' })));
+    });
+
+    it('Ver avaliações abre o diálogo do projeto e a transferência recarrega a tela', async () => {
+        getAvaliacoesRankingPresencial.mockResolvedValue({
+            projeto: { id: 2, titulo: 'Horta vertical', codigo: 'FET.AGR-002', area: 'Ciências Agrárias', categoria: 'FETECMS', estande: 2, turno_label: 'Turno A (matutino)' },
+            media: 7, nota_maxima: 10, secoes: [],
+            avaliacoes: [{
+                avaliacao_id: 50, avaliador: 'Ana Souza', status: 'concluida', status_label: 'Concluída', vaga: 'comum', vaga_label: 'Vaga comum',
+                peso: 1, nota: 7, ocorrencia_label: null, origem_label: 'Escolhido no estande', concluida_em_label: '20/10/2026 10:00', secoes: null, comentario: null,
+            }],
+        });
+        getDestinosAvaliacaoPresencial.mockResolvedValue({
+            destinos: [{
+                projeto_id: 3, titulo: 'Drone agrícola', codigo: 'FET.AGR-003', area: 'Ciências Agrárias', categoria: 'FETECMS', estande: '003', turno: 'A',
+                turno_label: 'Turno A (matutino)', ocupadas: { comum: 2, comite: 1 }, vagas: { comuns: 2, comite: 1 },
+                vaga: 'comum', vaga_label: 'Vaga comum', acima_do_teto: true, bloqueio: null,
+            }],
+            total: 1, limite: 30,
+        });
+        transferirAvaliacaoPresencial.mockResolvedValue({
+            data: { projeto: { id: 2, titulo: 'Horta vertical' }, media: null, nota_maxima: 10, secoes: [], avaliacoes: [] },
+            meta: { message: 'Avaliação de Ana Souza transferida.', aviso: 'O projeto de destino já não tinha vaga.' },
+        });
+        render(<MapaAvaliacoes />);
+        await screen.findByText('Horta vertical');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Ver avaliações do estande 002' }));
+        await waitFor(() => expect(getAvaliacoesRankingPresencial).toHaveBeenCalledWith(2));
+        const dialogo = await screen.findByRole('dialog', { name: 'Avaliações presenciais' });
+
+        fireEvent.click(within(dialogo).getByRole('button', { name: 'Transferir a avaliação de Ana Souza para outro projeto' }));
+        fireEvent.click(await within(dialogo).findByRole('radio', { name: /Estande 003/ }));
+        fireEvent.change(within(dialogo).getByLabelText('Por que transferir esta avaliação?'), { target: { value: 'Estande trocado.' } });
+        fireEvent.click(within(dialogo).getByRole('button', { name: 'Transferir avaliação' }));
+
+        await waitFor(() => expect(transferirAvaliacaoPresencial).toHaveBeenCalledWith(50, 3, 'Estande trocado.', false));
+        expect(await screen.findAllByText('Avaliação de Ana Souza transferida. O projeto de destino já não tinha vaga.')).toHaveLength(2);
+        // A tela recarrega: a situação dos dois projetos muda no mapa e na lista.
+        await waitFor(() => expect(getAvaliacoesMapa.mock.calls.length).toBeGreaterThanOrEqual(3));
+    });
+
+    it('a conta temporária não vê Ver avaliações', async () => {
+        auth.user = { id: 2, role: 'admin', conta_temporaria: true };
+        render(<MapaAvaliacoes />);
+        await screen.findByText('Horta vertical');
+
+        expect(screen.queryByRole('button', { name: /Ver avaliações/ })).not.toBeInTheDocument();
     });
 
     it('troca o turno e guarda o recorte no endereço', async () => {

@@ -159,6 +159,33 @@ class MapaAvaliacoesService
             && (! $emAndamento || $l['em_andamento'] > 0)));
     }
 
+    /**
+     * A ordem da lista (Sprint 249): por **estande** ou por **situação** — a
+     * ordem das categorias, da que mais falta à fechada —, crescente ou
+     * decrescente. O empate da situação sai pelo estande, sempre crescente:
+     * dentro de uma categoria, o corredor é lido na ordem dos números.
+     *
+     * @param  list<array<string, mixed>>  $linhas
+     * @param  list<array<string, mixed>>  $categorias
+     * @return list<array<string, mixed>>
+     */
+    public function ordenar(array $linhas, array $categorias, ?string $ordem, ?string $direcao): array
+    {
+        $posicao = array_flip(array_column($categorias, 'chave'));
+        $sinal = $direcao === 'desc' ? -1 : 1;
+
+        usort($linhas, function (array $a, array $b) use ($ordem, $posicao, $sinal) {
+            if ($ordem !== 'situacao') {
+                return $sinal * ($a['numero'] <=> $b['numero']);
+            }
+
+            return ($sinal * (($posicao[$a['situacao']] ?? 0) <=> ($posicao[$b['situacao']] ?? 0)))
+                ?: $a['numero'] <=> $b['numero'];
+        });
+
+        return $linhas;
+    }
+
     /** "Todas as categorias" ou os rótulos marcados, e o "em andamento". */
     public function rotuloDoFiltro(array $painel, array $filtros): string
     {
@@ -173,15 +200,26 @@ class MapaAvaliacoesService
         return ($filtros['em_andamento'] ?? false) ? $texto.' · com avaliação em andamento' : $texto;
     }
 
-    /** @param  array<string, mixed>  $filtros  dia, turno, categorias, em_andamento */
+    /** @param  array<string, mixed>  $filtros  dia, turno, categorias, em_andamento, ordem, direcao */
     public function exportarLista(array $filtros): string
     {
         $painel = $this->painel($filtros['dia'] ?? null, $filtros['turno'] ?? null);
 
         return app(PdfService::class)->render('pdf.mapa-avaliacoes', [
             'painel' => $painel,
-            'linhas' => $this->filtrar($painel['linhas'], $filtros),
+            'linhas' => $this->ordenar(
+                $this->filtrar($painel['linhas'], $filtros),
+                $painel['categorias'],
+                $filtros['ordem'] ?? null,
+                $filtros['direcao'] ?? null,
+            ),
             'filtro' => $this->rotuloDoFiltro($painel, $filtros),
+            'ordem' => match ([$filtros['ordem'] ?? 'estande', $filtros['direcao'] ?? 'asc']) {
+                ['situacao', 'asc'] => 'por situação, da que mais falta à fechada',
+                ['situacao', 'desc'] => 'por situação, da fechada à que mais falta',
+                ['estande', 'desc'] => 'por estande, decrescente',
+                default => 'por estande',
+            },
         ], 'a4', 'landscape');
     }
 

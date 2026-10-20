@@ -286,6 +286,37 @@ class MapaAvaliacoesTest extends TestCase
         );
     }
 
+    public function test_ordena_por_estande_ou_por_situacao(): void
+    {
+        $this->admin();
+
+        $fechada = $this->noEstande('Fechada', 3);
+        $this->avaliacao($fechada, 'comum');
+        $this->avaliacao($fechada, 'comum');
+        $this->avaliacao($fechada, 'comite');
+        $this->noEstande('Nenhuma B', 9);
+        $soComite = $this->noEstande('Só comitê', 1);
+        $this->avaliacao($soComite, 'comum');
+        $this->avaliacao($soComite, 'comum');
+        $this->noEstande('Nenhuma A', 5);
+
+        $servico = app(MapaAvaliacoesService::class);
+        $painel = $servico->painel(null, 'A');
+        $estandes = fn (?string $ordem, ?string $direcao) => array_column(
+            $servico->ordenar($painel['linhas'], $painel['categorias'], $ordem, $direcao),
+            'numero',
+        );
+
+        $this->assertSame([1, 3, 5, 9], $estandes(null, null));
+        $this->assertSame([9, 5, 3, 1], $estandes('estande', 'desc'));
+        // Da que mais falta à fechada; o empate sai pelo estande, crescente.
+        $this->assertSame([5, 9, 1, 3], $estandes('situacao', 'asc'));
+        $this->assertSame([3, 1, 5, 9], $estandes('situacao', 'desc'));
+
+        $this->get('/api/v1/admin/mapa/avaliacoes/exportar/lista?turno=A&ordem=situacao&direcao=desc')->assertOk();
+        $this->getJson('/api/v1/admin/mapa/avaliacoes/exportar/lista?ordem=nota')->assertStatus(422);
+    }
+
     public function test_lista_e_mapa_saem_em_pdf(): void
     {
         $this->admin();

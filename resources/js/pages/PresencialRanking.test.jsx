@@ -62,11 +62,21 @@ const AVALIACOES = {
 const getRankingPresencial = vi.fn(() => Promise.resolve(RANKING));
 const getAvaliacoesRankingPresencial = vi.fn(() => Promise.resolve(AVALIACOES));
 const excluirAvaliacaoPresencial = vi.fn();
+const getDestinosAvaliacaoPresencial = vi.fn();
+const transferirAvaliacaoPresencial = vi.fn();
 vi.mock('../lib/presencial.js', () => ({
     getRankingPresencial: (...a) => getRankingPresencial(...a),
     getAvaliacoesRankingPresencial: (...a) => getAvaliacoesRankingPresencial(...a),
     excluirAvaliacaoPresencial: (...a) => excluirAvaliacaoPresencial(...a),
+    getDestinosAvaliacaoPresencial: (...a) => getDestinosAvaliacaoPresencial(...a),
+    transferirAvaliacaoPresencial: (...a) => transferirAvaliacaoPresencial(...a),
 }));
+
+const destino = (over = {}) => ({
+    projeto_id: 30, titulo: 'Horta vertical', codigo: 'FET.AGR-002', area: 'Ciências Agrárias', categoria: 'FETECMS',
+    estande: '013', turno: 'A', turno_label: 'Turno A (matutino)', ocupadas: { comum: 1, comite: 0 }, vagas: { comuns: 2, comite: 1 },
+    vaga: 'comum', vaga_label: 'Vaga comum', acima_do_teto: false, bloqueio: null, ...over,
+});
 
 import PresencialRanking from './PresencialRanking.jsx';
 
@@ -155,6 +165,70 @@ describe('PresencialRanking', () => {
 
         expect(await within(dialogo).findByText('Esta avaliação ainda não foi aberta.')).toBeInTheDocument();
         expect(within(dialogo).getByText('Carla Dias')).toBeInTheDocument();
+    });
+
+    it('transfere a avaliação para o projeto certo, buscando por estande', async () => {
+        getDestinosAvaliacaoPresencial.mockImplementation((id, q) => Promise.resolve({
+            destinos: q === '13'
+                ? [destino()]
+                : [
+                    destino(),
+                    destino({ projeto_id: 31, titulo: 'Drone', estande: '014', acima_do_teto: true, vaga_label: 'Vaga comum' }),
+                    destino({ projeto_id: 32, titulo: 'Compostagem', estande: '015', bloqueio: 'já enviou uma avaliação deste projeto' }),
+                ],
+            total: q === '13' ? 1 : 40,
+            limite: 30,
+        }));
+        transferirAvaliacaoPresencial.mockResolvedValue({
+            data: { ...AVALIACOES, avaliacoes: AVALIACOES.avaliacoes.filter((a) => a.avaliacao_id !== 21) },
+            meta: { message: 'Avaliação de Ana Souza transferida para estande 013 · Turno A · FET.AGR-002 · Horta vertical (Vaga comum).', aviso: null },
+        });
+        render(<PresencialRanking />);
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Ver avaliações de Abelhas' }));
+        const dialogo = await screen.findByRole('dialog', { name: 'Avaliações presenciais' });
+        fireEvent.click(within(dialogo).getByRole('button', { name: 'Transferir a avaliação de Ana Souza para outro projeto' }));
+
+        const painel = within(dialogo).getByRole('group', { name: 'Transferir a avaliação de Ana Souza' });
+        await waitFor(() => expect(getDestinosAvaliacaoPresencial).toHaveBeenCalledWith(21, '', false));
+        // Cada destino diz a vaga; o que passa do teto avisa e o bloqueado não se escolhe.
+        expect(await within(painel).findByRole('radio', { name: /Estande 013/ })).toHaveTextContent('comum 1/2 · comitê 0/1 · entra como Vaga comum');
+        expect(within(painel).getByRole('radio', { name: /Estande 014/ })).toHaveTextContent('sem vaga: entra acima do teto');
+        expect(within(painel).getByRole('radio', { name: /Estande 015/ })).toBeDisabled();
+        expect(within(painel).getByRole('radio', { name: /Estande 015/ })).toHaveTextContent('Ana Souza já enviou uma avaliação deste projeto.');
+        expect(within(painel).getByText('Mostrando 3 de 40. Refine a busca para achar os outros.')).toBeInTheDocument();
+
+        fireEvent.change(within(painel).getByPlaceholderText('Estande, código ou título'), { target: { value: '13' } });
+        await waitFor(() => expect(getDestinosAvaliacaoPresencial).toHaveBeenLastCalledWith(21, '13', false));
+        await waitFor(() => expect(within(painel).getAllByRole('radio')).toHaveLength(1));
+
+        const confirmar = within(painel).getByRole('button', { name: 'Transferir avaliação' });
+        expect(confirmar).toBeDisabled();
+        fireEvent.click(within(painel).getByRole('radio', { name: /Estande 013/ }));
+        fireEvent.change(within(painel).getByLabelText('Por que transferir esta avaliação?'), { target: { value: 'Avaliou o estande do lado.' } });
+        fireEvent.click(confirmar);
+
+        await waitFor(() => expect(transferirAvaliacaoPresencial).toHaveBeenCalledWith(21, 30, 'Avaliou o estande do lado.', false));
+        await waitFor(() => expect(within(dialogo).queryByText('Ana Souza')).not.toBeInTheDocument());
+        expect(within(dialogo).getByText(/transferida para estande 013/)).toBeInTheDocument();
+        expect(getRankingPresencial).toHaveBeenCalledTimes(2);
+    });
+
+    it('o erro da transferência fica no painel', async () => {
+        getDestinosAvaliacaoPresencial.mockResolvedValue({ destinos: [destino()], total: 1, limite: 30 });
+        transferirAvaliacaoPresencial.mockRejectedValue({ fields: { projeto_id: 'O projeto de destino ainda não tem estande no Mapa do Evento.' } });
+        render(<PresencialRanking />);
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Ver avaliações de Abelhas' }));
+        const dialogo = await screen.findByRole('dialog', { name: 'Avaliações presenciais' });
+        fireEvent.click(within(dialogo).getByRole('button', { name: 'Transferir a avaliação de Bruno Lima para outro projeto' }));
+        const painel = within(dialogo).getByRole('group', { name: 'Transferir a avaliação de Bruno Lima' });
+        fireEvent.click(await within(painel).findByRole('radio', { name: /Estande 013/ }));
+        fireEvent.change(within(painel).getByLabelText('Por que transferir esta avaliação?'), { target: { value: 'Estande trocado.' } });
+        fireEvent.click(within(painel).getByRole('button', { name: 'Transferir avaliação' }));
+
+        expect(await within(painel).findByText('O projeto de destino ainda não tem estande no Mapa do Evento.')).toBeInTheDocument();
+        expect(within(dialogo).getByText('Bruno Lima', { selector: 'p' })).toBeInTheDocument();
     });
 
     it('a conta temporária do voluntário não vê o botão', async () => {

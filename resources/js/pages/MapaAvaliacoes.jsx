@@ -2,8 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { Alert, Button, Select } from '../components/ui.jsx';
-import { extractErrors } from '../lib/auth.jsx';
-import { getAvaliacoesMapa, filtrarAvaliacoes, baixarAvaliacoesMapa } from '../lib/mapaEvento.js';
+import DialogoAvaliacoesPresenciais from '../components/DialogoAvaliacoesPresenciais.jsx';
+import { extractErrors, useAuth } from '../lib/auth.jsx';
+import { getAvaliacoesMapa, filtrarAvaliacoes, ordenarAvaliacoes, baixarAvaliacoesMapa } from '../lib/mapaEvento.js';
+import { getAvaliacoesRankingPresencial } from '../lib/presencial.js';
 
 /** Tamanho de uma célula da grade, em unidades do viewBox (o mesmo da planta). */
 const CELULA = 10;
@@ -52,6 +54,29 @@ function Marcas({ linha }) {
     );
 }
 
+/**
+ * Cabeçalho que ordena a lista (Sprint 249): clicar no que já está ativo
+ * inverte a direção; no outro, começa crescente.
+ */
+function CabecalhoOrdenavel({ campo, rotulo, ordem, direcao, onOrdenar }) {
+    const ativo = ordem === campo;
+    const icone = !ativo ? 'unfold_more' : direcao === 'asc' ? 'arrow_upward' : 'arrow_downward';
+
+    return (
+        <th className="py-2 pr-3" aria-sort={!ativo ? 'none' : direcao === 'asc' ? 'ascending' : 'descending'}>
+            <button
+                type="button"
+                onClick={() => onOrdenar(campo)}
+                aria-label={`Ordenar por ${rotulo}`}
+                className={`inline-flex items-center gap-0.5 uppercase hover:text-primary ${ativo ? 'text-primary font-semibold' : ''}`}
+            >
+                {rotulo}
+                <span className="material-symbols-outlined text-[16px]" aria-hidden="true">{icone}</span>
+            </button>
+        </th>
+    );
+}
+
 function descricao(linha) {
     return [
         `Estande ${linha.estande}`,
@@ -79,8 +104,14 @@ function descricao(linha) {
  * Os botões das categorias filtram o mapa e a lista juntos — o estande fora do
  * filtro fica apagado, não some, para a planta continuar sendo lida pelo lugar
  * — e as duas exportações em PDF levam o mesmo recorte.
+ *
+ * Sprint 249: a lista ordena por estande ou por situação (o PDF sai na mesma
+ * ordem), e cada linha abre o **Ver avaliações** do Ranking presencial, onde
+ * a avaliação lançada no estande errado se transfere para o projeto certo.
  */
 export default function MapaAvaliacoes() {
+    const { user } = useAuth();
+    const podeVerAvaliacoes = !user?.conta_temporaria;
     const [params, setParams] = useSearchParams();
     const [turno, setTurno] = useState(params.get('turno') === 'B' ? 'B' : 'A');
     const [dia, setDia] = useState(params.get('dia') ?? '');
@@ -92,6 +123,11 @@ export default function MapaAvaliacoes() {
     const [emAndamento, setEmAndamento] = useState(false);
     const [destacado, setDestacado] = useState(null);
     const [baixando, setBaixando] = useState(null);
+    const [ordem, setOrdem] = useState('estande');
+    const [direcao, setDirecao] = useState('asc');
+    const [info, setInfo] = useState('');
+    // O diálogo de Ver avaliações: { dados, carregando, erro, aviso }.
+    const [avaliacoes, setAvaliacoes] = useState(null);
 
     const carregar = useCallback(() => getAvaliacoesMapa({ turno, dia: dia || undefined })
         .then((r) => {
@@ -127,6 +163,10 @@ export default function MapaAvaliacoes() {
 
     const linhas = useMemo(() => dados?.linhas ?? [], [dados]);
     const visiveis = useMemo(() => filtrarAvaliacoes(linhas, { categorias, emAndamento }), [linhas, categorias, emAndamento]);
+    const ordenadas = useMemo(
+        () => ordenarAvaliacoes(visiveis, dados?.categorias ?? [], { ordem, direcao }),
+        [visiveis, dados, ordem, direcao],
+    );
     const visivel = useMemo(() => new Set(visiveis.map((l) => l.projeto_id)), [visiveis]);
     const porNumero = useMemo(() => Object.fromEntries(linhas.map((l) => [l.numero, l])), [linhas]);
     const cores = useMemo(() => Object.fromEntries((dados?.categorias ?? []).map((c) => [c.chave, c])), [dados]);
@@ -162,10 +202,39 @@ export default function MapaAvaliacoes() {
         document.getElementById(`avaliacao-${linha.projeto_id}`)?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
     }
 
+    function ordenarPor(campo) {
+        if (campo === ordem) {
+            setDirecao((d) => (d === 'asc' ? 'desc' : 'asc'));
+        } else {
+            setOrdem(campo);
+            setDirecao('asc');
+        }
+    }
+
+    function verAvaliacoes(linha) {
+        setInfo('');
+        setAvaliacoes({ dados: null, carregando: true, erro: '', aviso: '' });
+        getAvaliacoesRankingPresencial(linha.projeto_id)
+            .then((d) => setAvaliacoes({ dados: d, carregando: false, erro: '', aviso: '' }))
+            .catch((e) => setAvaliacoes({
+                dados: null, carregando: false, aviso: '',
+                erro: extractErrors(e).message || 'Não foi possível carregar as avaliações deste projeto.',
+            }));
+    }
+
+    // Excluir e transferir devolvem o projeto sem a avaliação; a tela recarrega
+    // para a situação dos dois projetos mudar no mapa e na lista.
+    function aoMudarAvaliacao(resposta, padrao) {
+        const texto = [resposta.meta?.message ?? padrao, resposta.meta?.aviso].filter(Boolean).join(' ');
+        setAvaliacoes({ dados: resposta.data, carregando: false, erro: '', aviso: texto });
+        setInfo(texto);
+        carregar();
+    }
+
     async function baixar(tipo) {
         setBaixando(tipo);
         try {
-            await baixarAvaliacoesMapa(tipo, { dia, turno, categorias, emAndamento });
+            await baixarAvaliacoesMapa(tipo, { dia, turno, categorias, emAndamento, ordem, direcao });
         } catch {
             setAlerta(`Não foi possível gerar o PDF ${tipo === 'mapa' ? 'do mapa' : 'da lista'}.`);
         } finally {
@@ -189,6 +258,7 @@ export default function MapaAvaliacoes() {
 
             <div className="max-w-6xl space-y-3 mb-4">
                 <Alert>{alerta}</Alert>
+                <Alert type="info">{info}</Alert>
             </div>
 
             <section className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-4 max-w-6xl mb-4 space-y-4">
@@ -432,17 +502,18 @@ export default function MapaAvaliacoes() {
                             <table className="w-full text-sm">
                                 <thead>
                                     <tr className="text-left text-xs uppercase text-on-surface-variant border-b border-outline-variant">
-                                        <th className="py-2 pr-3">Estande</th>
+                                        <CabecalhoOrdenavel campo="estande" rotulo="Estande" ordem={ordem} direcao={direcao} onOrdenar={ordenarPor} />
                                         <th className="py-2 pr-3">Código</th>
                                         <th className="py-2 pr-3">Projeto</th>
                                         <th className="py-2 pr-3">Turno</th>
                                         <th className="py-2 pr-3">Comum (enviadas)</th>
                                         <th className="py-2 pr-3">Comitê (enviadas)</th>
-                                        <th className="py-2">Situação</th>
+                                        <CabecalhoOrdenavel campo="situacao" rotulo="Situação" ordem={ordem} direcao={direcao} onOrdenar={ordenarPor} />
+                                        {podeVerAvaliacoes && <th className="py-2"><span className="sr-only">Avaliações</span></th>}
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {visiveis.map((l) => {
+                                    {ordenadas.map((l) => {
                                         const c = cores[l.situacao] ?? VAZIO;
                                         return (
                                             <tr
@@ -463,12 +534,25 @@ export default function MapaAvaliacoes() {
                                                 <td className="py-2 pr-3">{dados.turno}</td>
                                                 <td className="py-2 pr-3"><Vaga vaga={l.comum} /></td>
                                                 <td className="py-2 pr-3"><Vaga vaga={l.comite} /></td>
-                                                <td className="py-2">
+                                                <td className="py-2 pr-3">
                                                     <span className="inline-flex items-center gap-1.5">
                                                         <span className="w-3 h-3 rounded-sm border shrink-0" style={{ background: c.cor, borderColor: c.borda }} />
                                                         {l.situacao_label}
                                                     </span>
                                                 </td>
+                                                {podeVerAvaliacoes && (
+                                                    <td className="py-2 text-right">
+                                                        <button
+                                                            type="button"
+                                                            onClick={(ev) => { ev.stopPropagation(); setDestacado(l.projeto_id); verAvaliacoes(l); }}
+                                                            aria-label={`Ver avaliações do estande ${l.estande}`}
+                                                            className="inline-flex items-center gap-1 whitespace-nowrap text-sm font-semibold text-primary hover:underline"
+                                                        >
+                                                            <span className="material-symbols-outlined text-[18px]">fact_check</span>
+                                                            Ver avaliações
+                                                        </button>
+                                                    </td>
+                                                )}
                                             </tr>
                                         );
                                     })}
@@ -477,6 +561,18 @@ export default function MapaAvaliacoes() {
                         </div>
                     )}
                 </section>
+            )}
+
+            {avaliacoes && (
+                <DialogoAvaliacoesPresenciais
+                    dados={avaliacoes.dados}
+                    carregando={avaliacoes.carregando}
+                    erro={avaliacoes.erro}
+                    aviso={avaliacoes.aviso}
+                    onExcluida={(r) => aoMudarAvaliacao(r, 'Avaliação excluída.')}
+                    onTransferida={(r) => aoMudarAvaliacao(r, 'Avaliação transferida.')}
+                    onFechar={() => setAvaliacoes(null)}
+                />
             )}
         </AppShell>
     );

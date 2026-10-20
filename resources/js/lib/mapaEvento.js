@@ -119,10 +119,26 @@ export function filtrarAvaliacoes(linhas, { categorias = [], emAndamento = false
         && (!emAndamento || l.em_andamento > 0));
 }
 
-/** A lista ou o mapa em PDF, no recorte dos filtros. */
-export async function baixarAvaliacoesMapa(tipo, { dia, turno, categorias = [], emAndamento = false } = {}) {
+/**
+ * A ordem da lista (Sprint 249): por estande ou por situação — a ordem das
+ * categorias, da que mais falta à fechada —, crescente ou decrescente. Na
+ * situação, o empate sai pelo estande crescente. O servidor ordena o PDF igual.
+ */
+export function ordenarAvaliacoes(linhas, categorias, { ordem = 'estande', direcao = 'asc' } = {}) {
+    const posicao = Object.fromEntries(categorias.map((c, i) => [c.chave, i]));
+    const sinal = direcao === 'desc' ? -1 : 1;
+
+    return [...linhas].sort((a, b) => (ordem === 'situacao'
+        ? (sinal * ((posicao[a.situacao] ?? 0) - (posicao[b.situacao] ?? 0))) || a.numero - b.numero
+        : sinal * (a.numero - b.numero)));
+}
+
+/** A lista ou o mapa em PDF, no recorte dos filtros e na ordem da tela. */
+export async function baixarAvaliacoesMapa(tipo, {
+    dia, turno, categorias = [], emAndamento = false, ordem = 'estande', direcao = 'asc',
+} = {}) {
     const resp = await http.get(`/admin/mapa/avaliacoes/exportar/${tipo}`, {
-        params: { dia: dia || undefined, turno, categorias, em_andamento: emAndamento ? 1 : 0 },
+        params: { dia: dia || undefined, turno, categorias, em_andamento: emAndamento ? 1 : 0, ordem, direcao },
         responseType: 'blob',
     });
     const url = URL.createObjectURL(resp.data);

@@ -366,12 +366,6 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::post('/avaliacoes/designar', [AvaliacaoPresencialAdminController::class, 'designarAvaliacoes']);
                 // Ranking presencial (Sprint 222): média com o peso da comissão especial.
                 Route::get('/ranking', [AvaliacaoPresencialAdminController::class, 'ranking']);
-                // Ver avaliações e excluir (Sprint 237): quem avaliou e a nota
-                // de cada um — da organização, não do voluntário da aba.
-                Route::middleware('admin.permanente')->group(function () {
-                    Route::post('/ranking/projetos/{projeto}/avaliacoes', [AvaliacaoPresencialAdminController::class, 'avaliacoesDoRanking']);
-                    Route::post('/ranking/avaliacoes/{avaliacao}/excluir', [AvaliacaoPresencialAdminController::class, 'excluirAvaliacaoDoRanking']);
-                });
                 // Validação de avaliadores (Sprint 223): liberar para o evento inteiro.
                 Route::get('/validacao', [ValidacaoPresencialController::class, 'index']);
                 Route::post('/validacao/liberar', [ValidacaoPresencialController::class, 'liberar']);
@@ -419,6 +413,17 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 // Voluntários: contas temporárias próprias desta aba, com
                 // vários turnos de trabalho definidos de uma vez.
                 Route::contasTemporarias('avaliacao_presencial');
+            });
+
+            // Ver avaliações, excluir e transferir (Sprints 237 e 249): quem
+            // avaliou e a nota de cada um — da organização, não do voluntário.
+            // Abrem pelo Ranking presencial e pelas avaliações por projeto do
+            // Mapa do Evento, por isso valem para as duas abas.
+            Route::middleware(['aba:avaliacao_presencial,mapa', 'admin.permanente'])->prefix('presencial')->group(function () {
+                Route::post('/ranking/projetos/{projeto}/avaliacoes', [AvaliacaoPresencialAdminController::class, 'avaliacoesDoRanking']);
+                Route::post('/ranking/avaliacoes/{avaliacao}/excluir', [AvaliacaoPresencialAdminController::class, 'excluirAvaliacaoDoRanking']);
+                Route::get('/ranking/avaliacoes/{avaliacao}/destinos', [AvaliacaoPresencialAdminController::class, 'destinosDaAvaliacao']);
+                Route::post('/ranking/avaliacoes/{avaliacao}/transferir', [AvaliacaoPresencialAdminController::class, 'transferirAvaliacao']);
             });
 
             // --- Aba "Avaliação online" ---

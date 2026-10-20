@@ -16,7 +16,7 @@
         situação em {{ $painel['corte_label'] }} ·
         {{ $painel['vagas']['comuns'] }} comum(ns) + {{ $painel['vagas']['comite'] }} do comitê por projeto
     </div>
-    <div class="sub">Filtro: {{ $filtro }} · {{ count($linhas) }} de {{ $painel['total'] }} projeto(s)</div>
+    <div class="sub">Filtro: {{ $filtro }} · {{ count($linhas) }} de {{ $painel['total'] }} projeto(s) · ordenado {{ $ordem }}</div>
 </div>
 
 <table class="resumo">

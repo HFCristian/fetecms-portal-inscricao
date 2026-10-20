@@ -155,7 +155,12 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     uma seção **salva o rascunho sozinho** quando algo mudou (Sprint 242). No Ranking
     presencial, **Ver avaliações** mostra quem avaliou, a vaga e os pontos por seção, e **exclui** uma avaliação
     enviada ou em andamento com justificativa — a vaga volta a abrir, ninguém é designado no lugar, e consulta e
-    exclusão entram em Registros → Notas (`NotasPresenciaisService`, só admin permanente). A rubrica é a do documento **"Perguntas de Avaliação FETECMS 2026 ·
+    exclusão entram em Registros → Notas (`NotasPresenciaisService`, só admin permanente). No mesmo diálogo,
+    **Transferir para outro projeto** (Sprint 249, `TransferenciaAvaliacaoPresencialService`) leva a avaliação
+    lançada no estande errado para qualquer finalista com estande, com as respostas, o turno do destino e a vaga
+    refeita lá (sem vaga, entra acima do teto com aviso); justificativa obrigatória, registro em Registros → Notas.
+    O diálogo abre também pelas avaliações por projeto do Mapa do Evento — as rotas valem para as abas
+    Avaliação presencial **e** Mapa do Evento. A rubrica é a do documento **"Perguntas de Avaliação FETECMS 2026 ·
     Etapa Presencial"** (`App\Support\RubricaPresencial`) **sem a seção 1** (ética: TCE e TCLE/TALE,
     tirada a pedido da organização): 13 seções, **8,500** em escala e **1,500** em Sim/Não, perguntas
     **condicionais** (a 2.2 só depois do "Sim" na 2.1; "Não" na 2.1 = 2.2 vale 0) e **sem valor** (a
@@ -471,7 +476,9 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     as **enviadas** — no padrão 2 + 1, faltam 3 · faltam 2 (1 comitê) · faltam 2 (comum) · falta somente
     comitê · falta somente comum · avaliação fechada —, com o **em andamento** à parte. Mapa e lista
     filtram juntos pelas categorias (e por "com avaliação em andamento"), e cada um sai em **PDF** no
-    mesmo recorte (`MapaAvaliacoesPdf`, desenhado no `Cpdf`; a lista pelo Dompdf).
+    mesmo recorte (`MapaAvaliacoesPdf`, desenhado no `Cpdf`; a lista pelo Dompdf). A lista ordena por
+    **estande** ou por **situação** (o PDF sai na mesma ordem) e cada linha tem **Ver avaliações**, com a
+    transferência da avaliação lançada no estande errado (Sprint 249).
   - **Credenciamento** (`/admin/credenciamento`): o balcão do evento, em duas seções —
     **Credenciar** (os finalistas que ainda não passaram) e **Credenciados** (quem já passou), a
     mesma lista pesquisável com filtro por área e categoria. **Finalista é quem está na lista final
@@ -1070,6 +1077,36 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 246 | Avaliador: **Home** com as abas, aba presencial **unificada** e **indicação do comitê** no topo | ✅ sim | ✅ sim (Pedro, PR #126 → v1.45) | 0 |
 | 247 | Cerimonial → **Fotografias de estandes** (mapa, reserva "em registro", câmera ou arquivo de 100 MB, prévia) | ✅ sim | ✅ sim (Pedro, PR #126 → v1.45) | 0 |
 | 248 | Mapa do Evento → **avaliações por projeto**: o que falta (comum × comitê), filtros no mapa e na lista, PDF de cada um | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 249 | Avaliações por projeto: **ordenar** por estande ou situação + **transferir** a avaliação presencial para o projeto certo | ✅ sim | ❌ não (manual do Pedro) | 2 |
+
+> **Sprint 249 (mesma branch):** (a) A lista das **avaliações por projeto** ordena por **estande** ou por
+> **situação** — a ordem das categorias, da que mais falta à fechada; o empate sai pelo estande crescente —, nos
+> dois sentidos, clicando no cabeçalho (`ordenarAvaliacoes()` na tela, `MapaAvaliacoesService::ordenar()` no
+> servidor). O **PDF da lista sai na ordem da tela** (`ordem`/`direcao` no export) e diz a ordem no cabeçalho.
+> (b) **Transferir avaliação presencial** (`TransferenciaAvaliacaoPresencialService`): o avaliador se confundiu de
+> estande e lançou a avaliação no projeto errado. No **Ver avaliações** — do Ranking presencial e, agora, de cada
+> linha das avaliações por projeto —, cada avaliação enviada ou em andamento tem **Transferir para outro projeto**:
+> uma busca por estande, código ou título (`GET /admin/presencial/ranking/avaliacoes/{avaliacao}/destinos?q=`, até
+> 30, o turno da avaliação primeiro) entre os **finalistas com estande da mesma lista**, nos dois turnos, cada um com
+> a vaga que ela ocuparia lá. A transferência (`POST .../transferir`, `projeto_id` + justificativa ≥ 5) leva
+> **respostas, nota e parecer**, passa a avaliação para o **turno do estande de destino** (o dia fica) e **refaz a
+> vaga** pela regra de sempre (`JanelaTurnos::vagaPara()`); sem vaga sobrando, entra **acima do teto** com a vaga do
+> tipo do avaliador (`vagaForcada()`) e a tela avisa — antes, na lista de destinos, e depois. O mesmo avaliador não
+> fica com duas avaliações do projeto: se já enviou ou está avaliando o destino, a transferência é recusada (o
+> destino aparece desabilitado com o motivo); a designação que ele não abriu ali, ou a aberta que venceu, é apagada
+> e dá lugar à transferida. A só designada não se transfere (sai na Distribuição presencial). O registro
+> `avaliacao_presencial_transferida` fica em Registros → Notas, no projeto de origem, com o destino, a vaga de → para
+> e a justificativa. As quatro rotas do Ver avaliações (ver, excluir, destinos, transferir) passaram a um grupo
+> próprio com `aba:avaliacao_presencial,mapa` + `admin.permanente`: quem abre o Mapa do Evento também vê as notas de
+> cada avaliador e exclui/transfere. De quebra, os campos de texto do diálogo (inclusive a justificativa do Excluir)
+> usavam uma classe CSS que não existe e saíam sem borda; agora têm o desenho do `Input`.
+> Back **1677/1677**, front **963/963**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprints 248–249):** `git push origin feat/mapa-avaliacoes-detalhe` + PR para a `main`. **Sem
+> migration**, `.env` ou dependência nova. Atenção ao acesso: **quem tem só o escopo Mapa do Evento passa a ver quem
+> avaliou cada projeto (com a nota) e a excluir/transferir avaliação presencial** — se isso for só da Avaliação
+> presencial, é tirar `mapa` do middleware do grupo em `routes/api.php` e esconder o botão na tela. A transferência
+> não avisa o avaliador; a avaliação aparece no projeto certo na hora.
 
 > **Sprint 248 (branch `feat/mapa-avaliacoes-detalhe`, saída da `main` @ `783a227`, v1.45):** o dashboard da
 > tela cheia do Mapa do Evento contava quantas avaliações presenciais cada projeto recebeu, mas não **quais
@@ -1095,8 +1132,7 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > pares em jogo. Dia e turno ficam no endereço; o dia corrente se recarrega a cada 30 s.
 > Back **1670/1670**, front **958/958**, Pint limpo, build OK.
 >
-> **Pendências do Pedro (Sprint 248):** `git push origin feat/mapa-avaliacoes-detalhe` + PR para a `main`. **Sem
-> migration**, `.env` ou dependência nova. A tela depende das **vagas** de Distribuição presencial (comuns e
+> **Pendências do Pedro (Sprint 248):** push junto da 249, acima. A tela depende das **vagas** de Distribuição presencial (comuns e
 > comissão) e dos estandes gerados; marque a **comissão especial** antes do evento, senão toda avaliação cai em vaga
 > comum e "falta somente comitê" nunca fecha. Vale imprimir um PDF do mapa antes do evento para conferir cores e
 > marcas no papel (aqui foi conferido em imagem).
