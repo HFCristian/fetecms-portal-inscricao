@@ -2,7 +2,11 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../components/AppShell.jsx', () => ({ default: ({ children }) => <div>{children}</div> }));
-vi.mock('react-router-dom', () => ({ Link: ({ children, to }) => <a href={to}>{children}</a> }));
+const navigate = vi.fn();
+vi.mock('react-router-dom', () => ({
+    Link: ({ children, to }) => <a href={to}>{children}</a>,
+    useNavigate: () => navigate,
+}));
 vi.mock('../lib/auth.jsx', () => ({
     extractErrors: (e) => ({
         message: e?.response?.data?.message ?? '',
@@ -701,6 +705,16 @@ describe('MapaPlanta', () => {
 
             fireEvent.click(within(painel).getByRole('button', { name: 'Fechar o dashboard' }));
             expect(screen.queryByRole('complementary', { name: 'Dashboard das avaliações' })).not.toBeInTheDocument();
+        });
+
+        it('leva às avaliações por projeto no mesmo turno, saindo da tela cheia', async () => {
+            await entrar();
+
+            fireEvent.click(screen.getByRole('button', { name: /Dashboard/ }));
+            fireEvent.click(screen.getByRole('button', { name: /Ver avaliações por projeto/ }));
+
+            await waitFor(() => expect(navigate).toHaveBeenCalledWith(expect.stringMatching(/^\/admin\/mapa\/avaliacoes\?turno=A/)));
+            expect(document.exitFullscreen).toHaveBeenCalled();
         });
     });
 });

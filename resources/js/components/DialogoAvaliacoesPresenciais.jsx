@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, Button } from './ui.jsx';
 import { extractErrors } from '../lib/auth.jsx';
-import { excluirAvaliacaoPresencial } from '../lib/presencial.js';
+import {
+    excluirAvaliacaoPresencial, getDestinosAvaliacaoPresencial, transferirAvaliacaoPresencial,
+} from '../lib/presencial.js';
 
 // Três casas, como a rubrica presencial: os pesos foram escolhidos para desempatar.
 const nota = (valor) =>
@@ -17,16 +19,144 @@ const PILL = {
 /** "Comissão especial · peso 2" ou "Vaga comum". */
 const vagaTexto = (a) => (a.vaga === 'comite' ? `${a.vaga_label} · peso ${peso(a.peso)}` : a.vaga_label);
 
+/** O campo do diálogo: o mesmo desenho do `Input` do ui, em letra menor. */
+const CAMPO = 'w-full bg-surface border border-outline-variant rounded-lg px-3 py-2 text-xs text-on-surface '
+    + 'placeholder:text-outline focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 outline-none';
+
+/** Espera o atendente parar de digitar antes de buscar os destinos. */
+const ESPERA_BUSCA_MS = 300;
+
+/**
+ * **Transferir** (Sprint 249): o avaliador se confundiu de estande e lançou a
+ * avaliação no projeto errado. A busca acha o projeto certo por estande, código
+ * ou título — nos dois turnos — e cada destino diz a vaga que a avaliação
+ * ocuparia lá (ou que entraria acima do teto). O destino em que o mesmo
+ * avaliador já enviou ou está avaliando vem desabilitado, com o motivo.
+ */
+function PainelTransferencia({ avaliacao: a, teste, onTransferida, onCancelar }) {
+    const [busca, setBusca] = useState('');
+    const [resultado, setResultado] = useState(null);
+    const [destino, setDestino] = useState(null);
+    const [justificativa, setJustificativa] = useState('');
+    const [salvando, setSalvando] = useState(false);
+    const [erro, setErro] = useState('');
+
+    useEffect(() => {
+        let vivo = true;
+        const id = setTimeout(() => {
+            getDestinosAvaliacaoPresencial(a.avaliacao_id, busca.trim(), teste)
+                .then((r) => { if (vivo) setResultado(r); })
+                .catch((e) => { if (vivo) setErro(extractErrors(e).message || 'Não foi possível buscar os projetos.'); });
+        }, busca ? ESPERA_BUSCA_MS : 0);
+
+        return () => { vivo = false; clearTimeout(id); };
+    }, [a.avaliacao_id, busca, teste]);
+
+    async function transferir() {
+        setSalvando(true);
+        setErro('');
+        try {
+            onTransferida(await transferirAvaliacaoPresencial(a.avaliacao_id, destino.projeto_id, justificativa.trim(), teste));
+        } catch (e) {
+            const { message, fields } = extractErrors(e);
+            setErro(Object.values(fields ?? {})[0] || message || 'Não foi possível transferir a avaliação.');
+            setSalvando(false);
+        }
+    }
+
+    const destinos = resultado?.destinos ?? [];
+
+    return (
+        <div className="space-y-2 rounded-lg bg-surface-container-low p-3" aria-label={`Transferir a avaliação de ${a.avaliador}`} role="group">
+            <p className="text-on-surface">
+                Use quando {a.avaliador} lançou a avaliação no estande errado. Tudo o que foi respondido vai junto;
+                a vaga é refeita no projeto de destino e a avaliação passa para o turno dele.
+            </p>
+            <label className="block">
+                <span className="block font-semibold text-on-surface mb-1">Projeto certo</span>
+                <input
+                    type="search"
+                    className={CAMPO}
+                    value={busca}
+                    onChange={(e) => { setBusca(e.target.value); setDestino(null); }}
+                    placeholder="Estande, código ou título"
+                />
+            </label>
+
+            {resultado === null ? (
+                <p className="text-on-surface-variant">Buscando…</p>
+            ) : destinos.length === 0 ? (
+                <p className="text-on-surface-variant">Nenhum finalista com estande nesta busca.</p>
+            ) : (
+                <ul className="max-h-56 overflow-y-auto space-y-1" role="radiogroup" aria-label="Projeto de destino">
+                    {destinos.map((d) => {
+                        const escolhido = destino?.projeto_id === d.projeto_id;
+                        return (
+                            <li key={d.projeto_id}>
+                                <button
+                                    type="button"
+                                    role="radio"
+                                    aria-checked={escolhido}
+                                    disabled={Boolean(d.bloqueio)}
+                                    onClick={() => setDestino(d)}
+                                    className={`w-full text-left rounded-lg border px-2.5 py-1.5 disabled:opacity-50 disabled:cursor-not-allowed ${
+                                        escolhido ? 'border-primary-container bg-primary-fixed' : 'border-outline-variant/60 hover:bg-surface-variant'
+                                    }`}
+                                >
+                                    <span className="block font-semibold text-on-surface">
+                                        Estande {d.estande} · Turno {d.turno}{d.codigo ? ` · ${d.codigo}` : ''}
+                                    </span>
+                                    <span className="block text-on-surface">{d.titulo}</span>
+                                    <span className="block text-on-surface-variant">
+                                        {d.bloqueio
+                                            ? `${a.avaliador} ${d.bloqueio}.`
+                                            : `comum ${d.ocupadas.comum}/${d.vagas.comuns} · comitê ${d.ocupadas.comite}/${d.vagas.comite} · `
+                                                + (d.acima_do_teto ? `sem vaga: entra acima do teto (${d.vaga_label})` : `entra como ${d.vaga_label}`)}
+                                    </span>
+                                </button>
+                            </li>
+                        );
+                    })}
+                </ul>
+            )}
+            {resultado && resultado.total > destinos.length && (
+                <p className="text-on-surface-variant">Mostrando {destinos.length} de {resultado.total}. Refine a busca para achar os outros.</p>
+            )}
+
+            <label className="block">
+                <span className="block font-semibold text-on-surface mb-1">Por que transferir esta avaliação?</span>
+                <textarea
+                    className={CAMPO}
+                    rows={2}
+                    maxLength={1000}
+                    value={justificativa}
+                    onChange={(e) => setJustificativa(e.target.value)}
+                    placeholder="A justificativa fica em Registros → Notas."
+                />
+            </label>
+            {erro && <Alert>{erro}</Alert>}
+            <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={onCancelar}>Cancelar</Button>
+                <Button type="button" loading={salvando} disabled={!destino || justificativa.trim().length < 5} onClick={transferir}>
+                    Transferir avaliação
+                </Button>
+            </div>
+        </div>
+    );
+}
+
 /**
  * O cartão de uma avaliação: quem avaliou, em que vaga, quando, o parecer — e a
- * exclusão, com justificativa.
+ * exclusão, com justificativa. Com `onTransferida`, também a transferência para
+ * outro projeto (Sprint 249).
  *
  * Excluir apaga de vez (a vaga volta a abrir no estande, ninguém é designado no
  * lugar), então a justificativa é a única memória do que ela era: vai para
  * Registros → Notas junto da nota.
  */
-function CartaoAvaliacao({ avaliacao: a, teste, onExcluida }) {
+function CartaoAvaliacao({ avaliacao: a, teste, onExcluida, onTransferida }) {
     const [abrindo, setAbrindo] = useState(false);
+    const [transferindo, setTransferindo] = useState(false);
     const [justificativa, setJustificativa] = useState('');
     const [salvando, setSalvando] = useState(false);
     const [erro, setErro] = useState('');
@@ -83,7 +213,14 @@ function CartaoAvaliacao({ avaliacao: a, teste, onExcluida }) {
 
             {erro && <Alert>{erro}</Alert>}
 
-            {abrindo ? (
+            {transferindo ? (
+                <PainelTransferencia
+                    avaliacao={a}
+                    teste={teste}
+                    onTransferida={onTransferida}
+                    onCancelar={() => setTransferindo(false)}
+                />
+            ) : abrindo ? (
                 <div className="space-y-2">
                     <p className="text-on-surface">
                         A avaliação é apagada e a vaga volta a abrir no estande. Ninguém é designado no lugar.
@@ -91,7 +228,7 @@ function CartaoAvaliacao({ avaliacao: a, teste, onExcluida }) {
                     <label className="block">
                         <span className="block font-semibold text-on-surface mb-1">Por que excluir esta avaliação?</span>
                         <textarea
-                            className="fetec-input w-full text-xs"
+                            className={CAMPO}
                             rows={2}
                             maxLength={1000}
                             value={justificativa}
@@ -109,7 +246,18 @@ function CartaoAvaliacao({ avaliacao: a, teste, onExcluida }) {
                     </div>
                 </div>
             ) : (
-                <div className="flex justify-end">
+                <div className="flex flex-wrap justify-end gap-4">
+                    {onTransferida && (
+                        <button
+                            type="button"
+                            onClick={() => { setTransferindo(true); setErro(''); }}
+                            aria-label={`Transferir a avaliação de ${a.avaliador} para outro projeto`}
+                            className="inline-flex items-center gap-1 font-semibold text-primary hover:underline"
+                        >
+                            <span className="material-symbols-outlined text-[16px]">swap_horiz</span>
+                            Transferir para outro projeto
+                        </button>
+                    )}
                     <button
                         type="button"
                         onClick={() => setAbrindo(true)}
@@ -130,11 +278,12 @@ function CartaoAvaliacao({ avaliacao: a, teste, onExcluida }) {
  * de um projeto, com quem avaliou.
  *
  * O ranking mostra as notas sem nome; aqui elas aparecem lado a lado, seção por
- * seção da rubrica, e cada uma pode ser excluída. Entram as enviadas e as em
- * andamento — a só designada sai pela Distribuição presencial. Abrir fica
- * registrado em Registros → Notas, pelo servidor.
+ * seção da rubrica, e cada uma pode ser excluída ou transferida para o projeto
+ * certo (Sprint 249). Entram as enviadas e as em andamento — a só designada sai
+ * pela Distribuição presencial. Abrir fica registrado em Registros → Notas,
+ * pelo servidor. Também abre pelas avaliações por projeto do Mapa do Evento.
  */
-export default function DialogoAvaliacoesPresenciais({ dados, carregando, erro, teste = false, onFechar, onExcluida }) {
+export default function DialogoAvaliacoesPresenciais({ dados, carregando, erro, aviso = '', teste = false, onFechar, onExcluida, onTransferida }) {
     const avaliacoes = dados?.avaliacoes ?? [];
     // Só quem enviou com a rubrica de agora tem pontos por seção.
     const colunas = avaliacoes.filter((a) => a.secoes);
@@ -150,6 +299,7 @@ export default function DialogoAvaliacoesPresenciais({ dados, carregando, erro, 
                 </h3>
 
                 {erro && <Alert>{erro}</Alert>}
+                {aviso && <Alert type="info">{aviso}</Alert>}
 
                 {carregando && !dados && (
                     <div className="text-center py-8 text-on-surface-variant">
@@ -231,7 +381,13 @@ export default function DialogoAvaliacoesPresenciais({ dados, carregando, erro, 
                                     <h4 className="font-semibold text-sm text-on-surface">Cada avaliação</h4>
                                     <ul className="space-y-2">
                                         {avaliacoes.map((a) => (
-                                            <CartaoAvaliacao key={a.avaliacao_id} avaliacao={a} teste={teste} onExcluida={onExcluida} />
+                                            <CartaoAvaliacao
+                                                key={a.avaliacao_id}
+                                                avaliacao={a}
+                                                teste={teste}
+                                                onExcluida={onExcluida}
+                                                onTransferida={onTransferida}
+                                            />
                                         ))}
                                     </ul>
                                 </div>

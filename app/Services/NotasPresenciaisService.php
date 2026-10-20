@@ -190,9 +190,10 @@ class NotasPresenciaisService
     /**
      * A lista que vale para o projeto: a oficial, ou a demo no modo de teste.
      * Fora dela, o projeto não é finalista aqui — e o modo de teste nunca
-     * alcança um finalista de verdade.
+     * alcança um finalista de verdade. Também é a trava da transferência
+     * (Sprint 249): o destino tem de estar na mesma lista.
      */
-    private function listaDoProjeto(Projeto $projeto, bool $demo): ListaFinal
+    public function listaDoProjeto(Projeto $projeto, bool $demo): ListaFinal
     {
         $lista = ListaFinal::vigente(Edicao::atual(), $demo);
 

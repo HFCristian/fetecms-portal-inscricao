@@ -98,6 +98,60 @@ export async function baixarListaSituacao(formato, params = {}) {
     URL.revokeObjectURL(url);
 }
 
+// --- Avaliações por projeto (Sprint 248) ------------------------------------
+
+/**
+ * Quais avaliações faltam em cada projeto do turno, comuns e do comitê: a
+ * planta, as categorias (com a contagem e a cor de cada uma) e as linhas.
+ */
+export const getAvaliacoesMapa = (params = {}) =>
+    http.get('/admin/mapa/avaliacoes', { params }).then((r) => r.data);
+
+/**
+ * O recorte dos filtros da tela: as categorias marcadas (nenhuma = todas) e,
+ * se pedido, só quem tem avaliação em andamento. O servidor aplica a mesma
+ * regra na exportação.
+ */
+export function filtrarAvaliacoes(linhas, { categorias = [], emAndamento = false } = {}) {
+    const marcadas = new Set(categorias);
+
+    return linhas.filter((l) => (marcadas.size === 0 || marcadas.has(l.situacao))
+        && (!emAndamento || l.em_andamento > 0));
+}
+
+/**
+ * A ordem da lista (Sprint 249): por estande ou por situação — a ordem das
+ * categorias, da que mais falta à fechada —, crescente ou decrescente. Na
+ * situação, o empate sai pelo estande crescente. O servidor ordena o PDF igual.
+ */
+export function ordenarAvaliacoes(linhas, categorias, { ordem = 'estande', direcao = 'asc' } = {}) {
+    const posicao = Object.fromEntries(categorias.map((c, i) => [c.chave, i]));
+    const sinal = direcao === 'desc' ? -1 : 1;
+
+    return [...linhas].sort((a, b) => (ordem === 'situacao'
+        ? (sinal * ((posicao[a.situacao] ?? 0) - (posicao[b.situacao] ?? 0))) || a.numero - b.numero
+        : sinal * (a.numero - b.numero)));
+}
+
+/** A lista ou o mapa em PDF, no recorte dos filtros e na ordem da tela. */
+export async function baixarAvaliacoesMapa(tipo, {
+    dia, turno, categorias = [], emAndamento = false, ordem = 'estande', direcao = 'asc',
+} = {}) {
+    const resp = await http.get(`/admin/mapa/avaliacoes/exportar/${tipo}`, {
+        params: { dia: dia || undefined, turno, categorias, em_andamento: emAndamento ? 1 : 0, ordem, direcao },
+        responseType: 'blob',
+    });
+    const url = URL.createObjectURL(resp.data);
+    const link = document.createElement('a');
+
+    link.href = url;
+    link.download = `avaliacoes-${tipo}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+}
+
 // --- Remanejar sem refazer (Sprints 212–213) -------------------------------
 
 /**

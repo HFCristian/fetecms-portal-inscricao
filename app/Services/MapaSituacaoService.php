@@ -186,6 +186,21 @@ class MapaSituacaoService
         ];
     }
 
+    /**
+     * As linhas de um turno no corte do dia escolhido, para outra tela do mapa
+     * montar o seu recorte sem repetir a junção (Sprint 248, avaliações por
+     * projeto). É a mesma conta que pinta a planta.
+     *
+     * @return array{turno: Turno, corte: CarbonImmutable, linhas: list<array<string, mixed>>}
+     */
+    public function doTurno(?string $dia, ?string $turno): array
+    {
+        $turno = Turno::tryFrom((string) $turno) ?? Turno::A;
+        $corte = $this->corte($dia);
+
+        return ['turno' => $turno, 'corte' => $corte, 'linhas' => $this->linhas($turno, $corte)];
+    }
+
     /** As opções que a tela desenha no filtro. */
     public function opcoes(): array
     {

@@ -91,8 +91,9 @@ function Linha({ p, onVerAvaliacoes }) {
  * é quem ainda não teve todas as vagas preenchidas.
  *
  * Cada linha tem **Ver avaliações** (Sprint 237): quem avaliou, a nota seção por
- * seção e a exclusão, com justificativa. É da organização — a conta temporária
- * do voluntário não vê o botão, e o servidor recusa.
+ * seção, a exclusão e a transferência para o projeto certo (Sprint 249), com
+ * justificativa. É da organização — a conta temporária do voluntário não vê o
+ * botão, e o servidor recusa.
  */
 export default function PresencialRanking() {
     const { user } = useAuth();
@@ -103,7 +104,7 @@ export default function PresencialRanking() {
     const [modoTeste, setModoTeste] = useState(false);
     const [erro, setErro] = useState('');
     const [aviso, setAviso] = useState('');
-    // O diálogo de Ver avaliações: { dados, carregando, erro }.
+    // O diálogo de Ver avaliações: { dados, carregando, erro, aviso }.
     const [avaliacoes, setAvaliacoes] = useState(null);
 
     const carregar = useCallback(() => {
@@ -133,6 +134,15 @@ export default function PresencialRanking() {
     function aoExcluir(resposta) {
         setAvaliacoes({ dados: resposta.data, carregando: false, erro: '' });
         setAviso(resposta.meta?.message ?? 'Avaliação excluída.');
+        carregar();
+    }
+
+    // A transferência (Sprint 249) também devolve o projeto de origem sem ela;
+    // o aviso de teto, se houver, fica no próprio diálogo.
+    function aoTransferir(resposta) {
+        const texto = [resposta.meta?.message ?? 'Avaliação transferida.', resposta.meta?.aviso].filter(Boolean).join(' ');
+        setAvaliacoes({ dados: resposta.data, carregando: false, erro: '', aviso: texto });
+        setAviso(texto);
         carregar();
     }
 
@@ -236,8 +246,10 @@ export default function PresencialRanking() {
                     dados={avaliacoes.dados}
                     carregando={avaliacoes.carregando}
                     erro={avaliacoes.erro}
+                    aviso={avaliacoes.aviso}
                     teste={modoTeste}
                     onExcluida={aoExcluir}
+                    onTransferida={aoTransferir}
                     onFechar={() => setAvaliacoes(null)}
                 />
             )}

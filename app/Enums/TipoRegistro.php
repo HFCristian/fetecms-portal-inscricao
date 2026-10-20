@@ -138,6 +138,7 @@ enum TipoRegistro: string
     case NotaDesconsiderada = 'nota_desconsiderada';
     case NotaReconsiderada = 'nota_reconsiderada';
     case AvaliacaoPresencialExcluida = 'avaliacao_presencial_excluida';
+    case AvaliacaoPresencialTransferida = 'avaliacao_presencial_transferida';
     case CerimonialCheckin = 'cerimonial_checkin';
     case CerimonialCheckinDesfeito = 'cerimonial_checkin_desfeito';
     case CerimonialFotografiaRegistrada = 'cerimonial_fotografia_registrada';
@@ -242,6 +243,7 @@ enum TipoRegistro: string
             self::NotaDesconsiderada => 'Nota desconsiderada',
             self::NotaReconsiderada => 'Nota reconsiderada',
             self::AvaliacaoPresencialExcluida => 'Avaliação presencial excluída',
+            self::AvaliacaoPresencialTransferida => 'Avaliação presencial transferida',
             self::CerimonialCheckin => 'Check-in do cerimonial',
             self::CerimonialCheckinDesfeito => 'Check-in desfeito',
             self::CerimonialFotografiaRegistrada => 'Fotografia do estande registrada',
@@ -280,7 +282,7 @@ enum TipoRegistro: string
             self::NotasVisualizadas,
             self::NotaDesconsiderada,
             self::NotaReconsiderada,
-            self::AvaliacaoPresencialExcluida => self::SECAO_NOTAS,
+            self::AvaliacaoPresencialExcluida, self::AvaliacaoPresencialTransferida => self::SECAO_NOTAS,
             self::CerimonialCheckin, self::CerimonialCheckinDesfeito,
             self::CerimonialFotografiaRegistrada, self::CerimonialFotografiaExcluida => self::SECAO_CERIMONIAL,
             default => self::SECAO_AVALIACAO,

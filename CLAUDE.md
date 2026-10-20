@@ -155,7 +155,12 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     uma seção **salva o rascunho sozinho** quando algo mudou (Sprint 242). No Ranking
     presencial, **Ver avaliações** mostra quem avaliou, a vaga e os pontos por seção, e **exclui** uma avaliação
     enviada ou em andamento com justificativa — a vaga volta a abrir, ninguém é designado no lugar, e consulta e
-    exclusão entram em Registros → Notas (`NotasPresenciaisService`, só admin permanente). A rubrica é a do documento **"Perguntas de Avaliação FETECMS 2026 ·
+    exclusão entram em Registros → Notas (`NotasPresenciaisService`, só admin permanente). No mesmo diálogo,
+    **Transferir para outro projeto** (Sprint 249, `TransferenciaAvaliacaoPresencialService`) leva a avaliação
+    lançada no estande errado para qualquer finalista com estande, com as respostas, o turno do destino e a vaga
+    refeita lá (sem vaga, entra acima do teto com aviso); justificativa obrigatória, registro em Registros → Notas.
+    O diálogo abre também pelas avaliações por projeto do Mapa do Evento — as rotas valem para as abas
+    Avaliação presencial **e** Mapa do Evento. A rubrica é a do documento **"Perguntas de Avaliação FETECMS 2026 ·
     Etapa Presencial"** (`App\Support\RubricaPresencial`) **sem a seção 1** (ética: TCE e TCLE/TALE,
     tirada a pedido da organização): 13 seções, **8,500** em escala e **1,500** em Sim/Não, perguntas
     **condicionais** (a 2.2 só depois do "Sim" na 2.1; "Não" na 2.1 = 2.2 vale 0) e **sem valor** (a
@@ -465,7 +470,15 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     TXT, CSV e PDF; o dia corrente se recarrega sozinho a cada 30s. **Marcar saída**, ao lado da tela
     cheia, registra a equipe credenciada que foi embora antes do fim do turno (`saidas_antecipadas`, uma
     por projeto e dia): o estande fica **cinza** naquele dia, por cima de qualquer estágio, e a marcação
-    vai para Registros → Mapa do evento (Sprint 243, `SaidaAntecipadaService`).
+    vai para Registros → Mapa do evento (Sprint 243, `SaidaAntecipadaService`). No dashboard da tela
+    cheia, **Ver avaliações por projeto** abre `/admin/mapa/avaliacoes` (Sprint 248,
+    `MapaAvaliacoesService`): o que **falta** em cada projeto do turno, pela **vaga gravada** e contando só
+    as **enviadas** — no padrão 2 + 1, faltam 3 · faltam 2 (1 comitê) · faltam 2 (comum) · falta somente
+    comitê · falta somente comum · avaliação fechada —, com o **em andamento** à parte. Mapa e lista
+    filtram juntos pelas categorias (e por "com avaliação em andamento"), e cada um sai em **PDF** no
+    mesmo recorte (`MapaAvaliacoesPdf`, desenhado no `Cpdf`; a lista pelo Dompdf). A lista ordena por
+    **estande** ou por **situação** (o PDF sai na mesma ordem) e cada linha tem **Ver avaliações**, com a
+    transferência da avaliação lançada no estande errado (Sprint 249).
   - **Credenciamento** (`/admin/credenciamento`): o balcão do evento, em duas seções —
     **Credenciar** (os finalistas que ainda não passaram) e **Credenciados** (quem já passou), a
     mesma lista pesquisável com filtro por área e categoria. **Finalista é quem está na lista final
@@ -1060,9 +1073,72 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 242 | Credenciar: concluir volta para a **fila de Credenciar** + avaliação presencial com **rascunho automático** a cada seção | ✅ sim | ✅ sim (Pedro, PR #125 → v1.44) | 0 |
 | 243 | Mapa do Evento: **Marcar saída** (equipe que foi embora antes do horário), estande cinza no dia | ✅ sim | ✅ sim (Pedro, PR #125 → v1.44) | 0 |
 | 244 | Sessão de **5 h**, `sessoes:limpar` agendado, `sessoes:diagnostico` + 419/401 tratados na SPA | ✅ sim | ✅ sim (Pedro, PR #125 → v1.44) | 0 |
-| 245 | Fix: designação do comitê cortava em **30** (sem aviso) + manuais; mapa separa **credenciado antes × hoje** | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 246 | Avaliador: **Home** com as abas, aba presencial **unificada** e **indicação do comitê** no topo | ✅ sim | ❌ não (manual do Pedro) | 2 |
-| 247 | Cerimonial → **Fotografias de estandes** (mapa, reserva "em registro", câmera ou arquivo de 100 MB, prévia) | ✅ sim | ❌ não (manual do Pedro) | 3 |
+| 245 | Fix: designação do comitê cortava em **30** (sem aviso) + manuais; mapa separa **credenciado antes × hoje** | ✅ sim | ✅ sim (Pedro, PR #126 → v1.45) | 0 |
+| 246 | Avaliador: **Home** com as abas, aba presencial **unificada** e **indicação do comitê** no topo | ✅ sim | ✅ sim (Pedro, PR #126 → v1.45) | 0 |
+| 247 | Cerimonial → **Fotografias de estandes** (mapa, reserva "em registro", câmera ou arquivo de 100 MB, prévia) | ✅ sim | ✅ sim (Pedro, PR #126 → v1.45) | 0 |
+| 248 | Mapa do Evento → **avaliações por projeto**: o que falta (comum × comitê), filtros no mapa e na lista, PDF de cada um | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 249 | Avaliações por projeto: **ordenar** por estande ou situação + **transferir** a avaliação presencial para o projeto certo | ✅ sim | ❌ não (manual do Pedro) | 2 |
+
+> **Sprint 249 (mesma branch):** (a) A lista das **avaliações por projeto** ordena por **estande** ou por
+> **situação** — a ordem das categorias, da que mais falta à fechada; o empate sai pelo estande crescente —, nos
+> dois sentidos, clicando no cabeçalho (`ordenarAvaliacoes()` na tela, `MapaAvaliacoesService::ordenar()` no
+> servidor). O **PDF da lista sai na ordem da tela** (`ordem`/`direcao` no export) e diz a ordem no cabeçalho.
+> (b) **Transferir avaliação presencial** (`TransferenciaAvaliacaoPresencialService`): o avaliador se confundiu de
+> estande e lançou a avaliação no projeto errado. No **Ver avaliações** — do Ranking presencial e, agora, de cada
+> linha das avaliações por projeto —, cada avaliação enviada ou em andamento tem **Transferir para outro projeto**:
+> uma busca por estande, código ou título (`GET /admin/presencial/ranking/avaliacoes/{avaliacao}/destinos?q=`, até
+> 30, o turno da avaliação primeiro) entre os **finalistas com estande da mesma lista**, nos dois turnos, cada um com
+> a vaga que ela ocuparia lá. A transferência (`POST .../transferir`, `projeto_id` + justificativa ≥ 5) leva
+> **respostas, nota e parecer**, passa a avaliação para o **turno do estande de destino** (o dia fica) e **refaz a
+> vaga** pela regra de sempre (`JanelaTurnos::vagaPara()`); sem vaga sobrando, entra **acima do teto** com a vaga do
+> tipo do avaliador (`vagaForcada()`) e a tela avisa — antes, na lista de destinos, e depois. O mesmo avaliador não
+> fica com duas avaliações do projeto: se já enviou ou está avaliando o destino, a transferência é recusada (o
+> destino aparece desabilitado com o motivo); a designação que ele não abriu ali, ou a aberta que venceu, é apagada
+> e dá lugar à transferida. A só designada não se transfere (sai na Distribuição presencial). O registro
+> `avaliacao_presencial_transferida` fica em Registros → Notas, no projeto de origem, com o destino, a vaga de → para
+> e a justificativa. As quatro rotas do Ver avaliações (ver, excluir, destinos, transferir) passaram a um grupo
+> próprio com `aba:avaliacao_presencial,mapa` + `admin.permanente`: quem abre o Mapa do Evento também vê as notas de
+> cada avaliador e exclui/transfere. De quebra, os campos de texto do diálogo (inclusive a justificativa do Excluir)
+> usavam uma classe CSS que não existe e saíam sem borda; agora têm o desenho do `Input`.
+> **Fix (CI):** `MapaSaidaAntecipadaTest` (Sprint 243) falhou no CI que rodou logo depois da meia-noite: "40 minutos
+> atrás" caía no dia anterior e a saída, que é uma por dia, virava duas linhas. O teste agora para o relógio às 14h.
+> A suíte inteira foi rodada com o relógio em 00:20 e em 23:50 para achar outros casos: nenhum.
+> Back **1677/1677**, front **963/963**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprints 248–249):** `git push origin feat/mapa-avaliacoes-detalhe` + PR para a `main`. **Sem
+> migration**, `.env` ou dependência nova. Atenção ao acesso: **quem tem só o escopo Mapa do Evento passa a ver quem
+> avaliou cada projeto (com a nota) e a excluir/transferir avaliação presencial** — se isso for só da Avaliação
+> presencial, é tirar `mapa` do middleware do grupo em `routes/api.php` e esconder o botão na tela. A transferência
+> não avisa o avaliador; a avaliação aparece no projeto certo na hora.
+
+> **Sprint 248 (branch `feat/mapa-avaliacoes-detalhe`, saída da `main` @ `783a227`, v1.45):** o dashboard da
+> tela cheia do Mapa do Evento contava quantas avaliações presenciais cada projeto recebeu, mas não **quais
+> faltavam** — e "faltam 2" não diz se são duas comuns ou uma comum e a do comitê. O botão **Ver avaliações por
+> projeto**, no topo do dashboard, sai da tela cheia e abre `/admin/mapa/avaliacoes` no mesmo dia e turno
+> (`MapaAvaliacoes.jsx`, `GET /admin/mapa/avaliacoes`, `MapaAvaliacoesService`). Cada projeto com estande no turno
+> cai numa categoria, o par **(comuns que faltam, comitê que falta)**: no padrão 2 + 1, **faltam 3 avaliações ·
+> faltam 2 (1 comitê) · faltam 2 (comum) · falta somente comitê · falta somente comum · avaliação fechada**; outra
+> configuração de vagas gera os pares dela com o mesmo jeito de escrever. A conta é pela **vaga gravada**
+> (`avaliacoes_presenciais.vaga`), não por quem avaliou — comum a mais não cobre o comitê — e só pelas
+> **enviadas** (decisão do Pedro); a **em andamento** aparece à parte, por vaga: coluna na lista, ponto no canto do
+> estande e um filtro próprio. A aberta que venceu o prazo do turno não conta; o rascunho do comitê, que não vence,
+> conta. O seletor de dia corta como o do mapa (`MapaSituacaoService::doTurno()`, que a tela nova reaproveita):
+> num dia anterior vale o que estava enviado e aberto no fim dele. Entra **todo projeto do turno** — quem ainda não
+> está pronto (sem credenciamento ou checagem) fica com borda tracejada e quem saiu antes do horário com um traço,
+> sem sair da categoria. Os botões das categorias são o filtro e a legenda: marcados somam entre si, "com avaliação
+> em andamento" recorta por cima, e o mapa e a lista respondem juntos — o estande fora do filtro fica **apagado**, não
+> some. A lista traz estande, código da lista final, projeto, turno, comum e comitê (enviadas + em andamento) e a
+> situação; clicar no estande destaca a linha. **Exportar mapa (PDF)** desenha a planta direto no `Cpdf`
+> (`App\Support\MapaAvaliacoesPdf`, A4 deitado, com a legenda e as contagens) e **Exportar lista (PDF)** sai do
+> Dompdf (`pdf/mapa-avaliacoes.blade.php`), os dois no recorte dos filtros
+> (`GET /admin/mapa/avaliacoes/exportar/{lista|mapa}`). As seis cores foram validadas para daltonismo com todos os
+> pares em jogo. Dia e turno ficam no endereço; o dia corrente se recarrega a cada 30 s.
+> Back **1670/1670**, front **958/958**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprint 248):** push junto da 249, acima. A tela depende das **vagas** de Distribuição presencial (comuns e
+> comissão) e dos estandes gerados; marque a **comissão especial** antes do evento, senão toda avaliação cai em vaga
+> comum e "falta somente comitê" nunca fecha. Vale imprimir um PDF do mapa antes do evento para conferir cores e
+> marcas no papel (aqui foi conferido em imagem).
 
 > **Sprints 245–247 (branch `feat/fotos-estandes-home-avaliador`, saída da `main` @ `3151ceb`, v1.44):**
 > (a) **Sprint 245** — relato: projetos do turno B "sumiam" de Comitê especial → Designações. **Não era o
@@ -1094,8 +1170,8 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > registra e só exclui o que ela registrou. Registros → Cerimonial ganhou os dois tipos.
 > Back **1662/1662**, front **951/951**, Pint limpo, build OK.
 >
-> **Pendências do Pedro (Sprints 245–247):** (1) `git push origin feat/fotos-estandes-home-avaliador` + PR para a
-> `main`. **Duas migrations** (`credenciamentos.primeiro_finalizado_em`, com backfill, e `fotografias_estande`),
+> **Pendências do Pedro (Sprints 245–247):** (1) ~~push + PR~~ — **entrou na `main` pelo PR #126** (v1.45).
+> **Duas migrations** (`credenciamentos.primeiro_finalizado_em`, com backfill, e `fotografias_estande`),
 > nenhuma dependência nova. (2) **Upload de 100 MB**: no Nginx `client_max_body_size 110M` e no PHP-FPM
 > `upload_max_filesize = 100M` / `post_max_size = 110M` (§ Nginx do `DEPLOY_AWS.md`); sem isso a foto grande
 > falha. As fotos ficam em `storage/app/private/fotografias-estandes` — o mesmo cuidado de persistência dos

@@ -18,6 +18,7 @@ use App\Services\CredenciaisService;
 use App\Services\DistribuicaoPresencialService;
 use App\Services\NotasPresenciaisService;
 use App\Services\RankingPresencialService;
+use App\Services\TransferenciaAvaliacaoPresencialService;
 use App\Services\TurnosPresenciaisService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -37,6 +38,7 @@ class AvaliacaoPresencialAdminController extends Controller
         private readonly TurnosPresenciaisService $turnos,
         private readonly RankingPresencialService $ranking,
         private readonly NotasPresenciaisService $notas,
+        private readonly TransferenciaAvaliacaoPresencialService $transferencia,
     ) {}
 
     /** Janela, lista em uso, catálogo de itens e as orientações publicadas. */
@@ -227,6 +229,44 @@ class AvaliacaoPresencialAdminController extends Controller
                 $this->turnos->emTeste($request->user(), $request->boolean('teste')),
             ),
             'meta' => ['message' => 'Avaliação excluída. A vaga voltou a abrir no estande.'],
+        ]);
+    }
+
+    /** Para onde a avaliação pode ser transferida, com a vaga que ocuparia lá. */
+    public function destinosDaAvaliacao(Request $request, AvaliacaoPresencial $avaliacao): JsonResponse
+    {
+        $dados = $request->validate(['q' => ['nullable', 'string', 'max:120']]);
+
+        return response()->json(['data' => $this->transferencia->destinos(
+            $avaliacao,
+            $dados['q'] ?? null,
+            $this->turnos->emTeste($request->user(), $request->boolean('teste')),
+        )]);
+    }
+
+    /** Muda a avaliação lançada no projeto errado para o certo, com justificativa. */
+    public function transferirAvaliacao(Request $request, AvaliacaoPresencial $avaliacao): JsonResponse
+    {
+        $dados = $request->validate([
+            'projeto_id' => ['required', 'integer', 'exists:projetos,id'],
+            'justificativa' => ['required', 'string', 'min:5', 'max:1000'],
+        ]);
+
+        $resultado = $this->transferencia->transferir(
+            $avaliacao,
+            Projeto::findOrFail($dados['projeto_id']),
+            $request->user(),
+            trim($dados['justificativa']),
+            $this->turnos->emTeste($request->user(), $request->boolean('teste')),
+        );
+
+        return response()->json([
+            'data' => $resultado['origem'],
+            'meta' => [
+                'message' => $resultado['mensagem'],
+                'aviso' => $resultado['aviso'],
+                'destino' => $resultado['destino'],
+            ],
         ]);
     }
 

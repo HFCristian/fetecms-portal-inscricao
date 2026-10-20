@@ -904,6 +904,27 @@ class RegistroAtividadeService
     }
 
     /**
+     * A avaliação presencial lançada no projeto errado foi **transferida** para
+     * outro (Sprint 249): o avaliador se confundiu de estande. Fica no projeto
+     * de origem, onde o erro estava, com o destino e as vagas de → para.
+     *
+     * @param  array{avaliador: string, nota: ?float, situacao: string, vaga_de: string, vaga_para: string, destino: string, acima_do_teto: bool}  $dados
+     */
+    public function avaliacaoPresencialTransferida(Projeto $origem, User $admin, array $dados, string $justificativa): RegistroAtividade
+    {
+        return $this->registrarNoProjeto(TipoRegistro::AvaliacaoPresencialTransferida, $origem, $admin, [
+            'avaliador' => $dados['avaliador'],
+            'nota' => $dados['nota'] === null ? null : number_format($dados['nota'], 3, ',', ''),
+            'situacao' => $dados['situacao'],
+            'vaga_de' => $dados['vaga_de'],
+            'vaga_para' => $dados['vaga_para'],
+            'destino' => $dados['destino'],
+            'acima_do_teto' => $dados['acima_do_teto'],
+            'justificativa' => $justificativa,
+        ]);
+    }
+
+    /**
      * O admin pediu a lista dos projetos com notas díspares (Ranking →
      * Verificar disparidade).
      *
@@ -1145,6 +1166,21 @@ class RegistroAtividadeService
                 $detalhes['situacao'] ?? 'avaliação',
                 empty($detalhes['nota']) ? '' : ' · nota '.$detalhes['nota'],
                 empty($detalhes['vaga']) ? '' : ' · '.$detalhes['vaga'],
+                $detalhes['justificativa'] ?? 'sem justificativa',
+            );
+        }
+
+        // A transferência diz de quem era, para onde foi e a vaga que ocupou lá.
+        if ($registro->tipo === TipoRegistro::AvaliacaoPresencialTransferida) {
+            return sprintf(
+                'transferiu a avaliação presencial de %s (%s%s) para %s · vaga %s → %s%s · %s',
+                $detalhes['avaliador'] ?? 'um avaliador',
+                $detalhes['situacao'] ?? 'avaliação',
+                empty($detalhes['nota']) ? '' : ' · nota '.$detalhes['nota'],
+                $detalhes['destino'] ?? 'outro projeto',
+                $detalhes['vaga_de'] ?? '?',
+                $detalhes['vaga_para'] ?? '?',
+                empty($detalhes['acima_do_teto']) ? '' : ' (acima do teto)',
                 $detalhes['justificativa'] ?? 'sem justificativa',
             );
         }

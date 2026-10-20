@@ -47,6 +47,10 @@ class MapaSaidaAntecipadaTest extends TestCase
     {
         parent::setUp();
 
+        // Relógio parado no meio da tarde: a saída é por dia, e "40 minutos
+        // atrás" rodando logo depois da meia-noite cairia no dia anterior.
+        $this->travelTo(now()->setTime(14, 0));
+
         $estado = Estado::create(['nome' => 'Mato Grosso do Sul', 'uf' => 'MS']);
         $this->cidade = Cidade::create(['nome' => 'Campo Grande', 'estado_id' => $estado->id, 'capital' => true]);
         $this->area = Area::create(['nome' => 'Ciências Agrárias', 'sigla' => 'AGR']);

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { Alert, Button, Field, Input, Select, useConfirm } from '../components/ui.jsx';
 import { extractErrors } from '../lib/auth.jsx';
@@ -273,6 +273,7 @@ export default function MapaPlanta() {
     const [sucesso, setSucesso] = useState('');
     const [novoNumero, setNovoNumero] = useState('');
     const [confirm, confirmDialog] = useConfirm();
+    const navigate = useNavigate();
 
     // --- Situação ao vivo ---------------------------------------------
     const [modo, setModo] = useState('situacao');       // 'situacao' | 'ocupacao'
@@ -359,6 +360,18 @@ export default function MapaPlanta() {
             // Navegador que recusa (ou não tem a API): a tela segue como está.
             setAlerta('Este navegador não permitiu abrir o mapa em tela cheia.');
         }
+    }
+
+    // Sprint 248: a tela das avaliações por projeto, no mesmo dia e turno. Sai
+    // da tela cheia antes, senão o navegador fica preso nela.
+    async function verAvaliacoesPorProjeto() {
+        try {
+            if (document.fullscreenElement) await document.exitFullscreen();
+        } catch {
+            // Sem a API, segue para a tela de qualquer jeito.
+        }
+        const params = new URLSearchParams({ turno, ...(dia ? { dia } : {}) });
+        navigate(`/admin/mapa/avaliacoes?${params}`);
     }
 
     const estandes = layout?.estandes ?? [];
@@ -912,7 +925,12 @@ export default function MapaPlanta() {
                     </svg>
 
                     {telaCheia && painelAberto && (
-                        <PainelAvaliacoesMapa linhas={linhasDoTurno} maximo={maxAvaliacoes} onFechar={() => setPainelAberto(false)} />
+                        <PainelAvaliacoesMapa
+                            linhas={linhasDoTurno}
+                            maximo={maxAvaliacoes}
+                            onFechar={() => setPainelAberto(false)}
+                            onDetalhar={verAvaliacoesPorProjeto}
+                        />
                     )}
                     </div>
 

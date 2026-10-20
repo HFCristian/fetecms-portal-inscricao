@@ -37,8 +37,11 @@ function BarraFaixas({ faixas, rotulos, cores, total, rotulo }) {
  *
  * Calculado das mesmas linhas que pintam o mapa: atualiza junto com ele, a
  * cada 5 segundos, e nunca discorda do desenho.
+ *
+ * O botão **Ver avaliações por projeto** (Sprint 248) leva à tela que separa o
+ * que falta em cada projeto — comum e do comitê —, no mapa e em lista.
  */
-export default function PainelAvaliacoesMapa({ linhas, maximo, onFechar }) {
+export default function PainelAvaliacoesMapa({ linhas, maximo, onFechar, onDetalhar }) {
     const r = resumoDoPainel(linhas, maximo);
     const cores = coresDasFaixas(r.maximo);
 
@@ -56,6 +59,18 @@ export default function PainelAvaliacoesMapa({ linhas, maximo, onFechar }) {
                     <span className="material-symbols-outlined">close</span>
                 </button>
             </div>
+
+            {/* Sprint 248: o que falta em cada projeto, comum e do comitê. */}
+            {onDetalhar && (
+                <button
+                    type="button"
+                    onClick={onDetalhar}
+                    className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg border-2 border-primary-container px-3 py-2 text-sm font-semibold text-primary-container hover:bg-primary-fixed"
+                >
+                    <span className="material-symbols-outlined text-[18px]">table_view</span>
+                    Ver avaliações por projeto
+                </button>
+            )}
 
             <section aria-label="Avaliações realizadas">
                 <div className="flex items-baseline justify-between">
