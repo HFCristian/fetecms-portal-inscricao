@@ -53,6 +53,7 @@ use App\Http\Controllers\Api\V1\IntegranteController;
 use App\Http\Controllers\Api\V1\InterpreteCheckinController;
 use App\Http\Controllers\Api\V1\InterpretesController;
 use App\Http\Controllers\Api\V1\ItensConferenciaController;
+use App\Http\Controllers\Api\V1\MapaAvaliacoesController;
 use App\Http\Controllers\Api\V1\MapaEstandesController;
 use App\Http\Controllers\Api\V1\MapaPlantaController;
 use App\Http\Controllers\Api\V1\MapaRemanejamentoController;
@@ -693,6 +694,11 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::get('/planta/lista', [MapaPlantaController::class, 'lista']);
                 Route::get('/planta/lista/{formato}', [MapaPlantaController::class, 'exportar'])
                     ->where('formato', 'txt|csv|pdf');
+                // Avaliações por projeto (Sprint 248): o que falta, comum e do
+                // comitê, no mapa e em lista — cada um exportável em PDF.
+                Route::get('/avaliacoes', [MapaAvaliacoesController::class, 'index']);
+                Route::get('/avaliacoes/exportar/{tipo}', [MapaAvaliacoesController::class, 'exportar'])
+                    ->where('tipo', 'lista|mapa');
                 Route::post('/planta', [MapaPlantaController::class, 'salvar']);
                 Route::post('/planta/{layout}/restaurar', [MapaPlantaController::class, 'restaurar']);
 
