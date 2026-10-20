@@ -1100,6 +1100,9 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > próprio com `aba:avaliacao_presencial,mapa` + `admin.permanente`: quem abre o Mapa do Evento também vê as notas de
 > cada avaliador e exclui/transfere. De quebra, os campos de texto do diálogo (inclusive a justificativa do Excluir)
 > usavam uma classe CSS que não existe e saíam sem borda; agora têm o desenho do `Input`.
+> **Fix (CI):** `MapaSaidaAntecipadaTest` (Sprint 243) falhou no CI que rodou logo depois da meia-noite: "40 minutos
+> atrás" caía no dia anterior e a saída, que é uma por dia, virava duas linhas. O teste agora para o relógio às 14h.
+> A suíte inteira foi rodada com o relógio em 00:20 e em 23:50 para achar outros casos: nenhum.
 > Back **1677/1677**, front **963/963**, Pint limpo, build OK.
 >
 > **Pendências do Pedro (Sprints 248–249):** `git push origin feat/mapa-avaliacoes-detalhe` + PR para a `main`. **Sem
