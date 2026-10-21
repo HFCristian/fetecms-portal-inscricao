@@ -387,6 +387,7 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                     Route::delete('/listas/{lista}/premiacoes/{premio}/projetos/{projeto}', [ListaPresencialController::class, 'removerDaPremiacao']);
                     Route::get('/listas/{lista}/exportar/{formato}', [ListaPresencialController::class, 'exportar'])
                         ->where('formato', 'csv|xlsx|pdf|txt');
+                    Route::get('/listas/{lista}/slides', [ListaPresencialController::class, 'slides']);
                 });
                 // Validação de avaliadores (Sprint 223): liberar para o evento inteiro.
                 Route::get('/validacao', [ValidacaoPresencialController::class, 'index']);

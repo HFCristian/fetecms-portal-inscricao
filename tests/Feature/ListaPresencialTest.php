@@ -12,6 +12,8 @@ use App\Models\AvaliacaoPresencial;
 use App\Models\AvaliadorProfile;
 use App\Models\Credencial;
 use App\Models\Edicao;
+use App\Models\EstandeProjeto;
+use App\Models\FotografiaEstande;
 use App\Models\ListaFinal;
 use App\Models\ListaPresencial;
 use App\Models\Projeto;
@@ -19,7 +21,9 @@ use App\Models\RegistroAtividade;
 use App\Models\User;
 use App\Services\ContaTemporariaService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
+use Tests\Fixtures\Imagens;
 use Tests\TestCase;
 use ZipArchive;
 
@@ -494,5 +498,73 @@ FET.AGR-004 - Drone na lavoura
         $this->assertStringContainsString('Credencial;"MOSTRATEC — Fundação Liberato";;FET.AGR-004;"Drone na lavoura"', $csv);
 
         $this->assertStringStartsWith('%PDF', $this->get("/api/v1/admin/presencial/listas/{$id}/exportar/pdf")->assertOk()->getContent());
+    }
+    // --- Slides (Sprint 254) -------------------------------------------------
+
+    private function foto(Projeto $projeto, string $base64 = Imagens::JPEG, string $mime = 'image/jpeg'): void
+    {
+        $caminho = "fotografias-estandes/{$projeto->id}.img";
+        Storage::disk('local')->put($caminho, base64_decode($base64));
+        FotografiaEstande::create([
+            'edicao_id' => $this->edicao->id, 'projeto_id' => $projeto->id, 'caminho' => $caminho, 'mime' => $mime,
+            'registrado_em' => now(),
+        ]);
+    }
+
+    /** @return array<string, string> */
+    private function partesDoPptx(string $caminho): array
+    {
+        $zip = new ZipArchive;
+        $this->assertTrue($zip->open($caminho) === true);
+        $partes = [];
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $partes[(string) $zip->getNameIndex($i)] = (string) $zip->getFromIndex($i);
+        }
+        $zip->close();
+
+        return $partes;
+    }
+
+    public function test_slides_na_ordem_do_palco_com_a_foto_do_estande(): void
+    {
+        Storage::fake('local');
+        $p = $this->cenario();
+        EstandeProjeto::create(['edicao_id' => $this->edicao->id, 'projeto_id' => $p['a']->id, 'turno' => 'A', 'numero' => 42]);
+        $this->foto($p['a']);
+        $this->foto($p['f'], Imagens::WEBP, 'image/webp');
+        $this->credencial('MOSTRATEC', [$p['d']], orgao: 'Fundação Liberato');
+        $id = $this->postJson('/api/v1/admin/presencial/listas', [...$this->cotaPorArea(2), 'tipo' => 'final'])->json('data.lista.id');
+
+        // Rascunho não tem slides.
+        $this->get("/api/v1/admin/presencial/listas/{$id}/slides")->assertUnprocessable();
+
+        $tela = $this->postJson("/api/v1/admin/presencial/listas/{$id}/gerar")->assertOk()->json('data.slides');
+        $this->assertSame(5, $tela['premiados']);
+        $this->assertSame(15, $tela['slides']);
+        $semFoto = collect($tela['sem_foto'])->keyBy('titulo');
+        $this->assertFalse($semFoto->has('Abelhas'));
+        $this->assertStringContainsString('formato', $semFoto['Fungos']['motivo']);
+        $this->assertSame('Sem fotografia registrada', $semFoto['Bioinsumo']['motivo']);
+
+        $resposta = $this->get("/api/v1/admin/presencial/listas/{$id}/slides")->assertOk();
+        $resposta->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
+        $this->assertStringContainsString('.pptx', (string) $resposta->headers->get('Content-Disposition'));
+        $partes = $this->partesDoPptx($resposta->baseResponse->getFile()->getPathname());
+
+        $this->assertSame(15, substr_count($partes['ppt/presentation.xml'], '<p:sldId '));
+        // Agrárias do 2º para o 1º, depois Biológicas, depois a credencial.
+        $this->assertStringContainsString('2º lugar', $partes['ppt/slides/slide1.xml']);
+        $this->assertStringContainsString('Ciências Agrárias · FETECMS', $partes['ppt/slides/slide1.xml']);
+        $this->assertStringContainsString('Bioinsumo', $partes['ppt/slides/slide3.xml']);
+        $this->assertStringContainsString('1º lugar', $partes['ppt/slides/slide4.xml']);
+        $this->assertStringContainsString('Estande 042 · FET.AGR-001', $partes['ppt/slides/slide5.xml']);
+        $this->assertArrayHasKey('ppt/media/image5.jpeg', $partes);
+        $this->assertStringContainsString('FET.AGR-001', $partes['ppt/slides/slide6.xml']);
+        $this->assertStringContainsString('Ciências Biológicas', $partes['ppt/slides/slide7.xml']);
+        $this->assertStringContainsString('formato', $partes['ppt/slides/slide8.xml']);
+        $this->assertStringContainsString('MOSTRATEC', $partes['ppt/slides/slide13.xml']);
+        $this->assertStringContainsString('Fundação Liberato', $partes['ppt/slides/slide13.xml']);
+        $this->assertStringContainsString('Sem fotografia registrada', $partes['ppt/slides/slide14.xml']);
+        $this->assertStringContainsString('Drone na lavoura', $partes['ppt/slides/slide15.xml']);
     }
 }

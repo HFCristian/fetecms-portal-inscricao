@@ -160,7 +160,12 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     lançada no estande errado para qualquer finalista com estande, com as respostas, o turno do destino e a vaga
     refeita lá (sem vaga, entra acima do teto com aviso); justificativa obrigatória, registro em Registros → Notas.
     O diálogo abre também pelas avaliações por projeto do Mapa do Evento — as rotas valem para as abas
-    Avaliação presencial **e** Mapa do Evento. A rubrica é a do documento **"Perguntas de Avaliação FETECMS 2026 ·
+    Avaliação presencial **e** Mapa do Evento. O Ranking presencial também **baixa** (CSV, Excel, PDF, TXT) e gera as
+    **listas da premiação** (Sprints 250–254, `/admin/presencial/listas`, `ListaPresencialService`): preliminares e
+    finais como as da online, mas em tabela própria — a final ativa é o **resultado oficial da premiação** e alimenta o
+    Cerimonial, sem mexer nos finalistas. Duas seções: **por nota** (cotas categoria → área, colocação no grupo, código
+    do finalista) e **premiações** (cópia editável de Credenciais e Prêmios); arquivos TXT/CSV/Excel/PDF e os
+    **slides** da cerimônia em .pptx (prêmio → foto do estande → projeto; `App\Support\ApresentacaoPptx`). A rubrica é a do documento **"Perguntas de Avaliação FETECMS 2026 ·
     Etapa Presencial"** (`App\Support\RubricaPresencial`) **sem a seção 1** (ética: TCE e TCLE/TALE,
     tirada a pedido da organização): 13 seções, **8,500** em escala e **1,500** em Sim/Não, perguntas
     **condicionais** (a 2.2 só depois do "Sim" na 2.1; "Não" na 2.1 = 2.2 vale 0) e **sem valor** (a
@@ -1082,7 +1087,37 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 251 | Ranking presencial → **listas preliminares e finais** da premiação (cotas categoria → área, colocação, gerar/ativar/reativar, união, TXT/CSV/Excel/PDF) | ✅ sim | ❌ não (manual do Pedro) | 2 |
 | 252 | Lista da premiação: **incluir e retirar** (livre no rascunho, justificativa depois) + a final ativa **premia no Cerimonial** | ✅ sim | ❌ não (manual do Pedro) | 3 |
 | 253 | Lista da premiação: seção de **premiações** (cópia editável de Credenciais e Prêmios), nos mesmos arquivos | ✅ sim | ❌ não (manual do Pedro) | 4 |
+| 254 | Lista da premiação: **slides da cerimônia em PPTX** (prêmio → foto do estande → projeto), escritor próprio | ✅ sim | ❌ não (manual do Pedro) | 5 |
 
+> **Sprint 254 (mesma branch):** a lista **gerada** baixa os **slides da cerimônia** em .pptx
+> (`GET /admin/presencial/listas/{lista}/slides`, `ListaPresencialService::slides()`). Para cada premiação, três
+> slides: (1) o **prêmio** — "Premiação por nota" com "1º lugar" e "Área · Categoria", ou o tipo (Credencial/Prêmio)
+> com o nome e o órgão —, em branco sobre o roxo; (2) a **foto do estande** de Cerimonial → Fotografias de estandes,
+> inteira e centralizada, com "Estande 042 · FET.AGR-001" embaixo; (3) o **projeto** como na lista — código, título,
+> escola e a equipe (estudantes, "Nome - Orientador(a)", "Nome - Coorientador(a)"). A ordem é a do palco (decisão do
+> Pedro): por nota, categoria → área, **do último colocado para o primeiro** (quem está sem colocação abre o grupo);
+> depois as credenciais e os prêmios na ordem do cadastro. O projeto com mais de uma premiação aparece uma vez em cada.
+> **Sem foto** (decisão do Pedro), o slide sai com o aviso no lugar — "Sem fotografia registrada", "Fotografia não
+> encontrada no servidor" ou, para WEBP/HEIC, que o PowerPoint não abre o formato —, e a tela lista antes de baixar
+> quem vai sair assim (`slides.sem_foto` no detalhe). O .pptx sai de um **escritor próprio**
+> (`App\Support\ApresentacaoPptx`, `ZipArchive`, **sem dependência nova**, como o `PlanilhaXlsx`): 16:9, identidade
+> do portal (Space Grotesk/Inter, roxo e a faixa verde), texto que diminui em degraus pelo comprimento, a foto
+> embutida **sem recompressão** e a **orientação EXIF** da câmera lida à mão e aplicada como rotação do quadro (o
+> PowerPoint mostra os pixels como estão). O arquivo é montado em disco temporário e apagado depois do download.
+> Conferido abrindo no LibreOffice (conversão para PDF e imagem); não num PowerPoint de verdade.
+> Back **1710/1710**, front **984/984**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprints 250–254):** (1) `git push origin feat/ranking-presencial-listas` + PR para a `main`.
+> **Duas migrations** (`listas_presenciais` + `lista_presencial_projetos`; `lista_presencial_premios` +
+> `lista_presencial_premio_projetos`), **nenhuma variável de `.env`** e **nenhuma dependência nova**. (2) **Abra um
+> .pptx no PowerPoint** (e, se a organização usa, no Google Slides) antes da cerimônia: aqui ele foi validado no
+> LibreOffice. Confira em especial uma **foto tirada de pé no celular** — a rotação vem do EXIF. (3) Fotos em **WEBP ou
+> HEIC** não entram nos slides (o servidor não tem GD para converter): o aviso aparece na tela; reenvie em JPG. (4) A
+> **final presencial ativa entra no Cerimonial**: gerar uma final aqui muda os premiados (medalhas, busto verde) na
+> hora. Use **preliminar** para ensaiar. (5) As premiações da lista são uma **cópia**: credencial atribuída depois de
+> montar a lista só entra por *Recarregar de Credenciais e Prêmios* (ou incluindo à mão). (6) Listas e downloads são
+> `admin.permanente`: o voluntário de conta temporária continua vendo só o ranking.
+>
 > **Sprints 252–253 (mesma branch):**
 > (a) **Sprint 252** — a composição da lista da premiação se edita como a da online: **incluir** um finalista
 > (busca por código ou título entre os finalistas fora da seção por nota) e **retirar**, na hora no rascunho; numa

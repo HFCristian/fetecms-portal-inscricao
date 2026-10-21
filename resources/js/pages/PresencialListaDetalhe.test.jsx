@@ -32,6 +32,10 @@ const DADOS = {
         },
         { id: 71, credencial_id: 5, tipo: 'premio', tipo_label: 'Prêmio', nome: 'Destaque', orgao: null, titulo: 'Destaque', itens: [] },
     ],
+    slides: {
+        premiados: 4, slides: 12,
+        sem_foto: [{ projeto_id: 11, codigo: 'FET.AGR-002', titulo: 'Bioinsumo', motivo: 'Sem fotografia registrada' }],
+    },
     finalistas: [
         { id: 10, titulo: 'Abelhas', codigo: 'FET.AGR-001', categoria: 'FETECMS', area: 'Ciências Agrárias' },
         { id: 20, titulo: 'Drone na lavoura', codigo: 'FET.AGR-004', categoria: 'FETECMS', area: 'Ciências Agrárias' },
@@ -49,6 +53,7 @@ const rotularListaPresencial = vi.fn(() => Promise.resolve({
     meta: { message: 'Apelido e descrição salvos.' },
 }));
 const exportarListaPresencial = vi.fn(() => Promise.resolve());
+const exportarSlidesPresencial = vi.fn(() => Promise.resolve());
 const adicionarNaListaPresencial = vi.fn(() => Promise.resolve({
     ...DADOS, lista: { ...DADOS.lista, projetos: 4 },
     itens: [...DADOS.itens, item({ projeto_id: 20, codigo: 'FET.AGR-004', titulo: 'Drone na lavoura', media: 6, colocacao: 3, manual: true })],
@@ -66,6 +71,7 @@ vi.mock('../components/BuscaCombobox.jsx', () => ({
     ),
 }));
 vi.mock('../lib/listasPresenciais.js', () => ({
+    exportarSlidesPresencial: (...a) => exportarSlidesPresencial(...a),
     adicionarNaPremiacaoPresencial: (...a) => adicionarNaPremiacaoPresencial(...a),
     removerDaPremiacaoPresencial: (...a) => removerDaPremiacaoPresencial(...a),
     recarregarPremiacoesPresencial: (...a) => recarregarPremiacoesPresencial(...a),
@@ -205,5 +211,20 @@ describe('PresencialListaDetalhe', () => {
         fireEvent.click(within(dialogo).getByRole('button', { name: 'Retirar' }));
 
         await waitFor(() => expect(removerDaPremiacaoPresencial).toHaveBeenCalledWith('5', 70, 20, 'Credencial recusada.'));
+    });
+    it('slides só na lista gerada, avisando quem sai sem foto', async () => {
+        render(<PresencialListaDetalhe />);
+        expect(await screen.findByText('Gere a lista para baixar os slides.')).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /Baixar slides/ })).not.toBeInTheDocument();
+    });
+
+    it('baixa os slides da lista gerada', async () => {
+        getListaPresencial.mockResolvedValueOnce({ ...DADOS, lista: { ...DADOS.lista, rascunho: false, vigente: true } });
+        render(<PresencialListaDetalhe />);
+
+        expect(await screen.findByText(/1 projeto vai sair sem foto/)).toBeInTheDocument();
+        expect(screen.getByText('FET.AGR-002 — Bioinsumo: Sem fotografia registrada')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: /Baixar slides \(12\)/ }));
+        await waitFor(() => expect(exportarSlidesPresencial).toHaveBeenCalledWith('5'));
     });
 });

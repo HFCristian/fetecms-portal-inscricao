@@ -9,15 +9,18 @@ use App\Models\Area;
 use App\Models\Credencial;
 use App\Models\Edicao;
 use App\Models\EstandeProjeto;
+use App\Models\FotografiaEstande;
 use App\Models\ListaFinal;
 use App\Models\ListaPresencial;
 use App\Models\ListaPresencialPremio;
 use App\Models\Projeto;
 use App\Models\User;
+use App\Support\ApresentacaoPptx;
 use App\Support\Cota;
 use App\Support\PlanilhaXlsx;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -624,11 +627,13 @@ class ListaPresencialService
         $dentro = array_column($itens, 'projeto_id');
 
         $finalistas = $this->finalistas($lista->demo);
+        $premiacoes = $this->premiacoes($lista);
 
         return [
             'lista' => $this->resumo($lista) + ['projetos' => count($itens)],
             'itens' => $itens,
-            'premiacoes' => $this->premiacoes($lista),
+            'premiacoes' => $premiacoes,
+            'slides' => $this->resumoSlides($lista, $itens, $premiacoes),
             // Quem pode entrar numa premiação: qualquer finalista (a tela tira
             // os que já estão nela).
             'finalistas' => $finalistas
@@ -1110,6 +1115,182 @@ class ListaPresencialService
         }
 
         return $escolhidos;
+    }
+
+    // --- Slides (Sprint 254) -----------------------------------------------------
+
+    /**
+     * A apresentação da cerimônia em .pptx: para cada premiação, três slides —
+     * o nome do prêmio (ou a colocação), a foto do estande (Cerimonial →
+     * Fotografias de estandes) e o projeto como está na lista. Primeiro os
+     * premiados por nota, por categoria e área, do último colocado para o
+     * primeiro (o suspense do palco); depois as credenciais e os prêmios, na
+     * ordem do cadastro.
+     *
+     * Grava num arquivo temporário e devolve o caminho: com uma foto de vários
+     * MB por projeto, o arquivo não cabe na memória.
+     *
+     * @return array{caminho: string, nome: string}
+     */
+    public function slides(ListaPresencial $lista): array
+    {
+        if ($lista->rascunho) {
+            throw ValidationException::withMessages(['lista' => 'Gere a lista antes de montar os slides.']);
+        }
+
+        $sequencia = $this->sequenciaDosSlides($lista);
+
+        if ($sequencia === []) {
+            throw ValidationException::withMessages(['lista' => 'A lista não tem nenhum premiado para os slides.']);
+        }
+
+        $fotos = $this->fotos($lista, array_map(fn (array $p) => $p['item']['projeto_id'], $sequencia));
+        $evento = $lista->edicao?->nome ?? 'FETECMS';
+        $apresentacao = new ApresentacaoPptx($lista->nome);
+
+        foreach ($sequencia as $p) {
+            $i = $p['item'];
+
+            if ($p['secao'] === 'nota') {
+                $grupo = implode(' · ', array_filter([$i['area'] ?? 'Sem área', $i['categoria']]));
+                $apresentacao->titulo(
+                    'Premiação por nota',
+                    $i['colocacao'] !== null ? $i['colocacao'].'º lugar' : $grupo,
+                    $i['colocacao'] !== null ? $grupo : null,
+                    $evento,
+                );
+            } else {
+                $apresentacao->titulo($p['tipo_label'], $p['nome'], $p['orgao'], $evento);
+            }
+
+            $foto = $fotos[$i['projeto_id']] ?? ['caminho' => null, 'motivo' => 'Sem fotografia registrada'];
+            $apresentacao->foto($foto['caminho'], implode(' · ', array_filter([
+                $i['estande'] !== null ? 'Estande '.str_pad((string) $i['estande'], 3, '0', STR_PAD_LEFT) : null,
+                $i['codigo'],
+            ])) ?: $i['titulo'], $foto['motivo'] ?? 'Sem fotografia registrada');
+
+            $apresentacao->projeto($i['codigo'], $i['titulo'], $i['escola'], $this->equipe($i));
+        }
+
+        $caminho = tempnam(sys_get_temp_dir(), 'pptx');
+        if ($caminho === false) {
+            throw new \RuntimeException('Não foi possível criar o arquivo temporário dos slides.');
+        }
+
+        $apresentacao->salvar($caminho);
+
+        return ['caminho' => $caminho, 'nome' => 'slides-'.Str::slug($lista->nome).'-v'.$lista->versao.'.pptx'];
+    }
+
+    /**
+     * A ordem do palco: por nota (categoria → área → do último ao primeiro
+     * colocado; quem não tem colocação abre o grupo), depois as premiações.
+     *
+     * @return list<array{secao: string, item: array<string, mixed>, tipo_label?: string, nome?: string, orgao?: ?string}>
+     */
+    private function sequenciaDosSlides(ListaPresencial $lista): array
+    {
+        $porNota = collect($this->itens($lista))
+            ->groupBy(fn (array $i) => ($i['categoria_valor'] ?? '').'|'.($i['area_id'] ?? 0), preserveKeys: false)
+            ->flatMap(fn (Collection $grupo) => $grupo->sortBy([
+                fn (array $a, array $b) => ($b['colocacao'] ?? PHP_INT_MAX) <=> ($a['colocacao'] ?? PHP_INT_MAX),
+                fn (array $a, array $b) => strcmp($this->chave($a['titulo']), $this->chave($b['titulo'])),
+            ])->values())
+            ->map(fn (array $i) => ['secao' => 'nota', 'item' => $i])
+            ->values()
+            ->all();
+
+        $premiacoes = [];
+        foreach ($this->premiacoes($lista) as $premio) {
+            foreach ($premio['itens'] as $i) {
+                $premiacoes[] = [
+                    'secao' => 'premiacao',
+                    'item' => $i,
+                    'tipo_label' => $premio['tipo_label'],
+                    'nome' => $premio['nome'],
+                    'orgao' => $premio['orgao'],
+                ];
+            }
+        }
+
+        return [...$porNota, ...$premiacoes];
+    }
+
+    /**
+     * A foto de cada projeto que serve para os slides, ou o motivo de não
+     * servir.
+     *
+     * @param  list<int>  $projetoIds
+     * @return array<int, array{caminho: ?string, motivo: ?string}>
+     */
+    private function fotos(ListaPresencial $lista, array $projetoIds): array
+    {
+        $disco = Storage::disk('local');
+
+        return FotografiaEstande::where('edicao_id', $lista->edicao_id)
+            ->whereIn('projeto_id', array_unique($projetoIds))
+            ->whereNotNull('caminho')
+            ->get(['projeto_id', 'caminho', 'mime'])
+            ->mapWithKeys(function (FotografiaEstande $f) use ($disco) {
+                if (! $disco->exists($f->caminho)) {
+                    return [$f->projeto_id => ['caminho' => null, 'motivo' => 'Fotografia não encontrada no servidor']];
+                }
+
+                $caminho = $disco->path($f->caminho);
+
+                return [$f->projeto_id => ApresentacaoPptx::imagem($caminho) === null
+                    ? ['caminho' => null, 'motivo' => 'Fotografia num formato que o PowerPoint não abre (envie JPG ou PNG)']
+                    : ['caminho' => $caminho, 'motivo' => null]];
+            })
+            ->all();
+    }
+
+    /**
+     * O que a tela avisa antes de baixar os slides: quantos são e quem vai
+     * sair sem foto (e por quê).
+     *
+     * @param  list<array<string, mixed>>  $itens
+     * @param  list<array<string, mixed>>  $premiacoes
+     * @return array<string, mixed>
+     */
+    private function resumoSlides(ListaPresencial $lista, array $itens, array $premiacoes): array
+    {
+        $projetos = collect($itens)
+            ->concat(collect($premiacoes)->flatMap(fn (array $p) => $p['itens']))
+            ->keyBy('projeto_id');
+        $premiados = count($itens) + collect($premiacoes)->sum(fn (array $p) => count($p['itens']));
+        $fotos = $projetos->isEmpty() ? [] : $this->fotos($lista, $projetos->keys()->all());
+
+        return [
+            'premiados' => $premiados,
+            'slides' => $premiados * 3,
+            'sem_foto' => $projetos
+                ->filter(fn (array $i) => ($fotos[$i['projeto_id']]['caminho'] ?? null) === null)
+                ->map(fn (array $i) => [
+                    'projeto_id' => $i['projeto_id'],
+                    'codigo' => $i['codigo'],
+                    'titulo' => $i['titulo'],
+                    'motivo' => $fotos[$i['projeto_id']]['motivo'] ?? 'Sem fotografia registrada',
+                ])
+                ->sortBy(fn (array $i) => $this->chave($i['titulo']))
+                ->values()
+                ->all(),
+        ];
+    }
+
+    /**
+     * A equipe como na lista: estudantes, orientador e coorientador.
+     *
+     * @param  array<string, mixed>  $item
+     * @return list<string>
+     */
+    private function equipe(array $item): array
+    {
+        return array_values(array_filter([
+            ...$item['alunos'],
+            $item['orientador'] ? $item['orientador'].' - Orientador(a)' : null,
+            $item['coorientador'] ? $item['coorientador'].' - Coorientador(a)' : null,
+        ]));
     }
 
     // --- Apoio ------------------------------------------------------------------

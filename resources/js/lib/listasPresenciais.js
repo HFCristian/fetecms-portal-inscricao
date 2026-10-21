@@ -67,3 +67,7 @@ export const removerDaPremiacaoPresencial = (id, premioId, projetoId, justificat
 export const recarregarPremiacoesPresencial = (id, justificativa = null) =>
     http.post(`/admin/presencial/listas/${id}/premiacoes/recarregar`, justificativa ? { justificativa } : {})
         .then((r) => r.data.data);
+
+/** Os slides da cerimônia em .pptx (Sprint 254): só de lista gerada. */
+export const exportarSlidesPresencial = (id) =>
+    baixarArquivo(`/admin/presencial/listas/${id}/slides`, {}, 'slides-premiacao.pptx');

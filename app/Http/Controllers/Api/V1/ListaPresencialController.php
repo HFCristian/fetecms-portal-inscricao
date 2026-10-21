@@ -13,6 +13,7 @@ use App\Services\TurnosPresenciaisService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -205,6 +206,16 @@ class ListaPresencialController extends Controller
             'Content-Type' => $arquivo['tipo'],
             'Content-Disposition' => 'attachment; filename="'.$arquivo['nome'].'"',
         ]);
+    }
+
+    /** A apresentação da cerimônia em .pptx (Sprint 254), só de lista gerada. */
+    public function slides(ListaPresencial $lista): BinaryFileResponse
+    {
+        $arquivo = $this->listas->slides($this->daEdicao($lista));
+
+        return response()->download($arquivo['caminho'], $arquivo['nome'], [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        ])->deleteFileAfterSend();
     }
 
     /** Lista de outra edição não existe para quem está nesta. */

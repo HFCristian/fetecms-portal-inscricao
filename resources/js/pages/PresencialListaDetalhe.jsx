@@ -6,7 +6,8 @@ import JustificativaDialog from '../components/JustificativaDialog.jsx';
 import { Alert, Button, useConfirm } from '../components/ui.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import {
-    adicionarNaListaPresencial, adicionarNaPremiacaoPresencial, exportarListaPresencial, gerarListaPresencialDefinitiva,
+    adicionarNaListaPresencial, adicionarNaPremiacaoPresencial, exportarListaPresencial, exportarSlidesPresencial,
+    gerarListaPresencialDefinitiva,
     getListaPresencial, reativarListaPresencial, recarregarPremiacoesPresencial, removerDaListaPresencial,
     removerDaPremiacaoPresencial, rotularListaPresencial,
 } from '../lib/listasPresenciais.js';
@@ -139,6 +140,49 @@ function ItemPremiado({ item, acoes, comColocacao = true }) {
     );
 }
 
+/**
+ * Os slides da cerimônia (Sprint 254): três por premiação — o prêmio, a foto
+ * do estande e o projeto. Só de lista gerada; antes de baixar, a tela diz quem
+ * vai sair sem foto (o slide da foto sai com um aviso no lugar).
+ */
+function SlidesDaLista({ lista, resumo, baixando, onBaixar }) {
+    const semFoto = resumo?.sem_foto ?? [];
+
+    return (
+        <div className="mt-4 pt-4 border-t border-outline-variant/40">
+            <p className="text-sm font-semibold text-on-surface mb-1">Slides da cerimônia (PPTX)</p>
+            <p className="text-xs text-on-surface-variant mb-2">
+                Para cada premiação, três slides: o prêmio (ou a colocação), a foto do estande (Cerimonial →
+                Fotografias de estandes) e o projeto como está na lista. Primeiro os premiados por nota, do último
+                colocado para o primeiro em cada grupo; depois as credenciais e os prêmios.
+            </p>
+            {lista.rascunho ? (
+                <p className="text-xs text-on-surface-variant">Gere a lista para baixar os slides.</p>
+            ) : (
+                <>
+                    {semFoto.length > 0 && (
+                        <div className="mb-2">
+                            <Alert type="info">
+                                {semFoto.length} {semFoto.length === 1 ? 'projeto vai sair' : 'projetos vão sair'} sem foto — o
+                                slide da foto mostra o aviso:
+                                <ul className="mt-1 list-disc pl-5">
+                                    {semFoto.map((p) => (
+                                        <li key={p.projeto_id}>{[p.codigo, p.titulo].filter(Boolean).join(' — ')}: {p.motivo}</li>
+                                    ))}
+                                </ul>
+                            </Alert>
+                        </div>
+                    )}
+                    <Button type="button" loading={baixando === 'pptx'} disabled={baixando !== '' || !(resumo?.premiados > 0)} onClick={onBaixar}>
+                        <span className="material-symbols-outlined text-[18px]">slideshow</span>
+                        Baixar slides ({resumo?.slides ?? 0})
+                    </Button>
+                </>
+            )}
+        </div>
+    );
+}
+
 const botaoRetirar = 'p-1.5 rounded-lg text-on-surface-variant hover:bg-error-container hover:text-error transition-colors shrink-0';
 
 /**
@@ -267,9 +311,9 @@ export default function PresencialListaDetalhe() {
     async function baixar(formato) {
         setBaixando(formato); setErro('');
         try {
-            await exportarListaPresencial(id, formato);
+            await (formato === 'pptx' ? exportarSlidesPresencial(id) : exportarListaPresencial(id, formato));
         } catch {
-            setErro('Não foi possível gerar o arquivo.');
+            setErro(formato === 'pptx' ? 'Não foi possível montar os slides.' : 'Não foi possível gerar o arquivo.');
         } finally {
             setBaixando('');
         }
@@ -421,6 +465,7 @@ export default function PresencialListaDetalhe() {
                                 </Button>
                             ))}
                         </div>
+                        <SlidesDaLista lista={lista} resumo={dados.slides} baixando={baixando} onBaixar={() => baixar('pptx')} />
                     </div>
 
                     <h2 className="font-display text-lg font-semibold text-on-surface mb-2">Premiados por nota</h2>
