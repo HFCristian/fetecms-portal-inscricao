@@ -97,11 +97,12 @@ class ListaPresencialTest extends TestCase
         ];
     }
 
-    private function cotaPorArea(int $n): array
+    /** Premia até o `$n`º lugar nas duas áreas da FETECMS. */
+    private function cotaPorArea(?int $n): array
     {
         return ['categorias' => ['fetecms' => ['areas' => [
-            $this->agr->id => ['cota' => ['tipo' => 'fixo', 'valor' => $n]],
-            $this->bio->id => ['cota' => ['tipo' => 'fixo', 'valor' => $n]],
+            $this->agr->id => ['lugares' => $n],
+            $this->bio->id => ['lugares' => $n],
         ]]]];
     }
 
@@ -222,8 +223,8 @@ class ListaPresencialTest extends TestCase
             'listas' => [$um, $dois], 'tipo' => 'final', 'nome' => 'Junção',
         ])->assertCreated();
 
-        // A de um por área é contida na de dois (o empate em 8 cortou Compostagem).
-        $this->assertSame(['Abelhas', 'Bioinsumo', 'Enzimas', 'Fungos'], array_column($resposta->json('data.itens'), 'titulo'));
+        // A do 1º lugar é contida na do 2º (que leva os dois empatados em 2º).
+        $this->assertSame(['Abelhas', 'Bioinsumo', 'Compostagem', 'Enzimas', 'Fungos'], array_column($resposta->json('data.itens'), 'titulo'));
         $this->assertCount(2, $resposta->json('data.lista.origens'));
         $this->assertSame('final', $resposta->json('data.lista.tipo'));
     }
@@ -539,8 +540,10 @@ FET.AGR-004 - Drone na lavoura
         $this->get("/api/v1/admin/presencial/listas/{$id}/slides")->assertUnprocessable();
 
         $tela = $this->postJson("/api/v1/admin/presencial/listas/{$id}/gerar")->assertOk()->json('data.slides');
-        $this->assertSame(5, $tela['premiados']);
-        $this->assertSame(15, $tela['slides']);
+        // Até o 2º lugar: Abelhas, Bioinsumo e Compostagem (empatados em 2º),
+        // Enzimas e Fungos; mais o Drone na MOSTRATEC.
+        $this->assertSame(6, $tela['premiados']);
+        $this->assertSame(18, $tela['slides']);
         $semFoto = collect($tela['sem_foto'])->keyBy('titulo');
         $this->assertFalse($semFoto->has('Abelhas'));
         $this->assertStringContainsString('formato', $semFoto['Fungos']['motivo']);
@@ -551,20 +554,76 @@ FET.AGR-004 - Drone na lavoura
         $this->assertStringContainsString('.pptx', (string) $resposta->headers->get('Content-Disposition'));
         $partes = $this->partesDoPptx($resposta->baseResponse->getFile()->getPathname());
 
-        $this->assertSame(15, substr_count($partes['ppt/presentation.xml'], '<p:sldId '));
-        // Agrárias do 2º para o 1º, depois Biológicas, depois a credencial.
+        $this->assertSame(18, substr_count($partes['ppt/presentation.xml'], '<p:sldId '));
+        // Agrárias do 2º para o 1º (empate pelo título), depois Biológicas,
+        // depois a credencial.
         $this->assertStringContainsString('2º lugar', $partes['ppt/slides/slide1.xml']);
         $this->assertStringContainsString('Ciências Agrárias · FETECMS', $partes['ppt/slides/slide1.xml']);
         $this->assertStringContainsString('Bioinsumo', $partes['ppt/slides/slide3.xml']);
-        $this->assertStringContainsString('1º lugar', $partes['ppt/slides/slide4.xml']);
-        $this->assertStringContainsString('Estande 042 · FET.AGR-001', $partes['ppt/slides/slide5.xml']);
-        $this->assertArrayHasKey('ppt/media/image5.jpeg', $partes);
-        $this->assertStringContainsString('FET.AGR-001', $partes['ppt/slides/slide6.xml']);
-        $this->assertStringContainsString('Ciências Biológicas', $partes['ppt/slides/slide7.xml']);
-        $this->assertStringContainsString('formato', $partes['ppt/slides/slide8.xml']);
-        $this->assertStringContainsString('MOSTRATEC', $partes['ppt/slides/slide13.xml']);
-        $this->assertStringContainsString('Fundação Liberato', $partes['ppt/slides/slide13.xml']);
-        $this->assertStringContainsString('Sem fotografia registrada', $partes['ppt/slides/slide14.xml']);
-        $this->assertStringContainsString('Drone na lavoura', $partes['ppt/slides/slide15.xml']);
+        $this->assertStringContainsString('Compostagem', $partes['ppt/slides/slide6.xml']);
+        $this->assertStringContainsString('1º lugar', $partes['ppt/slides/slide7.xml']);
+        $this->assertStringContainsString('Estande 042 · FET.AGR-001', $partes['ppt/slides/slide8.xml']);
+        $this->assertArrayHasKey('ppt/media/image8.jpeg', $partes);
+        $this->assertStringContainsString('FET.AGR-001', $partes['ppt/slides/slide9.xml']);
+        $this->assertStringContainsString('Ciências Biológicas', $partes['ppt/slides/slide10.xml']);
+        $this->assertStringContainsString('formato', $partes['ppt/slides/slide11.xml']);
+        $this->assertStringContainsString('MOSTRATEC', $partes['ppt/slides/slide16.xml']);
+        $this->assertStringContainsString('Fundação Liberato', $partes['ppt/slides/slide16.xml']);
+        $this->assertStringContainsString('Sem fotografia registrada', $partes['ppt/slides/slide17.xml']);
+        $this->assertStringContainsString('Drone na lavoura', $partes['ppt/slides/slide18.xml']);
+    }
+    // --- Até o Nº lugar (Sprint 255) ----------------------------------------
+
+    public function test_por_padrao_premia_do_primeiro_ao_quarto_lugar_de_cada_area(): void
+    {
+        $this->cenario();
+        // Agrárias: 9, 8, 8, 6 (4º) e agora 5 (5º).
+        $this->nota($this->finalista('Erva-mate', $this->agr), 5);
+
+        $this->getJson('/api/v1/admin/presencial/listas/opcoes')->assertJsonPath('data.lugares_padrao', 4);
+
+        $itens = $this->postJson('/api/v1/admin/presencial/listas', [])->assertCreated()->json('data.itens');
+
+        $agrarias = collect($itens)->where('area', 'Ciências Agrárias');
+        $this->assertSame(['Abelhas', 'Bioinsumo', 'Compostagem', 'Drone na lavoura'], $agrarias->pluck('titulo')->all());
+        $this->assertSame([1, 2, 2, 4], $agrarias->pluck('colocacao')->all());
+        $this->assertCount(2, collect($itens)->where('area', 'Ciências Biológicas'));
+    }
+
+    public function test_empate_no_ultimo_lugar_leva_os_dois(): void
+    {
+        $this->cenario();
+
+        // Até o 2º lugar em Agrárias: Bioinsumo e Compostagem empatam em 2º.
+        $itens = $this->postJson('/api/v1/admin/presencial/listas', ['categorias' => ['fetecms' => ['areas' => [
+            $this->agr->id => ['lugares' => 2],
+        ]]]])->assertCreated()->json('data.itens');
+
+        $this->assertSame(
+            ['Abelhas', 'Bioinsumo', 'Compostagem'],
+            collect($itens)->where('area', 'Ciências Agrárias')->pluck('titulo')->values()->all(),
+        );
+        // Biológicas não veio no pedido: segue o padrão (até o 4º).
+        $this->assertCount(2, collect($itens)->where('area', 'Ciências Biológicas'));
+    }
+
+    public function test_zero_tira_a_area_e_em_branco_nao_limita(): void
+    {
+        $this->cenario();
+        $this->nota($this->finalista('Erva-mate', $this->agr), 5);
+
+        $itens = $this->postJson('/api/v1/admin/presencial/listas', ['categorias' => ['fetecms' => ['areas' => [
+            $this->agr->id => ['lugares' => null],
+            $this->bio->id => ['lugares' => 0],
+        ]]]])->assertCreated()->json('data.itens');
+
+        $this->assertSame(
+            ['Abelhas', 'Bioinsumo', 'Compostagem', 'Drone na lavoura', 'Erva-mate'],
+            array_column($itens, 'titulo'),
+        );
+
+        $this->postJson('/api/v1/admin/presencial/listas', ['categorias' => ['fetecms' => ['areas' => [
+            $this->agr->id => ['lugares' => -1],
+        ]]]])->assertUnprocessable()->assertJsonValidationErrors("categorias.fetecms.areas.{$this->agr->id}.lugares");
     }
 }

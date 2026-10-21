@@ -1,40 +1,74 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button, Alert } from './ui.jsx';
-import { CampoCota, VAZIA, paraApi, preenchida } from './ListaFinalDialog.jsx';
+import { CampoCota, VAZIA, paraApi } from './ListaFinalDialog.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import { getOpcoesListaPresencial, gerarListaPresencial } from '../lib/listasPresenciais.js';
 
-const PASSOS = ['Categorias', 'Áreas'];
+const PASSOS = ['Colocação por área', 'Limites (opcional)'];
 
-/** "3 em cada área": o campo guarda o que foi digitado e repassa para todas. */
-function CampoTodasAsAreas({ categoria, onAplicar }) {
-    const [cota, setCota] = useState(VAZIA);
+const lugarClass =
+    'w-16 bg-surface border border-outline-variant rounded-lg px-2 py-2 text-sm text-on-surface text-right ' +
+    'focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 outline-none';
+
+/**
+ * "Até o __º lugar" de uma área (Sprint 255): em branco não limita, 0 deixa a
+ * área de fora.
+ */
+function CampoLugar({ id, rotulo, detalhe, valor, onChange }) {
+    return (
+        <div className="flex items-center gap-2 py-1">
+            <label htmlFor={id} className="text-sm text-on-surface flex-1 min-w-0">
+                <span className="block truncate">{rotulo}</span>
+                {detalhe && <span className="block text-xs text-on-surface-variant">{detalhe}</span>}
+            </label>
+            <span className="text-xs text-on-surface-variant">até o</span>
+            <input
+                id={id}
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={99}
+                placeholder="todos"
+                aria-label={`Até que lugar em ${rotulo}`}
+                value={valor}
+                onChange={(e) => onChange(e.target.value)}
+                className={lugarClass}
+            />
+            <span className="text-xs text-on-surface-variant w-10">º lugar</span>
+        </div>
+    );
+}
+
+/** O mesmo lugar em todas as áreas da categoria: guarda o digitado e repassa. */
+function CampoTodasAsAreas({ categoria, rotulo, inicial, onAplicar }) {
+    const [valor, setValor] = useState(inicial);
 
     return (
-        <CampoCota
+        <CampoLugar
             id={`lista-presencial-todas-${categoria}`}
-            rotulo="Mesma quantidade em todas as áreas"
-            cota={cota}
-            placeholder="ex.: 3"
-            onChange={(nova) => { setCota(nova); onAplicar(nova); }}
+            rotulo={rotulo}
+            valor={valor}
+            onChange={(novo) => { setValor(novo); onAplicar(novo); }}
         />
     );
 }
 
 /**
- * "Gerar lista" do **ranking presencial** (Sprint 251): o assistente da lista
- * online sem o passo do interior — quantos projetos por **categoria** e, dentro
- * dela, por **área**. Entram os de maior média presencial que couberem; "3 em
- * cada área" é o pódio de cada grupo.
+ * "Gerar lista" do **ranking presencial** (Sprints 251 e 255). Por padrão
+ * premia **do 1º ao 4º lugar** de cada área em cada categoria — o assistente
+ * já vem preenchido assim, e o admin muda área a área (ou a categoria
+ * inteira). A colocação é pela média presencial no grupo: empate no último
+ * lugar leva os dois. Depois, tetos opcionais por categoria e no total.
  *
- * Cada quantidade é número ou porcentagem do recorte de cima; em branco não
- * limita, 0 deixa o recorte de fora. A lista abre como rascunho.
+ * A lista abre como rascunho.
  */
 export default function ListaPresencialDialog({ open, teste = false, onClose }) {
     const [opcoes, setOpcoes] = useState(null);
     const [passo, setPasso] = useState(0);
+    // { [categoria]: { [areaId]: '4' } } — texto do campo; '' não limita.
+    const [lugares, setLugares] = useState({});
     const [total, setTotal] = useState(VAZIA);
-    // { [categoria]: { cota, areas: { [areaId]: { cota } } } }
+    // Tetos opcionais por categoria: { [categoria]: cota }.
     const [cotas, setCotas] = useState({});
     const [tipo, setTipo] = useState('preliminar');
     const [nome, setNome] = useState('');
@@ -49,49 +83,44 @@ export default function ListaPresencialDialog({ open, teste = false, onClose }) 
         setTipo('preliminar');
         setNome('');
         setDescricao('');
+        setTotal(VAZIA);
+        setCotas({});
         setOpcoes(null);
-        getOpcoesListaPresencial(teste).then(setOpcoes).catch(() => setErro('Não foi possível carregar as opções.'));
+        getOpcoesListaPresencial(teste)
+            .then((o) => {
+                // O padrão (do 1º ao 4º) já preenchido em todas as áreas.
+                const padrao = String(o.lugares_padrao ?? 4);
+                setLugares(Object.fromEntries(o.categorias.map((c) => [
+                    c.value, Object.fromEntries(c.areas.map((a) => [a.id, padrao])),
+                ])));
+                setOpcoes(o);
+            })
+            .catch(() => setErro('Não foi possível carregar as opções.'));
     }, [open, teste]);
 
-    const categoriasAtivas = useMemo(() => (opcoes?.categorias ?? []).filter((c) => {
-        const cota = cotas[c.value]?.cota;
-        return !preenchida(cota) || Number(cota.valor) > 0;
-    }), [opcoes, cotas]);
+    const padrao = String(opcoes?.lugares_padrao ?? 4);
 
     if (!open) return null;
 
-    const setCotaCategoria = (categoria, cota) => setCotas((atual) => ({
-        ...atual,
-        [categoria]: { ...(atual[categoria] ?? {}), cota },
+    const setLugar = (categoria, areaId, valor) => setLugares((atual) => ({
+        ...atual, [categoria]: { ...(atual[categoria] ?? {}), [areaId]: valor },
     }));
 
-    const setCotaArea = (categoria, areaId, cota) => setCotas((atual) => {
-        const daCategoria = atual[categoria] ?? {};
-        const areas = daCategoria.areas ?? {};
-        return { ...atual, [categoria]: { ...daCategoria, areas: { ...areas, [areaId]: { cota } } } };
-    });
-
-    // "3 em cada área": a mesma quantidade em todas as áreas da categoria.
-    const aplicarEmTodas = (categoria, cota) => setCotas((atual) => {
+    const aplicarEmTodas = (categoria, valor) => setLugares((atual) => {
         const c = opcoes.categorias.find((x) => x.value === categoria);
-        const areas = Object.fromEntries(c.areas.map((a) => [a.id, { cota }]));
-        return { ...atual, [categoria]: { ...(atual[categoria] ?? {}), areas } };
+        return { ...atual, [categoria]: Object.fromEntries(c.areas.map((a) => [a.id, valor])) };
     });
 
     function montarPayload() {
         const categorias = {};
 
         for (const c of opcoes.categorias) {
-            const daCategoria = cotas[c.value] ?? {};
             const areas = {};
-
-            for (const [areaId, config] of Object.entries(daCategoria.areas ?? {})) {
-                const cota = paraApi(config.cota);
-                if (cota) areas[areaId] = { cota };
+            for (const a of c.areas) {
+                const valor = lugares[c.value]?.[a.id] ?? padrao;
+                areas[a.id] = { lugares: valor === '' ? null : Number(valor) };
             }
-
-            const cota = paraApi(daCategoria.cota);
-            if (cota || Object.keys(areas).length > 0) categorias[c.value] = { cota, areas };
+            categorias[c.value] = { cota: paraApi(cotas[c.value]), areas };
         }
 
         return {
@@ -120,10 +149,10 @@ export default function ListaPresencialDialog({ open, teste = false, onClose }) 
             <div className="bg-surface-container-lowest rounded-2xl fetec-card-shadow w-full max-w-lg p-6 max-h-[90vh] overflow-auto">
                 <h3 className="font-display text-xl font-semibold text-on-surface mb-1">Gerar lista presencial</h3>
                 <p className="text-sm text-on-surface-variant mb-4">
-                    Entram os finalistas de <strong>maior média presencial</strong> que couberem nas quantidades
-                    que você definir. Cada quantidade pode ser um <strong>número</strong> ou uma{' '}
-                    <strong>porcentagem</strong> do recorte acima dela; em branco não limita nada. Depois, as
-                    credenciais e os prêmios entram por conta própria.
+                    Por padrão, premia do <strong>1º ao {padrao}º lugar</strong> de cada área do conhecimento em cada
+                    categoria, pela <strong>média presencial</strong> — empate no último lugar leva os dois. Mude o que
+                    quiser abaixo; em branco não limita, 0 deixa a área de fora. Depois, as credenciais e os prêmios
+                    entram por conta própria.
                 </p>
 
                 <ol className="flex items-center gap-2 mb-4 text-xs">
@@ -152,11 +181,43 @@ export default function ListaPresencialDialog({ open, teste = false, onClose }) 
                         </div>
                     )
                 ) : passo === 0 ? (
+                    <div className="space-y-4">
+                        {opcoes.categorias.map((c) => (
+                            <fieldset key={c.value}>
+                                <legend className="text-sm font-semibold text-primary-container mb-1">
+                                    {c.label}
+                                    <span className="ml-1 font-normal text-xs text-on-surface-variant">
+                                        · {c.disponiveis} avaliado{c.disponiveis === 1 ? '' : 's'}
+                                    </span>
+                                </legend>
+                                <div className="rounded-lg bg-surface-container-low px-2 mb-1">
+                                    <CampoTodasAsAreas
+                                        categoria={c.value}
+                                        rotulo={`Todas as áreas da ${c.label}`}
+                                        inicial={padrao}
+                                        onAplicar={(valor) => aplicarEmTodas(c.value, valor)}
+                                    />
+                                </div>
+                                {c.areas.map((a) => (
+                                    <CampoLugar
+                                        key={a.id}
+                                        id={`lista-presencial-lugar-${c.value}-${a.id}`}
+                                        rotulo={a.nome}
+                                        detalhe={`${a.disponiveis} avaliado${a.disponiveis === 1 ? '' : 's'}`}
+                                        valor={lugares[c.value]?.[a.id] ?? padrao}
+                                        onChange={(valor) => setLugar(c.value, a.id, valor)}
+                                    />
+                                ))}
+                            </fieldset>
+                        ))}
+                    </div>
+                ) : (
                     <fieldset>
-                        <legend className="text-sm font-semibold text-on-surface mb-1">Quantos projetos em cada categoria?</legend>
+                        <legend className="text-sm font-semibold text-on-surface mb-1">Limites (opcional)</legend>
                         <p className="text-xs text-on-surface-variant mb-2">
-                            A porcentagem é sobre os {opcoes.total_disponivel} finalistas com avaliação presencial
-                            {preenchida(total) ? ' (ou sobre o total que você definir abaixo)' : ''}.
+                            Teto de projetos por categoria e no total, por cima das colocações — os de maior média
+                            primeiro. Em branco não limita. A porcentagem é sobre os {opcoes.total_disponivel} finalistas
+                            com avaliação presencial.
                         </p>
                         {opcoes.categorias.map((c) => (
                             <CampoCota
@@ -164,8 +225,8 @@ export default function ListaPresencialDialog({ open, teste = false, onClose }) 
                                 id={`lista-presencial-cat-${c.value}`}
                                 rotulo={c.label}
                                 detalhe={`${c.disponiveis} avaliado${c.disponiveis === 1 ? '' : 's'}`}
-                                cota={cotas[c.value]?.cota}
-                                onChange={(cota) => setCotaCategoria(c.value, cota)}
+                                cota={cotas[c.value]}
+                                onChange={(cota) => setCotas((atual) => ({ ...atual, [c.value]: cota }))}
                             />
                         ))}
                         <div className="border-t border-outline-variant/40 mt-3 pt-3">
@@ -179,31 +240,6 @@ export default function ListaPresencialDialog({ open, teste = false, onClose }) 
                             />
                         </div>
                     </fieldset>
-                ) : (
-                    <div className="space-y-4">
-                        <p className="text-xs text-on-surface-variant">
-                            Dentro de cada categoria, quantos projetos de cada área — a colocação é contada dentro do
-                            grupo categoria + área. A porcentagem é sobre a cota da categoria.
-                        </p>
-                        {categoriasAtivas.map((c) => (
-                            <fieldset key={c.value}>
-                                <legend className="text-sm font-semibold text-primary-container mb-1">{c.label}</legend>
-                                <div className="rounded-lg bg-surface-container-low px-2 mb-1">
-                                    <CampoTodasAsAreas categoria={c.value} onAplicar={(cota) => aplicarEmTodas(c.value, cota)} />
-                                </div>
-                                {c.areas.map((a) => (
-                                    <CampoCota
-                                        key={a.id}
-                                        id={`lista-presencial-area-${c.value}-${a.id}`}
-                                        rotulo={a.nome}
-                                        detalhe={`${a.disponiveis} avaliado${a.disponiveis === 1 ? '' : 's'}`}
-                                        cota={cotas[c.value]?.areas?.[a.id]?.cota}
-                                        onChange={(cota) => setCotaArea(c.value, a.id, cota)}
-                                    />
-                                ))}
-                            </fieldset>
-                        ))}
-                    </div>
                 )}
 
                 {passo === PASSOS.length - 1 && opcoes !== null && (

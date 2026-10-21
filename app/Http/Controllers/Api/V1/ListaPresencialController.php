@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Admin\ListaFinalRequest;
+use App\Http\Requests\Admin\ListaPresencialRequest;
 use App\Models\Edicao;
 use App\Models\ListaPresencial;
 use App\Models\ListaPresencialPremio;
@@ -42,7 +42,7 @@ class ListaPresencialController extends Controller
     }
 
     /** Monta o rascunho pela classificação (as cotas da tela). */
-    public function store(ListaFinalRequest $request): JsonResponse
+    public function store(ListaPresencialRequest $request): JsonResponse
     {
         $lista = $this->listas->rascunhar(
             $request->cotas(),

@@ -163,8 +163,8 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     Avaliação presencial **e** Mapa do Evento. O Ranking presencial também **baixa** (CSV, Excel, PDF, TXT) e gera as
     **listas da premiação** (Sprints 250–254, `/admin/presencial/listas`, `ListaPresencialService`): preliminares e
     finais como as da online, mas em tabela própria — a final ativa é o **resultado oficial da premiação** e alimenta o
-    Cerimonial, sem mexer nos finalistas. Duas seções: **por nota** (cotas categoria → área, colocação no grupo, código
-    do finalista) e **premiações** (cópia editável de Credenciais e Prêmios); arquivos TXT/CSV/Excel/PDF e os
+    Cerimonial, sem mexer nos finalistas. Duas seções: **por nota** (por padrão **do 1º ao 4º lugar de cada área em
+    cada categoria**, editável na geração; empate no último lugar leva os dois; código do finalista) e **premiações** (cópia editável de Credenciais e Prêmios); arquivos TXT/CSV/Excel/PDF e os
     **slides** da cerimônia em .pptx (prêmio → foto do estande → projeto; `App\Support\ApresentacaoPptx`). A rubrica é a do documento **"Perguntas de Avaliação FETECMS 2026 ·
     Etapa Presencial"** (`App\Support\RubricaPresencial`) **sem a seção 1** (ética: TCE e TCLE/TALE,
     tirada a pedido da organização): 13 seções, **8,500** em escala e **1,500** em Sim/Não, perguntas
@@ -1088,7 +1088,21 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 252 | Lista da premiação: **incluir e retirar** (livre no rascunho, justificativa depois) + a final ativa **premia no Cerimonial** | ✅ sim | ❌ não (manual do Pedro) | 3 |
 | 253 | Lista da premiação: seção de **premiações** (cópia editável de Credenciais e Prêmios), nos mesmos arquivos | ✅ sim | ❌ não (manual do Pedro) | 4 |
 | 254 | Lista da premiação: **slides da cerimônia em PPTX** (prêmio → foto do estande → projeto), escritor próprio | ✅ sim | ❌ não (manual do Pedro) | 5 |
+| 255 | Lista da premiação: por padrão **do 1º ao 4º lugar** de cada área em cada categoria, editável na geração | ✅ sim | ❌ não (manual do Pedro) | 6 |
 
+> **Sprint 255 (mesma branch):** a seção por nota passou a ser escolhida pela **colocação**, e não pela quantidade:
+> por padrão, **do 1º ao 4º lugar de cada área do conhecimento em cada categoria** (decisão do Pedro;
+> `ListaPresencialService::LUGARES_PADRAO`, que `GET /admin/presencial/listas/opcoes` devolve em `lugares_padrao`).
+> O assistente (*Gerar lista*) abre no passo **Colocação por área**, com "até o 4º lugar" preenchido em todas as áreas
+> de todas as categorias; o admin muda área a área ou a categoria inteira ("Todas as áreas da …"), e **em branco não
+> limita**, **0 deixa a área de fora**. O passo 2, **Limites (opcional)**, guarda os tetos que já existiam por
+> categoria e no total (número ou porcentagem; os de maior média primeiro). Cortar pela colocação resolve o empate:
+> "até o 4º lugar" com dois empatados em 4º leva **os dois** — cortar um deixaria fora um projeto com a mesma colocação
+> de quem entrou. O pedido viaja em `categorias[cat].areas[id].lugares` (`ListaPresencialRequest`, no lugar do
+> `ListaFinalRequest`); área sem `lugares` segue o padrão, `lugares` nulo não limita. A cota por **quantidade** de
+> projetos na área saiu.
+> Back **1713/1713**, front **985/985**, Pint limpo, build OK.
+>
 > **Sprint 254 (mesma branch):** a lista **gerada** baixa os **slides da cerimônia** em .pptx
 > (`GET /admin/presencial/listas/{lista}/slides`, `ListaPresencialService::slides()`). Para cada premiação, três
 > slides: (1) o **prêmio** — "Premiação por nota" com "1º lugar" e "Área · Categoria", ou o tipo (Credencial/Prêmio)
@@ -1107,7 +1121,7 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > Conferido abrindo no LibreOffice (conversão para PDF e imagem); não num PowerPoint de verdade.
 > Back **1710/1710**, front **984/984**, Pint limpo, build OK.
 >
-> **Pendências do Pedro (Sprints 250–254):** (1) `git push origin feat/ranking-presencial-listas` + PR para a `main`.
+> **Pendências do Pedro (Sprints 250–255):** (1) `git push origin feat/ranking-presencial-listas` + PR para a `main`.
 > **Duas migrations** (`listas_presenciais` + `lista_presencial_projetos`; `lista_presencial_premios` +
 > `lista_presencial_premio_projetos`), **nenhuma variável de `.env`** e **nenhuma dependência nova**. (2) **Abra um
 > .pptx no PowerPoint** (e, se a organização usa, no Google Slides) antes da cerimônia: aqui ele foi validado no

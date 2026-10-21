@@ -30,9 +30,10 @@ use Illuminate\Validation\ValidationException;
  * As mesmas ideias da lista da avaliação online ({@see ListaFinalService}),
  * sobre a nota do estande:
  *
- * - a lista nasce **rascunho**, da classificação (cotas por categoria e por
- *   área, número fixo ou porcentagem do recorte de cima) ou da **união** de
- *   listas já geradas;
+ * - a lista nasce **rascunho**, da classificação (em cada área de cada
+ *   categoria, **até o Nº lugar** — padrão do 1º ao 4º, Sprint 255 —, com
+ *   tetos opcionais por categoria e no total) ou da **união** de listas já
+ *   geradas;
  * - **gerar** fecha: a preliminar fica registrada; a final vira a **ativa** da
  *   edição e a anterior passa a inativa, reativável com justificativa;
  * - o arquivo sai no formato da lista online — "CÓDIGO - Título", escola,
@@ -62,6 +63,13 @@ class ListaPresencialService
     private array $codigos = [];
 
     /**
+     * Por padrão premia-se do 1º ao 4º lugar de cada área em cada categoria
+     * (Sprint 255). O assistente vem preenchido com isso, e o admin muda área a
+     * área na hora de gerar.
+     */
+    public const LUGARES_PADRAO = 4;
+
+    /**
      * O que a tela de geração oferece: quantos projetos avaliados há em cada
      * categoria e em cada área dentro dela.
      *
@@ -77,6 +85,7 @@ class ListaPresencialService
         return [
             'lista_final' => $vigente === null ? null : ['id' => $vigente->id, 'nome' => $vigente->nome],
             'total_disponivel' => $avaliados->count(),
+            'lugares_padrao' => self::LUGARES_PADRAO,
             'categorias' => array_map(function (Categoria $c) use ($porCategoria, $areas) {
                 $daCategoria = $porCategoria->get($c->value, collect());
                 $porArea = $daCategoria->groupBy(fn (array $p) => $p['area_id'] ?? 0);
@@ -98,10 +107,11 @@ class ListaPresencialService
     }
 
     /**
-     * Monta o rascunho a partir da classificação: desce o ranking presencial
-     * pegando quem ainda cabe nas cotas.
+     * Monta o rascunho a partir da classificação: em cada área de cada
+     * categoria, os premiados **até o Nº lugar** (padrão 4º); por cima, os
+     * tetos opcionais por categoria e no total.
      *
-     * @param  array<string, mixed>  $cotas  `['total' => cota, 'categorias' => [cat => ['cota' => cota, 'areas' => [id => ['cota' => cota]]]]]`
+     * @param  array<string, mixed>  $cotas  `['total' => cota, 'categorias' => [cat => ['cota' => cota, 'areas' => [id => ['lugares' => ?int]]]]]` — área sem `lugares` segue o padrão; `lugares` nulo não limita
      */
     public function rascunhar(
         array $cotas,
@@ -1064,7 +1074,12 @@ class ListaPresencialService
     }
 
     /**
-     * Desce a classificação pegando quem cabe no total, na categoria e na área.
+     * Escolhe os premiados por nota (Sprint 255). A área corta pela
+     * **colocação** no grupo categoria+área, e não pela quantidade: "até o 4º
+     * lugar" com dois empatados em 4º leva os dois — cortar um deles deixaria
+     * fora da lista um projeto com a mesma colocação de quem entrou. Depois,
+     * descendo a classificação geral, valem os tetos opcionais da categoria e
+     * do total (número ou porcentagem, como antes).
      *
      * @param  Collection<int, array<string, mixed>>  $avaliados
      * @param  array<string, mixed>  $cotas
@@ -1072,49 +1087,53 @@ class ListaPresencialService
      */
     private function selecionar(Collection $avaliados, array $cotas): array
     {
+        $colocacao = collect($this->colocar($avaliados->values()->all()))->pluck('colocacao', 'projeto_id');
         $total = Cota::de($cotas['total'] ?? null)?->resolver($avaliados->count());
         $limiteCategoria = [];
-        $limiteArea = [];
 
         foreach ((array) ($cotas['categorias'] ?? []) as $categoria => $config) {
-            $config = (array) $config;
-            $daCategoria = $avaliados->filter(fn (array $p) => $p['categoria_valor'] === $categoria);
-
-            $cotaCategoria = Cota::de($config['cota'] ?? null)?->resolver($total ?? $avaliados->count());
+            $cotaCategoria = Cota::de(((array) $config)['cota'] ?? null)?->resolver($total ?? $avaliados->count());
             if ($cotaCategoria !== null) {
                 $limiteCategoria[$categoria] = $cotaCategoria;
             }
-
-            foreach ((array) ($config['areas'] ?? []) as $areaId => $areaConfig) {
-                $cotaArea = Cota::de(((array) $areaConfig)['cota'] ?? null)
-                    ?->resolver($cotaCategoria ?? $daCategoria->count());
-
-                if ($cotaArea !== null) {
-                    $limiteArea[$categoria.'|'.$areaId] = $cotaArea;
-                }
-            }
         }
 
-        $usado = ['total' => 0, 'categoria' => [], 'area' => []];
+        $usado = ['total' => 0, 'categoria' => []];
         $escolhidos = [];
 
         foreach ($avaliados as $p) {
             $categoria = (string) $p['categoria_valor'];
-            $area = $categoria.'|'.(int) $p['area_id'];
+            $ateLugar = $this->ateLugar($cotas, $categoria, (int) $p['area_id']);
 
-            if (($total !== null && $usado['total'] >= $total)
-                || (isset($limiteCategoria[$categoria]) && ($usado['categoria'][$categoria] ?? 0) >= $limiteCategoria[$categoria])
-                || (isset($limiteArea[$area]) && ($usado['area'][$area] ?? 0) >= $limiteArea[$area])) {
+            if (($ateLugar !== null && $colocacao[$p['projeto_id']] > $ateLugar)
+                || ($total !== null && $usado['total'] >= $total)
+                || (isset($limiteCategoria[$categoria]) && ($usado['categoria'][$categoria] ?? 0) >= $limiteCategoria[$categoria])) {
                 continue;
             }
 
             $usado['total']++;
             $usado['categoria'][$categoria] = ($usado['categoria'][$categoria] ?? 0) + 1;
-            $usado['area'][$area] = ($usado['area'][$area] ?? 0) + 1;
             $escolhidos[] = $p;
         }
 
         return $escolhidos;
+    }
+
+    /**
+     * Até que lugar a área premia: o que veio no pedido (nulo = sem limite, 0 =
+     * área de fora) ou, sem nada informado, o padrão.
+     *
+     * @param  array<string, mixed>  $cotas
+     */
+    private function ateLugar(array $cotas, string $categoria, int $areaId): ?int
+    {
+        $area = (array) ($cotas['categorias'][$categoria]['areas'][$areaId] ?? []);
+
+        if (! array_key_exists('lugares', $area)) {
+            return self::LUGARES_PADRAO;
+        }
+
+        return $area['lugares'] === null || $area['lugares'] === '' ? null : max(0, (int) $area['lugares']);
     }
 
     // --- Slides (Sprint 254) -----------------------------------------------------
