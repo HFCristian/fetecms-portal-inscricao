@@ -1089,7 +1089,18 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 253 | Lista da premiação: seção de **premiações** (cópia editável de Credenciais e Prêmios), nos mesmos arquivos | ✅ sim | ❌ não (manual do Pedro) | 4 |
 | 254 | Lista da premiação: **slides da cerimônia em PPTX** (prêmio → foto do estande → projeto), escritor próprio | ✅ sim | ❌ não (manual do Pedro) | 5 |
 | 255 | Lista da premiação: por padrão **do 1º ao 4º lugar** de cada área em cada categoria, editável na geração | ✅ sim | ❌ não (manual do Pedro) | 6 |
+| 256 | Fix (segurança): `follow-redirects` 1.16.0 → 1.16.1 (job security do CI) + `vite` 8.2.2 → 8.3.4 (dev) | ✅ sim | ❌ não (manual do Pedro) | 7 |
 
+> **Sprint 256 (mesma branch):** o job **security** do CI quebrou no `npm audit --omit=dev --audit-level=high`:
+> `follow-redirects` 1.16.0 (dependência do `axios`) com dois avisos altos — cabeçalho de credencial que não era
+> retirado no redirecionamento entre origens (GHSA-q3jh-wrc6-jgq8, GHSA-8r9p-f939-6h3c). Subiu para **1.16.1**, só no
+> lock (o `axios` pede `^1.16.0`). De carona, o `npm audit` completo acusava o **`vite` 8.2.0–8.2.2** (alto, no
+> `launch-editor` do servidor de desenvolvimento): **8.3.4**, dentro do `^8.0.0` — levou junto rolldown 1.2.14,
+> postcss 8.5.31 e nanoid 3.3.20. `package.json` não mudou. O `npm audit fix`/`npm update` do npm 10.9.8 quebra com
+> `Cannot read properties of null (reading 'edgesOut')` (bug do arborist no conjunto de peers); o lock foi refeito com
+> `npx npm@11 update vite`, e o `npm ci` do npm 10 instala o lock sem alterá-lo. `npm audit` (com e sem dev) limpo;
+> front **985/985**, build OK.
+>
 > **Sprint 255 (mesma branch):** a seção por nota passou a ser escolhida pela **colocação**, e não pela quantidade:
 > por padrão, **do 1º ao 4º lugar de cada área do conhecimento em cada categoria** (decisão do Pedro;
 > `ListaPresencialService::LUGARES_PADRAO`, que `GET /admin/presencial/listas/opcoes` devolve em `lugares_padrao`).
@@ -1121,7 +1132,7 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > Conferido abrindo no LibreOffice (conversão para PDF e imagem); não num PowerPoint de verdade.
 > Back **1710/1710**, front **984/984**, Pint limpo, build OK.
 >
-> **Pendências do Pedro (Sprints 250–255):** (1) `git push origin feat/ranking-presencial-listas` + PR para a `main`.
+> **Pendências do Pedro (Sprints 250–256):** (1) `git push origin feat/ranking-presencial-listas` + PR para a `main`.
 > **Duas migrations** (`listas_presenciais` + `lista_presencial_projetos`; `lista_presencial_premios` +
 > `lista_presencial_premio_projetos`), **nenhuma variável de `.env`** e **nenhuma dependência nova**. (2) **Abra um
 > .pptx no PowerPoint** (e, se a organização usa, no Google Slides) antes da cerimônia: aqui ele foi validado no
