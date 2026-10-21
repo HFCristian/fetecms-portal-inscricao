@@ -12,6 +12,7 @@ use App\Models\ListaFinal;
 use App\Models\Projeto;
 use App\Models\RecomendacaoPremiacao;
 use App\Models\User;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -167,29 +168,49 @@ class CredenciaisService
             ]);
         }
 
-        return Credencial::create([
+        $nome = trim($dados['nome']);
+        $this->garantirNomeLivre($edicao->id, $nome);
+
+        return $this->gravandoNome($edicao->id, $nome, fn () => Credencial::create([
             'edicao_id' => $edicao->id,
             // Sem tipo, credencial: era o único que existia antes dos prêmios.
             'tipo' => TipoCredencial::tryFrom((string) ($dados['tipo'] ?? '')) ?? TipoCredencial::Credencial,
-            'nome' => trim($dados['nome']),
+            'nome' => $nome,
             'orgao' => $dados['orgao'] ?? null,
             'descricao' => $dados['descricao'] ?? null,
             'informacoes' => $this->texto($dados['informacoes'] ?? null),
             'vagas' => $dados['vagas'] ?? null,
             'ordem' => (int) ($dados['ordem'] ?? 0),
             'ativa' => $dados['ativa'] ?? true,
-        ]);
+        ]));
     }
 
-    /** @param  array<string, mixed>  $dados */
+    /**
+     * Edita o item inteiro: tipo, nome, órgão, descrição, informações e
+     * vagas. As vagas podem subir à vontade e descer até o número de projetos
+     * que já receberam o item — abaixo disso, uma premiação dada sumiria da
+     * conta. Em branco é sem teto, que cabe qualquer número.
+     *
+     * @param  array<string, mixed>  $dados
+     */
     public function atualizar(Credencial $credencial, array $dados): Credencial
     {
         $atribuidas = $credencial->projetos()->count();
 
         if (array_key_exists('vagas', $dados) && $dados['vagas'] !== null && $dados['vagas'] < $atribuidas) {
             throw ValidationException::withMessages([
-                'vagas' => "Esta credencial já foi dada a {$atribuidas} projeto(s) — retire alguém antes de reduzir as vagas.",
+                'vagas' => "Este item já foi dado a {$atribuidas} projeto(s), então as vagas não podem ser menos que {$atribuidas}. Retire um projeto antes de reduzir.",
             ]);
+        }
+
+        if (array_key_exists('nome', $dados)) {
+            $dados['nome'] = trim((string) $dados['nome']);
+
+            // Só confere quando o nome muda: dois itens antigos que diferem
+            // só na caixa ("Mostratec" e "MOSTRATEC") continuam editáveis.
+            if ($this->chave($dados['nome']) !== $this->chave($credencial->nome)) {
+                $this->garantirNomeLivre($credencial->edicao_id, $dados['nome'], $credencial->id);
+            }
         }
 
         if (array_key_exists('informacoes', $dados)) {
@@ -198,9 +219,65 @@ class CredenciaisService
 
         $credencial->fill(array_intersect_key($dados, array_flip([
             'tipo', 'nome', 'orgao', 'descricao', 'informacoes', 'vagas', 'ordem', 'ativa',
-        ])))->save();
+        ])));
+
+        $this->gravandoNome($credencial->edicao_id, $credencial->nome, fn () => $credencial->save());
 
         return $credencial->refresh();
+    }
+
+    /**
+     * O nome é único na edição (índice `edicao_id` + `nome`), e é por ele que
+     * a organização acha o item no cartão, na lista da cerimônia e nos slides.
+     * Repetido, o banco recusava e a tela só dizia "erro interno"; agora a
+     * recusa diz qual item já usa o nome — inclusive o desativado, que some da
+     * tela do comitê mas continua ocupando o nome. A comparação ignora caixa,
+     * acento e espaços nas pontas, para "Mostratec 2027" não nascer ao lado
+     * de "MOSTRATEC 2027".
+     */
+    private function garantirNomeLivre(int $edicaoId, string $nome, ?int $exceto = null): void
+    {
+        $existente = Credencial::where('edicao_id', $edicaoId)
+            ->when($exceto, fn ($q) => $q->whereKeyNot($exceto))
+            ->get(['id', 'tipo', 'nome', 'ativa'])
+            ->first(fn (Credencial $c) => $this->chave($c->nome) === $this->chave($nome));
+
+        if ($existente !== null) {
+            throw ValidationException::withMessages(['nome' => $this->mensagemNomeRepetido($existente)]);
+        }
+    }
+
+    /**
+     * Grava e, se outro cadastro com o mesmo nome entrou entre a conferência e
+     * a gravação, devolve a mesma recusa em vez do erro do banco.
+     *
+     * @template T
+     *
+     * @param  callable(): T  $gravar
+     * @return T
+     */
+    private function gravandoNome(int $edicaoId, string $nome, callable $gravar): mixed
+    {
+        try {
+            return $gravar();
+        } catch (UniqueConstraintViolationException $e) {
+            $existente = Credencial::where('edicao_id', $edicaoId)->where('nome', $nome)->first();
+
+            throw ValidationException::withMessages([
+                'nome' => $existente !== null
+                    ? $this->mensagemNomeRepetido($existente)
+                    : 'Já existe um item com este nome nesta edição. Escolha outro nome.',
+            ]);
+        }
+    }
+
+    private function mensagemNomeRepetido(Credencial $existente): string
+    {
+        $premio = $existente->tipo === TipoCredencial::Premio;
+        $item = $premio ? 'um prêmio chamado' : 'uma credencial chamada';
+        $situacao = $existente->ativa ? '' : ($premio ? ' (desativado)' : ' (desativada)');
+
+        return "Já existe {$item} “{$existente->nome}”{$situacao} nesta edição. Escolha outro nome ou edite o item existente.";
     }
 
     public function excluir(Credencial $credencial): void

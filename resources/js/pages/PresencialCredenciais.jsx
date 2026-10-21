@@ -1,17 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
-import { Alert, Button, Field, Input, useConfirm } from '../components/ui.jsx';
+import { Alert, Button, useConfirm } from '../components/ui.jsx';
 import FiltroRecomendacoes, { SEM_RECORTE } from '../components/FiltroRecomendacoes.jsx';
 import CartaoCredencial from '../components/CartaoCredencial.jsx';
+import FormularioCredencial from '../components/FormularioCredencial.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import {
     getCredenciais, criarCredencial, atualizarCredencial, excluirCredencial,
     atribuirCredencial, retirarCredencial, baixarPremiacao,
 } from '../lib/presencial.js';
 import { decidirRecomendacao } from '../lib/recomendacoes.js';
-
-const VAZIA = { tipo: 'credencial', nome: '', orgao: '', vagas: '', descricao: '', informacoes: '' };
 
 /**
  * Avaliação presencial → **Credenciais e Prêmios**.
@@ -25,19 +24,25 @@ const VAZIA = { tipo: 'credencial', nome: '', orgao: '', vagas: '', descricao: '
  * A distinção só pesa no cerimonial: quem recebe qualquer um dos dois é
  * **premiado** (e rende medalha), mas só a credencial entra no card de
  * *credenciais a separar*, porque só ela tem objeto na mesa.
+ *
+ * Cada cartão tem **Editar**, com o mesmo formulário do cadastro: o item
+ * inteiro muda, e as vagas descem até o número de projetos que já o
+ * receberam.
  */
 export default function PresencialCredenciais() {
     const [credenciais, setCredenciais] = useState(null);
     const [candidatos, setCandidatos] = useState([]);
     const [tipos, setTipos] = useState([{ value: 'credencial', label: 'Credencial', descricao: '' }]);
-    const [form, setForm] = useState(VAZIA);
     const [criando, setCriando] = useState(false);
     const [ocupado, setOcupado] = useState(false);
     // O recorte das recomendações do comitê dentro dos cartões (Sprint 201).
     const [recorte, setRecorte] = useState(SEM_RECORTE);
     const [resumoRecomendacoes, setResumoRecomendacoes] = useState(null);
     const [confirmar, dialogoConfirmacao] = useConfirm();
+    // Os erros de campo e de que formulário vieram: o do cadastro ('novo') ou
+    // o de edição de um cartão (o id dele).
     const [errors, setErrors] = useState({});
+    const [errosDe, setErrosDe] = useState(null);
     const [alerta, setAlerta] = useState('');
     const [sucesso, setSucesso] = useState('');
 
@@ -52,22 +57,25 @@ export default function PresencialCredenciais() {
 
     useEffect(() => { carregar(); }, [carregar]);
 
-    async function acao(fn, mensagem = '') {
-        setOcupado(true); setAlerta(''); setSucesso(''); setErrors({});
+    /** Executa e recarrega; devolve se deu certo, para o formulário saber se fecha. */
+    async function acao(fn, mensagem = '', origem = null) {
+        setOcupado(true); setAlerta(''); setSucesso(''); setErrors({}); setErrosDe(origem);
         try {
             await fn();
             await carregar();
             if (mensagem) setSucesso(mensagem);
+            return true;
         } catch (e) {
             const { message, fields } = extractErrors(e);
             setErrors(fields ?? {});
             setAlerta(Object.values(fields ?? {})[0] || message || 'Não foi possível concluir.');
+            return false;
         } finally {
             setOcupado(false);
         }
     }
 
-    const campo = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+    const errosDoFormulario = (origem) => (errosDe === origem ? errors : {});
 
     return (
         <AppShell>
@@ -93,80 +101,24 @@ export default function PresencialCredenciais() {
             {sucesso && <div className="mb-4 max-w-3xl"><Alert type="info">{sucesso}</Alert></div>}
 
             {criando ? (
-                <form
-                    className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-4 mb-6 max-w-3xl"
-                    onSubmit={(e) => {
-                        e.preventDefault();
-                        acao(async () => {
-                            await criarCredencial({
-                                tipo: form.tipo,
-                                nome: form.nome.trim(),
-                                orgao: form.orgao.trim() || null,
-                                descricao: form.descricao.trim() || null,
-                                informacoes: form.informacoes.trim() || null,
-                                vagas: form.vagas === '' ? null : Number(form.vagas),
-                            });
-                            setForm(VAZIA);
-                            setCriando(false);
-                        }, form.tipo === 'premio' ? 'Prêmio cadastrado.' : 'Credencial cadastrada.');
-                    }}
-                >
-                    <h2 className="font-display text-primary font-semibold mb-3">Novo item</h2>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <Field
-                            label="Tipo"
-                            error={errors.tipo}
-                            hint={tipos.find((t) => t.value === form.tipo)?.descricao}
-                        >
-                            <select
-                                aria-label="Tipo"
-                                value={form.tipo}
-                                onChange={campo('tipo')}
-                                className="w-full bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 outline-none"
-                            >
-                                {tipos.map((t) => (
-                                    <option key={t.value} value={t.value}>{t.label}</option>
-                                ))}
-                            </select>
-                        </Field>
-                        <Field label="Nome" error={errors.nome}>
-                            <Input aria-label="Nome" value={form.nome} onChange={campo('nome')} error={errors.nome} placeholder="MOSTRATEC 2027" />
-                        </Field>
-                        <Field label="Órgão" error={errors.orgao}>
-                            <Input aria-label="Órgão" value={form.orgao} onChange={campo('orgao')} placeholder="FUNDECT" />
-                        </Field>
-                        <Field label="Vagas" error={errors.vagas} hint="Em branco, sem limite.">
-                            <Input type="number" min="1" max="999" aria-label="Vagas" value={form.vagas} onChange={campo('vagas')} error={errors.vagas} />
-                        </Field>
-                        <Field label="Descrição" error={errors.descricao}>
-                            <Input aria-label="Descrição" value={form.descricao} onChange={campo('descricao')} />
-                        </Field>
-                        <div className="sm:col-span-2">
-                            <Field
-                                label="Informações adicionais"
-                                error={errors.informacoes}
-                                hint="Critérios, regras do órgão, o que a vaga cobre. Os avaliadores do comitê leem ao recomendar."
-                            >
-                                <textarea
-                                    aria-label="Informações adicionais"
-                                    rows={4}
-                                    maxLength={5000}
-                                    value={form.informacoes}
-                                    onChange={campo('informacoes')}
-                                    className="w-full bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 outline-none"
-                                />
-                            </Field>
-                        </div>
-                    </div>
-                    <div className="flex justify-end gap-2 mt-4">
-                        <Button type="button" variant="outline" onClick={() => { setCriando(false); setErrors({}); }}>
-                            Cancelar
-                        </Button>
-                        <Button type="submit" loading={ocupado} disabled={form.nome.trim() === ''}>
-                            Cadastrar
-                        </Button>
-                    </div>
-                </form>
+                <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-4 mb-6 max-w-3xl">
+                    <FormularioCredencial
+                        titulo="Novo item"
+                        rotuloSalvar="Cadastrar"
+                        tipos={tipos}
+                        erros={errosDoFormulario('novo')}
+                        ocupado={ocupado}
+                        onCancelar={() => { setCriando(false); setErrors({}); }}
+                        onSalvar={async (dados) => {
+                            const ok = await acao(
+                                () => criarCredencial(dados),
+                                dados.tipo === 'premio' ? 'Prêmio cadastrado.' : 'Credencial cadastrada.',
+                                'novo',
+                            );
+                            if (ok) setCriando(false);
+                        }}
+                    />
+                </div>
             ) : (
                 <div className="mb-6">
                     <Button type="button" onClick={() => { setCriando(true); setAlerta(''); setSucesso(''); }}>
@@ -222,9 +174,12 @@ export default function PresencialCredenciais() {
                                 });
                                 if (ok) acao(() => retirarCredencial(cred.id, projeto.id), 'Premiação cancelada.');
                             }}
-                            onSalvarInformacoes={(cred, texto) => acao(
-                                () => atualizarCredencial(cred.id, { informacoes: texto.trim() || null }),
-                                'Informações adicionais salvas.',
+                            tipos={tipos}
+                            errosEdicao={errosDoFormulario(c.id)}
+                            onEditar={(cred, dados) => acao(
+                                () => atualizarCredencial(cred.id, dados),
+                                dados.tipo === 'premio' ? 'Prêmio atualizado.' : 'Credencial atualizada.',
+                                cred.id,
                             )}
                             onExcluir={(cred) => acao(() => excluirCredencial(cred.id), 'Item excluído.')}
                         />
