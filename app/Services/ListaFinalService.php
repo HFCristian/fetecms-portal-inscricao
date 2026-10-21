@@ -139,9 +139,12 @@ class ListaFinalService
      * O texto do arquivo a partir dos itens já numerados: um bloco por projeto,
      * separados por linha em branco.
      *
+     * Público desde a Sprint 251: a lista presencial escreve os projetos no
+     * mesmo formato.
+     *
      * @param  list<array<string, mixed>>  $itens
      */
-    private function blocos(array $itens): string
+    public function blocos(array $itens): string
     {
         $blocos = array_map(function (array $item) {
             $linhas = [
@@ -1394,7 +1397,7 @@ class ListaFinalService
      * A linha da escola: "Escola / Cidade - UF". Sem instituição cadastrada,
      * vale a localidade do próprio projeto.
      */
-    private function escola(Projeto $projeto): string
+    public function escola(Projeto $projeto): string
     {
         $instituicao = $projeto->instituicao;
 

@@ -201,6 +201,29 @@ class AvaliacaoPresencialAdminController extends Controller
     }
 
     /**
+     * Ranking presencial → baixar (Sprint 250): CSV, XLSX, PDF ou TXT, no
+     * recorte dos filtros da tela.
+     */
+    public function exportarRanking(Request $request, string $formato): Response
+    {
+        $filtros = $request->validate([
+            'area_id' => ['nullable', 'integer', 'exists:areas,id'],
+            'categoria' => ['nullable', Rule::enum(Categoria::class)],
+        ]);
+
+        $arquivo = $this->ranking->exportar(
+            $formato,
+            $filtros,
+            $this->turnos->emTeste($request->user(), $request->boolean('teste')),
+        );
+
+        return response($arquivo['conteudo'], 200, [
+            'Content-Type' => $arquivo['tipo'],
+            'Content-Disposition' => 'attachment; filename="'.$arquivo['nome'].'"',
+        ]);
+    }
+
+    /**
      * Ranking presencial → Ver avaliações (Sprint 237): as avaliações do
      * projeto, com quem avaliou. POST porque abrir fica registrado — num GET,
      * um prefetch ou um F5 gravariam consultas que ninguém fez.

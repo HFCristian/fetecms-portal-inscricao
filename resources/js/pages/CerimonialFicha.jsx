@@ -174,7 +174,7 @@ export default function CerimonialFicha() {
                         className="inline-flex items-center gap-1 rounded-full bg-primary-fixed text-primary-container px-2 py-0.5 text-[11px] font-semibold"
                     >
                         <span className="material-symbols-outlined text-[14px]">
-                            {p.tipo === 'premio' ? 'emoji_events' : 'badge'}
+                            {p.tipo === 'premio' ? 'emoji_events' : p.tipo === 'nota' ? 'military_tech' : 'badge'}
                         </span>
                         {p.nome}
                     </span>

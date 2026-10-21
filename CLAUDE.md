@@ -160,7 +160,12 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     lançada no estande errado para qualquer finalista com estande, com as respostas, o turno do destino e a vaga
     refeita lá (sem vaga, entra acima do teto com aviso); justificativa obrigatória, registro em Registros → Notas.
     O diálogo abre também pelas avaliações por projeto do Mapa do Evento — as rotas valem para as abas
-    Avaliação presencial **e** Mapa do Evento. A rubrica é a do documento **"Perguntas de Avaliação FETECMS 2026 ·
+    Avaliação presencial **e** Mapa do Evento. O Ranking presencial também **baixa** (CSV, Excel, PDF, TXT) e gera as
+    **listas da premiação** (Sprints 250–254, `/admin/presencial/listas`, `ListaPresencialService`): preliminares e
+    finais como as da online, mas em tabela própria — a final ativa é o **resultado oficial da premiação** e alimenta o
+    Cerimonial, sem mexer nos finalistas. Duas seções: **por nota** (por padrão **do 1º ao 4º lugar de cada área em
+    cada categoria**, editável na geração; empate no último lugar leva os dois; código do finalista) e **premiações** (cópia editável de Credenciais e Prêmios); arquivos TXT/CSV/Excel/PDF e os
+    **slides** da cerimônia em .pptx (prêmio → foto do estande → projeto; `App\Support\ApresentacaoPptx`). A rubrica é a do documento **"Perguntas de Avaliação FETECMS 2026 ·
     Etapa Presencial"** (`App\Support\RubricaPresencial`) **sem a seção 1** (ética: TCE e TCLE/TALE,
     tirada a pedido da organização): 13 seções, **8,500** em escala e **1,500** em Sim/Não, perguntas
     **condicionais** (a 2.2 só depois do "Sim" na 2.1; "Não" na 2.1 = 2.2 vale 0) e **sem valor** (a
@@ -1076,9 +1081,120 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 245 | Fix: designação do comitê cortava em **30** (sem aviso) + manuais; mapa separa **credenciado antes × hoje** | ✅ sim | ✅ sim (Pedro, PR #126 → v1.45) | 0 |
 | 246 | Avaliador: **Home** com as abas, aba presencial **unificada** e **indicação do comitê** no topo | ✅ sim | ✅ sim (Pedro, PR #126 → v1.45) | 0 |
 | 247 | Cerimonial → **Fotografias de estandes** (mapa, reserva "em registro", câmera ou arquivo de 100 MB, prévia) | ✅ sim | ✅ sim (Pedro, PR #126 → v1.45) | 0 |
-| 248 | Mapa do Evento → **avaliações por projeto**: o que falta (comum × comitê), filtros no mapa e na lista, PDF de cada um | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 249 | Avaliações por projeto: **ordenar** por estande ou situação + **transferir** a avaliação presencial para o projeto certo | ✅ sim | ❌ não (manual do Pedro) | 2 |
+| 248 | Mapa do Evento → **avaliações por projeto**: o que falta (comum × comitê), filtros no mapa e na lista, PDF de cada um | ✅ sim | ✅ sim (Pedro, PR #127 → v1.46) | 0 |
+| 249 | Avaliações por projeto: **ordenar** por estande ou situação + **transferir** a avaliação presencial para o projeto certo | ✅ sim | ✅ sim (Pedro, PR #127 → v1.46) | 0 |
+| 250 | Ranking presencial: **baixar** em CSV, Excel, PDF e TXT, no recorte dos filtros | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 251 | Ranking presencial → **listas preliminares e finais** da premiação (cotas categoria → área, colocação, gerar/ativar/reativar, união, TXT/CSV/Excel/PDF) | ✅ sim | ❌ não (manual do Pedro) | 2 |
+| 252 | Lista da premiação: **incluir e retirar** (livre no rascunho, justificativa depois) + a final ativa **premia no Cerimonial** | ✅ sim | ❌ não (manual do Pedro) | 3 |
+| 253 | Lista da premiação: seção de **premiações** (cópia editável de Credenciais e Prêmios), nos mesmos arquivos | ✅ sim | ❌ não (manual do Pedro) | 4 |
+| 254 | Lista da premiação: **slides da cerimônia em PPTX** (prêmio → foto do estande → projeto), escritor próprio | ✅ sim | ❌ não (manual do Pedro) | 5 |
+| 255 | Lista da premiação: por padrão **do 1º ao 4º lugar** de cada área em cada categoria, editável na geração | ✅ sim | ❌ não (manual do Pedro) | 6 |
+| 256 | Fix (segurança): `follow-redirects` 1.16.0 → 1.16.1 (job security do CI) + `vite` 8.2.2 → 8.3.4 (dev) | ✅ sim | ❌ não (manual do Pedro) | 7 |
 
+> **Sprint 256 (mesma branch):** o job **security** do CI quebrou no `npm audit --omit=dev --audit-level=high`:
+> `follow-redirects` 1.16.0 (dependência do `axios`) com dois avisos altos — cabeçalho de credencial que não era
+> retirado no redirecionamento entre origens (GHSA-q3jh-wrc6-jgq8, GHSA-8r9p-f939-6h3c). Subiu para **1.16.1**, só no
+> lock (o `axios` pede `^1.16.0`). De carona, o `npm audit` completo acusava o **`vite` 8.2.0–8.2.2** (alto, no
+> `launch-editor` do servidor de desenvolvimento): **8.3.4**, dentro do `^8.0.0` — levou junto rolldown 1.2.14,
+> postcss 8.5.31 e nanoid 3.3.20. `package.json` não mudou. O `npm audit fix`/`npm update` do npm 10.9.8 quebra com
+> `Cannot read properties of null (reading 'edgesOut')` (bug do arborist no conjunto de peers); o lock foi refeito com
+> `npx npm@11 update vite`, e o `npm ci` do npm 10 instala o lock sem alterá-lo. `npm audit` (com e sem dev) limpo;
+> front **985/985**, build OK.
+>
+> **Sprint 255 (mesma branch):** a seção por nota passou a ser escolhida pela **colocação**, e não pela quantidade:
+> por padrão, **do 1º ao 4º lugar de cada área do conhecimento em cada categoria** (decisão do Pedro;
+> `ListaPresencialService::LUGARES_PADRAO`, que `GET /admin/presencial/listas/opcoes` devolve em `lugares_padrao`).
+> O assistente (*Gerar lista*) abre no passo **Colocação por área**, com "até o 4º lugar" preenchido em todas as áreas
+> de todas as categorias; o admin muda área a área ou a categoria inteira ("Todas as áreas da …"), e **em branco não
+> limita**, **0 deixa a área de fora**. O passo 2, **Limites (opcional)**, guarda os tetos que já existiam por
+> categoria e no total (número ou porcentagem; os de maior média primeiro). Cortar pela colocação resolve o empate:
+> "até o 4º lugar" com dois empatados em 4º leva **os dois** — cortar um deixaria fora um projeto com a mesma colocação
+> de quem entrou. O pedido viaja em `categorias[cat].areas[id].lugares` (`ListaPresencialRequest`, no lugar do
+> `ListaFinalRequest`); área sem `lugares` segue o padrão, `lugares` nulo não limita. A cota por **quantidade** de
+> projetos na área saiu.
+> Back **1713/1713**, front **985/985**, Pint limpo, build OK.
+>
+> **Sprint 254 (mesma branch):** a lista **gerada** baixa os **slides da cerimônia** em .pptx
+> (`GET /admin/presencial/listas/{lista}/slides`, `ListaPresencialService::slides()`). Para cada premiação, três
+> slides: (1) o **prêmio** — "Premiação por nota" com "1º lugar" e "Área · Categoria", ou o tipo (Credencial/Prêmio)
+> com o nome e o órgão —, em branco sobre o roxo; (2) a **foto do estande** de Cerimonial → Fotografias de estandes,
+> inteira e centralizada, com "Estande 042 · FET.AGR-001" embaixo; (3) o **projeto** como na lista — código, título,
+> escola e a equipe (estudantes, "Nome - Orientador(a)", "Nome - Coorientador(a)"). A ordem é a do palco (decisão do
+> Pedro): por nota, categoria → área, **do último colocado para o primeiro** (quem está sem colocação abre o grupo);
+> depois as credenciais e os prêmios na ordem do cadastro. O projeto com mais de uma premiação aparece uma vez em cada.
+> **Sem foto** (decisão do Pedro), o slide sai com o aviso no lugar — "Sem fotografia registrada", "Fotografia não
+> encontrada no servidor" ou, para WEBP/HEIC, que o PowerPoint não abre o formato —, e a tela lista antes de baixar
+> quem vai sair assim (`slides.sem_foto` no detalhe). O .pptx sai de um **escritor próprio**
+> (`App\Support\ApresentacaoPptx`, `ZipArchive`, **sem dependência nova**, como o `PlanilhaXlsx`): 16:9, identidade
+> do portal (Space Grotesk/Inter, roxo e a faixa verde), texto que diminui em degraus pelo comprimento, a foto
+> embutida **sem recompressão** e a **orientação EXIF** da câmera lida à mão e aplicada como rotação do quadro (o
+> PowerPoint mostra os pixels como estão). O arquivo é montado em disco temporário e apagado depois do download.
+> Conferido abrindo no LibreOffice (conversão para PDF e imagem); não num PowerPoint de verdade.
+> Back **1710/1710**, front **984/984**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprints 250–256):** (1) `git push origin feat/ranking-presencial-listas` + PR para a `main`.
+> **Duas migrations** (`listas_presenciais` + `lista_presencial_projetos`; `lista_presencial_premios` +
+> `lista_presencial_premio_projetos`), **nenhuma variável de `.env`** e **nenhuma dependência nova**. (2) **Abra um
+> .pptx no PowerPoint** (e, se a organização usa, no Google Slides) antes da cerimônia: aqui ele foi validado no
+> LibreOffice. Confira em especial uma **foto tirada de pé no celular** — a rotação vem do EXIF. (3) Fotos em **WEBP ou
+> HEIC** não entram nos slides (o servidor não tem GD para converter): o aviso aparece na tela; reenvie em JPG. (4) A
+> **final presencial ativa entra no Cerimonial**: gerar uma final aqui muda os premiados (medalhas, busto verde) na
+> hora. Use **preliminar** para ensaiar. (5) As premiações da lista são uma **cópia**: credencial atribuída depois de
+> montar a lista só entra por *Recarregar de Credenciais e Prêmios* (ou incluindo à mão). (6) Listas e downloads são
+> `admin.permanente`: o voluntário de conta temporária continua vendo só o ranking.
+>
+> **Sprints 252–253 (mesma branch):**
+> (a) **Sprint 252** — a composição da lista da premiação se edita como a da online: **incluir** um finalista
+> (busca por código ou título entre os finalistas fora da seção por nota) e **retirar**, na hora no rascunho; numa
+> lista já gerada, com **justificativa**, versão nova e registro (`lista_presencial_projeto_adicionado`/`_removido`
+> em Registros → Lista final). Só entra **finalista da lista final vigente** da trilha da lista (422 para os outros).
+> A colocação é recalculada pela média; o incluído sem avaliação presencial fica no fim do grupo, sem colocação. E a
+> **final presencial ativa alimenta o Cerimonial** (decisão do Pedro): os premiados por nota dela passam a ser
+> **premiados** — busto verde, medalha, a premiação "1º lugar · Área · Categoria" (tipo `nota`, ícone
+> `military_tech`) na ficha e em Premiados —, na mesma trilha (a de ensaio no modo de teste). A premiação por nota não
+> tem objeto na mesa: não entra nas credenciais a separar. Preliminar, final inativa e rascunho não premiam ninguém.
+> `ListaPresencialService::rotulosPorNota()` é a conta leve que o painel faz a cada atualização.
+> (b) **Sprint 253** — a lista ganhou a seção de **premiações**: ao ser montada, ela **copia** as credenciais e os
+> prêmios **ativos** de Avaliação presencial → Credenciais e Prêmios, com os projetos que os receberam (só finalistas
+> da trilha) e inclusive os que ainda não têm ninguém (`lista_presencial_premios` com nome/tipo/órgão gravados +
+> `lista_presencial_premio_projetos`). É **cópia** de propósito (decisão do Pedro): incluir e retirar projeto numa
+> credencial da lista não mexe no cadastro original — com as mesmas regras da seção por nota (justificativa depois de
+> gerada, registro com o nome da credencial). **Recarregar de Credenciais e Prêmios** troca a seção pelo que está lá
+> agora (confirmação no rascunho; justificativa e `lista_presencial_premiacoes_recarregadas` depois). A união junta a
+> mesma credencial das listas de origem numa seção só. Os arquivos trazem a seção no mesmo formato: o TXT ganha
+> `== PREMIAÇÕES` e `== [CREDENCIAL] NOME — órgão` com os blocos de sempre ("(nenhum projeto contemplado)" na vazia),
+> CSV/Excel uma linha por projeto premiado (Seção = Credencial/Prêmio) e o PDF uma tabela por credencial. Lista só
+> com premiações pode ser gerada. No Cerimonial, as premiações da final ativa **somam** às de Credenciais e Prêmios (a
+> mesma credencial nos dois lugares conta uma vez).
+> Back **1706/1706**, front **982/982**, Pint limpo, build OK.
+>
+> **Sprints 250–251 (branch `feat/ranking-presencial-listas`, saída da `origin/main` @ `235adff`, v1.46):**
+> (a) **Sprint 250** — o **Ranking presencial** passou a ser baixável, como o online (Sprint 153): **CSV, Excel,
+> PDF e TXT**, sempre no recorte dos filtros da tela (`GET /admin/presencial/ranking/exportar/{csv|xlsx|pdf|txt}`,
+> `RankingPresencialService::exportar()`, `pdf/ranking-presencial.blade.php`). Cada linha leva posição, código do
+> finalista, projeto, área, categoria, estande, turno, a **média ponderada** (três casas; número no Excel), quantas
+> avaliações comuns e da comissão e a marca **Parcial**. As notas uma a uma ficam de fora (quem avaliou é do *Ver
+> avaliações*). Baixar é `admin.permanente`: o voluntário de conta temporária continua vendo o ranking, sem os botões.
+> (b) **Sprint 251** — **listas preliminares e finais da premiação** (`/admin/presencial/listas`,
+> `ListaPresencialService`, `ListaPresencialController`, tabelas `listas_presenciais` + `lista_presencial_projetos`).
+> **Tabela própria de propósito**: a final ativa da online define os finalistas, e uma lista de premiados pela nota
+> do estande não pode mexer nisso — a final ativa daqui é o **resultado oficial da premiação** (o Cerimonial passa a
+> lê-la na Sprint 252). O ciclo é o da online: nasce **rascunho**, pela classificação (*Gerar lista* no ranking, o
+> assistente de cotas **total → categoria → área**, número ou porcentagem, **sem o passo do interior** — com um campo
+> "mesma quantidade em todas as áreas" para o pódio de cada grupo) ou pela **união** de listas presenciais já geradas;
+> **gerar** fecha (a final vira a ativa e a anterior, inativa, reativável com justificativa); apelido e descrição
+> mudam a qualquer momento. O universo é o do ranking presencial (finalistas da lista final vigente com média; a demo
+> no modo de teste, que tem trilha própria, `listas_presenciais.demo`). O **código é o do finalista** na lista final
+> vigente — a premiação não renumera ninguém —, e cada projeto ganha a **colocação** no grupo categoria+área pela
+> média (empate divide: 1º, 2º, 2º, 4º; o incluído sem nota fica sem colocação, no fim do grupo). Os arquivos
+> (`GET /admin/presencial/listas/{lista}/exportar/{txt|csv|xlsx|pdf}`): o **TXT** usa o bloco da lista online
+> (`ListaFinalService::blocos()`, agora público) com "1º lugar" em cima e cabeçalhos `== PREMIADOS POR NOTA` e
+> `== CATEGORIA · ÁREA`; CSV e Excel trazem uma linha por premiação (seção, "1º lugar · Área · Categoria",
+> colocação, código, projeto, escola, estudantes, orientação, média); o PDF, uma tabela por grupo. Registros → Lista
+> final ganhou `lista_presencial_gerada` e `lista_presencial_reativada`. Tudo sob `aba:avaliacao_presencial` +
+> `admin.permanente`. `RankingPresencialService::medias()` virou a conta compartilhada da média ponderada.
+> Back **1695/1695**, front **978/978**, Pint limpo, build OK.
+>
 > **Sprint 249 (mesma branch):** (a) A lista das **avaliações por projeto** ordena por **estande** ou por
 > **situação** — a ordem das categorias, da que mais falta à fechada; o empate sai pelo estande crescente —, nos
 > dois sentidos, clicando no cabeçalho (`ordenarAvaliacoes()` na tela, `MapaAvaliacoesService::ordenar()` no
