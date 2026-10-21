@@ -1083,13 +1083,46 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 247 | Cerimonial → **Fotografias de estandes** (mapa, reserva "em registro", câmera ou arquivo de 100 MB, prévia) | ✅ sim | ✅ sim (Pedro, PR #126 → v1.45) | 0 |
 | 248 | Mapa do Evento → **avaliações por projeto**: o que falta (comum × comitê), filtros no mapa e na lista, PDF de cada um | ✅ sim | ✅ sim (Pedro, PR #127 → v1.46) | 0 |
 | 249 | Avaliações por projeto: **ordenar** por estande ou situação + **transferir** a avaliação presencial para o projeto certo | ✅ sim | ✅ sim (Pedro, PR #127 → v1.46) | 0 |
-| 250 | Ranking presencial: **baixar** em CSV, Excel, PDF e TXT, no recorte dos filtros | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 251 | Ranking presencial → **listas preliminares e finais** da premiação (cotas categoria → área, colocação, gerar/ativar/reativar, união, TXT/CSV/Excel/PDF) | ✅ sim | ❌ não (manual do Pedro) | 2 |
-| 252 | Lista da premiação: **incluir e retirar** (livre no rascunho, justificativa depois) + a final ativa **premia no Cerimonial** | ✅ sim | ❌ não (manual do Pedro) | 3 |
-| 253 | Lista da premiação: seção de **premiações** (cópia editável de Credenciais e Prêmios), nos mesmos arquivos | ✅ sim | ❌ não (manual do Pedro) | 4 |
-| 254 | Lista da premiação: **slides da cerimônia em PPTX** (prêmio → foto do estande → projeto), escritor próprio | ✅ sim | ❌ não (manual do Pedro) | 5 |
-| 255 | Lista da premiação: por padrão **do 1º ao 4º lugar** de cada área em cada categoria, editável na geração | ✅ sim | ❌ não (manual do Pedro) | 6 |
-| 256 | Fix (segurança): `follow-redirects` 1.16.0 → 1.16.1 (job security do CI) + `vite` 8.2.2 → 8.3.4 (dev) | ✅ sim | ❌ não (manual do Pedro) | 7 |
+| 250 | Ranking presencial: **baixar** em CSV, Excel, PDF e TXT, no recorte dos filtros | ✅ sim | ✅ sim (Pedro, PR #128 → v1.47) | 0 |
+| 251 | Ranking presencial → **listas preliminares e finais** da premiação (cotas categoria → área, colocação, gerar/ativar/reativar, união, TXT/CSV/Excel/PDF) | ✅ sim | ✅ sim (Pedro, PR #128 → v1.47) | 0 |
+| 252 | Lista da premiação: **incluir e retirar** (livre no rascunho, justificativa depois) + a final ativa **premia no Cerimonial** | ✅ sim | ✅ sim (Pedro, PR #128 → v1.47) | 0 |
+| 253 | Lista da premiação: seção de **premiações** (cópia editável de Credenciais e Prêmios), nos mesmos arquivos | ✅ sim | ✅ sim (Pedro, PR #128 → v1.47) | 0 |
+| 254 | Lista da premiação: **slides da cerimônia em PPTX** (prêmio → foto do estande → projeto), escritor próprio | ✅ sim | ✅ sim (Pedro, PR #128 → v1.47) | 0 |
+| 255 | Lista da premiação: por padrão **do 1º ao 4º lugar** de cada área em cada categoria, editável na geração | ✅ sim | ✅ sim (Pedro, PR #128 → v1.47) | 0 |
+| 256 | Fix (segurança): `follow-redirects` 1.16.0 → 1.16.1 (job security do CI) + `vite` 8.2.2 → 8.3.4 (dev) | ✅ sim | ✅ sim (Pedro, PR #128 → v1.47) | 0 |
+| 257 | Slides da premiação no **modelo da organização** (Canva "FETEC FUNDECT"): abertura por colocação, um slide por projeto com foto, por categoria | ✅ sim | ❌ não (manual do Pedro) | 1 |
+
+> **Sprint 257 (branch `feat/slides-modelo-canva`, saída da `main` @ `3faa661`, v1.47):** os slides da premiação
+> passaram a seguir o **modelo da organização** (`~/Downloads/FETEC FUNDECT.pdf`, Canva, 27 páginas 16:9). As medidas,
+> fontes e cores saíram do próprio PDF (`pdftohtml -xml`) e foram convertidas para o slide (1440 pt → 960 pt). A
+> **sequência** mudou (decisão do Pedro): por **categoria**, um bloco por **colocação do último lugar ao 1º** — a
+> **abertura** "3° LUGAR - FETEC FUNDECT" (HandelGothic BT, #8608A6, no alto), **um slide por projeto** na ordem das
+> áreas do modelo (as "Ciências …" pela palavra que as distingue, depois Engenharias e Linguística;
+> `ListaPresencialService::ordemDaArea()`) e o **fechamento** repetindo a abertura; os três slides por projeto
+> saíram. O slide do projeto é a página com foto do modelo: logo à esquerda, enfeite e "FETECMS / ano da edição"
+> (HandelGothic, #400046) no **layout** "Premiado" (fixos ao editar no PowerPoint), "3° LUGAR" em Globotipo Texto
+> Black e a área em Globotipo Texto (#8608A6), o projeto "CÓDIGO - Título" no lugar de "PROJETO" e, abaixo e menor
+> (decisão do Pedro), escola, estudantes e orientação; a **foto do estande** ocupa a coluna da direita, inteira, e sem
+> ela o lugar mostra o aviso numa moldura. As **credenciais e os prêmios** vêm depois, no mesmo visual (decisão do
+> Pedro): abertura "MOSTRATEC 2027 - CREDENCIAL", o tipo no lugar da colocação e o nome no lugar da área. O fundo
+> pastel (que no Canva está girado 90° — a orientação foi achada comparando pixels com a página renderizada), a logo e
+> o enfeite foram **extraídos do PDF** para `resources/slides` (`fundo.jpg`, `logo.png`, `enfeite.png`) e entram uma
+> vez no pacote, pelo mestre e pelo layout. As **fontes** vão pelo nome — `HandelGothic BT`, `Globotipo Texto` e
+> `Globotipo Texto Black` —: na máquina com elas instaladas o slide sai como o modelo; sem elas o PowerPoint troca.
+> **Um arquivo por categoria** (decisão do Pedro): `GET /admin/presencial/listas/{lista}/slides?categoria=` (sem ela,
+> todas em sequência), e a tela tem um botão por categoria e "Todas", com a contagem de slides de cada. A FUNDECT
+> aparece como **"FETEC FUNDECT"**, como no modelo; as outras com o nome do portal. O projeto incluído **sem
+> colocação** (sem avaliação presencial) não tem bloco e fica fora — a tela avisa. Conferido convertendo no
+> LibreOffice e comparando as posições de texto e imagem com as do modelo (`pdftohtml -xml`): logo, enfeite,
+> "3° LUGAR" e a abertura caem nas coordenadas do Canva. **O visual não foi visto por olhos** (as imagens não abriam na
+> sessão do Claude).
+> Back **1714/1714**, front **985/985**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprint 257):** (1) `git push origin feat/slides-modelo-canva` + PR para a `main`. Sem migration,
+> `.env` ou dependência; três imagens novas em `resources/slides`. (2) **Abra um .pptx no PowerPoint** com as fontes
+> instaladas e compare com o modelo do Canva — é a conferência visual que faltou. Se o nome de família das fontes
+> no seu Windows for outro (ex.: "Handel Gothic BT" com espaço), é trocar as três constantes `FONTE_*` do
+> `ApresentacaoPptx`. (3) Instale **HandelGothic BT** e **Globotipo Texto** (Bold e Black) no computador da cerimônia.
 
 > **Sprint 256 (mesma branch):** o job **security** do CI quebrou no `npm audit --omit=dev --audit-level=high`:
 > `follow-redirects` 1.16.0 (dependência do `axios`) com dois avisos altos — cabeçalho de credencial que não era
@@ -1129,14 +1162,15 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > do portal (Space Grotesk/Inter, roxo e a faixa verde), texto que diminui em degraus pelo comprimento, a foto
 > embutida **sem recompressão** e a **orientação EXIF** da câmera lida à mão e aplicada como rotação do quadro (o
 > PowerPoint mostra os pixels como estão). O arquivo é montado em disco temporário e apagado depois do download.
-> Conferido abrindo no LibreOffice (conversão para PDF e imagem); não num PowerPoint de verdade.
+> O arquivo abriu e converteu no LibreOffice sem erro, mas o **visual não foi visto** (as imagens não abriam na
+> sessão do Claude — a correção deste registro é da Sprint 257); não foi aberto num PowerPoint de verdade.
 > Back **1710/1710**, front **984/984**, Pint limpo, build OK.
 >
 > **Pendências do Pedro (Sprints 250–256):** (1) `git push origin feat/ranking-presencial-listas` + PR para a `main`.
 > **Duas migrations** (`listas_presenciais` + `lista_presencial_projetos`; `lista_presencial_premios` +
 > `lista_presencial_premio_projetos`), **nenhuma variável de `.env`** e **nenhuma dependência nova**. (2) **Abra um
-> .pptx no PowerPoint** (e, se a organização usa, no Google Slides) antes da cerimônia: aqui ele foi validado no
-> LibreOffice. Confira em especial uma **foto tirada de pé no celular** — a rotação vem do EXIF. (3) Fotos em **WEBP ou
+> .pptx no PowerPoint** (e, se a organização usa, no Google Slides) antes da cerimônia: aqui ele só foi
+> convertido no LibreOffice, sem conferência visual. Confira em especial uma **foto tirada de pé no celular** — a rotação vem do EXIF. (3) Fotos em **WEBP ou
 > HEIC** não entram nos slides (o servidor não tem GD para converter): o aviso aparece na tela; reenvie em JPG. (4) A
 > **final presencial ativa entra no Cerimonial**: gerar uma final aqui muda os premiados (medalhas, busto verde) na
 > hora. Use **preliminar** para ensaiar. (5) As premiações da lista são uma **cópia**: credencial atribuída depois de

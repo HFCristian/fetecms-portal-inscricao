@@ -33,7 +33,12 @@ const DADOS = {
         { id: 71, credencial_id: 5, tipo: 'premio', tipo_label: 'Prêmio', nome: 'Destaque', orgao: null, titulo: 'Destaque', itens: [] },
     ],
     slides: {
-        premiados: 4, slides: 12,
+        premiados: 5, slides: 12,
+        categorias: [
+            { value: 'fetecms', label: 'FETECMS', premiados: 4, slides: 9 },
+            { value: 'fetecms_fundect', label: 'FETEC FUNDECT', premiados: 1, slides: 3 },
+        ],
+        sem_colocacao: 1,
         sem_foto: [{ projeto_id: 11, codigo: 'FET.AGR-002', titulo: 'Bioinsumo', motivo: 'Sem fotografia registrada' }],
     },
     finalistas: [
@@ -216,6 +221,7 @@ describe('PresencialListaDetalhe', () => {
         render(<PresencialListaDetalhe />);
         expect(await screen.findByText('Gere a lista para baixar os slides.')).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: /Baixar slides/ })).not.toBeInTheDocument();
+        expect(screen.queryByText(/fora dos slides/)).not.toBeInTheDocument();
     });
 
     it('baixa os slides da lista gerada', async () => {
@@ -224,7 +230,13 @@ describe('PresencialListaDetalhe', () => {
 
         expect(await screen.findByText(/1 projeto vai sair sem foto/)).toBeInTheDocument();
         expect(screen.getByText('FET.AGR-002 — Bioinsumo: Sem fotografia registrada')).toBeInTheDocument();
-        fireEvent.click(screen.getByRole('button', { name: /Baixar slides \(12\)/ }));
-        await waitFor(() => expect(exportarSlidesPresencial).toHaveBeenCalledWith('5'));
+        expect(screen.getByText(/1 projeto incluído sem colocação fica/)).toBeInTheDocument();
+
+        // Um botão por categoria (cada cerimônia baixa a sua) e "Todas".
+        fireEvent.click(screen.getByRole('button', { name: 'Baixar slides FETEC FUNDECT' }));
+        await waitFor(() => expect(exportarSlidesPresencial).toHaveBeenLastCalledWith('5', 'fetecms_fundect'));
+        expect(screen.getByRole('button', { name: 'Baixar slides FETECMS' })).toHaveTextContent('FETECMS (9 slides)');
+        fireEvent.click(screen.getByRole('button', { name: 'Baixar slides Todas' }));
+        await waitFor(() => expect(exportarSlidesPresencial).toHaveBeenLastCalledWith('5', null));
     });
 });

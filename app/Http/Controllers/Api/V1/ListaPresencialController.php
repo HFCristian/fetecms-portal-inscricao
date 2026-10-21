@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\Categoria;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\ListaPresencialRequest;
 use App\Models\Edicao;
@@ -208,10 +209,18 @@ class ListaPresencialController extends Controller
         ]);
     }
 
-    /** A apresentação da cerimônia em .pptx (Sprint 254), só de lista gerada. */
-    public function slides(ListaPresencial $lista): BinaryFileResponse
+    /**
+     * A apresentação da cerimônia em .pptx (Sprints 254 e 257), só de lista
+     * gerada — de uma categoria (`?categoria=`) ou de todas.
+     */
+    public function slides(Request $request, ListaPresencial $lista): BinaryFileResponse
     {
-        $arquivo = $this->listas->slides($this->daEdicao($lista));
+        $dados = $request->validate(
+            ['categoria' => ['nullable', Rule::enum(Categoria::class)]],
+            ['categoria.enum' => 'Categoria desconhecida.'],
+        );
+
+        $arquivo = $this->listas->slides($this->daEdicao($lista), $dados['categoria'] ?? null);
 
         return response()->download($arquivo['caminho'], $arquivo['nome'], [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.presentationml.presentation',

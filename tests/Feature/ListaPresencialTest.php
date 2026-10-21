@@ -12,7 +12,6 @@ use App\Models\AvaliacaoPresencial;
 use App\Models\AvaliadorProfile;
 use App\Models\Credencial;
 use App\Models\Edicao;
-use App\Models\EstandeProjeto;
 use App\Models\FotografiaEstande;
 use App\Models\ListaFinal;
 use App\Models\ListaPresencial;
@@ -526,11 +525,11 @@ FET.AGR-004 - Drone na lavoura
         return $partes;
     }
 
-    public function test_slides_na_ordem_do_palco_com_a_foto_do_estande(): void
+    public function test_slides_no_modelo_por_categoria_e_colocacao(): void
     {
         Storage::fake('local');
         $p = $this->cenario();
-        EstandeProjeto::create(['edicao_id' => $this->edicao->id, 'projeto_id' => $p['a']->id, 'turno' => 'A', 'numero' => 42]);
+        $this->nota($this->finalista('Fruto do cerrado', $this->agr, 'PIC.AGR-001', 'fetecms_fundect'), 7);
         $this->foto($p['a']);
         $this->foto($p['f'], Imagens::WEBP, 'image/webp');
         $this->credencial('MOSTRATEC', [$p['d']], orgao: 'Fundação Liberato');
@@ -540,38 +539,61 @@ FET.AGR-004 - Drone na lavoura
         $this->get("/api/v1/admin/presencial/listas/{$id}/slides")->assertUnprocessable();
 
         $tela = $this->postJson("/api/v1/admin/presencial/listas/{$id}/gerar")->assertOk()->json('data.slides');
-        // Até o 2º lugar: Abelhas, Bioinsumo e Compostagem (empatados em 2º),
-        // Enzimas e Fungos; mais o Drone na MOSTRATEC.
-        $this->assertSame(6, $tela['premiados']);
-        $this->assertSame(18, $tela['slides']);
+        // FETECMS: 2º lugar (abre, Bioinsumo, Compostagem, Fungos, fecha), 1º
+        // (abre, Abelhas, Enzimas, fecha) e a MOSTRATEC (abre, Drone, fecha);
+        // FUNDECT: 1º (abre, Fruto do cerrado, fecha).
+        $this->assertSame(7, $tela['premiados']);
+        $this->assertSame(15, $tela['slides']);
+        $this->assertSame([
+            ['value' => 'fetecms', 'label' => 'FETECMS', 'premiados' => 6, 'slides' => 12],
+            ['value' => 'fetecms_fundect', 'label' => 'FETEC FUNDECT', 'premiados' => 1, 'slides' => 3],
+        ], $tela['categorias']);
         $semFoto = collect($tela['sem_foto'])->keyBy('titulo');
         $this->assertFalse($semFoto->has('Abelhas'));
         $this->assertStringContainsString('formato', $semFoto['Fungos']['motivo']);
         $this->assertSame('Sem fotografia registrada', $semFoto['Bioinsumo']['motivo']);
 
-        $resposta = $this->get("/api/v1/admin/presencial/listas/{$id}/slides")->assertOk();
+        $resposta = $this->get("/api/v1/admin/presencial/listas/{$id}/slides?categoria=fetecms")->assertOk();
         $resposta->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
-        $this->assertStringContainsString('.pptx', (string) $resposta->headers->get('Content-Disposition'));
+        $this->assertStringContainsString('-fetecms-', (string) $resposta->headers->get('Content-Disposition'));
         $partes = $this->partesDoPptx($resposta->baseResponse->getFile()->getPathname());
+        $slide = fn (int $n) => $partes["ppt/slides/slide{$n}.xml"];
 
-        $this->assertSame(18, substr_count($partes['ppt/presentation.xml'], '<p:sldId '));
-        // Agrárias do 2º para o 1º (empate pelo título), depois Biológicas,
-        // depois a credencial.
-        $this->assertStringContainsString('2º lugar', $partes['ppt/slides/slide1.xml']);
-        $this->assertStringContainsString('Ciências Agrárias · FETECMS', $partes['ppt/slides/slide1.xml']);
-        $this->assertStringContainsString('Bioinsumo', $partes['ppt/slides/slide3.xml']);
-        $this->assertStringContainsString('Compostagem', $partes['ppt/slides/slide6.xml']);
-        $this->assertStringContainsString('1º lugar', $partes['ppt/slides/slide7.xml']);
-        $this->assertStringContainsString('Estande 042 · FET.AGR-001', $partes['ppt/slides/slide8.xml']);
-        $this->assertArrayHasKey('ppt/media/image8.jpeg', $partes);
-        $this->assertStringContainsString('FET.AGR-001', $partes['ppt/slides/slide9.xml']);
-        $this->assertStringContainsString('Ciências Biológicas', $partes['ppt/slides/slide10.xml']);
-        $this->assertStringContainsString('formato', $partes['ppt/slides/slide11.xml']);
-        $this->assertStringContainsString('MOSTRATEC', $partes['ppt/slides/slide16.xml']);
-        $this->assertStringContainsString('Fundação Liberato', $partes['ppt/slides/slide16.xml']);
-        $this->assertStringContainsString('Sem fotografia registrada', $partes['ppt/slides/slide17.xml']);
-        $this->assertStringContainsString('Drone na lavoura', $partes['ppt/slides/slide18.xml']);
+        $this->assertSame(12, substr_count($partes['ppt/presentation.xml'], '<p:sldId '));
+        $this->assertStringContainsString('2° LUGAR - FETECMS', $slide(1));
+        $this->assertStringContainsString('CIÊNCIAS AGRÁRIAS', $slide(2));
+        $this->assertStringContainsString('FET.AGR-002 - Bioinsumo', $slide(2));
+        $this->assertStringContainsString('Compostagem', $slide(3));
+        $this->assertStringContainsString('CIÊNCIAS BIOLÓGICAS', $slide(4));
+        $this->assertStringContainsString('formato', $slide(4));
+        $this->assertStringContainsString('2° LUGAR - FETECMS', $slide(5));
+        $this->assertStringContainsString('1° LUGAR - FETECMS', $slide(6));
+        $this->assertStringContainsString('FET.AGR-001 - Abelhas', $slide(7));
+        $this->assertArrayHasKey('ppt/media/image7.jpeg', $partes);
+        $this->assertStringContainsString('Enzimas', $slide(8));
+        $this->assertStringContainsString('MOSTRATEC - CREDENCIAL', $slide(10));
+        $this->assertStringContainsString('<a:t>CREDENCIAL</a:t>', $slide(11));
+        $this->assertStringContainsString('Drone na lavoura', $slide(11));
+        $this->assertStringContainsString('Sem fotografia registrada', $slide(11));
+        $this->assertStringContainsString('MOSTRATEC - CREDENCIAL', $slide(12));
+        $this->assertStringNotContainsString('Fruto do cerrado', implode('', $partes));
+
+        // Só a FUNDECT, com o nome do modelo.
+        $partes = $this->partesDoPptx($this->get("/api/v1/admin/presencial/listas/{$id}/slides?categoria=fetecms_fundect")
+            ->assertOk()->baseResponse->getFile()->getPathname());
+        $this->assertSame(3, substr_count($partes['ppt/presentation.xml'], '<p:sldId '));
+        $this->assertStringContainsString('1° LUGAR - FETEC FUNDECT', $partes['ppt/slides/slide1.xml']);
+        $this->assertStringContainsString('PIC.AGR-001 - Fruto do cerrado', $partes['ppt/slides/slide2.xml']);
+
+        // Sem categoria, todas em sequência; categoria desconhecida é recusada.
+        $partes = $this->partesDoPptx($this->get("/api/v1/admin/presencial/listas/{$id}/slides")
+            ->assertOk()->baseResponse->getFile()->getPathname());
+        $this->assertSame(15, substr_count($partes['ppt/presentation.xml'], '<p:sldId '));
+        $this->getJson("/api/v1/admin/presencial/listas/{$id}/slides?categoria=outra")
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.categoria.0', 'Categoria desconhecida.');
     }
+
     // --- Até o Nº lugar (Sprint 255) ----------------------------------------
 
     public function test_por_padrao_premia_do_primeiro_ao_quarto_lugar_de_cada_area(): void
