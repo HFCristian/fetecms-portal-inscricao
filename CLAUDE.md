@@ -1076,9 +1076,38 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 245 | Fix: designação do comitê cortava em **30** (sem aviso) + manuais; mapa separa **credenciado antes × hoje** | ✅ sim | ✅ sim (Pedro, PR #126 → v1.45) | 0 |
 | 246 | Avaliador: **Home** com as abas, aba presencial **unificada** e **indicação do comitê** no topo | ✅ sim | ✅ sim (Pedro, PR #126 → v1.45) | 0 |
 | 247 | Cerimonial → **Fotografias de estandes** (mapa, reserva "em registro", câmera ou arquivo de 100 MB, prévia) | ✅ sim | ✅ sim (Pedro, PR #126 → v1.45) | 0 |
-| 248 | Mapa do Evento → **avaliações por projeto**: o que falta (comum × comitê), filtros no mapa e na lista, PDF de cada um | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 249 | Avaliações por projeto: **ordenar** por estande ou situação + **transferir** a avaliação presencial para o projeto certo | ✅ sim | ❌ não (manual do Pedro) | 2 |
+| 248 | Mapa do Evento → **avaliações por projeto**: o que falta (comum × comitê), filtros no mapa e na lista, PDF de cada um | ✅ sim | ✅ sim (Pedro, PR #127 → v1.46) | 0 |
+| 249 | Avaliações por projeto: **ordenar** por estande ou situação + **transferir** a avaliação presencial para o projeto certo | ✅ sim | ✅ sim (Pedro, PR #127 → v1.46) | 0 |
+| 250 | Ranking presencial: **baixar** em CSV, Excel, PDF e TXT, no recorte dos filtros | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 251 | Ranking presencial → **listas preliminares e finais** da premiação (cotas categoria → área, colocação, gerar/ativar/reativar, união, TXT/CSV/Excel/PDF) | ✅ sim | ❌ não (manual do Pedro) | 2 |
 
+> **Sprints 250–251 (branch `feat/ranking-presencial-listas`, saída da `origin/main` @ `235adff`, v1.46):**
+> (a) **Sprint 250** — o **Ranking presencial** passou a ser baixável, como o online (Sprint 153): **CSV, Excel,
+> PDF e TXT**, sempre no recorte dos filtros da tela (`GET /admin/presencial/ranking/exportar/{csv|xlsx|pdf|txt}`,
+> `RankingPresencialService::exportar()`, `pdf/ranking-presencial.blade.php`). Cada linha leva posição, código do
+> finalista, projeto, área, categoria, estande, turno, a **média ponderada** (três casas; número no Excel), quantas
+> avaliações comuns e da comissão e a marca **Parcial**. As notas uma a uma ficam de fora (quem avaliou é do *Ver
+> avaliações*). Baixar é `admin.permanente`: o voluntário de conta temporária continua vendo o ranking, sem os botões.
+> (b) **Sprint 251** — **listas preliminares e finais da premiação** (`/admin/presencial/listas`,
+> `ListaPresencialService`, `ListaPresencialController`, tabelas `listas_presenciais` + `lista_presencial_projetos`).
+> **Tabela própria de propósito**: a final ativa da online define os finalistas, e uma lista de premiados pela nota
+> do estande não pode mexer nisso — a final ativa daqui é o **resultado oficial da premiação** (o Cerimonial passa a
+> lê-la na Sprint 252). O ciclo é o da online: nasce **rascunho**, pela classificação (*Gerar lista* no ranking, o
+> assistente de cotas **total → categoria → área**, número ou porcentagem, **sem o passo do interior** — com um campo
+> "mesma quantidade em todas as áreas" para o pódio de cada grupo) ou pela **união** de listas presenciais já geradas;
+> **gerar** fecha (a final vira a ativa e a anterior, inativa, reativável com justificativa); apelido e descrição
+> mudam a qualquer momento. O universo é o do ranking presencial (finalistas da lista final vigente com média; a demo
+> no modo de teste, que tem trilha própria, `listas_presenciais.demo`). O **código é o do finalista** na lista final
+> vigente — a premiação não renumera ninguém —, e cada projeto ganha a **colocação** no grupo categoria+área pela
+> média (empate divide: 1º, 2º, 2º, 4º; o incluído sem nota fica sem colocação, no fim do grupo). Os arquivos
+> (`GET /admin/presencial/listas/{lista}/exportar/{txt|csv|xlsx|pdf}`): o **TXT** usa o bloco da lista online
+> (`ListaFinalService::blocos()`, agora público) com "1º lugar" em cima e cabeçalhos `== PREMIADOS POR NOTA` e
+> `== CATEGORIA · ÁREA`; CSV e Excel trazem uma linha por premiação (seção, "1º lugar · Área · Categoria",
+> colocação, código, projeto, escola, estudantes, orientação, média); o PDF, uma tabela por grupo. Registros → Lista
+> final ganhou `lista_presencial_gerada` e `lista_presencial_reativada`. Tudo sob `aba:avaliacao_presencial` +
+> `admin.permanente`. `RankingPresencialService::medias()` virou a conta compartilhada da média ponderada.
+> Back **1695/1695**, front **978/978**, Pint limpo, build OK.
+>
 > **Sprint 249 (mesma branch):** (a) A lista das **avaliações por projeto** ordena por **estande** ou por
 > **situação** — a ordem das categorias, da que mais falta à fechada; o empate sai pelo estande crescente —, nos
 > dois sentidos, clicando no cabeçalho (`ordenarAvaliacoes()` na tela, `MapaAvaliacoesService::ordenar()` no

@@ -14,19 +14,19 @@ const tipoClass =
 const PASSOS = ['Categorias', 'Áreas', 'Interior'];
 
 /** Uma cota vazia: nem valor, nem tipo escolhido — não limita nada. */
-const VAZIA = { tipo: 'fixo', valor: '' };
+export const VAZIA = { tipo: 'fixo', valor: '' };
 
-const preenchida = (cota) => cota && cota.valor !== '' && cota.valor !== null && cota.valor !== undefined;
+export const preenchida = (cota) => cota && cota.valor !== '' && cota.valor !== null && cota.valor !== undefined;
 
 /** Converte a cota da tela no formato da API; `null` quando está em branco. */
-const paraApi = (cota) => (preenchida(cota) ? { tipo: cota.tipo, valor: Number(cota.valor) } : null);
+export const paraApi = (cota) => (preenchida(cota) ? { tipo: cota.tipo, valor: Number(cota.valor) } : null);
 
 /**
  * Um campo de cota: o número e o seletor fixo/porcentagem. A porcentagem é
  * sempre sobre o recorte que contém este campo (a categoria para a área, a área
  * para o interior).
  */
-function CampoCota({ id, rotulo, detalhe, cota, onChange, placeholder = 'sem limite' }) {
+export function CampoCota({ id, rotulo, detalhe, cota, onChange, placeholder = 'sem limite' }) {
     const atual = cota ?? VAZIA;
 
     return (

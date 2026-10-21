@@ -26,7 +26,7 @@ const SECOES = [
         to: '/admin/presencial/ranking',
         icon: 'leaderboard',
         titulo: 'Ranking presencial',
-        descricao: 'A média de cada finalista nas avaliações do estande, com o peso da comissão especial.',
+        descricao: 'A média de cada finalista nas avaliações do estande, com o peso da comissão especial, e as listas da premiação.',
     },
     {
         to: '/admin/presencial/avaliadores',

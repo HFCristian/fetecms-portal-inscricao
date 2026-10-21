@@ -131,6 +131,26 @@ export const retirarDesignacaoPresencial = (id, ocorrencia = {}, teste = false) 
 export const getRankingPresencial = (filtros = {}, teste = false) =>
     http.get('/admin/presencial/ranking', com(filtros, teste)).then((r) => r.data.data);
 
+/**
+ * Baixa um arquivo do servidor com o nome que ele mandou no
+ * Content-Disposition (`padrao` só quando o cabeçalho não veio).
+ */
+export async function baixarArquivo(url, config = {}, padrao = 'arquivo') {
+    const r = await http.get(url, { ...config, responseType: 'blob' });
+    const nome = /filename="([^"]+)"/.exec(r.headers?.['content-disposition'] ?? '')?.[1] ?? padrao;
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(r.data);
+    link.download = nome;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(link.href);
+}
+
+/** Baixar o ranking (Sprint 250): o arquivo sai no recorte dos filtros da tela. */
+export const exportarRankingPresencial = (formato, filtros = {}, teste = false) =>
+    baixarArquivo(`/admin/presencial/ranking/exportar/${formato}`, com(filtros, teste), `ranking-presencial.${formato}`);
+
 // Ver avaliações (Sprint 237): POST porque abrir fica registrado em Registros →
 // Notas. Excluir pede a justificativa e devolve a tela do projeto sem ela.
 

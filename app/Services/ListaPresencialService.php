@@ -1,0 +1,808 @@
+<?php
+
+namespace App\Services;
+
+use App\Enums\Categoria;
+use App\Enums\TipoRegistro;
+use App\Models\Area;
+use App\Models\Edicao;
+use App\Models\EstandeProjeto;
+use App\Models\ListaFinal;
+use App\Models\ListaPresencial;
+use App\Models\Projeto;
+use App\Models\User;
+use App\Support\Cota;
+use App\Support\PlanilhaXlsx;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
+
+/**
+ * Ranking presencial → **listas preliminares e finais** (Sprint 251).
+ *
+ * As mesmas ideias da lista da avaliação online ({@see ListaFinalService}),
+ * sobre a nota do estande:
+ *
+ * - a lista nasce **rascunho**, da classificação (cotas por categoria e por
+ *   área, número fixo ou porcentagem do recorte de cima) ou da **união** de
+ *   listas já geradas;
+ * - **gerar** fecha: a preliminar fica registrada; a final vira a **ativa** da
+ *   edição e a anterior passa a inativa, reativável com justificativa;
+ * - o arquivo sai no formato da lista online — "CÓDIGO - Título", escola,
+ *   estudantes, orientador e coorientador —, com a **colocação** de cada
+ *   projeto no seu grupo categoria+área.
+ *
+ * O universo é o do ranking presencial: os finalistas da lista final vigente
+ * (a demo, no modo de teste). O código é o do finalista nessa lista — a equipe
+ * já o recebeu, e a premiação não renumera ninguém.
+ *
+ * Não existe reserva para o interior aqui: ela é exigência do fomento da
+ * classificação online, não da premiação.
+ */
+class ListaPresencialService
+{
+    public function __construct(
+        private readonly RankingPresencialService $ranking,
+        private readonly ListaFinalService $listasFinais,
+        private readonly RegistroAtividadeService $registros,
+    ) {}
+
+    /**
+     * O que a tela de geração oferece: quantos projetos avaliados há em cada
+     * categoria e em cada área dentro dela.
+     *
+     * @return array<string, mixed>
+     */
+    public function opcoes(bool $demo = false): array
+    {
+        $vigente = ListaFinal::vigente(null, $demo);
+        $avaliados = $this->avaliados($demo);
+        $areas = Area::query()->orderBy('nome')->get(['id', 'nome', 'sigla']);
+        $porCategoria = $avaliados->groupBy(fn (array $p) => $p['categoria_valor'] ?? '');
+
+        return [
+            'lista_final' => $vigente === null ? null : ['id' => $vigente->id, 'nome' => $vigente->nome],
+            'total_disponivel' => $avaliados->count(),
+            'categorias' => array_map(function (Categoria $c) use ($porCategoria, $areas) {
+                $daCategoria = $porCategoria->get($c->value, collect());
+                $porArea = $daCategoria->groupBy(fn (array $p) => $p['area_id'] ?? 0);
+
+                return [
+                    'value' => $c->value,
+                    'label' => $c->label(),
+                    'sigla' => $c->sigla(),
+                    'disponiveis' => $daCategoria->count(),
+                    'areas' => $areas->map(fn (Area $a) => [
+                        'id' => $a->id,
+                        'nome' => $a->nome,
+                        'sigla' => $a->siglaDaLista(),
+                        'disponiveis' => $porArea->get($a->id, collect())->count(),
+                    ])->values()->all(),
+                ];
+            }, Categoria::ordemDaLista()),
+        ];
+    }
+
+    /**
+     * Monta o rascunho a partir da classificação: desce o ranking presencial
+     * pegando quem ainda cabe nas cotas.
+     *
+     * @param  array<string, mixed>  $cotas  `['total' => cota, 'categorias' => [cat => ['cota' => cota, 'areas' => [id => ['cota' => cota]]]]]`
+     */
+    public function rascunhar(
+        array $cotas,
+        User $admin,
+        ?string $nome = null,
+        string $tipo = ListaPresencial::TIPO_PRELIMINAR,
+        ?string $descricao = null,
+        bool $demo = false,
+    ): ListaPresencial {
+        $edicao = $this->edicaoOuFalha();
+
+        if (ListaFinal::vigente($edicao, $demo) === null) {
+            throw ValidationException::withMessages([
+                'lista' => 'A lista final ainda não foi gerada: sem finalistas, não há ranking presencial.',
+            ]);
+        }
+
+        $escolhidos = $this->selecionar($this->avaliados($demo), $cotas);
+        $tipo = $this->tipo($tipo);
+
+        return DB::transaction(function () use ($edicao, $admin, $nome, $descricao, $tipo, $cotas, $demo, $escolhidos) {
+            $lista = ListaPresencial::create([
+                'edicao_id' => $edicao->id,
+                'nome' => $this->nomeOuPadrao($nome, $edicao, $tipo),
+                'descricao' => $this->textoOuNulo($descricao),
+                'tipo' => $tipo,
+                'vigente' => false,
+                'rascunho' => true,
+                'demo' => $demo,
+                'versao' => 1,
+                'cotas' => $cotas,
+                'gerada_por' => $admin->id,
+            ]);
+
+            $lista->projetos()->attach(
+                collect($escolhidos)->mapWithKeys(fn (array $p) => [$p['projeto_id'] => ['manual' => false]])->all(),
+            );
+
+            return $lista->fresh();
+        });
+    }
+
+    /**
+     * Rascunho montado pela **união** de listas presenciais já geradas — as
+     * preliminares e as finais, ativa ou não —, sem repetir projeto.
+     *
+     * @param  list<int>  $listaIds
+     */
+    public function rascunharDeListas(
+        array $listaIds,
+        string $tipo,
+        User $admin,
+        ?string $nome = null,
+        ?string $descricao = null,
+        bool $demo = false,
+    ): ListaPresencial {
+        $edicao = $this->edicaoOuFalha();
+        $tipo = $this->tipo($tipo);
+
+        $origens = ListaPresencial::query()
+            ->whereIn('id', $listaIds)
+            ->where('edicao_id', $edicao->id)
+            ->where('rascunho', false)
+            ->where('demo', $demo)
+            ->orderByDesc('id')
+            ->get();
+
+        if ($origens->isEmpty() || $origens->count() !== count(array_unique($listaIds))) {
+            throw ValidationException::withMessages([
+                'listas' => 'Escolha listas presenciais preliminares ou finais já geradas nesta edição.',
+            ]);
+        }
+
+        $projetos = DB::table('lista_presencial_projetos')
+            ->whereIn('lista_presencial_id', $origens->pluck('id'))
+            ->pluck('projeto_id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        return DB::transaction(function () use ($edicao, $admin, $nome, $descricao, $tipo, $demo, $origens, $projetos) {
+            $lista = ListaPresencial::create([
+                'edicao_id' => $edicao->id,
+                'nome' => $this->nomeOuPadrao($nome, $edicao, $tipo),
+                'descricao' => $this->textoOuNulo($descricao),
+                'tipo' => $tipo,
+                'vigente' => false,
+                'rascunho' => true,
+                'demo' => $demo,
+                'versao' => 1,
+                'origens' => $origens->map(fn (ListaPresencial $l) => ['id' => $l->id, 'nome' => $l->nome, 'tipo' => $l->tipo])->values()->all(),
+                'gerada_por' => $admin->id,
+            ]);
+
+            $lista->projetos()->attach(
+                collect($projetos)->mapWithKeys(fn (int $id) => [$id => ['manual' => false]])->all(),
+            );
+
+            return $lista->fresh();
+        });
+    }
+
+    /**
+     * **Gera** a lista: a preliminar fica registrada; a final vira a ativa da
+     * edição, e a que estava ativa passa a inativa.
+     */
+    public function gerar(ListaPresencial $lista, User $admin): ListaPresencial
+    {
+        if (! $lista->rascunho) {
+            throw ValidationException::withMessages(['lista' => 'Esta lista já foi gerada.']);
+        }
+
+        if ($this->vazia($lista)) {
+            throw ValidationException::withMessages(['lista' => 'Uma lista sem nenhum projeto não pode ser gerada.']);
+        }
+
+        return DB::transaction(function () use ($lista, $admin) {
+            if ($lista->ehFinal()) {
+                $this->desativarFinais($lista);
+            }
+
+            $lista->forceFill([
+                'vigente' => $lista->ehFinal(),
+                'rascunho' => false,
+                'gerada_em' => now(),
+            ])->save();
+
+            $this->registros->listaFinal(
+                TipoRegistro::ListaPresencialGerada,
+                $admin,
+                $lista->nome,
+                null,
+                null,
+                ($lista->ehFinal() ? 'final (ativa)' : 'preliminar').' · '.$lista->projetos()->count().' projeto(s) por nota',
+            );
+
+            return $lista->fresh();
+        });
+    }
+
+    /** Volta a ativar uma final já gerada, com justificativa. */
+    public function reativar(ListaPresencial $lista, User $admin, string $justificativa): ListaPresencial
+    {
+        if (! $lista->ehFinal() || $lista->rascunho) {
+            throw ValidationException::withMessages(['lista' => 'Só uma lista final já gerada pode ser a ativa.']);
+        }
+
+        if ($lista->vigente) {
+            throw ValidationException::withMessages(['lista' => 'Esta lista já é a final ativa.']);
+        }
+
+        return DB::transaction(function () use ($lista, $admin, $justificativa) {
+            $anterior = ListaPresencial::vigente($lista->edicao, $lista->demo);
+            $this->desativarFinais($lista);
+            $lista->forceFill(['vigente' => true])->save();
+
+            $this->registros->listaFinal(
+                TipoRegistro::ListaPresencialReativada,
+                $admin,
+                $lista->nome,
+                null,
+                trim($justificativa),
+                $anterior ? "no lugar de {$anterior->nome}" : 'nenhuma estava ativa',
+            );
+
+            return $lista->fresh();
+        });
+    }
+
+    /** Apelido e descrição: rótulo, não composição — sem justificativa nem versão. */
+    public function rotular(ListaPresencial $lista, ?string $nome, ?string $descricao): ListaPresencial
+    {
+        $lista->update([
+            'nome' => $this->nomeOuPadrao($nome, $lista->edicao ?? $this->edicaoOuFalha(), $lista->tipo),
+            'descricao' => $this->textoOuNulo($descricao),
+        ]);
+
+        return $lista->fresh();
+    }
+
+    /**
+     * As listas da edição em curso, na trilha pedida (oficial ou de teste), da
+     * mais nova para a mais antiga.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function listas(bool $demo = false): array
+    {
+        $edicao = Edicao::atual();
+
+        if ($edicao === null) {
+            return [];
+        }
+
+        return ListaPresencial::where('edicao_id', $edicao->id)
+            ->where('demo', $demo)
+            ->with('autor:id,name')
+            ->withCount('projetos')
+            ->orderByDesc('id')
+            ->get()
+            ->map(fn (ListaPresencial $l) => $this->resumo($l) + [
+                'gerada_por' => $l->autor?->name,
+                'criada_em' => $l->created_at?->toIso8601String(),
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * A tela de uma lista: o cabeçalho, a seção por nota e quem ainda pode
+     * entrar nela.
+     *
+     * @return array<string, mixed>
+     */
+    public function detalhar(ListaPresencial $lista): array
+    {
+        $itens = $this->itens($lista);
+        $dentro = array_column($itens, 'projeto_id');
+
+        return [
+            'lista' => $this->resumo($lista) + ['projetos' => count($itens)],
+            'itens' => $itens,
+            // Os finalistas fora da seção por nota, os avaliados primeiro.
+            'candidatos' => $this->finalistas($lista->demo)
+                ->reject(fn (array $p) => in_array($p['projeto_id'], $dentro, true))
+                ->sortBy([
+                    fn (array $a, array $b) => ($b['media'] ?? -1) <=> ($a['media'] ?? -1),
+                    fn (array $a, array $b) => strcmp($this->chave($a['titulo']), $this->chave($b['titulo'])),
+                ])
+                ->map(fn (array $p) => [
+                    'id' => $p['projeto_id'],
+                    'titulo' => $p['titulo'],
+                    'codigo' => $p['codigo'],
+                    'categoria' => $p['categoria'],
+                    'area' => $p['area'],
+                    'media' => $p['media'],
+                ])
+                ->values()
+                ->all(),
+        ];
+    }
+
+    /**
+     * A seção por nota, já ordenada: categoria (FETECMS → FETEC Jr → FUNDECT),
+     * área em ordem alfabética e colocação no grupo. O projeto sem avaliação
+     * presencial (incluído à mão) fica no fim do grupo, sem colocação.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function itens(ListaPresencial $lista): array
+    {
+        $ids = $lista->projetos()->pluck('projetos.id')->map(fn ($id) => (int) $id)->all();
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $manuais = $lista->projetos()->pluck('lista_presencial_projetos.manual', 'projetos.id');
+        $itens = $this->descrever($ids, $lista->demo);
+
+        foreach ($itens as &$item) {
+            $item['manual'] = (bool) ($manuais[$item['projeto_id']] ?? false);
+        }
+        unset($item);
+
+        return $this->colocar($itens);
+    }
+
+    /**
+     * Cada premiado da lista com o nome do que ele recebeu, na ordem do
+     * arquivo — é o que os quatro formatos e os slides percorrem.
+     *
+     * @return list<array{secao: string, premiacao: string, item: array<string, mixed>}>
+     */
+    public function premiados(ListaPresencial $lista): array
+    {
+        return array_map(fn (array $item) => [
+            'secao' => 'nota',
+            'premiacao' => $this->rotuloDaColocacao($item),
+            'item' => $item,
+        ], $this->itens($lista));
+    }
+
+    /**
+     * O nome do prêmio por nota: "1º lugar · Ciências Agrárias · FETECMS".
+     * Sem colocação (projeto sem avaliação presencial), só o grupo.
+     *
+     * @param  array<string, mixed>  $item
+     */
+    public function rotuloDaColocacao(array $item): string
+    {
+        return implode(' · ', array_filter([
+            $item['colocacao'] !== null ? $item['colocacao'].'º lugar' : null,
+            $item['area'] ?? 'Sem área',
+            $item['categoria'],
+        ]));
+    }
+
+    // --- Arquivos ---------------------------------------------------------------
+
+    /**
+     * A lista em arquivo: TXT no formato da lista online, CSV e Excel com uma
+     * linha por premiação, PDF para o papel.
+     *
+     * @return array{conteudo: string, tipo: string, nome: string}
+     */
+    public function exportar(ListaPresencial $lista, string $formato): array
+    {
+        $nome = 'lista-presencial-'.Str::slug($lista->nome).'-v'.$lista->versao;
+
+        return match ($formato) {
+            'csv' => ['conteudo' => $this->csv($lista), 'tipo' => 'text/csv; charset=UTF-8', 'nome' => $nome.'.csv'],
+            'xlsx' => [
+                'conteudo' => PlanilhaXlsx::gerar(
+                    'Lista presencial',
+                    self::COLUNAS,
+                    array_map(fn (array $p) => $this->linhaArquivo($p, numerico: true), $this->premiados($lista)),
+                ),
+                'tipo' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'nome' => $nome.'.xlsx',
+            ],
+            'pdf' => ['conteudo' => $this->pdf($lista), 'tipo' => 'application/pdf', 'nome' => $nome.'.pdf'],
+            default => ['conteudo' => $this->txt($lista), 'tipo' => 'text/plain; charset=UTF-8', 'nome' => $nome.'.txt'],
+        };
+    }
+
+    private const COLUNAS = [
+        'Seção', 'Premiação', 'Colocação', 'Código', 'Projeto', 'Categoria', 'Área', 'Escola',
+        'Estudantes', 'Orientador(a)', 'Coorientador(a)', 'Média presencial',
+    ];
+
+    /**
+     * @param  array{secao: string, premiacao: string, item: array<string, mixed>}  $p
+     * @return list<string|int|float|null>
+     */
+    private function linhaArquivo(array $p, bool $numerico = false): array
+    {
+        $i = $p['item'];
+
+        return [
+            $p['secao'] === 'nota' ? 'Por nota' : 'Premiações',
+            $p['premiacao'],
+            $p['secao'] === 'nota' && $i['colocacao'] !== null ? $i['colocacao'].'º' : '',
+            $i['codigo'] ?? '',
+            $i['titulo'],
+            $i['categoria'] ?? '',
+            $i['area'] ?? 'Sem área',
+            $i['escola'],
+            implode('; ', $i['alunos']),
+            $i['orientador'] ?? '',
+            $i['coorientador'] ?? '',
+            $i['media'] === null ? ($numerico ? null : '') : ($numerico ? (float) $i['media'] : RankingPresencialService::nota($i['media'])),
+        ];
+    }
+
+    private function csv(ListaPresencial $lista): string
+    {
+        $saida = fopen('php://temp', 'r+');
+        fwrite($saida, "\u{FEFF}");
+        fputcsv($saida, self::COLUNAS, ';');
+
+        foreach ($this->premiados($lista) as $p) {
+            fputcsv($saida, $this->linhaArquivo($p), ';');
+        }
+
+        rewind($saida);
+        $csv = (string) stream_get_contents($saida);
+        fclose($saida);
+
+        return $csv;
+    }
+
+    /**
+     * O TXT: um cabeçalho por seção e por grupo, e cada projeto no bloco da
+     * lista online, com a colocação na linha de cima.
+     */
+    private function txt(ListaPresencial $lista): string
+    {
+        $edicao = $lista->edicao?->nome;
+        $saida = [
+            mb_strtoupper($lista->ehFinal() ? 'Lista final presencial' : 'Lista preliminar presencial')
+                .($edicao ? ' · '.$edicao : ''),
+            $lista->nome,
+        ];
+
+        $saida[] = '';
+        $saida[] = '== PREMIADOS POR NOTA';
+
+        $grupos = collect($this->itens($lista))->groupBy(fn (array $i) => ($i['categoria'] ?? '').'|'.($i['area'] ?? ''));
+
+        if ($grupos->isEmpty()) {
+            $saida[] = '';
+            $saida[] = '(nenhum projeto)';
+        }
+
+        foreach ($grupos as $itens) {
+            $primeiro = $itens->first();
+            $saida[] = '';
+            $saida[] = '== '.mb_strtoupper(implode(' · ', array_filter([$primeiro['categoria'], $primeiro['area'] ?? 'Sem área'])));
+
+            foreach ($itens as $item) {
+                $saida[] = '';
+                $saida[] = $item['colocacao'] !== null ? $item['colocacao'].'º lugar' : 'Sem colocação';
+                $saida[] = rtrim($this->listasFinais->blocos([$this->paraBloco($item)]));
+            }
+        }
+
+        return implode("\n", $saida)."\n";
+    }
+
+    /**
+     * O item no formato que o bloco da lista online espera.
+     *
+     * @param  array<string, mixed>  $item
+     * @return array<string, mixed>
+     */
+    private function paraBloco(array $item): array
+    {
+        return [...$item, 'codigo' => $item['codigo'] ?? ''];
+    }
+
+    private function pdf(ListaPresencial $lista): string
+    {
+        $grupos = collect($this->premiados($lista))
+            ->groupBy(fn (array $p) => $p['secao'] === 'nota'
+                ? implode(' · ', array_filter([$p['item']['categoria'], $p['item']['area'] ?? 'Sem área']))
+                : $p['premiacao'])
+            ->map(fn (Collection $g, string $titulo) => ['titulo' => $titulo, 'secao' => $g->first()['secao'], 'premiados' => $g->values()->all()])
+            ->values()
+            ->all();
+
+        return app(PdfService::class)->render('pdf.lista-presencial', [
+            'lista' => $lista,
+            'edicao' => $lista->edicao?->nome ?? 'FETECMS',
+            'gerado_em' => now()->format('d/m/Y H:i'),
+            'grupos' => $grupos,
+        ]);
+    }
+
+    // --- Universo ---------------------------------------------------------------
+
+    /**
+     * Os finalistas da lista final vigente, descritos, com a média presencial
+     * de quem já tem uma.
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function finalistas(bool $demo): Collection
+    {
+        $vigente = ListaFinal::vigente(null, $demo);
+
+        if ($vigente === null) {
+            return collect();
+        }
+
+        $ids = $vigente->projetos()->pluck('projetos.id')->map(fn ($id) => (int) $id)->all();
+
+        return collect($this->descrever($ids, $demo, $vigente));
+    }
+
+    /**
+     * Os finalistas avaliados, do melhor para o pior — a ordem do ranking
+     * presencial (média, depois quem tem mais avaliações, depois o título).
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function avaliados(bool $demo): Collection
+    {
+        return $this->finalistas($demo)
+            ->filter(fn (array $p) => $p['media'] !== null)
+            ->sortBy([
+                fn (array $a, array $b) => $b['media'] <=> $a['media'],
+                fn (array $a, array $b) => $b['avaliacoes'] <=> $a['avaliacoes'],
+                fn (array $a, array $b) => strcmp($this->chave($a['titulo']), $this->chave($b['titulo'])),
+            ])
+            ->values();
+    }
+
+    /**
+     * Projetos por id no formato da lista: equipe, escola, código do finalista,
+     * estande e a média presencial.
+     *
+     * @param  list<int>  $ids
+     * @return list<array<string, mixed>>
+     */
+    private function descrever(array $ids, bool $demo, ?ListaFinal $vigente = null): array
+    {
+        $vigente ??= ListaFinal::vigente(null, $demo);
+        $codigos = $vigente === null ? [] : $this->listasFinais->codigosDaLista($vigente);
+        $medias = $this->ranking->medias($ids);
+        $estandes = EstandeProjeto::where('edicao_id', Edicao::atual()?->id)
+            ->whereIn('projeto_id', $ids)
+            ->get(['projeto_id', 'numero', 'turno'])
+            ->keyBy('projeto_id');
+
+        return Projeto::query()
+            ->whereIn('id', $ids)
+            ->with([
+                'area:id,nome,sigla',
+                'user:id,name',
+                'alunos:id,projeto_id,nome',
+                'coorientador:id,projeto_id,nome',
+                'instituicao:id,nome,cidade_id',
+                'instituicao.cidade:id,nome,estado_id,capital',
+                'instituicao.cidade.estado:id,uf',
+                'cidade:id,nome,capital',
+                'estado:id,uf',
+            ])
+            ->get()
+            ->map(function (Projeto $p) use ($codigos, $medias, $estandes) {
+                $media = $medias[$p->id] ?? null;
+                $estande = $estandes[$p->id] ?? null;
+
+                return [
+                    'projeto_id' => $p->id,
+                    'codigo' => $codigos[$p->id] ?? null,
+                    'titulo' => $p->titulo,
+                    'categoria' => $p->categoria?->label(),
+                    'categoria_valor' => $p->categoria?->value,
+                    'area' => $p->area?->nome,
+                    'area_id' => $p->area_id,
+                    'escola' => $this->listasFinais->escola($p),
+                    'alunos' => $p->alunos->sortBy(fn ($a) => $this->chave($a->nome))->pluck('nome')->values()->all(),
+                    'orientador' => $p->user?->name,
+                    'coorientador' => $p->coorientador?->nome,
+                    'estande' => $estande?->numero,
+                    'turno_label' => $estande?->turno?->label(),
+                    'media' => $media['media'] ?? null,
+                    'avaliacoes' => $media['avaliacoes'] ?? 0,
+                    'parcial' => $media['parcial'] ?? false,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Ordena e dá a colocação de cada projeto no grupo categoria+área, pela
+     * média; empate divide o lugar (1º, 2º, 2º, 4º), como no ranking.
+     *
+     * @param  list<array<string, mixed>>  $itens
+     * @return list<array<string, mixed>>
+     */
+    private function colocar(array $itens): array
+    {
+        $ordemCategoria = array_flip(array_map(fn (Categoria $c) => $c->value, Categoria::ordemDaLista()));
+
+        usort($itens, fn (array $a, array $b) => [
+            $ordemCategoria[$a['categoria_valor']] ?? PHP_INT_MAX,
+            $this->chave($a['area'] ?? 'zzz'),
+            $a['media'] === null ? 1 : 0,
+            -($a['media'] ?? 0),
+            -$a['avaliacoes'],
+            $this->chave($a['titulo']),
+        ] <=> [
+            $ordemCategoria[$b['categoria_valor']] ?? PHP_INT_MAX,
+            $this->chave($b['area'] ?? 'zzz'),
+            $b['media'] === null ? 1 : 0,
+            -($b['media'] ?? 0),
+            -$b['avaliacoes'],
+            $this->chave($b['titulo']),
+        ]);
+
+        $grupo = null;
+        $posicao = 0;
+        $contador = 0;
+        $anterior = null;
+
+        foreach ($itens as &$item) {
+            $chave = ($item['categoria_valor'] ?? '').'|'.($item['area_id'] ?? 0);
+
+            if ($chave !== $grupo) {
+                $grupo = $chave;
+                $contador = 0;
+                $anterior = null;
+            }
+
+            if ($item['media'] === null) {
+                $item['colocacao'] = null;
+
+                continue;
+            }
+
+            $contador++;
+            if ($item['media'] !== $anterior) {
+                $posicao = $contador;
+                $anterior = $item['media'];
+            }
+            $item['colocacao'] = $posicao;
+        }
+        unset($item);
+
+        return $itens;
+    }
+
+    /**
+     * Desce a classificação pegando quem cabe no total, na categoria e na área.
+     *
+     * @param  Collection<int, array<string, mixed>>  $avaliados
+     * @param  array<string, mixed>  $cotas
+     * @return list<array<string, mixed>>
+     */
+    private function selecionar(Collection $avaliados, array $cotas): array
+    {
+        $total = Cota::de($cotas['total'] ?? null)?->resolver($avaliados->count());
+        $limiteCategoria = [];
+        $limiteArea = [];
+
+        foreach ((array) ($cotas['categorias'] ?? []) as $categoria => $config) {
+            $config = (array) $config;
+            $daCategoria = $avaliados->filter(fn (array $p) => $p['categoria_valor'] === $categoria);
+
+            $cotaCategoria = Cota::de($config['cota'] ?? null)?->resolver($total ?? $avaliados->count());
+            if ($cotaCategoria !== null) {
+                $limiteCategoria[$categoria] = $cotaCategoria;
+            }
+
+            foreach ((array) ($config['areas'] ?? []) as $areaId => $areaConfig) {
+                $cotaArea = Cota::de(((array) $areaConfig)['cota'] ?? null)
+                    ?->resolver($cotaCategoria ?? $daCategoria->count());
+
+                if ($cotaArea !== null) {
+                    $limiteArea[$categoria.'|'.$areaId] = $cotaArea;
+                }
+            }
+        }
+
+        $usado = ['total' => 0, 'categoria' => [], 'area' => []];
+        $escolhidos = [];
+
+        foreach ($avaliados as $p) {
+            $categoria = (string) $p['categoria_valor'];
+            $area = $categoria.'|'.(int) $p['area_id'];
+
+            if (($total !== null && $usado['total'] >= $total)
+                || (isset($limiteCategoria[$categoria]) && ($usado['categoria'][$categoria] ?? 0) >= $limiteCategoria[$categoria])
+                || (isset($limiteArea[$area]) && ($usado['area'][$area] ?? 0) >= $limiteArea[$area])) {
+                continue;
+            }
+
+            $usado['total']++;
+            $usado['categoria'][$categoria] = ($usado['categoria'][$categoria] ?? 0) + 1;
+            $usado['area'][$area] = ($usado['area'][$area] ?? 0) + 1;
+            $escolhidos[] = $p;
+        }
+
+        return $escolhidos;
+    }
+
+    // --- Apoio ------------------------------------------------------------------
+
+    /** @return array<string, mixed> */
+    private function resumo(ListaPresencial $l): array
+    {
+        return [
+            'id' => $l->id,
+            'nome' => $l->nome,
+            'descricao' => $l->descricao,
+            'tipo' => $l->tipo,
+            'vigente' => $l->vigente,
+            'rascunho' => $l->rascunho,
+            'demo' => $l->demo,
+            'versao' => $l->versao,
+            'projetos' => $l->projetos_count ?? $l->projetos()->count(),
+            'origens' => $l->origens ?? [],
+            'gerada_em' => $l->gerada_em?->toIso8601String(),
+        ];
+    }
+
+    private function vazia(ListaPresencial $lista): bool
+    {
+        return $lista->projetos()->count() === 0;
+    }
+
+    /** Desliga a final ativa da edição, na mesma trilha (oficial ou de teste). */
+    private function desativarFinais(ListaPresencial $lista): void
+    {
+        ListaPresencial::where('edicao_id', $lista->edicao_id)
+            ->where('demo', $lista->demo)
+            ->where('tipo', ListaPresencial::TIPO_FINAL)
+            ->update(['vigente' => false]);
+    }
+
+    private function tipo(?string $tipo): string
+    {
+        return $tipo === ListaPresencial::TIPO_FINAL ? ListaPresencial::TIPO_FINAL : ListaPresencial::TIPO_PRELIMINAR;
+    }
+
+    private function nomeOuPadrao(?string $nome, Edicao $edicao, string $tipo): string
+    {
+        $nome = trim((string) $nome);
+
+        return $nome !== ''
+            ? $nome
+            : ($tipo === ListaPresencial::TIPO_FINAL ? 'Lista final presencial' : 'Lista preliminar presencial').' · '.$edicao->nome;
+    }
+
+    private function textoOuNulo(?string $texto): ?string
+    {
+        $texto = trim((string) $texto);
+
+        return $texto === '' ? null : $texto;
+    }
+
+    private function edicaoOuFalha(): Edicao
+    {
+        return Edicao::atual() ?? throw ValidationException::withMessages([
+            'lista' => 'Nenhuma edição em curso para gerar a lista.',
+        ]);
+    }
+
+    private function chave(?string $texto): string
+    {
+        return Str::lower(Str::ascii((string) $texto));
+    }
+}

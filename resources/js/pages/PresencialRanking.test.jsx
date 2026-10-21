@@ -2,7 +2,11 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../components/AppShell.jsx', () => ({ default: ({ children }) => <div>{children}</div> }));
-vi.mock('react-router-dom', () => ({ Link: ({ children, to }) => <a href={to}>{children}</a> }));
+const navigate = vi.fn();
+vi.mock('react-router-dom', () => ({ Link: ({ children, to }) => <a href={to}>{children}</a>, useNavigate: () => navigate }));
+vi.mock('../components/ListaPresencialDialog.jsx', () => ({
+    default: ({ open, onClose }) => (open ? <button type="button" onClick={() => onClose(77)}>Simular rascunho</button> : null),
+}));
 const auth = { user: { id: 1, role: 'admin', conta_temporaria: false } };
 vi.mock('../lib/auth.jsx', () => ({
     extractErrors: (e) => ({ message: e?.message ?? 'Erro.', fields: e?.fields ?? {} }),
@@ -64,7 +68,9 @@ const getAvaliacoesRankingPresencial = vi.fn(() => Promise.resolve(AVALIACOES));
 const excluirAvaliacaoPresencial = vi.fn();
 const getDestinosAvaliacaoPresencial = vi.fn();
 const transferirAvaliacaoPresencial = vi.fn();
+const exportarRankingPresencial = vi.fn(() => Promise.resolve());
 vi.mock('../lib/presencial.js', () => ({
+    exportarRankingPresencial: (...a) => exportarRankingPresencial(...a),
     getRankingPresencial: (...a) => getRankingPresencial(...a),
     getAvaliacoesRankingPresencial: (...a) => getAvaliacoesRankingPresencial(...a),
     excluirAvaliacaoPresencial: (...a) => excluirAvaliacaoPresencial(...a),
@@ -231,12 +237,46 @@ describe('PresencialRanking', () => {
         expect(within(dialogo).getByText('Bruno Lima', { selector: 'p' })).toBeInTheDocument();
     });
 
-    it('a conta temporária do voluntário não vê o botão', async () => {
+    it('baixa o ranking no recorte dos filtros da tela', async () => {
+        render(<PresencialRanking />);
+        await screen.findByText('Abelhas');
+
+        fireEvent.change(screen.getByLabelText('Área do conhecimento'), { target: { value: '3' } });
+        await waitFor(() => expect(getRankingPresencial).toHaveBeenLastCalledWith({ area_id: '3', categoria: '' }, false));
+
+        for (const [rotulo, formato] of [['CSV', 'csv'], ['Excel', 'xlsx'], ['PDF', 'pdf'], ['TXT', 'txt']]) {
+            fireEvent.click(screen.getByRole('button', { name: `Baixar ${rotulo}` }));
+            await waitFor(() => expect(exportarRankingPresencial).toHaveBeenLastCalledWith(formato, { area_id: '3', categoria: '' }, false));
+        }
+    });
+
+    it('Gerar lista abre o assistente e leva ao rascunho', async () => {
+        render(<PresencialRanking />);
+        await screen.findByText('Abelhas');
+
+        expect(screen.getByRole('link', { name: /Listas preliminares e finais/ })).toHaveAttribute('href', '/admin/presencial/listas');
+        fireEvent.click(screen.getByRole('button', { name: /Gerar lista/ }));
+        fireEvent.click(screen.getByRole('button', { name: 'Simular rascunho' }));
+        expect(navigate).toHaveBeenCalledWith('/admin/presencial/listas/77');
+    });
+
+    it('a falha do download vira aviso', async () => {
+        exportarRankingPresencial.mockRejectedValueOnce(new Error('x'));
+        render(<PresencialRanking />);
+        await screen.findByText('Abelhas');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Baixar PDF' }));
+        expect(await screen.findByText('Não foi possível gerar o arquivo.')).toBeInTheDocument();
+    });
+
+    it('a conta temporária do voluntário não vê os botões', async () => {
         auth.user = { id: 2, role: 'admin', conta_temporaria: true };
         render(<PresencialRanking />);
 
         await screen.findByText('Abelhas');
         expect(screen.queryByRole('button', { name: /Ver avaliações/ })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /Baixar/ })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /Gerar lista/ })).not.toBeInTheDocument();
     });
 
     it('sem avaliação enviada, diz que não há ranking ainda', async () => {

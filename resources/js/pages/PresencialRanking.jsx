@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import DialogoAvaliacoesPresenciais from '../components/DialogoAvaliacoesPresenciais.jsx';
-import { Alert, Toggle } from '../components/ui.jsx';
+import ListaPresencialDialog from '../components/ListaPresencialDialog.jsx';
+import { Alert, Button, Toggle } from '../components/ui.jsx';
 import { extractErrors, useAuth } from '../lib/auth.jsx';
-import { getAvaliacoesRankingPresencial, getRankingPresencial } from '../lib/presencial.js';
+import { exportarRankingPresencial, getAvaliacoesRankingPresencial, getRankingPresencial } from '../lib/presencial.js';
 
 const campoClass =
     'w-full bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface ' +
@@ -20,6 +21,14 @@ const nota = (valor) =>
 const peso = (valor) => String(valor ?? '').replace('.', ',');
 
 const rotulo = (n) => String(n).padStart(3, '0');
+
+// Os quatro formatos do ranking online (Sprint 153), na mesma ordem.
+const FORMATOS = [
+    { formato: 'csv', rotulo: 'CSV' },
+    { formato: 'xlsx', rotulo: 'Excel' },
+    { formato: 'pdf', rotulo: 'PDF' },
+    { formato: 'txt', rotulo: 'TXT' },
+];
 
 function Posicao({ n }) {
     return (
@@ -97,6 +106,9 @@ function Linha({ p, onVerAvaliacoes }) {
  */
 export default function PresencialRanking() {
     const { user } = useAuth();
+    const navigate = useNavigate();
+    // Gerar lista (Sprint 251): o assistente de cotas, que abre o rascunho.
+    const [gerandoLista, setGerandoLista] = useState(false);
     const podeVerAvaliacoes = !user?.conta_temporaria;
     const [dados, setDados] = useState(null);
     const [areaId, setAreaId] = useState('');
@@ -106,6 +118,7 @@ export default function PresencialRanking() {
     const [aviso, setAviso] = useState('');
     // O diálogo de Ver avaliações: { dados, carregando, erro, aviso }.
     const [avaliacoes, setAvaliacoes] = useState(null);
+    const [baixando, setBaixando] = useState('');
 
     const carregar = useCallback(() => {
         setErro('');
@@ -146,6 +159,19 @@ export default function PresencialRanking() {
         carregar();
     }
 
+    // O arquivo sai no recorte da tela (Sprint 250), como o do ranking online.
+    async function baixar(formato) {
+        setErro('');
+        setBaixando(formato);
+        try {
+            await exportarRankingPresencial(formato, { area_id: areaId, categoria }, modoTeste);
+        } catch {
+            setErro('Não foi possível gerar o arquivo.');
+        } finally {
+            setBaixando('');
+        }
+    }
+
     const projetos = dados?.projetos ?? [];
     const parciais = projetos.filter((p) => p.parcial).length;
     const vagas = dados?.vagas;
@@ -155,7 +181,25 @@ export default function PresencialRanking() {
             <Link to="/admin/presencial" className="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary mb-3">
                 <span className="material-symbols-outlined text-[18px]">arrow_back</span> Avaliação presencial
             </Link>
-            <h1 className="font-display text-2xl font-semibold text-primary mb-1">Ranking presencial</h1>
+            <div className="flex items-start justify-between gap-3 flex-wrap max-w-3xl">
+                <h1 className="font-display text-2xl font-semibold text-primary mb-1">Ranking presencial</h1>
+                {/* As listas da premiação (Sprint 251) são da organização. */}
+                {podeVerAvaliacoes && (
+                    <div className="flex flex-wrap gap-2 shrink-0 mb-2">
+                        <Link
+                            to="/admin/presencial/listas"
+                            className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-2.5 text-sm font-semibold text-on-surface hover:bg-surface-variant transition-colors"
+                        >
+                            <span className="material-symbols-outlined text-[18px]">fact_check</span>
+                            Listas preliminares e finais
+                        </Link>
+                        <Button type="button" onClick={() => setGerandoLista(true)}>
+                            <span className="material-symbols-outlined text-[18px]">list_alt</span>
+                            Gerar lista
+                        </Button>
+                    </div>
+                )}
+            </div>
             <p className="text-on-surface-variant mb-4 max-w-3xl">
                 Finalistas com ao menos uma avaliação presencial enviada, pela média ponderada das notas do
                 estande
@@ -228,9 +272,32 @@ export default function PresencialRanking() {
                     <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow overflow-hidden">
                         <div className="px-4 py-3 bg-surface-variant/40 flex items-center justify-between gap-2 flex-wrap">
                             <h2 className="font-display font-semibold text-on-surface">Classificação</h2>
-                            <span className="text-xs text-on-surface-variant">
-                                {projetos.length} {projetos.length === 1 ? 'projeto' : 'projetos'}
-                            </span>
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-xs text-on-surface-variant shrink-0">
+                                    {projetos.length} {projetos.length === 1 ? 'projeto' : 'projetos'}
+                                </span>
+                                {/* Baixar é da organização, como o Ver avaliações. */}
+                                {podeVerAvaliacoes && (
+                                    <>
+                                        <span className="text-xs text-on-surface-variant">· Baixar:</span>
+                                        {FORMATOS.map((f) => (
+                                            <button
+                                                key={f.formato}
+                                                type="button"
+                                                aria-label={`Baixar ${f.rotulo}`}
+                                                disabled={baixando !== ''}
+                                                onClick={() => baixar(f.formato)}
+                                                className="inline-flex items-center gap-1 rounded-lg border border-outline-variant px-2.5 py-1 text-xs font-semibold text-on-surface hover:bg-surface-variant transition-colors disabled:opacity-40"
+                                            >
+                                                <span className="material-symbols-outlined text-[16px]">
+                                                    {baixando === f.formato ? 'hourglass_top' : 'download'}
+                                                </span>
+                                                {f.rotulo}
+                                            </button>
+                                        ))}
+                                    </>
+                                )}
+                            </div>
                         </div>
                         <ul className="divide-y divide-outline-variant/30">
                             {projetos.map((p) => (
@@ -240,6 +307,15 @@ export default function PresencialRanking() {
                     </div>
                 </div>
             )}
+
+            <ListaPresencialDialog
+                open={gerandoLista}
+                teste={modoTeste}
+                onClose={(id) => {
+                    setGerandoLista(false);
+                    if (id) navigate(`/admin/presencial/listas/${id}`);
+                }}
+            />
 
             {avaliacoes && (
                 <DialogoAvaliacoesPresenciais

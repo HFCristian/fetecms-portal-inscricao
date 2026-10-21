@@ -26,7 +26,8 @@ namespace App\Enums;
  *
  * Seção "Lista final" (a lista oficial da feira): a oficialização e cada
  * projeto acrescentado ou retirado depois, sempre com justificativa — é a
- * composição de quem sobe ao evento, então toda mexida fica registrada.
+ * composição de quem sobe ao evento, então toda mexida fica registrada. As
+ * listas do ranking presencial (Sprint 251) entram aqui também.
  *
  * Seção "Credenciamento" (o balcão do evento): quem credenciou cada projeto,
  * quando, o que ficou ausente na conferência dos documentos — e cada retirada
@@ -107,6 +108,8 @@ enum TipoRegistro: string
     case ListaFinalCodigosFixados = 'lista_final_codigos_fixados';
     case ListaFinalCodigosEnviados = 'lista_final_codigos_enviados';
     case ListaFinalCodigoAlterado = 'lista_final_codigo_alterado';
+    case ListaPresencialGerada = 'lista_presencial_gerada';
+    case ListaPresencialReativada = 'lista_presencial_reativada';
     case CredenciamentoRealizado = 'credenciamento_realizado';
     case CredenciamentoCancelado = 'credenciamento_cancelado';
     case CredenciamentoKitRetirado = 'credenciamento_kit_retirado';
@@ -213,6 +216,8 @@ enum TipoRegistro: string
             self::ListaFinalCodigosFixados => 'Códigos dos projetos fixados',
             self::ListaFinalCodigosEnviados => 'Códigos enviados aos finalistas',
             self::ListaFinalCodigoAlterado => 'Código do projeto alterado',
+            self::ListaPresencialGerada => 'Lista presencial gerada',
+            self::ListaPresencialReativada => 'Lista presencial final reativada',
             self::CredenciamentoRealizado => 'Credenciamento realizado',
             self::CredenciamentoCancelado => 'Credenciamento cancelado',
             self::CredenciamentoKitRetirado => 'Kit retirado',
@@ -264,7 +269,8 @@ enum TipoRegistro: string
             self::ListaFinalOficializada, self::ListaFinalProjetoAdicionado,
             self::ListaFinalProjetoRemovido, self::ListaFinalCodigosFixados,
             self::ListaPreliminarGerada, self::ListaFinalReativada,
-            self::ListaFinalCodigosEnviados, self::ListaFinalCodigoAlterado => self::SECAO_LISTA_FINAL,
+            self::ListaFinalCodigosEnviados, self::ListaFinalCodigoAlterado,
+            self::ListaPresencialGerada, self::ListaPresencialReativada => self::SECAO_LISTA_FINAL,
             self::CredenciamentoRealizado, self::CredenciamentoCancelado,
             self::CredenciamentoKitRetirado,
             self::CredenciamentoRascunhoAssumido,

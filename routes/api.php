@@ -53,6 +53,7 @@ use App\Http\Controllers\Api\V1\IntegranteController;
 use App\Http\Controllers\Api\V1\InterpreteCheckinController;
 use App\Http\Controllers\Api\V1\InterpretesController;
 use App\Http\Controllers\Api\V1\ItensConferenciaController;
+use App\Http\Controllers\Api\V1\ListaPresencialController;
 use App\Http\Controllers\Api\V1\MapaAvaliacoesController;
 use App\Http\Controllers\Api\V1\MapaEstandesController;
 use App\Http\Controllers\Api\V1\MapaPlantaController;
@@ -366,6 +367,22 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                 Route::post('/avaliacoes/designar', [AvaliacaoPresencialAdminController::class, 'designarAvaliacoes']);
                 // Ranking presencial (Sprint 222): média com o peso da comissão especial.
                 Route::get('/ranking', [AvaliacaoPresencialAdminController::class, 'ranking']);
+                // Baixar o ranking (Sprint 250) e as listas preliminares e finais
+                // da premiação (Sprint 251): da organização, como o Ver avaliações.
+                Route::middleware('admin.permanente')->group(function () {
+                    Route::get('/ranking/exportar/{formato}', [AvaliacaoPresencialAdminController::class, 'exportarRanking'])
+                        ->where('formato', 'csv|xlsx|pdf|txt');
+                    Route::get('/listas', [ListaPresencialController::class, 'index']);
+                    Route::get('/listas/opcoes', [ListaPresencialController::class, 'opcoes']);
+                    Route::post('/listas', [ListaPresencialController::class, 'store']);
+                    Route::post('/listas/uniao', [ListaPresencialController::class, 'uniao']);
+                    Route::get('/listas/{lista}', [ListaPresencialController::class, 'show'])->whereNumber('lista');
+                    Route::patch('/listas/{lista}', [ListaPresencialController::class, 'rotular'])->whereNumber('lista');
+                    Route::post('/listas/{lista}/gerar', [ListaPresencialController::class, 'gerar']);
+                    Route::post('/listas/{lista}/reativar', [ListaPresencialController::class, 'reativar']);
+                    Route::get('/listas/{lista}/exportar/{formato}', [ListaPresencialController::class, 'exportar'])
+                        ->where('formato', 'csv|xlsx|pdf|txt');
+                });
                 // Validação de avaliadores (Sprint 223): liberar para o evento inteiro.
                 Route::get('/validacao', [ValidacaoPresencialController::class, 'index']);
                 Route::post('/validacao/liberar', [ValidacaoPresencialController::class, 'liberar']);
