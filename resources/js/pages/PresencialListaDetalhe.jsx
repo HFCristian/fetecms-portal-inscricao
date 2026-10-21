@@ -141,30 +141,52 @@ function ItemPremiado({ item, acoes, comColocacao = true }) {
 }
 
 /**
- * Os slides da cerimônia (Sprint 254): três por premiação — o prêmio, a foto
- * do estande e o projeto. Só de lista gerada; antes de baixar, a tela diz quem
- * vai sair sem foto (o slide da foto sai com um aviso no lugar).
+ * Os slides da cerimônia (Sprints 254 e 257), no modelo da organização: por
+ * categoria, um bloco por colocação do último lugar ao 1º — abertura, um slide
+ * por projeto (área, projeto, escola, equipe e foto do estande) e fechamento —
+ * e depois as credenciais e os prêmios. Um botão por categoria (cada cerimônia
+ * baixa a sua) e "Todas". Antes de baixar, a tela diz quem vai sair sem foto e
+ * quem fica de fora por não ter colocação.
  */
 function SlidesDaLista({ lista, resumo, baixando, onBaixar }) {
     const semFoto = resumo?.sem_foto ?? [];
+    const categorias = resumo?.categorias ?? [];
+    const semColocacao = resumo?.sem_colocacao ?? 0;
+    const botao = (chave, rotulo, categoria, slides) => (
+        <Button
+            key={chave}
+            type="button"
+            variant={categoria ? 'primary' : 'outline'}
+            loading={baixando === chave}
+            disabled={baixando !== ''}
+            onClick={() => onBaixar(categoria)}
+            aria-label={`Baixar slides ${rotulo}`}
+        >
+            <span className="material-symbols-outlined text-[18px]">slideshow</span>
+            {rotulo} ({slides} slides)
+        </Button>
+    );
 
     return (
         <div className="mt-4 pt-4 border-t border-outline-variant/40">
             <p className="text-sm font-semibold text-on-surface mb-1">Slides da cerimônia (PPTX)</p>
             <p className="text-xs text-on-surface-variant mb-2">
-                Para cada premiação, três slides: o prêmio (ou a colocação), a foto do estande (Cerimonial →
-                Fotografias de estandes) e o projeto como está na lista. Primeiro os premiados por nota, do último
-                colocado para o primeiro em cada grupo; depois as credenciais e os prêmios.
+                No modelo da organização. Por categoria, do último colocado para o 1º: a abertura "3° LUGAR - CATEGORIA",
+                um slide por projeto — área, projeto, escola, equipe e a foto do estande (Cerimonial → Fotografias de
+                estandes) — e o fechamento; depois as credenciais e os prêmios. As fontes são HandelGothic BT e Globotipo
+                Texto: instale-as no computador da cerimônia.
             </p>
             {lista.rascunho ? (
                 <p className="text-xs text-on-surface-variant">Gere a lista para baixar os slides.</p>
+            ) : categorias.length === 0 ? (
+                <p className="text-xs text-on-surface-variant">A lista não tem premiado com colocação ou credencial.</p>
             ) : (
                 <>
                     {semFoto.length > 0 && (
                         <div className="mb-2">
                             <Alert type="info">
                                 {semFoto.length} {semFoto.length === 1 ? 'projeto vai sair' : 'projetos vão sair'} sem foto — o
-                                slide da foto mostra o aviso:
+                                lugar da foto mostra o aviso:
                                 <ul className="mt-1 list-disc pl-5">
                                     {semFoto.map((p) => (
                                         <li key={p.projeto_id}>{[p.codigo, p.titulo].filter(Boolean).join(' — ')}: {p.motivo}</li>
@@ -173,10 +195,18 @@ function SlidesDaLista({ lista, resumo, baixando, onBaixar }) {
                             </Alert>
                         </div>
                     )}
-                    <Button type="button" loading={baixando === 'pptx'} disabled={baixando !== '' || !(resumo?.premiados > 0)} onClick={onBaixar}>
-                        <span className="material-symbols-outlined text-[18px]">slideshow</span>
-                        Baixar slides ({resumo?.slides ?? 0})
-                    </Button>
+                    {semColocacao > 0 && (
+                        <div className="mb-2">
+                            <Alert type="info">
+                                {semColocacao} {semColocacao === 1 ? 'projeto incluído sem colocação fica' : 'projetos incluídos sem colocação ficam'}{' '}
+                                fora dos slides: ainda não {semColocacao === 1 ? 'tem' : 'têm'} avaliação presencial.
+                            </Alert>
+                        </div>
+                    )}
+                    <div className="flex flex-wrap gap-2">
+                        {categorias.map((c) => botao(`pptx:${c.value}`, c.label, c.value, c.slides))}
+                        {categorias.length > 1 && botao('pptx:todas', 'Todas', null, resumo.slides)}
+                    </div>
                 </>
             )}
         </div>
@@ -311,9 +341,21 @@ export default function PresencialListaDetalhe() {
     async function baixar(formato) {
         setBaixando(formato); setErro('');
         try {
-            await (formato === 'pptx' ? exportarSlidesPresencial(id) : exportarListaPresencial(id, formato));
+            await exportarListaPresencial(id, formato);
         } catch {
-            setErro(formato === 'pptx' ? 'Não foi possível montar os slides.' : 'Não foi possível gerar o arquivo.');
+            setErro('Não foi possível gerar o arquivo.');
+        } finally {
+            setBaixando('');
+        }
+    }
+
+    // Slides de uma categoria (ou de todas, sem ela).
+    async function baixarSlides(categoria) {
+        setBaixando(`pptx:${categoria ?? 'todas'}`); setErro('');
+        try {
+            await exportarSlidesPresencial(id, categoria);
+        } catch {
+            setErro('Não foi possível montar os slides.');
         } finally {
             setBaixando('');
         }
@@ -465,7 +507,7 @@ export default function PresencialListaDetalhe() {
                                 </Button>
                             ))}
                         </div>
-                        <SlidesDaLista lista={lista} resumo={dados.slides} baixando={baixando} onBaixar={() => baixar('pptx')} />
+                        <SlidesDaLista lista={lista} resumo={dados.slides} baixando={baixando} onBaixar={baixarSlides} />
                     </div>
 
                     <h2 className="font-display text-lg font-semibold text-on-surface mb-2">Premiados por nota</h2>

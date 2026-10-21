@@ -6,26 +6,27 @@ use RuntimeException;
 use ZipArchive;
 
 /**
- * Escritor mínimo de apresentação .pptx (Office Open XML) — Sprint 254.
+ * Escritor mínimo de apresentação .pptx (Office Open XML) — Sprints 254 e 257.
  *
  * Mesmo argumento do {@see PlanilhaXlsx}: o que o portal precisa é uma
  * sequência de slides com texto e uma foto, e um .pptx é um zip com meia dúzia
  * de XMLs. A biblioteca (PhpPresentation) resolveria tabela, gráfico, animação
  * e leitura, nada disso usado aqui.
  *
- * Três tipos de slide, os da cerimônia de premiação:
+ * O visual é o do **modelo da organização** (Canva, "FETEC FUNDECT", Sprint
+ * 257), medido no PDF dele (1440 × 810 pt) e convertido para o slide 16:9:
  *
- * - {@see titulo()}: o nome do prêmio, da credencial ou da colocação, em
- *   branco sobre o roxo da identidade;
- * - {@see foto()}: a fotografia do estande, inteira e centralizada (sem
- *   cortar), com a legenda embaixo — ou o aviso de que ela falta;
- * - {@see projeto()}: o projeto como está na lista — código e título, escola
- *   e equipe.
+ * - {@see abertura()}: o fundo pastel e uma frase no alto — "3° LUGAR - FETEC
+ *   FUNDECT" —, que abre e fecha cada bloco;
+ * - {@see premiado()}: o fundo, a logo à esquerda, o enfeite e o cabeçalho
+ *   "FETECMS / ano" (os três no layout, iguais em todo slide), a colocação ou o
+ *   tipo à esquerda e a área ou a credencial ao lado, o projeto embaixo com a
+ *   escola e a equipe, e a foto do estande à direita.
  *
- * As fontes são as da identidade (Space Grotesk nos títulos, Inter no texto);
- * onde não estiverem instaladas, o PowerPoint troca por uma parecida. O texto
- * comprido diminui de tamanho em degraus (o .pptx não mede texto sozinho ao
- * abrir).
+ * As imagens fixas (fundo, logo e enfeite) foram extraídas do PDF do modelo e
+ * moram em `resources/slides`. As fontes são as do modelo — HandelGothic BT e
+ * Globotipo Texto — pelo nome: onde estiverem instaladas o slide sai igual ao
+ * modelo; onde não, o PowerPoint troca por outra.
  *
  * A foto entra **sem recompressão** e no tamanho original — o servidor pode não
  * ter GD para reduzi-la —, e a orientação gravada pela câmera (EXIF) vira
@@ -33,130 +34,125 @@ use ZipArchive;
  */
 class ApresentacaoPptx
 {
-    /** 16:9 em EMU (1 polegada = 914 400). */
+    /** 16:9 em EMU. */
     public const LARGURA = 12192000;
 
     public const ALTURA = 6858000;
 
-    private const POL = 914400;
+    /** As medidas vêm do PDF do modelo, que tem 1440 pt de largura. */
+    private const MODELO = 1440;
 
-    private const ROXO = '43157A';
+    private const ROXO = '8608A6';
 
-    private const ROXO_ESCURO = '2A0058';
+    private const VINHO = '400046';
 
-    private const VERDE = '007B24';
+    private const LAVANDA = 'F3EDF7';
 
-    private const LAVANDA = 'E9DDFF';
+    public const FONTE_TITULO = 'HandelGothic BT';
 
-    private const CINZA = '49454F';
+    public const FONTE_TEXTO = 'Globotipo Texto';
+
+    public const FONTE_DESTAQUE = 'Globotipo Texto Black';
 
     private const NS = 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
         .'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" '
         .'xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"';
 
-    /** @var list<array{xml: string, imagem: ?array{caminho: string, extensao: string}}> */
+    private const REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+
+    /** @var list<array{xml: string, layout: int, imagem: ?array{caminho: string, extensao: string}}> */
     private array $slides = [];
 
-    public function __construct(private readonly string $tituloDocumento = 'Premiação') {}
+    public function __construct(
+        private readonly string $tituloDocumento = 'Premiação',
+        private readonly string $ano = '',
+    ) {}
 
     public function total(): int
     {
         return count($this->slides);
     }
 
-    /**
-     * O slide do prêmio: um rótulo pequeno em cima (o tipo), o nome grande e
-     * um detalhe embaixo (órgão, área e categoria).
-     */
-    public function titulo(string $rotulo, string $nome, ?string $detalhe = null, ?string $rodape = null): void
+    /** Onde ficam o fundo, a logo e o enfeite do modelo. */
+    public static function pastaDoModelo(): string
     {
-        $formas = [
-            $this->texto(2, 'Rótulo', self::pol(0.8), self::pol(1.9), self::LARGURA - self::pol(1.6), self::pol(0.7),
-                [mb_strtoupper($rotulo)], 2400, self::LAVANDA, negrito: true, fonte: 'Inter'),
-            $this->texto(3, 'Título', self::pol(0.8), self::pol(2.6), self::LARGURA - self::pol(1.6), self::pol(2.4),
-                [$nome], $this->tamanho($nome, [30 => 6000, 60 => 4800, 100 => 4000, 160 => 3200], 2800), 'FFFFFF', negrito: true),
-        ];
-
-        if ($detalhe !== null && $detalhe !== '') {
-            $formas[] = $this->texto(4, 'Detalhe', self::pol(0.8), self::pol(5.05), self::LARGURA - self::pol(1.6), self::pol(0.8),
-                [$detalhe], 2600, self::LAVANDA, fonte: 'Inter');
-        }
-
-        if ($rodape !== null && $rodape !== '') {
-            $formas[] = $this->texto(5, 'Evento', self::pol(0.8), self::pol(0.45), self::LARGURA - self::pol(1.6), self::pol(0.5),
-                [$rodape], 1600, self::LAVANDA, fonte: 'Inter');
-        }
-
-        $formas[] = $this->retangulo(6, 'Faixa', 0, self::ALTURA - self::pol(0.14), self::LARGURA, self::pol(0.14), self::VERDE);
-
-        $this->slides[] = ['xml' => $this->slide(self::ROXO, $formas), 'imagem' => null];
+        return dirname(__DIR__, 2).'/resources/slides';
     }
 
     /**
-     * A foto do estande, ajustada na área útil sem cortar. Sem `$caminho` (ou
-     * com um arquivo que não é JPG nem PNG), o slide diz que ela falta.
+     * O slide que abre (e fecha) um bloco: só o fundo e a frase no alto, em
+     * HandelGothic roxa — "3° LUGAR - FETEC FUNDECT", "MOSTRATEC 2027 -
+     * CREDENCIAL". Frase comprida diminui e quebra em duas linhas.
      */
-    public function foto(?string $caminho, string $legenda, string $semFoto = 'Sem fotografia registrada'): void
+    public function abertura(string $texto): void
     {
-        $formas = [];
-        $imagem = $caminho === null ? null : self::imagem($caminho);
-        $caixa = ['x' => self::pol(0.5), 'y' => self::pol(0.35), 'l' => self::LARGURA - self::pol(1.0), 'a' => self::pol(6.0)];
+        $tamanho = $this->caber($texto, 1280, 53, 30, 0.6);
+
+        $this->slides[] = [
+            'xml' => $this->slide([
+                $this->texto(2, 'Abertura', 80, 60, 1280, 140, [$texto], $tamanho, self::ROXO, self::FONTE_TITULO),
+            ]),
+            'layout' => 1,
+            'imagem' => null,
+        ];
+    }
+
+    /**
+     * O slide de um premiado, no desenho da página com foto do modelo.
+     *
+     * @param  string  $rotulo  à esquerda, em Globotipo Black: "3° LUGAR", "CREDENCIAL"
+     * @param  string  $destaque  ao lado: a área ou o nome da credencial
+     * @param  string  $projeto  "CÓDIGO - Título", como na lista
+     * @param  list<string>  $detalhes  escola e equipe, uma informação por linha
+     */
+    public function premiado(
+        string $rotulo,
+        string $destaque,
+        string $projeto,
+        array $detalhes,
+        ?string $foto,
+        string $semFoto = 'Sem fotografia registrada',
+    ): void {
+        $formas = [
+            $this->texto(2, 'Colocação', 83, 370, 262, 100, [$rotulo], $this->caber($rotulo, 257, 53, 24, 0.58),
+                self::ROXO, self::FONTE_DESTAQUE, alinhamento: 'l'),
+            $this->texto(3, 'Área', 350, 360, 585, 120, [$destaque], $this->caber($destaque, 580, 53, 30, 0.56),
+                self::ROXO, self::FONTE_TEXTO, negrito: true),
+            $this->texto(4, 'Projeto', 83, 478, 852, 128, [$projeto],
+                $this->degrau($projeto, [45 => 41, 90 => 34, 140 => 28], 24), self::VINHO, self::FONTE_TEXTO, negrito: true),
+        ];
+
+        $longos = array_sum(array_map(fn (string $l) => (int) ceil(mb_strlen($l) / 70), $detalhes));
+        $formas[] = $this->texto(5, 'Escola e equipe', 83, 612, 852, 180, $detalhes === [] ? ['—'] : $detalhes,
+            $longos <= 4 ? 24 : ($longos <= 6 ? 21 : 18), self::VINHO, self::FONTE_TEXTO, ancora: 't');
+
+        // A foto ocupa a coluna da direita, inteira e sem cortar.
+        $caixa = ['x' => 945, 'y' => 125, 'l' => 455, 'a' => 590];
+        $imagem = $foto === null ? null : self::imagem($foto);
 
         if ($imagem === null) {
-            $formas[] = $this->texto(2, 'Sem foto', $caixa['x'], $caixa['y'], $caixa['l'], $caixa['a'],
-                [$semFoto], 3600, self::LAVANDA, fonte: 'Inter');
+            $formas[] = $this->retangulo(6, 'Sem foto', $caixa['x'], $caixa['y'], $caixa['l'], $caixa['a'], self::LAVANDA, self::ROXO);
+            $formas[] = $this->texto(7, 'Aviso', $caixa['x'] + 30, $caixa['y'], $caixa['l'] - 60, $caixa['a'],
+                [$semFoto], 28, self::VINHO, self::FONTE_TEXTO);
         } else {
             // Com rotação de 90° o quadro gira em volta do centro: a caixa
             // visível é a da imagem já de pé, e o quadro guarda a de antes.
             [$largura, $altura] = $imagem['quarto'] ? [$imagem['altura'], $imagem['largura']] : [$imagem['largura'], $imagem['altura']];
             $escala = min($caixa['l'] / $largura, $caixa['a'] / $altura);
-            $vl = (int) round($largura * $escala);
-            $va = (int) round($altura * $escala);
+            $vl = $largura * $escala;
+            $va = $altura * $escala;
             [$ql, $qa] = $imagem['quarto'] ? [$va, $vl] : [$vl, $va];
-            $cx = $caixa['x'] + intdiv($caixa['l'], 2);
-            $cy = $caixa['y'] + intdiv($caixa['a'], 2);
+            $cx = $caixa['x'] + $caixa['l'] / 2;
+            $cy = $caixa['y'] + $caixa['a'] / 2;
 
-            $formas[] = $this->figura(2, $cx - intdiv($ql, 2), $cy - intdiv($qa, 2), $ql, $qa, $imagem['rotacao']);
+            $formas[] = $this->figura(6, 'Fotografia do estande', 'rId2', $cx - $ql / 2, $cy - $qa / 2, $ql, $qa, $imagem['rotacao']);
         }
-
-        $formas[] = $this->texto(3, 'Legenda', self::pol(0.5), self::pol(6.5), self::LARGURA - self::pol(1.0), self::pol(0.7),
-            [$legenda], 2000, 'FFFFFF', fonte: 'Inter');
 
         $this->slides[] = [
-            'xml' => $this->slide(self::ROXO_ESCURO, $formas, comImagem: $imagem !== null),
-            'imagem' => $imagem === null ? null : ['caminho' => $caminho, 'extensao' => $imagem['extensao']],
+            'xml' => $this->slide($formas),
+            'layout' => 2,
+            'imagem' => $imagem === null ? null : ['caminho' => $foto, 'extensao' => $imagem['extensao']],
         ];
-    }
-
-    /**
-     * O projeto como na lista: código e título, a escola e a equipe (uma
-     * pessoa por linha).
-     *
-     * @param  list<string>  $equipe
-     */
-    public function projeto(?string $codigo, string $titulo, string $escola, array $equipe): void
-    {
-        $formas = [$this->retangulo(2, 'Faixa lateral', 0, 0, self::pol(0.22), self::ALTURA, self::ROXO)];
-
-        if ($codigo !== null && $codigo !== '') {
-            $formas[] = $this->texto(3, 'Código', self::pol(0.8), self::pol(0.4), self::LARGURA - self::pol(1.4), self::pol(0.7),
-                [$codigo], 3200, self::ROXO, negrito: true, alinhamento: 'l');
-        }
-
-        $formas[] = $this->texto(4, 'Projeto', self::pol(0.8), self::pol(1.1), self::LARGURA - self::pol(1.4), self::pol(2.0),
-            [$titulo], $this->tamanho($titulo, [45 => 4800, 90 => 4000, 140 => 3200], 2600), self::ROXO_ESCURO,
-            negrito: true, alinhamento: 'l');
-        $formas[] = $this->texto(5, 'Escola', self::pol(0.8), self::pol(3.15), self::LARGURA - self::pol(1.4), self::pol(0.6),
-            [$escola], 2400, self::CINZA, fonte: 'Inter', alinhamento: 'l');
-        $formas[] = $this->retangulo(6, 'Divisória', self::pol(0.8), self::pol(3.88), self::LARGURA - self::pol(1.4), self::pol(0.02), 'D9D2E0');
-
-        $linhas = count($equipe);
-        $formas[] = $this->texto(7, 'Equipe', self::pol(0.8), self::pol(4.05), self::LARGURA - self::pol(1.4), self::pol(3.1),
-            $equipe === [] ? ['—'] : $equipe, $linhas <= 4 ? 3000 : ($linhas <= 6 ? 2600 : 2000), '1C1B1F',
-            fonte: 'Inter', alinhamento: 'l', ancora: 't');
-        $formas[] = $this->retangulo(8, 'Faixa', 0, self::ALTURA - self::pol(0.14), self::LARGURA, self::pol(0.14), self::VERDE);
-
-        $this->slides[] = ['xml' => $this->slide('FFFFFF', $formas), 'imagem' => null];
     }
 
     /** Grava o .pptx em `$destino`. */
@@ -175,11 +171,18 @@ class ApresentacaoPptx
             $zip->addFromString($nome, $conteudo);
         }
 
+        // As imagens do modelo entram uma vez e servem a todos os slides pelo layout.
+        $pasta = self::pastaDoModelo();
+        foreach (['fundo.jpg' => 'ppt/media/modelo-fundo.jpeg', 'logo.png' => 'ppt/media/modelo-logo.png', 'enfeite.png' => 'ppt/media/modelo-enfeite.png'] as $origem => $midia) {
+            $zip->addFile($pasta.'/'.$origem, $midia);
+            $zip->setCompressionName($midia, ZipArchive::CM_STORE);
+        }
+
         foreach ($this->slides as $i => $slide) {
             $n = $i + 1;
             $zip->addFromString("ppt/slides/slide{$n}.xml", $slide['xml']);
 
-            $rels = ['<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>'];
+            $rels = ['<Relationship Id="rId1" Type="'.self::REL.'/slideLayout" Target="../slideLayouts/slideLayout'.$slide['layout'].'.xml"/>'];
 
             if ($slide['imagem'] !== null) {
                 $midia = "ppt/media/image{$n}.{$slide['imagem']['extensao']}";
@@ -187,7 +190,7 @@ class ApresentacaoPptx
                 // tempo e memória com fotos grandes.
                 $zip->addFile($slide['imagem']['caminho'], $midia);
                 $zip->setCompressionName($midia, ZipArchive::CM_STORE);
-                $rels[] = '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image'.$n.'.'.$slide['imagem']['extensao'].'"/>';
+                $rels[] = '<Relationship Id="rId2" Type="'.self::REL.'/image" Target="../media/image'.$n.'.'.$slide['imagem']['extensao'].'"/>';
             }
 
             $zip->addFromString("ppt/slides/_rels/slide{$n}.xml.rels", $this->relacoes($rels));
@@ -310,40 +313,47 @@ class ApresentacaoPptx
     // --- XML ----------------------------------------------------------------------
 
     /** @param  list<string>  $formas */
-    private function slide(string $fundo, array $formas, bool $comImagem = false): string
+    private function slide(array $formas): string
     {
         return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-            .'<p:sld '.self::NS.'><p:cSld>'
-            .'<p:bg><p:bgPr><a:solidFill><a:srgbClr val="'.$fundo.'"/></a:solidFill><a:effectLst/></p:bgPr></p:bg>'
-            .'<p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>'
+            .'<p:sld '.self::NS.'><p:cSld>'.$this->arvore($formas).'</p:cSld>'
+            .'<p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>';
+    }
+
+    /** @param  list<string>  $formas */
+    private function arvore(array $formas): string
+    {
+        return '<p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>'
             .'<p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>'
-            .implode('', $formas)
-            .'</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>';
+            .implode('', $formas).'</p:spTree>';
     }
 
     /**
-     * Uma caixa de texto, um parágrafo por linha.
+     * Uma caixa de texto, um parágrafo por linha. Posição em pontos do modelo
+     * e tamanho da fonte em pontos do modelo (convertidos aqui).
      *
      * @param  list<string>  $linhas
      */
     private function texto(
         int $id,
         string $nome,
-        int $x,
-        int $y,
-        int $largura,
-        int $altura,
+        float $x,
+        float $y,
+        float $largura,
+        float $altura,
         array $linhas,
-        int $tamanho,
+        float $tamanho,
         string $cor,
+        string $fonte,
         bool $negrito = false,
-        string $fonte = 'Space Grotesk',
         string $alinhamento = 'ctr',
         string $ancora = 'ctr',
     ): string {
+        $sz = (int) round($tamanho * 960 / self::MODELO) * 100;
         $paragrafos = array_map(fn (string $linha) => '<a:p><a:pPr algn="'.$alinhamento.'"/>'
-            .'<a:r><a:rPr lang="pt-BR" sz="'.$tamanho.'"'.($negrito ? ' b="1"' : '').' dirty="0">'
-            .'<a:solidFill><a:srgbClr val="'.$cor.'"/></a:solidFill><a:latin typeface="'.self::esc($fonte).'"/></a:rPr>'
+            .'<a:r><a:rPr lang="pt-BR" sz="'.$sz.'"'.($negrito ? ' b="1"' : '').' dirty="0">'
+            .'<a:solidFill><a:srgbClr val="'.$cor.'"/></a:solidFill>'
+            .'<a:latin typeface="'.self::esc($fonte).'"/><a:cs typeface="'.self::esc($fonte).'"/></a:rPr>'
             .'<a:t>'.self::esc($linha).'</a:t></a:r></a:p>', $linhas);
 
         return '<p:sp><p:nvSpPr><p:cNvPr id="'.$id.'" name="'.self::esc($nome).'"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr>'
@@ -353,34 +363,50 @@ class ApresentacaoPptx
             .'</p:txBody></p:sp>';
     }
 
-    private function retangulo(int $id, string $nome, int $x, int $y, int $largura, int $altura, string $cor): string
+    private function retangulo(int $id, string $nome, float $x, float $y, float $largura, float $altura, string $cor, ?string $borda = null): string
     {
         return '<p:sp><p:nvSpPr><p:cNvPr id="'.$id.'" name="'.self::esc($nome).'"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>'
-            .'<p:spPr>'.$this->posicao($x, $y, $largura, $altura).'<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>'
-            .'<a:solidFill><a:srgbClr val="'.$cor.'"/></a:solidFill><a:ln><a:noFill/></a:ln></p:spPr></p:sp>';
+            .'<p:spPr>'.$this->posicao($x, $y, $largura, $altura).'<a:prstGeom prst="roundRect"><a:avLst/></a:prstGeom>'
+            .'<a:solidFill><a:srgbClr val="'.$cor.'"/></a:solidFill>'
+            .($borda === null ? '<a:ln><a:noFill/></a:ln>' : '<a:ln w="19050"><a:solidFill><a:srgbClr val="'.$borda.'"/></a:solidFill><a:prstDash val="dash"/></a:ln>')
+            .'</p:spPr></p:sp>';
     }
 
-    private function figura(int $id, int $x, int $y, int $largura, int $altura, int $rotacao): string
+    private function figura(int $id, string $nome, string $relacao, float $x, float $y, float $largura, float $altura, int $rotacao = 0): string
     {
-        return '<p:pic><p:nvPicPr><p:cNvPr id="'.$id.'" name="Fotografia do estande"/>'
+        return '<p:pic><p:nvPicPr><p:cNvPr id="'.$id.'" name="'.self::esc($nome).'"/>'
             .'<p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr>'
-            .'<p:blipFill><a:blip r:embed="rId2"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>'
+            .'<p:blipFill><a:blip r:embed="'.$relacao.'"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>'
             .'<p:spPr>'.$this->posicao($x, $y, $largura, $altura, $rotacao).'<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>';
     }
 
-    private function posicao(int $x, int $y, int $largura, int $altura, int $rotacao = 0): string
+    /** O quadro em EMU, a partir de pontos do modelo. */
+    private function posicao(float $x, float $y, float $largura, float $altura, int $rotacao = 0): string
     {
         return '<a:xfrm'.($rotacao !== 0 ? ' rot="'.($rotacao * 60000).'"' : '').'>'
-            .'<a:off x="'.$x.'" y="'.$y.'"/><a:ext cx="'.max(1, $largura).'" cy="'.max(1, $altura).'"/></a:xfrm>';
+            .'<a:off x="'.self::emu($x).'" y="'.self::emu($y).'"/>'
+            .'<a:ext cx="'.max(1, self::emu($largura)).'" cy="'.max(1, self::emu($altura)).'"/></a:xfrm>';
     }
 
     /**
-     * O tamanho (em centésimos de ponto) pelo comprimento do texto: o primeiro
-     * degrau em que ele cabe, ou o menor.
-     *
-     * @param  array<int, int>  $degraus  limite de caracteres => tamanho
+     * O maior tamanho (até `$maximo`) em que o texto cabe numa linha de
+     * `$largura`, pela largura média da letra na fonte (`$fator` × tamanho);
+     * abaixo de `$minimo` ele quebra em mais linhas em vez de encolher.
      */
-    private function tamanho(string $texto, array $degraus, int $menor): int
+    private function caber(string $texto, float $largura, float $maximo, float $minimo, float $fator): float
+    {
+        $comprimento = max(1, mb_strlen($texto));
+
+        return max($minimo, min($maximo, floor($largura / ($fator * $comprimento))));
+    }
+
+    /**
+     * O tamanho pelo comprimento do texto: o primeiro degrau em que ele cabe,
+     * ou o menor.
+     *
+     * @param  array<int, float>  $degraus  limite de caracteres => tamanho
+     */
+    private function degrau(string $texto, array $degraus, float $menor): float
     {
         $comprimento = mb_strlen($texto);
 
@@ -404,6 +430,9 @@ class ApresentacaoPptx
     /**
      * Os XMLs fixos do pacote. Cada um existe porque o PowerPoint recusa o
      * arquivo sem ele (o tema, inclusive, precisa das três listas de estilo).
+     * O fundo mora no mestre, e a logo, o enfeite e o cabeçalho no layout
+     * "Premiado": no PowerPoint eles ficam fixos, fora do caminho de quem
+     * ajusta um slide.
      *
      * @return array<string, string>
      */
@@ -419,15 +448,19 @@ class ApresentacaoPptx
         for ($n = 1; $n <= $total; $n++) {
             $slidesTipos .= '<Override PartName="/ppt/slides/slide'.$n.'.xml" ContentType="'.$tipo.'.slide+xml"/>';
             $slidesIds .= '<p:sldId id="'.(255 + $n).'" r:id="rId'.(10 + $n).'"/>';
-            $slidesRels .= '<Relationship Id="rId'.(10 + $n).'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide'.$n.'.xml"/>';
+            $slidesRels .= '<Relationship Id="rId'.(10 + $n).'" Type="'.self::REL.'/slide" Target="slides/slide'.$n.'.xml"/>';
         }
 
         $agora = gmdate('Y-m-d\TH:i:s\Z');
-        $vazio = '<p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>'
-            .'<p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr></p:spTree>';
         $nivel = fn (string $fonte, int $tamanho) => '<a:lvl1pPr><a:defRPr sz="'.$tamanho.'"><a:solidFill><a:schemeClr val="tx1"/></a:solidFill>'
             .'<a:latin typeface="'.$fonte.'"/></a:defRPr></a:lvl1pPr>';
         $tres = fn (string $item) => str_repeat($item, 3);
+        $layout = fn (string $nome, array $formas) => $xml.'<p:sldLayout '.self::NS.' type="blank" preserve="1">'
+            .'<p:cSld name="'.$nome.'">'.$this->arvore($formas).'</p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sldLayout>';
+        $relLayout = fn (array $extras = []) => $this->relacoes([
+            '<Relationship Id="rId1" Type="'.self::REL.'/slideMaster" Target="../slideMasters/slideMaster1.xml"/>',
+            ...$extras,
+        ]);
 
         return [
             '[Content_Types].xml' => $xml.'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
@@ -438,6 +471,7 @@ class ApresentacaoPptx
                 .'<Override PartName="/ppt/presentation.xml" ContentType="'.$tipo.'.presentation.main+xml"/>'
                 .'<Override PartName="/ppt/slideMasters/slideMaster1.xml" ContentType="'.$tipo.'.slideMaster+xml"/>'
                 .'<Override PartName="/ppt/slideLayouts/slideLayout1.xml" ContentType="'.$tipo.'.slideLayout+xml"/>'
+                .'<Override PartName="/ppt/slideLayouts/slideLayout2.xml" ContentType="'.$tipo.'.slideLayout+xml"/>'
                 .'<Override PartName="/ppt/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>'
                 .'<Override PartName="/ppt/presProps.xml" ContentType="'.$tipo.'.presProps+xml"/>'
                 .'<Override PartName="/ppt/viewProps.xml" ContentType="'.$tipo.'.viewProps+xml"/>'
@@ -447,9 +481,9 @@ class ApresentacaoPptx
                 .$slidesTipos.'</Types>',
 
             '_rels/.rels' => $this->relacoes([
-                '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>',
+                '<Relationship Id="rId1" Type="'.self::REL.'/officeDocument" Target="ppt/presentation.xml"/>',
                 '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>',
-                '<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>',
+                '<Relationship Id="rId3" Type="'.self::REL.'/extended-properties" Target="docProps/app.xml"/>',
             ]),
 
             'docProps/core.xml' => $xml.'<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" '
@@ -470,11 +504,11 @@ class ApresentacaoPptx
                 .'</p:presentation>',
 
             'ppt/_rels/presentation.xml.rels' => $this->relacoes([
-                '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="slideMasters/slideMaster1.xml"/>',
-                '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/theme1.xml"/>',
-                '<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/presProps" Target="presProps.xml"/>',
-                '<Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/viewProps" Target="viewProps.xml"/>',
-                '<Relationship Id="rId5" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/tableStyles" Target="tableStyles.xml"/>',
+                '<Relationship Id="rId1" Type="'.self::REL.'/slideMaster" Target="slideMasters/slideMaster1.xml"/>',
+                '<Relationship Id="rId2" Type="'.self::REL.'/theme" Target="theme/theme1.xml"/>',
+                '<Relationship Id="rId3" Type="'.self::REL.'/presProps" Target="presProps.xml"/>',
+                '<Relationship Id="rId4" Type="'.self::REL.'/viewProps" Target="viewProps.xml"/>',
+                '<Relationship Id="rId5" Type="'.self::REL.'/tableStyles" Target="tableStyles.xml"/>',
                 $slidesRels,
             ]),
 
@@ -482,38 +516,51 @@ class ApresentacaoPptx
             'ppt/viewProps.xml' => $xml.'<p:viewPr '.self::NS.'><p:gridSpacing cx="76200" cy="76200"/></p:viewPr>',
             'ppt/tableStyles.xml' => $xml.'<a:tblStyleLst xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" def="{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}"/>',
 
+            // O fundo pastel do modelo, esticado no slide inteiro.
             'ppt/slideMasters/slideMaster1.xml' => $xml.'<p:sldMaster '.self::NS.'>'
-                .'<p:cSld><p:bg><p:bgRef idx="1001"><a:schemeClr val="bg1"/></p:bgRef></p:bg>'.$vazio.'</p:cSld>'
+                .'<p:cSld><p:bg><p:bgPr><a:blipFill dpi="0" rotWithShape="1"><a:blip r:embed="rId3"/><a:srcRect/><a:stretch><a:fillRect/></a:stretch></a:blipFill>'
+                .'<a:effectLst/></p:bgPr></p:bg>'.$this->arvore([]).'</p:cSld>'
                 .'<p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3" '
                 .'accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/>'
-                .'<p:sldLayoutIdLst><p:sldLayoutId id="2147483649" r:id="rId1"/></p:sldLayoutIdLst>'
+                .'<p:sldLayoutIdLst><p:sldLayoutId id="2147483649" r:id="rId1"/><p:sldLayoutId id="2147483650" r:id="rId4"/></p:sldLayoutIdLst>'
                 .'<p:txStyles><p:titleStyle>'.$nivel('+mj-lt', 4400).'</p:titleStyle>'
                 .'<p:bodyStyle>'.$nivel('+mn-lt', 2400).'</p:bodyStyle>'
                 .'<p:otherStyle>'.$nivel('+mn-lt', 1800).'</p:otherStyle></p:txStyles></p:sldMaster>',
 
             'ppt/slideMasters/_rels/slideMaster1.xml.rels' => $this->relacoes([
-                '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>',
-                '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="../theme/theme1.xml"/>',
+                '<Relationship Id="rId1" Type="'.self::REL.'/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>',
+                '<Relationship Id="rId2" Type="'.self::REL.'/theme" Target="../theme/theme1.xml"/>',
+                '<Relationship Id="rId3" Type="'.self::REL.'/image" Target="../media/modelo-fundo.jpeg"/>',
+                '<Relationship Id="rId4" Type="'.self::REL.'/slideLayout" Target="../slideLayouts/slideLayout2.xml"/>',
             ]),
 
-            'ppt/slideLayouts/slideLayout1.xml' => $xml.'<p:sldLayout '.self::NS.' type="blank" preserve="1">'
-                .'<p:cSld name="Em branco">'.$vazio.'</p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sldLayout>',
+            'ppt/slideLayouts/slideLayout1.xml' => $layout('Abertura', []),
+            'ppt/slideLayouts/_rels/slideLayout1.xml.rels' => $relLayout(),
 
-            'ppt/slideLayouts/_rels/slideLayout1.xml.rels' => $this->relacoes([
-                '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="../slideMasters/slideMaster1.xml"/>',
+            // A página com foto do modelo: logo à esquerda, enfeite ao centro e
+            // o cabeçalho FETECMS / ano entre eles.
+            'ppt/slideLayouts/slideLayout2.xml' => $layout('Premiado', [
+                $this->figura(2, 'Logo', 'rId2', 45, 87, 261, 296),
+                $this->figura(3, 'Enfeite', 'rId3', 715, 81, 243, 237),
+                $this->texto(4, 'FETECMS', 320, 118, 420, 90, ['FETECMS'], 69, self::VINHO, self::FONTE_TITULO),
+                $this->texto(5, 'Ano', 320, 178, 420, 72, [$this->ano], 54, self::VINHO, self::FONTE_TITULO),
+            ]),
+            'ppt/slideLayouts/_rels/slideLayout2.xml.rels' => $relLayout([
+                '<Relationship Id="rId2" Type="'.self::REL.'/image" Target="../media/modelo-logo.png"/>',
+                '<Relationship Id="rId3" Type="'.self::REL.'/image" Target="../media/modelo-enfeite.png"/>',
             ]),
 
             'ppt/theme/theme1.xml' => $xml.'<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="FETECMS">'
                 .'<a:themeElements><a:clrScheme name="FETECMS">'
-                .'<a:dk1><a:srgbClr val="1C1B1F"/></a:dk1><a:lt1><a:srgbClr val="FFFFFF"/></a:lt1>'
-                .'<a:dk2><a:srgbClr val="'.self::ROXO_ESCURO.'"/></a:dk2><a:lt2><a:srgbClr val="F3EDF7"/></a:lt2>'
-                .'<a:accent1><a:srgbClr val="'.self::ROXO.'"/></a:accent1><a:accent2><a:srgbClr val="'.self::VERDE.'"/></a:accent2>'
-                .'<a:accent3><a:srgbClr val="006E1F"/></a:accent3><a:accent4><a:srgbClr val="BA1A1A"/></a:accent4>'
+                .'<a:dk1><a:srgbClr val="'.self::VINHO.'"/></a:dk1><a:lt1><a:srgbClr val="FFFFFF"/></a:lt1>'
+                .'<a:dk2><a:srgbClr val="2A0058"/></a:dk2><a:lt2><a:srgbClr val="'.self::LAVANDA.'"/></a:lt2>'
+                .'<a:accent1><a:srgbClr val="'.self::ROXO.'"/></a:accent1><a:accent2><a:srgbClr val="43157A"/></a:accent2>'
+                .'<a:accent3><a:srgbClr val="007B24"/></a:accent3><a:accent4><a:srgbClr val="BA1A1A"/></a:accent4>'
                 .'<a:accent5><a:srgbClr val="7D5260"/></a:accent5><a:accent6><a:srgbClr val="625B71"/></a:accent6>'
-                .'<a:hlink><a:srgbClr val="'.self::ROXO.'"/></a:hlink><a:folHlink><a:srgbClr val="'.self::ROXO_ESCURO.'"/></a:folHlink>'
+                .'<a:hlink><a:srgbClr val="'.self::ROXO.'"/></a:hlink><a:folHlink><a:srgbClr val="'.self::VINHO.'"/></a:folHlink>'
                 .'</a:clrScheme>'
-                .'<a:fontScheme name="FETECMS"><a:majorFont><a:latin typeface="Space Grotesk"/><a:ea typeface=""/><a:cs typeface=""/></a:majorFont>'
-                .'<a:minorFont><a:latin typeface="Inter"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont></a:fontScheme>'
+                .'<a:fontScheme name="FETECMS"><a:majorFont><a:latin typeface="'.self::FONTE_TITULO.'"/><a:ea typeface=""/><a:cs typeface=""/></a:majorFont>'
+                .'<a:minorFont><a:latin typeface="'.self::FONTE_TEXTO.'"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont></a:fontScheme>'
                 .'<a:fmtScheme name="FETECMS">'
                 .'<a:fillStyleLst>'.$tres('<a:solidFill><a:schemeClr val="phClr"/></a:solidFill>').'</a:fillStyleLst>'
                 .'<a:lnStyleLst>'.$tres('<a:ln w="6350"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln>').'</a:lnStyleLst>'
@@ -523,9 +570,10 @@ class ApresentacaoPptx
         ];
     }
 
-    private static function pol(float $polegadas): int
+    /** Pontos do modelo (1440 de largura) para EMU do slide. */
+    private static function emu(float $pontos): int
     {
-        return (int) round($polegadas * self::POL);
+        return (int) round($pontos * self::LARGURA / self::MODELO);
     }
 
     /** Texto seguro para XML: escapado e sem caracteres de controle. */

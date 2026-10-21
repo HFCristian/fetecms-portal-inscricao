@@ -1136,59 +1136,64 @@ class ListaPresencialService
         return $area['lugares'] === null || $area['lugares'] === '' ? null : max(0, (int) $area['lugares']);
     }
 
-    // --- Slides (Sprint 254) -----------------------------------------------------
+    // --- Slides (Sprints 254 e 257) ------------------------------------------
 
     /**
-     * A apresentação da cerimônia em .pptx: para cada premiação, três slides —
-     * o nome do prêmio (ou a colocação), a foto do estande (Cerimonial →
-     * Fotografias de estandes) e o projeto como está na lista. Primeiro os
-     * premiados por nota, por categoria e área, do último colocado para o
-     * primeiro (o suspense do palco); depois as credenciais e os prêmios, na
-     * ordem do cadastro.
+     * A apresentação da cerimônia em .pptx, no **modelo da organização**
+     * (Canva "FETEC FUNDECT", Sprint 257). Por categoria:
+     *
+     * - por nota, um bloco por colocação, **do último lugar para o 1º**: a
+     *   abertura "3° LUGAR - FETEC FUNDECT", um slide por projeto (colocação,
+     *   área, projeto com escola e equipe, e a foto do estande) na ordem das
+     *   áreas do modelo, e o fechamento repetindo a abertura;
+     * - depois, cada credencial ou prêmio com projetos da categoria, no mesmo
+     *   desenho: "MOSTRATEC 2027 - CREDENCIAL" abre e fecha, e o slide do
+     *   projeto traz o tipo e o nome da credencial no lugar da colocação e da
+     *   área.
+     *
+     * `$categoria` escolhe uma cerimônia; sem ela, todas em sequência. O
+     * projeto sem colocação (incluído à mão, sem avaliação presencial) não tem
+     * bloco e fica de fora — a tela avisa.
      *
      * Grava num arquivo temporário e devolve o caminho: com uma foto de vários
      * MB por projeto, o arquivo não cabe na memória.
      *
      * @return array{caminho: string, nome: string}
      */
-    public function slides(ListaPresencial $lista): array
+    public function slides(ListaPresencial $lista, ?string $categoria = null): array
     {
         if ($lista->rascunho) {
             throw ValidationException::withMessages(['lista' => 'Gere a lista antes de montar os slides.']);
         }
 
-        $sequencia = $this->sequenciaDosSlides($lista);
+        $plano = $this->planoDosSlides($this->itens($lista), $this->premiacoes($lista), $categoria);
+        $premiados = array_filter($plano, fn (array $s) => $s['tipo'] === 'premiado');
 
-        if ($sequencia === []) {
-            throw ValidationException::withMessages(['lista' => 'A lista não tem nenhum premiado para os slides.']);
+        if ($premiados === []) {
+            throw ValidationException::withMessages(['lista' => 'A lista não tem nenhum premiado para os slides'
+                .($categoria !== null ? ' nesta categoria.' : '.')]);
         }
 
-        $fotos = $this->fotos($lista, array_map(fn (array $p) => $p['item']['projeto_id'], $sequencia));
-        $evento = $lista->edicao?->nome ?? 'FETECMS';
-        $apresentacao = new ApresentacaoPptx($lista->nome);
+        $fotos = $this->fotos($lista, array_values(array_map(fn (array $s) => $s['item']['projeto_id'], $premiados)));
+        $apresentacao = new ApresentacaoPptx($lista->nome, (string) ($lista->edicao?->ano ?? ''));
 
-        foreach ($sequencia as $p) {
-            $i = $p['item'];
+        foreach ($plano as $s) {
+            if ($s['tipo'] === 'abertura') {
+                $apresentacao->abertura($s['texto']);
 
-            if ($p['secao'] === 'nota') {
-                $grupo = implode(' · ', array_filter([$i['area'] ?? 'Sem área', $i['categoria']]));
-                $apresentacao->titulo(
-                    'Premiação por nota',
-                    $i['colocacao'] !== null ? $i['colocacao'].'º lugar' : $grupo,
-                    $i['colocacao'] !== null ? $grupo : null,
-                    $evento,
-                );
-            } else {
-                $apresentacao->titulo($p['tipo_label'], $p['nome'], $p['orgao'], $evento);
+                continue;
             }
 
+            $i = $s['item'];
             $foto = $fotos[$i['projeto_id']] ?? ['caminho' => null, 'motivo' => 'Sem fotografia registrada'];
-            $apresentacao->foto($foto['caminho'], implode(' · ', array_filter([
-                $i['estande'] !== null ? 'Estande '.str_pad((string) $i['estande'], 3, '0', STR_PAD_LEFT) : null,
-                $i['codigo'],
-            ])) ?: $i['titulo'], $foto['motivo'] ?? 'Sem fotografia registrada');
-
-            $apresentacao->projeto($i['codigo'], $i['titulo'], $i['escola'], $this->equipe($i));
+            $apresentacao->premiado(
+                $s['rotulo'],
+                $s['destaque'],
+                ($i['codigo'] ? $i['codigo'].' - ' : '').$i['titulo'],
+                $this->detalhes($i),
+                $foto['caminho'],
+                $foto['motivo'] ?? 'Sem fotografia registrada',
+            );
         }
 
         $caminho = tempnam(sys_get_temp_dir(), 'pptx');
@@ -1198,41 +1203,106 @@ class ListaPresencialService
 
         $apresentacao->salvar($caminho);
 
-        return ['caminho' => $caminho, 'nome' => 'slides-'.Str::slug($lista->nome).'-v'.$lista->versao.'.pptx'];
+        $sufixo = $categoria !== null ? '-'.Str::slug($this->categoriaNosSlides($categoria)) : '';
+
+        return ['caminho' => $caminho, 'nome' => 'slides-'.Str::slug($lista->nome).$sufixo.'-v'.$lista->versao.'.pptx'];
     }
 
     /**
-     * A ordem do palco: por nota (categoria → área → do último ao primeiro
-     * colocado; quem não tem colocação abre o grupo), depois as premiações.
+     * A sequência dos slides, sem desenhar nada — serve ao arquivo e à conta
+     * que a tela mostra antes de baixar.
      *
-     * @return list<array{secao: string, item: array<string, mixed>, tipo_label?: string, nome?: string, orgao?: ?string}>
+     * @param  list<array<string, mixed>>  $itens
+     * @param  list<array<string, mixed>>  $premiacoes
+     * @return list<array{tipo: string, texto?: string, rotulo?: string, destaque?: string, item?: array<string, mixed>}>
      */
-    private function sequenciaDosSlides(ListaPresencial $lista): array
+    private function planoDosSlides(array $itens, array $premiacoes, ?string $categoria = null): array
     {
-        $porNota = collect($this->itens($lista))
-            ->groupBy(fn (array $i) => ($i['categoria_valor'] ?? '').'|'.($i['area_id'] ?? 0), preserveKeys: false)
-            ->flatMap(fn (Collection $grupo) => $grupo->sortBy([
-                fn (array $a, array $b) => ($b['colocacao'] ?? PHP_INT_MAX) <=> ($a['colocacao'] ?? PHP_INT_MAX),
-                fn (array $a, array $b) => strcmp($this->chave($a['titulo']), $this->chave($b['titulo'])),
-            ])->values())
-            ->map(fn (array $i) => ['secao' => 'nota', 'item' => $i])
-            ->values()
-            ->all();
+        $plano = [];
+        $porArea = fn (array $a, array $b) => [self::ordemDaArea($a['area']), $this->chave($a['titulo'])]
+            <=> [self::ordemDaArea($b['area']), $this->chave($b['titulo'])];
 
-        $premiacoes = [];
-        foreach ($this->premiacoes($lista) as $premio) {
-            foreach ($premio['itens'] as $i) {
-                $premiacoes[] = [
-                    'secao' => 'premiacao',
-                    'item' => $i,
-                    'tipo_label' => $premio['tipo_label'],
-                    'nome' => $premio['nome'],
-                    'orgao' => $premio['orgao'],
-                ];
+        foreach (Categoria::ordemDaLista() as $c) {
+            if ($categoria !== null && $c->value !== $categoria) {
+                continue;
+            }
+
+            $nome = mb_strtoupper($this->categoriaNosSlides($c->value));
+            $porColocacao = collect($itens)
+                ->filter(fn (array $i) => $i['categoria_valor'] === $c->value && $i['colocacao'] !== null)
+                ->groupBy('colocacao')
+                ->sortKeysDesc();
+
+            foreach ($porColocacao as $colocacao => $doLugar) {
+                $abertura = $colocacao.'° LUGAR - '.$nome;
+                $plano[] = ['tipo' => 'abertura', 'texto' => $abertura];
+
+                foreach ($doLugar->sort($porArea)->values() as $i) {
+                    $plano[] = [
+                        'tipo' => 'premiado',
+                        'rotulo' => $colocacao.'° LUGAR',
+                        'destaque' => mb_strtoupper($i['area'] ?? 'Sem área'),
+                        'item' => $i,
+                    ];
+                }
+
+                $plano[] = ['tipo' => 'abertura', 'texto' => $abertura];
+            }
+
+            foreach ($premiacoes as $premio) {
+                $daCategoria = array_values(array_filter($premio['itens'], fn (array $i) => $i['categoria_valor'] === $c->value));
+
+                if ($daCategoria === []) {
+                    continue;
+                }
+
+                $abertura = mb_strtoupper($premio['nome'].' - '.$premio['tipo_label']);
+                $plano[] = ['tipo' => 'abertura', 'texto' => $abertura];
+
+                foreach ($daCategoria as $i) {
+                    $plano[] = [
+                        'tipo' => 'premiado',
+                        'rotulo' => mb_strtoupper($premio['tipo_label']),
+                        'destaque' => mb_strtoupper($premio['nome']),
+                        'item' => $i,
+                    ];
+                }
+
+                $plano[] = ['tipo' => 'abertura', 'texto' => $abertura];
             }
         }
 
-        return [...$porNota, ...$premiacoes];
+        return $plano;
+    }
+
+    /**
+     * O nome da categoria nos slides: o do modelo para a FUNDECT ("FETEC
+     * FUNDECT"), o do portal para as outras (decisão do Pedro).
+     */
+    private function categoriaNosSlides(string $categoria): string
+    {
+        return $categoria === Categoria::FetecmsFundect->value
+            ? 'FETEC FUNDECT'
+            : (Categoria::tryFrom($categoria)?->label() ?? $categoria);
+    }
+
+    /**
+     * A ordem das áreas no modelo: as "Ciências …" pela palavra que as
+     * distingue (Agrárias, Biológicas, Exatas e da Terra, Humanas, Saúde,
+     * Sociais Aplicadas), e as demais depois, em ordem alfabética (Engenharias,
+     * Linguística, Letras e Artes).
+     *
+     * @return array{0: int, 1: string}
+     */
+    public static function ordemDaArea(?string $area): array
+    {
+        $chave = Str::lower(Str::ascii(trim((string) $area)));
+
+        if (preg_match('/^ciencias\s+(?:(?:da|das|de|do|dos)\s+)?(.+)$/', $chave, $m)) {
+            return [0, $m[1]];
+        }
+
+        return [1, $chave];
     }
 
     /**
@@ -1265,8 +1335,9 @@ class ListaPresencialService
     }
 
     /**
-     * O que a tela avisa antes de baixar os slides: quantos são e quem vai
-     * sair sem foto (e por quê).
+     * O que a tela mostra antes de baixar os slides: quantos saem em cada
+     * categoria, quem vai sair sem foto (e por quê) e quantos ficam de fora por
+     * não ter colocação.
      *
      * @param  list<array<string, mixed>>  $itens
      * @param  list<array<string, mixed>>  $premiacoes
@@ -1274,15 +1345,29 @@ class ListaPresencialService
      */
     private function resumoSlides(ListaPresencial $lista, array $itens, array $premiacoes): array
     {
-        $projetos = collect($itens)
-            ->concat(collect($premiacoes)->flatMap(fn (array $p) => $p['itens']))
-            ->keyBy('projeto_id');
-        $premiados = count($itens) + collect($premiacoes)->sum(fn (array $p) => count($p['itens']));
+        $plano = $this->planoDosSlides($itens, $premiacoes);
+        $premiados = array_values(array_filter($plano, fn (array $s) => $s['tipo'] === 'premiado'));
+        $projetos = collect($premiados)->pluck('item')->keyBy('projeto_id');
         $fotos = $projetos->isEmpty() ? [] : $this->fotos($lista, $projetos->keys()->all());
 
+        $categorias = [];
+        foreach (Categoria::ordemDaLista() as $c) {
+            $daCategoria = $this->planoDosSlides($itens, $premiacoes, $c->value);
+            if ($daCategoria !== []) {
+                $categorias[] = [
+                    'value' => $c->value,
+                    'label' => $this->categoriaNosSlides($c->value),
+                    'premiados' => count(array_filter($daCategoria, fn (array $s) => $s['tipo'] === 'premiado')),
+                    'slides' => count($daCategoria),
+                ];
+            }
+        }
+
         return [
-            'premiados' => $premiados,
-            'slides' => $premiados * 3,
+            'premiados' => count($premiados),
+            'slides' => count($plano),
+            'categorias' => $categorias,
+            'sem_colocacao' => count(array_filter($itens, fn (array $i) => $i['colocacao'] === null)),
             'sem_foto' => $projetos
                 ->filter(fn (array $i) => ($fotos[$i['projeto_id']]['caminho'] ?? null) === null)
                 ->map(fn (array $i) => [
@@ -1298,17 +1383,19 @@ class ListaPresencialService
     }
 
     /**
-     * A equipe como na lista: estudantes, orientador e coorientador.
+     * Escola e equipe no slide, uma informação por linha: a escola, os
+     * estudantes juntos e a orientação.
      *
      * @param  array<string, mixed>  $item
      * @return list<string>
      */
-    private function equipe(array $item): array
+    private function detalhes(array $item): array
     {
         return array_values(array_filter([
-            ...$item['alunos'],
-            $item['orientador'] ? $item['orientador'].' - Orientador(a)' : null,
-            $item['coorientador'] ? $item['coorientador'].' - Coorientador(a)' : null,
+            $item['escola'] !== '—' ? $item['escola'] : null,
+            $item['alunos'] !== [] ? implode(', ', $item['alunos']) : null,
+            $item['orientador'] ? 'Orientador(a): '.$item['orientador'] : null,
+            $item['coorientador'] ? 'Coorientador(a): '.$item['coorientador'] : null,
         ]));
     }
 
