@@ -403,7 +403,8 @@ class AvaliacaoPresencialAdminController extends Controller
     {
         $dados = $request->validate([
             'tipo' => ['sometimes', Rule::in(TipoCredencial::valores())],
-            'nome' => ['sometimes', 'string', 'max:120'],
+            // Mandado, o nome não pode ficar em branco: é por ele que o item é achado.
+            'nome' => ['sometimes', 'required', 'string', 'max:120'],
             'orgao' => ['nullable', 'string', 'max:120'],
             'descricao' => ['nullable', 'string', 'max:500'],
             // Informações adicionais (Sprint 192): critérios, regras do órgão.

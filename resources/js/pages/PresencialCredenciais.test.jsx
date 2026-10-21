@@ -127,20 +127,109 @@ describe('PresencialCredenciais', () => {
         })));
     });
 
-    it('edita as informações adicionais no cartão', async () => {
+    it('nome repetido no cadastro aparece no campo e o formulário continua aberto', async () => {
+        const aviso = 'Já existe uma credencial chamada “MOSTRATEC 2027” nesta edição. Escolha outro nome ou edite o item existente.';
+        criarCredencial.mockRejectedValue({ fields: { nome: aviso } });
+        render(<PresencialCredenciais />);
+
+        fireEvent.click(await screen.findByRole('button', { name: /Nova credencial/i }));
+        fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'MOSTRATEC 2027' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Cadastrar' }));
+
+        expect((await screen.findAllByText(aviso)).length).toBeGreaterThan(0);
+        expect(screen.getByRole('button', { name: 'Cadastrar' })).toBeInTheDocument();
+        expect(screen.queryByText(/Erro interno/)).not.toBeInTheDocument();
+    });
+
+    // Editar abre o mesmo formulário do cadastro, já preenchido.
+    it('edita o item inteiro pelo cartão', async () => {
         getCredenciais.mockResolvedValue({
             data: [{ ...COM_VAGAS, informacoes: 'Texto antigo' }],
             meta: { candidatos: CANDIDATOS, tipos: TIPOS },
         });
-        atualizarCredencial.mockResolvedValue([]);
         render(<PresencialCredenciais />);
 
         expect(await screen.findByText('Texto antigo')).toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
-        fireEvent.change(screen.getByLabelText('Informações adicionais'), { target: { value: 'Texto novo' } });
-        fireEvent.click(screen.getByRole('button', { name: 'Salvar informações' }));
 
-        await waitFor(() => expect(atualizarCredencial).toHaveBeenCalledWith(1, { informacoes: 'Texto novo' }));
+        expect(screen.getByLabelText('Nome')).toHaveValue('MOSTRATEC 2027');
+        expect(screen.getByLabelText('Vagas')).toHaveValue(2);
+        fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'MOSTRATEC 2028' } });
+        fireEvent.change(screen.getByLabelText('Órgão'), { target: { value: 'CNPq' } });
+        fireEvent.change(screen.getByLabelText('Vagas'), { target: { value: '4' } });
+        fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Indicação nacional' } });
+        fireEvent.change(screen.getByLabelText('Informações adicionais'), { target: { value: 'Texto novo' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Salvar alterações' }));
+
+        await waitFor(() => expect(atualizarCredencial).toHaveBeenCalledWith(1, {
+            tipo: 'credencial', nome: 'MOSTRATEC 2028', orgao: 'CNPq', descricao: 'Indicação nacional',
+            informacoes: 'Texto novo', vagas: 4,
+        }));
+        await waitFor(() => expect(screen.queryByRole('button', { name: 'Salvar alterações' })).not.toBeInTheDocument());
+        expect(screen.getByText('Credencial atualizada.')).toBeInTheDocument();
+    });
+
+    it('vagas em branco na edição viram sem limite', async () => {
+        render(<PresencialCredenciais />);
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Editar' }));
+        fireEvent.change(screen.getByLabelText('Vagas'), { target: { value: '' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Salvar alterações' }));
+
+        await waitFor(() => expect(atualizarCredencial).toHaveBeenCalledWith(1, expect.objectContaining({ vagas: null })));
+    });
+
+    it('não deixa as vagas ficarem abaixo dos projetos já premiados', async () => {
+        getCredenciais.mockResolvedValue({
+            data: [{ ...COM_VAGAS, vagas: 3, usadas: 2, disponiveis: 1 }],
+            meta: { candidatos: CANDIDATOS, tipos: TIPOS },
+        });
+        render(<PresencialCredenciais />);
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Editar' }));
+        expect(screen.getByText(/Mínimo de 2: os projetos que já receberam/)).toBeInTheDocument();
+
+        fireEvent.change(screen.getByLabelText('Vagas'), { target: { value: '1' } });
+
+        expect(screen.getByText(/não podem ser menos que 2/)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Salvar alterações' })).toBeDisabled();
+
+        // Igual ao número de premiados pode: a credencial só fica esgotada.
+        fireEvent.change(screen.getByLabelText('Vagas'), { target: { value: '2' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Salvar alterações' }));
+
+        await waitFor(() => expect(atualizarCredencial).toHaveBeenCalledWith(1, expect.objectContaining({ vagas: 2 })));
+    });
+
+    it('avisa ao trocar o tipo de um item já premiado', async () => {
+        getCredenciais.mockResolvedValue({
+            data: [{ ...COM_VAGAS, usadas: 1, disponiveis: 1 }],
+            meta: { candidatos: CANDIDATOS, tipos: TIPOS },
+        });
+        render(<PresencialCredenciais />);
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Editar' }));
+        expect(screen.queryByText(/sai do card de credenciais a separar/)).not.toBeInTheDocument();
+
+        fireEvent.change(screen.getByLabelText('Tipo'), { target: { value: 'premio' } });
+
+        expect(screen.getByText(/Este item já foi dado a 1 projeto\(s\)/)).toBeInTheDocument();
+        expect(screen.getByText(/sai do card de credenciais a separar/)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Salvar alterações' })).toBeEnabled();
+    });
+
+    it('recusa do servidor na edição mantém o formulário aberto com o erro no campo', async () => {
+        const aviso = 'Já existe um prêmio chamado “Destaque” nesta edição. Escolha outro nome ou edite o item existente.';
+        atualizarCredencial.mockRejectedValue({ fields: { nome: aviso } });
+        render(<PresencialCredenciais />);
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Editar' }));
+        fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Destaque' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Salvar alterações' }));
+
+        expect((await screen.findAllByText(aviso)).length).toBe(2);
+        expect(screen.getByRole('button', { name: 'Salvar alterações' })).toBeInTheDocument();
+        expect(screen.getByLabelText('Nome')).toHaveValue('Destaque');
     });
 
     it('credencial já dada não oferece excluir', async () => {

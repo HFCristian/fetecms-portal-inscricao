@@ -1090,7 +1090,33 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 254 | Lista da premiação: **slides da cerimônia em PPTX** (prêmio → foto do estande → projeto), escritor próprio | ✅ sim | ✅ sim (Pedro, PR #128 → v1.47) | 0 |
 | 255 | Lista da premiação: por padrão **do 1º ao 4º lugar** de cada área em cada categoria, editável na geração | ✅ sim | ✅ sim (Pedro, PR #128 → v1.47) | 0 |
 | 256 | Fix (segurança): `follow-redirects` 1.16.0 → 1.16.1 (job security do CI) + `vite` 8.2.2 → 8.3.4 (dev) | ✅ sim | ✅ sim (Pedro, PR #128 → v1.47) | 0 |
-| 257 | Slides da premiação no **modelo da organização** (Canva "FETEC FUNDECT"): abertura por colocação, um slide por projeto com foto, por categoria | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 257 | Slides da premiação no **modelo da organização** (Canva "FETEC FUNDECT"): abertura por colocação, um slide por projeto com foto, por categoria | ✅ sim | ✅ sim (Pedro, PR #133) | 0 |
+| 258 | Credenciais e Prêmios: **editar o item inteiro** (vagas até o nº de premiados) + fix: **nome repetido** dava erro interno | ✅ sim | ❌ não (manual do Pedro) | 1 |
+
+> **Sprint 258 (branch `fix/credenciais-edicao-e-nome-repetido`, saída da `main` @ `e377818`):** dois ajustes em
+> Avaliação presencial → **Credenciais e Prêmios**.
+> (a) **Editar o item inteiro.** O cartão só editava as informações adicionais; agora tem **Editar**, que abre o
+> mesmo formulário do cadastro (`FormularioCredencial.jsx`, compartilhado) já preenchido: tipo, nome, órgão, vagas,
+> descrição e informações adicionais. As **vagas** sobem à vontade e descem até o **número de projetos que já
+> receberam** o item (igual pode: a credencial fica esgotada); em branco é sem limite. A tela mostra o mínimo e trava
+> o salvar abaixo dele, e o servidor recusa de novo (`CredenciaisService::atualizar()`, que já fazia a conta). Trocar
+> o **tipo** de um item já premiado é permitido (decisão do Pedro), com aviso de que o card de credenciais a separar
+> do Cerimonial muda. O formulário só fecha quando salvou: a recusa fica no campo. As informações adicionais no
+> cartão viraram só leitura (a edição é pelo formulário). O Comitê especial continua sem editar.
+> (b) **Fix: "Erro interno do servidor" ao cadastrar.** `credenciais` tem índice único (`edicao_id`, `nome`), e
+> nem o cadastro nem a edição conferiam o nome: o banco recusava e o handler devolvia o 500 genérico — reproduzido em
+> teste antes da correção (`UNIQUE constraint failed`). Agora `garantirNomeLivre()` confere antes de gravar,
+> ignorando caixa, acento e espaços nas pontas, e a recusa diz qual item já usa o nome: "Já existe uma credencial
+> chamada “MOSTRATEC 2027” (desativada) nesta edição. Escolha outro nome ou edite o item existente." — o desativado
+> some da tela do comitê mas continua ocupando o nome. Na edição a conferência só roda quando o nome muda (dois itens
+> antigos que diferem só na caixa continuam editáveis), e a `UniqueConstraintViolationException` de dois cadastros
+> simultâneos vira a mesma recusa (`gravandoNome()`). O nome mandado em branco na edição é recusado. Os demais erros
+> inesperados continuam com a mensagem genérica (decisão do Pedro: só os casos conhecidos ganham mensagem própria).
+> Back **1724/1724**, front **990/990**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprint 258):** `git push origin fix/credenciais-edicao-e-nome-repetido` + PR para a `main`.
+> Sem migration, `.env` ou dependência nova; `npm run build` no deploy. Renomear um item **não muda** as listas da
+> premiação já montadas, que guardam uma cópia (Sprint 253): use *Recarregar de Credenciais e Prêmios* nelas.
 
 > **Sprint 257 (branch `feat/slides-modelo-canva`, saída da `main` @ `3faa661`, v1.47):** os slides da premiação
 > passaram a seguir o **modelo da organização** (`~/Downloads/FETEC FUNDECT.pdf`, Canva, 27 páginas 16:9). As medidas,
@@ -1118,7 +1144,7 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 > sessão do Claude).
 > Back **1714/1714**, front **985/985**, Pint limpo, build OK.
 >
-> **Pendências do Pedro (Sprint 257):** (1) `git push origin feat/slides-modelo-canva` + PR para a `main`. Sem migration,
+> **Pendências do Pedro (Sprint 257):** (1) ~~push + PR~~ — **entrou na `main` pelo PR #133**. Sem migration,
 > `.env` ou dependência; três imagens novas em `resources/slides`. (2) **Abra um .pptx no PowerPoint** com as fontes
 > instaladas e compare com o modelo do Canva — é a conferência visual que faltou. Se o nome de família das fontes
 > no seu Windows for outro (ex.: "Handel Gothic BT" com espaço), é trocar as três constantes `FONTE_*` do
