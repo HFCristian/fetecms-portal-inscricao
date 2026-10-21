@@ -34,6 +34,7 @@ function LinhaLista({ lista, baixando, onBaixar, onReativar }) {
                 {lista.descricao && <p className="text-sm text-on-surface whitespace-pre-line">{lista.descricao}</p>}
                 <p className="text-xs text-on-surface-variant">
                     versão {lista.versao} · {lista.projetos} {lista.projetos === 1 ? 'projeto por nota' : 'projetos por nota'}
+                    {' '}· {lista.premiacoes ?? 0} premiação(ões)
                     {lista.gerada_por ? ` · por ${lista.gerada_por}` : ''}
                     {lista.gerada_em ? ` · gerada em ${dataHora(lista.gerada_em)}` : ` · criada em ${dataHora(lista.criada_em)}`}
                 </p>

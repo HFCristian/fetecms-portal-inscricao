@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
+import BuscaCombobox from '../components/BuscaCombobox.jsx';
 import JustificativaDialog from '../components/JustificativaDialog.jsx';
 import { Alert, Button, useConfirm } from '../components/ui.jsx';
 import { extractErrors } from '../lib/auth.jsx';
 import {
-    exportarListaPresencial, gerarListaPresencialDefinitiva, getListaPresencial, reativarListaPresencial,
-    rotularListaPresencial,
+    adicionarNaListaPresencial, adicionarNaPremiacaoPresencial, exportarListaPresencial, gerarListaPresencialDefinitiva,
+    getListaPresencial, reativarListaPresencial, recarregarPremiacoesPresencial, removerDaListaPresencial,
+    removerDaPremiacaoPresencial, rotularListaPresencial,
 } from '../lib/listasPresenciais.js';
 
 const pill = 'ml-2 align-middle text-xs font-semibold px-2 py-0.5 rounded-full';
@@ -111,12 +113,14 @@ function RotuloLista({ lista, onSalvo }) {
 }
 
 /** Um premiado: colocação, código, título, escola, equipe e a média. */
-function ItemPremiado({ item, acoes }) {
+function ItemPremiado({ item, acoes, comColocacao = true }) {
     return (
         <li className="px-4 py-3 flex items-start gap-3">
-            <span className="w-12 shrink-0 text-center font-display text-lg font-bold text-primary-container" aria-label={item.colocacao ? `${item.colocacao}º lugar` : 'Sem colocação'}>
-                {item.colocacao ? `${item.colocacao}º` : '—'}
-            </span>
+            {comColocacao && (
+                <span className="w-12 shrink-0 text-center font-display text-lg font-bold text-primary-container" aria-label={item.colocacao ? `${item.colocacao}º lugar` : 'Sem colocação'}>
+                    {item.colocacao ? `${item.colocacao}º` : '—'}
+                </span>
+            )}
             <div className="min-w-0 flex-1">
                 <p className="text-sm text-on-surface">
                     {item.codigo && <span className="font-semibold text-primary-container mr-1">{item.codigo}</span>}
@@ -127,11 +131,84 @@ function ItemPremiado({ item, acoes }) {
                 <p className="text-xs text-on-surface-variant">{equipe(item)}</p>
             </div>
             <div className="text-right shrink-0">
-                <p className="text-sm font-semibold text-secondary">{nota(item.media)}</p>
+                <p className={`text-sm font-semibold ${comColocacao ? 'text-secondary' : 'text-on-surface-variant'}`}>{nota(item.media)}</p>
                 {item.media !== null && <p className="text-[10px] text-on-surface-variant">{item.avaliacoes} avaliação(ões){item.parcial ? ' · parcial' : ''}</p>}
             </div>
             {acoes}
         </li>
+    );
+}
+
+const botaoRetirar = 'p-1.5 rounded-lg text-on-surface-variant hover:bg-error-container hover:text-error transition-colors shrink-0';
+
+/**
+ * Uma credencial ou um prêmio da lista (Sprint 253): a cópia de Credenciais e
+ * Prêmios, com os projetos e o campo para incluir outro finalista.
+ */
+function PremioDaLista({ premio, finalistas, onIncluir, onRetirar }) {
+    const [escolhido, setEscolhido] = useState(null);
+    const dentro = new Set(premio.itens.map((i) => i.projeto_id));
+    const opcoes = finalistas.filter((f) => !dentro.has(f.id)).map((f) => ({
+        id: f.id,
+        nome: [f.codigo, f.titulo].filter(Boolean).join(' — '),
+        titulo: f.titulo,
+        detalhe: [f.categoria, f.area].filter(Boolean).join(' · '),
+    }));
+
+    return (
+        <section className="bg-surface-container-lowest rounded-xl fetec-card-shadow max-w-3xl overflow-hidden" aria-label={premio.titulo}>
+            <div className="px-4 py-3 border-b border-outline-variant/40 bg-surface-container-low flex items-center gap-2">
+                <span className="material-symbols-outlined text-[20px] text-primary-container">{premio.tipo === 'premio' ? 'emoji_events' : 'badge'}</span>
+                <div className="min-w-0">
+                    <h3 className="font-semibold text-on-surface text-sm">
+                        {premio.titulo}
+                        <span className={`${pill} bg-primary-fixed text-primary-container`}>{premio.tipo_label}</span>
+                    </h3>
+                    <p className="text-xs text-on-surface-variant">
+                        {premio.itens.length} {premio.itens.length === 1 ? 'projeto' : 'projetos'}
+                    </p>
+                </div>
+            </div>
+            {premio.itens.length > 0 ? (
+                <ul className="divide-y divide-outline-variant/30">
+                    {premio.itens.map((i) => (
+                        <ItemPremiado
+                            key={i.projeto_id}
+                            item={i}
+                            comColocacao={false}
+                            acoes={(
+                                <button type="button" onClick={() => onRetirar(i)} aria-label={`Retirar ${i.titulo} de ${premio.nome}`} className={botaoRetirar}>
+                                    <span className="material-symbols-outlined text-[20px]">remove_circle</span>
+                                </button>
+                            )}
+                        />
+                    ))}
+                </ul>
+            ) : (
+                <p className="px-4 py-3 text-sm text-on-surface-variant">Nenhum projeto contemplado.</p>
+            )}
+            <div className="px-4 py-3 border-t border-outline-variant/30 flex flex-col sm:flex-row gap-2 sm:items-center">
+                <div className="flex-1">
+                    <BuscaCombobox
+                        options={opcoes}
+                        value={escolhido}
+                        onChange={setEscolhido}
+                        placeholder={`Incluir finalista em ${premio.nome}…`}
+                        vazio="Nenhum finalista fora desta premiação"
+                    />
+                </div>
+                <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!escolhido}
+                    aria-label={`Incluir em ${premio.nome}`}
+                    onClick={() => { onIncluir({ id: escolhido.id, titulo: escolhido.titulo }); setEscolhido(null); }}
+                >
+                    <span className="material-symbols-outlined text-[18px]">playlist_add</span>
+                    Incluir
+                </Button>
+            </div>
+        </section>
     );
 }
 
@@ -150,7 +227,8 @@ export default function PresencialListaDetalhe() {
     const [sucesso, setSucesso] = useState('');
     const [gerando, setGerando] = useState(false);
     const [baixando, setBaixando] = useState('');
-    const [dialogo, setDialogo] = useState(null); // { tipo }
+    const [dialogo, setDialogo] = useState(null); // { tipo, projeto }
+    const [candidato, setCandidato] = useState(null);
     const [salvando, setSalvando] = useState(false);
     const [erroDialogo, setErroDialogo] = useState('');
     const [confirm, dialogoConfirmacao] = useConfirm();
@@ -197,12 +275,63 @@ export default function PresencialListaDetalhe() {
         }
     }
 
+    /**
+     * Incluir e retirar (Sprint 252): no rascunho vale na hora; depois de
+     * gerada, abre o diálogo da justificativa.
+     */
+    // As mudanças de composição: na seção por nota, numa premiação ou a
+    // recarga das premiações. Devolvem a tela da lista.
+    function executar(pedido, justificativa = null) {
+        switch (pedido.tipo) {
+            case 'incluir':
+                return adicionarNaListaPresencial(id, pedido.projeto.id, justificativa);
+            case 'remover':
+                return removerDaListaPresencial(id, pedido.projeto.id, justificativa);
+            case 'incluir_premio':
+                return adicionarNaPremiacaoPresencial(id, pedido.premio.id, pedido.projeto.id, justificativa);
+            case 'remover_premio':
+                return removerDaPremiacaoPresencial(id, pedido.premio.id, pedido.projeto.id, justificativa);
+            default:
+                return recarregarPremiacoesPresencial(id, justificativa);
+        }
+    }
+
+    async function alterar(tipo, projeto, premio = null) {
+        setErro(''); setSucesso('');
+        if (!dados.lista.rascunho) {
+            setErroDialogo('');
+            setDialogo({ tipo, projeto, premio });
+            return;
+        }
+
+        if (tipo === 'recarregar') {
+            const ok = await confirm({
+                title: 'Recarregar as premiações?',
+                message: 'A seção de premiações volta a ser o que está agora em Credenciais e Prêmios. O que foi incluído ou retirado à mão nesta seção se perde.',
+                confirmLabel: 'Recarregar',
+            });
+            if (!ok) return;
+        }
+
+        try {
+            setDados(await executar({ tipo, projeto, premio }));
+            setCandidato(null);
+        } catch (e) {
+            setErro(extractErrors(e).message || 'Não foi possível alterar a lista.');
+        }
+    }
+
     async function confirmar(justificativa) {
         setSalvando(true); setErroDialogo('');
         try {
-            const resp = await reativarListaPresencial(id, justificativa);
-            setDados(resp.data);
-            setSucesso(resp.meta?.message ?? 'Lista reativada.');
+            if (dialogo.tipo === 'reativar') {
+                const resp = await reativarListaPresencial(id, justificativa);
+                setDados(resp.data);
+                setSucesso(resp.meta?.message ?? 'Lista reativada.');
+            } else {
+                setDados(await executar(dialogo, justificativa));
+                setCandidato(null);
+            }
             setDialogo(null);
         } catch (e) {
             setErroDialogo(extractErrors(e).message || 'Não foi possível concluir.');
@@ -213,6 +342,13 @@ export default function PresencialListaDetalhe() {
 
     const lista = dados?.lista;
     const itens = dados?.itens ?? [];
+    // O combobox espera { id, nome, detalhe } e busca por conta própria.
+    const candidatos = (dados?.candidatos ?? []).map((c) => ({
+        id: c.id,
+        nome: [c.codigo, c.titulo].filter(Boolean).join(' — '),
+        titulo: c.titulo,
+        detalhe: [c.categoria, c.area, c.media !== null ? `média ${nota(c.media)}` : 'sem avaliação presencial'].filter(Boolean).join(' · '),
+    }));
 
     return (
         <AppShell>
@@ -245,7 +381,8 @@ export default function PresencialListaDetalhe() {
                             </h1>
                             <RotuloLista lista={lista} onSalvo={(resp) => { setDados(resp.data); setSucesso(resp.meta?.message ?? ''); }} />
                             <p className="text-sm text-on-surface-variant">
-                                Versão {lista.versao} · {lista.projetos} {lista.projetos === 1 ? 'projeto por nota' : 'projetos por nota'}.
+                                Versão {lista.versao} · {lista.projetos} {lista.projetos === 1 ? 'projeto por nota' : 'projetos por nota'}
+                                {' '}· {lista.premiacoes ?? 0} premiação(ões).
                                 {lista.rascunho
                                     ? ' Rascunho: inclua e retire à vontade, sem justificativa.'
                                     : ' Cada alteração exige justificativa e gera uma versão nova.'}
@@ -256,13 +393,13 @@ export default function PresencialListaDetalhe() {
                         </div>
                         <div className="flex flex-wrap gap-2 shrink-0">
                             {lista.rascunho && (
-                                <Button type="button" loading={gerando} disabled={lista.projetos === 0} onClick={gerar}>
+                                <Button type="button" loading={gerando} disabled={lista.projetos === 0 && !(lista.premiacoes > 0)} onClick={gerar}>
                                     <span className="material-symbols-outlined text-[20px]">campaign</span>
                                     {lista.tipo === 'preliminar' ? 'Gerar lista preliminar' : 'Gerar lista final'}
                                 </Button>
                             )}
                             {lista.tipo === 'final' && !lista.rascunho && !lista.vigente && (
-                                <Button type="button" variant="outline" onClick={() => { setErroDialogo(''); setDialogo({ tipo: 'reativar' }); }}>
+                                <Button type="button" variant="outline" onClick={() => { setErroDialogo(''); setDialogo({ tipo: 'reativar', projeto: null }); }}>
                                     <span className="material-symbols-outlined text-[20px]">restart_alt</span>
                                     Tornar ativa
                                 </Button>
@@ -287,6 +424,28 @@ export default function PresencialListaDetalhe() {
                     </div>
 
                     <h2 className="font-display text-lg font-semibold text-on-surface mb-2">Premiados por nota</h2>
+                    <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-4 mb-4 max-w-3xl">
+                        <p className="text-sm font-semibold text-on-surface mb-2">Incluir projeto</p>
+                        <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                            <div className="flex-1">
+                                <BuscaCombobox
+                                    options={candidatos}
+                                    value={candidato}
+                                    onChange={setCandidato}
+                                    placeholder="Buscar entre os finalistas fora da lista…"
+                                    vazio="Nenhum finalista fora da lista"
+                                />
+                            </div>
+                            <Button type="button" disabled={!candidato} aria-label="Incluir na lista" onClick={() => alterar('incluir', { id: candidato.id, titulo: candidato.titulo })}>
+                                <span className="material-symbols-outlined text-[20px]">playlist_add</span>
+                                Incluir
+                            </Button>
+                        </div>
+                        <p className="text-xs text-on-surface-variant mt-2">
+                            A colocação é recalculada pela média presencial; quem entra sem avaliação fica sem colocação,
+                            no fim do grupo.
+                        </p>
+                    </div>
                     {itens.length === 0 ? (
                         <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-6 text-center text-on-surface-variant text-sm max-w-3xl">
                             Nenhum projeto por nota nesta lista.
@@ -302,21 +461,80 @@ export default function PresencialListaDetalhe() {
                                         </p>
                                     </div>
                                     <ul className="divide-y divide-outline-variant/30">
-                                        {grupo.itens.map((i) => <ItemPremiado key={i.projeto_id} item={i} />)}
+                                        {grupo.itens.map((i) => (
+                                            <ItemPremiado
+                                                key={i.projeto_id}
+                                                item={i}
+                                                acoes={(
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => alterar('remover', { id: i.projeto_id, titulo: i.titulo })}
+                                                        aria-label={`Retirar ${i.titulo}`}
+                                                        className={botaoRetirar}
+                                                    >
+                                                        <span className="material-symbols-outlined text-[20px]">remove_circle</span>
+                                                    </button>
+                                                )}
+                                            />
+                                        ))}
                                     </ul>
                                 </section>
+                            ))}
+                        </div>
+                    )}
+
+                    <div className="flex items-start justify-between gap-3 flex-wrap mt-8 mb-2 max-w-3xl">
+                        <div className="min-w-0">
+                            <h2 className="font-display text-lg font-semibold text-on-surface">Premiações</h2>
+                            <p className="text-xs text-on-surface-variant">
+                                Credenciais e prêmios copiados de Credenciais e Prêmios quando a lista foi montada. Mexer aqui
+                                não muda o cadastro original.
+                            </p>
+                        </div>
+                        <Button type="button" variant="outline" onClick={() => alterar('recarregar', null)}>
+                            <span className="material-symbols-outlined text-[18px]">sync</span>
+                            Recarregar de Credenciais e Prêmios
+                        </Button>
+                    </div>
+                    {(dados.premiacoes ?? []).length === 0 ? (
+                        <div className="bg-surface-container-lowest rounded-xl fetec-card-shadow p-6 text-center text-on-surface-variant text-sm max-w-3xl">
+                            Nenhuma credencial ou prêmio ativo havia sido cadastrado quando a lista foi montada.
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            {dados.premiacoes.map((premio) => (
+                                <PremioDaLista
+                                    key={premio.id}
+                                    premio={premio}
+                                    finalistas={dados.finalistas ?? []}
+                                    onIncluir={(projeto) => alterar('incluir_premio', projeto, premio)}
+                                    onRetirar={(i) => alterar('remover_premio', { id: i.projeto_id, titulo: i.titulo }, premio)}
+                                />
                             ))}
                         </div>
                     )}
                 </>
             )}
 
-            {dialogo?.tipo === 'reativar' && (
+            {dialogo && (
                 <JustificativaDialog
-                    titulo="Tornar esta a lista final ativa"
-                    projeto={lista.nome}
-                    acao="Tornar ativa"
-                    ajuda="Ela passa a ser o resultado oficial da premiação, no lugar da final ativa de agora. Fica em Registros → Lista final."
+                    titulo={{
+                        reativar: 'Tornar esta a lista final ativa',
+                        incluir: 'Incluir na lista',
+                        remover: 'Retirar da lista',
+                        incluir_premio: `Incluir em ${dialogo.premio?.nome}`,
+                        remover_premio: `Retirar de ${dialogo.premio?.nome}`,
+                        recarregar: 'Recarregar as premiações',
+                    }[dialogo.tipo]}
+                    projeto={dialogo.tipo === 'reativar' || dialogo.tipo === 'recarregar' ? lista.nome : dialogo.projeto.titulo}
+                    acao={{
+                        reativar: 'Tornar ativa', incluir: 'Incluir', remover: 'Retirar',
+                        incluir_premio: 'Incluir', remover_premio: 'Retirar', recarregar: 'Recarregar',
+                    }[dialogo.tipo]}
+                    ajuda={{
+                        reativar: 'Ela passa a ser o resultado oficial da premiação, no lugar da final ativa de agora. Fica em Registros → Lista final.',
+                        recarregar: 'A seção volta a ser o que está agora em Credenciais e Prêmios (o que foi mexido à mão nela se perde). Fica em Registros → Lista final, e a lista ganha uma versão nova.',
+                    }[dialogo.tipo] ?? 'Fica em Registros → Lista final, junto do seu nome, e a lista ganha uma versão nova.'}
                     salvando={salvando}
                     erro={erroDialogo}
                     onConfirmar={confirmar}

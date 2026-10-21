@@ -39,3 +39,31 @@ export const reativarListaPresencial = (id, justificativa) =>
 /** TXT, CSV, Excel ou PDF da lista, com o nome que o servidor mandar. */
 export const exportarListaPresencial = (id, formato) =>
     baixarArquivo(`/admin/presencial/listas/${id}/exportar/${formato}`, {}, `lista-presencial.${formato}`);
+
+// Incluir e retirar da seção por nota (Sprint 252): livre no rascunho; depois
+// de gerada, com justificativa. Devolvem a tela da lista.
+
+export const adicionarNaListaPresencial = (id, projetoId, justificativa = null) =>
+    http.post(`/admin/presencial/listas/${id}/projetos`, { projeto_id: projetoId, ...(justificativa ? { justificativa } : {}) })
+        .then((r) => r.data.data);
+
+export const removerDaListaPresencial = (id, projetoId, justificativa = null) =>
+    http.delete(`/admin/presencial/listas/${id}/projetos/${projetoId}`, { data: justificativa ? { justificativa } : {} })
+        .then((r) => r.data.data);
+
+// Premiações da lista (Sprint 253): a cópia de Credenciais e Prêmios, editável
+// aqui sem mexer no cadastro original.
+
+export const adicionarNaPremiacaoPresencial = (id, premioId, projetoId, justificativa = null) =>
+    http.post(`/admin/presencial/listas/${id}/premiacoes/${premioId}/projetos`, {
+        projeto_id: projetoId, ...(justificativa ? { justificativa } : {}),
+    }).then((r) => r.data.data);
+
+export const removerDaPremiacaoPresencial = (id, premioId, projetoId, justificativa = null) =>
+    http.delete(`/admin/presencial/listas/${id}/premiacoes/${premioId}/projetos/${projetoId}`, {
+        data: justificativa ? { justificativa } : {},
+    }).then((r) => r.data.data);
+
+export const recarregarPremiacoesPresencial = (id, justificativa = null) =>
+    http.post(`/admin/presencial/listas/${id}/premiacoes/recarregar`, justificativa ? { justificativa } : {})
+        .then((r) => r.data.data);

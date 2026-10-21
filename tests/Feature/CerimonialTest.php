@@ -9,6 +9,7 @@ use App\Enums\TipoCredencial;
 use App\Enums\TipoRegistro;
 use App\Models\Aluno;
 use App\Models\Area;
+use App\Models\AvaliacaoPresencial;
 use App\Models\CerimonialCheckin;
 use App\Models\CerimonialEvento;
 use App\Models\Cidade;
@@ -19,6 +20,7 @@ use App\Models\Edicao;
 use App\Models\Estado;
 use App\Models\Instituicao;
 use App\Models\ListaFinal;
+use App\Models\ListaPresencial;
 use App\Models\OrientadorProfile;
 use App\Models\Projeto;
 use App\Models\RegistroAtividade;
@@ -1034,5 +1036,76 @@ class CerimonialTest extends TestCase
         $faltantes = $this->getJson($this->comEvento('/api/v1/admin/cerimonial/visao-geral/detalhe?card=pessoas'))->json('data.faltantes');
 
         $this->assertContains('O'.$projeto->user_id, array_column($faltantes, 'chave'));
+    }
+    // ------------------------------------------------------------------ //
+    // Premiados por nota (Sprint 252)                                     //
+    // ------------------------------------------------------------------ //
+
+    private function listaPresencial(array $projetos, string $tipo = 'final', bool $vigente = true, bool $rascunho = false): ListaPresencial
+    {
+        $lista = ListaPresencial::create([
+            'edicao_id' => $this->edicao->id, 'nome' => 'Premiação', 'tipo' => $tipo,
+            'vigente' => $vigente, 'rascunho' => $rascunho,
+        ]);
+        $lista->projetos()->attach(collect($projetos)->pluck('id')->all());
+
+        return $lista;
+    }
+
+    public function test_premiado_por_nota_da_final_presencial_ativa_entra_na_cerimonia(): void
+    {
+        $nota = $this->projeto('Premiado por nota');
+        $comum = $this->projeto('Sem prêmio');
+        $this->publicar([$nota, $comum]);
+        $avaliador = User::factory()->create(['role' => Role::Avaliador->value]);
+        AvaliacaoPresencial::create([
+            'edicao_id' => $this->edicao->id, 'projeto_id' => $nota->id, 'avaliador_id' => $avaliador->id,
+            'status' => 'concluida', 'nota' => 9, 'vaga' => 'comum', 'concluida_em' => now(),
+        ]);
+        $this->listaPresencial([$nota]);
+        $this->comoAdmin();
+
+        $this->postJson($this->comEvento("/api/v1/admin/cerimonial/projetos/{$nota->id}/checkin"), [
+            'participantes' => [$this->chaveAluno($nota, 'Ana Paula')],
+        ])->assertOk();
+
+        $dados = $this->getJson('/api/v1/admin/cerimonial/visao-geral')->assertOk()->json('data');
+        $this->assertSame(1, $dados['premiados']['total']);
+        $this->assertSame(1, $dados['medalhas']['separar']);
+        // A premiação por nota não tem objeto na mesa.
+        $this->assertSame(0, $dados['credenciais']['total']);
+
+        $premiados = $this->getJson('/api/v1/admin/cerimonial/premiados')->assertOk()->json('data');
+        $this->assertCount(1, $premiados);
+        $this->assertSame('nota', $premiados[0]['premiacoes'][0]['tipo']);
+        $this->assertSame('1º lugar · Ciências Agrárias · FETECMS', $premiados[0]['premiacoes'][0]['nome']);
+    }
+
+    public function test_preliminar_e_final_inativa_nao_premiam_ninguem(): void
+    {
+        $projeto = $this->projeto();
+        $this->publicar([$projeto]);
+        $this->listaPresencial([$projeto], 'preliminar', false);
+        $this->listaPresencial([$projeto], 'final', false);
+        $this->listaPresencial([$projeto], 'final', false, true);
+        $this->comoAdmin();
+
+        $this->assertSame(0, $this->getJson('/api/v1/admin/cerimonial/visao-geral')->json('data.premiados.total'));
+    }
+
+    public function test_credencial_acrescentada_so_na_lista_ativa_tambem_premia(): void
+    {
+        $projeto = $this->projeto();
+        $this->publicar([$projeto]);
+        $credencial = $this->premiar($this->projeto('Outro'));
+        $lista = $this->listaPresencial([]);
+        $premio = $lista->premios()->create(['credencial_id' => $credencial->id, 'tipo' => 'credencial', 'nome' => 'MOSTRATEC 2027']);
+        $premio->projetos()->attach($projeto->id);
+        $this->comoAdmin();
+
+        $premiados = $this->getJson('/api/v1/admin/cerimonial/premiados')->assertOk()->json('data');
+        $this->assertCount(1, $premiados);
+        $this->assertSame('MOSTRATEC 2027', $premiados[0]['premiacoes'][0]['nome']);
+        $this->assertSame(1, $this->getJson('/api/v1/admin/cerimonial/visao-geral')->json('data.credenciais.total'));
     }
 }

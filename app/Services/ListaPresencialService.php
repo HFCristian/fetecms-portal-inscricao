@@ -3,12 +3,15 @@
 namespace App\Services;
 
 use App\Enums\Categoria;
+use App\Enums\TipoCredencial;
 use App\Enums\TipoRegistro;
 use App\Models\Area;
+use App\Models\Credencial;
 use App\Models\Edicao;
 use App\Models\EstandeProjeto;
 use App\Models\ListaFinal;
 use App\Models\ListaPresencial;
+use App\Models\ListaPresencialPremio;
 use App\Models\Projeto;
 use App\Models\User;
 use App\Support\Cota;
@@ -39,6 +42,10 @@ use Illuminate\Validation\ValidationException;
  *
  * Não existe reserva para o interior aqui: ela é exigência do fomento da
  * classificação online, não da premiação.
+ *
+ * A lista tem uma segunda seção (Sprint 253): as **premiações** — as
+ * credenciais e os prêmios de Credenciais e Prêmios, **copiados** quando a
+ * lista é montada e editáveis nela sem mexer no cadastro original.
  */
 class ListaPresencialService
 {
@@ -47,6 +54,9 @@ class ListaPresencialService
         private readonly ListaFinalService $listasFinais,
         private readonly RegistroAtividadeService $registros,
     ) {}
+
+    /** Os códigos da lista final por id dela: montar um é caro, e a tela pede duas vezes. */
+    private array $codigos = [];
 
     /**
      * O que a tela de geração oferece: quantos projetos avaliados há em cada
@@ -127,6 +137,8 @@ class ListaPresencialService
                 collect($escolhidos)->mapWithKeys(fn (array $p) => [$p['projeto_id'] => ['manual' => false]])->all(),
             );
 
+            $this->copiarPremiacoes($lista);
+
             return $lista->fresh();
         });
     }
@@ -188,6 +200,8 @@ class ListaPresencialService
                 collect($projetos)->mapWithKeys(fn (int $id) => [$id => ['manual' => false]])->all(),
             );
 
+            $this->unirPremiacoes($lista, $origens);
+
             return $lista->fresh();
         });
     }
@@ -223,7 +237,8 @@ class ListaPresencialService
                 $lista->nome,
                 null,
                 null,
-                ($lista->ehFinal() ? 'final (ativa)' : 'preliminar').' · '.$lista->projetos()->count().' projeto(s) por nota',
+                ($lista->ehFinal() ? 'final (ativa)' : 'preliminar').' · '.$lista->projetos()->count().' projeto(s) por nota · '
+                    .$this->contarPremiacoes($lista).' premiação(ões)',
             );
 
             return $lista->fresh();
@@ -257,6 +272,305 @@ class ListaPresencialService
 
             return $lista->fresh();
         });
+    }
+
+    /**
+     * Inclui um finalista na seção por nota (Sprint 252). No rascunho é livre;
+     * depois de gerada pede justificativa, sobe a versão e entra em Registros
+     * → Lista final — é uma decisão fora do recorte por nota.
+     */
+    public function adicionarProjeto(ListaPresencial $lista, Projeto $projeto, User $admin, ?string $justificativa = null): ListaPresencial
+    {
+        if ($lista->projetos()->whereKey($projeto->id)->exists()) {
+            throw ValidationException::withMessages(['projeto_id' => 'Este projeto já está na lista.']);
+        }
+
+        $this->garantirFinalista($lista, $projeto);
+
+        return $this->alterar($lista, $admin, $justificativa, TipoRegistro::ListaPresencialProjetoAdicionado, $projeto,
+            fn () => $lista->projetos()->attach($projeto->id, ['manual' => true]));
+    }
+
+    /** Retira um projeto da seção por nota, com as mesmas regras da inclusão. */
+    public function removerProjeto(ListaPresencial $lista, Projeto $projeto, User $admin, ?string $justificativa = null): ListaPresencial
+    {
+        if (! $lista->projetos()->whereKey($projeto->id)->exists()) {
+            throw ValidationException::withMessages(['projeto_id' => 'Este projeto não está na lista.']);
+        }
+
+        return $this->alterar($lista, $admin, $justificativa, TipoRegistro::ListaPresencialProjetoRemovido, $projeto,
+            fn () => $lista->projetos()->detach($projeto->id));
+    }
+
+    /**
+     * Aplica uma mudança de composição: livre no rascunho; na lista gerada,
+     * com justificativa, versão nova e registro.
+     */
+    private function alterar(
+        ListaPresencial $lista,
+        User $admin,
+        ?string $justificativa,
+        TipoRegistro $tipo,
+        ?Projeto $projeto,
+        callable $mudanca,
+        ?string $detalhe = null,
+    ): ListaPresencial {
+        if ($lista->rascunho) {
+            $mudanca();
+
+            return $lista->fresh();
+        }
+
+        if (mb_strlen(trim((string) $justificativa)) < 5) {
+            throw ValidationException::withMessages([
+                'justificativa' => 'Explique a alteração (ao menos 5 caracteres): a lista já foi gerada.',
+            ]);
+        }
+
+        return DB::transaction(function () use ($lista, $admin, $justificativa, $tipo, $projeto, $mudanca, $detalhe) {
+            $mudanca();
+            $lista->increment('versao');
+
+            $this->registros->listaFinal($tipo, $admin, $lista->nome.($detalhe ? " · {$detalhe}" : ''), $projeto, trim((string) $justificativa));
+
+            return $lista->fresh();
+        });
+    }
+
+    /** Só finalista da lista final vigente (da mesma trilha) recebe premiação. */
+    private function garantirFinalista(ListaPresencial $lista, Projeto $projeto): void
+    {
+        $vigente = ListaFinal::vigente($lista->edicao, $lista->demo);
+
+        if ($vigente === null || ! $vigente->projetos()->whereKey($projeto->id)->exists()) {
+            throw ValidationException::withMessages([
+                'projeto_id' => 'Só um finalista da lista final vigente pode entrar na lista da premiação.',
+            ]);
+        }
+    }
+
+    /**
+     * Os premiados por nota da lista, com o nome do prêmio de cada um ("1º
+     * lugar · Área · Categoria"), por id do projeto — a conta leve que o
+     * Cerimonial faz a cada atualização do painel (Sprint 252).
+     *
+     * @return array<int, string>
+     */
+    public function rotulosPorNota(ListaPresencial $lista): array
+    {
+        $ids = $lista->projetos()->pluck('projetos.id')->map(fn ($id) => (int) $id)->all();
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $medias = $this->ranking->medias($ids);
+        $itens = Projeto::query()
+            ->whereIn('id', $ids)
+            ->with('area:id,nome')
+            ->get(['id', 'titulo', 'area_id', 'categoria'])
+            ->map(fn (Projeto $p) => [
+                'projeto_id' => $p->id,
+                'titulo' => $p->titulo,
+                'categoria' => $p->categoria?->label(),
+                'categoria_valor' => $p->categoria?->value,
+                'area' => $p->area?->nome,
+                'area_id' => $p->area_id,
+                'media' => $medias[$p->id]['media'] ?? null,
+                'avaliacoes' => $medias[$p->id]['avaliacoes'] ?? 0,
+            ])
+            ->values()
+            ->all();
+
+        return collect($this->colocar($itens))
+            ->mapWithKeys(fn (array $i) => [$i['projeto_id'] => $this->rotuloDaColocacao($i)])
+            ->all();
+    }
+
+    // --- Premiações (Sprint 253) -----------------------------------------------
+
+    /**
+     * Copia as credenciais e os prêmios **ativos** de Credenciais e Prêmios
+     * para a lista, com os projetos que os receberam — inclusive os que ainda
+     * não têm ninguém, para o admin preencher aqui. Só entram finalistas da
+     * trilha da lista: a de ensaio não herda premiado de verdade.
+     */
+    private function copiarPremiacoes(ListaPresencial $lista): void
+    {
+        $finalistas = $this->idsFinalistas($lista);
+
+        Credencial::where('edicao_id', $lista->edicao_id)
+            ->where('ativa', true)
+            ->with('projetos:id')
+            ->orderBy('ordem')
+            ->orderBy('nome')
+            ->get()
+            ->values()
+            ->each(function (Credencial $c, int $i) use ($lista, $finalistas) {
+                $premio = $lista->premios()->create([
+                    'credencial_id' => $c->id,
+                    'tipo' => $c->tipo,
+                    'nome' => $c->nome,
+                    'orgao' => $c->orgao,
+                    'ordem' => $i,
+                ]);
+
+                $premio->projetos()->attach(
+                    $c->projetos->pluck('id')
+                        ->filter(fn ($id) => in_array((int) $id, $finalistas, true))
+                        ->mapWithKeys(fn ($id) => [(int) $id => ['manual' => false]])
+                        ->all(),
+                );
+            });
+    }
+
+    /**
+     * Na união, a mesma credencial (ou o mesmo nome, quando ela não existe
+     * mais) vira uma seção só, com os projetos de todas as origens.
+     *
+     * @param  Collection<int, ListaPresencial>  $origens
+     */
+    private function unirPremiacoes(ListaPresencial $lista, Collection $origens): void
+    {
+        $premios = ListaPresencialPremio::whereIn('lista_presencial_id', $origens->pluck('id'))
+            ->with('projetos:id')
+            ->orderBy('ordem')
+            ->orderBy('id')
+            ->get()
+            ->groupBy(fn (ListaPresencialPremio $p) => $p->credencial_id !== null
+                ? 'c'.$p->credencial_id
+                : 'n'.$p->tipo->value.'|'.$this->chave($p->nome));
+
+        $ordem = 0;
+        foreach ($premios as $grupo) {
+            $primeiro = $grupo->first();
+            $novo = $lista->premios()->create([
+                'credencial_id' => $primeiro->credencial_id,
+                'tipo' => $primeiro->tipo,
+                'nome' => $primeiro->nome,
+                'orgao' => $primeiro->orgao,
+                'ordem' => $ordem++,
+            ]);
+
+            $novo->projetos()->attach(
+                $grupo->flatMap(fn (ListaPresencialPremio $p) => $p->projetos->pluck('id'))
+                    ->map(fn ($id) => (int) $id)
+                    ->unique()
+                    ->mapWithKeys(fn (int $id) => [$id => ['manual' => false]])
+                    ->all(),
+            );
+        }
+    }
+
+    /**
+     * A seção de premiações da lista: cada credencial ou prêmio com os
+     * projetos, em ordem de título.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function premiacoes(ListaPresencial $lista): array
+    {
+        $premios = $lista->premios()->with('projetos:id')->get();
+        $ids = $premios->flatMap(fn (ListaPresencialPremio $p) => $p->projetos->pluck('id'))
+            ->map(fn ($id) => (int) $id)->unique()->values()->all();
+        $descritos = collect($ids === [] ? [] : $this->descrever($ids, $lista->demo))->keyBy('projeto_id');
+
+        return $premios->map(fn (ListaPresencialPremio $p) => [
+            'id' => $p->id,
+            'credencial_id' => $p->credencial_id,
+            'tipo' => $p->tipo->value,
+            'tipo_label' => $p->tipo->label(),
+            'nome' => $p->nome,
+            'orgao' => $p->orgao,
+            'titulo' => $p->titulo(),
+            'itens' => $p->projetos
+                ->map(fn (Projeto $projeto) => isset($descritos[$projeto->id])
+                    ? $descritos[$projeto->id] + ['colocacao' => null, 'manual' => (bool) $projeto->pivot->manual]
+                    : null)
+                ->filter()
+                ->sortBy(fn (array $i) => $this->chave($i['titulo']))
+                ->values()
+                ->all(),
+        ])->values()->all();
+    }
+
+    /** Inclui um finalista numa credencial ou prêmio da lista. */
+    public function adicionarNaPremiacao(ListaPresencial $lista, ListaPresencialPremio $premio, Projeto $projeto, User $admin, ?string $justificativa = null): ListaPresencial
+    {
+        $this->garantirDaLista($lista, $premio);
+
+        if ($premio->projetos()->whereKey($projeto->id)->exists()) {
+            throw ValidationException::withMessages(['projeto_id' => "Este projeto já está em {$premio->nome}."]);
+        }
+
+        $this->garantirFinalista($lista, $projeto);
+
+        return $this->alterar($lista, $admin, $justificativa, TipoRegistro::ListaPresencialProjetoAdicionado, $projeto,
+            fn () => $premio->projetos()->attach($projeto->id, ['manual' => true]), $premio->nome);
+    }
+
+    /** Retira um projeto de uma credencial ou prêmio da lista. */
+    public function removerDaPremiacao(ListaPresencial $lista, ListaPresencialPremio $premio, Projeto $projeto, User $admin, ?string $justificativa = null): ListaPresencial
+    {
+        $this->garantirDaLista($lista, $premio);
+
+        if (! $premio->projetos()->whereKey($projeto->id)->exists()) {
+            throw ValidationException::withMessages(['projeto_id' => "Este projeto não está em {$premio->nome}."]);
+        }
+
+        return $this->alterar($lista, $admin, $justificativa, TipoRegistro::ListaPresencialProjetoRemovido, $projeto,
+            fn () => $premio->projetos()->detach($projeto->id), $premio->nome);
+    }
+
+    /**
+     * Troca a seção inteira pelo que está **agora** em Credenciais e Prêmios —
+     * para a credencial atribuída depois de a lista ser montada. O que foi
+     * mexido à mão nesta seção se perde, e a tela avisa.
+     */
+    public function recarregarPremiacoes(ListaPresencial $lista, User $admin, ?string $justificativa = null): ListaPresencial
+    {
+        return $this->alterar($lista, $admin, $justificativa, TipoRegistro::ListaPresencialPremiacoesRecarregadas, null,
+            function () use ($lista) {
+                $lista->premios()->delete();
+                $this->copiarPremiacoes($lista);
+            });
+    }
+
+    /**
+     * As premiações da lista por projeto, no formato do Cerimonial — a conta
+     * leve que roda a cada atualização do painel.
+     *
+     * @return array<int, list<array{id: int|string, nome: string, tipo: string, tipo_label: string}>>
+     */
+    public function premiacoesPorProjeto(ListaPresencial $lista): array
+    {
+        $porProjeto = [];
+
+        foreach ($lista->premios()->with('projetos:id')->get() as $premio) {
+            foreach ($premio->projetos as $projeto) {
+                $porProjeto[$projeto->id][] = [
+                    'id' => $premio->credencial_id ?? 'lp-'.$premio->id,
+                    'nome' => $premio->nome,
+                    'tipo' => $premio->tipo->value,
+                    'tipo_label' => $premio->tipo->label(),
+                ];
+            }
+        }
+
+        return $porProjeto;
+    }
+
+    private function garantirDaLista(ListaPresencial $lista, ListaPresencialPremio $premio): void
+    {
+        abort_unless($premio->lista_presencial_id === $lista->id, 404);
+    }
+
+    /** @return list<int> */
+    private function idsFinalistas(ListaPresencial $lista): array
+    {
+        $vigente = ListaFinal::vigente($lista->edicao, $lista->demo);
+
+        return $vigente === null ? [] : $vigente->projetos()->pluck('projetos.id')->map(fn ($id) => (int) $id)->all();
     }
 
     /** Apelido e descrição: rótulo, não composição — sem justificativa nem versão. */
@@ -309,11 +623,27 @@ class ListaPresencialService
         $itens = $this->itens($lista);
         $dentro = array_column($itens, 'projeto_id');
 
+        $finalistas = $this->finalistas($lista->demo);
+
         return [
             'lista' => $this->resumo($lista) + ['projetos' => count($itens)],
             'itens' => $itens,
+            'premiacoes' => $this->premiacoes($lista),
+            // Quem pode entrar numa premiação: qualquer finalista (a tela tira
+            // os que já estão nela).
+            'finalistas' => $finalistas
+                ->sortBy(fn (array $p) => $this->chave($p['titulo']))
+                ->map(fn (array $p) => [
+                    'id' => $p['projeto_id'],
+                    'titulo' => $p['titulo'],
+                    'codigo' => $p['codigo'],
+                    'categoria' => $p['categoria'],
+                    'area' => $p['area'],
+                ])
+                ->values()
+                ->all(),
             // Os finalistas fora da seção por nota, os avaliados primeiro.
-            'candidatos' => $this->finalistas($lista->demo)
+            'candidatos' => $finalistas
                 ->reject(fn (array $p) => in_array($p['projeto_id'], $dentro, true))
                 ->sortBy([
                     fn (array $a, array $b) => ($b['media'] ?? -1) <=> ($a['media'] ?? -1),
@@ -366,11 +696,26 @@ class ListaPresencialService
      */
     public function premiados(ListaPresencial $lista): array
     {
-        return array_map(fn (array $item) => [
+        $porNota = array_map(fn (array $item) => [
             'secao' => 'nota',
+            'tipo' => 'nota',
             'premiacao' => $this->rotuloDaColocacao($item),
             'item' => $item,
         ], $this->itens($lista));
+
+        $premiacoes = [];
+        foreach ($this->premiacoes($lista) as $premio) {
+            foreach ($premio['itens'] as $item) {
+                $premiacoes[] = [
+                    'secao' => 'premiacao',
+                    'tipo' => $premio['tipo'],
+                    'premiacao' => $premio['titulo'],
+                    'item' => $item,
+                ];
+            }
+        }
+
+        return [...$porNota, ...$premiacoes];
     }
 
     /**
@@ -430,7 +775,7 @@ class ListaPresencialService
         $i = $p['item'];
 
         return [
-            $p['secao'] === 'nota' ? 'Por nota' : 'Premiações',
+            $p['secao'] === 'nota' ? 'Por nota' : (TipoCredencial::tryFrom($p['tipo'])?->label() ?? 'Premiação'),
             $p['premiacao'],
             $p['secao'] === 'nota' && $i['colocacao'] !== null ? $i['colocacao'].'º' : '',
             $i['codigo'] ?? '',
@@ -493,6 +838,34 @@ class ListaPresencialService
             foreach ($itens as $item) {
                 $saida[] = '';
                 $saida[] = $item['colocacao'] !== null ? $item['colocacao'].'º lugar' : 'Sem colocação';
+                $saida[] = rtrim($this->listasFinais->blocos([$this->paraBloco($item)]));
+            }
+        }
+
+        // As premiações no cabeçalho da lista de premiação (Credenciais e
+        // Prêmios) e cada projeto no mesmo bloco.
+        $saida[] = '';
+        $saida[] = '== PREMIAÇÕES';
+
+        $premiacoes = $this->premiacoes($lista);
+
+        if ($premiacoes === []) {
+            $saida[] = '';
+            $saida[] = '(nenhuma credencial ou prêmio)';
+        }
+
+        foreach ($premiacoes as $premio) {
+            $saida[] = '';
+            $saida[] = '== ['.mb_strtoupper($premio['tipo_label']).'] '.mb_strtoupper($premio['nome'])
+                .($premio['orgao'] ? ' — '.$premio['orgao'] : '');
+
+            if ($premio['itens'] === []) {
+                $saida[] = '';
+                $saida[] = '(nenhum projeto contemplado)';
+            }
+
+            foreach ($premio['itens'] as $item) {
+                $saida[] = '';
                 $saida[] = rtrim($this->listasFinais->blocos([$this->paraBloco($item)]));
             }
         }
@@ -578,7 +951,7 @@ class ListaPresencialService
     private function descrever(array $ids, bool $demo, ?ListaFinal $vigente = null): array
     {
         $vigente ??= ListaFinal::vigente(null, $demo);
-        $codigos = $vigente === null ? [] : $this->listasFinais->codigosDaLista($vigente);
+        $codigos = $vigente === null ? [] : ($this->codigos[$vigente->id] ??= $this->listasFinais->codigosDaLista($vigente));
         $medias = $this->ranking->medias($ids);
         $estandes = EstandeProjeto::where('edicao_id', Edicao::atual()?->id)
             ->whereIn('projeto_id', $ids)
@@ -754,6 +1127,7 @@ class ListaPresencialService
             'demo' => $l->demo,
             'versao' => $l->versao,
             'projetos' => $l->projetos_count ?? $l->projetos()->count(),
+            'premiacoes' => $this->contarPremiacoes($l),
             'origens' => $l->origens ?? [],
             'gerada_em' => $l->gerada_em?->toIso8601String(),
         ];
@@ -761,7 +1135,16 @@ class ListaPresencialService
 
     private function vazia(ListaPresencial $lista): bool
     {
-        return $lista->projetos()->count() === 0;
+        return $lista->projetos()->count() === 0 && $this->contarPremiacoes($lista) === 0;
+    }
+
+    /** Quantas premiações (credencial × projeto) a lista tem. */
+    private function contarPremiacoes(ListaPresencial $lista): int
+    {
+        return DB::table('lista_presencial_premio_projetos')
+            ->join('lista_presencial_premios', 'lista_presencial_premios.id', '=', 'lista_presencial_premio_projetos.premio_id')
+            ->where('lista_presencial_premios.lista_presencial_id', $lista->id)
+            ->count();
     }
 
     /** Desliga a final ativa da edição, na mesma trilha (oficial ou de teste). */

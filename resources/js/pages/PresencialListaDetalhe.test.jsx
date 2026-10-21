@@ -21,7 +21,21 @@ const DADOS = {
         item({ projeto_id: 11, codigo: 'FET.AGR-002', titulo: 'Bioinsumo', media: 8, colocacao: 2 }),
         item({ projeto_id: 12, codigo: 'FET.BIO-001', titulo: 'Enzimas', area: 'Ciências Biológicas', media: 7.5, colocacao: 1 }),
     ],
-    candidatos: [],
+    candidatos: [
+        { id: 20, titulo: 'Drone na lavoura', codigo: 'FET.AGR-004', categoria: 'FETECMS', area: 'Ciências Agrárias', media: 6 },
+    ],
+    premiacoes: [
+        {
+            id: 70, credencial_id: 4, tipo: 'credencial', tipo_label: 'Credencial', nome: 'MOSTRATEC', orgao: 'Fundação Liberato',
+            titulo: 'MOSTRATEC — Fundação Liberato',
+            itens: [item({ projeto_id: 20, codigo: 'FET.AGR-004', titulo: 'Drone na lavoura', media: 6, colocacao: null })],
+        },
+        { id: 71, credencial_id: 5, tipo: 'premio', tipo_label: 'Prêmio', nome: 'Destaque', orgao: null, titulo: 'Destaque', itens: [] },
+    ],
+    finalistas: [
+        { id: 10, titulo: 'Abelhas', codigo: 'FET.AGR-001', categoria: 'FETECMS', area: 'Ciências Agrárias' },
+        { id: 20, titulo: 'Drone na lavoura', codigo: 'FET.AGR-004', categoria: 'FETECMS', area: 'Ciências Agrárias' },
+    ],
 };
 
 const getListaPresencial = vi.fn(() => Promise.resolve(DADOS));
@@ -35,7 +49,28 @@ const rotularListaPresencial = vi.fn(() => Promise.resolve({
     meta: { message: 'Apelido e descrição salvos.' },
 }));
 const exportarListaPresencial = vi.fn(() => Promise.resolve());
+const adicionarNaListaPresencial = vi.fn(() => Promise.resolve({
+    ...DADOS, lista: { ...DADOS.lista, projetos: 4 },
+    itens: [...DADOS.itens, item({ projeto_id: 20, codigo: 'FET.AGR-004', titulo: 'Drone na lavoura', media: 6, colocacao: 3, manual: true })],
+}));
+const removerDaListaPresencial = vi.fn(() => Promise.resolve({ ...DADOS, itens: DADOS.itens.slice(1) }));
+const adicionarNaPremiacaoPresencial = vi.fn(() => Promise.resolve(DADOS));
+const removerDaPremiacaoPresencial = vi.fn(() => Promise.resolve(DADOS));
+const recarregarPremiacoesPresencial = vi.fn(() => Promise.resolve(DADOS));
+vi.mock('../components/BuscaCombobox.jsx', () => ({
+    default: ({ options, onChange, placeholder }) => (
+        <select aria-label={placeholder} onChange={(e) => onChange(options.find((o) => String(o.id) === e.target.value) ?? null)}>
+            <option value="">—</option>
+            {options.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
+        </select>
+    ),
+}));
 vi.mock('../lib/listasPresenciais.js', () => ({
+    adicionarNaPremiacaoPresencial: (...a) => adicionarNaPremiacaoPresencial(...a),
+    removerDaPremiacaoPresencial: (...a) => removerDaPremiacaoPresencial(...a),
+    recarregarPremiacoesPresencial: (...a) => recarregarPremiacoesPresencial(...a),
+    adicionarNaListaPresencial: (...a) => adicionarNaListaPresencial(...a),
+    removerDaListaPresencial: (...a) => removerDaListaPresencial(...a),
     getListaPresencial: (...a) => getListaPresencial(...a),
     gerarListaPresencialDefinitiva: (...a) => gerarListaPresencialDefinitiva(...a),
     reativarListaPresencial: (...a) => reativarListaPresencial(...a),
@@ -108,5 +143,67 @@ describe('PresencialListaDetalhe', () => {
         fireEvent.click(within(dialogo).getByRole('button', { name: 'Tornar ativa' }));
 
         await waitFor(() => expect(reativarListaPresencial).toHaveBeenCalledWith('5', 'Voltou a valer.'));
+    });
+    it('no rascunho inclui e retira na hora', async () => {
+        render(<PresencialListaDetalhe />);
+        await screen.findByText('Abelhas');
+
+        const busca = screen.getByLabelText('Buscar entre os finalistas fora da lista…');
+        fireEvent.change(busca, { target: { value: '20' } });
+        expect(within(busca).getByRole('option', { name: 'FET.AGR-004 — Drone na lavoura' })).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Incluir na lista' }));
+        await waitFor(() => expect(adicionarNaListaPresencial).toHaveBeenCalledWith('5', 20, null));
+        expect(await screen.findByText('incluído à mão')).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Retirar Abelhas' }));
+        await waitFor(() => expect(removerDaListaPresencial).toHaveBeenCalledWith('5', 10, null));
+    });
+
+    it('na lista gerada, retirar pede justificativa', async () => {
+        getListaPresencial.mockResolvedValueOnce({ ...DADOS, lista: { ...DADOS.lista, rascunho: false, vigente: true } });
+        render(<PresencialListaDetalhe />);
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Retirar Abelhas' }));
+        expect(removerDaListaPresencial).not.toHaveBeenCalled();
+        const dialogo = screen.getByRole('dialog', { name: 'Retirar da lista' });
+        fireEvent.change(within(dialogo).getByRole('textbox'), { target: { value: 'Desclassificado.' } });
+        fireEvent.click(within(dialogo).getByRole('button', { name: 'Retirar' }));
+
+        await waitFor(() => expect(removerDaListaPresencial).toHaveBeenCalledWith('5', 10, 'Desclassificado.'));
+    });
+    it('mostra as premiações e inclui, retira e recarrega', async () => {
+        render(<PresencialListaDetalhe />);
+
+        const mostratec = await screen.findByRole('region', { name: 'MOSTRATEC — Fundação Liberato' });
+        expect(within(mostratec).getByText('Drone na lavoura')).toBeInTheDocument();
+        expect(within(mostratec).queryByLabelText(/lugar|Sem colocação/)).not.toBeInTheDocument();
+        expect(within(screen.getByRole('region', { name: 'Destaque' })).getByText('Nenhum projeto contemplado.')).toBeInTheDocument();
+
+        // Quem já está na credencial não aparece para incluir de novo.
+        const busca = within(mostratec).getByLabelText('Incluir finalista em MOSTRATEC…');
+        expect(within(busca).queryByRole('option', { name: /Drone/ })).not.toBeInTheDocument();
+        fireEvent.change(busca, { target: { value: '10' } });
+        fireEvent.click(within(mostratec).getByRole('button', { name: 'Incluir em MOSTRATEC' }));
+        await waitFor(() => expect(adicionarNaPremiacaoPresencial).toHaveBeenCalledWith('5', 70, 10, null));
+
+        fireEvent.click(within(mostratec).getByRole('button', { name: 'Retirar Drone na lavoura de MOSTRATEC' }));
+        await waitFor(() => expect(removerDaPremiacaoPresencial).toHaveBeenCalledWith('5', 70, 20, null));
+
+        fireEvent.click(screen.getByRole('button', { name: /Recarregar de Credenciais e Prêmios/ }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Recarregar' }));
+        await waitFor(() => expect(recarregarPremiacoesPresencial).toHaveBeenCalledWith('5', null));
+    });
+
+    it('na lista gerada, mexer na premiação pede justificativa', async () => {
+        getListaPresencial.mockResolvedValueOnce({ ...DADOS, lista: { ...DADOS.lista, rascunho: false, vigente: true } });
+        render(<PresencialListaDetalhe />);
+
+        const mostratec = await screen.findByRole('region', { name: 'MOSTRATEC — Fundação Liberato' });
+        fireEvent.click(within(mostratec).getByRole('button', { name: 'Retirar Drone na lavoura de MOSTRATEC' }));
+        const dialogo = screen.getByRole('dialog', { name: 'Retirar de MOSTRATEC' });
+        fireEvent.change(within(dialogo).getByRole('textbox'), { target: { value: 'Credencial recusada.' } });
+        fireEvent.click(within(dialogo).getByRole('button', { name: 'Retirar' }));
+
+        await waitFor(() => expect(removerDaPremiacaoPresencial).toHaveBeenCalledWith('5', 70, 20, 'Credencial recusada.'));
     });
 });

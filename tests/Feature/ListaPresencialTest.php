@@ -10,6 +10,7 @@ use App\Models\Aluno;
 use App\Models\Area;
 use App\Models\AvaliacaoPresencial;
 use App\Models\AvaliadorProfile;
+use App\Models\Credencial;
 use App\Models\Edicao;
 use App\Models\ListaFinal;
 use App\Models\ListaPresencial;
@@ -319,5 +320,179 @@ class ListaPresencialTest extends TestCase
 
         $this->getJson('/api/v1/admin/presencial/listas')->assertForbidden();
         $this->postJson('/api/v1/admin/presencial/listas', [])->assertForbidden();
+    }
+
+    public function test_rascunho_inclui_e_retira_sem_justificativa(): void
+    {
+        $p = $this->cenario();
+        $id = $this->postJson('/api/v1/admin/presencial/listas', $this->cotaPorArea(1))->json('data.lista.id');
+
+        $this->postJson("/api/v1/admin/presencial/listas/{$id}/projetos", ['projeto_id' => $p['d']->id])
+            ->assertOk()
+            ->assertJsonPath('data.lista.versao', 1)
+            ->assertJsonCount(3, 'data.itens');
+        $drone = collect($this->getJson("/api/v1/admin/presencial/listas/{$id}")->json('data.itens'))->firstWhere('titulo', 'Drone na lavoura');
+        $this->assertTrue($drone['manual']);
+        // Com Abelhas (9) no grupo, o Drone (6) é o 2º de Agrárias.
+        $this->assertSame(2, $drone['colocacao']);
+
+        $this->deleteJson("/api/v1/admin/presencial/listas/{$id}/projetos/{$p['a']->id}")
+            ->assertOk()
+            ->assertJsonCount(2, 'data.itens');
+        $this->assertFalse(RegistroAtividade::where('tipo', TipoRegistro::ListaPresencialProjetoAdicionado->value)->exists());
+
+        $this->postJson("/api/v1/admin/presencial/listas/{$id}/projetos", ['projeto_id' => $p['d']->id])
+            ->assertUnprocessable()->assertJsonValidationErrors('projeto_id');
+    }
+
+    public function test_lista_gerada_pede_justificativa_sobe_versao_e_registra(): void
+    {
+        $p = $this->cenario();
+        $id = $this->postJson('/api/v1/admin/presencial/listas', [...$this->cotaPorArea(1), 'tipo' => 'final'])->json('data.lista.id');
+        $this->postJson("/api/v1/admin/presencial/listas/{$id}/gerar")->assertOk();
+
+        $this->postJson("/api/v1/admin/presencial/listas/{$id}/projetos", ['projeto_id' => $p['b']->id])
+            ->assertUnprocessable()->assertJsonValidationErrors('justificativa');
+
+        $this->postJson("/api/v1/admin/presencial/listas/{$id}/projetos", ['projeto_id' => $p['b']->id, 'justificativa' => 'Empate técnico.'])
+            ->assertOk()
+            ->assertJsonPath('data.lista.versao', 2);
+        $this->deleteJson("/api/v1/admin/presencial/listas/{$id}/projetos/{$p['e']->id}", ['justificativa' => 'Desclassificado.'])
+            ->assertOk()
+            ->assertJsonPath('data.lista.versao', 3);
+
+        $incluido = RegistroAtividade::where('tipo', TipoRegistro::ListaPresencialProjetoAdicionado->value)->first();
+        $this->assertSame('Bioinsumo', $incluido->detalhes['para']);
+        $this->assertSame('Empate técnico.', $incluido->detalhes['justificativa']);
+        $retirado = RegistroAtividade::where('tipo', TipoRegistro::ListaPresencialProjetoRemovido->value)->first();
+        $this->assertSame('Enzimas', $retirado->detalhes['de']);
+    }
+
+    public function test_so_finalista_entra_na_lista(): void
+    {
+        $this->cenario();
+        $id = $this->postJson('/api/v1/admin/presencial/listas', $this->cotaPorArea(1))->json('data.lista.id');
+        $fora = Projeto::factory()->submetido()->create(['edicao_id' => $this->edicao->id, 'area_id' => $this->agr->id]);
+
+        $this->postJson("/api/v1/admin/presencial/listas/{$id}/projetos", ['projeto_id' => $fora->id])
+            ->assertUnprocessable()->assertJsonValidationErrors('projeto_id');
+    }
+    // --- Premiações (Sprint 253) ---------------------------------------------
+
+    private function credencial(string $nome, array $projetos = [], string $tipo = 'credencial', bool $ativa = true, int $ordem = 0, ?string $orgao = null): Credencial
+    {
+        $c = Credencial::create([
+            'edicao_id' => $this->edicao->id, 'tipo' => $tipo, 'nome' => $nome, 'orgao' => $orgao, 'ativa' => $ativa, 'ordem' => $ordem,
+        ]);
+        $c->projetos()->attach(collect($projetos)->pluck('id')->mapWithKeys(fn ($id) => [$id => ['atribuida_em' => now()]])->all());
+
+        return $c;
+    }
+
+    public function test_a_lista_nasce_com_a_copia_das_credenciais_e_premios_ativos(): void
+    {
+        $p = $this->cenario();
+        $fora = Projeto::factory()->submetido()->create(['edicao_id' => $this->edicao->id]);
+        $this->credencial('MOSTRATEC', [$p['d'], $fora], orgao: 'Fundação Liberato');
+        $this->credencial('Destaque da feira', [$p['f']], 'premio', ordem: 1);
+        $this->credencial('Vaga sem ninguém', [], ordem: 2);
+        $this->credencial('Desativada', [$p['a']], ativa: false);
+
+        $premiacoes = $this->postJson('/api/v1/admin/presencial/listas', $this->cotaPorArea(1))->assertCreated()->json('data.premiacoes');
+
+        $this->assertSame(['MOSTRATEC', 'Destaque da feira', 'Vaga sem ninguém'], array_column($premiacoes, 'nome'));
+        $this->assertSame('MOSTRATEC — Fundação Liberato', $premiacoes[0]['titulo']);
+        // Só finalista entra na cópia.
+        $this->assertSame(['Drone na lavoura'], array_column($premiacoes[0]['itens'], 'titulo'));
+        $this->assertSame('FET.AGR-004', $premiacoes[0]['itens'][0]['codigo']);
+        $this->assertSame('premio', $premiacoes[1]['tipo']);
+        $this->assertSame([], $premiacoes[2]['itens']);
+    }
+
+    public function test_editar_a_premiacao_da_lista_nao_mexe_em_credenciais_e_premios(): void
+    {
+        $p = $this->cenario();
+        $mostratec = $this->credencial('MOSTRATEC', [$p['d']]);
+        $resposta = $this->postJson('/api/v1/admin/presencial/listas', [...$this->cotaPorArea(1), 'tipo' => 'final'])->json('data');
+        $id = $resposta['lista']['id'];
+        $premio = $resposta['premiacoes'][0]['id'];
+
+        $this->postJson("/api/v1/admin/presencial/listas/{$id}/premiacoes/{$premio}/projetos", ['projeto_id' => $p['e']->id])
+            ->assertOk()
+            ->assertJsonCount(2, 'data.premiacoes.0.itens');
+        $this->deleteJson("/api/v1/admin/presencial/listas/{$id}/premiacoes/{$premio}/projetos/{$p['d']->id}")
+            ->assertOk()
+            ->assertJsonPath('data.premiacoes.0.itens.0.titulo', 'Enzimas');
+
+        $this->assertSame([$p['d']->id], $mostratec->projetos()->pluck('projetos.id')->all());
+
+        // Gerada, pede justificativa e registra com o nome da credencial.
+        $this->postJson("/api/v1/admin/presencial/listas/{$id}/gerar")->assertOk();
+        $this->postJson("/api/v1/admin/presencial/listas/{$id}/premiacoes/{$premio}/projetos", ['projeto_id' => $p['f']->id])
+            ->assertUnprocessable()->assertJsonValidationErrors('justificativa');
+        $this->postJson("/api/v1/admin/presencial/listas/{$id}/premiacoes/{$premio}/projetos", ['projeto_id' => $p['f']->id, 'justificativa' => 'Indicação da banca.'])
+            ->assertOk()
+            ->assertJsonPath('data.lista.versao', 2);
+        $registro = RegistroAtividade::where('tipo', TipoRegistro::ListaPresencialProjetoAdicionado->value)->first();
+        $this->assertStringContainsString('MOSTRATEC', $registro->detalhes['campo']);
+    }
+
+    public function test_recarregar_traz_o_que_esta_em_credenciais_agora(): void
+    {
+        $p = $this->cenario();
+        $mostratec = $this->credencial('MOSTRATEC');
+        $id = $this->postJson('/api/v1/admin/presencial/listas', $this->cotaPorArea(1))->json('data.lista.id');
+
+        $mostratec->projetos()->attach($p['b']->id, ['atribuida_em' => now()]);
+        $this->credencial('Prêmio novo', [$p['c']], 'premio', ordem: 1);
+
+        $premiacoes = $this->postJson("/api/v1/admin/presencial/listas/{$id}/premiacoes/recarregar")->assertOk()->json('data.premiacoes');
+
+        $this->assertSame(['MOSTRATEC', 'Prêmio novo'], array_column($premiacoes, 'nome'));
+        $this->assertSame('Bioinsumo', $premiacoes[0]['itens'][0]['titulo']);
+    }
+
+    public function test_lista_so_com_premiacoes_pode_ser_gerada_e_a_uniao_junta_a_mesma_credencial(): void
+    {
+        $p = $this->cenario();
+        $mostratec = $this->credencial('MOSTRATEC', [$p['a']]);
+        $um = $this->postJson('/api/v1/admin/presencial/listas', ['categorias' => ['fetecms' => ['cota' => ['tipo' => 'fixo', 'valor' => 0]]]])
+            ->json('data.lista.id');
+        $this->postJson("/api/v1/admin/presencial/listas/{$um}/gerar")->assertOk();
+
+        $mostratec->projetos()->sync([$p['b']->id]);
+        $dois = $this->postJson('/api/v1/admin/presencial/listas', ['categorias' => ['fetecms' => ['cota' => ['tipo' => 'fixo', 'valor' => 0]]]])
+            ->json('data.lista.id');
+        $this->postJson("/api/v1/admin/presencial/listas/{$dois}/gerar")->assertOk();
+
+        $premiacoes = $this->postJson('/api/v1/admin/presencial/listas/uniao', ['listas' => [$um, $dois], 'tipo' => 'final'])
+            ->assertCreated()->json('data.premiacoes');
+
+        $this->assertCount(1, $premiacoes);
+        $this->assertSame(['Abelhas', 'Bioinsumo'], array_column($premiacoes[0]['itens'], 'titulo'));
+    }
+
+    public function test_arquivos_trazem_a_secao_de_premiacoes_no_mesmo_formato(): void
+    {
+        $p = $this->cenario();
+        $this->credencial('MOSTRATEC', [$p['d']], orgao: 'Fundação Liberato');
+        $this->credencial('Vaga sem ninguém', ordem: 1);
+        $id = $this->postJson('/api/v1/admin/presencial/listas', $this->cotaPorArea(1))->json('data.lista.id');
+
+        $txt = $this->get("/api/v1/admin/presencial/listas/{$id}/exportar/txt")->assertOk()->getContent();
+        $this->assertStringContainsString('== PREMIAÇÕES
+
+== [CREDENCIAL] MOSTRATEC — Fundação Liberato
+
+FET.AGR-004 - Drone na lavoura
+', $txt);
+        $this->assertStringContainsString('== [CREDENCIAL] VAGA SEM NINGUÉM
+
+(nenhum projeto contemplado)', $txt);
+
+        $csv = $this->get("/api/v1/admin/presencial/listas/{$id}/exportar/csv")->assertOk()->getContent();
+        $this->assertStringContainsString('Credencial;"MOSTRATEC — Fundação Liberato";;FET.AGR-004;"Drone na lavoura"', $csv);
+
+        $this->assertStringStartsWith('%PDF', $this->get("/api/v1/admin/presencial/listas/{$id}/exportar/pdf")->assertOk()->getContent());
     }
 }

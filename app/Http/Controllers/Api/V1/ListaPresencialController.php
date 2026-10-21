@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\ListaFinalRequest;
 use App\Models\Edicao;
 use App\Models\ListaPresencial;
+use App\Models\ListaPresencialPremio;
+use App\Models\Projeto;
 use App\Services\ListaPresencialService;
 use App\Services\TurnosPresenciaisService;
 use Illuminate\Http\JsonResponse;
@@ -123,6 +125,75 @@ class ListaPresencialController extends Controller
         return response()->json([
             'data' => $this->listas->detalhar($lista),
             'meta' => ['message' => 'Esta é agora a lista final presencial ativa.'],
+        ]);
+    }
+
+    /** Inclui um finalista na seção por nota (justificativa depois de gerada). */
+    public function adicionar(Request $request, ListaPresencial $lista): JsonResponse
+    {
+        $dados = $request->validate([
+            'projeto_id' => ['required', 'integer', 'exists:projetos,id'],
+            'justificativa' => [$lista->rascunho ? 'nullable' : 'required', 'string', 'min:5', 'max:1000'],
+        ]);
+
+        $lista = $this->listas->adicionarProjeto(
+            $this->daEdicao($lista), Projeto::findOrFail($dados['projeto_id']), $request->user(), $dados['justificativa'] ?? null,
+        );
+
+        return response()->json(['data' => $this->listas->detalhar($lista)]);
+    }
+
+    /** Retira um projeto da seção por nota (justificativa depois de gerada). */
+    public function remover(Request $request, ListaPresencial $lista, Projeto $projeto): JsonResponse
+    {
+        $dados = $request->validate([
+            'justificativa' => [$lista->rascunho ? 'nullable' : 'required', 'string', 'min:5', 'max:1000'],
+        ]);
+
+        $lista = $this->listas->removerProjeto($this->daEdicao($lista), $projeto, $request->user(), $dados['justificativa'] ?? null);
+
+        return response()->json(['data' => $this->listas->detalhar($lista)]);
+    }
+
+    /** Inclui um finalista numa credencial ou prêmio da lista (Sprint 253). */
+    public function adicionarNaPremiacao(Request $request, ListaPresencial $lista, ListaPresencialPremio $premio): JsonResponse
+    {
+        $dados = $request->validate([
+            'projeto_id' => ['required', 'integer', 'exists:projetos,id'],
+            'justificativa' => [$lista->rascunho ? 'nullable' : 'required', 'string', 'min:5', 'max:1000'],
+        ]);
+
+        $lista = $this->listas->adicionarNaPremiacao(
+            $this->daEdicao($lista), $premio, Projeto::findOrFail($dados['projeto_id']), $request->user(), $dados['justificativa'] ?? null,
+        );
+
+        return response()->json(['data' => $this->listas->detalhar($lista)]);
+    }
+
+    /** Retira um projeto de uma credencial ou prêmio da lista. */
+    public function removerDaPremiacao(Request $request, ListaPresencial $lista, ListaPresencialPremio $premio, Projeto $projeto): JsonResponse
+    {
+        $dados = $request->validate([
+            'justificativa' => [$lista->rascunho ? 'nullable' : 'required', 'string', 'min:5', 'max:1000'],
+        ]);
+
+        $lista = $this->listas->removerDaPremiacao($this->daEdicao($lista), $premio, $projeto, $request->user(), $dados['justificativa'] ?? null);
+
+        return response()->json(['data' => $this->listas->detalhar($lista)]);
+    }
+
+    /** Troca a seção de premiações pelo que está agora em Credenciais e Prêmios. */
+    public function recarregarPremiacoes(Request $request, ListaPresencial $lista): JsonResponse
+    {
+        $dados = $request->validate([
+            'justificativa' => [$lista->rascunho ? 'nullable' : 'required', 'string', 'min:5', 'max:1000'],
+        ]);
+
+        $lista = $this->listas->recarregarPremiacoes($this->daEdicao($lista), $request->user(), $dados['justificativa'] ?? null);
+
+        return response()->json([
+            'data' => $this->listas->detalhar($lista),
+            'meta' => ['message' => 'Premiações recarregadas de Credenciais e Prêmios.'],
         ]);
     }
 

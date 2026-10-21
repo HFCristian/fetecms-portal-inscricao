@@ -200,10 +200,11 @@ class RegistroAtividadeService
         ?string $justificativa,
         ?string $detalhe = null,
     ): RegistroAtividade {
+        $remocao = in_array($tipo, [TipoRegistro::ListaFinalProjetoRemovido, TipoRegistro::ListaPresencialProjetoRemovido], true);
         $detalhes = array_filter([
             'campo' => $lista,
-            'de' => $tipo === TipoRegistro::ListaFinalProjetoRemovido ? ($projeto?->titulo ?? $detalhe) : null,
-            'para' => $tipo === TipoRegistro::ListaFinalProjetoRemovido ? null : ($projeto?->titulo ?? $detalhe),
+            'de' => $remocao ? ($projeto?->titulo ?? $detalhe) : null,
+            'para' => $remocao ? null : ($projeto?->titulo ?? $detalhe),
             'justificativa' => $justificativa,
         ], fn ($v) => $v !== null);
 

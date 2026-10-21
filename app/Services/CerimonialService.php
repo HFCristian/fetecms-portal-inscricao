@@ -9,6 +9,7 @@ use App\Models\CerimonialEvento;
 use App\Models\Credencial;
 use App\Models\Edicao;
 use App\Models\ListaFinal;
+use App\Models\ListaPresencial;
 use App\Models\Projeto;
 use App\Models\User;
 use App\Support\CodigoParticipante;
@@ -38,7 +39,8 @@ use Illuminate\Validation\ValidationException;
  * demonstração e isola os check-ins do ensaio (`cerimonial_checkins.demo`).
  *
  * **Premiado** é o projeto que recebeu uma credencial **ou** um prêmio
- * (Avaliação presencial → Credenciais e Prêmios). A distinção entre os dois
+ * (Avaliação presencial → Credenciais e Prêmios) — ou que está entre os
+ * premiados por nota da lista final presencial ativa (Sprint 252). A distinção entre os dois
  * tipos pesa num lugar só: a **medalha** segue a pessoa premiada que chegou, e
  * a **credencial a separar** segue o projeto premiado presente — contando só o
  * que tem objeto na mesa, isto é, `tipo = credencial`.
@@ -427,7 +429,7 @@ class CerimonialService
             'pessoas' => $pessoas,
             'presentes' => $presentes,
             'total' => count($pessoas),
-            'premiacoes' => $this->premiacoesDoProjeto($projeto->id),
+            'premiacoes' => $this->premiacoesDoProjeto($projeto->id, $this->emTeste($user, $teste)),
             // Informativo: a cerimônia não exige ter passado pelo balcão.
             'credenciado' => DB::table('credenciamentos')
                 ->where('projeto_id', $projeto->id)
@@ -712,7 +714,7 @@ class CerimonialService
     {
         $participantes = $this->participantes($user, $teste, $evento);
         $presentes = $this->checkinsPorChave($user, $teste, $evento);
-        $premiados = $this->projetosPremiados();
+        $premiados = $this->projetosPremiados($this->emTeste($user, $teste));
 
         $daPessoa = fn (array $p) => [
             'chave' => $p['chave'],
@@ -783,7 +785,7 @@ class CerimonialService
     public function premiados(?User $user = null, bool $teste = false, ?CerimonialEvento $evento = null): array
     {
         $presentes = $this->checkinsPorChave($user, $teste, $evento);
-        $premiados = $this->projetosPremiados();
+        $premiados = $this->projetosPremiados($this->emTeste($user, $teste));
 
         return $this->participantes($user, $teste, $evento)
             ->filter(fn (array $p) => isset($premiados[$p['projeto_id']]))
@@ -841,7 +843,7 @@ class CerimonialService
         $presentes = $this->checkinsPorChave($user, $teste, $evento);
         // Só os premiados do público: a outra cerimônia separa as medalhas dela.
         $premiados = array_intersect_key(
-            $this->projetosPremiados(),
+            $this->projetosPremiados($this->emTeste($user, $teste)),
             $participantes->pluck('projeto_id')->flip()->all(),
         );
 
@@ -1231,11 +1233,16 @@ class CerimonialService
 
     /**
      * Os projetos premiados da edição: os que receberam credencial **ou**
-     * prêmio ativo.
+     * prêmio ativo — e, desde a Sprint 252, os premiados **por nota** da lista
+     * final presencial ativa ("1º lugar · Área · Categoria"), na mesma trilha
+     * (a de ensaio no modo de teste). A premiação por nota não tem objeto na
+     * mesa: ela rende medalha, não credencial a separar. As credenciais e os
+     * prêmios copiados na lista ativa (Sprint 253) somam às de Credenciais e
+     * Prêmios — o que a organização acrescentou só na lista também vale.
      *
-     * @return array<int, list<array{id:int, nome:string, tipo:string, tipo_label:string}>>
+     * @return array<int, list<array{id:int|string, nome:string, tipo:string, tipo_label:string}>>
      */
-    private function projetosPremiados(): array
+    private function projetosPremiados(bool $demo = false): array
     {
         $edicao = Edicao::atual();
 
@@ -1261,13 +1268,42 @@ class CerimonialService
             }
         }
 
+        $lista = ListaPresencial::vigente($edicao, $demo);
+
+        if ($lista !== null) {
+            $listas = app(ListaPresencialService::class);
+
+            // As premiações copiadas na lista (Sprint 253) somam às de agora:
+            // a mesma credencial nos dois lugares conta uma vez.
+            foreach ($listas->premiacoesPorProjeto($lista) as $projetoId => $premiacoes) {
+                foreach ($premiacoes as $premiacao) {
+                    $ja = collect($premiados[$projetoId] ?? [])->contains(fn (array $c) => $c['id'] === $premiacao['id']);
+                    if (! $ja) {
+                        $premiados[$projetoId][] = $premiacao;
+                    }
+                }
+            }
+
+            foreach ($listas->rotulosPorNota($lista) as $projetoId => $rotulo) {
+                $premiados[$projetoId][] = [
+                    'id' => 'nota-'.$lista->id,
+                    'nome' => $rotulo,
+                    'tipo' => self::PREMIACAO_NOTA,
+                    'tipo_label' => 'Por nota',
+                ];
+            }
+        }
+
         return $premiados;
     }
 
+    /** O tipo da premiação por nota no payload (as outras são de {@see TipoCredencial}). */
+    public const PREMIACAO_NOTA = 'nota';
+
     /** @return list<array<string, mixed>> */
-    private function premiacoesDoProjeto(int $projetoId): array
+    private function premiacoesDoProjeto(int $projetoId, bool $demo = false): array
     {
-        return array_values($this->projetosPremiados()[$projetoId] ?? []);
+        return array_values($this->projetosPremiados($demo)[$projetoId] ?? []);
     }
 
     /** "Escola / Cidade - UF", como na lista final. */

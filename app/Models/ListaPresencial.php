@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Uma lista do **ranking presencial** (Sprint 251): os premiados pela nota do
@@ -72,6 +73,12 @@ class ListaPresencial extends Model
         return $this->belongsToMany(Projeto::class, 'lista_presencial_projetos', 'lista_presencial_id', 'projeto_id')
             ->withPivot('manual')
             ->withTimestamps();
+    }
+
+    /** A seção de premiações (Sprint 253): as credenciais e os prêmios copiados. */
+    public function premios(): HasMany
+    {
+        return $this->hasMany(ListaPresencialPremio::class, 'lista_presencial_id')->orderBy('ordem')->orderBy('id');
     }
 
     /** A final ativa da edição em escopo, na trilha oficial ou na de teste. */

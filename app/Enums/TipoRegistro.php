@@ -110,6 +110,9 @@ enum TipoRegistro: string
     case ListaFinalCodigoAlterado = 'lista_final_codigo_alterado';
     case ListaPresencialGerada = 'lista_presencial_gerada';
     case ListaPresencialReativada = 'lista_presencial_reativada';
+    case ListaPresencialProjetoAdicionado = 'lista_presencial_projeto_adicionado';
+    case ListaPresencialProjetoRemovido = 'lista_presencial_projeto_removido';
+    case ListaPresencialPremiacoesRecarregadas = 'lista_presencial_premiacoes_recarregadas';
     case CredenciamentoRealizado = 'credenciamento_realizado';
     case CredenciamentoCancelado = 'credenciamento_cancelado';
     case CredenciamentoKitRetirado = 'credenciamento_kit_retirado';
@@ -218,6 +221,9 @@ enum TipoRegistro: string
             self::ListaFinalCodigoAlterado => 'Código do projeto alterado',
             self::ListaPresencialGerada => 'Lista presencial gerada',
             self::ListaPresencialReativada => 'Lista presencial final reativada',
+            self::ListaPresencialProjetoAdicionado => 'Projeto incluído na lista presencial',
+            self::ListaPresencialProjetoRemovido => 'Projeto retirado da lista presencial',
+            self::ListaPresencialPremiacoesRecarregadas => 'Premiações da lista presencial recarregadas',
             self::CredenciamentoRealizado => 'Credenciamento realizado',
             self::CredenciamentoCancelado => 'Credenciamento cancelado',
             self::CredenciamentoKitRetirado => 'Kit retirado',
@@ -270,7 +276,9 @@ enum TipoRegistro: string
             self::ListaFinalProjetoRemovido, self::ListaFinalCodigosFixados,
             self::ListaPreliminarGerada, self::ListaFinalReativada,
             self::ListaFinalCodigosEnviados, self::ListaFinalCodigoAlterado,
-            self::ListaPresencialGerada, self::ListaPresencialReativada => self::SECAO_LISTA_FINAL,
+            self::ListaPresencialGerada, self::ListaPresencialReativada,
+            self::ListaPresencialProjetoAdicionado, self::ListaPresencialProjetoRemovido,
+            self::ListaPresencialPremiacoesRecarregadas => self::SECAO_LISTA_FINAL,
             self::CredenciamentoRealizado, self::CredenciamentoCancelado,
             self::CredenciamentoKitRetirado,
             self::CredenciamentoRascunhoAssumido,

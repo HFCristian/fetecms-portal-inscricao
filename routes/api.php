@@ -380,6 +380,11 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                     Route::patch('/listas/{lista}', [ListaPresencialController::class, 'rotular'])->whereNumber('lista');
                     Route::post('/listas/{lista}/gerar', [ListaPresencialController::class, 'gerar']);
                     Route::post('/listas/{lista}/reativar', [ListaPresencialController::class, 'reativar']);
+                    Route::post('/listas/{lista}/projetos', [ListaPresencialController::class, 'adicionar']);
+                    Route::delete('/listas/{lista}/projetos/{projeto}', [ListaPresencialController::class, 'remover']);
+                    Route::post('/listas/{lista}/premiacoes/recarregar', [ListaPresencialController::class, 'recarregarPremiacoes']);
+                    Route::post('/listas/{lista}/premiacoes/{premio}/projetos', [ListaPresencialController::class, 'adicionarNaPremiacao']);
+                    Route::delete('/listas/{lista}/premiacoes/{premio}/projetos/{projeto}', [ListaPresencialController::class, 'removerDaPremiacao']);
                     Route::get('/listas/{lista}/exportar/{formato}', [ListaPresencialController::class, 'exportar'])
                         ->where('formato', 'csv|xlsx|pdf|txt');
                 });

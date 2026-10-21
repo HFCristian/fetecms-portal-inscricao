@@ -1080,7 +1080,34 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 249 | Avaliações por projeto: **ordenar** por estande ou situação + **transferir** a avaliação presencial para o projeto certo | ✅ sim | ✅ sim (Pedro, PR #127 → v1.46) | 0 |
 | 250 | Ranking presencial: **baixar** em CSV, Excel, PDF e TXT, no recorte dos filtros | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 251 | Ranking presencial → **listas preliminares e finais** da premiação (cotas categoria → área, colocação, gerar/ativar/reativar, união, TXT/CSV/Excel/PDF) | ✅ sim | ❌ não (manual do Pedro) | 2 |
+| 252 | Lista da premiação: **incluir e retirar** (livre no rascunho, justificativa depois) + a final ativa **premia no Cerimonial** | ✅ sim | ❌ não (manual do Pedro) | 3 |
+| 253 | Lista da premiação: seção de **premiações** (cópia editável de Credenciais e Prêmios), nos mesmos arquivos | ✅ sim | ❌ não (manual do Pedro) | 4 |
 
+> **Sprints 252–253 (mesma branch):**
+> (a) **Sprint 252** — a composição da lista da premiação se edita como a da online: **incluir** um finalista
+> (busca por código ou título entre os finalistas fora da seção por nota) e **retirar**, na hora no rascunho; numa
+> lista já gerada, com **justificativa**, versão nova e registro (`lista_presencial_projeto_adicionado`/`_removido`
+> em Registros → Lista final). Só entra **finalista da lista final vigente** da trilha da lista (422 para os outros).
+> A colocação é recalculada pela média; o incluído sem avaliação presencial fica no fim do grupo, sem colocação. E a
+> **final presencial ativa alimenta o Cerimonial** (decisão do Pedro): os premiados por nota dela passam a ser
+> **premiados** — busto verde, medalha, a premiação "1º lugar · Área · Categoria" (tipo `nota`, ícone
+> `military_tech`) na ficha e em Premiados —, na mesma trilha (a de ensaio no modo de teste). A premiação por nota não
+> tem objeto na mesa: não entra nas credenciais a separar. Preliminar, final inativa e rascunho não premiam ninguém.
+> `ListaPresencialService::rotulosPorNota()` é a conta leve que o painel faz a cada atualização.
+> (b) **Sprint 253** — a lista ganhou a seção de **premiações**: ao ser montada, ela **copia** as credenciais e os
+> prêmios **ativos** de Avaliação presencial → Credenciais e Prêmios, com os projetos que os receberam (só finalistas
+> da trilha) e inclusive os que ainda não têm ninguém (`lista_presencial_premios` com nome/tipo/órgão gravados +
+> `lista_presencial_premio_projetos`). É **cópia** de propósito (decisão do Pedro): incluir e retirar projeto numa
+> credencial da lista não mexe no cadastro original — com as mesmas regras da seção por nota (justificativa depois de
+> gerada, registro com o nome da credencial). **Recarregar de Credenciais e Prêmios** troca a seção pelo que está lá
+> agora (confirmação no rascunho; justificativa e `lista_presencial_premiacoes_recarregadas` depois). A união junta a
+> mesma credencial das listas de origem numa seção só. Os arquivos trazem a seção no mesmo formato: o TXT ganha
+> `== PREMIAÇÕES` e `== [CREDENCIAL] NOME — órgão` com os blocos de sempre ("(nenhum projeto contemplado)" na vazia),
+> CSV/Excel uma linha por projeto premiado (Seção = Credencial/Prêmio) e o PDF uma tabela por credencial. Lista só
+> com premiações pode ser gerada. No Cerimonial, as premiações da final ativa **somam** às de Credenciais e Prêmios (a
+> mesma credencial nos dois lugares conta uma vez).
+> Back **1706/1706**, front **982/982**, Pint limpo, build OK.
+>
 > **Sprints 250–251 (branch `feat/ranking-presencial-listas`, saída da `origin/main` @ `235adff`, v1.46):**
 > (a) **Sprint 250** — o **Ranking presencial** passou a ser baixável, como o online (Sprint 153): **CSV, Excel,
 > PDF e TXT**, sempre no recorte dos filtros da tela (`GET /admin/presencial/ranking/exportar/{csv|xlsx|pdf|txt}`,
