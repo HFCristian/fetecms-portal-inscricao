@@ -1,15 +1,38 @@
 import http from './http.js';
 
-// Aba "Certificados" (Sprint 163): as planilhas para emissão e o relatório
-// nominal de cada avaliador. O nome do arquivo vem do servidor.
+// Aba "Certificados" (Sprints 259–260): o assistente da lista de certificados,
+// a conferência de nomes e a lista gerada. O nome do arquivo vem do servidor.
 
-export const getOpcoesCertificados = () => http.get('/admin/certificados/opcoes').then((r) => r.data.data);
+const base = '/admin/certificados';
 
-export const getAvaliadoresCertificado = (fase = 'todas', q = '') =>
-    http.get('/admin/certificados/avaliadores', { params: { fase, ...(q ? { q } : {}) } }).then((r) => r.data.data);
+export const getOpcoesCertificados = () => http.get(`${base}/opcoes`).then((r) => r.data.data);
+
+export const getListasCertificados = () => http.get(`${base}/listas`).then((r) => r.data.data);
+
+export const getListaCertificados = (id) => http.get(`${base}/listas/${id}`).then((r) => r.data.data);
+
+/** Cria (sem id) ou grava a lista: nome, passo e configuração do assistente. */
+export const salvarListaCertificados = (id, dados) =>
+    (id ? http.put(`${base}/listas/${id}`, dados) : http.post(`${base}/listas`, dados)).then((r) => r.data.data);
+
+export const getResumoCertificados = (id) => http.get(`${base}/listas/${id}/resumo`).then((r) => r.data.data);
+
+export const getPessoasCategoria = (id, categoria) =>
+    http.get(`${base}/listas/${id}/categorias/${categoria}`).then((r) => r.data.data);
+
+/** `nomes`: chave da pessoa → nome corrigido (vazio desfaz). `originais`: o nome do cadastro. */
+export const salvarNomesCertificados = (id, nomes, originais = {}) =>
+    http.put(`${base}/listas/${id}/nomes`, { nomes, originais }).then((r) => r.data.data);
+
+export const gerarListaCertificados = (id) => http.post(`${base}/listas/${id}/gerar`).then((r) => r.data.data);
+
+export const getLinhasCertificados = (id, { categoria = '', q = '', page = 1 } = {}) =>
+    http.get(`${base}/listas/${id}/linhas`, {
+        params: { page, ...(categoria ? { categoria } : {}), ...(q ? { q } : {}) },
+    }).then((r) => r.data);
 
 export const getProjetosDoAvaliador = (id) =>
-    http.get(`/admin/certificados/avaliadores/${id}/projetos`).then((r) => r.data.data);
+    http.get(`${base}/avaliadores/${id}/projetos`).then((r) => r.data.data);
 
 async function baixar(url, params = {}, padrao = 'arquivo') {
     const resp = await http.get(url, { params, responseType: 'blob' });
@@ -23,14 +46,26 @@ async function baixar(url, params = {}, padrao = 'arquivo') {
     URL.revokeObjectURL(link.href);
 }
 
-export const baixarAvaliadoresCertificado = (fase, formato) =>
-    baixar('/admin/certificados/avaliadores/exportar', { fase, formato }, `avaliadores.${formato}`);
-
-export const baixarParticipantesCertificado = (grupos, escopo, formato) =>
-    baixar('/admin/certificados/participantes/exportar', { grupos, escopo, formato }, `participantes.${formato}`);
-
-export const baixarAvaliacoesNominais = (fase, formato) =>
-    baixar('/admin/certificados/avaliacoes/exportar', { fase, formato }, `projetos-avaliados.${formato}`);
+export const baixarListaCertificados = (id, formato, categoria = '') =>
+    baixar(`${base}/listas/${id}/exportar/${formato}`, categoria ? { categoria } : {}, `certificados.${formato}`);
 
 export const baixarDeclaracaoAvaliador = (id) =>
-    baixar(`/admin/certificados/avaliadores/${id}/declaracao`, {}, 'projetos-avaliados.pdf');
+    baixar(`${base}/avaliadores/${id}/declaracao`, {}, 'projetos-avaliados.pdf');
+
+/** Minutos em "2h30" / "8h". */
+export function duracao(minutos) {
+    const m = Number(minutos) || 0;
+    const h = Math.floor(m / 60);
+    const resto = m % 60;
+    return resto === 0 ? `${h}h` : `${h}h${String(resto).padStart(2, '0')}`;
+}
+
+/** Horas inteiras, para cima — o número que vai para o SICERT. */
+export const horasDoArquivo = (minutos) => Math.ceil((Number(minutos) || 0) / 60);
+
+/** "2026-10-20" em "20/10/2026". */
+export function dataBr(iso) {
+    if (!iso) return null;
+    const [a, m, d] = iso.slice(0, 10).split('-');
+    return `${d}/${m}/${a}`;
+}

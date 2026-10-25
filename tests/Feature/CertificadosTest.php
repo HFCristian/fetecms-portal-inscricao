@@ -12,15 +12,14 @@ use App\Models\Edicao;
 use App\Models\ListaFinal;
 use App\Models\Projeto;
 use App\Models\User;
-use App\Services\ContaTemporariaService;
-use App\Support\LeitorPlanilha;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 /**
- * Sprint 163 — aba Certificados: avaliadores com as fases separadas,
- * participantes com CPF e função, e a declaração nominal de cada avaliador.
+ * Sprint 163 — aba Certificados: as fases separadas no cadastro do avaliador,
+ * a declaração nominal de cada avaliador e o CPF do admin. A lista de
+ * certificados (Sprints 259–260) está em {@see CertificadoListaTest}.
  */
 class CertificadosTest extends TestCase
 {
@@ -80,31 +79,6 @@ class CertificadosTest extends TestCase
         ]);
     }
 
-    /** @return list<list<string>> */
-    private function ler(string $conteudo, string $extensao = 'xlsx'): array
-    {
-        $caminho = tempnam(sys_get_temp_dir(), 'cert');
-        file_put_contents($caminho, $conteudo);
-
-        return LeitorPlanilha::ler($caminho, $extensao);
-    }
-
-    public function test_avaliadores_da_fase_online_com_as_duas_fases_separadas(): void
-    {
-        $resposta = $this->get('/api/v1/admin/certificados/avaliadores/exportar?fase=online&formato=xlsx')->assertOk();
-        $linhas = $this->ler($resposta->getContent());
-
-        $this->assertSame(['Nome completo', 'CPF', 'E-mail', 'Área de avaliação', 'Projetos avaliados (fase online)', 'Projetos avaliados (fase presencial)'], $linhas[0]);
-        // Bruno não avaliou online: fora do recorte da fase online.
-        $this->assertCount(2, $linhas);
-        $this->assertSame('Ana Avaliadora', $linhas[1][0]);
-        $this->assertSame('529.982.247-25', $linhas[1][1]);
-        $this->assertSame(['2', '1'], [$linhas[1][4], $linhas[1][5]]);
-
-        $presencial = $this->ler($this->get('/api/v1/admin/certificados/avaliadores/exportar?fase=presencial&formato=xlsx')->getContent());
-        $this->assertCount(3, $presencial);
-    }
-
     public function test_a_tabela_de_avaliadores_online_mostra_a_fase_presencial_no_mesmo_cadastro(): void
     {
         $linhas = collect($this->getJson('/api/v1/admin/avaliacao/avaliadores')->assertOk()->json('data'));
@@ -112,43 +86,6 @@ class CertificadosTest extends TestCase
         $bruno = $linhas->firstWhere('nome', 'Bruno Avaliador');
         $this->assertSame(0, $bruno['avaliou']);
         $this->assertSame(1, $bruno['presenciais']);
-    }
-
-    public function test_participantes_com_cpf_funcao_e_projeto(): void
-    {
-        $query = http_build_query([
-            'grupos' => ['estudantes', 'comissao', 'avaliadores_online', 'organizacao'],
-            'escopo' => 'finalistas', 'formato' => 'csv',
-        ]);
-        $csv = $this->get('/api/v1/admin/certificados/participantes/exportar?'.$query)->assertOk()->getContent();
-
-        $this->assertStringContainsString('"Zuleica Nunes";111.444.777-35;', $csv);
-        $this->assertStringContainsString(';Estudante;Biofiltro;Sim', $csv);
-        // Só finalistas: o estudante do projeto que ficou de fora não entra.
-        $this->assertStringNotContainsString('Wagner Lima', $csv);
-        $this->assertStringContainsString('"Comissão especial de avaliação"', $csv);
-        $this->assertStringContainsString('"Avaliação de 2 projeto(s) na fase online"', $csv);
-        $this->assertStringContainsString('"Olga Organizadora";333.444.555-66', $csv);
-
-        // Todos os submetidos: entra, marcado como não finalista.
-        $todos = $this->get('/api/v1/admin/certificados/participantes/exportar?'.http_build_query([
-            'grupos' => ['estudantes'], 'escopo' => 'submetidos', 'formato' => 'csv',
-        ]))->getContent();
-        $this->assertStringContainsString(';Estudante;Compostagem;Não', $todos);
-    }
-
-    public function test_voluntarios_entram_com_o_setor(): void
-    {
-        app(ContaTemporariaService::class)->criar([
-            'name' => 'Vera Voluntária', 'email' => 'vera@balcao.test', 'password' => 'senha-qualquer',
-            'cpf' => '52998224725', 'curso' => 'Pedagogia', 'horas' => 5,
-        ], null, 'almoxarifado');
-
-        $csv = $this->get('/api/v1/admin/certificados/participantes/exportar?'.http_build_query([
-            'grupos' => ['voluntarios'], 'escopo' => 'finalistas', 'formato' => 'csv',
-        ]))->assertOk()->getContent();
-
-        $this->assertStringContainsString('"Vera Voluntária";529.982.247-25;vera@balcao.test;"Voluntário(a) — Almoxarifado"', $csv);
     }
 
     public function test_declaracao_nominal_lista_os_titulos_por_fase(): void
@@ -162,8 +99,6 @@ class CertificadosTest extends TestCase
         $pdf = $this->get("/api/v1/admin/certificados/avaliadores/{$this->ana->id}/declaracao")->assertOk();
         $this->assertStringStartsWith('%PDF', $pdf->getContent());
 
-        $nominais = $this->ler($this->get('/api/v1/admin/certificados/avaliacoes/exportar?fase=todas&formato=xlsx')->getContent());
-        $this->assertCount(5, $nominais); // cabeçalho + 2 online da Ana + 1 presencial da Ana + 1 do Bruno
     }
 
     public function test_cpf_do_admin_e_opcional_no_cadastro(): void

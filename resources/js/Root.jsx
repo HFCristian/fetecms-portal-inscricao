@@ -86,6 +86,8 @@ import AvaliacaoProjetosManuais from './pages/AvaliacaoProjetosManuais.jsx';
 import CredenciamentoSuporte from './pages/CredenciamentoSuporte.jsx';
 import CredenciamentoEtiquetas from './pages/CredenciamentoEtiquetas.jsx';
 import AdminCertificados from './pages/AdminCertificados.jsx';
+import AssistenteCertificados from './pages/AssistenteCertificados.jsx';
+import ListaCertificados from './pages/ListaCertificados.jsx';
 import SuporteEvento from './pages/SuporteEvento.jsx';
 import AlmoxarifadoHome from './pages/AlmoxarifadoHome.jsx';
 import AlmoxarifadoNovo from './pages/AlmoxarifadoNovo.jsx';
@@ -247,7 +249,11 @@ export default function Root() {
                             <Route path="/admin/credenciamento/contas" element={<CredenciamentoContas />} />
                             <Route path="/admin/credenciamento/suporte" element={<CredenciamentoSuporte />} />
                             <Route path="/admin/credenciamento/etiquetas" element={<CredenciamentoEtiquetas />} />
+                            {/* Aba Certificados: o assistente da lista e a lista gerada, em tela cheia. */}
                             <Route path="/admin/certificados" element={<AdminCertificados />} />
+                            <Route path="/admin/certificados/nova" element={<AssistenteCertificados />} />
+                            <Route path="/admin/certificados/listas/:id/assistente" element={<AssistenteCertificados />} />
+                            <Route path="/admin/certificados/listas/:id" element={<ListaCertificados />} />
                             {/* Aba Almoxarifado: a guarda de volumes durante a feira. */}
                             {/* Aba Cerimonial: a porta da cerimônia de premiação. A
                                 conta temporária do setor só abre o check-in — as
