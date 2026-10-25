@@ -1,78 +1,52 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../components/AppShell.jsx', () => ({ default: ({ children }) => <div>{children}</div> }));
 
-const OPCOES = {
-    grupos: [
-        { valor: 'estudantes', rotulo: 'Estudantes' },
-        { valor: 'orientadores', rotulo: 'Orientadores' },
-        { valor: 'coorientadores', rotulo: 'Coorientadores' },
-        { valor: 'organizacao', rotulo: 'Organização (administradores)' },
-    ],
-    fases: [
-        { valor: 'online', rotulo: 'Fase online' },
-        { valor: 'presencial', rotulo: 'Fase presencial' },
-        { valor: 'todas', rotulo: 'As duas fases' },
-    ],
-    tem_lista_final: true,
-};
+const navigate = vi.fn();
+vi.mock('react-router-dom', async (importOriginal) => ({ ...(await importOriginal()), useNavigate: () => navigate }));
 
-const getAvaliadoresCertificado = vi.fn();
-const baixarAvaliadoresCertificado = vi.fn(() => Promise.resolve());
-const baixarParticipantesCertificado = vi.fn(() => Promise.resolve());
-const baixarDeclaracaoAvaliador = vi.fn(() => Promise.resolve());
-vi.mock('../lib/certificados.js', () => ({
-    getOpcoesCertificados: () => Promise.resolve(OPCOES),
-    getAvaliadoresCertificado: (...a) => getAvaliadoresCertificado(...a),
-    getProjetosDoAvaliador: () => Promise.resolve({
-        online: [{ projeto_id: 1, titulo: 'Biofiltro', area: 'Agrárias', concluida_em: '01/10/2026' }],
-        presencial: [],
-    }),
-    baixarAvaliadoresCertificado: (...a) => baixarAvaliadoresCertificado(...a),
-    baixarParticipantesCertificado: (...a) => baixarParticipantesCertificado(...a),
-    baixarAvaliacoesNominais: vi.fn(),
-    baixarDeclaracaoAvaliador: (...a) => baixarDeclaracaoAvaliador(...a),
-}));
+const getListasCertificados = vi.fn();
+vi.mock('../lib/certificados.js', () => ({ getListasCertificados: (...a) => getListasCertificados(...a) }));
 
 import AdminCertificados from './AdminCertificados.jsx';
+
+const GERADA = {
+    id: 3, nome: 'Certificados online', status: 'gerada', passo: 3, fases: ['online'], publicos: ['Avaliadores Online', 'Orientadores'],
+    total_pessoas: 42, total_certificados: 57, gerada_em: '2026-10-24T14:00:00-04:00', gerada_por: 'Olga Organizadora',
+    criada_por: 'Olga Organizadora', atualizada_em: '2026-10-24T14:00:00-04:00', desatualizada: true,
+};
+const RASCUNHO = { ...GERADA, id: 4, nome: 'Presencial', status: 'rascunho', fases: ['presencial'], publicos: [], gerada_em: null, gerada_por: null, desatualizada: false };
+
+const tela = () => render(<MemoryRouter><AdminCertificados /></MemoryRouter>);
 
 describe('AdminCertificados', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        getAvaliadoresCertificado.mockResolvedValue([
-            { id: 4, nome: 'Ana Avaliadora', cpf: '529.982.247-25', email: 'ana@x.test', area: 'Agrárias', online: 2, presencial: 1 },
-        ]);
+        getListasCertificados.mockResolvedValue([GERADA, RASCUNHO]);
     });
 
-    it('lista os avaliadores com as fases separadas e baixa a planilha da fase online', async () => {
-        render(<AdminCertificados />);
-
-        expect(await screen.findByText('Ana Avaliadora')).toBeInTheDocument();
-        expect(getAvaliadoresCertificado).toHaveBeenCalledWith('online', '');
-
-        fireEvent.click(screen.getAllByRole('button', { name: /Excel/ })[0]);
-        await waitFor(() => expect(baixarAvaliadoresCertificado).toHaveBeenCalledWith('online', 'xlsx'));
+    it('o botão grande abre o assistente', async () => {
+        tela();
+        fireEvent.click(screen.getByRole('button', { name: /Gerar certificados/ }));
+        expect(navigate).toHaveBeenCalledWith('/admin/certificados/nova');
     });
 
-    it('abre os projetos avaliados e baixa o relatório nominal', async () => {
-        render(<AdminCertificados />);
+    it('lista as geradas com público, pessoas e quem gerou, e o rascunho para continuar', async () => {
+        tela();
 
-        fireEvent.click(await screen.findByRole('button', { name: 'Projetos avaliados' }));
-        expect(await screen.findByText(/Biofiltro/)).toBeInTheDocument();
-        fireEvent.click(screen.getByRole('button', { name: /Relatório nominal/ }));
-        expect(baixarDeclaracaoAvaliador).toHaveBeenCalledWith(4);
-    });
+        expect(await screen.findByText('Certificados online')).toBeInTheDocument();
+        expect(screen.getByText('Avaliadores Online, Orientadores')).toBeInTheDocument();
+        expect(screen.getByText('42')).toBeInTheDocument();
+        expect(screen.getByText('Olga Organizadora')).toBeInTheDocument();
+        expect(screen.getByText('Alterada')).toBeInTheDocument();
+        expect(screen.getByText('Rascunho')).toBeInTheDocument();
 
-    it('exporta os participantes dos grupos marcados', async () => {
-        render(<AdminCertificados />);
-
-        fireEvent.click(await screen.findByLabelText('Organização (administradores)'));
-        fireEvent.click(screen.getByLabelText('todos os projetos submetidos'));
-        fireEvent.click(screen.getAllByRole('button', { name: /CSV/ })[1]);
-
-        await waitFor(() => expect(baixarParticipantesCertificado).toHaveBeenCalledWith(
-            ['estudantes', 'orientadores', 'coorientadores', 'organizacao'], 'submetidos', 'csv',
-        ));
+        fireEvent.click(screen.getByRole('button', { name: 'Editar Certificados online' }));
+        expect(navigate).toHaveBeenCalledWith('/admin/certificados/listas/3/assistente');
+        fireEvent.click(screen.getByRole('button', { name: /Abrir/ }));
+        expect(navigate).toHaveBeenCalledWith('/admin/certificados/listas/3');
+        expect(screen.getByRole('button', { name: 'Editar Presencial' })).toHaveTextContent('Continuar');
     });
 });

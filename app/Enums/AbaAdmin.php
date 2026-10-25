@@ -68,7 +68,7 @@ enum AbaAdmin: string
             self::AvaliacaoPresencial => 'Checagem dos estandes, voluntários e as credenciais e prêmios da feira.',
             self::Mapa => 'Turnos de apresentação, estandes dos projetos e a planta do evento.',
             self::Comunicacao => 'Mala direta, avisos na tela e modelos de e-mail.',
-            self::Certificados => 'Dados para certificados: avaliadores por fase, participantes e declarações nominais.',
+            self::Certificados => 'Listas de certificados por fase e público, com carga horária, no modelo do SICERT.',
             self::Suporte => 'Caixa de entrada do chat de orientadores e avaliadores.',
             self::Parametrizacao => 'Edições, datas, áreas, escolas e escopos.',
             self::Administradores => 'Criar e desativar contas de administrador.',

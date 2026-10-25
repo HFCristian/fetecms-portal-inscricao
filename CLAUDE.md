@@ -747,6 +747,27 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     acontecia em silêncio. O upload é no processo web e a leitura é no `queue:work`, então
     `storage/app/private` precisa sobreviver ao deploy e ser o mesmo dos dois
     (ver [docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md)).
+  - **Certificados** (`/admin/certificados`, Sprints 259–260, `CertificadoListaService`): o portal monta a
+    **lista** e a organização emite no **SICERT**. *Gerar certificados* abre um assistente de quatro passos —
+    **fases** (online, presencial ou as duas) → **público** (Avaliadores Online, Avaliadores Presencial,
+    Orientadores, Coorientadores, Estudantes, Voluntários e Admins cadastrados; só os das fases escolhidas) →
+    **carga horária** de cada categoria (público × fase), com o período (vem de Datas e períodos) → **resumo**,
+    com *Conferir nomes* em cada categoria. Online = equipe dos projetos **submetidos pela inscrição** e quem
+    concluiu avaliação online; presencial = quem o balcão marcou **presente** num credenciamento concluído, quem
+    avaliou no estande e os voluntários (contas temporárias); admin não tem fase. **Um certificado por projeto**
+    (orientador de três projetos recebe três; avaliador, um por fase). A carga é **fixa** (orientação, estudante,
+    admin) ou **por unidade** — por projeto avaliado (avaliadores, padrão 2h30 até 120h, a regra do perfil) ou por
+    turno (voluntário; sem turnos conta um) — com **teto** opcional; o arquivo leva **horas inteiras arredondadas
+    para cima**. Em *Conferir nomes* o lápis corrige o nome **só na lista** (`certificado_listas.nomes`, por
+    pessoa — vale em todas as linhas dela) e o avaliador tem *Ver projetos avaliados* com a declaração em PDF. O
+    assistente grava a cada passo, ao fechar cada conferência e em *Salvar rascunho*; o nome da lista é editável.
+    **Gerar** congela o retrato em `certificado_linhas` e abre a lista em **tela cheia**
+    (`/admin/certificados/listas/{id}`): cards por categoria, tabela filtrável e exportação em **Excel e CSV no
+    modelo de importação do SICERT** (`CPF;NOME;E-MAIL;TELEFONE;COAUTORES;FUNCAO;TIPO DA ATIVIDADE;TITULO DO
+    TRABALHO/ATIVIDADE;CAMPO GENERICO;CARGA HORARIA;DATA INICIO;DATA FIM`, CPF só dígitos, CSV sem BOM), PDF e TXT,
+    no recorte da categoria. Abaixo do botão ficam as **listas da edição** (rascunhos e geradas: data, público,
+    pessoas, quem gerou) com **Editar**, que volta ao assistente; editar uma lista gerada a marca *alterada* até ela
+    ser gerada de novo.
 
 Regras-chave:
 - **Equipe: 1 a 4 alunos por projeto, condicionado à categoria** — *FETEC Jr* permite até 4;
@@ -1091,7 +1112,59 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 255 | Lista da premiação: por padrão **do 1º ao 4º lugar** de cada área em cada categoria, editável na geração | ✅ sim | ✅ sim (Pedro, PR #128 → v1.47) | 0 |
 | 256 | Fix (segurança): `follow-redirects` 1.16.0 → 1.16.1 (job security do CI) + `vite` 8.2.2 → 8.3.4 (dev) | ✅ sim | ✅ sim (Pedro, PR #128 → v1.47) | 0 |
 | 257 | Slides da premiação no **modelo da organização** (Canva "FETEC FUNDECT"): abertura por colocação, um slide por projeto com foto, por categoria | ✅ sim | ✅ sim (Pedro, PR #133) | 0 |
-| 258 | Credenciais e Prêmios: **editar o item inteiro** (vagas até o nº de premiados) + fix: **nome repetido** dava erro interno | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 258 | Credenciais e Prêmios: **editar o item inteiro** (vagas até o nº de premiados) + fix: **nome repetido** dava erro interno | ✅ sim | ✅ sim (Pedro, v1.49) | 0 |
+| 259 | Certificados: **assistente** (fases → público → carga com teto → resumo), *Conferir nomes* e a lista gerada em **tela cheia** com Excel/CSV do **SICERT**, PDF e TXT | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 260 | Certificados: **listas da edição** abaixo do botão (data, público, pessoas, quem gerou) com **Editar**, e a lista alterada depois de gerada | ✅ sim | ❌ não (manual do Pedro) | 1 |
+
+> **Sprints 259–260 (branch `feat/certificados-wizard-e-php`, saída da `origin/main` @ `afdd355`, v1.49):** a aba
+> **Certificados** trocou as três planilhas da Sprint 163 por uma **lista de certificados** montada num assistente
+> (`CertificadoListaService`, `CertificadoListaController`, tabelas `certificado_listas` + `certificado_linhas`).
+> (a) **Sprint 259** — *Gerar certificados* (`/admin/certificados/nova`, `AssistenteCertificados.jsx`), em quatro
+> passos: **fases** (online, presencial ou as duas); **público** (os sete pedidos; Avaliadores Online só com a fase
+> online, Avaliadores Presencial e Voluntários só com a presencial; Admins sem fase); **carga horária** de cada
+> categoria = público × fase (orientador da fase online e da presencial são certificados diferentes), com o
+> **período** pré-preenchido por Datas e períodos (online: avaliação; presencial: evento; admin: do começo da
+> primeira fase ao fim da última); e o **resumo**, com quantas pessoas e certificados, quem está sem CPF ou e-mail,
+> os nomes corrigidos e quem bateu no teto. Quem entra (decisões do Pedro): online = a equipe dos projetos
+> **submetidos pela inscrição** (`Projeto::avaliacaoOnline()`; o cadastro manual fica fora) e quem concluiu avaliação
+> online; presencial = só quem o balcão marcou **presente** num credenciamento **concluído** (quem não foi marcado
+> veio, a regra do balcão), quem concluiu avaliação no estande e as contas temporárias não removidas; admins ativos,
+> não demo e sem conta temporária. **Um certificado por projeto**; o avaliador recebe um por fase, com "Avaliação de
+> N projeto(s)". A carga é **fixa** para orientação, estudante e admin; o avaliador escolhe **fixa ou por projeto
+> avaliado** (padrão 2h30 com teto de 120h, a regra do perfil) e o voluntário **fixa ou por turno** (a conta sem
+> turnos vale um, a janela); o **limite de horas** é opcional e só existe na carga por unidade. O arquivo leva
+> **horas inteiras arredondadas para cima** (7h30 sai 8). O assistente grava a cada passo, ao fechar cada
+> *Conferir nomes* e em *Salvar rascunho*; a lista nasce no primeiro salvamento, com o **nome editável** no topo.
+> *Conferir nomes* (`ConferirNomes.jsx`) lista a categoria com busca, o lápis corrige o nome **só nesta lista**
+> (`certificado_listas.nomes`, chave `user:` / `aluno:` / `coorientador:` — a correção vale em todas as linhas da
+> pessoa; voltar ao nome do cadastro desfaz) e o avaliador tem **Ver projetos avaliados** com a declaração em PDF
+> (`ProjetosDoAvaliador.jsx`). *Salvar* grava e fecha; *Voltar* fecha e, com correção pendente, pergunta antes de
+> descartar. **Gerar** cobra a carga de cada categoria (422 dizendo qual), congela tudo em `certificado_linhas`
+> (nome, CPF, título, carga e período desnormalizados — o cadastro pode mudar, o certificado emitido não) e abre a
+> lista em **tela cheia** (`/admin/certificados/listas/{id}`, `ListaCertificados.jsx`, fora do menu lateral): um
+> card por categoria (certificados, pessoas, horas somadas, avisos; clicar filtra), busca por nome, CPF ou título,
+> tabela paginada e exportação **no recorte da categoria**: **Excel** e **CSV** com o cabeçalho do modelo de
+> importação do SICERT (CPF só dígitos e vazio quando não há; telefone `(67) 99999-9999` para orientação e
+> estudantes; COAUTORES vazio; FUNCAO; TIPO DA ATIVIDADE = fase ou "Organização"; TITULO = título do projeto,
+> "Avaliação de N projeto(s)", o setor do voluntário ou "Organização da edição"; CAMPO GENERICO = categoria do
+> projeto; datas dd/mm/aaaa), **PDF** (`pdf.certificados`, uma tabela por categoria) e **TXT**. O CSV sai como o
+> modelo: `;`, aspas só quando precisa, CRLF e **sem BOM** (o importador lê o cabeçalho pelo nome). As três
+> planilhas antigas (avaliadores, participantes e a nominal) e os endpoints delas **saíram**; ficaram os projetos
+> avaliados e a declaração em PDF de cada avaliador.
+> (b) **Sprint 260** — abaixo do botão, as **listas da edição** (`GET /admin/certificados/listas`, só a edição em
+> escopo; lista de outra edição é 404): nome, situação (Rascunho, Gerada, **Alterada**), data, público-alvo,
+> pessoas e certificados, e quem gerou. **Editar** volta ao assistente no passo em que ela parou; numa lista
+> gerada, mudar a configuração ou um nome marca `alterada_em` — a tela da lista avisa que os arquivos são da última
+> geração — e o último passo vira **Gerar novamente**, que substitui o retrato inteiro (`gerada_por` passa a ser
+> quem gerou de novo).
+> Back **1733/1733**, front **994/994**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprints 259–260):** (1) push + PR. **Uma migration** (`certificado_listas` +
+> `certificado_linhas`), sem `.env` ou dependência nova; `npm run build` no deploy. (2) **Importe um CSV pequeno no
+> SICERT antes do lote**: o arquivo segue o modelo (cabeçalho, `;`, CRLF), mas o encoding é **UTF-8 sem BOM** — se
+> os acentos chegarem quebrados, o SICERT quer Windows-1252 e é uma linha no `csv()` do serviço. (3) O presencial
+> depende do credenciamento: projeto que ficou em **rascunho** no balcão não entra; conclua os atendimentos antes de
+> gerar. (4) As planilhas antigas da aba saíram; quem usava a de participantes passa a gerar uma lista.
 
 > **Sprint 258 (branch `fix/credenciais-edicao-e-nome-repetido`, saída da `main` @ `e377818`):** dois ajustes em
 > Avaliação presencial → **Credenciais e Prêmios**.

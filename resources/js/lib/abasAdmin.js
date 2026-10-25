@@ -85,7 +85,7 @@ export const ABAS_ADMIN = [
         to: '/admin/certificados',
         icon: 'workspace_premium',
         label: 'Certificados',
-        descricao: 'Avaliadores por fase, participantes e declarações nominais, em planilha.',
+        descricao: 'Listas de certificados por fase e público, com carga horária, no modelo do SICERT.',
     },
     {
         aba: 'suporte',

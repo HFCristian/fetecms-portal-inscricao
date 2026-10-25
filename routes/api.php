@@ -26,6 +26,7 @@ use App\Http\Controllers\Api\V1\CatalogoAdminController;
 use App\Http\Controllers\Api\V1\CatalogoController;
 use App\Http\Controllers\Api\V1\CerimonialController;
 use App\Http\Controllers\Api\V1\CerimonialFotografiaController;
+use App\Http\Controllers\Api\V1\CertificadoListaController;
 use App\Http\Controllers\Api\V1\CertificadosController;
 use App\Http\Controllers\Api\V1\ChatAdminController;
 use App\Http\Controllers\Api\V1\ChatController;
@@ -886,15 +887,23 @@ Route::prefix('v1')->middleware('throttle:120,1')->group(function () {
                     ->middleware('throttle:10,1');
             });
 
-            // --- Aba "Certificados" (Sprint 163): dados para emissão ---
+            // --- Aba "Certificados" (Sprints 259–260): o assistente da lista, a
+            // conferência de nomes e a lista gerada (SICERT, PDF, TXT) ---
             Route::middleware('aba:certificados')->prefix('certificados')->group(function () {
-                Route::get('/opcoes', [CertificadosController::class, 'opcoes']);
-                Route::get('/avaliadores', [CertificadosController::class, 'avaliadores']);
-                Route::get('/avaliadores/exportar', [CertificadosController::class, 'exportarAvaliadores']);
+                Route::get('/opcoes', [CertificadoListaController::class, 'opcoes']);
+                Route::get('/listas', [CertificadoListaController::class, 'index']);
+                Route::post('/listas', [CertificadoListaController::class, 'store']);
+                Route::get('/listas/{lista}', [CertificadoListaController::class, 'show']);
+                Route::put('/listas/{lista}', [CertificadoListaController::class, 'update']);
+                Route::get('/listas/{lista}/resumo', [CertificadoListaController::class, 'resumo']);
+                Route::get('/listas/{lista}/categorias/{categoria}', [CertificadoListaController::class, 'pessoas']);
+                Route::put('/listas/{lista}/nomes', [CertificadoListaController::class, 'nomes']);
+                Route::post('/listas/{lista}/gerar', [CertificadoListaController::class, 'gerar']);
+                Route::get('/listas/{lista}/linhas', [CertificadoListaController::class, 'linhas']);
+                Route::get('/listas/{lista}/exportar/{formato}', [CertificadoListaController::class, 'exportar'])
+                    ->whereIn('formato', ['xlsx', 'csv', 'pdf', 'txt']);
                 Route::get('/avaliadores/{avaliador}/projetos', [CertificadosController::class, 'projetosDoAvaliador']);
                 Route::get('/avaliadores/{avaliador}/declaracao', [CertificadosController::class, 'declaracao']);
-                Route::get('/avaliacoes/exportar', [CertificadosController::class, 'exportarNominais']);
-                Route::get('/participantes/exportar', [CertificadosController::class, 'exportarParticipantes']);
             });
 
             // --- Aba "Registros": a trilha de auditoria ---
