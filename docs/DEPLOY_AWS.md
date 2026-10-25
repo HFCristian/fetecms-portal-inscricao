@@ -7,6 +7,10 @@ no **S3**.
 > Stack de produção: PHP 8.4 (PHP-FPM) + Nginx · PostgreSQL 16 (RDS) · S3 · ALB com TLS (ACM).
 > O app é **stateless por instância** (sessão, cache e fila no banco; arquivos no S3), então escala
 > horizontalmente atrás do ALB.
+>
+> **Servidor Bitnami (Lightsail):** o PHP de lá é o compilado pelo Bitnami em `/opt/bitnami/php`, sem
+> `apt`. Para atualizá-lo (ex.: PHP2Shell, CVE-2026-109618/109619 → 8.3.36), siga
+> [ATUALIZAR_PHP_BITNAMI.md](ATUALIZAR_PHP_BITNAMI.md).
 
 ---
 

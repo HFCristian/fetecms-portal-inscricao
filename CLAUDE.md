@@ -1115,6 +1115,29 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 258 | Credenciais e Prêmios: **editar o item inteiro** (vagas até o nº de premiados) + fix: **nome repetido** dava erro interno | ✅ sim | ✅ sim (Pedro, v1.49) | 0 |
 | 259 | Certificados: **assistente** (fases → público → carga com teto → resumo), *Conferir nomes* e a lista gerada em **tela cheia** com Excel/CSV do **SICERT**, PDF e TXT | ✅ sim | ❌ não (manual do Pedro) | 1 |
 | 260 | Certificados: **listas da edição** abaixo do botão (data, público, pessoas, quem gerou) com **Editar**, e a lista alterada depois de gerada | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 261 | Segurança: roteiro e scripts para **recompilar o PHP 8.3.36** no Bitnami (PHP2Shell, CVE-2026-109618/109619) + `platform.php` 8.3.36 | ✅ sim | ❌ não (manual do Pedro) | 1 |
+
+> **Sprint 261 (mesma branch):** o servidor de produção é um **Bitnami no Lightsail** com **PHP 8.3.22**,
+> vulnerável ao **PHP2Shell** (CVE-2026-109618 e CVE-2026-109619, RCE sem autenticação, CVSS 9,2; corrigido em
+> 8.2.35 / 8.3.36 / 8.4.27 / 8.5.12, em 21/10/2026). O Bitnami compila o PHP em `/opt/bitnami/php` e não há `apt`
+> para atualizá-lo; o caminho escolhido (decisão do Pedro) é **recompilar o 8.3.36 com a mesma linha de configure**,
+> no mesmo lugar — `php.ini`, pools do PHP-FPM e servidor web ficam como estão, e as extensões PECL do Bitnami
+> continuam valendo (mesma API da série 8.3). Roteiro em [docs/ATUALIZAR_PHP_BITNAMI.md](docs/ATUALIZAR_PHP_BITNAMI.md)
+> e quatro scripts em `scripts/php-bitnami/`: `diagnostico.sh` (só lê: versão, `php -m`, configure, PHP-FPM, mod_php
+> ou não), `compilar.sh` (dependências pelo apt, fonte do php.net com o **SHA-256 conferido** pela API de releases,
+> configure do Bitnami sem os caminhos da sandbox `/bitnami/blacksmith-sandox` que não existem no servidor, `make`, e
+> a conferência do binário novo — versão e **todas as extensões de hoje** — antes de instalar; não toca em
+> `/opt/bitnami`), `instalar.sh` (backup de `/opt/bitnami/php`, stop do PHP-FPM, `make install`, `php-fpm -t`, start,
+> **volta sozinho** se o PHP-FPM não subir, diff do `php -m`) e `reverter.sh`. O site fica fora do ar só na
+> instalação (~1 min). `composer.json` → `config.platform.php` **8.3.36** (lock com o hash novo). Os scripts foram
+> conferidos com `bash -n` e a limpeza da linha de configure e a leitura do SHA-256 foram testadas aqui; **a compilação
+> não foi rodada num Bitnami** (este ambiente não tem um).
+>
+> **Pendências do Pedro (Sprint 261):** (1) **Snapshot** da instância no Lightsail antes de tudo. (2) Rodar o
+> `diagnostico.sh` e me mandar o `resumo.txt` e o `configure.txt` antes de compilar — confiro a linha e as
+> extensões. (3) Compilar com o site no ar, instalar fora do horário do evento, `php artisan queue:restart` depois
+> (e o restart do supervisor/systemd do worker, se houver). (4) As próximas correções da 8.3 usam os mesmos scripts
+> com `VERSAO=8.3.x` e o `platform.php` do `composer.json` na mesma versão; a 8.3 recebe correção até 31/12/2027.
 
 > **Sprints 259–260 (branch `feat/certificados-wizard-e-php`, saída da `origin/main` @ `afdd355`, v1.49):** a aba
 > **Certificados** trocou as três planilhas da Sprint 163 por uma **lista de certificados** montada num assistente
