@@ -28,6 +28,9 @@ use Tests\TestCase;
  * Sprints 259–260 — o assistente da lista de certificados: fases, público,
  * carga horária com teto, nomes corrigidos só na lista, a lista gerada
  * congelada e o arquivo no modelo do SICERT.
+ *
+ * Sprint 262 — o estudante sai como expositor, o SICERT não leva título nem
+ * campo genérico, e a orientação tem um registro por pessoa em cada fase.
  */
 class CertificadoListaTest extends TestCase
 {
@@ -216,10 +219,11 @@ class CertificadoListaTest extends TestCase
         $presencial = collect($this->pessoas($id, 'estudantes_presencial'))->pluck('nome_original')->all();
         $this->assertEqualsCanonicalizing(['Zuleica Nunes', 'Mara Manual'], $presencial);
 
-        // Um certificado por projeto: a orientadora tem os dois do credenciamento concluído.
-        $orientacao = collect($this->pessoas($id, 'orientadores_presencial'));
-        $this->assertSame(['Biofiltro', 'Robô Seguidor'], $orientacao->pluck('titulo')->sort()->values()->all());
-        $this->assertSame(['(67) 99999-8888'], $orientacao->pluck('telefone')->unique()->values()->all());
+        // Um registro por pessoa: os dois projetos do credenciamento concluído numa linha só.
+        $orientacao = $this->pessoas($id, 'orientadores_presencial');
+        $this->assertCount(1, $orientacao);
+        $this->assertSame(['Biofiltro; Robô Seguidor', '(67) 99999-8888'], [$orientacao[0]['titulo'], $orientacao[0]['telefone']]);
+        $this->assertSame('Expositor', $this->pessoas($id, 'estudantes_online')[0]['funcao']);
 
         $this->assertSame(['Carlos Coorientador'], collect($this->pessoas($id, 'coorientadores_presencial'))->pluck('nome')->all());
     }
@@ -348,13 +352,70 @@ class CertificadoListaTest extends TestCase
         $this->assertCount(4, $linhas);
         // 4h30 sai 5; CPF só dígitos; sem CPF fica vazio.
         $this->assertStringContainsString('11144477735;Zuleica Nunes;', $csv);
-        $this->assertStringContainsString(';(67) 3333-4444;;Estudante;Fase online;Biofiltro;FETECMS;5;01/08/2026;15/09/2026', $csv);
+        // Expositor; título e campo genérico em branco.
+        $this->assertStringContainsString(';(67) 3333-4444;;Expositor;Fase online;;;5;01/08/2026;15/09/2026', $csv);
+        $this->assertStringNotContainsString('Biofiltro', $csv);
         $this->assertMatchesRegularExpression('/^;Xavier Lima;/m', $csv);
 
         $xlsx = $this->ler($this->get(self::URL."/listas/{$id}/exportar/xlsx")->assertOk()->getContent(), 'xlsx');
         $this->assertSame('CPF', $xlsx[0][0]);
         $ana = collect($xlsx)->first(fn ($l) => $l[1] === 'Ana Avaliadora');
-        $this->assertSame(['52998224725', 'Avaliador(a)', 'Fase online', 'Avaliação de 5 projeto(s)', '10'], [$ana[0], $ana[5], $ana[6], $ana[7], $ana[9]]);
+        $this->assertSame(['52998224725', 'Avaliador(a)', 'Fase online', '', '', '10'], [$ana[0], $ana[5], $ana[6], $ana[7] ?? '', $ana[8] ?? '', $ana[9]]);
+
+        // A tela continua com o título, para conferir.
+        $linha = collect($this->getJson(self::URL."/listas/{$id}/linhas?categoria=avaliadores_online")->json('data'))->firstWhere('nome', 'Ana Avaliadora');
+        $this->assertSame(['Avaliação de 5 projeto(s)', null], [$linha['titulo'], $linha['campo_generico']]);
+    }
+
+    public function test_orientacao_tem_um_registro_por_pessoa_em_cada_fase(): void
+    {
+        $otto = User::factory()->create(['name' => 'Otto Orientador', 'email' => 'otto@escola.test']);
+        OrientadorProfile::factory()->create(['user_id' => $otto->id, 'cpf' => '39053344705']);
+        $horta = Projeto::factory()->submetido()->create(['titulo' => 'Horta Vertical', 'categoria' => Categoria::Fetecms, 'edicao_id' => $this->edicao->id, 'user_id' => $otto->id]);
+        $cisterna = Projeto::factory()->submetido()->create(['titulo' => 'Cisterna', 'categoria' => Categoria::Fetecms, 'edicao_id' => $this->edicao->id, 'user_id' => $otto->id]);
+        $solar = Projeto::factory()->submetido()->create(['titulo' => 'Forno Solar', 'categoria' => Categoria::Fetecms, 'edicao_id' => $this->edicao->id, 'user_id' => $otto->id]);
+
+        // A orientadora coorienta a Horta (pelo CPF, com o nome escrito de outro
+        // jeito) e o Cisterna (sem CPF, pelo e-mail com o mesmo nome).
+        $pelaHorta = Coorientador::factory()->create(['projeto_id' => $horta->id, 'nome' => 'Olivia Orientadora', 'cpf' => '52998224725']);
+        Coorientador::factory()->create(['projeto_id' => $cisterna->id, 'nome' => 'Olívia  Orientadora', 'cpf' => null, 'email' => 'OLIVIA@escola.test']);
+        // O Carlos coorienta dois projetos; o e-mail igual com outro nome não é a mesma pessoa.
+        $carlos = Coorientador::query()->where('nome', 'Carlos Coorientador')->firstOrFail();
+        Coorientador::factory()->create(['projeto_id' => $this->compostagem->id, 'nome' => 'Carlos C.', 'cpf' => $carlos->cpf]);
+        Coorientador::factory()->create(['projeto_id' => $solar->id, 'nome' => 'Sônia Souza', 'cpf' => null, 'email' => 'olivia@escola.test']);
+
+        $id = $this->lista(['orientadores', 'coorientadores'], [
+            'orientadores_online' => ['minutos' => 600], 'orientadores_presencial' => ['minutos' => 600],
+            'coorientadores_online' => ['minutos' => 300], 'coorientadores_presencial' => ['minutos' => 300],
+        ]);
+        // A correção feita na chave de coorientadora vale no registro de orientadora.
+        $this->putJson(self::URL."/listas/{$id}/nomes", ['nomes' => ["coorientador:{$pelaHorta->id}" => 'Olívia O. Silva']])->assertOk();
+
+        $orientadores = collect($this->pessoas($id, 'orientadores_online'))->keyBy('nome_original');
+        $this->assertSame(['Olívia Orientadora', 'Otto Orientador'], $orientadores->keys()->sort()->values()->all());
+        $olivia = $orientadores['Olívia Orientadora'];
+        $this->assertSame(['Orientador(a)', 'Olívia O. Silva', 600], [$olivia['funcao'], $olivia['nome'], $olivia['minutos']]);
+        $this->assertSame(
+            'Biofiltro; Compostagem; Extra 3; Extra 4; Extra 5; Cisterna (coorientação); Horta Vertical (coorientação)',
+            $olivia['titulo'],
+        );
+
+        $coorientadores = collect($this->pessoas($id, 'coorientadores_online'));
+        $this->assertSame(['Carlos Coorientador', 'Sônia Souza'], $coorientadores->pluck('nome_original')->sort()->values()->all());
+        $this->assertSame('Biofiltro; Compostagem', $coorientadores->firstWhere('nome_original', 'Carlos Coorientador')['titulo']);
+
+        // Cada fase é uma importação: a orientadora também está na presencial.
+        $this->assertCount(1, $this->pessoas($id, 'orientadores_presencial'));
+
+        // Sem a categoria de orientadores, a coorientação dela continua valendo.
+        $so = $this->lista(['coorientadores'], ['coorientadores_online' => ['minutos' => 300]], ['online']);
+        $this->assertContains('Olivia Orientadora', collect($this->pessoas($so, 'coorientadores_online'))->pluck('nome_original')->all());
+
+        // No arquivo de uma fase, nenhum CPF repete.
+        $this->postJson(self::URL."/listas/{$id}/gerar")->assertOk();
+        $csv = explode("\r\n", trim($this->get(self::URL."/listas/{$id}/exportar/csv?categoria=orientadores_online")->getContent()));
+        $cpfs = array_map(fn (string $l) => explode(';', $l)[0], array_slice($csv, 1));
+        $this->assertSame(['39053344705', '52998224725'], collect($cpfs)->sort()->values()->all());
     }
 
     public function test_pdf_e_txt_da_lista_gerada(): void

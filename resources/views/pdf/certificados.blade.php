@@ -38,7 +38,7 @@
                         <td>{{ $cpf($l['cpf']) }}</td>
                         <td>
                             {{ $l['funcao'] }} · {{ $l['tipo_atividade'] }}
-                            <div class="menor">{{ $l['titulo'] }}{{ $l['campo_generico'] ? ' · '.$l['campo_generico'] : '' }}</div>
+                            <div class="menor">{{ $l['titulo'] }}</div>
                         </td>
                         <td><strong>{{ $l['horas'] }}h</strong>@if ($l['teto_aplicado'])<div class="menor">no limite</div>@endif</td>
                         <td>{{ $l['data_inicio'] ?? '—' }}{{ $l['data_fim'] ? ' a '.$l['data_fim'] : '' }}</td>

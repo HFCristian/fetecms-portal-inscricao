@@ -41,8 +41,12 @@ use Illuminate\Validation\ValidationException;
  *   balcão —, o avaliador com avaliação no estande concluída e os voluntários.
  * - **Admins**: a organização, sem fase.
  *
- * Um certificado por projeto: o orientador de três projetos recebe três. O
- * avaliador recebe um por fase, com a quantidade de projetos avaliados.
+ * O SICERT recusa CPF repetido, então a orientação sai com **um registro por
+ * pessoa em cada fase** (Sprint 262): o orientador de três projetos recebe um,
+ * e quem orienta um projeto e coorienta outro fica só como orientador — o
+ * coorientador some da categoria dele. A mesma pessoa é reconhecida pelo CPF
+ * e, sem ele, pelo e-mail com o mesmo nome (a regra do Cerimonial). O estudante
+ * continua com um certificado por projeto, e o avaliador com um por fase.
  *
  * A carga é **fixa** ou **por unidade** — por projeto avaliado (avaliadores) ou
  * por turno (voluntários; a conta sem turnos vale um, a janela de acesso) —,
@@ -51,6 +55,10 @@ use Illuminate\Validation\ValidationException;
  *
  * Gerar congela o resultado em `certificado_linhas`; antes disso, tudo é
  * calculado na hora, com as correções de nome da lista por cima.
+ *
+ * No Excel e no CSV do SICERT o título do trabalho e o campo genérico vão em
+ * branco; o título (o projeto, "Avaliação de N projeto(s)", o setor) continua
+ * na tela, no PDF e no TXT, que são para conferir.
  */
 class CertificadoListaService
 {
@@ -96,6 +104,9 @@ class CertificadoListaService
 
     /** @var array<string, Collection<int, array<string, mixed>>> */
     private array $avaliadores = [];
+
+    /** @var array<string, array{orientadores: list<array<string, mixed>>, coorientadores: list<array<string, mixed>>}> */
+    private array $orientacoes = [];
 
     public function __construct(private readonly CertificadosService $certificados) {}
 
@@ -441,13 +452,19 @@ class CertificadoListaService
 
         $nomes = $lista->nomes ?? [];
 
-        return $this->pessoasDa($categoria['publico'], $categoria['fase'])
+        return $this->pessoasDa($categoria['publico'], $categoria['fase'], $config['publicos'])
             ->map(function (array $l) use ($chave, $cfg, $nomes) {
                 [$minutos, $teto] = $this->minutos($cfg, $l['quantidade']);
+                // O registro único da orientação junta várias chaves: vale a
+                // correção feita em qualquer uma delas.
+                $corrigido = collect($l['chaves'] ?? [$l['pessoa_chave']])
+                    ->map(fn (string $c) => $nomes[$c] ?? null)
+                    ->first(fn (?string $n) => $n !== null);
+                unset($l['chaves']);
 
                 return $l + [
                     'categoria' => $chave,
-                    'nome' => $nomes[$l['pessoa_chave']] ?? $l['nome_original'],
+                    'nome' => $corrigido ?? $l['nome_original'],
                     'minutos' => $minutos,
                     'teto_aplicado' => $teto,
                     'data_inicio' => $cfg['data_inicio'],
@@ -462,19 +479,20 @@ class CertificadoListaService
      * Quem o público tem naquela fase, uma linha por certificado, ainda sem a
      * carga.
      *
+     * @param  list<string>  $publicos  o público da lista inteira
      * @return Collection<int, array<string, mixed>>
      */
-    private function pessoasDa(string $publico, ?string $fase): Collection
+    private function pessoasDa(string $publico, ?string $fase, array $publicos): Collection
     {
         $edicao = Edicao::atual()?->nome ?? 'XVI FETECMS';
         $tipo = $fase === null ? 'Organização' : self::FASES[$fase];
 
         return match ($publico) {
-            'orientadores', 'coorientadores', 'estudantes' => $this->equipe($publico, (string) $fase),
+            'orientadores', 'coorientadores', 'estudantes' => $this->equipe($publico, (string) $fase, $publicos),
             'avaliadores_online', 'avaliadores_presencial' => $this->avaliadoresDa((string) $fase)
                 ->map(fn (array $a) => $this->linha(
                     "user:{$a['id']}", $a['nome'], $a['cpf'], $a['email'], null, 'Avaliador(a)', $tipo,
-                    "Avaliação de {$a[$fase]} projeto(s)", null, $a[$fase], avaliadorId: $a['id'],
+                    "Avaliação de {$a[$fase]} projeto(s)", $a[$fase], avaliadorId: $a['id'],
                 )),
             'voluntarios' => ContaTemporaria::query()
                 ->whereNull('removida_em')
@@ -485,7 +503,7 @@ class CertificadoListaService
                 ->filter(fn (ContaTemporaria $c) => $c->user !== null)
                 ->map(fn (ContaTemporaria $c) => $this->linha(
                     "user:{$c->user_id}", (string) $c->user->name, $c->cpf, $c->user->email, null, 'Voluntário(a)', $tipo,
-                    AbaAdmin::tryFrom((string) $c->setor)?->label() ?? (string) $c->setor, null,
+                    AbaAdmin::tryFrom((string) $c->setor)?->label() ?? (string) $c->setor,
                     // Sem turnos, a janela de acesso inteira é um turno.
                     max(1, (int) $c->turnos_count),
                 )),
@@ -497,7 +515,7 @@ class CertificadoListaService
                 ->get()
                 ->map(fn (User $u) => $this->linha(
                     "user:{$u->id}", $u->name, $u->cpf, $u->email, null, 'Comissão organizadora', $tipo,
-                    "Organização da {$edicao}", null, null,
+                    "Organização da {$edicao}", null,
                 )),
             default => collect(),
         };
@@ -506,63 +524,202 @@ class CertificadoListaService
     /**
      * Orientadores, coorientadores ou estudantes de uma fase: na online, a
      * equipe dos projetos submetidos pela inscrição; na presencial, quem
-     * compareceu ao credenciamento.
+     * compareceu ao credenciamento. O estudante (o expositor) tem um
+     * certificado por projeto; a orientação, um por pessoa ({@see orientacao()}).
      *
+     * @param  list<string>  $publicos
      * @return Collection<int, array<string, mixed>>
      */
-    private function equipe(string $publico, string $fase): Collection
+    private function equipe(string $publico, string $fase, array $publicos): Collection
     {
-        $linhas = collect();
         $tipo = self::FASES[$fase];
 
-        foreach ($this->projetosDa($fase) as $p) {
-            $presente = function (TipoPessoaCredenciamento $papel, ?int $id) use ($p, $fase): bool {
-                if ($fase !== 'presencial') {
-                    return true;
-                }
+        if ($publico === 'estudantes') {
+            $linhas = collect();
 
-                $marcacao = $p->credenciamento?->pessoas
-                    ->first(fn (CredenciamentoPessoa $m) => $m->pessoa_tipo === $papel && (int) $m->pessoa_id === (int) $id);
-
-                // Quem não foi marcado veio ao balcão — a regra do credenciamento.
-                return $marcacao === null || $marcacao->presente;
-            };
-            $categoria = $p->categoria?->label();
-
-            if ($publico === 'orientadores' && $p->user !== null && $presente(TipoPessoaCredenciamento::Orientador, $p->user->id)) {
-                $linhas->push($this->linha(
-                    "user:{$p->user->id}", $p->user->name, $p->user->orientadorProfile?->cpf, $p->user->email,
-                    $p->user->orientadorProfile?->telefone, 'Orientador(a)', $tipo, $p->titulo, $categoria, null, $p->id,
-                ));
-            }
-
-            if ($publico === 'coorientadores' && $p->coorientador !== null && $presente(TipoPessoaCredenciamento::Coorientador, $p->coorientador->id)) {
-                $c = $p->coorientador;
-                $linhas->push($this->linha(
-                    "coorientador:{$c->id}", $c->nome, $c->cpf, $c->email, $c->telefone, 'Coorientador(a)', $tipo,
-                    $p->titulo, $categoria, null, $p->id,
-                ));
-            }
-
-            if ($publico === 'estudantes') {
+            foreach ($this->projetosDa($fase) as $p) {
                 foreach ($p->alunos as $a) {
-                    if ($presente(TipoPessoaCredenciamento::Aluno, $a->id)) {
+                    if ($this->presente($p, $fase, TipoPessoaCredenciamento::Aluno, $a->id)) {
                         $linhas->push($this->linha(
-                            "aluno:{$a->id}", $a->nome, $a->cpf, $a->email, $a->telefone, 'Estudante', $tipo,
-                            $p->titulo, $categoria, null, $p->id,
+                            "aluno:{$a->id}", $a->nome, $a->cpf, $a->email, $a->telefone, 'Expositor', $tipo,
+                            $p->titulo, null, $p->id,
                         ));
                     }
                 }
             }
+
+            return $linhas;
         }
 
-        return $linhas;
+        $juntar = in_array('orientadores', $publicos, true) && in_array('coorientadores', $publicos, true);
+        $funcao = $publico === 'orientadores' ? 'Orientador(a)' : 'Coorientador(a)';
+
+        return collect($this->orientacao($fase, $juntar)[$publico])
+            ->map(fn (array $g) => $this->linha(
+                $g['chaves'][0], $g['nome'], $g['cpf'], $g['email'], $g['telefone'], $funcao, $tipo,
+                implode('; ', $g['projetos']), null, $g['projeto_id'],
+            ) + ['chaves' => $g['chaves']])
+            ->values();
+    }
+
+    /**
+     * A orientação de uma fase, uma entrada por pessoa — o SICERT recusa CPF
+     * repetido. O orientador é reconhecido pela conta (o de três projetos é um
+     * só); o coorientador, que não tem conta e é cadastrado de novo em cada
+     * projeto, pelo CPF ou, sem ele, pelo e-mail com o mesmo nome. Com os dois
+     * públicos na lista, o coorientador que também orienta entra no registro
+     * de orientador e sai da categoria dele.
+     *
+     * @return array{orientadores: list<array<string, mixed>>, coorientadores: list<array<string, mixed>>}
+     */
+    private function orientacao(string $fase, bool $juntar): array
+    {
+        $cache = $fase.':'.(int) $juntar;
+        if (isset($this->orientacoes[$cache])) {
+            return $this->orientacoes[$cache];
+        }
+
+        $orientadores = [];
+        $coorientadores = [];
+
+        foreach ($this->projetosDa($fase) as $p) {
+            $u = $p->user;
+            if ($u !== null && $this->presente($p, $fase, TipoPessoaCredenciamento::Orientador, $u->id)) {
+                $orientadores[$u->id] ??= $this->grupo("user:{$u->id}", [
+                    'nome' => $u->name, 'cpf' => $u->orientadorProfile?->cpf, 'email' => $u->email,
+                    'telefone' => $u->orientadorProfile?->telefone,
+                ], $p->id);
+                $orientadores[$u->id]['projetos'][] = $p->titulo;
+            }
+
+            $c = $p->coorientador;
+            if ($c !== null && $this->presente($p, $fase, TipoPessoaCredenciamento::Coorientador, $c->id)) {
+                $pessoa = ['nome' => $c->nome, 'cpf' => $c->cpf, 'email' => $c->email, 'telefone' => $c->telefone];
+                $i = array_key_first(array_filter($coorientadores, fn (array $g) => $this->doGrupo($g, $pessoa)));
+
+                if ($i === null) {
+                    $coorientadores[] = $this->grupo("coorientador:{$c->id}", $pessoa, $p->id);
+                    $i = array_key_last($coorientadores);
+                } else {
+                    $this->juntarAo($coorientadores[$i], "coorientador:{$c->id}", $pessoa);
+                }
+                $coorientadores[$i]['projetos'][] = $p->titulo;
+            }
+        }
+
+        if ($juntar) {
+            foreach ($coorientadores as $i => $g) {
+                $dono = array_key_first(array_filter(
+                    $orientadores,
+                    fn (array $o) => collect($g['membros'])->contains(fn (array $m) => $this->doGrupo($o, $m)),
+                ));
+                if ($dono === null) {
+                    continue;
+                }
+
+                foreach ($g['membros'] as $j => $m) {
+                    $this->juntarAo($orientadores[$dono], $g['chaves'][$j], $m);
+                }
+                foreach ($g['projetos'] as $titulo) {
+                    $orientadores[$dono]['projetos'][] = "{$titulo} (coorientação)";
+                }
+                unset($coorientadores[$i]);
+            }
+        }
+
+        return $this->orientacoes[$cache] = [
+            'orientadores' => array_values($orientadores),
+            'coorientadores' => array_values($coorientadores),
+        ];
+    }
+
+    /**
+     * @param  array{nome: string, cpf: ?string, email: ?string, telefone: ?string}  $pessoa
+     * @return array<string, mixed>
+     */
+    private function grupo(string $chave, array $pessoa, int $projetoId): array
+    {
+        return $pessoa + ['chaves' => [$chave], 'membros' => [$pessoa], 'projeto_id' => $projetoId, 'projetos' => []];
+    }
+
+    /**
+     * Mais um vínculo da mesma pessoa: a chave entra (a correção de nome feita
+     * nela continua valendo) e o que faltava de contato é completado.
+     *
+     * @param  array<string, mixed>  $grupo
+     * @param  array<string, ?string>  $pessoa
+     */
+    private function juntarAo(array &$grupo, string $chave, array $pessoa): void
+    {
+        $grupo['chaves'][] = $chave;
+        $grupo['membros'][] = $pessoa;
+
+        foreach (['cpf', 'email', 'telefone'] as $campo) {
+            if (blank($grupo[$campo])) {
+                $grupo[$campo] = $pessoa[$campo] ?? null;
+            }
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $grupo
+     * @param  array<string, ?string>  $pessoa
+     */
+    private function doGrupo(array $grupo, array $pessoa): bool
+    {
+        return collect($grupo['membros'])->contains(fn (array $m) => $this->mesmaPessoa($m, $pessoa));
+    }
+
+    /**
+     * A regra do Cerimonial: com CPF dos dois lados, só o CPF decide; sem ele,
+     * o e-mail **e** o nome — o e-mail sozinho não basta, porque estudante sem
+     * e-mail próprio às vezes é cadastrado com o do professor.
+     *
+     * @param  array<string, ?string>  $a
+     * @param  array<string, ?string>  $b
+     */
+    private function mesmaPessoa(array $a, array $b): bool
+    {
+        $cpfA = $this->cpfDaPessoa($a['cpf'] ?? null);
+        $cpfB = $this->cpfDaPessoa($b['cpf'] ?? null);
+
+        if ($cpfA !== null && $cpfB !== null) {
+            return $cpfA === $cpfB;
+        }
+
+        $email = mb_strtolower(trim((string) ($a['email'] ?? '')));
+
+        return $email !== ''
+            && $email === mb_strtolower(trim((string) ($b['email'] ?? '')))
+            && Str::lower(Str::squish(Str::ascii((string) $a['nome']))) === Str::lower(Str::squish(Str::ascii((string) $b['nome'])));
+    }
+
+    /** O CPF que identifica alguém: onze dígitos que não sejam todos iguais. */
+    private function cpfDaPessoa(?string $cpf): ?string
+    {
+        $digitos = preg_replace('/\D/', '', (string) $cpf) ?? '';
+
+        return strlen($digitos) === 11 && ! preg_match('/^(\d)\1{10}$/', $digitos) ? $digitos : null;
+    }
+
+    /** Na presencial, quem não foi marcado veio ao balcão — a regra do credenciamento. */
+    private function presente(Projeto $p, string $fase, TipoPessoaCredenciamento $papel, ?int $id): bool
+    {
+        if ($fase !== 'presencial') {
+            return true;
+        }
+
+        $marcacao = $p->credenciamento?->pessoas
+            ->first(fn (CredenciamentoPessoa $m) => $m->pessoa_tipo === $papel && (int) $m->pessoa_id === (int) $id);
+
+        return $marcacao === null || $marcacao->presente;
     }
 
     private function esquecer(): void
     {
         $this->projetos = [];
         $this->avaliadores = [];
+        $this->orientacoes = [];
     }
 
     /** @return Collection<int, Projeto> */
@@ -587,7 +744,7 @@ class CertificadoListaService
     /** @return array<string, mixed> */
     private function linha(
         string $chave, string $nome, ?string $cpf, ?string $email, ?string $telefone, string $funcao,
-        string $tipo, ?string $titulo, ?string $campo, ?int $quantidade, ?int $projetoId = null, ?int $avaliadorId = null,
+        string $tipo, ?string $titulo, ?int $quantidade, ?int $projetoId = null, ?int $avaliadorId = null,
     ): array {
         $cpf = preg_replace('/\D/', '', (string) $cpf);
         $email = trim((string) $email);
@@ -601,7 +758,8 @@ class CertificadoListaService
             'funcao' => $funcao,
             'tipo_atividade' => $tipo,
             'titulo' => $titulo,
-            'campo_generico' => $campo,
+            // O SICERT não leva campo genérico (Sprint 262).
+            'campo_generico' => null,
             'quantidade' => $quantidade,
             'projeto_id' => $projetoId,
             'avaliador_id' => $avaliadorId,
@@ -684,9 +842,11 @@ class CertificadoListaService
 
         $linhas = $this->consultaGerada($lista, $categoria, '')->get();
         $base = 'certificados-'.(Str::slug($lista->nome) ?: 'lista').'-'.now()->format('Y-m-d');
+        // Título e campo genérico em branco (Sprint 262): o título fica na tela,
+        // no PDF e no TXT, para conferir. Vale também para lista gerada antes.
         $sicert = $linhas->map(fn (CertificadoLinha $l) => [
             $l->cpf ?? '', $l->nome, $l->email ?? '', $l->telefone ?? '', '', $l->funcao, $l->tipo_atividade,
-            $l->titulo ?? '', $l->campo_generico ?? '', $this->horas($l->minutos),
+            '', '', $this->horas($l->minutos),
             $l->data_inicio?->format('d/m/Y') ?? '', $l->data_fim?->format('d/m/Y') ?? '',
         ])->all();
 
