@@ -1121,7 +1121,27 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 260 | Certificados: **listas da edição** abaixo do botão (data, público, pessoas, quem gerou) com **Editar**, e a lista alterada depois de gerada | ✅ sim | ✅ sim (Pedro, PR #135 → v1.50) | 0 |
 | 261 | Segurança: roteiro e scripts para **recompilar o PHP 8.3.36** no Bitnami (PHP2Shell, CVE-2026-109618/109619) + `platform.php` 8.3.36 | ✅ sim | ✅ sim (Pedro, PR #135 → v1.50) | 0 |
 | 262 | Certificados: estudante como **Expositor**, SICERT sem **título** e sem **campo genérico**, e **um registro por pessoa** na orientação (orientador + coorientador) em cada fase | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 263 | Fix (CI): corrida do texto digitado nos combobox (`ComitePremiacao.test`) + segurança `symfony/mime` 7.4.22 (CVE-2026-45070), `follow-redirects` 1.16.2 e (dev) `undici` 8.12.3, `vitest` 4.1.12 | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
+> **Sprint 263 (mesma branch):** o CI do PR quebrou em dois jobs.
+> (a) **vitest** — `ComitePremiacao.test.jsx` › "busca o finalista pelo código no cartão" falhou no CI e passa local:
+> depois de digitar "jr.bio", a lista ainda mostrava o Bioplástico. Não veio da Sprint 262. `BuscaCombobox`,
+> `SubareaCombobox` e `InstituicaoCombobox` ressincronizavam o texto com a seleção num `useEffect`, que também rodava
+> **na montagem**. Num CI lento, o RTL solta o `findBy` (drenando com `setTimeout(0)`) antes de o React rodar os efeitos
+> passivos da tela recém-carregada. A digitação entrava primeiro, e o efeito atrasado devolvia o texto a "", com a lista
+> aberta e sem filtro. A ressincronização passou para o render (estado com a seleção anterior, o padrão do React para
+> "ajustar estado quando a prop muda"): só acontece quando a seleção muda de fato, e nunca atrasada. **Não consegui
+> reproduzir de forma determinística aqui**: a correção é pelo mecanismo, e o `BuscaCombobox.test.jsx` novo prende o
+> comportamento (filtro, seleção trocada por fora reescreve o texto, a mesma seleção não apaga o digitado).
+> (b) **security** — `composer audit` acusou CVE-2026-45070 (injeção de cabeçalho de e-mail pelo nome de parâmetro MIME)
+> em `symfony/mime` < 7.4.22, dependência transitiva do Laravel: `composer update symfony/mime --with-dependencies`
+> subiu para **7.4.22** (com `polyfill-intl-idn`/`-normalizer` 1.43.0 e `polyfill-mbstring` 1.43.3), só no lock. O
+> `npm audit --omit=dev --audit-level=high`, que roda depois no mesmo job, também ia quebrar: `follow-redirects` 1.16.1
+> (GHSA-mrwp-f3q8-3g9p) → **1.16.2**. De carona, nos de desenvolvimento: `undici` 8.12.3 (alto, via jsdom) e `vitest`
+> 4.1.12 (moderado). `package.json` não mudou; o lock foi refeito com `npx npm@11 update` (o npm 10 tira os campos
+> `libc` do lock), e o `npm ci` do npm 10 instala sem alterá-lo. `composer audit` e `npm audit` (com e sem dev) limpos.
+> Back **1734/1734**, front **996/996**, build OK.
+>
 > **Sprint 262 (branch `feat/certificados-sicert-cpf-unico`, saída da `main` @ `9d688f1`, v1.50):** três ajustes
 > pedidos para a importação no SICERT (`CertificadoListaService`). (a) A função do estudante passou de "Estudante"
 > para **"Expositor"**; o rótulo do público no assistente continua "Estudantes". (b) No **Excel e no CSV do SICERT**
