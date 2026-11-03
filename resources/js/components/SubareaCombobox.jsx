@@ -26,8 +26,15 @@ export default function SubareaCombobox({
     const [criando, setCriando] = useState(false);
     const boxRef = useRef(null);
 
-    // Ressincroniza o texto quando a seleção externa muda (ex.: troca de área limpa).
-    useEffect(() => { setQuery(value?.nome ?? ''); }, [value?.id, value?.nome]);
+    // Ressincroniza o texto quando a seleção muda por fora (ex.: troca de área limpa). A conta é
+    // feita no render, e não num efeito: o efeito também rodava na montagem e,
+    // atrasado (CI lento), apagava o que já tinha sido digitado.
+    const selecao = `${value?.id ?? ''}|${value?.nome ?? ''}`;
+    const [sincronizada, setSincronizada] = useState(selecao);
+    if (sincronizada !== selecao) {
+        setSincronizada(selecao);
+        setQuery(value?.nome ?? '');
+    }
 
     // Fecha ao clicar fora.
     useEffect(() => {
