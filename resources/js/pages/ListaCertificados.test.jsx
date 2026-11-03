@@ -25,8 +25,8 @@ describe('ListaCertificados', () => {
         getLinhas.mockResolvedValue({
             data: [{
                 id: 1, categoria: 'estudantes_online', nome: 'Zuleica N. Silva', nome_original: 'Zuleica Nunes', corrigido: true,
-                cpf: null, email: 'z@x.test', telefone: null, funcao: 'Estudante', tipo_atividade: 'Fase online', titulo: 'Biofiltro',
-                campo_generico: 'FETECMS', quantidade: null, minutos: 300, horas: 5, teto_aplicado: false, data_inicio: '01/08/2026', data_fim: '15/09/2026',
+                cpf: null, email: 'z@x.test', telefone: null, funcao: 'Expositor', tipo_atividade: 'Fase online', titulo: 'Biofiltro',
+                campo_generico: null, quantidade: null, minutos: 300, horas: 5, teto_aplicado: false, data_inicio: '01/08/2026', data_fim: '15/09/2026',
             }],
             meta: { pagina: 1, ultima_pagina: 1, total: 1, resumo: RESUMO },
         });
@@ -39,6 +39,10 @@ describe('ListaCertificados', () => {
         expect(screen.getByText('No cadastro: Zuleica Nunes')).toBeInTheDocument();
         expect(screen.getByText(/alterada depois de gerada/)).toBeInTheDocument();
         expect(screen.getByText(/Gerada em .* por Olga Organizadora/)).toBeInTheDocument();
+        // O título fica na tela para conferir, mas não vai ao SICERT.
+        expect(screen.getByText('Biofiltro')).toBeInTheDocument();
+        expect(screen.getByText(/título do trabalho e o campo genérico vão em branco/)).toBeInTheDocument();
+        expect(screen.queryByText('Campo genérico')).not.toBeInTheDocument();
 
         fireEvent.click(screen.getByRole('button', { name: /Estudantes — fase online/ }));
         await waitFor(() => expect(getLinhas).toHaveBeenLastCalledWith('3', { categoria: 'estudantes_online', q: '', page: 1 }));

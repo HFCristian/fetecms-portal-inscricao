@@ -754,8 +754,11 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     **carga horária** de cada categoria (público × fase), com o período (vem de Datas e períodos) → **resumo**,
     com *Conferir nomes* em cada categoria. Online = equipe dos projetos **submetidos pela inscrição** e quem
     concluiu avaliação online; presencial = quem o balcão marcou **presente** num credenciamento concluído, quem
-    avaliou no estande e os voluntários (contas temporárias); admin não tem fase. **Um certificado por projeto**
-    (orientador de três projetos recebe três; avaliador, um por fase). A carga é **fixa** (orientação, estudante,
+    avaliou no estande e os voluntários (contas temporárias); admin não tem fase. O estudante sai com a função
+    **Expositor** e um certificado por projeto; a **orientação tem um registro por pessoa em cada fase** (Sprint 262 —
+    o SICERT recusa CPF repetido): o orientador de três projetos recebe um, e quem orienta e coorienta fica só como
+    orientador, com a carga da orientação, reconhecido pelo CPF ou, sem ele, pelo e-mail com o mesmo nome; o
+    avaliador recebe um por fase. A carga é **fixa** (orientação, estudante,
     admin) ou **por unidade** — por projeto avaliado (avaliadores, padrão 2h30 até 120h, a regra do perfil) ou por
     turno (voluntário; sem turnos conta um) — com **teto** opcional; o arquivo leva **horas inteiras arredondadas
     para cima**. Em *Conferir nomes* o lápis corrige o nome **só na lista** (`certificado_listas.nomes`, por
@@ -764,7 +767,8 @@ inclusive o não-quebrável do copiar/colar) antes de ser gravado — trait `Nor
     **Gerar** congela o retrato em `certificado_linhas` e abre a lista em **tela cheia**
     (`/admin/certificados/listas/{id}`): cards por categoria, tabela filtrável e exportação em **Excel e CSV no
     modelo de importação do SICERT** (`CPF;NOME;E-MAIL;TELEFONE;COAUTORES;FUNCAO;TIPO DA ATIVIDADE;TITULO DO
-    TRABALHO/ATIVIDADE;CAMPO GENERICO;CARGA HORARIA;DATA INICIO;DATA FIM`, CPF só dígitos, CSV sem BOM), PDF e TXT,
+    TRABALHO/ATIVIDADE;CAMPO GENERICO;CARGA HORARIA;DATA INICIO;DATA FIM`, CPF só dígitos, CSV sem BOM, **título e
+    campo genérico em branco** — o projeto fica na tela, no PDF e no TXT, para conferir), PDF e TXT,
     no recorte da categoria. Abaixo do botão ficam as **listas da edição** (rascunhos e geradas: data, público,
     pessoas, quem gerou) com **Editar**, que volta ao assistente; editar uma lista gerada a marca *alterada* até ela
     ser gerada de novo.
@@ -1113,11 +1117,56 @@ Manter o registro abaixo atualizado a cada sprint para auditar a regra das "3 sp
 | 256 | Fix (segurança): `follow-redirects` 1.16.0 → 1.16.1 (job security do CI) + `vite` 8.2.2 → 8.3.4 (dev) | ✅ sim | ✅ sim (Pedro, PR #128 → v1.47) | 0 |
 | 257 | Slides da premiação no **modelo da organização** (Canva "FETEC FUNDECT"): abertura por colocação, um slide por projeto com foto, por categoria | ✅ sim | ✅ sim (Pedro, PR #133) | 0 |
 | 258 | Credenciais e Prêmios: **editar o item inteiro** (vagas até o nº de premiados) + fix: **nome repetido** dava erro interno | ✅ sim | ✅ sim (Pedro, v1.49) | 0 |
-| 259 | Certificados: **assistente** (fases → público → carga com teto → resumo), *Conferir nomes* e a lista gerada em **tela cheia** com Excel/CSV do **SICERT**, PDF e TXT | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 260 | Certificados: **listas da edição** abaixo do botão (data, público, pessoas, quem gerou) com **Editar**, e a lista alterada depois de gerada | ✅ sim | ❌ não (manual do Pedro) | 1 |
-| 261 | Segurança: roteiro e scripts para **recompilar o PHP 8.3.36** no Bitnami (PHP2Shell, CVE-2026-109618/109619) + `platform.php` 8.3.36 | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 259 | Certificados: **assistente** (fases → público → carga com teto → resumo), *Conferir nomes* e a lista gerada em **tela cheia** com Excel/CSV do **SICERT**, PDF e TXT | ✅ sim | ✅ sim (Pedro, PR #135 → v1.50) | 0 |
+| 260 | Certificados: **listas da edição** abaixo do botão (data, público, pessoas, quem gerou) com **Editar**, e a lista alterada depois de gerada | ✅ sim | ✅ sim (Pedro, PR #135 → v1.50) | 0 |
+| 261 | Segurança: roteiro e scripts para **recompilar o PHP 8.3.36** no Bitnami (PHP2Shell, CVE-2026-109618/109619) + `platform.php` 8.3.36 | ✅ sim | ✅ sim (Pedro, PR #135 → v1.50) | 0 |
+| 262 | Certificados: estudante como **Expositor**, SICERT sem **título** e sem **campo genérico**, e **um registro por pessoa** na orientação (orientador + coorientador) em cada fase | ✅ sim | ❌ não (manual do Pedro) | 1 |
+| 263 | Fix (CI): corrida do texto digitado nos combobox (`ComitePremiacao.test`) + segurança `symfony/mime` 7.4.22 (CVE-2026-45070), `follow-redirects` 1.16.2 e (dev) `undici` 8.12.3, `vitest` 4.1.12 | ✅ sim | ❌ não (manual do Pedro) | 1 |
 
-> **Sprint 261 (mesma branch):** o servidor de produção é um **Bitnami no Lightsail** com **PHP 8.3.22**,
+> **Sprint 263 (mesma branch):** o CI do PR quebrou em dois jobs.
+> (a) **vitest** — `ComitePremiacao.test.jsx` › "busca o finalista pelo código no cartão" falhou no CI e passa local:
+> depois de digitar "jr.bio", a lista ainda mostrava o Bioplástico. Não veio da Sprint 262. `BuscaCombobox`,
+> `SubareaCombobox` e `InstituicaoCombobox` ressincronizavam o texto com a seleção num `useEffect`, que também rodava
+> **na montagem**. Num CI lento, o RTL solta o `findBy` (drenando com `setTimeout(0)`) antes de o React rodar os efeitos
+> passivos da tela recém-carregada. A digitação entrava primeiro, e o efeito atrasado devolvia o texto a "", com a lista
+> aberta e sem filtro. A ressincronização passou para o render (estado com a seleção anterior, o padrão do React para
+> "ajustar estado quando a prop muda"): só acontece quando a seleção muda de fato, e nunca atrasada. **Não consegui
+> reproduzir de forma determinística aqui**: a correção é pelo mecanismo, e o `BuscaCombobox.test.jsx` novo prende o
+> comportamento (filtro, seleção trocada por fora reescreve o texto, a mesma seleção não apaga o digitado).
+> (b) **security** — `composer audit` acusou CVE-2026-45070 (injeção de cabeçalho de e-mail pelo nome de parâmetro MIME)
+> em `symfony/mime` < 7.4.22, dependência transitiva do Laravel: `composer update symfony/mime --with-dependencies`
+> subiu para **7.4.22** (com `polyfill-intl-idn`/`-normalizer` 1.43.0 e `polyfill-mbstring` 1.43.3), só no lock. O
+> `npm audit --omit=dev --audit-level=high`, que roda depois no mesmo job, também ia quebrar: `follow-redirects` 1.16.1
+> (GHSA-mrwp-f3q8-3g9p) → **1.16.2**. De carona, nos de desenvolvimento: `undici` 8.12.3 (alto, via jsdom) e `vitest`
+> 4.1.12 (moderado). `package.json` não mudou; o lock foi refeito com `npx npm@11 update` (o npm 10 tira os campos
+> `libc` do lock), e o `npm ci` do npm 10 instala sem alterá-lo. `composer audit` e `npm audit` (com e sem dev) limpos.
+> Back **1734/1734**, front **996/996**, build OK.
+>
+> **Sprint 262 (branch `feat/certificados-sicert-cpf-unico`, saída da `main` @ `9d688f1`, v1.50):** três ajustes
+> pedidos para a importação no SICERT (`CertificadoListaService`). (a) A função do estudante passou de "Estudante"
+> para **"Expositor"**; o rótulo do público no assistente continua "Estudantes". (b) No **Excel e no CSV do SICERT**
+> as colunas TITULO DO TRABALHO/ATIVIDADE e CAMPO GENERICO saem **em branco** para todos os públicos (decisão do
+> Pedro), e o cabeçalho do modelo continua inteiro. O campo genérico (que era a categoria do projeto) deixou de ser
+> calculado; o título continua na tela da lista, em *Conferir nomes*, no PDF e no TXT, que servem para conferir, e a
+> tabela da lista perdeu a coluna "Campo genérico". O branco é aplicado na exportação, então vale também para lista
+> gerada antes. (c) O SICERT recusa CPF repetido, e a orientação saía com um registro por projeto. Agora é **um
+> registro por pessoa em cada fase** (decisão do Pedro: online e presencial seguem separadas, como importações
+> diferentes): o orientador é agrupado pela conta, e o coorientador — que é cadastrado de novo em cada projeto — pelo
+> **CPF** ou, sem ele, pelo **e-mail com o mesmo nome** (a regra do Cerimonial, `mesmaPessoa()`). Com os dois públicos
+> na lista, quem orienta e coorienta fica **só como Orientador(a)**, com a **carga da orientação uma vez** (sem somar
+> projetos), e sai da categoria de coorientadores; sem o público de orientadores, a coorientação dele continua. Na
+> presencial só conta o vínculo marcado presente. A linha única lista os projetos no título ("Biofiltro; Cisterna
+> (coorientação)"), e a correção de nome feita em qualquer chave do grupo vale nela. O estudante em dois projetos e o
+> avaliador nas duas fases não mudaram.
+> Back **1734/1734**, front **994/994**, Pint limpo, build OK.
+>
+> **Pendências do Pedro (Sprint 262):** (1) push + PR. **Sem migration**, `.env` ou dependência nova; `npm run build`
+> no deploy. (2) **Listas já geradas**: o título e o campo genérico já saem em branco no arquivo, mas o Expositor e o
+> registro único só aparecem depois de **Gerar novamente**. (3) Exporte **uma categoria por vez** (ou uma fase) para o
+> SICERT: no arquivo de "todas as categorias", o orientador da online e o da presencial, ou o avaliador das duas fases,
+> continuam com o mesmo CPF em duas linhas.
+
+> **Sprint 261 (branch `feat/certificados-wizard-e-php`):** o servidor de produção é um **Bitnami no Lightsail** com **PHP 8.3.22**,
 > vulnerável ao **PHP2Shell** (CVE-2026-109618 e CVE-2026-109619, RCE sem autenticação, CVSS 9,2; corrigido em
 > 8.2.35 / 8.3.36 / 8.4.27 / 8.5.12, em 21/10/2026). O Bitnami compila o PHP em `/opt/bitnami/php` e não há `apt`
 > para atualizá-lo; o caminho escolhido (decisão do Pedro) é **recompilar o 8.3.36 com a mesma linha de configure**,

@@ -23,8 +23,15 @@ export default function BuscaCombobox({
     const [open, setOpen] = useState(false);
     const boxRef = useRef(null);
 
-    // Ressincroniza o texto quando a seleção muda por fora (ex.: trocar o tipo de alvo).
-    useEffect(() => { setQuery(value?.nome ?? ''); }, [value?.id, value?.nome]);
+    // Ressincroniza o texto quando a seleção muda por fora (ex.: trocar o tipo de alvo). A conta é
+    // feita no render, e não num efeito: o efeito também rodava na montagem e,
+    // atrasado (CI lento), apagava o que já tinha sido digitado.
+    const selecao = `${value?.id ?? ''}|${value?.nome ?? ''}`;
+    const [sincronizada, setSincronizada] = useState(selecao);
+    if (sincronizada !== selecao) {
+        setSincronizada(selecao);
+        setQuery(value?.nome ?? '');
+    }
 
     // Fecha ao clicar fora.
     useEffect(() => {

@@ -158,6 +158,10 @@ export default function ListaCertificados() {
                                     </Button>
                                 ))}
                             </div>
+                            <p className="text-xs text-on-surface-variant -mt-2 mb-4">
+                                No Excel e no CSV do SICERT, o título do trabalho e o campo genérico vão em branco. A coluna
+                                Projeto / atividade fica aqui, no PDF e no TXT, para conferir.
+                            </p>
 
                             <div className="overflow-x-auto">
                                 <table className="w-full text-sm">
@@ -167,8 +171,7 @@ export default function ListaCertificados() {
                                             <th className="px-2 py-2">CPF</th>
                                             <th className="px-2 py-2">Contato</th>
                                             <th className="px-2 py-2">Função</th>
-                                            <th className="px-2 py-2">Título do trabalho / atividade</th>
-                                            <th className="px-2 py-2">Campo genérico</th>
+                                            <th className="px-2 py-2">Projeto / atividade</th>
                                             <th className="px-2 py-2 text-center">Carga</th>
                                             <th className="px-2 py-2">Período</th>
                                         </tr>
@@ -193,7 +196,6 @@ export default function ListaCertificados() {
                                                     <p className="text-on-surface-variant">{l.tipo_atividade}</p>
                                                 </td>
                                                 <td className="px-2 py-2 text-xs">{l.titulo}</td>
-                                                <td className="px-2 py-2 text-xs">{l.campo_generico ?? '—'}</td>
                                                 <td className="px-2 py-2 text-center">
                                                     <p className="font-bold text-secondary">{l.horas}h</p>
                                                     {l.teto_aplicado && <p className="text-[11px] text-on-surface-variant">no limite</p>}
@@ -205,10 +207,10 @@ export default function ListaCertificados() {
                                             </tr>
                                         ))}
                                         {linhas?.length === 0 && (
-                                            <tr><td colSpan={8} className="px-2 py-6 text-center text-on-surface-variant">Nenhum certificado neste recorte.</td></tr>
+                                            <tr><td colSpan={7} className="px-2 py-6 text-center text-on-surface-variant">Nenhum certificado neste recorte.</td></tr>
                                         )}
                                         {linhas === null && !erro && (
-                                            <tr><td colSpan={8} className="px-2 py-6 text-center text-on-surface-variant">Carregando…</td></tr>
+                                            <tr><td colSpan={7} className="px-2 py-6 text-center text-on-surface-variant">Carregando…</td></tr>
                                         )}
                                     </tbody>
                                 </table>
